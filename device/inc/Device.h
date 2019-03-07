@@ -1,0 +1,106 @@
+/*
+ * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#ifndef DEVICE_H
+#define DEVICE_H
+#include <iostream>
+#include <mutex>
+#include <memory>
+#include "QalApi.h"
+#include "QalDefs.h"
+#include <string.h>
+#include "QalCommon.h"
+
+#define PCM_CAPTURE 0;
+#define PCM_PLAYBACK 1;
+
+class ResourceManager;
+
+class Device
+{
+protected:
+    Device();
+    std::mutex mutex;
+    struct qal_device deviceAttr;
+    std::shared_ptr<ResourceManager> rm;
+public:
+    int getDeviceId();
+    virtual int open() = 0;
+    virtual int close() = 0;
+    virtual int start() = 0;
+    virtual int stop() = 0;
+    virtual int prepare() = 0;
+    int setDeviceAttributes (struct qal_device dattr);
+    int getDeviceAtrributes (struct qal_device *dattr);
+    static std::shared_ptr<Device> create (struct qal_device *device,
+                                           std::shared_ptr<ResourceManager> Rm);
+
+    ~Device();
+};
+
+/*
+class Headset : public Device
+{
+public:
+    int open() override;
+    int close() override;
+    int start() override;
+    int stop() override;
+    int setDeviceAttributes (device_attributes dattr);
+    int getDeviceAtrributes (device_attributes *dattr) override;
+
+};
+
+class Hdmi : public Device
+{
+public:
+    int open() override;
+    int close() override;
+    int start() override;
+    int stop() override;
+    int setDeviceAttributes (device_attributes dattr);
+    int getDeviceAtrributes (device_attributes *dattr) override;
+
+};
+
+class Usb : public Device
+{
+public:
+    int open() override;
+    int close() override;
+    int start() override;
+    int stop() override;
+    int setDeviceAttributes (device_attributes dattr);
+    int getDeviceAtrributes (device_attributes *dattr) override;
+
+};
+*/
+
+
+#endif //DEVICE_H
