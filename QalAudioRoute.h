@@ -30,7 +30,6 @@
 #ifndef AUDIO_HW
 #define AUDIO_HW
 
-#include <log/log.h>
 #include "audio_route/audio_route.h"
 
 inline void enableDevice(struct audio_route *ar, char * device_name)
