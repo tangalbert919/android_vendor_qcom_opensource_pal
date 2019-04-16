@@ -35,9 +35,12 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
+#include <string>
 #include "audio_route/audio_route.h"
 #include <tinyalsa/asoundlib.h>
 #include "QalCommon.h"
+#include <map>
+#include <expat.h>
 
 #define audio_mixer mixer
 
@@ -45,7 +48,8 @@ class Device;
 class Stream;
 class StreamPCM;
 class StreamCompress;
-
+class StreamSoundTrigger;
+class SoundTriggerEngine;
 
 class ResourceManager
 {
@@ -54,6 +58,8 @@ protected:
  std::vector <StreamPCM*> active_streams_ulla;
  std::vector <StreamPCM*> active_streams_db;
  std::vector <StreamCompress*> active_streams_comp;
+ std::vector <StreamSoundTrigger*> active_streams_st;
+ std::vector <SoundTriggerEngine*> active_engines_st;
  std::vector <std::shared_ptr<Device>> active_devices;
  bool bOverwriteFlag;
  std::mutex mutex;
@@ -61,7 +67,13 @@ protected:
  static std::shared_ptr<ResourceManager> rm;
  struct audio_route* audio_route = NULL;
  struct audio_mixer* audio_mixer;
- 
+ static std::vector <int> streamTag;
+ static std::vector <int> streamPpTag;
+ static std::vector <int> mixerTag;
+ static std::vector <int> devicePpTag;
+ static std::vector <int> deviceTag;
+ static std::vector<std::pair<int32_t, int32_t>> devicePcmId;
+ static std::vector<std::pair<int32_t, std::string>> deviceLinkName;
  ResourceManager();
 public:
  ~ResourceManager();
@@ -77,12 +89,28 @@ public:
  static int init();
  static void deinit();
  static std::shared_ptr<ResourceManager> getInstance();
+ static int XmlParser(std::string xmlFile);
+ static void updatePcmId(int32_t deviceId, int32_t pcmId);
+ static void updateLinkName(int32_t deviceId, std::string linkName);
+ static void updateStreamTag(int32_t tagId);
+ static void updateDeviceTag(int32_t tagId);
  int getSndCard();
  int getPcmDeviceId(int deviceId);
  int getaudioroute(struct audio_route** ar);
  int getaudiomixer(struct audio_mixer *am);
- int getactivestreams(std::shared_ptr<Device> d, std::vector<Stream*> activestreams);
+ int getactivestreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
  int getDeviceName(int deviceId, char *device_name);
+ int getDeviceEpName(int deviceId, std::string &epName);
+ int getStreamTag(std::vector <int> &tag);
+ int getDeviceTag(std::vector <int> &tag);
+ int getMixerTag(std::vector <int> &tag);
+ int getStreamPpTag(std::vector <int> &tag);
+ int getDevicePpTag(std::vector <int> &tag);
+
+ static void endTag(void *userdata __unused, const XML_Char *tag_name);
+ static void processDeviceInfo(const XML_Char **attr);
+ static void processTagInfo(const XML_Char **attr);
+ static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
 };
 
 #endif

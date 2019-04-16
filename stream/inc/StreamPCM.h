@@ -41,6 +41,7 @@ class StreamPCM : public Stream
 public:
    StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr, uint32_t no_of_devices,
             struct modifier_kv *modifiers, uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
+   //StreamPCM();
    ~StreamPCM();
    int32_t open() override;
    int32_t close() override;
@@ -48,9 +49,18 @@ public:
    int32_t stop() override;
    int32_t prepare() override;
    int32_t setStreamAttributes( struct qal_stream_attributes *sattr) override;
+   int32_t setVolume( struct qal_volume_data *volume) override;
+   int32_t setMute( bool state) override;
+   int32_t setPause() override;
+   int32_t setResume() override;
    int32_t read(struct qal_buffer *buf) override;
    int32_t write(struct qal_buffer *buf) override;
-   int32_t registerCallBack() override;
+   int32_t registerCallBack(qal_stream_callback cb) override;
+   int32_t getCallBack(qal_stream_callback *cb) override;
+   int32_t setParameters(uint32_t param_id, void *payload) override;
+   static int32_t isSampleRateSupported(uint32_t sampleRate);
+   static int32_t isChannelSupported(uint32_t numChannels);
+   static int32_t isBitWidthSupported(uint32_t bitWidth);
 };
 
 #endif//STREAMPCM_H_

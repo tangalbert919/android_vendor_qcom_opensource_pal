@@ -35,6 +35,7 @@
 #include <vector>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <memory>
 #include <mutex>
 #include <exception>
@@ -50,6 +51,12 @@ typedef enum {
 #define BUF_SIZE 1024
 #define BUF_SIZE_CAPTURE 1920
 #define NO_OF_BUF 4
+#define TRUE 1
+#define FALSE 0
+#define MUTE_TAG 0
+#define UNMUTE_TAG 1
+#define PAUSE_TAG 2
+#define RESUME_TAG 3
 
 class Device;
 class ResourceManager;
@@ -63,6 +70,7 @@ protected:
     std::shared_ptr <Device> dev;
     Session* session;
     struct qal_stream_attributes* attr;
+    struct qal_volume_data* vdata = NULL;
     std::mutex mutex;
     static std::mutex mtx;
     static std::shared_ptr<ResourceManager> rm;
@@ -76,14 +84,21 @@ public:
     virtual int32_t stop() = 0;
     virtual int32_t prepare() = 0;
     virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
+    virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
+    virtual int32_t setMute( bool state) = 0;
+    virtual int32_t setPause() = 0;
+    virtual int32_t setResume()= 0;
     virtual int32_t read(struct qal_buffer *buf) = 0;
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
-    int32_t getModifiers(struct modifiers_kv *modifiers,uint32_t noOfModifiers);
+    int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     int32_t getStreamType(qal_stream_type_t* streamType);
     virtual int32_t write(struct qal_buffer *buf) = 0;
-    virtual int32_t registerCallBack() = 0;
-    int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> adevices);
-    int32_t getAssociatedSession(Session* session);
+    virtual int32_t registerCallBack(qal_stream_callback cb) = 0;
+    virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
+    virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
+    int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
+    int32_t getAssociatedSession(Session** session);
+    int32_t getVolumeData(struct qal_volume_data *vData);
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct qal_stream_attributes *sattr, struct qal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);

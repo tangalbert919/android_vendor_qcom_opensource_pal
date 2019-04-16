@@ -47,6 +47,7 @@ else
 h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamCompress.h \
             ${top_srcdir}/stream/inc/StreamPCM.h \
+            ${top_srcdir}/stream/inc/StreamSoundTrigger.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/Speaker.h \
             ${top_srcdir}/device/inc/CodecDevice.h \
@@ -57,21 +58,27 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
+            ${top_srcdir}/session/inc/SoundTriggerEngine.h \
+            ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
+            ${top_srcdir}/session/inc/SoundTriggerEngineCapiCnn.h \
             ${top_srcdir}/resource_manager/inc/ResourceManager.h \
             ${top_srcdir}/QalDefs.h \
             ${top_srcdir}/QalApi.h \
             ${top_srcdir}/QalAudioRoute.h \
-            ${top_srcdir}/QalCommon.h
+            ${top_srcdir}/QalCommon.h \
+            ${top_srcdir}/utils/inc/QalRingBuffer.h
 
 AM_CPPFLAGS := -I $(top_srcdir)/stream/inc
 AM_CPPFLAGS += -I $(top_srcdir)/device/inc
 AM_CPPFLAGS += -I $(top_srcdir)/session/inc
 AM_CPPFLAGS += -I $(top_srcdir)/resource_manager/inc
+AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
 
 qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
               ${top_srcdir}/stream/src/StreamPCM.cpp \
+              ${top_srcdir}/stream/src/StreamSoundTrigger.cpp \
               ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/Speaker.cpp \
               ${top_srcdir}/device/src/CodecDeviceAlsa.cpp \
@@ -82,8 +89,12 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
+              ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
+              ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
+              ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \
               ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
-              ${top_srcdir}/Qal.cpp
+              ${top_srcdir}/Qal.cpp \
+              ${top_srcdir}/utils/src/QalRingBuffer.cpp
 
 endif
 
@@ -95,9 +106,10 @@ library_includedir = $(includedir)/qal
 
 lib_LTLIBRARIES     = libqal.la
 libqal_la_SOURCES   = $(qal_sources)
-libqal_la_LIBADD    = -ltinyalsa -laudioroute -lcasa_osal
+libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lcasa_osal -lexpat
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
 libqal_la_CPPFLAGS += -DNDEBUG
 libqal_la_LDFLAGS   = -shared -avoid-version
+libqal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -include glib.h

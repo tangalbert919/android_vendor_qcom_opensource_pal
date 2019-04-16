@@ -31,12 +31,14 @@
 
 #include "CodecDevice.h"
 #include <tinyalsa/asoundlib.h>
+//#include "AudioHW.h"
 #include "CodecDeviceAlsa.h"
 #include "ResourceManager.h"
 #include "Device.h"
 #include "Speaker.h"
 #include "SpeakerMic.h"
 #include "CodecDeviceGsl.h"
+#include "Stream.h"
 
 
 std::shared_ptr<Device> CodecDevice::devObj = nullptr;
@@ -61,38 +63,41 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std:
 }
 
 
-CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
-{
+CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) {
     rm = Rm;
     memset(&deviceAttr, 0, sizeof(struct qal_device));
     memcpy(&deviceAttr, device, sizeof(struct qal_device));
 }
 
-CodecDevice::CodecDevice()
-{
-
-}
-CodecDevice::~CodecDevice()
-{
+CodecDevice::CodecDevice() {
 
 }
 
-int CodecDevice::open()
-{
+CodecDevice::~CodecDevice() {
+
+}
+
+int CodecDevice::open() {
     int status = 0;
     mutex.lock();
     //#ifdef CONFIG_GSL
-    if(pcmFd == NULL){
+    void *stream;
+    if(pcmFd == NULL) {
         CodecDeviceGsl *gsl = new CodecDeviceGsl();
         pcmFd = gsl->open(&(this->deviceAttr), rm);
-        if(NULL == pcmFd)
-        {
+        if(NULL == pcmFd) {
             status = -ENOMEM;
             QAL_ERR(LOG_TAG,"%s: Failed to open the device", __func__);
         }
 	    deviceHandle = static_cast<void *>(gsl);
     }
-
+    std::vector<Stream*> activestreams;
+    status = rm->getactivestreams(devObj, activestreams);
+    for (int i = 0; i < activestreams.size(); i++) {
+        stream = static_cast<void *>(activestreams[i]);
+        QAL_ERR(LOG_TAG,"Stream handle :%p",activestreams[i]);
+        QAL_ERR(LOG_TAG,"coverted handle:%p",stream);
+    }
 	//#endif
     mutex.unlock();
 
@@ -103,17 +108,14 @@ int CodecDevice::open()
     return status;
 }
 
-int CodecDevice::close()
-{
+int CodecDevice::close() {
     int status = 0;
     mutex.lock();
-    if(deviceCount == 0)
-    {
+    if(deviceCount == 0) {
         //#ifdef CONFIG_GSL
         CodecDeviceGsl *gsl= static_cast<CodecDeviceGsl *>(deviceHandle);
         status = gsl->close(pcmFd);
-        if(0 != status)
-        {
+        if(0 != status) {
             status = -ENOMEM;
             QAL_ERR(LOG_TAG,"%s: Failed to close the device", __func__);
         }
@@ -128,8 +130,7 @@ int CodecDevice::close()
      return status;
 }
 
-int CodecDevice::prepare()
-{
+int CodecDevice::prepare() {
     int status = 0;
     mutex.lock();
     if(deviceCount == 0)

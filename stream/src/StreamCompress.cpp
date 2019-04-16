@@ -41,10 +41,10 @@ StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr, struct qal_d
     Session* session = NULL;
     dev = nullptr;
 
-    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    QAL_ERR(LOG_TAG,"%s: enter", __func__);
 
     #ifdef CONFIG_GSL
-        session = new SessionGsl();
+        session = new SessionGsl(rm);
     #else
         session = new SessionAlsaCompress();
     #endif
@@ -102,7 +102,40 @@ int32_t StreamCompress::write(struct qal_buffer *buf)
     return 0;
 }
 
-int32_t StreamCompress::registerCallBack()
+int32_t StreamCompress::registerCallBack(qal_stream_callback cb)
 {
     return 0;
+}
+
+int32_t StreamCompress::getCallBack(qal_stream_callback *cb)
+{
+    return 0;
+}
+
+int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
+{
+    return 0;
+}
+
+int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
+{
+    int32_t status = 0;
+    return status;
+}
+int32_t  StreamCompress::setMute( bool state)
+{
+    int32_t status = 0;
+    return status;
+}
+
+int32_t  StreamCompress::setPause()
+{
+    int32_t status = 0;
+    return status;
+}
+
+int32_t  StreamCompress::setResume()
+{
+    int32_t status = 0;
+    return status;
 }

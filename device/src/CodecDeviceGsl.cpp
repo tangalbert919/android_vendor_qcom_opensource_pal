@@ -50,7 +50,7 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<Res
     int sndCard = rm_->getSndCard();
    //int snd_card = 0;
     int pcmId = rm_->getPcmDeviceId(device->id);
-    QAL_ERR(LOG_TAG,"pcm id %d and soundcard %d", pcmId, sndCard);
+    QAL_VERBOSE(LOG_TAG,"pcm id %d and soundcard %d", pcmId, sndCard);
     //int pcm_id = 0;
     int flags;
     struct pcm_config config;
@@ -81,7 +81,7 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<Res
     pcmFd = pcm_open(sndCard, pcmId, flags, &config);
     if (NULL == pcmFd)
         QAL_ERR(LOG_TAG,"%s: Failed to open the the device",__func__);
-    QAL_VERBOSE(LOG_TAG,"%s:PCMFd %p %d",__func__, pcmFd, errno);
+    QAL_ERR(LOG_TAG,"%s:PCMFd %p %d",__func__, pcmFd, errno);
     return pcmFd;
 }
 
@@ -105,7 +105,7 @@ int CodecDeviceGsl::start(struct pcm *pcmFd)
          QAL_ERR(LOG_TAG,"%s: Invalid pcmFd to start the device",__func__);
          return -EINVAL;
      }
-     QAL_VERBOSE(LOG_TAG,"%s:PCMFd %p",__func__, pcmFd);
+     QAL_ERR(LOG_TAG,"%s:PCMFd %p",__func__, pcmFd);
      //status = pcm_start(pcmFd);
      //QAL_ERR(LOG_TAG,"%d status %d", errno, status);
      return status;

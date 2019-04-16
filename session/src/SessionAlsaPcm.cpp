@@ -29,6 +29,7 @@
 
 #include "SessionAlsaPcm.h"
 #include "Stream.h"
+#include "ResourceManager.h"
 
 SessionAlsaPcm::SessionAlsaPcm()
 {

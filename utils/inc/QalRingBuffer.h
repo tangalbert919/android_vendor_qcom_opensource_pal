@@ -27,24 +27,65 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPEAKERMIC_H
-#define SPEAKERMIC_H
 
-#include "Device.h"
-#include "CodecDevice.h"
+#include <stdlib.h>
+#include <memory>
+#include <mutex>
+#include <vector>
+#include <string>
+#include <iostream>
+#include <string.h>
 
-class SpeakerMic : public CodecDevice
+#ifndef QALRINGBUFFER_H_
+#define QALRINGBUFFER_H_
+
+#define DEFAULT_QAL_RING_BUFFER_SIZE 4096 * 10
+
+class QalRingBuffer;
+
+class QalRingBufferReader
 {
 protected:
-    static std::shared_ptr<Device> obj;
-    SpeakerMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    std::shared_ptr <QalRingBuffer> ringBuffer_;
+    size_t unreadSize_;
+    size_t readOffset_;
+
 public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    ~SpeakerMic();
+    size_t advanceReadOffset(size_t advanceSize);
+    size_t read(void* readBuffer, size_t readSize);
+    QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
+        readOffset_(0),
+        unreadSize_(0),
+        ringBuffer_((std::shared_ptr<QalRingBuffer>)buffer)
+    {/* empty constructor */}
+
+    ~QalRingBufferReader();
+    friend class QalRingBuffer;
+    friend class StreamSoundTrigger;
 };
 
+class QalRingBuffer
+{
+public:
+    explicit QalRingBuffer(size_t bufferSize) :
+        buffer_((char*)(new char[bufferSize])),
+        writeOffset_(0),
+        bufferEnd_(bufferSize)
+    { /* empty constructor */}
 
-#endif //SPEAKERMIC_H
+    QalRingBufferReader* newReader();
+
+    int32_t removeReader(std::shared_ptr<QalRingBufferReader> reader);
+    size_t read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer, size_t readSize);
+    size_t write(void* writeBuffer, size_t writeSize);
+    size_t getFreeSize();
+protected:
+    std::mutex mutex_;
+    const size_t bufferEnd_;
+    size_t writeOffset_;
+    std::vector<QalRingBufferReader*> readOffsets_;
+    char* buffer_;
+    void updateUnReadSize(size_t writtenSize);
+    friend class QalRingBufferReader;
+};
+#endif

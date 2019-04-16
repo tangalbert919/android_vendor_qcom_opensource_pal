@@ -27,24 +27,48 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPEAKERMIC_H
-#define SPEAKERMIC_H
 
-#include "Device.h"
-#include "CodecDevice.h"
+#ifndef SOUNDTRIGGERENGINEGSL_H
+#define SOUNDTRIGGERENGINEGSL_H
 
-class SpeakerMic : public CodecDevice
+#include <condition_variable>
+#include <thread>
+#include "SoundTriggerEngine.h"
+
+class Session;
+class Stream;
+
+class SoundTriggerEngineGsl : public SoundTriggerEngine
 {
 protected:
-    static std::shared_ptr<Device> obj;
-    SpeakerMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    struct qal_st_sound_model *pSoundModel;
+    struct detection_engine_config_voice_wakeup pWakeUpConfig;
+    struct detection_engine_generic_event_cfg pEventConfig;
+    struct detection_engine_voice_wakeup_buffer_config pBufConfig;
+    struct audio_dam_downstream_setup_duration *pSetupDuration;
+
+    int32_t prepare_sound_engine();
+    int32_t start_sound_engine();
+    int32_t stop_sound_engine();
+    int32_t start_keyword_detection();
+    int32_t start_buffering();
+
+    static std::shared_ptr<SoundTriggerEngineGsl> sndEngGsl_;
+    static void buffer_thread_loop();
+    std::thread bufferThreadHandler_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    bool exit_thread_;
+    bool exit_buffering_;
 public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    ~SpeakerMic();
+    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    ~SoundTriggerEngineGsl();
+    int32_t load_sound_model(Stream *s, uint8_t *data) override;
+    int32_t unload_sound_model(Stream *s) override;
+    int32_t start_recognition(Stream *s) override;
+    int32_t stop_recognition(Stream *s) override;
+    int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
+    void setDetected(bool detected) override;
 };
 
-
-#endif //SPEAKERMIC_H
+#endif //SOUNDTRIGGERENGINEGSL_H

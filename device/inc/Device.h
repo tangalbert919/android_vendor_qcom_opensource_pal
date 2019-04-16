@@ -37,9 +37,6 @@
 #include <string.h>
 #include "QalCommon.h"
 
-#define PCM_CAPTURE 0;
-#define PCM_PLAYBACK 1;
-
 class ResourceManager;
 
 class Device

@@ -27,24 +27,64 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPEAKERMIC_H
-#define SPEAKERMIC_H
 
-#include "Device.h"
-#include "CodecDevice.h"
+#ifndef SOUNDTRIGGERENGINE_H
+#define SOUNDTRIGGERENGINE_H
 
-class SpeakerMic : public CodecDevice
+#include "QalDefs.h"
+#include <mutex>
+#include <vector>
+#include "QalCommon.h"
+#include "QalRingBuffer.h"
+
+class Session;
+class Stream;
+
+typedef enum {
+    IDLE,
+    READY,
+    ACTIVE,
+    BUFFERING,
+    HOLD_READY,
+    HOLD_ACTIVE,
+} sound_model_state_t;
+
+/* Structure representing a single sound model,
+   sound model data and recognition data of all
+   sound models registered merged to single blob
+   of sound model data and recogntion data, which
+   is set to Session. */
+struct SoundModel
 {
-protected:
-    static std::shared_ptr<Device> obj;
-    SpeakerMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    ~SpeakerMic();
+    sound_model_state_t state;
+    uint32_t sm_id;
+    uint32_t sm_host_id;
+    void *sm_data;
+    void *sm_params_data;
 };
 
+class SoundTriggerEngine
+{
+protected:
+    uint32_t engineId;
+    uint8_t *sm_data;
+    uint32_t sm_data_size;
+    uint8_t *sm_params_data;
+    int stageId;
+    Session *session;
+    Stream *streamHandle;
+    std::vector<struct SoundModel*> SoundModels;
+    QalRingBuffer *buffer_;
+    QalRingBufferReader *reader_;
+    bool eventDetected;
+public:
+    static SoundTriggerEngine* create(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    virtual int32_t load_sound_model(Stream *s, uint8_t *data) = 0;
+    virtual int32_t unload_sound_model(Stream *s) = 0;
+    virtual int32_t start_recognition(Stream *s) = 0;
+    virtual int32_t stop_recognition(Stream *s) = 0;
+    virtual int32_t update_config(Stream *s, struct qal_st_recognition_config *config) = 0;
+    virtual void setDetected(bool detected) = 0;
+};
 
-#endif //SPEAKERMIC_H
+#endif //SOUNDTRIGGERENGINE_H

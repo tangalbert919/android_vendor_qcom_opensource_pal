@@ -27,24 +27,37 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SPEAKERMIC_H
-#define SPEAKERMIC_H
+#define LOG_TAG "SoundTriggerEngine"
 
-#include "Device.h"
-#include "CodecDevice.h"
+#include "SoundTriggerEngine.h"
+#include "SoundTriggerEngineGsl.h"
+#include "Session.h"
+#include "Stream.h"
 
-class SpeakerMic : public CodecDevice
+SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
 {
-protected:
-    static std::shared_ptr<Device> obj;
-    SpeakerMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    ~SpeakerMic();
-};
+    SoundTriggerEngine *stEngine = NULL;
 
+    if (!s)
+    {
+        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        goto exit;
+    }
+    // TODO: decide which engine should be used by checking sound
+    // model params, existing engines can be found by querying RM
+    stEngine = new SoundTriggerEngineGsl(s, id, stage_id, reader, buffer);
 
-#endif //SPEAKERMIC_H
+    // TODO: register engine to RM if it is newly created
+exit:
+    if (!stEngine)
+    {
+        QAL_ERR(LOG_TAG,"%s: SoundTriggerEngine creation failed", __func__);
+    }
+    else
+    {
+        QAL_VERBOSE(LOG_TAG,"%s: SoundTriggerEngine creation success", __func__);
+    }
+
+    return stEngine;
+}
+

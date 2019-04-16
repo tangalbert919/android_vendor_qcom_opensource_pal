@@ -32,7 +32,15 @@
 
 #include "QalDefs.h"
 #include <mutex>
+#include <algorithm>
+#include <vector>
+#include <string.h>
+#include <stdlib.h>
+#include <memory>
+#include <errno.h>
 #include "QalCommon.h"
+
+
 
 typedef enum {
     GRAPH = 0,
@@ -45,7 +53,7 @@ typedef enum {
 }configType;
 
 class Stream;
-
+class ResourceManager;
 class Session
 {
 protected:
@@ -54,6 +62,7 @@ protected:
     Session();
     struct audio_route;
     struct audio_mixer;
+    std::shared_ptr<ResourceManager> rm;
 public:
     ~Session();
     virtual int open(Stream * s) = 0;
@@ -67,7 +76,7 @@ public:
     virtual int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) = 0;
     virtual int read(Stream *s, int tag, struct qal_buffer *buf, int * size) = 0;
     virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) = 0;
-
+    virtual int setParameters(Stream *s, uint32_t param_id, void *payload) = 0;
 };
 
 #endif //SESSION_H

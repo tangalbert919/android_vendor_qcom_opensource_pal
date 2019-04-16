@@ -31,6 +31,7 @@
 
 #include "StreamPCM.h"
 #include "Session.h"
+#include "kvh2xml.h"
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -67,7 +68,7 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
 
     QAL_VERBOSE(LOG_TAG,"%s: Create new Session", __func__);
     #ifdef CONFIG_GSL
-        session = new SessionGsl();
+        session = new SessionGsl(rm);
     #else
         session = new SessionAlsapcm();
     #endif
@@ -90,9 +91,13 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
         dev = nullptr;
     }
     mutex.unlock();
-
+    rm->registerStream(this);
     QAL_VERBOSE(LOG_TAG,"%s:end", __func__);
 }
+
+/*StreamPCM::StreamPCM() {
+
+}*/
 
 int32_t  StreamPCM::open()
 {
@@ -146,6 +151,8 @@ int32_t  StreamPCM::close()
 
 exit:
     mutex.unlock();
+    status = rm->deregisterStream(this);
+    QAL_ERR(LOG_TAG,"%s:%d status - %d",__func__,__LINE__,status);
     return status;
 }
 
@@ -383,9 +390,9 @@ int32_t  StreamPCM::setStreamAttributes(struct qal_stream_attributes *sattr)
 
     QAL_VERBOSE(LOG_TAG,"%s: start, session handle - %p", __func__, session);
 
-    memset(attr, 0, sizeof(qal_stream_attributes));
+    memset(attr, 0, sizeof(struct qal_stream_attributes));
     mutex.lock();
-    memcpy (attr, sattr, sizeof(qal_stream_attributes));
+    memcpy (attr, sattr, sizeof(struct qal_stream_attributes));
     mutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //gkv or ckv or tkv need to pass
     if (0 != status) {
@@ -395,6 +402,38 @@ int32_t  StreamPCM::setStreamAttributes(struct qal_stream_attributes *sattr)
     QAL_VERBOSE(LOG_TAG,"%s: session setConfig successful", __func__);
 
     QAL_VERBOSE(LOG_TAG,"%s: end", __func__);
+exit:
+    return status;
+}
+
+int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
+{
+    int32_t status = 0;
+    QAL_ERR(LOG_TAG,"%s: start, session handle - %p", __func__, session);
+    if (volume->no_of_volpair == 0) {
+        QAL_ERR(LOG_TAG,"%s: Error no of vol pair is %d",__func__,(volume->no_of_volpair));
+        status = -EINVAL;
+        goto exit;
+    }
+    vdata = (struct qal_volume_data *)malloc(sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
+    memset(vdata, 0, sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
+    mutex.lock();
+    memcpy (vdata, volume, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
+    mutex.unlock();
+    for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
+    QAL_ERR(LOG_TAG,"%s: Volume payload mask:%x vol:%f\n",
+                  __func__, (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+    }
+    status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: session setConfig for VOLUME_TAG failed with status %d",__func__,status);
+        goto exit;
+    }
+    QAL_ERR(LOG_TAG,"%s: Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                      __func__, (volume->no_of_volpair), (volume->volume_pair->channel_mask),(volume->volume_pair->vol));
 exit:
     return status;
 }
@@ -439,7 +478,120 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
     return size;
 }
 
-int32_t  StreamPCM::registerCallBack()
+int32_t  StreamPCM::registerCallBack(qal_stream_callback cb)
 {
     return 0;
 }
+
+int32_t  StreamPCM::getCallBack(qal_stream_callback *cb)
+{
+    return 0;
+}
+
+int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
+{
+    return 0;
+}
+
+int32_t  StreamPCM::setMute( bool state)
+{
+    int32_t status = 0;
+    QAL_ERR(LOG_TAG,"%s: start, session handle - %p", __func__, session);
+    switch (state) {
+    case TRUE:
+       QAL_ERR(LOG_TAG,"%s: Mute", __func__);
+       status = session->setConfig(this, MODULE, MUTE_TAG);
+       break;
+    case FALSE:
+       QAL_ERR(LOG_TAG,"%s: Unmute", __func__);
+       status = session->setConfig(this, MODULE, UNMUTE_TAG);
+       break;
+    }
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: session setConfig for mute failed with status %d",__func__,status);
+        goto exit;
+    }
+    QAL_ERR(LOG_TAG,"%s: session setConfig successful", __func__);
+    QAL_ERR(LOG_TAG,"%s: end", __func__);
+exit:
+    return status;
+}
+
+int32_t  StreamPCM::setPause()
+{
+    int32_t status = 0;
+    QAL_VERBOSE(LOG_TAG,"%s: start, session handle - %p", __func__, session);
+    status = session->setConfig(this, MODULE, PAUSE_TAG);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: session setConfig for pause failed with status %d",__func__,status);
+        goto exit;
+    }
+    QAL_VERBOSE(LOG_TAG,"%s: session setConfig successful", __func__);
+    QAL_VERBOSE(LOG_TAG,"%s: end", __func__);
+exit:
+    return status;
+}
+
+int32_t  StreamPCM::setResume()
+{
+    int32_t status = 0;
+    QAL_VERBOSE(LOG_TAG,"%s: start, session handle - %p", __func__, session);
+    status = session->setConfig(this, MODULE, RESUME_TAG);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: session setConfig for pause failed with status %d",__func__,status);
+        goto exit;
+    }
+    QAL_VERBOSE(LOG_TAG,"%s: session setConfig successful", __func__);
+    QAL_VERBOSE(LOG_TAG,"%s: end", __func__);
+exit:
+    return status;
+}
+
+int32_t StreamPCM::isSampleRateSupported(uint32_t sampleRate) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(sampleRate) {
+        case 48000:
+        case 96000:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"sample rate not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t StreamPCM::isChannelSupported(uint32_t numChannels) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(numChannels) {
+        case 1:
+        case 2:
+        case 4:
+        case 8:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"channels not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t StreamPCM::isBitWidthSupported(uint32_t bitWidth) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(bitWidth) {
+        case 16:
+        case 24:
+        case 32:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"bit width not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+

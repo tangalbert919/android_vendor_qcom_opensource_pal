@@ -31,6 +31,7 @@
 #include "Stream.h"
 #include "StreamPCM.h"
 #include "StreamCompress.h"
+#include "StreamSoundTrigger.h"
 #include "Session.h"
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
@@ -63,14 +64,19 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
 
     if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
         switch (sAttr->type) {
-            case QAL_STREAM_PLAYBACK_LOW_LATENCY:
-            case QAL_STREAM_PLAYBACK_DEEP_BUFFER:
-            case QAL_STREAM_PLAYBACK_GENERIC:
+            case QAL_STREAM_LOW_LATENCY:
+            case QAL_STREAM_DEEP_BUFFER:
+            case QAL_STREAM_GENERIC:
+            case QAL_STREAM_VOIP_TX :
+            case QAL_STREAM_VOIP_RX :
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
                 break;
-            case QAL_STREAM_PLAYBACK_COMPRESSED:
+            case QAL_STREAM_COMPRESSED:
                 stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
+                break;
+            case QAL_STREAM_VOICE_UI:
+                stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
                 break;
             default:
                 QAL_ERR(LOG_TAG,"%s: unsupported stream type %d", __func__, sAttr->type);
@@ -82,9 +88,9 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     }
 exit:
     if (!stream) {
-        QAL_VERBOSE(LOG_TAG,"%s: stream creation success", __func__);
+        QAL_ERR(LOG_TAG,"%s: stream creation success", __func__);
     } else {
-        QAL_VERBOSE(LOG_TAG,"%s: stream creation failed", __func__);
+        QAL_ERR(LOG_TAG,"%s: stream creation failed", __func__);
     }
     return stream;
 }
@@ -100,14 +106,14 @@ int32_t  Stream::getStreamAttributes(struct qal_stream_attributes *sAttr)
     }
 
     memcpy(sAttr, attr, sizeof(qal_stream_attributes));
-    QAL_VERBOSE(LOG_TAG,"%s: stream_type - %d stream_flags - %d direction - %d",
+    QAL_ERR(LOG_TAG,"%s: stream_type - %d stream_flags - %d direction - %d",
            __func__, sAttr->type, sAttr->flags, sAttr->direction);
 
 exit:
     return status;
 }
 
-int32_t  Stream::getModifiers(struct modifiers_kv *modifiers,uint32_t noOfModifiers)
+int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers)
 {
     int32_t status = 0;
 
@@ -117,7 +123,7 @@ int32_t  Stream::getModifiers(struct modifiers_kv *modifiers,uint32_t noOfModifi
         goto exit;
     }
     memcpy (modifiers, modifiers_, sizeof(modifier_kv));
-    noOfModifiers = uNoOfModifiers;
+    *noOfModifiers = uNoOfModifiers;
 
 exit:
     return status;
@@ -133,17 +139,16 @@ int32_t  Stream::getStreamType (qal_stream_type_t* streamType)
         goto exit;
     }
     *streamType = attr->type;
-    QAL_VERBOSE(LOG_TAG,"%s: streamType - %d", __func__, *streamType);
+    QAL_ERR(LOG_TAG,"%s: streamType - %d", __func__, *streamType);
 
 exit:
     return status;
 }
 
-int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> aDevices)
+int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;
-
-    QAL_VERBOSE(LOG_TAG,"%s: no. of devices - %d", __func__, devices.size());
+    QAL_ERR(LOG_TAG,"%s: no. of devices - %d", __func__, devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         aDevices.push_back(devices[i]);
     }
@@ -152,7 +157,7 @@ exit:
     return status;
 }
 
-int32_t  Stream::getAssociatedSession(Session *s)
+int32_t  Stream::getAssociatedSession(Session **s)
 {
     int32_t status = 0;
 
@@ -161,8 +166,32 @@ int32_t  Stream::getAssociatedSession(Session *s)
         QAL_ERR(LOG_TAG,"%s: Invalid session\n", __func__);
         goto exit;
     }
-    s = session;
-    QAL_VERBOSE(LOG_TAG,"%s: session - %p", __func__, s);
+    *s = session;
+    QAL_ERR(LOG_TAG,"%s: session - %p", __func__, s);
+exit:
+    return status;
+}
+
+int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
+{
+    int32_t status = 0;
+
+    if (!vData) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG,"%s: Invalid stream attribute pointer", __func__);
+        goto exit;
+    }
+    
+    if (vdata != NULL) {
+    memcpy(vData, vdata,sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)));
+
+    QAL_ERR(LOG_TAG,"%s num config %x \n",__func__, (vdata->no_of_volpair));
+    for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
+        QAL_ERR(LOG_TAG,"%s: Volume payload mask:%x vol:%f\n",
+                  __func__, (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+    }
+    }
 exit:
     return status;
 }

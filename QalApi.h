@@ -342,7 +342,7 @@ int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_volume(qal_stream_handle_t *stream, struct qal_volume_data *volume);
+int32_t qal_stream_get_volume(qal_stream_handle_t *stream_handle, struct qal_volume_data *volume);
 
 /**
   * \brief Set audio volume specific to a stream.
@@ -354,7 +354,7 @@ int32_t qal_stream_get_volume(qal_stream_handle_t *stream, struct qal_volume_dat
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_volume(qal_stream_handle_t *stream, struct qal_volume_data *volume);
+int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle, struct qal_volume_data *volume);
 
 /**
   * \brief Get current audio audio mute state to a stream.
@@ -366,15 +366,14 @@ int32_t qal_stream_set_volume(qal_stream_handle_t *stream, struct qal_volume_dat
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_mute(qal_stream_handle_t *stream, bool *state);
+int32_t qal_stream_get_mute(qal_stream_handle_t *stream_handle, bool *state);
 
 /**
   * \brief Set mute specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
   *       from qal_stream_open
-  * \param[out] mute - mute state to be retrieved from the
-  *       stream.
+  * \param[out] mute - mute state to be set to the stream. 
   *
   * \return 0 on success, error code otherwise
   */

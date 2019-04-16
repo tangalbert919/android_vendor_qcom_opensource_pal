@@ -62,3 +62,53 @@ SpeakerMic::~SpeakerMic()
 
 }
 
+int32_t SpeakerMic::isSampleRateSupported(uint32_t sampleRate)
+{
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(sampleRate) {
+        case 48000:
+        case 96000:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"sample rate not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t SpeakerMic::isChannelSupported(uint32_t numChannels)
+{
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(numChannels) {
+        case 1:
+        case 2:
+        case 4:
+        case 8:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"channels not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t SpeakerMic::isBitWidthSupported(uint32_t bitWidth)
+{
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(bitWidth) {
+        case 16:
+        case 24:
+        case 32:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"bit width not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
