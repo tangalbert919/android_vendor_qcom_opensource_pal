@@ -6,6 +6,7 @@ if BUILDSYSTEM_OPENWRT
 h_sources = ./stream/inc/Stream.h \
             ./stream/inc/StreamCompress.h \
             ./stream/inc/StreamPCM.h \
+            ./stream/inc/StreamSoundTrigger.h \
             ./device/inc/Device.h \
             ./device/inc/Speaker.h \
             ./device/inc/CodecDevice.h \
@@ -16,21 +17,27 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
             ./session/inc/SessionAlsaPcm.h \
+            ./session/inc/SoundTriggerEngine.h \
+            ./session/inc/SoundTriggerEngineGsl.h \
+            ./session/inc/SoundTriggerEngineCapiCnn.h \
             ./resource_manager/inc/ResourceManager.h \
             ./QalDefs.h \
             ./QalApi.h \
             ./QalAudioRoute.h \
-            ./QalCommon.h
+            ./QalCommon.h \
+            ./utils/inc/QalRingBuffer.h
 
 AM_CPPFLAGS := -I ./stream/inc
 AM_CPPFLAGS += -I ./device/inc
 AM_CPPFLAGS += -I ./session/inc
 AM_CPPFLAGS += -I ./resource_manager/inc
+AM_CPPFLAGS += -I ./utils/inc
 AM_CPPFLAGS += -I ./
 
 qal_sources = ./stream/src/Stream.cpp \
               ./stream/src/StreamCompress.cpp \
               ./stream/src/StreamPCM.cpp \
+              ./stream/src/StreamSoundTrigger.cpp \
               ./device/src/Device.cpp \
               ./device/src/Speaker.cpp \
               ./device/src/CodecDeviceAlsa.cpp \
@@ -41,8 +48,12 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionGsl.cpp \
               ./session/src/SessionAlsaPcm.cpp \
+              ./session/src/SoundTriggerEngine.cpp \
+              ./session/src/SoundTriggerEngineGsl.cpp \
+              ./session/src/SoundTriggerEngineCapiCnn.cpp \
               ./resource_manager/src/ResourceManager.cpp \
-              ./Qal.cpp
+              ./Qal.cpp \
+              ./utils/src/QalRingBuffer.cpp
 else
 h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamCompress.h \
