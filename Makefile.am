@@ -117,7 +117,12 @@ library_includedir = $(includedir)/qal
 
 lib_LTLIBRARIES     = libqal.la
 libqal_la_SOURCES   = $(qal_sources)
-libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lcasa_osal -lexpat
+if BUILDSYSTEM_OPENWRT
+libqal_la_LIBADD    = -lglib-2.0
+else
+libqal_la_LIBADD    = $(GLIB_LIBS)
+endif
+libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
