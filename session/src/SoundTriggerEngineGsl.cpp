@@ -61,7 +61,9 @@ void SoundTriggerEngineGsl::buffer_thread_loop()
             continue; /* skip over processing if we want to exit already*/
         }
 
-        sndEngGsl_->start_buffering();
+        if (sndEngGsl_->start_buffering()) {
+            break;
+        }
     }
 }
 
@@ -147,6 +149,9 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t st
     sndEngGsl_ = (std::shared_ptr<SoundTriggerEngineGsl>)this;
     s->getAssociatedSession(&session);
     streamHandle = s;
+    sm_data = NULL;
+    pSetupDuration = NULL;
+    pSoundModel = NULL;
 
     // Create ring buffer when reader passed is not specified
     if (!buffer)
@@ -170,11 +175,8 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl()
     if (sm_data)
         free(sm_data);
 
-    if (sm_params_data)
-        free(sm_params_data);
-
-    if (pSoundModel)
-        free(pSoundModel);
+    if (pSetupDuration)
+        free(pSetupDuration);
 }
 
 int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data)
@@ -293,6 +295,13 @@ int32_t SoundTriggerEngineGsl::stop_recognition(Stream *s)
     if (status)
     {
         QAL_ERR(LOG_TAG, "%s: Failed to reset detection engine, status = %d", __func__, status);
+        goto exit;
+    }
+
+    status = stop_sound_engine();
+    if (status)
+    {
+        QAL_ERR(LOG_TAG, "%s: Failed to stop sound engine, status = %d", __func__, status);
         goto exit;
     }
 

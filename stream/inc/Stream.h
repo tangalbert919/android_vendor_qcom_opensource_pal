@@ -48,15 +48,21 @@ typedef enum {
     DATA_MODE_NONBLOCKING
 } dataFlags;
 
-#define BUF_SIZE 1024
-#define BUF_SIZE_CAPTURE 1920
+#define BUF_SIZE_PLAYBACK 1024
+#define BUF_SIZE_CAPTURE 960
 #define NO_OF_BUF 4
-#define TRUE 1
-#define FALSE 0
 #define MUTE_TAG 0
 #define UNMUTE_TAG 1
 #define PAUSE_TAG 2
 #define RESUME_TAG 3
+#define MFC_SR_8K 4
+#define MFC_SR_16K 5
+#define MFC_SR_32K 6
+#define MFC_SR_44K 7
+#define MFC_SR_48K 8
+#define MFC_SR_96K 9
+#define MFC_SR_192K 10
+#define MFC_SR_384K 11
 
 class Device;
 class ResourceManager;
@@ -76,6 +82,10 @@ protected:
     static std::shared_ptr<ResourceManager> rm;
     struct modifier_kv *modifiers_;
     uint32_t uNoOfModifiers;
+    size_t inBufSize;
+    size_t outBufSize;
+    size_t inBufCount;
+    size_t outBufCount;
 
 public:
     virtual int32_t open() = 0;
@@ -98,6 +108,10 @@ public:
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
+    int32_t setBufInfo(size_t in_buf_size, size_t in_buf_count,
+                       size_t out_buf_size, size_t out_buf_count);
+    int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
+                       size_t *out_buf_size, size_t *out_buf_count);
     int32_t getVolumeData(struct qal_volume_data *vData);
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct qal_stream_attributes *sattr, struct qal_device *dattr,

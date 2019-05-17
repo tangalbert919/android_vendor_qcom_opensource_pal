@@ -42,26 +42,22 @@
 #include "pcm_decoder_api.h"
 #include "module_cmn_api.h"
 #include "i2s_api.h"
+#include "pcm_tdm_api.h"
+#include "audio_dam_buffer_api.h"
+#include "codec_dma_api.h"
+#include "detection_cmn_api.h"
 
 /* Param ID definitions */
-#define PARAM_ID_CODEC_DMA_INTF_CFG 0x08001063
-#define PARAM_ID_HW_EP_MF_CFG       0x08001017
-#define PARAM_ID_PCM_OUTPUT_FORMAT_CFG 0x08001008
 #define PARAM_ID_MEDIA_FORMAT 0x0800100C
 #define PARAM_ID_VOL_CTRL_MULTICHANNEL_GAIN 0x08001038
 #define PARAM_ID_VOL_CTRL_MASTER_GAIN 0x08001035
 #define PLAYBACK_VOLUME_MASTER_GAIN_DEFAULT 0x2000
-#define PARAM_ID_DETECTION_ENGINE_SOUND_MODEL 0x0800104C
 #define PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP 0x08001049
 #define PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG 0x08001044
-#define PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION 0x0800105A
-#define PARAM_ID_DETECTION_ENGINE_RESET 0x08001051
-#define PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG 0x0800104E
-#define EVENT_ID_DETECTION_ENGINE_GENERIC_INFO 0x0800104F
 
-#define WSA_CODEC_DMA_CORE  2
-#define VA_CODEC_DMA_CORE   3
-#define RXTX_CODEC_DMA_CORE 1
+#define WSA_CODEC_DMA_CORE  LPAIF_WSA
+#define VA_CODEC_DMA_CORE   LPAIF_VA
+#define RXTX_CODEC_DMA_CORE LPAIF_RXTX
 
 #define CODEC_RX0 1
 #define CODEC_TX0 1
@@ -77,49 +73,7 @@
 #define CODEC_TX5 6
 #define CODEC_RX6 7
 #define CODEC_RX7 8
-#define PARAM_ID_HW_TDM_INTF_CFG 0x0800101B
-#define TDM_INTF_TYPE_PRIMARY                               0
-#define TDM_INTF_TYPE_SECONDARY                             1
-#define TDM_INTF_TYPE_TERTIARY                              2
-#define TDM_INTF_TYPE_QUATERNARY                            3
-#define TDM_INTF_TYPE_QUINARY                               4
 
-/* TDM sync source */
-#define TDM_SYNC_SRC_EXTERNAL                               0
-#define TDM_SYNC_SRC_INTERNAL                               1
-
-/*TDM slot mask*/
-#define TDM_CTRL_DATA_OE_DISABLE                            0
-#define TDM_CTRL_DATA_OE_ENABLE                             1
-
-/*TDM sync mode*/
-#define TDM_SHORT_SYNC_BIT_MODE                            0
-#define TDM_LONG_SYNC_MODE                                 1
-#define TDM_SHORT_SYNC_SLOT_MODE                           2
-
-/*TDM control invert sync pulse*/
-#define TDM_SYNC_NORMAL                                    0 
-#define TDM_SYNC_INVERT                                    1
-
-/*TDM control sync data delay*/
-#define TDM_DATA_DELAY_0_BCLK_CYCLE                        0 
-#define TDM_DATA_DELAY_1_BCLK_CYCLE                        1 
-#define TDM_DATA_DELAY_2_BCLK_CYCLE                        2 
-
-struct __attribute__((__packed__)) HwTdmIntfConfig  
-{
-    uint32_t intf_idx;
-    uint16_t sync_src;
-    uint16_t ctrl_data_out_enable;
-    uint32_t slot_mask;
-    uint16_t nslots_per_frame;
-    uint16_t slot_width;
-    uint16_t sync_mode;
-    uint16_t ctrl_invert_sync_pulse;
-    uint16_t ctrl_sync_data_delay;
-    uint16_t reserved;
-
-};
 
 struct gslCmdGetReadWriteBufInfo {
     uint32_t buff_size;
@@ -142,19 +96,11 @@ struct __attribute__((__packed__)) volume_ctrl_multichannel_gain_t
     volume_ctrl_channels_gain_config_t gain_data[0];
 };
 
-struct __attribute__((__packed__)) hwEpConfig {
-    uint32_t sample_rate;
-    uint16_t bit_width;
-    uint16_t num_channels;
-    uint32_t data_format;
+struct audio_dam_downstream_setup_duration
+{
+    uint32_t num_output_ports;
+    struct audio_dam_downstream_setup_duration_t port_cfgs[0];
 };
-
-struct __attribute__((__packed__)) codecDmaIntfConfig {
-    uint32_t cdc_dma_type;
-    uint32_t intf_idx;
-    uint32_t active_channels_mask;
-};
-
 
 
 class Stream;

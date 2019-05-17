@@ -27,32 +27,40 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Speaker"
-#include "Speaker.h"
+#define LOG_TAG "TriMic"
+
+#include "TriMic.h"
+#include <tinyalsa/asoundlib.h>
+#include "QalAudioRoute.h"
+
 #include "ResourceManager.h"
 #include "Device.h"
 
-std::shared_ptr<Device> Speaker::obj = nullptr;
+std::shared_ptr<Device> TriMic::obj = nullptr;
 
-std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) {
+std::shared_ptr<Device> TriMic::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+{
     if(obj == nullptr) {
-        std::shared_ptr<Device> sp(new Speaker(device, Rm));
+        std::shared_ptr<Device> sp(new TriMic(device, Rm));
         obj = sp;
     }
     return obj;
 }
 
 
-Speaker::Speaker(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm) {
-    
+TriMic::TriMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+CodecDevice(device, Rm)
+{
+   
 }
 
-Speaker::~Speaker() {
+TriMic::~TriMic()
+{
 
 }
 
-int32_t Speaker::isSampleRateSupported(uint32_t sampleRate) {
+int32_t TriMic::isSampleRateSupported(uint32_t sampleRate)
+{
     int32_t rc = 0;
     QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
     switch(sampleRate) {
@@ -67,7 +75,8 @@ int32_t Speaker::isSampleRateSupported(uint32_t sampleRate) {
     return rc;
 }
 
-int32_t Speaker::isChannelSupported(uint32_t numChannels) {
+int32_t TriMic::isChannelSupported(uint32_t numChannels)
+{
     int32_t rc = 0;
     QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
     switch(numChannels) {
@@ -84,7 +93,8 @@ int32_t Speaker::isChannelSupported(uint32_t numChannels) {
     return rc;
 }
 
-int32_t Speaker::isBitWidthSupported(uint32_t bitWidth) {
+int32_t TriMic::isBitWidthSupported(uint32_t bitWidth)
+{
     int32_t rc = 0;
     QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
     switch(bitWidth) {

@@ -36,7 +36,7 @@
 class CodecDevice : public Device
 {
 protected:
-    static std::shared_ptr<Device> devObj;
+    std::shared_ptr<Device> devObj;
     int deviceCount = 0;
     struct audio_route *audioRoute = NULL;           //getaudioroute() from RM and store
     struct audio_mixer *audioMixer = NULL;           //getaudiomixer() from RM and store

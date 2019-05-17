@@ -37,11 +37,6 @@ std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
 std::vector<tdmConfig> PayloadBuilder::tdmConf;
 
-const std::map<std::string, uint32_t> cdcDmaTypeLUT {
-    {std::string{ "WSA_CODEC_DMA_CORE" }, WSA_CODEC_DMA_CORE},
-    {std::string{ "VA_CODEC_DMA_CORE" },  VA_CODEC_DMA_CORE}
-};
-
 const std::map<std::string, uint32_t> i2sIntfIdxLUT {
     {std::string{ "i2s-pri" }, I2S_INTF_TYPE_PRIMARY},
     {std::string{ "i2s-sec" }, I2S_INTF_TYPE_PRIMARY}
@@ -98,6 +93,14 @@ const std::map<std::string, uint32_t> intfLinkIdxLUT {
     {std::string{ "tdm-sec" }, 6}
 };
 
+const std::map<std::string, uint32_t> lpaifIdxLUT {
+    {std::string{ "LPAIF"},      0},
+    {std::string{ "LPAIF_RXTX"}, 1},
+    {std::string{ "LPAIF_WSA"},  2},
+    {std::string{ "LPAIF_VA"},   3},
+    {std::string{ "LPAIF_AXI"},  4}
+};
+
 void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data) {
     struct media_format_t* mediaFmtHdr;
@@ -134,7 +137,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_MEDIA_FORMAT;
     header->error_code = 0x0;
     header->param_size = payloadSize;
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
 
@@ -142,7 +145,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     mediaFmtHdr->fmt_id = MEDIA_FMT_ID_PCM;
     mediaFmtHdr->payload_size = sizeof(payload_media_fmt_pcm_t) +
         sizeof(uint8_t) * numChannels;
-    QAL_ERR(LOG_TAG,"%s: mediaFmtHdr \n data_format:%x fmt_id:%x payload_size:%d channels:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: mediaFmtHdr \n data_format:%x fmt_id:%x payload_size:%d channels:%d",
                       __func__, mediaFmtHdr->data_format, mediaFmtHdr->fmt_id,
                       mediaFmtHdr->payload_size, numChannels);
 
@@ -152,20 +155,26 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     mediaFmtPayload->num_channels = data->numChannel;
     mediaFmtPayload->sample_rate = data->sampleRate;
     mediaFmtPayload->bit_width = data->bitWidth;
-    mediaFmtPayload->bits_per_sample =  data->bitWidth;
-    //TODO: revisit this for 24 bit as q_factor can be 23 or 27 or 31
-    mediaFmtPayload->q_factor =  data->bitWidth - 1;
-    QAL_ERR(LOG_TAG,"%s: sample_rate:%d bit_width:%d bits_per_sample:%d q_factor:%d",
+
+    if (data->bitWidth == 16 || data->bitWidth == 32) {
+        mediaFmtPayload->bits_per_sample = data->bitWidth;
+        mediaFmtPayload->q_factor =  data->bitWidth - 1;
+    } else if (data->bitWidth == 24) {
+        mediaFmtPayload->bits_per_sample = 32;
+        mediaFmtPayload->q_factor = 27;
+    }
+
+    QAL_VERBOSE(LOG_TAG,"%s: sample_rate:%d bit_width:%d bits_per_sample:%d q_factor:%d",
                       __func__, mediaFmtPayload->sample_rate, mediaFmtPayload->bit_width,
                       mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);
 
-    if (numChannels == 1) {
+    if (data->numChannel == 1) {
         pcmChannel[0] = PCM_CHANNEL_C;
-    } else if (numChannels == 2) {
+    } else if (data->numChannel == 2) {
         pcmChannel[0] = PCM_CHANNEL_L;
         pcmChannel[1] = PCM_CHANNEL_R;
     }
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -207,7 +216,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_PCM_OUTPUT_FORMAT_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize;
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
     
@@ -215,7 +224,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     mediaFmtHdr->fmt_id = MEDIA_FMT_ID_PCM;
     mediaFmtHdr->payload_size = sizeof(payload_pcm_output_format_cfg_t) +
                                     sizeof(uint8_t) * numChannels;
-    QAL_ERR(LOG_TAG,"%s: mediaFmtHdr \n data_format:%x fmt_id:%x payload_size:%d channels:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: mediaFmtHdr \n data_format:%x fmt_id:%x payload_size:%d channels:%d",
                   __func__, mediaFmtHdr->data_format, mediaFmtHdr->fmt_id,
                   mediaFmtHdr->payload_size, numChannels);
     mediaFmtPayload->endianness = PCM_LITTLE_ENDIAN;
@@ -234,16 +243,16 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
         mediaFmtPayload->interleaved = PCM_DEINTERLEAVED_UNPACKED;
     else
         mediaFmtPayload->interleaved = PCM_INTERLEAVED;
-    QAL_ERR(LOG_TAG,"%s: interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",
                   __func__, mediaFmtPayload->interleaved, mediaFmtPayload->bit_width,
                   mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);
-    if (numChannels == 1) {
+    if (data->numChannel == 1) {
         pcmChannel[0] = PCM_CHANNEL_C;
-    } else if (numChannels == 2) {
+    } else if (data->numChannel == 2) {
         pcmChannel[0] = PCM_CHANNEL_L;
         pcmChannel[1] = PCM_CHANNEL_R;
     }
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -252,13 +261,13 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
 void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size, 
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
     struct apm_module_param_data_t* header;
-    struct codecDmaIntfConfig* codecConfig;
+    struct param_id_codec_dma_intf_cfg_t* codecConfig;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0;
     int32_t codecLinkIdx = 0;
     
     payloadSize = sizeof(struct apm_module_param_data_t) +
-        sizeof(struct codecDmaIntfConfig);
+        sizeof(struct param_id_codec_dma_intf_cfg_t);
 
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
@@ -266,7 +275,7 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
 
     header = (struct apm_module_param_data_t*)payloadInfo;
-    codecConfig = (struct codecDmaIntfConfig*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    codecConfig = (struct param_id_codec_dma_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_CODEC_DMA_INTF_CFG;
@@ -285,13 +294,21 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
         codecLinkIdx = j;
         break;
     }
-    codecConfig->cdc_dma_type = codecConf[codecLinkIdx].cdcDmaType;
-    codecConfig->intf_idx = codecConf[codecLinkIdx].intfIdx;
-    codecConfig->active_channels_mask = 3;
+    codecConfig->lpaif_type = codecConf[codecLinkIdx].lpaifType;
+    codecConfig->intf_indx = codecConf[codecLinkIdx].intfIdx;
+    if (data->numChannel == 1) {
+       codecConfig->active_channels_mask = 0x1;
+    }
+    else if (data->numChannel == 2) {
+       codecConfig->active_channels_mask = 0x3;
+    }
+    else if (data->numChannel == 3) {
+       codecConfig->active_channels_mask = 0x7;
+    }
     QAL_ERR(LOG_TAG,"%s: Codec Config \n cdc_dma_type:%d intf_idx:%d active_channels_mask:%d",
-                      __func__, codecConfig->cdc_dma_type, codecConfig->intf_idx,
+                      __func__, codecConfig->lpaif_type, codecConfig->intf_indx,
                       codecConfig->active_channels_mask);
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -320,7 +337,7 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_I2S_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize;
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
 
@@ -332,13 +349,13 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
         i2sLinkIdx = j;
         break;
     }
-
+    i2sConfig->lpaif_type = i2sConf[i2sLinkIdx].lpaifType;
     i2sConfig->intf_idx = i2sConf[i2sLinkIdx].intfIdx;
     i2sConfig->sd_line_idx = i2sConf[i2sLinkIdx].sdLineIdx;
     i2sConfig->ws_src = i2sConf[i2sLinkIdx].wsSrc;
-    QAL_ERR(LOG_TAG,"%s: i2s Config intf_idx:%x sd_line_idx:%x ws_src:%x", __func__, 
+    QAL_VERBOSE(LOG_TAG,"%s: i2s Config intf_idx:%x sd_line_idx:%x ws_src:%x", __func__, 
         i2sConfig->intf_idx, i2sConfig->sd_line_idx, i2sConfig->ws_src);
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -347,13 +364,13 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
 void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size, 
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
     struct apm_module_param_data_t* header;
-    struct HwTdmIntfConfig* TdmConfig;
+    struct param_id_tdm_intf_cfg_t* TdmConfig;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0;
     int32_t tdmLinkIdx = 0;
 
     payloadSize = sizeof(struct apm_module_param_data_t) +
-        sizeof( struct HwTdmIntfConfig);
+        sizeof( struct param_id_tdm_intf_cfg_t);
 
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
@@ -361,13 +378,13 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
 
     header = (struct apm_module_param_data_t*)payloadInfo;
-    TdmConfig = (struct HwTdmIntfConfig*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    TdmConfig = (struct param_id_tdm_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
-    header->param_id = PARAM_ID_HW_TDM_INTF_CFG;
+    header->param_id = PARAM_ID_TDM_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize;
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
 
@@ -379,7 +396,12 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
         tdmLinkIdx = j;
         break;
     }
-
+    if(data->direction == 0x1){
+        TdmConfig->lpaif_type = tdmConf[tdmLinkIdx].lpaifType;
+    }
+    else {
+        TdmConfig->lpaif_type = tdmConf[tdmLinkIdx].lpaifType;
+    }
     TdmConfig->intf_idx = tdmConf[tdmLinkIdx].intfIdx;
     TdmConfig->sync_src = tdmConf[tdmLinkIdx].syncSrc;
     TdmConfig->ctrl_data_out_enable = tdmConf[tdmLinkIdx].ctrlDataOutEnable;
@@ -390,14 +412,14 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     TdmConfig->ctrl_invert_sync_pulse = tdmConf[tdmLinkIdx].ctrlInvertSyncPulse;
     TdmConfig->ctrl_sync_data_delay = tdmConf[tdmLinkIdx].ctrlSyncDataDelay;
     TdmConfig->reserved = 0;
-    QAL_ERR(LOG_TAG,"%s: TDM Config  \n intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d \
+    QAL_VERBOSE(LOG_TAG,"%s: TDM Config  \n intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d \
                     nslot_per_frame:%d slot_width:%d sync_mode:%d ctrl_invert_sync_pulse:%d \
                     ctrl_sync_data_delay:%d",
                 __func__,TdmConfig->intf_idx, TdmConfig->sync_src, TdmConfig->ctrl_data_out_enable,
                 TdmConfig->slot_mask, TdmConfig->nslots_per_frame, TdmConfig->slot_width,
                 TdmConfig->sync_mode, TdmConfig->ctrl_invert_sync_pulse,
                 TdmConfig->ctrl_sync_data_delay);
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -407,12 +429,12 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
 void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data) {
     struct apm_module_param_data_t* header;
-    struct hwEpConfig* hwEpConf;
+    struct param_id_hw_ep_mf_t* hwEpConf;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0;
 
     payloadSize = sizeof(struct apm_module_param_data_t) +
-                  sizeof(struct hwEpConfig);
+                  sizeof(struct param_id_hw_ep_mf_t);
 
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
@@ -420,13 +442,13 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
     payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
 
     header = (struct apm_module_param_data_t*)payloadInfo;
-    hwEpConf = (struct hwEpConfig*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    hwEpConf = (struct param_id_hw_ep_mf_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_HW_EP_MF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize;
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
 
@@ -435,10 +457,10 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
 
     hwEpConf->num_channels = data->numChannel;
     hwEpConf->data_format = DATA_FORMAT_FIXED_POINT;
-    QAL_ERR(LOG_TAG,"%s: sample_rate:%d bit_width:%d num_channels:%d data_format:%d",
+    QAL_VERBOSE(LOG_TAG,"%s: sample_rate:%d bit_width:%d num_channels:%d data_format:%d",
                       __func__, hwEpConf->sample_rate, hwEpConf->bit_width,
                       hwEpConf->num_channels, hwEpConf->data_format);
-    QAL_ERR(LOG_TAG,"%s:customPayload address %p and size %d", __func__, payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"%s:customPayload address %p and size %d", __func__, payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -504,16 +526,15 @@ void PayloadBuilder::processCodecInfo(const XML_Char **attr) {
         QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
         return;
     }
-
     std::string linkName(attr[1]);
     cdc.intfLinkIdx = intfLinkIdxLUT.at(linkName);
 
-    if(strcmp(attr[2],"cdc_dma_type") !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'cdc_dma_type' not found %s is the tag",__func__,attr[2]);
+    if(strcmp(attr[2],"lpaif_type") !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'lpaif_type' not found %s is the tag",__func__,attr[2]);
         return;
     }
     std::string cdcType(attr[3]);
-    cdc.cdcDmaType = cdcDmaTypeLUT.at(cdcType);
+    cdc.lpaifType = lpaifIdxLUT.at(cdcType);
 
     if(strcmp(attr[4],"intf_idx") !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'intf_idx' not found",__func__);
@@ -541,7 +562,6 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr) {
         QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
         return;
     }
-
     std::string linkName(attr[1]);
     i2sCnf.intfIdx =  i2sIntfIdxLUT.at(linkName);
     i2sCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
@@ -614,11 +634,17 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr) {
         }
 
     if(strcmp(attr[4],"ws_src") !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'line_mask' not found %s is the tag",__func__,attr[2]);
+        QAL_ERR(LOG_TAG,"%s: 'line_mask' not found %s is the tag",__func__,attr[4]);
         return;
     }
     std::string src(attr[5]);
     i2sCnf.wsSrc = i2sWsSrcLUT.at(src);
+    if(strcmp(attr[6],"lpaif_type") !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'lpaif_type' not found %s is the tag",__func__,attr[7]);
+        return;
+    }
+    std::string lpaifName(attr[7]);
+    i2sCnf.lpaifType = lpaifIdxLUT.at(lpaifName);
     i2sConf.push_back(i2sCnf);
 }
 
@@ -632,45 +658,51 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     std::string linkName(attr[1]);
     tdmCnf.intfIdx =  tdmIntfIdxLUT.at(linkName);
     tdmCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
-    if(strcmp(attr[2], "sync_src" ) !=0 ) {
+    if(strcmp(attr[2], "lpaif_type" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'lpaif_type' not found",__func__);
+        return;
+    }
+    std::string lpaifName(attr[3]);
+    tdmCnf.lpaifType = lpaifIdxLUT.at(lpaifName);
+    if(strcmp(attr[4], "sync_src" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'sync_src' not found",__func__);
         return;
     }
 
-    std::string syncSrc(attr[3]);
+    std::string syncSrc(attr[5]);
     tdmCnf.syncSrc = tdmSyncSrc.at(syncSrc);
 
-    if(strcmp(attr[4], "ctrl_data" ) !=0 ) {
+    if(strcmp(attr[6], "ctrl_data" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'ctrl_data' not found",__func__);
         return;
     }
 
-    std::string ctrlData(attr[5]);
+    std::string ctrlData(attr[7]);
     tdmCnf.ctrlDataOutEnable = tdmCtrlDataEnable.at(ctrlData);
 
 
-    if(strcmp(attr[6], "sync_mode" ) !=0 ) {
+    if(strcmp(attr[8], "sync_mode" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'sync_mode' not found",__func__);
         return;
     }
 
-    std::string syncmode(attr[7]);
+    std::string syncmode(attr[9]);
     tdmCnf.syncMode = tdmSyncMode.at(syncmode);
 
-    if(strcmp(attr[8], "ctrl_invert_sync_pulse" ) !=0 ) {
+    if(strcmp(attr[10], "ctrl_invert_sync_pulse" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'ctrl_invert_sync_pulse' not found",__func__);
         return;
     }
 
-    std::string ctrlInvert(attr[9]);
+    std::string ctrlInvert(attr[11]);
     tdmCnf.ctrlInvertSyncPulse = tdmCtrlInvertPulse.at(ctrlInvert);
 
-    if(strcmp(attr[10], "ctrl_sync_data_delay" ) !=0 ) {
+    if(strcmp(attr[12], "ctrl_sync_data_delay" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'ctrl_sync_data_delay' not found",__func__);
         return;
     }
 
-    std::string ctrlSyncData(attr[11]);
+    std::string ctrlSyncData(attr[13]);
     tdmCnf.ctrlSyncDataDelay = tdmCtrlSyncDataDelay.at(ctrlSyncData);
     tdmConf.push_back(tdmCnf);
 }

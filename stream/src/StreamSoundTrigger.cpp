@@ -45,6 +45,10 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
     dev = nullptr;
     reader_ = NULL;
     memset(&detectionEventInfo, 0, sizeof(struct detection_event_info));
+    inBufSize = BUF_SIZE_CAPTURE;
+    outBufSize = BUF_SIZE_PLAYBACK;
+    inBufCount = NO_OF_BUF;
+    outBufCount = NO_OF_BUF;
 
     QAL_VERBOSE(LOG_TAG, "%s : Start", __func__);
     uNoOfModifiers = no_of_modifiers;
@@ -140,6 +144,19 @@ int32_t StreamSoundTrigger::close()
         }
     }
     QAL_VERBOSE(LOG_TAG, "%s: closed the devices successfully",__func__);
+
+    for (int i = 0; i < activeEngines.size(); i++)
+    {
+        uint32_t id = activeEngines[i].first;
+        SoundTriggerEngine *stEngine = activeEngines[i].second;
+        QAL_VERBOSE(LOG_TAG, "%s: stop recognition for sound trigger engine %u", __func__, id);
+        status = stEngine->stop_recognition(this);
+        if (status)
+        {
+            QAL_ERR(LOG_TAG, "%s: stop_recognition failed for sound trigger engine %u with status %d", __func__, id, status);
+            goto exit;
+        }
+    }
 
     status = session->close(this);
     if (0 != status) {
@@ -538,7 +555,7 @@ int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc
     sm_rc_config = (struct qal_st_recognition_config *) calloc(1, sizeof(struct qal_st_recognition_config) + rc_config->data_size);
 
     memcpy(sm_rc_config, rc_config, sizeof(struct qal_st_recognition_config));
-    memcpy(sm_rc_config + rc_config->data_offset, rc_config + rc_config->data_offset,
+    memcpy((uint8_t *)sm_rc_config + rc_config->data_offset, (uint8_t *)rc_config + rc_config->data_offset,
            rc_config->data_size);
 
     status = generate_recognition_config_payload(out_payload,out_payload_size);
@@ -755,7 +772,7 @@ int32_t StreamSoundTrigger::parse_detection_payload(uint32_t event_id, uint32_t 
     {
         QAL_INFO(LOG_TAG, "parsedSize = %u, eventSize = %u", parsedSize, eventSize);
         pEventHeader = (struct detection_event_info_header_t *)ptr;
-        uint32_t keyId = pEventHeader->Key_id;
+        uint32_t keyId = pEventHeader->key_id;
         payloadSize = pEventHeader->payload_size;
         QAL_INFO(LOG_TAG, "key id = %u, payloadSize = %u", keyId, payloadSize);
         ptr += sizeof(struct detection_event_info_header_t);
@@ -765,7 +782,7 @@ int32_t StreamSoundTrigger::parse_detection_payload(uint32_t event_id, uint32_t 
         {
             case KEY_ID_CONFIDENCE_LEVELS_INFO:
                 pConfidenceInfo = (struct confidence_level_info_t *)ptr;
-                detectionEventInfo.num_confidence_levels = pConfidenceInfo->num_confidence_levels;
+                detectionEventInfo.num_confidence_levels = pConfidenceInfo->number_of_confidence_values;
                 QAL_INFO(LOG_TAG, "num_confidence_levels = %u", detectionEventInfo.num_confidence_levels);
                 for (int i = 0; i < detectionEventInfo.num_confidence_levels; i++)
                 {
@@ -842,3 +859,4 @@ int32_t StreamSoundTrigger::setResume()
     int32_t status = 0;
     return status;
 }
+

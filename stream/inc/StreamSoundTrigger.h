@@ -44,58 +44,6 @@
 #define TIME_STAMP_INFO          0x4
 #define FTRT_INFO                0x8
 
-// Key IDs
-#define KEY_ID_CONFIDENCE_LEVELS_INFO    0x2000
-#define KEY_ID_KWD_POSITION_INFO         0x2001
-#define KEY_ID_TIMESTAMP_INFO            0x2002
-#define KEY_ID_FTRT_DATA_INFO            0x2003
-
-/* header of detection event payload
- * followed with payloads of each info
- */
-struct event_id_detection_engine_generic_info_t
-{
-    uint16_t status;
-    uint16_t payload_size;
-};
-
-// header of each info
-struct detection_event_info_header_t
-{
-    uint32_t Key_id;
-    uint32_t payload_size;
-};
-
-// confidence level info
-struct confidence_level_info_t
-{
-    uint32_t num_confidence_levels;
-    uint8_t confidence_levels[20];
-};
-
-// keyword position info
-struct keyword_position_info_t
-{
-    uint32_t kw_start_timestamp_lsw;
-    uint32_t kw_start_timestamp_msw;
-    uint32_t kw_end_timestamp_lsw;
-    uint32_t kw_end_timestamp_msw;
-};
-
-// detection timestamp info
-struct detection_timestamp_info_t
-{
-    uint32_t detection_timestamp_lsw;
-    uint32_t detection_timestamp_msw;
-};
-
-// ftrt info
-struct ftrt_data_info_t
-{
-    uint32_t ftrt_data_length_in_us;
-};
-
-// detection event info
 struct detection_event_info
 {
     uint16_t status;

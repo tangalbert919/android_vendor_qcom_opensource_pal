@@ -167,6 +167,7 @@ typedef enum {
     //INPUT DEVICES
     QAL_DEVICE_IN_HANDSET_MIC,                 /**< Handset MIC*/
     QAL_DEVICE_IN_SPEAKER_MIC,                 /**< Speaker MIC*/
+    QAL_DEVICE_IN_TRI_MIC,                     /**< Tri MIC*/
     QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET,       /**< Bluetooth SCO Profile*/
     QAL_DEVICE_IN_WIRED_HEADSET,               /**< Wired headset mic*/
     QAL_DEVICE_IN_AUX_DIGITAL,                 /**< AUX Digital In*/
@@ -318,8 +319,8 @@ struct st_uuid_t {
 /** sound model structure passed in by ST Client during qal_st_load_sound_model() */
 struct qal_st_sound_model {
     qal_st_sound_model_type_t type;           /* model type. e.g. QAL_SOUND_MODEL_TYPE_KEYPHRASE */
-    st_uuid_t                 uuid;           /* unique sound model ID. */
-    st_uuid_t                 vendor_uuid;    /* unique vendor ID. Identifies the engine the
+    struct st_uuid_t          uuid;           /* unique sound model ID. */
+    struct st_uuid_t          vendor_uuid;    /* unique vendor ID. Identifies the engine the
                                                   sound model was build for */
     uint32_t                  data_size;      /* size of opaque model data */
     uint32_t                  data_offset;    /* offset of opaque data start from head of struct
@@ -364,24 +365,6 @@ struct qal_st_phrase_recognition_extra {
     struct qal_st_confidence_level levels[QAL_SOUND_TRIGGER_MAX_USERS];
 };
 
-typedef void(*qal_st_recognition_callback_t)(struct qal_st_recognition_event *event, void *cookie);
-
-/* Payload for qal_st_start_recognition() */
-struct qal_st_recognition_config {
-    int32_t       capture_handle;             /**< IO handle that will be used for capture.
-                                                N/A if capture_requested is false */
-    uint32_t      capture_device;             /**< input device requested for detection capture */
-    bool          capture_requested;          /**< capture and buffer audio for this recognition
-                                                instance */
-    uint32_t      num_phrases;                /**< number of key phrases recognition extras */
-    struct qal_st_phrase_recognition_extra phrases[QAL_SOUND_TRIGGER_MAX_PHRASES];
-	                                          /**< configuration for each key phrase */
-	qal_st_recognition_callback_t callback;	  /**<callback for recognition events */
-    uint32_t      data_size;                  /**< size of opaque capture configuration data */
-    uint32_t      data_offset;                /**< offset of opaque data start from start of this struct
-                                              (e.g sizeof struct sound_trigger_recognition_config) */
-};
-
 struct qal_st_recognition_event {
     int32_t                          status;              /**< recognition status e.g.
                                                               RECOGNITION_STATUS_SUCCESS */
@@ -402,13 +385,41 @@ struct qal_st_recognition_event {
                                                               0 if none. */
     bool                             trigger_in_data;     /**< the opaque data is the capture of
                                                               the trigger sound */
-    qal_media_config                 media_config;        /**< media format of either the trigger in
+    struct qal_media_config          media_config;        /**< media format of either the trigger in
                                                               event data or to use for capture of the
                                                               rest of the utterance */
     uint32_t                         data_size;           /**< size of opaque event data */
     uint32_t                         data_offset;         /**< offset of opaque data start from start of
                                                               this struct (e.g sizeof struct
                                                               sound_trigger_phrase_recognition_event) */
+};
+
+typedef void(*qal_st_recognition_callback_t)(struct qal_st_recognition_event *event, void *cookie);
+
+/* Payload for qal_st_start_recognition() */
+struct qal_st_recognition_config {
+    int32_t       capture_handle;             /**< IO handle that will be used for capture.
+                                                N/A if capture_requested is false */
+    uint32_t      capture_device;             /**< input device requested for detection capture */
+    bool          capture_requested;          /**< capture and buffer audio for this recognition
+                                                instance */
+    uint32_t      num_phrases;                /**< number of key phrases recognition extras */
+    struct qal_st_phrase_recognition_extra phrases[QAL_SOUND_TRIGGER_MAX_PHRASES];
+	                                          /**< configuration for each key phrase */
+	qal_st_recognition_callback_t callback;	  /**<callback for recognition events */
+    uint32_t      data_size;                  /**< size of opaque capture configuration data */
+    uint32_t      data_offset;                /**< offset of opaque data start from start of this struct
+                                              (e.g sizeof struct sound_trigger_recognition_config) */
+};
+
+struct qal_st_phrase_recognition_event {
+    struct qal_st_recognition_event common;
+    unsigned int                           num_phrases;
+    struct qal_st_phrase_recognition_extra phrase_extras[QAL_SOUND_TRIGGER_MAX_PHRASES];
+};
+
+struct qal_st_generic_recognition_event {
+    struct qal_st_recognition_event common;
 };
 
 struct detection_engine_config_voice_wakeup {
@@ -423,18 +434,6 @@ struct detection_engine_config_voice_wakeup {
 struct detection_engine_voice_wakeup_buffer_config {
     uint32_t hist_buffer_duration_in_ms;
     uint32_t pre_roll_duration_in_ms;
-};
-
-struct audio_dam_downstream_setup_duration_t
-{
-    uint32_t output_port_id;
-    uint32_t dwnstrm_setup_duration_ms;
-};
-
-struct audio_dam_downstream_setup_duration
-{
-    uint32_t num_output_ports;
-    struct audio_dam_downstream_setup_duration_t port_cfgs[0];
 };
 
 struct detection_engine_generic_event_cfg {

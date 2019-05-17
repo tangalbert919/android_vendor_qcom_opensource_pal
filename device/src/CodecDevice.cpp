@@ -37,11 +37,11 @@
 #include "Device.h"
 #include "Speaker.h"
 #include "SpeakerMic.h"
+#include "HandsetMic.h"
+#include "TriMic.h"
 #include "CodecDeviceGsl.h"
 #include "Stream.h"
 
-
-std::shared_ptr<Device> CodecDevice::devObj = nullptr;
 
 std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
@@ -49,15 +49,22 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std:
     {
         case QAL_DEVICE_OUT_SPEAKER:
                 QAL_VERBOSE(LOG_TAG,"%s: speaker device", __func__);
-                devObj = Speaker::getInstance(device, Rm);
-                return devObj;
+                return Speaker::getInstance(device, Rm);
                 break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
                 QAL_VERBOSE(LOG_TAG,"speakerMic device", __func__);
-                devObj = SpeakerMic::getInstance(device, Rm);
-                return devObj;
+                return SpeakerMic::getInstance(device, Rm);
+                break;
+        case QAL_DEVICE_IN_HANDSET_MIC:
+                QAL_VERBOSE(LOG_TAG,"HandsetMic device", __func__);
+                return HandsetMic::getInstance(device, Rm);
+                break;
+        case QAL_DEVICE_IN_TRI_MIC:
+                QAL_VERBOSE(LOG_TAG,"TriMic device", __func__);
+                return TriMic::getInstance(device, Rm);
                 break;
         default:
+                QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
                 return nullptr;
     }
 }
@@ -92,6 +99,7 @@ int CodecDevice::open() {
 	    deviceHandle = static_cast<void *>(gsl);
     }
     std::vector<Stream*> activestreams;
+    devObj = CodecDevice::getInstance(&deviceAttr, rm);
     status = rm->getactivestreams(devObj, activestreams);
     for (int i = 0; i < activestreams.size(); i++) {
         stream = static_cast<void *>(activestreams[i]);

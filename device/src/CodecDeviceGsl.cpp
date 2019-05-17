@@ -48,10 +48,8 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<Res
 {
     int status = 0;
     int sndCard = rm_->getSndCard();
-   //int snd_card = 0;
     int pcmId = rm_->getPcmDeviceId(device->id);
     QAL_VERBOSE(LOG_TAG,"pcm id %d and soundcard %d", pcmId, sndCard);
-    //int pcm_id = 0;
     int flags;
     struct pcm_config config;
     int fd = 0;
@@ -64,10 +62,10 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<Res
         QAL_ERR(LOG_TAG,"%s: Failed to obtain the device attributes", __func__);
         return NULL;
     }
-    //config.channels = device_->config.ch_info->channels;
-    config.channels = 2;
-    //config.rate = device_->config.sample_rate;
-    config.rate = 48000;
+    
+    config.channels = device->config.ch_info->channels;  //1;
+    config.rate = device->config.sample_rate;   //48000;
+    QAL_ERR(LOG_TAG,"%s: channels %d and samplerate %d",__func__, config.channels, config.rate);
     config.period_size = 512;
     config.period_count = 8;
     config.format = PCM_FORMAT_S16_LE;

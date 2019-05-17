@@ -44,6 +44,10 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
     mutex.lock();
     session = NULL;
     dev = nullptr;
+    inBufSize = BUF_SIZE_CAPTURE;
+    outBufSize = BUF_SIZE_PLAYBACK;
+    inBufCount = NO_OF_BUF;
+    outBufCount = NO_OF_BUF;
 
     QAL_VERBOSE(LOG_TAG,"%s : Start", __func__);
     uNoOfModifiers = no_of_modifiers;

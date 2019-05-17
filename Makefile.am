@@ -65,6 +65,8 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/CodecDeviceAlsa.h \
             ${top_srcdir}/device/inc/CodecDeviceGsl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
+            ${top_srcdir}/device/inc/HandsetMic.h \
+            ${top_srcdir}/device/inc/TriMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
@@ -95,6 +97,8 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/CodecDeviceAlsa.cpp \
               ${top_srcdir}/device/src/CodecDevice.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
+              ${top_srcdir}/device/src/HandsetMic.cpp \
+              ${top_srcdir}/device/src/TriMic.cpp \
               ${top_srcdir}/device/src/CodecDeviceGsl.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
@@ -102,8 +106,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
-              ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \
-              ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
+             ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
               ${top_srcdir}/Qal.cpp \
               ${top_srcdir}/utils/src/QalRingBuffer.cpp
 
@@ -128,4 +131,4 @@ libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
 libqal_la_CPPFLAGS += -DNDEBUG
 libqal_la_LDFLAGS   = -shared -avoid-version
-libqal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -include glib.h
+libqal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h

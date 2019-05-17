@@ -100,6 +100,8 @@ int SessionGsl::init(std::string acdbFile) {
     init_data.acdb_files = &acdb_files;
     init_data.acdb_delta_file = NULL;
     init_data.acdb_addr = 0x0;
+    init_data.max_num_ready_checks = 1;
+    init_data.ready_check_interval_ms = 100;
     if(gslLibHandle == NULL) {
         gslLibHandle = dlopen(GSL_LIB, RTLD_NOW);
         if (NULL == gslLibHandle) {
@@ -282,16 +284,21 @@ int populateGkv(Stream *s, struct gsl_key_vector *gkv) {
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
             break;
-        case QAL_DEVICE_IN_SPEAKER_MIC: //TODO: QAL_DEVICE_IN_HANDSET_MIC
+        case QAL_DEVICE_IN_SPEAKER_MIC:
             keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
             break;
+        case QAL_DEVICE_IN_HANDSET_MIC:
+           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           break;
+        case QAL_DEVICE_IN_TRI_MIC:
+           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           break;
         default:
             QAL_ERR(LOG_TAG,"%s: Invalid device id %d\n", __func__,dev_id);
             status = -EINVAL;
             return status;
         }
     }
-    
     gkv->num_kvps = keyVector.size();
     gkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
     for(int32_t i=0; i < (keyVector.size()); i++) {
@@ -425,6 +432,38 @@ int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag
     case RESUME_TAG:
        keyVector.push_back(std::make_pair(PAUSE,OFF));
        *gsltag = TAG_PAUSE;
+       break;
+    case MFC_SR_8K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_16K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_32K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_44K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_48K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_96K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_192K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_384K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
+       *gsltag = TAG_STREAM_MFC_SR;
        break;
     default:
        QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
@@ -708,8 +747,6 @@ int SessionGsl::open(Stream *s) {
         QAL_ERR(LOG_TAG,"%s: Failed to open the graph with status %d", __func__,status);
         goto exit;
     }
-    
-
     //status = gsl_set_cal_(graphHandle, ckv);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: Failed to set the calibration data\n", __func__);
@@ -733,26 +770,67 @@ int SessionGsl::setPayloadConfig(Stream *s) {
     struct gsl_module_id_info* moduleInfo;
     size_t moduleInfoSize;
     struct sessionToPayloadParam* sessionData;
+    struct sessionToPayloadParam* deviceData;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    sessionData = (struct sessionToPayloadParam *)malloc(sizeof(struct sessionToPayloadParam)); 
+    sessionData = (struct sessionToPayloadParam *)malloc(sizeof(struct sessionToPayloadParam));
+    deviceData = (struct sessionToPayloadParam *)malloc(sizeof(struct sessionToPayloadParam)); 
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     int32_t status = 0;
     int32_t i;
     int32_t dev_id;
     struct qal_stream_attributes sAttr;
+    struct qal_device dAttr;
     s->getStreamAttributes(&sAttr);
     char epName[128] = {0};
     std::string epname;
 
     PayloadBuilder *builder = new PayloadBuilder();
     status = rm->getStreamTag(streamTag);
-    //decision based on stream attributes
-    sessionData->sampleRate = 48000;
-    sessionData->bitWidth = 16;
-    sessionData->numChannel = 2;
+    
     sessionData->direction = sAttr.direction;
+    //decision based on stream attributes
+    if(sessionData->direction == 1){
+    	sessionData->sampleRate = sAttr.out_media_config.sample_rate;
+        sessionData->bitWidth = sAttr.out_media_config.bit_width;
+    	sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
+    }
+    else{
+    	sessionData->sampleRate = sAttr.in_media_config.sample_rate;
+        sessionData->bitWidth = sAttr.in_media_config.bit_width;
+    	sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
+	}
     sessionData->metadata = NULL;
+    QAL_ERR(LOG_TAG,"%s,: session bit width %d, sample rate %d, and channels %d\n",__func__, sessionData->bitWidth,sessionData->sampleRate,sessionData->numChannel);
+    switch (sessionData->sampleRate) {
+        case SAMPLINGRATE_8K :
+             setConfig(s,MODULE,MFC_SR_8K);
+             break;
+        case SAMPLINGRATE_16K :
+             setConfig(s,MODULE,MFC_SR_16K);
+             break;
+        case SAMPLINGRATE_32K :
+             setConfig(s,MODULE,MFC_SR_32K);
+             break;
+        case SAMPLINGRATE_44K :
+             setConfig(s,MODULE,MFC_SR_44K);
+             break;
+        case SAMPLINGRATE_48K :
+             setConfig(s,MODULE,MFC_SR_48K);
+             break;
+        case SAMPLINGRATE_96K :
+             setConfig(s,MODULE,MFC_SR_96K);
+             break;
+        case SAMPLINGRATE_192K :
+             setConfig(s,MODULE,MFC_SR_192K);
+             break;
+        case SAMPLINGRATE_384K :
+             setConfig(s,MODULE,MFC_SR_384K);
+             break;
+        default:
+             QAL_ERR(LOG_TAG,"%s: Invalid sample rate = %d\n", __func__, sessionData->sampleRate);
+    }
+
     for (i=0; i<streamTag.size(); i++) {
         moduleInfo = NULL;
         moduleInfoSize = 0;
@@ -770,7 +848,6 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                 //goto exit;
             }
         }
-
     }
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
@@ -801,7 +878,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         rm->getDeviceEpName(dev_id, epname);
                     } else 
                         continue;
-                sessionData->direction = PLAYBACK;
+                    sessionData->direction = PLAYBACK;
                 }
             }
             else{
@@ -811,7 +888,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         rm->getDeviceEpName(dev_id, epname);
                     } else 
                         continue;
-                sessionData->direction = RECORD; 
+                    sessionData->direction = RECORD;
                 }
             }
             builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], sessionData, epname);
@@ -827,16 +904,36 @@ int SessionGsl::setPayloadConfig(Stream *s) {
         moduleInfo = NULL;
         moduleInfoSize = 0;
         status = gslGetTaggedModuleInfo(gkv, deviceTag[i], &moduleInfo, &moduleInfoSize);
+        deviceData->metadata = NULL;
         if (status != 0)
             continue;
         else {
             payload = NULL;
             payloadSize = 0;
-            if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX)
-                sessionData->direction = PLAYBACK;
-            else
-                sessionData->direction = RECORD; 
-            builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], sessionData);
+            if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
+                for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                    dev_id = associatedDevices[i]->getDeviceId();
+                    if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
+                       associatedDevices[i]->getDeviceAtrributes(&dAttr);
+		                } else
+                        continue;
+                    sessionData->direction = PLAYBACK;
+                }
+            } else {
+                for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                    dev_id = associatedDevices[i]->getDeviceId();
+                    if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
+                       associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                    } else
+                        continue;               
+                    sessionData->direction = RECORD; 
+		            }
+            }
+            deviceData->bitWidth = dAttr.config.bit_width;
+            deviceData->sampleRate = dAttr.config.sample_rate;
+            deviceData->numChannel = dAttr.config.ch_info->channels;
+            QAL_ERR(LOG_TAG,"%s,: Device bit width %d, sample rate %d, and channels %d\n",__func__, deviceData->bitWidth,deviceData->sampleRate,deviceData->numChannel);
+            builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], deviceData);
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: Get custom config failed with status = %d\n", __func__, status);
@@ -851,6 +948,8 @@ exit:
 
 int SessionGsl::prepare(Stream * s) {
     int status = 0;
+    size_t in_buf_size = 0,in_buf_count = 0;
+    size_t out_buf_size = 0,out_buf_count = 0;
     struct qal_stream_attributes sAttr;
     s->getStreamAttributes(&sAttr);
 
@@ -861,17 +960,17 @@ int SessionGsl::prepare(Stream * s) {
         QAL_ERR(LOG_TAG,"%s: Failed to prepare the graph", __func__);
         goto exit;
     }
-
+    s->getBufInfo(&in_buf_size,&in_buf_count,&out_buf_size,&out_buf_count);
     switch (sAttr.direction) {
-        case QAL_AUDIO_INPUT:
-            status = readBufferInit(s, NO_OF_BUF, BUF_SIZE_CAPTURE, DATA_MODE_BLOCKING);
+    case QAL_AUDIO_INPUT:
+            status = readBufferInit(s, in_buf_count, in_buf_size, DATA_MODE_BLOCKING);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: Tx session readBufferInit is failed with status %d",__func__,status);
                 goto exit;
             }
             break;
-        case QAL_AUDIO_OUTPUT:
-            status = writeBufferInit(s, NO_OF_BUF, BUF_SIZE, DATA_MODE_BLOCKING);
+    case QAL_AUDIO_OUTPUT:
+            status = writeBufferInit(s, out_buf_count, out_buf_size, DATA_MODE_BLOCKING);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: Rx session writeBufferInit is failed with status %d",__func__,status);
                 goto exit;
@@ -1214,7 +1313,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
         {
             struct qal_st_sound_model *pSoundModel = NULL;
             pSoundModel = (struct qal_st_sound_model *)payload;
-            status = populateSVASoundModel(this, SVA, graphHandle, pSoundModel);
+            status = populateSVASoundModel(this, DEVICE_SVA, graphHandle, pSoundModel);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to set sound model to gsl", __func__);
@@ -1226,7 +1325,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
         {
             struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
             pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
-            status = populateSVAWakeUpConfig(this, SVA, graphHandle, pWakeUpConfig);
+            status = populateSVAWakeUpConfig(this, DEVICE_SVA, graphHandle, pWakeUpConfig);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to set wake up config to gsl", __func__);
@@ -1247,7 +1346,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
             struct detection_engine_generic_event_cfg *pEventConfig = NULL;
             pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
             // set custom config for detection event
-            status = populateSVAEventConfig(this, SVA, graphHandle, pEventConfig);
+            status = populateSVAEventConfig(this, DEVICE_SVA, graphHandle, pEventConfig);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to set detection event config to gsl", __func__);
@@ -1259,7 +1358,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
         {
             struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
             pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
-            status = populateSVAWakeUpBufferConfig(this, SVA, graphHandle, pWakeUpBufConfig);
+            status = populateSVAWakeUpBufferConfig(this, DEVICE_SVA, graphHandle, pWakeUpBufConfig);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to set wake up config to gsl", __func__);
@@ -1271,7 +1370,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
         {
             struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
             pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
-            status = populateSVAStreamSetupDuration(this, ADAM, graphHandle, pSetupDuration);
+            status = populateSVAStreamSetupDuration(this, DEVICE_ADAM, graphHandle, pSetupDuration);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to set down stream setup duration to gsl", __func__);
@@ -1280,7 +1379,7 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
             break;
         }
         case PARAM_ID_DETECTION_ENGINE_RESET:
-            status = populateSVAEngineReset(this, SVA, graphHandle, s);
+            status = populateSVAEngineReset(this, DEVICE_SVA, graphHandle, s);
             if (status != 0)
             {
                 QAL_ERR(LOG_TAG, "%s: Failed to reset detection engine", __func__);

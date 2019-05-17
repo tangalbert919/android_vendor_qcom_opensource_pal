@@ -39,6 +39,8 @@
 #include "SessionGsl.h"
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
+#include "HandsetMic.h"
+#include "TriMic.h"
 #include "Speaker.h"
 
 
@@ -99,6 +101,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
+    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -131,6 +134,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_OUT_PROXY,                0},
     {QAL_DEVICE_IN_HANDSET_MIC,           0},
     {QAL_DEVICE_IN_SPEAKER_MIC,           0},
+    {QAL_DEVICE_IN_TRI_MIC,               0},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
     {QAL_DEVICE_IN_WIRED_HEADSET,         0},
     {QAL_DEVICE_IN_AUX_DIGITAL,           0},
@@ -178,6 +182,7 @@ static const char * device_table[QAL_DEVICE_MAX] = {
 
     [QAL_DEVICE_IN_HANDSET_MIC] = "handset-mic",
     [QAL_DEVICE_IN_SPEAKER_MIC] = "speaker-mic",
+    [QAL_DEVICE_IN_TRI_MIC] = "three-mic",
     [QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET] = "",
     [QAL_DEVICE_IN_WIRED_HEADSET] = "",
     [QAL_DEVICE_IN_AUX_DIGITAL] = "",
@@ -210,6 +215,7 @@ const std::map<std::string, uint32_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_OUT_PROXY" },                QAL_DEVICE_OUT_PROXY},
     {std::string{ "QAL_DEVICE_IN_HANDSET_MIC" },           QAL_DEVICE_IN_HANDSET_MIC},
     {std::string{ "QAL_DEVICE_IN_SPEAKER_MIC" },           QAL_DEVICE_IN_SPEAKER_MIC},
+    {std::string{ "QAL_DEVICE_IN_TRI_MIC" },               QAL_DEVICE_IN_TRI_MIC},
     {std::string{ "QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" }, QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET},
     {std::string{ "QAL_DEVICE_IN_WIRED_HEADSET" },         QAL_DEVICE_IN_WIRED_HEADSET},
     {std::string{ "QAL_DEVICE_IN_AUX_DIGITAL" },           QAL_DEVICE_IN_AUX_DIGITAL},
@@ -281,9 +287,9 @@ void ResourceManager::init_audio()
     if (snd_internal_name != NULL)
     {
         strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, MIXER_PATH_MAX_LENGTH);
-        strncat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
-        strncat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
-        strncat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
+        strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
+        strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
+        strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
     } else
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
@@ -328,11 +334,9 @@ int ResourceManager::init()
 
     //#ifdef CONFIG_GSL
     SessionGsl::init(DEFAULT_ACDB_FILES);
-
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
-
     ret = XmlParser(GECKOXMLFILE);
     if(ret){
         QAL_ERR(LOG_TAG,"error in xml parsing");
@@ -437,8 +441,13 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                     rc = Speaker::isBitWidthSupported(bitwidth) && Speaker::isSampleRateSupported(samplerate) && Speaker::isChannelSupported(channels);
                     break;
             case QAL_DEVICE_IN_HANDSET_MIC:
+                    rc = HandsetMic::isBitWidthSupported(bitwidth) && HandsetMic::isSampleRateSupported(samplerate) && HandsetMic::isChannelSupported(channels);
+                    break;
             case QAL_DEVICE_IN_SPEAKER_MIC:
                     rc = SpeakerMic::isBitWidthSupported(bitwidth) && SpeakerMic::isSampleRateSupported(samplerate) && SpeakerMic::isChannelSupported(channels);
+                    break;
+            case QAL_DEVICE_IN_TRI_MIC:
+                    rc = TriMic::isBitWidthSupported(bitwidth) && TriMic::isSampleRateSupported(samplerate) && TriMic::isChannelSupported(channels);
                     break;
             default:
                     QAL_ERR(LOG_TAG,"unknown device id %d", devices[i].id);
@@ -744,7 +753,7 @@ int ResourceManager::getDeviceName(int deviceId, char *device_name)
     else
     {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
-        QAL_ERR(LOG_TAG,"%s: Invalide device id %d", __func__, deviceId);
+        QAL_ERR(LOG_TAG,"%s: Invalid device id %d", __func__, deviceId);
         return -EINVAL;
     }
     return 0;
@@ -767,12 +776,11 @@ int ResourceManager::getPcmDeviceId(int deviceId)
     int pcm_device_id = -1;
     if (deviceId < QAL_DEVICE_OUT_EARPIECE || deviceId > QAL_DEVICE_IN_PROXY)
     {
-        QAL_ERR(LOG_TAG,"%s: Invalide device id %d", __func__, deviceId);
+        QAL_ERR(LOG_TAG,"%s: Invalid device id %d", __func__, deviceId);
         return -EINVAL;
     }
 
     //pcm_device_id = pcm_device_table[deviceId];
-    QAL_ERR(LOG_TAG,"device id %d",devicePcmId[deviceId].second);
     pcm_device_id = devicePcmId[deviceId].second;
 //#else
 #if 0
@@ -980,7 +988,7 @@ int ResourceManager::XmlParser(std::string xmlFile) {
         }
 
         if(XML_ParseBuffer(parser, bytes_read, bytes_read == 0) == XML_STATUS_ERROR) {
-            QAL_ERR(LOG_TAG,"%s: XML ParseBuffer failed ", __func__);
+            QAL_ERR(LOG_TAG,"%s: XML ParseBuffer failed for %s file", __func__, xmlFile.c_str());
             ret = -EINVAL;
             goto freeParser;
         }

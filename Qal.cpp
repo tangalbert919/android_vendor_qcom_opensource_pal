@@ -294,4 +294,26 @@ int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
     }
     return status;
 }
+int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, const size_t in_buf_size,
+                                    const size_t in_buf_count,const size_t out_buf_size,
+                                    const size_t out_buf_count)
+{
+   Stream *s = NULL;
+   int status;
+   QAL_INFO(LOG_TAG,"%s : Stream handle :%p ",__func__,stream_handle);
+    if (!stream_handle)
+    {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+    }
+    else
+    {
+        s =  static_cast<Stream *>(stream_handle);
+        status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: qal_stream_set_buffer_size failed with status %d", __func__, status);
+        }
+    }
+    return status;
+}
 

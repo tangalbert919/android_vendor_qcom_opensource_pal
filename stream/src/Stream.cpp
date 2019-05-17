@@ -195,3 +195,27 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
 exit:
     return status;
 }
+int32_t Stream::setBufInfo(size_t in_buf_size, size_t in_buf_count,
+                           size_t out_buf_size, size_t out_buf_count)
+{
+    int32_t status = 0;
+    QAL_VERBOSE(LOG_TAG,"%s: In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d\n",
+                                                  __func__,in_buf_size,in_buf_count,out_buf_size,out_buf_count);
+    inBufSize = in_buf_size;
+    inBufCount = in_buf_count;
+    outBufSize = out_buf_size;
+    outBufCount = out_buf_count;
+    return status;
+}
+int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
+                           size_t *out_buf_size, size_t *out_buf_count)
+{
+    int32_t status = 0;
+    *in_buf_size = inBufSize;
+    *in_buf_count = inBufCount;
+    *out_buf_size = outBufSize;
+    *out_buf_count = outBufCount;
+    QAL_VERBOSE(LOG_TAG,"%s:In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d\n",
+                                            __func__,*in_buf_size,*in_buf_count,*out_buf_size,*out_buf_count);
+    return status;
+}

@@ -222,14 +222,20 @@ int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle, size_t *i
   *
   * \param[in] stream_handle - Valid stream handle obtained
   *       from qal_stream_open.
-  * \param[in] in_buffer - input buffer size when stream is
+  * \param[in] in_buf_size - input buffer size when stream is
   *       opened with QAL_AUDIO_INPUT direction.
-  * \param[in] out_buffer - output buffer size when stream is
+  * \param[in] in_buf_count - input buffer count when stream is
+  *       opened with QAL_AUDIO_INPUT direction.
+  * \param[in] out_buf_size - output buffer size when stream is
+  *       opened with QAL_AUDIO_OUTPUT direction..
+  * \param[in] out_buf_count - output buffer count when stream is
   *       opened with QAL_AUDIO_OUTPUT direction..
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t qal_stream_set_buffer_size(qal_stream_handle_t *stream_handle, size_t in_buffer, size_t out_buffer);
+int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, const size_t in_buf_size,
+                                    const size_t in_buf_count, const size_t out_buf_size,
+                                    const size_t out_buf_count);
 
 /**
   * Read audio buffer captured from in the audio stream.

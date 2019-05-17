@@ -67,12 +67,13 @@ struct sessionToPayloadParam {
 
 struct codecDmaConfig {
     uint32_t intfLinkIdx;
-    uint32_t cdcDmaType;
+    uint32_t lpaifType;
     uint32_t intfIdx;
 };
 
 struct i2sConfig {
     uint32_t intfLinkIdx;
+    uint32_t lpaifType;
     uint32_t intfIdx;
     uint16_t sdLineIdx;
     uint16_t wsSrc;
@@ -80,6 +81,7 @@ struct i2sConfig {
 
 struct tdmConfig{
     uint32_t intfLinkIdx;
+    uint32_t lpaifType;
     uint32_t intfIdx;
     uint32_t syncSrc;
     uint32_t ctrlDataOutEnable;
