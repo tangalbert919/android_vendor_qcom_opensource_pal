@@ -43,6 +43,8 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/CodecDeviceAlsa.cpp \
               ./device/src/CodecDevice.cpp \
               ./device/src/SpeakerMic.cpp \
+              ./device/src/HandsetMic.cpp \
+              ./device/src/TriMic.cpp \
               ./device/src/CodecDeviceGsl.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
@@ -106,7 +108,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
-             ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
+              ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
               ${top_srcdir}/Qal.cpp \
               ${top_srcdir}/utils/src/QalRingBuffer.cpp
 
