@@ -248,6 +248,8 @@ ResourceManager::~ResourceManager()
 void ResourceManager::init_audio()
 {
     int snd_card_num = 0;
+    int ret;
+    char snd_macro[] = "snd";
     char *snd_card_name = NULL, *snd_card_name_t = NULL;
     char *snd_internal_name = NULL;
     char *tmp = NULL;
@@ -287,9 +289,14 @@ void ResourceManager::init_audio()
     if (snd_internal_name != NULL)
     {
         strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, MIXER_PATH_MAX_LENGTH);
-        strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
-        strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
-        strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
+        ret = strcmp(snd_internal_name, snd_macro);
+        if(ret == 0) {
+            strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
+        } else {
+            strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
+        }
     } else
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
@@ -305,7 +312,7 @@ void ResourceManager::init_audio()
         return;
     }
     // audio_route init success
-    QAL_DBG(LOG_TAG,"%s: audio route init success with card %d", __func__, snd_card_num);
+    QAL_DBG(LOG_TAG,"%s: audio route init success with card %d mixer path %s", __func__, snd_card_num, mixer_xml_file);
     rm->snd_card = snd_card_num;
 
 

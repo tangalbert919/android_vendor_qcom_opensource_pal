@@ -76,7 +76,19 @@ const std::map<std::string, uint32_t> tdmCtrlSyncDataDelay {
 
 const std::map<std::string, uint32_t> codecIntfIdxLUT {
     {std::string{ "CODEC_TX0" }, CODEC_TX0},
-    {std::string{ "CODEC_RX0" }, CODEC_RX0}
+    {std::string{ "CODEC_RX0" }, CODEC_RX0},
+    {std::string{ "CODEC_TX1" }, CODEC_TX1},
+    {std::string{ "CODEC_RX1" }, CODEC_RX1},
+    {std::string{ "CODEC_TX2" }, CODEC_TX2},
+    {std::string{ "CODEC_RX2" }, CODEC_RX2},
+    {std::string{ "CODEC_TX3" }, CODEC_TX3},
+    {std::string{ "CODEC_RX3" }, CODEC_RX3},
+    {std::string{ "CODEC_TX4" }, CODEC_TX4},
+    {std::string{ "CODEC_RX4" }, CODEC_RX4},
+    {std::string{ "CODEC_TX5" }, CODEC_TX5},
+    {std::string{ "CODEC_RX5" }, CODEC_RX5},
+    {std::string{ "CODEC_RX6" }, CODEC_RX6},
+    {std::string{ "CODEC_RX7" }, CODEC_RX7},
 };
 
 const std::map<std::string, uint32_t> i2sWsSrcLUT {
