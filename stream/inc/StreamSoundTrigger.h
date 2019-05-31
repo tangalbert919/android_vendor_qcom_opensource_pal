@@ -97,6 +97,9 @@ public:
     int32_t setDetected(bool detected);
     int32_t getDetectionEventInfo(struct detection_event_info **info);
     friend class QalRingBufferReader;
+    static int32_t isSampleRateSupported(uint32_t sampleRate);
+    static int32_t isChannelSupported(uint32_t numChannels);
+    static int32_t isBitWidthSupported(uint32_t bitWidth);
 private:
     int32_t stages;
     qal_st_sound_model_type_t sound_model_type;

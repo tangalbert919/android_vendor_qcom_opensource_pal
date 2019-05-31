@@ -82,6 +82,7 @@ int32_t TriMic::isChannelSupported(uint32_t numChannels)
     switch(numChannels) {
         case 1:
         case 2:
+        case 3:
         case 4:
         case 8:
             break;

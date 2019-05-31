@@ -65,7 +65,7 @@
 #define DEFAULT_FORMAT 0x00000000u
 // TODO: double check and confirm actual
 // values for max sessions number
-#define MAX_SESSIONS_LOW_LATENCY 1
+#define MAX_SESSIONS_LOW_LATENCY 8
 #define MAX_SESSIONS_DEEP_BUFFER 1
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
@@ -356,7 +356,6 @@ int ResourceManager::init()
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes, struct qal_device *devices, int no_of_devices)
 {
     bool result = false;
-    return true;
     uint16_t channels, dev_channels;
     uint32_t samplerate, bitwidth;
     uint32_t dev_samplerate, dev_bitwidth, rc;
@@ -407,6 +406,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         QAL_ERR(LOG_TAG,"%s: no new session allowed for stream %d", __func__, type);
         return result;
     }
+
     // check if param supported by audio configruation
     switch (type) {
         case QAL_STREAM_VOICE_CALL_RX:
@@ -416,32 +416,54 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOICE_UI:
-            channels = attributes->out_media_config.ch_info->channels;
-            samplerate = attributes->out_media_config.sample_rate;
-            bitwidth = attributes->out_media_config.bit_width;
-        //    format = attributes->out_media_config.aud_fmt_id;
+            if (attributes->direction == QAL_AUDIO_OUTPUT){
+                channels = attributes->out_media_config.ch_info->channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
+            } else {
+                channels = attributes->in_media_config.ch_info->channels;
+                samplerate = attributes->in_media_config.sample_rate;
+                bitwidth = attributes->in_media_config.bit_width;
+            }
             rc = StreamPCM::isBitWidthSupported(bitwidth) && StreamPCM::isSampleRateSupported(samplerate) && StreamPCM::isChannelSupported(channels);
             if (rc != 0) {
                 QAL_ERR(LOG_TAG,"config not supported");
                 return result;
             }
-            QAL_ERR(LOG_TAG,"config suppported");
+            QAL_INFO(LOG_TAG,"config suppported");
+            result = true;
+            break;
+        case QAL_STREAM_VOICE_UI:
+            if (attributes->direction == QAL_AUDIO_OUTPUT){
+                channels = attributes->out_media_config.ch_info->channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
+            } else {
+                channels = attributes->in_media_config.ch_info->channels;
+                samplerate = attributes->in_media_config.sample_rate;
+                bitwidth = attributes->in_media_config.bit_width;
+            }
+            rc = StreamSoundTrigger::isBitWidthSupported(bitwidth) &&
+                 StreamSoundTrigger::isSampleRateSupported(samplerate) &&
+                 StreamSoundTrigger::isChannelSupported(channels);
+            if (rc != 0) {
+                QAL_ERR(LOG_TAG,"config not supported");
+                return result;
+            }
+            QAL_INFO(LOG_TAG,"config suppported");
             result = true;
             break;
         default:
             QAL_ERR(LOG_TAG,"unknown type");
-            return result;
+            return false;
             break;
     }
-    return result;
     // check if param supported by any of the devices
     for (int i = 0; i < no_of_devices; i++) {
         rc = 0;
         dev_channels = devices[i].config.ch_info->channels;
         dev_samplerate = devices[i].config.sample_rate;
         dev_bitwidth = devices[i].config.bit_width;
-        //dev_format = devices[i].config.aud_fmt_id;
 
         switch(devices[i].id){
             case QAL_DEVICE_OUT_SPEAKER:
@@ -458,6 +480,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                     break;
             default:
                     QAL_ERR(LOG_TAG,"unknown device id %d", devices[i].id);
+                    return false;
         }
         if (rc != 0) {
             QAL_ERR(LOG_TAG,"%s: Attributes not supported by devices", __func__);

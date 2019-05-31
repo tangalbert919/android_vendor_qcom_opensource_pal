@@ -860,3 +860,61 @@ int32_t StreamSoundTrigger::setResume()
     return status;
 }
 
+int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(sampleRate) {
+        case 8000:
+        case 16000:
+        case 32000:
+        case 44100:
+        case 48000:
+        case 96000:
+        case 192000:
+        case 384000:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"sample rate not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t StreamSoundTrigger::isChannelSupported(uint32_t numChannels) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(numChannels) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"channels not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+
+int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth) {
+    int32_t rc = 0;
+    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
+    switch(bitWidth) {
+        case 16:
+        case 24:
+        case 32:
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"bit width not supported");
+            rc = -EINVAL;
+            break;
+    }
+    return rc;
+}
+

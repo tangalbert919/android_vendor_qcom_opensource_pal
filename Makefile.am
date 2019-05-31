@@ -2,6 +2,7 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = qal.pc
 EXTRA_DIST = $(pkgconfig_DATA)
 
+
 if BUILDSYSTEM_OPENWRT
 h_sources = ./stream/inc/Stream.h \
             ./stream/inc/StreamCompress.h \
@@ -73,6 +74,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/TriMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
+            $(top_srcdir)/session/inc/kvh2xml.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
@@ -130,7 +132,7 @@ libqal_la_LIBADD    = -lglib-2.0
 else
 libqal_la_LIBADD    = $(GLIB_LIBS)
 endif
-libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat
+libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat -ldl
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
