@@ -36,6 +36,7 @@
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
 std::vector<tdmConfig> PayloadBuilder::tdmConf;
+std::vector<auxpcmConfig> PayloadBuilder::auxpcmConf;
 
 const std::map<std::string, uint32_t> i2sIntfIdxLUT {
     {std::string{ "i2s-pri" }, I2S_INTF_TYPE_PRIMARY},
@@ -45,6 +46,11 @@ const std::map<std::string, uint32_t> i2sIntfIdxLUT {
 const std::map<std::string, uint32_t> tdmIntfIdxLUT {
     {std::string{ "tdm-pri" }, TDM_INTF_TYPE_PRIMARY},
     {std::string{ "tdm-sec" }, TDM_INTF_TYPE_PRIMARY}
+};
+
+const std::map<std::string, uint32_t> auxpcmIntfIdxLUT {
+    {std::string{ "auxpcm-pri-rx" }, PCM_INTF_TYPE_PRIMARY},
+    {std::string{ "auxpcm-pri-tx" }, PCM_INTF_TYPE_PRIMARY}
 };
 
 const std::map<std::string, uint32_t> tdmSyncSrc {
@@ -72,6 +78,29 @@ const std::map<std::string, uint32_t> tdmCtrlSyncDataDelay {
     {std::string{ "TDM_DATA_DELAY_0_BCLK_CYCLE" }, TDM_DATA_DELAY_0_BCLK_CYCLE },
     {std::string{ "TDM_DATA_DELAY_1_BCLK_CYCLE" }, TDM_DATA_DELAY_1_BCLK_CYCLE },
     {std::string{ "TDM_DATA_DELAY_2_BCLK_CYCLE" }, TDM_DATA_DELAY_2_BCLK_CYCLE }
+};
+
+const std::map<std::string, uint32_t> auxpcmSyncSource {
+    {std::string{ "PCM_SYNC_SRC_EXTERNAL" }, PCM_SYNC_SRC_EXTERNAL },
+    {std::string{ "PCM_SYNC_SRC_INTERNAL" }, PCM_SYNC_SRC_INTERNAL },
+};
+
+const std::map<std::string, uint32_t> auxpcmctrlDataOutEnable {
+    {std::string{ "PCM_CTRL_DATA_OE_DISABLE" }, PCM_CTRL_DATA_OE_DISABLE },
+    {std::string{ "PCM_CTRL_DATA_OE_ENABLE" }, PCM_CTRL_DATA_OE_ENABLE },
+};
+
+const std::map<std::string, uint32_t> auxpcmFrameSetting {
+    {std::string{ "PCM_BITS_PER_FRAME_16" }, PCM_BITS_PER_FRAME_16 },
+    {std::string{ "PCM_BITS_PER_FRAME_32" }, PCM_BITS_PER_FRAME_32 },
+    {std::string{ "PCM_BITS_PER_FRAME_64" }, PCM_BITS_PER_FRAME_64 },
+    {std::string{ "PCM_BITS_PER_FRAME_128" }, PCM_BITS_PER_FRAME_128 },
+    {std::string{ "PCM_BITS_PER_FRAME_256" }, PCM_BITS_PER_FRAME_256 },
+};
+
+const std::map<std::string, uint32_t> auxpcmAuxMode {
+    {std::string{ "PCM_MODE" }, PCM_MODE },
+    {std::string{ "AUX_MODE" }, AUX_MODE },
 };
 
 const std::map<std::string, uint32_t> codecIntfIdxLUT {
@@ -102,7 +131,9 @@ const std::map<std::string, uint32_t> intfLinkIdxLUT {
     {std::string{ "i2s-pri" }, 3},
     {std::string{ "i2s-sec" }, 4},
     {std::string{ "tdm-pri" }, 5},
-    {std::string{ "tdm-sec" }, 6}
+    {std::string{ "tdm-sec" }, 6},
+    {std::string{ "auxpcm-pri-rx" }, 7},
+    {std::string{ "auxpcm-pri-tx" }, 8}
 };
 
 const std::map<std::string, uint32_t> lpaifIdxLUT {
@@ -119,7 +150,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     struct payload_media_fmt_pcm_t* mediaFmtPayload;
     size_t payloadSize;
     uint8_t *payloadInfo = NULL;
-    int numChannels = 2;
+    int numChannels = data->numChannel;
     uint8_t* pcmChannel;
     struct apm_module_param_data_t* header;
 
@@ -198,7 +229,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     struct payload_pcm_output_format_cfg_t* mediaFmtPayload;
     size_t payloadSize;
     uint8_t *payloadInfo = NULL;
-    int numChannels = 2;
+    int numChannels = data->numChannel;
     uint8_t* pcmChannel;
     struct apm_module_param_data_t* header;
 
@@ -437,6 +468,82 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     *payload = payloadInfo;
 }
 
+void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
+    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
+    struct apm_module_param_data_t* header;
+    struct param_id_hw_pcm_intf_cfg_t* AuxpcmConfig;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0;
+    int32_t AuxpcmLinkIdx = 0,index;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+        sizeof( struct param_id_hw_pcm_intf_cfg_t);
+
+    if (payloadSize % 8 != 0)
+        payloadSize = payloadSize + (8 - payloadSize % 8);
+
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    AuxpcmConfig = (struct param_id_hw_pcm_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+
+    header->module_instance_id = moduleInfo->module_entry[0].module_iid;
+    header->param_id = PARAM_ID_HW_PCM_INTF_CFG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize;
+    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      __func__, header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+
+
+
+    int32_t linkIdx = intfLinkIdxLUT.at(epName);
+    for (int32_t j = 0; j < auxpcmConf.size(); j++)
+    {
+        if (linkIdx != auxpcmConf[j].intfLinkIdx)
+            continue;
+        AuxpcmLinkIdx = j;
+        break;
+    }
+
+
+    AuxpcmConfig->lpaif_type = auxpcmConf[AuxpcmLinkIdx].lpaifType;
+    AuxpcmConfig->intf_idx = auxpcmConf[AuxpcmLinkIdx].intfIdx;
+    AuxpcmConfig->sync_src = auxpcmConf[AuxpcmLinkIdx].syncSrc;
+    AuxpcmConfig->ctrl_data_out_enable = auxpcmConf[AuxpcmLinkIdx].ctrlDataOutEnable;
+
+    if (data->numChannel == 1) {
+         AuxpcmConfig->slot_mask = 0x1;
+    } else if (data->numChannel == 2) {
+         AuxpcmConfig->slot_mask = 0x3;
+    } else if (data->numChannel == 3) {
+         AuxpcmConfig->slot_mask = 0x7;
+    } else if (data->numChannel == 4) {
+         AuxpcmConfig->slot_mask = 0xF;
+    } else if (data->numChannel == 5) {
+         AuxpcmConfig->slot_mask = 0x1F;
+    } else if (data->numChannel == 6) {
+         AuxpcmConfig->slot_mask = 0x3F;
+    } else if (data->numChannel == 7) {
+         AuxpcmConfig->slot_mask = 0x7F;
+    } else if (data->numChannel == 8) {
+         AuxpcmConfig->slot_mask = 0xFF;
+    }
+
+    AuxpcmConfig->frame_setting = auxpcmConf[AuxpcmLinkIdx].frameSetting;
+    AuxpcmConfig->aux_mode = auxpcmConf[AuxpcmLinkIdx].auxMode;
+
+    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+
+    QAL_ERR(LOG_TAG,"%s: PCM Config  \n intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d frame_setting:%d aux_mode:%d",
+                __func__,AuxpcmConfig->intf_idx, AuxpcmConfig->sync_src, AuxpcmConfig->ctrl_data_out_enable,
+                AuxpcmConfig->slot_mask, AuxpcmConfig->frame_setting, AuxpcmConfig->aux_mode);
+
+
+    *size = payloadSize;
+    *payload = payloadInfo;
+}
 
 void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data) {
@@ -529,6 +636,12 @@ void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size,
     found = epName.find(tdm);
     if (found !=std::string::npos) {
         payloadTdmConfig(payload, size, moduleInfo, data, epName);
+    }
+    found = 0;
+    std::string auxpcm("auxpcm");
+    found = epName.find(auxpcm);
+    if (found !=std::string::npos) {
+        payloadAuxpcmConfig(payload, size, moduleInfo, data, epName);
     }
 }
 
@@ -719,6 +832,57 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     tdmConf.push_back(tdmCnf);
 }
 
+void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr) {
+    struct auxpcmConfig auxpcmCnf;
+
+    if(strcmp(attr[0], "name" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
+        return;
+    }
+    std::string linkName(attr[1]);
+    auxpcmCnf.intfIdx =  auxpcmIntfIdxLUT.at(linkName);
+    auxpcmCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
+    if(strcmp(attr[2], "lpaif_type" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'lpaif_type' not found",__func__);
+        return;
+    }
+    std::string lpaifName(attr[3]);
+    auxpcmCnf.lpaifType = lpaifIdxLUT.at(lpaifName);
+    if(strcmp(attr[4], "sync_src" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'sync_src' not found",__func__);
+        return;
+    }
+
+    std::string syncSrc(attr[5]);
+    auxpcmCnf.syncSrc = auxpcmSyncSource.at(syncSrc);
+
+    if(strcmp(attr[6], "ctrl_data" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'ctrl_data' not found",__func__);
+        return;
+    }
+
+    std::string ctrlData(attr[7]);
+    auxpcmCnf.ctrlDataOutEnable = auxpcmctrlDataOutEnable.at(ctrlData);
+
+
+    if(strcmp(attr[8], "frame_setting" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'frame_setting' not found",__func__);
+        return;
+    }
+
+    std::string frameSetting(attr[9]);
+    auxpcmCnf.frameSetting = auxpcmFrameSetting.at(frameSetting);
+
+
+    if(strcmp(attr[10], "aux_mode" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'aux_mode' not found",__func__);
+        return;
+    }
+
+    std::string auxMode(attr[11]);
+    auxpcmCnf.auxMode = auxpcmAuxMode.at(auxMode);
+    auxpcmConf.push_back(auxpcmCnf);
+}
 void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name,
     const XML_Char **attr) {
     if (strcmp(tag_name, "codec_hw_intf") == 0) {
@@ -727,6 +891,8 @@ void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name,
         processI2sInfo(attr);
     } else if (strcmp(tag_name, "tdm_hw_intf") == 0) {
         processTdmInfo(attr);
+    } else if (strcmp(tag_name, "auxpcm_hw_intf") == 0) {
+        processAuxpcmInfo(attr);
     }
 }
 

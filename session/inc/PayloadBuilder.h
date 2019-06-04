@@ -90,17 +90,30 @@ struct tdmConfig{
     uint32_t ctrlSyncDataDelay;
 };
 
+struct auxpcmConfig{
+    uint32_t intfLinkIdx;
+    uint32_t lpaifType;
+    uint32_t intfIdx;
+    uint32_t syncSrc;
+    uint32_t ctrlDataOutEnable;
+    uint32_t slotMask;
+    uint32_t frameSetting;
+    uint32_t auxMode;
+};
+
 class PayloadBuilder
 {
 private:
     static std::vector<codecDmaConfig> codecConf;
     static std::vector<i2sConfig> i2sConf;
     static std::vector<tdmConfig> tdmConf;
+    static std::vector<auxpcmConfig> auxpcmConf;
     void payloadInMediaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
     void payloadOutMediaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
     void payloadCodecDmaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
     void payloadI2sConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
     void payloadTdmConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
+    void payloadAuxpcmConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
     void payloadHwEpConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
 public:
     void payloadStreamConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam* data);
@@ -118,6 +131,7 @@ public:
     static void processCodecInfo(const XML_Char **attr);
     static void processI2sInfo(const XML_Char **attr);
     static void processTdmInfo(const XML_Char **attr);
+    static void processAuxpcmInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     PayloadBuilder();
     ~PayloadBuilder();
