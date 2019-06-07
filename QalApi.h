@@ -426,7 +426,7 @@ extern void  __gcov_flush();
 /**
  *  Enable Gcov for QAL.
  */
-void enable_gcov();
+//void enable_gcov();
 
 #ifdef __cplusplus
 }  /* extern "C" */

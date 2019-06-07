@@ -45,14 +45,14 @@
 
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
-#define MIXER_XML_BASE_STRING "/etc/mixer_paths"
-#define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
+#define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
+#define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
 #define MIXER_PATH_MAX_LENGTH 100
 
 #define MAX_SND_CARD 110
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
-#define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
+#define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
 #define DEVICE_NAME_MAX_SIZE 128
 // should be defined in qal_defs.h
 #define QAL_DEVICE_MAX QAL_DEVICE_IN_PROXY+1
@@ -68,9 +68,9 @@
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_VOICE_UI 2
-#define XMLFILE "/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/etc/kvh2xml.xml"
-#define SNDPARSER "/etc/card-defs.xml"
+#define XMLFILE "/vendor/etc/resourcemanager.xml"
+#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
+#define SNDPARSER "/vendor/etc/card-defs.xml"
 #define MAX_FRONT_ENDS 2
 
 
@@ -402,9 +402,10 @@ int ResourceManager::init_audio()
         snd_internal_name = strtok_r(NULL, "-", &tmp);
 
     if (snd_internal_name != NULL) {
+        QAL_ERR(LOG_TAG, "snd_internal_name: %s", snd_internal_name);
         strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, MIXER_PATH_MAX_LENGTH);
         ret = strcmp(snd_internal_name, snd_macro);
-        if(ret == 0) {
+        if (ret == 0) {
             strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
         } else {
             strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
@@ -935,6 +936,7 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 void ResourceManager::deinit()
 {
     rm = nullptr;
+    mixer_close(rm->audio_mixer);
     SessionGsl::deinit();
 }
 
@@ -1303,6 +1305,7 @@ void ResourceManager::processTagInfo(const XML_Char **attr)
     found = name.find(String);
     if (found != std::string::npos){
         updateStreamTag(tagId);
+        QAL_ERR(LOG_TAG,"%s:%d    %x", __func__, __LINE__, tagId);
     }
     found = 0;
     found = name.find(std::string("device"));

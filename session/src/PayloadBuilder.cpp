@@ -32,15 +32,21 @@
 #include "SessionGsl.h"
 #include "spr_api.h"
 
-#define XML_FILE "/etc/hw_ep_info.xml"
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
+#define XML_FILE "/vendor/etc/hw_ep_info.xml"
 #define TAG_STREAM_MFC_SR  TAG_DEVICE_PP_MFC
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
 std::vector<tdmConfig> PayloadBuilder::tdmConf;
 std::vector<auxpcmConfig> PayloadBuilder::auxpcmConf;
+std::vector<slimConfig> PayloadBuilder::slimConf;
+
+const std::map<std::string, uint32_t> slimIntfIdxLUT {
+    {std::string{ "slim-0-rx" }, 1},
+    {std::string{ "slim-0-tx" }, 2}
+};
 
 const std::map<std::string, uint32_t> i2sIntfIdxLUT {
     {std::string{ "i2s-pri" }, I2S_INTF_TYPE_PRIMARY},
@@ -107,6 +113,19 @@ const std::map<std::string, uint32_t> auxpcmAuxMode {
     {std::string{ "AUX_MODE" }, AUX_MODE },
 };
 
+const std::map<std::string, uint32_t> slimDevId {
+    {std::string{ "SLIMBUS_DEVICE_1" }, SLIMBUS_DEVICE_1 },
+    {std::string{ "SLIMBUS_DEVICE_2" }, SLIMBUS_DEVICE_2 },
+};
+
+const std::map<std::string, uint32_t> slimSharedChannels {
+    {std::string{ "SLIM_RX0" }, SLIM_RX0 },
+    {std::string{ "SLIM_RX1" }, SLIM_RX1 },
+    {std::string{ "SLIM_TX0" }, SLIM_TX0 },
+    {std::string{ "SLIM_TX1" }, SLIM_TX1 },
+    {std::string{ "SLIM_TX7" }, SLIM_TX7 },
+};
+
 const std::map<std::string, uint32_t> codecIntfIdxLUT {
     {std::string{ "CODEC_TX0" }, CODEC_TX0},
     {std::string{ "CODEC_RX0" }, CODEC_RX0},
@@ -137,7 +156,9 @@ const std::map<std::string, uint32_t> intfLinkIdxLUT {
     {std::string{ "tdm-pri" }, 5},
     {std::string{ "tdm-sec" }, 6},
     {std::string{ "auxpcm-pri-rx" }, 7},
-    {std::string{ "auxpcm-pri-tx" }, 8}
+    {std::string{ "auxpcm-pri-tx" }, 8},
+    {std::string{ "slim-0-rx" }, 7},
+    {std::string{ "slim-0-tx" }, 8},
 };
 
 const std::map<std::string, uint32_t> lpaifIdxLUT {
@@ -145,7 +166,7 @@ const std::map<std::string, uint32_t> lpaifIdxLUT {
     {std::string{ "LPAIF_RXTX"}, 1},
     {std::string{ "LPAIF_WSA"},  2},
     {std::string{ "LPAIF_VA"},   3},
-    {std::string{ "LPAIF_AXI"},  4}
+    {std::string{ "LPAIF_AXI"},  4},
 };
 
 void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
@@ -477,6 +498,64 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
+void PayloadBuilder::payloadSlimConfig(uint8_t** payload, size_t* size,
+    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
+    struct apm_module_param_data_t* header;
+    struct  param_id_slimbus_cfg_t * slimConfig;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0;
+    int32_t slimLinkIdx = 0;
+
+    if (!moduleInfo) {
+        QAL_ERR(LOG_TAG, "module info is NULL");
+        return;
+    }
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+        sizeof(struct param_id_slimbus_cfg_t);
+
+    if (payloadSize % 8 != 0)
+        payloadSize = payloadSize + (8 - payloadSize % 8);
+
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    slimConfig = (struct param_id_slimbus_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+
+    QAL_ERR(LOG_TAG, "%s - 1", __func__);
+
+    header->module_instance_id = moduleInfo->module_entry[0].module_iid;
+    QAL_ERR(LOG_TAG, "%s - 111", __func__);
+    header->param_id = PARAM_ID_SLIMBUS_CONFIG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      __func__, header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    QAL_ERR(LOG_TAG, "%s - 2, size: %d", __func__, slimConf.size());
+    int32_t linkIdx = intfLinkIdxLUT.at(epName);
+    for (int32_t j = 0; j < slimConf.size(); j++)
+    {
+        if (linkIdx != slimConf[j].intfLinkIdx)
+            continue;
+        slimLinkIdx = j;
+        break;
+    }
+    QAL_ERR(LOG_TAG, "%s - 3", __func__);
+    slimConfig->slimbus_dev_id = slimConf[slimLinkIdx].dev_id;
+    slimConfig->shared_channel_mapping[0] = slimConf[slimLinkIdx].sh_mapping_idx_0;
+    slimConfig->shared_channel_mapping[1] = slimConf[slimLinkIdx].sh_mapping_idx_1;
+    QAL_ERR(LOG_TAG, "%s - 4", __func__);
+    QAL_VERBOSE(LOG_TAG,"%s: slim Config intf_idx:%x dev_id:%x ind_0:%x ind_1:%x", __func__,
+                slimConf[slimLinkIdx].intfLinkIdx, slimConfig->slimbus_dev_id,
+                slimConfig->shared_channel_mapping[0], slimConfig->shared_channel_mapping[1]);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+
+    QAL_ERR(LOG_TAG, "%s - 5", __func__);
+    *size = payloadSize;
+    *payload = payloadInfo;
+}
+
 void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size, 
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName)
 {
@@ -738,7 +817,8 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, int payloadTag,
         struct sessionToPayloadParam* data)
 {
-    switch(payloadTag) {
+    unsigned int uPayloadTag = (unsigned int)payloadTag;
+    switch(uPayloadTag) {
         case IN_MEDIA:
             payloadInMediaConfig(payload, size, moduleInfo, data);
             break;
@@ -792,6 +872,13 @@ void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size,
     found = epName.find(auxpcm);
     if (found !=std::string::npos) {
         payloadAuxpcmConfig(payload, size, moduleInfo, data, epName);
+    }
+
+    found = 0;
+    std::string slim("slim");
+    found = epName.find(slim);
+    if (found !=std::string::npos) {
+        payloadSlimConfig(payload, size, moduleInfo, data, epName);
     }
 }
 
@@ -926,8 +1013,41 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr)
     i2sConf.push_back(i2sCnf);
 }
 
-void PayloadBuilder::processTdmInfo(const XML_Char **attr)
-{
+void PayloadBuilder::processSlimInfo(const XML_Char **attr) {
+    struct slimConfig slimCnf;
+
+	// read interface name
+    if(strcmp(attr[0], "name" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
+        return;
+    }
+    std::string linkName(attr[1]);
+    slimCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
+	// parse slimbus device id
+    if(strcmp(attr[2], "slim_dev_id" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'slim_dev_id' not found",__func__);
+        return;
+    }
+    std::string slimDevIdName(attr[3]);
+    slimCnf.dev_id = slimDevId.at(slimDevIdName);
+	//parse index_0
+    if(strcmp(attr[4], "index_0" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'index_0' not found",__func__);
+        return;
+    }
+    std::string slimIdx0(attr[5]);
+    slimCnf.sh_mapping_idx_0 = slimSharedChannels.at(slimIdx0);
+	//parse index_1
+    if(strcmp(attr[6], "index_1" ) !=0 ) {
+        QAL_ERR(LOG_TAG,"%s: 'index_1' not found",__func__);
+        return;
+    }
+    std::string slimIdx1(attr[7]);
+    slimCnf.sh_mapping_idx_1 = slimSharedChannels.at(slimIdx1);
+    slimConf.push_back(slimCnf);
+}
+
+void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     struct tdmConfig tdmCnf;
 
     if(strcmp(attr[0], "name" ) !=0 ) {
@@ -1049,6 +1169,8 @@ void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name,
         processTdmInfo(attr);
     } else if (strcmp(tag_name, "auxpcm_hw_intf") == 0) {
         processAuxpcmInfo(attr);
+    } else if (strcmp(tag_name, "slim_hw_intf") == 0) {
+        processSlimInfo(attr);
     }
 }
 
@@ -1745,7 +1867,7 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
     }
     voldB = (voldata->volume_pair[0].vol);
     QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
-    switch (tag) {
+    switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
        if (0 <= voldB < 0.1) {
           keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
@@ -1769,11 +1891,14 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
           keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
        } else {
           keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
+          QAL_ERR(LOG_TAG,"%s:max %d \n",__func__, (voldata->no_of_volpair));
        }
        break;
     default:
         //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
+        QAL_ERR(LOG_TAG,"%s: enter \n", __func__);
         keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+        QAL_ERR(LOG_TAG,"%s: Entered default %x %x \n", __func__, VOLUME, LEVEL_0);
         break;
     }
 
@@ -1813,7 +1938,7 @@ int PayloadBuilder::populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, 
     voldB = (voldata->volume_pair[0].vol);
     QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
 
-    switch (tag) {
+    switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
        if (0 <= voldB < 0.1) {
           keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
@@ -1916,7 +2041,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     QAL_VERBOSE(LOG_TAG,"%s: volume sent:%f \n",__func__, (voldata->volume_pair[0].vol));
     voldB = (voldata->volume_pair[0].vol);
 
-    switch (tag) {
+    switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
        if (0 <= voldB < 0.1) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
@@ -1950,6 +2075,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
        }
        else if (voldB >= 1) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
+          QAL_ERR(LOG_TAG,"%s:max %d \n",__func__, (voldata->no_of_volpair));
        }
 
        break;

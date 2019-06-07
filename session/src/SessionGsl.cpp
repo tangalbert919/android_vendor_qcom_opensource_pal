@@ -39,7 +39,7 @@
 #include "PayloadBuilder.h"
 #include "ResourceManager.h"
 
-#define GSL_LIB  "libgsl.so"
+#define GSL_LIB  "libcasa-gsl.so"
 #define PLAYBACK 0x1
 #define RECORD 0x2
 #define BUFFER_EOS 1
@@ -515,17 +515,19 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     QAL_ERR(LOG_TAG, "Invalid sample rate = %d", deviceData->sampleRate);
             }
 
-            builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo,
-                                           deviceTag[i], deviceData, epname);
-            if (!payload) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            if (moduleInfo) {
+                builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo,
+                                               deviceTag[i], deviceData, epname);
+                if (!payload) {
+                    status = -ENOMEM;
+                    QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 continue;
-            }
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
-                //goto free_payload;
+                }
+                status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+                    //goto free_payload;
+                }
             }
         }
     }
@@ -535,7 +537,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
         moduleInfoSize = 0;
         status = gslGetTaggedModuleInfo(gkv, deviceTag[i], &moduleInfo, &moduleInfoSize);
         deviceData->metadata = NULL;
-        if (0 != status)
+        if ((status != 0) || (moduleInfo == NULL))
             continue;
         else {
             payload = NULL;
@@ -809,7 +811,7 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag)
         if (tagsent == TAG_PAUSE) {
             QAL_VERBOSE(LOG_TAG,"Do not call gslSetConfig if tagsent:%x \n", tagsent);
         } else {
-            status = gslSetConfig(graphHandle, nullptr, tagsent, tkv);
+            status = gslSetConfig(graphHandle, gkv, tagsent, tkv);
             if (0 != status) {
                QAL_ERR(LOG_TAG, "Failed to set tag data status %d", status);
                goto exit;
@@ -1313,13 +1315,13 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         keyVector.push_back(std::make_pair(STREAM_TYPE, VOIP_TX_EC_REF_PATH));
         keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
     }
-    else if (txStreamType == QAL_STREAM_LOW_LATENCY && sattr.direction == QAL_AUDIO_INPUT
-             && (sattr.in_media_config.ch_info->channels >= 3)) {
+    else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
+             && (sAttr.in_media_config.ch_info->channels >= 3)) {
         keyVector.push_back(std::make_pair(STREAM_TYPE, PCM_RECORD_EC_REF_PATH));
         keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
     }
-    else if (txStreamType == QAL_STREAM_LOW_LATENCY && sattr.direction == QAL_AUDIO_INPUT
-              && (sattr.in_media_config.ch_info->channels == 1)) {
+    else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
+              && (sAttr.in_media_config.ch_info->channels == 1)) {
         keyVector.push_back(std::make_pair(STREAM_TYPE, PCM_RECORD_EC_REF_PATH));
         keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_SMECNS));
     }
@@ -1350,4 +1352,14 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
 int SessionGsl::getTimestamp(struct qal_session_time *stime)
 {
    return 0;
+}
+
+int SessionGsl::registerCallBack(session_callback cb, void *cookie)
+{
+    return 0;
+}
+
+int SessionGsl::drain(qal_drain_type_t type)
+{
+    return 0;
 }

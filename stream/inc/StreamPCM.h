@@ -44,7 +44,7 @@ public:
              const struct modifier_kv *modifiers, const uint32_t no_of_modifiers,
              const std::shared_ptr<ResourceManager> rm);
    //StreamPCM();
-   ~StreamPCM();
+   virtual ~StreamPCM() { };
    int32_t open() override;
    int32_t close() override;
    int32_t start() override;

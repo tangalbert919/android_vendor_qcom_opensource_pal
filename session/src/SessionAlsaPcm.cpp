@@ -34,7 +34,7 @@
 #include "SessionAlsaUtils.h"
 #include "Stream.h"
 #include "ResourceManager.h"
-#include <agm/agm_api.h>
+#include <agm_api.h>
 #include <sstream>
 #include <string>
 #include "detection_cmn_api.h"
@@ -675,7 +675,7 @@ int SessionAlsaPcm::setParameters(Stream *s, int tagId, uint32_t param_id, void 
             goto free_payload;
         }
 
-        memcpy(customPayload + customPayloadSize, paramData, paramSize);
+        memcpy((uint8_t *)customPayload + customPayloadSize, paramData, paramSize);
         customPayloadSize += paramSize;
         QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
     }
@@ -844,6 +844,11 @@ int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void 
     return 0;
 }
 
+int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)
+{
+    return 0;
+}
+
 int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
 {
     int status = 0;
@@ -854,3 +859,8 @@ int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
     }
     return status;
 }
+int SessionAlsaPcm::drain(qal_drain_type_t type)
+{
+    return 0;
+}
+

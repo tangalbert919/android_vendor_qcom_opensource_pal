@@ -39,16 +39,16 @@
 #include "common_enc_dec_api.h"
 #include "module_cmn_api.h"
 #include "hw_intf_cmn_api.h"
+#include "media_fmt_api.h"
 #include "module_cmn_api.h"
 #include "i2s_api.h"
+#include "slimbus_api.h"
 #include "pcm_tdm_api.h"
 #include "audio_dam_buffer_api.h"
 #include "codec_dma_api.h"
 #include "detection_cmn_api.h"
 #include "PayloadBuilder.h"
 #include "Stream.h"
-
-
 
 /* Param ID definitions */
 #define PARAM_ID_MEDIA_FORMAT 0x0800100C
@@ -80,6 +80,11 @@
 #define CODEC_RX6 7
 #define CODEC_RX7 8
 
+#define SLIM_RX0 144
+#define SLIM_RX1 145
+#define SLIM_TX0 128
+#define SLIM_TX1 129
+#define SLIM_TX7 135
 
 struct gslCmdGetReadWriteBufInfo {
     uint32_t buff_size;
@@ -143,7 +148,7 @@ private:
     
 public:
     SessionGsl(std::shared_ptr<ResourceManager> Rm);
-    ~SessionGsl();
+    virtual ~SessionGsl();
     static int init(std::string acdbFile);
     static void deinit();
     int open(Stream * s) override;
@@ -163,6 +168,8 @@ public:
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
     int getTimestamp(struct qal_session_time *stime) override;
+    int registerCallBack(session_callback cb, void *cookie) override;
+    int drain(qal_drain_type_t type) override;
 
 };
 

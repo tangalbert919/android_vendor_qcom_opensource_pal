@@ -84,7 +84,7 @@ public:
     StreamSoundTrigger(struct qal_stream_attributes *sattr, struct qal_device *dattr,
                        uint32_t no_of_devices, struct modifier_kv *modifiers,
                        uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
-    ~StreamSoundTrigger();
+    virtual ~StreamSoundTrigger() {};
     int32_t open() override;
     int32_t close() override;
     int32_t start() override;

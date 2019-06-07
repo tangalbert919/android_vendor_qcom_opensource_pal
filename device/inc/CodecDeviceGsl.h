@@ -40,7 +40,7 @@ class CodecDeviceGsl: public CodecDeviceImpl
     struct pcm *pcmFd;
 public:
     CodecDeviceGsl();
-    ~CodecDeviceGsl();
+    virtual ~CodecDeviceGsl();
     int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
     int close() override;
     int prepare() override;

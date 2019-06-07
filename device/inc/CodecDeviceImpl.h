@@ -33,6 +33,7 @@
 class CodecDeviceImpl
 {
 public:
+    virtual ~CodecDeviceImpl() {};
     virtual int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) = 0;
     virtual int close() = 0;
     virtual int prepare() = 0;

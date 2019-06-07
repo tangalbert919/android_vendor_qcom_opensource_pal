@@ -73,6 +73,7 @@ class Session;
 class Stream
 {
 protected:
+    uint32_t noOfDevices;
     std::vector <std::shared_ptr<Device>> devices;
     std::shared_ptr <Device> dev;
     Session* session;
@@ -89,6 +90,7 @@ protected:
     size_t outBufCount;
 
 public:
+    virtual ~Stream() {};
     qal_stream_callback streamCb;
     void *cookie;
     virtual int32_t open() = 0;

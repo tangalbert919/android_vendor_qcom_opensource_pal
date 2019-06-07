@@ -40,7 +40,7 @@ class CodecDeviceAlsa: public CodecDeviceImpl
 public:
 
      CodecDeviceAlsa();
-     ~CodecDeviceAlsa();
+     virtual ~CodecDeviceAlsa();
      int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
      int close() override;
      int prepare() override;

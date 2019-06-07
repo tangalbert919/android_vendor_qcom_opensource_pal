@@ -105,6 +105,13 @@ struct auxpcmConfig{
     uint32_t auxMode;
 };
 
+struct slimConfig {
+    uint32_t intfLinkIdx;
+    uint32_t dev_id;
+    uint32_t sh_mapping_idx_0;
+    uint32_t sh_mapping_idx_1;
+};
+
 class SessionGsl;
 
 class PayloadBuilder
@@ -114,6 +121,7 @@ private:
     static std::vector<i2sConfig> i2sConf;
     static std::vector<tdmConfig> tdmConf;
     static std::vector<auxpcmConfig> auxpcmConf;
+    static std::vector<slimConfig> slimConf;
     void payloadInMediaConfig(uint8_t** payload, size_t* size,
                               struct gsl_module_id_info* moduleInfo,
                               struct sessionToPayloadParam* data);
@@ -137,6 +145,9 @@ private:
     void payloadHwEpConfig(uint8_t** payload, size_t* size,
                            struct gsl_module_id_info* moduleInfo,
                            struct sessionToPayloadParam* data);
+    void payloadSlimConfig(uint8_t** payload, size_t* size,
+                           struct gsl_module_id_info* moduleInfo,
+                           struct sessionToPayloadParam* data, std::string epName);
 public:
     void payloadStreamConfig(uint8_t** payload, size_t* size,
                              struct gsl_module_id_info* moduleInfo,
@@ -181,6 +192,7 @@ public:
     static void processI2sInfo(const XML_Char **attr);
     static void processTdmInfo(const XML_Char **attr);
     static void processAuxpcmInfo(const XML_Char **attr);
+    static void processSlimInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     PayloadBuilder();
     ~PayloadBuilder();

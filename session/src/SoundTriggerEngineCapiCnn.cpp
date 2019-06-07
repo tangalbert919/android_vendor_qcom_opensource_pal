@@ -542,3 +542,4 @@ int32_t SoundTriggerEngineCapiCnn::getParameters(uint32_t param_id, void **paylo
 {
     return 0;
 }
+

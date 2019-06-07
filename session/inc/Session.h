@@ -64,7 +64,7 @@ protected:
     Session();
     std::shared_ptr<ResourceManager> rm;
 public:
-    ~Session();
+    virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;

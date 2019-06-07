@@ -87,6 +87,12 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineCapiCnn.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineCapiVop.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_events.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_extn.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_properties.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_types.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/mmdefs.h \
             ${top_srcdir}/resource_manager/inc/ResourceManager.h \
             ${top_srcdir}/QalDefs.h \
             ${top_srcdir}/QalApi.h \
@@ -103,6 +109,15 @@ AM_CPPFLAGS += -I $(top_srcdir)/
 AM_CPPFLAGS += $(GECKO_CFLAGS)/
 AM_CPPFLAGS += $(ACDBDATA_CFLAGS)
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm
+
+AM_CPPFLAGS += -I ${WORKSPACE}/audio/mm-audio/capiv2_api/
+
+AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
+
+AM_CPPFLAGS += -DCONFIG_GSL
+
+library_include_HEADERS = $(h_sources)
+library_includedir = $(includedir)/qal
 
 qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
@@ -139,12 +154,7 @@ library_includedir = $(includedir)/qal
 
 lib_LTLIBRARIES     = libqal.la
 libqal_la_SOURCES   = $(qal_sources)
-if BUILDSYSTEM_OPENWRT
-libqal_la_LIBADD    = -lglib-2.0
-else
-libqal_la_LIBADD    = $(GLIB_LIBS)
-endif
-libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat -ldl -ltinycompress
+libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lcasa_osal -lexpat -ltinycompress
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0

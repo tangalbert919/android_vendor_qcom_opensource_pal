@@ -37,7 +37,7 @@
 //#include "SessionAlsaPcm.h"
 //#include "SessionAlsaCompress.h"
 #include "ResourceManager.h"
-#include <agm/agm_api.h>
+#include <agm_api.h>
 #include "detection_cmn_api.h"
 #include "spr_api.h"
 #include "apm_api.h"

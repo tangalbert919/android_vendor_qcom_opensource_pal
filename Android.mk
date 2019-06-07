@@ -1,9 +1,11 @@
-ifeq ($(call is-board-platform-in-list, sdm845),true)
+ifeq ($(call is-board-platform-in-list, sdm845 msmnile),true)
 
 ifneq ($(BUILD_TINY_ANDROID),true)
 
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
+
+LOCAL_USE_VNDK := true
 
 #----------------------------------------------------------------------------
 #                 Common definitons
@@ -19,18 +21,75 @@ qal-def += -D_ANDROID_
 
 #LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/gsl
 
-LOCAL_CFLAGS     := $(qal-def)
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc\
+	$(LOCAL_PATH)/device/inc\
+	$(LOCAL_PATH)/session/inc\
+	$(LOCAL_PATH)/resource_manager/inc\
+	$(LOCAL_PATH)/utils/inc
 
-LOCAL_SRC_FILES        := Qal.c
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
+LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/proprietary/casa/gecko/api
+LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
+LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
+LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
+LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/proprietary/mm-audio/capiv2_api
+LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/agm/service/inc
+
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
+LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
+
+LOCAL_CFLAGS     := $(qal-def)
+LOCAL_CFLAGS += -Wno-macro-redefined
+LOCAL_CFLAGS += -DCONFIG_GSL
+LOCAL_CFLAGS += -D_GNU_SOURCE
+LOCAL_CPPFLAGS += -fexceptions -frtti
+
+
+LOCAL_SRC_FILES        := Qal.cpp\
+	stream/src/Stream.cpp\
+	stream/src/StreamCompress.cpp\
+	stream/src/StreamPCM.cpp\
+	stream/src/StreamSoundTrigger.cpp\
+	device/src/Device.cpp \
+	device/src/Speaker.cpp \
+	device/src/CodecDeviceAlsa.cpp \
+	device/src/CodecDevice.cpp \
+	device/src/SpeakerMic.cpp \
+	device/src/CodecDeviceGsl.cpp \
+	session/src/Session.cpp \
+	session/src/PayloadBuilder.cpp \
+	session/src/SessionGsl.cpp \
+	session/src/SessionAlsaPcm.cpp \
+	session/src/SessionAlsaUtils.cpp \
+	session/src/SessionAlsaCompress.cpp \
+	session/src/SoundTriggerEngine.cpp \
+	session/src/SoundTriggerEngineCapiCnn.cpp \
+        session/src/SoundTriggerEngineCapiVop.cpp \
+	session/src/SoundTriggerEngineGsl.cpp \
+	resource_manager/src/ResourceManager.cpp \
+	utils/src/QalRingBuffer.cpp
 
 LOCAL_MODULE               := libqal
 LOCAL_MODULE_OWNER         := qti
 LOCAL_MODULE_TAGS          := optional
 
+LOCAL_SHARED_LIBRARIES := \
+	libcasa-gsl\
+	liblog\
+	libexpat\
+	liblx-osal\
+	libaudioroute\
+	libtinyalsa \
+	libtinycompress\
+	libagm
+
 LOCAL_COPY_HEADERS_TO   := mm-audio/qal
 LOCAL_COPY_HEADERS      := QalApi.h \
 			   QalDefs.h
 
+LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
 

@@ -58,7 +58,7 @@ public:
     static std::shared_ptr<Device> create (struct qal_device *device,
                                            std::shared_ptr<ResourceManager> Rm);
 
-    ~Device();
+    virtual ~Device() = 0;
 };
 
 /*

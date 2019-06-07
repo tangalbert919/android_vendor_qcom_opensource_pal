@@ -44,10 +44,10 @@ class Stream;
  *   Should be call from CATF
  */
 
-void enable_gcov()
+/*void enable_gcov()
 {
     __gcov_flush();
-}
+}*/
 
 /*
  * qal_init - Initialize QAL

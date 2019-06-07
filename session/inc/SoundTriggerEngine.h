@@ -295,6 +295,7 @@ protected:
 public:
     static SoundTriggerEngine* create(Stream *s, listen_model_indicator_enum type,
            QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    virtual ~SoundTriggerEngine() {};
     virtual int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) = 0;
     virtual int32_t unload_sound_model(Stream *s) = 0;
     virtual int32_t start_recognition(Stream *s) = 0;

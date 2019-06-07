@@ -41,7 +41,7 @@ class StreamCompress : public Stream
 public:
     StreamCompress(const struct qal_stream_attributes *sattr, const struct qal_device *dattr, const uint32_t no_of_devices,
                   const struct modifier_kv *modifiers, const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
-    ~StreamCompress();
+    virtual ~StreamCompress() {};
     int32_t open() override;
     int32_t close() override;
     int32_t start() override;

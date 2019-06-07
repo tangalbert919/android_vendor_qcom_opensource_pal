@@ -88,6 +88,8 @@ public:
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
     void checkAndConfigConcurrency(Stream *s);
     int getTimestamp(struct qal_session_time *stime) override;
+    int registerCallBack(session_callback cb, void *cookie) override;
+    int drain(qal_drain_type_t type) override;
 };
 
 #endif //SESSION_ALSAPCM_H
