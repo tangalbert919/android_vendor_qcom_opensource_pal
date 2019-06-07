@@ -87,7 +87,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         goto exit;
     }
 exit:
-    if (!stream) {
+    if (stream) {
         QAL_ERR(LOG_TAG,"%s: stream creation success", __func__);
     } else {
         QAL_ERR(LOG_TAG,"%s: stream creation failed", __func__);

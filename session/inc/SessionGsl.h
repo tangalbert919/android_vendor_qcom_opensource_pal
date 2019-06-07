@@ -39,7 +39,6 @@
 #include "common_enc_dec_api.h"
 #include "module_cmn_api.h"
 #include "hw_intf_cmn_api.h"
-#include "pcm_decoder_api.h"
 #include "module_cmn_api.h"
 #include "i2s_api.h"
 #include "pcm_tdm_api.h"
