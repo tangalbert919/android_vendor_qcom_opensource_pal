@@ -41,6 +41,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
                    struct modifier_kv *modifiers, uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
 {
     mutex.lock();
+    stages = 1;
     session = NULL;
     dev = nullptr;
     reader_ = NULL;
@@ -94,6 +95,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
             throw std::runtime_error("failed to create device object");
         }
         devices.push_back(dev);
+        rm->registerDevice(dev);
         dev = nullptr;
     }
     mutex.unlock();
@@ -138,6 +140,7 @@ int32_t StreamSoundTrigger::close()
     QAL_VERBOSE(LOG_TAG, "%s: start, session handle - %p device count - %d", __func__, session, devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         status = devices[i]->close();
+        rm->deregisterDevice(devices[i]);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "%s: device close is failed with status %d",__func__,status);
             goto exit;
@@ -361,6 +364,9 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
     struct qal_st_sound_model *common_sm = NULL;
     uint8_t *sm_payload = NULL;
     int32_t sm_size = 0;
+    SML_GlobalHeaderType *global_hdr;
+    SML_HeaderTypeV3 *hdr_v3;
+    uint32_t sm_version = SML_MODEL_V2;
 
     QAL_VERBOSE(LOG_TAG, "%s: start", __func__);
 
@@ -384,6 +390,13 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
         recognition_mode = phrase_sm->phrases[0].recognition_mode;
         sm_payload = (uint8_t*)common_sm + common_sm->data_offset;
         sm_size = sizeof(*phrase_sm) + common_sm->data_size;
+        global_hdr = (SML_GlobalHeaderType *)sm_payload;
+        if (global_hdr->magicNumber == SML_GLOBAL_HEADER_MAGIC_NUMBER) {
+            sm_version = SML_MODEL_V3;
+            hdr_v3 = (SML_HeaderTypeV3 *)(sm_payload + sizeof(SML_GlobalHeaderType));
+            stages = hdr_v3->numModels;
+            QAL_INFO(LOG_TAG, "stages = %u", stages);
+        }
     }
     else if (sound_model->type == QAL_SOUND_MODEL_TYPE_GENERIC){
         if ((sound_model->data_size == 0) ||
@@ -585,22 +598,24 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
                 QAL_ERR(LOG_TAG, "%s: Failed to parse sound model", __func__);
                 goto exit;
             }
-            // TODO: parse big sound model to check model numbers
-            // as well as population of model ids and host ids
-            uint32_t id = 0;
-            uint32_t stageId = 0;
-            SoundTriggerEngine *stEngine;
-            if (!reader_)
-                stEngine = SoundTriggerEngine::create(this, id, stageId, &reader_, NULL);
-            else
-                stEngine = SoundTriggerEngine::create(this, id, stageId, &reader_, reader_->ringBuffer_);
-            registerSoundTriggerEngine(id, stEngine);
-            // parse sound model to structure which can be set to GSL
-            status = stEngine->load_sound_model(this, sm_data);
-            if (status)
+            for (int i = 0; i < stages; i++)
             {
-                QAL_ERR(LOG_TAG, "%s: Failed to load sound model", __func__);
-                goto exit;
+                // TODO: Generate unique stage id
+                uint32_t id = i;
+
+                SoundTriggerEngine *stEngine;
+                if (!reader_)
+                    stEngine = SoundTriggerEngine::create(this, id, i, &reader_, NULL);
+                else
+                    stEngine = SoundTriggerEngine::create(this, id, i, &reader_, reader_->ringBuffer_);
+                registerSoundTriggerEngine(id, stEngine);
+                // parse sound model to structure which can be set to GSL
+                status = stEngine->load_sound_model(this, sm_data, stages);
+                if (status)
+                {
+                    QAL_ERR(LOG_TAG, "%s: Failed to load sound model", __func__);
+                    goto exit;
+                }
             }
             break;
         }
@@ -730,15 +745,15 @@ int32_t StreamSoundTrigger::setDetected(bool detected)
            and start keyword detection*/
         stEngine->setDetected(detected);
     }
-    QAL_INFO(LOG_TAG, "Notify detection event back to client");
-    // notify Client also, for now just set event null
-    sm_rc_config->callback(NULL, NULL);
+    // notify Client if no 2nd stage needed
+    // for now just set event null
+    if (stages == 1)
+        sm_rc_config->callback(NULL, NULL);
     return status;
 }
 
 int32_t StreamSoundTrigger::parse_detection_payload(uint32_t event_id, uint32_t *event_data)
 {
-    QAL_INFO(LOG_TAG, "Enter");
     int32_t status = 0;
     uint32_t parsedSize = 0;
     uint32_t payloadSize;
@@ -822,7 +837,7 @@ int32_t StreamSoundTrigger::parse_detection_payload(uint32_t event_id, uint32_t 
         parsedSize += payloadSize;
     }
 
-    QAL_ERR(LOG_TAG, "Detection payload parsing finished");
+    QAL_VERBOSE(LOG_TAG, "Detection payload parsing finished");
     return status;
 
 exit:
@@ -834,6 +849,14 @@ int32_t StreamSoundTrigger::getDetectionEventInfo(struct detection_event_info **
 {
     int32_t status = 0;
     *info = &detectionEventInfo;
+    return status;
+}
+
+int32_t StreamSoundTrigger::notifyClient()
+{
+    int32_t status = 0;
+    QAL_INFO(LOG_TAG, "Notify detection event back to client");
+    sm_rc_config->callback(NULL, NULL);
     return status;
 }
 

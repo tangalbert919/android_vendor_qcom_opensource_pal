@@ -57,6 +57,7 @@ enum Key_Stream {
 	VOICE_UI = 0xA1000004,        /**< @h2xmle_name {Voice_UI}*/
 	VOIP_RX_PLAYBACK = 0xA1000005,/**< @h2xmle_name {Voip_Rx}*/
 	VOIP_TX_RECORD = 0xA1000006,   /**< @h2xmle_name {Voip_Tx}*/
+	VOICE_UI_EC_REF_PATH = 0xA1000007, /**< @h2xmle_name {EC_REF}*/
 };
 /**
 	@h2xmlk_key {DEVICERX}

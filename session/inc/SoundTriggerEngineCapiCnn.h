@@ -81,13 +81,14 @@ protected:
     uint32_t confidence_score_;
 
 public:
-    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id);
+    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
     ~SoundTriggerEngineCapiCnn();
-    int32_t load_sound_model(Stream *s, uint8_t *data) override;
+    int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
     int32_t unload_sound_model(Stream *s) override;
     int32_t start_recognition(Stream *s) override;
     int32_t stop_recognition(Stream *s) override;
     int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
+    void setDetected(bool detected) override;
 };
 
 #endif //SOUNDTRIGGERENGINECAPICNN_H

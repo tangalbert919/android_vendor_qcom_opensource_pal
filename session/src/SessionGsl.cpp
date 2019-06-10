@@ -753,7 +753,7 @@ int SessionGsl::open(Stream *s) {
         goto exit;
     }
     QAL_VERBOSE(LOG_TAG,"%s: graph_set_cal success. handle:%p", __func__, graphHandle);
-
+    checkAndConfigConcurrency(s);
     setPayloadConfig(s);
 
     QAL_ERR(LOG_TAG,"%s: end status:%d", __func__, status);
@@ -1414,3 +1414,90 @@ void SessionGsl::stCallBack(struct gsl_event_cb_params *event_params, void *clie
     uint32_t *event_data = (uint32_t *)(event_params->event_payload);
     callBack(stream_handle, event_id, event_data, NULL);
 }
+
+void SessionGsl::checkAndConfigConcurrency(Stream *s)
+{
+    int32_t status = 0;
+    std::shared_ptr<Device> rxDevice = nullptr;
+    std::shared_ptr<Device> txDevice = nullptr;
+    std::vector <std::pair<int,int>> keyVector;
+    struct gsl_cmd_graph_select device_graph = {{0, nullptr}, {0, nullptr}};
+    std::vector <Stream *> activeStreams;
+    qal_stream_type_t txStreamType;
+    std::vector <std::shared_ptr<Device>> activeDevices;
+    std::vector <std::shared_ptr<Device>> deviceList;
+
+    // get all active devices from rm and
+    // determine Rx and Tx for concurrency usecase
+    rm->getactivedevices(activeDevices);
+    for (int i = 0; i < activeDevices.size(); i++)
+    {
+        int deviceId = activeDevices[i]->getDeviceId();
+        if (deviceId == QAL_DEVICE_OUT_SPEAKER)
+            rxDevice = activeDevices[i];
+
+        if (deviceId >= QAL_DEVICE_IN_HANDSET_MIC &&
+            deviceId <= QAL_DEVICE_IN_TRI_MIC)
+            txDevice = activeDevices[i];
+    }
+
+    if (!rxDevice || !txDevice)
+    {
+        QAL_VERBOSE(LOG_TAG, "No need to handle for concurrency");
+        return;
+    }
+    QAL_INFO(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
+    // get associated device list
+    status = s->getAssociatedDevices(deviceList);
+    if (status != 0)
+    {
+        QAL_ERR(LOG_TAG, "Failed to get associated device");
+        return;
+    }
+
+    // determine concurrency usecase
+    for (int i = 0; i < deviceList.size(); i++)
+    {
+        std::shared_ptr<Device> dev = deviceList[i];
+        if (dev == rxDevice)
+        {
+            rm->getactivestreams(txDevice, activeStreams);
+            for (int j = 0; j < activeStreams.size(); j++)
+            {
+                activeStreams[j]->getStreamType(&txStreamType);
+            }
+        }
+        else if (dev == txDevice)
+            s->getStreamType(&txStreamType);
+        else
+        {
+            QAL_VERBOSE(LOG_TAG, "Concurrency usecase exists, not related to current stream");
+            return;
+        }
+    }
+    QAL_INFO(LOG_TAG, "tx stream type = %d", txStreamType);
+    // TODO: use table to map types/devices to key values
+    if (txStreamType == QAL_STREAM_VOICE_UI)
+        keyVector.push_back(std::make_pair(STREAM_TYPE, VOICE_UI_EC_REF_PATH));
+    else
+        // TODO: handle for other concurrency usecases also
+        return;
+
+    if (txDevice->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC ||
+        txDevice->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+        keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
+
+    if (rxDevice->getDeviceId() == QAL_DEVICE_OUT_SPEAKER)
+        keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
+    device_graph.graph_key_vector.num_kvps = keyVector.size();
+    device_graph.graph_key_vector.kvp = new struct gsl_key_value_pair[keyVector.size()];
+    for(int32_t i = 0; i < (keyVector.size()); i++) {
+        device_graph.graph_key_vector.kvp[i].key = keyVector[i].first;
+        device_graph.graph_key_vector.kvp[i].value = keyVector[i].second;
+    }
+    status = gslIoctl(graphHandle, GSL_CMD_ADD_GRAPH, &device_graph, sizeof(device_graph));
+    if (status)
+        QAL_ERR(LOG_TAG, "Failed to add graph");
+    delete(device_graph.graph_key_vector.kvp);
+}
+

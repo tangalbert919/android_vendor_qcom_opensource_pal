@@ -179,7 +179,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_MEDIA_FORMAT;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
@@ -258,7 +258,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_PCM_OUTPUT_FORMAT_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
@@ -323,7 +323,7 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_CODEC_DMA_INTF_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d \n",
                       __func__, header->module_instance_id, header->param_id,
@@ -379,7 +379,7 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_I2S_INTF_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
@@ -426,7 +426,7 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_TDM_INTF_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
@@ -566,7 +566,7 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_HW_EP_MF_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_VERBOSE(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       __func__, header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
@@ -977,7 +977,7 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size, uint32_t mod
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_VOL_CTRL_MULTICHANNEL_GAIN;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_ERR(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
@@ -1016,7 +1016,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size, uint3
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_DETECTION_ENGINE_SOUND_MODEL;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
     sm_data = (uint8_t *)soundModel + soundModel->data_offset;
     memcpy(phrase_sm, sm_data, soundModelSize);
@@ -1050,7 +1050,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uin
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     wakeUpConfig = (struct detection_engine_config_voice_wakeup*)
                    (payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -1092,7 +1092,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     pWakeUpBufCfg = (struct detection_engine_voice_wakeup_buffer_config *)
                     (payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -1122,7 +1122,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     pDownStreamSetupDuration = (struct audio_dam_downstream_setup_duration *)
                                (payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -1149,7 +1149,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size, uint
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     pEventCfg = (struct detection_engine_generic_event_cfg *)
                 (payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -1174,7 +1174,7 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size, uint
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_DETECTION_ENGINE_RESET;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     *size = payloadSize;
     *payload = payloadInfo;

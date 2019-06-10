@@ -138,6 +138,7 @@ public:
     int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
     int setParameters(Stream *s, uint32_t param_id, void *payload) override;
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
+    void checkAndConfigConcurrency(Stream *s);
     struct gsl_key_vector *gkv;
     struct gsl_key_vector *ckv;
     struct gsl_key_vector *tkv;

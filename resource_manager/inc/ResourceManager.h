@@ -101,6 +101,7 @@ public:
  int getaudioroute(struct audio_route** ar);
  int getaudiomixer(struct audio_mixer *am);
  int getactivestreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
+ int getactivedevices(std::vector<std::shared_ptr<Device>> &deviceList);
  int getDeviceName(int deviceId, char *device_name);
  int getDeviceEpName(int deviceId, std::string &epName);
  int getStreamTag(std::vector <int> &tag);

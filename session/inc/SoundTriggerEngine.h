@@ -37,6 +37,15 @@
 #include "QalCommon.h"
 #include "QalRingBuffer.h"
 
+#define CNN_SAMPLE_RATE 16000
+#define CNN_BITWIDTH 16
+#define CNN_CHANNELS 1
+#define BITS_PER_BYTE 8
+#define US_PER_SEC 1000000
+#define CNN_DURATION_US 2500000
+#define CNN_BUFFER_SIZE 15360
+#define RING_BUFFER_DURATION 3
+
 class Session;
 class Stream;
 
@@ -79,7 +88,7 @@ protected:
     bool eventDetected;
 public:
     static SoundTriggerEngine* create(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
-    virtual int32_t load_sound_model(Stream *s, uint8_t *data) = 0;
+    virtual int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) = 0;
     virtual int32_t unload_sound_model(Stream *s) = 0;
     virtual int32_t start_recognition(Stream *s) = 0;
     virtual int32_t stop_recognition(Stream *s) = 0;

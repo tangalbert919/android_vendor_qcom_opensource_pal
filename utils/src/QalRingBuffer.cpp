@@ -49,7 +49,8 @@ size_t QalRingBuffer::getFreeSize(){
 
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++)
     {
-        freeSize = std::min(freeSize, bufferEnd_ - (*(it))->unreadSize_);
+        if ((*(it))->state_ == READER_ENABLED)
+            freeSize = std::min(freeSize, bufferEnd_ - (*(it))->unreadSize_);
     }
     return freeSize;
 }
@@ -61,8 +62,11 @@ void QalRingBuffer::updateUnReadSize(size_t writtenSize)
 
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++)
     {
-        (*(it))->unreadSize_ += writtenSize;
-        QAL_VERBOSE(LOG_TAG, "%s: Reader (%d), unreadSize(%d)", __func__, i, (*(it))->unreadSize_);
+        if ((*(it))->state_ == READER_ENABLED)
+        {
+            (*(it))->unreadSize_ += writtenSize;
+            QAL_VERBOSE(LOG_TAG, "%s: Reader (%d), unreadSize(%d)", __func__, i, (*(it))->unreadSize_);
+        }
     }
 }
 
@@ -185,6 +189,12 @@ size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
     /* add code to advance the offset here*/
 
     return 0;
+}
+
+void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
+{
+    state_ = state;
+    // TODO: Handle read offsets for different scenario
 }
 
 QalRingBufferReader* QalRingBuffer::newReader()

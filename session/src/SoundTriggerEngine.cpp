@@ -31,6 +31,7 @@
 
 #include "SoundTriggerEngine.h"
 #include "SoundTriggerEngineGsl.h"
+#include "SoundTriggerEngineCapiCnn.h"
 #include "Session.h"
 #include "Stream.h"
 
@@ -43,9 +44,13 @@ SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id, uint32_t 
         QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
         goto exit;
     }
-    // TODO: decide which engine should be used by checking sound
-    // model params, existing engines can be found by querying RM
-    stEngine = new SoundTriggerEngineGsl(s, id, stage_id, reader, buffer);
+
+    if (stage_id == 0)
+        // first stage on GECKO
+        stEngine = new SoundTriggerEngineGsl(s, id, stage_id, reader, buffer);
+    else
+        // second stage on ARM
+        stEngine = new SoundTriggerEngineCapiCnn(s, id, stage_id, reader, buffer);
 
     // TODO: register engine to RM if it is newly created
 exit:

@@ -92,6 +92,7 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
             throw std::runtime_error("failed to create device object");
         }
         devices.push_back(dev);
+        rm->registerDevice(dev);
         dev = nullptr;
     }
     mutex.unlock();
@@ -139,6 +140,7 @@ int32_t  StreamPCM::close()
     QAL_VERBOSE(LOG_TAG,"%s: start, session handle - %p device count - %d", __func__, session, devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         status = devices[i]->close();
+        rm->deregisterDevice(devices[i]);
         if (0 != status) {
             QAL_ERR(LOG_TAG,"%s: device close is failed with status %d",__func__,status);
             goto exit;

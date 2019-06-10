@@ -20,6 +20,7 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SoundTriggerEngine.h \
             ./session/inc/SoundTriggerEngineGsl.h \
+            ./session/inc/SoundTriggerEngineCapiCnn.h \
             ./resource_manager/inc/ResourceManager.h \
             ./QalDefs.h \
             ./QalApi.h \
@@ -50,6 +51,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/SessionAlsaPcm.cpp \
               ./session/src/SoundTriggerEngine.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
+              ./session/src/SoundTriggerEngineCapiCnn.cpp \
               ./resource_manager/src/ResourceManager.cpp \
               ./Qal.cpp \
               ./utils/src/QalRingBuffer.cpp
@@ -71,6 +73,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
+            ${top_srcdir}/session/inc/SoundTriggerEngineCapiCnn.h \
             ${top_srcdir}/resource_manager/inc/ResourceManager.h \
             ${top_srcdir}/QalDefs.h \
             ${top_srcdir}/QalApi.h \
@@ -84,6 +87,7 @@ AM_CPPFLAGS += -I $(top_srcdir)/session/inc
 AM_CPPFLAGS += -I $(top_srcdir)/resource_manager/inc
 AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
+AM_CPPFLAGS += $(GECKO_CFLAGS)
 
 qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
@@ -101,6 +105,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
+              ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \
               ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
               ${top_srcdir}/Qal.cpp \
               ${top_srcdir}/utils/src/QalRingBuffer.cpp

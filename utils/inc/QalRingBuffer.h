@@ -41,6 +41,11 @@
 
 #define DEFAULT_QAL_RING_BUFFER_SIZE 4096 * 10
 
+typedef enum {
+    READER_DISABLED = 0,
+    READER_ENABLED = 1,
+} qal_ring_buffer_reader_state;
+
 class QalRingBuffer;
 
 class QalRingBufferReader
@@ -49,13 +54,15 @@ protected:
     std::shared_ptr <QalRingBuffer> ringBuffer_;
     size_t unreadSize_;
     size_t readOffset_;
-
+    qal_ring_buffer_reader_state state_;
 public:
     size_t advanceReadOffset(size_t advanceSize);
     size_t read(void* readBuffer, size_t readSize);
+    void updateState(qal_ring_buffer_reader_state state);
     QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
         readOffset_(0),
         unreadSize_(0),
+        state_(READER_ENABLED),
         ringBuffer_((std::shared_ptr<QalRingBuffer>)buffer)
     {/* empty constructor */}
 

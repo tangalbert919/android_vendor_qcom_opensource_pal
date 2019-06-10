@@ -655,6 +655,17 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
     return ret;
 }
 
+int ResourceManager::getactivedevices(std::vector<std::shared_ptr<Device>> &deviceList)
+{
+    int ret = 0;
+    mutex.lock();
+    typename std::vector<std::shared_ptr<Device>>::iterator iter;
+    for (iter = active_devices.begin(); iter != active_devices.end(); iter++)
+        deviceList.push_back(*iter);
+    mutex.unlock();
+    return ret;
+}
+
 int ResourceManager::getaudioroute(struct audio_route** ar)
 {
     if (audio_route)

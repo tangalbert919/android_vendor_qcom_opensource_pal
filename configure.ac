@@ -45,6 +45,15 @@ if (test "x${with_glib}" = "xyes"); then
 fi
 
 AM_CONDITIONAL(USE_GLIB, test "x${with_glib}" = "xyes")
-		
+
+AC_ARG_WITH([gecko],
+      AC_HELP_STRING([--with-gecko],
+         [enable gecko, Build against gecko. Use this when building for HLOS systems which use gecko]))
+
+GECKO_CFLAGS=
+AS_IF([test "x$with_gecko" != "xno"], [GECKO_CFLAGS="-I$with_gecko"])
+
+AC_SUBST(GECKO_CFLAGS)
+
 AC_CONFIG_FILES([ Makefile qal.pc ])
 AC_OUTPUT
