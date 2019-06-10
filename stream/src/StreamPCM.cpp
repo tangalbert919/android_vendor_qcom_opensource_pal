@@ -565,7 +565,7 @@ int32_t StreamPCM::isSampleRateSupported(uint32_t sampleRate) {
         case 384000:
             break;
         default:
-            QAL_ERR(LOG_TAG,"sample rate not supported");
+            QAL_ERR(LOG_TAG,"sample rate not supported %d", sampleRate);
             rc = -EINVAL;
             break;
     }
@@ -586,7 +586,7 @@ int32_t StreamPCM::isChannelSupported(uint32_t numChannels) {
         case 8:
             break;
         default:
-            QAL_ERR(LOG_TAG,"channels not supported");
+            QAL_ERR(LOG_TAG,"channels not supported %d", numChannels);
             rc = -EINVAL;
             break;
     }
@@ -602,7 +602,7 @@ int32_t StreamPCM::isBitWidthSupported(uint32_t bitWidth) {
         case 32:
             break;
         default:
-            QAL_ERR(LOG_TAG,"bit width not supported");
+            QAL_ERR(LOG_TAG,"bit width not supported %d", bitWidth);
             rc = -EINVAL;
             break;
     }

@@ -14,8 +14,6 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/CodecDeviceAlsa.h \
             ./device/inc/CodecDeviceGsl.h \
             ./device/inc/SpeakerMic.h \
-            ./device/inc/HandsetMic.h \
-            ./device/inc/TriMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
@@ -45,8 +43,6 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/CodecDeviceAlsa.cpp \
               ./device/src/CodecDevice.cpp \
               ./device/src/SpeakerMic.cpp \
-              ./device/src/HandsetMic.cpp \
-              ./device/src/TriMic.cpp \
               ./device/src/CodecDeviceGsl.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
@@ -68,8 +64,6 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/CodecDeviceAlsa.h \
             ${top_srcdir}/device/inc/CodecDeviceGsl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
-            ${top_srcdir}/device/inc/HandsetMic.h \
-            ${top_srcdir}/device/inc/TriMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             $(top_srcdir)/session/inc/kvh2xml.h \
@@ -100,8 +94,6 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/CodecDeviceAlsa.cpp \
               ${top_srcdir}/device/src/CodecDevice.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
-              ${top_srcdir}/device/src/HandsetMic.cpp \
-              ${top_srcdir}/device/src/TriMic.cpp \
               ${top_srcdir}/device/src/CodecDeviceGsl.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \

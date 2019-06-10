@@ -790,18 +790,18 @@ int SessionGsl::setPayloadConfig(Stream *s) {
     
     sessionData->direction = sAttr.direction;
     //decision based on stream attributes
-    if(sessionData->direction == 1){
-    	sessionData->sampleRate = sAttr.out_media_config.sample_rate;
-        sessionData->bitWidth = sAttr.out_media_config.bit_width;
-    	sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
-    }
-    else{
-    	sessionData->sampleRate = sAttr.in_media_config.sample_rate;
+    if (sessionData->direction == QAL_AUDIO_INPUT) {
+        sessionData->sampleRate = sAttr.in_media_config.sample_rate;
         sessionData->bitWidth = sAttr.in_media_config.bit_width;
-    	sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
-	}
+        sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
+    } else {
+        sessionData->sampleRate = sAttr.out_media_config.sample_rate;
+        sessionData->bitWidth = sAttr.out_media_config.bit_width;
+        sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
+    }
     sessionData->metadata = NULL;
-    QAL_ERR(LOG_TAG,"%s,: session bit width %d, sample rate %d, and channels %d\n",__func__, sessionData->bitWidth,sessionData->sampleRate,sessionData->numChannel);
+    QAL_ERR(LOG_TAG,"%s,: session bit width %d, sample rate %d, and channels %d\n",
+            __func__, sessionData->bitWidth,sessionData->sampleRate,sessionData->numChannel);
     switch (sessionData->sampleRate) {
         case SAMPLINGRATE_8K :
              setConfig(s,MODULE,MFC_SR_8K);
@@ -876,6 +876,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
+                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
                     } else 
                         continue;
                     sessionData->direction = PLAYBACK;
@@ -886,12 +887,17 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
+                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
                     } else 
                         continue;
                     sessionData->direction = RECORD;
                 }
             }
-            builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], sessionData, epname);
+            deviceData->bitWidth = dAttr.config.bit_width;
+            deviceData->sampleRate = dAttr.config.sample_rate;
+            deviceData->numChannel = dAttr.config.ch_info->channels;
+            deviceData->metadata = NULL;
+            builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], deviceData, epname);
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: Get custom config failed with status = %d\n", __func__, status);

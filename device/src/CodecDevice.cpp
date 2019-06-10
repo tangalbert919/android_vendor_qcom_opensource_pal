@@ -31,14 +31,11 @@
 
 #include "CodecDevice.h"
 #include <tinyalsa/asoundlib.h>
-//#include "AudioHW.h"
 #include "CodecDeviceAlsa.h"
 #include "ResourceManager.h"
 #include "Device.h"
 #include "Speaker.h"
 #include "SpeakerMic.h"
-#include "HandsetMic.h"
-#include "TriMic.h"
 #include "CodecDeviceGsl.h"
 #include "Stream.h"
 
@@ -52,16 +49,10 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std:
                 return Speaker::getInstance(device, Rm);
                 break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
+        case QAL_DEVICE_IN_HANDSET_MIC:
+        case QAL_DEVICE_IN_TRI_MIC:
                 QAL_VERBOSE(LOG_TAG,"speakerMic device", __func__);
                 return SpeakerMic::getInstance(device, Rm);
-                break;
-        case QAL_DEVICE_IN_HANDSET_MIC:
-                QAL_VERBOSE(LOG_TAG,"HandsetMic device", __func__);
-                return HandsetMic::getInstance(device, Rm);
-                break;
-        case QAL_DEVICE_IN_TRI_MIC:
-                QAL_VERBOSE(LOG_TAG,"TriMic device", __func__);
-                return TriMic::getInstance(device, Rm);
                 break;
         default:
                 QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);

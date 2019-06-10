@@ -85,6 +85,10 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
         QAL_ERR(LOG_TAG,"Stream create failed: %s",e.what());
         return -EINVAL;
     }
+    if (s == NULL) {
+        QAL_ERR(LOG_TAG,"stream creation failed");
+        return -EINVAL;
+    }
     status = s->open();
     if (status) {
         QAL_ERR(LOG_TAG,"%s: qal_stream_open failed with status %d", __func__, status);

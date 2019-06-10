@@ -74,6 +74,7 @@ protected:
  static std::vector <int> deviceTag;
  static std::vector<std::pair<int32_t, int32_t>> devicePcmId;
  static std::vector<std::pair<int32_t, std::string>> deviceLinkName;
+ static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
  ResourceManager();
 public:
  ~ResourceManager();
@@ -92,6 +93,7 @@ public:
  static int XmlParser(std::string xmlFile);
  static void updatePcmId(int32_t deviceId, int32_t pcmId);
  static void updateLinkName(int32_t deviceId, std::string linkName);
+ static void updateSndName(int32_t deviceId, std::string sndName);
  static void updateStreamTag(int32_t tagId);
  static void updateDeviceTag(int32_t tagId);
  int getSndCard();

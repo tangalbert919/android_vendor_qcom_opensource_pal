@@ -79,7 +79,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
                 stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
                 break;
             default:
-                QAL_ERR(LOG_TAG,"%s: unsupported stream type %d", __func__, sAttr->type);
+                QAL_ERR(LOG_TAG,"%s: unsupported stream type %x", __func__, sAttr->type);
                 break;
         }
     } else {

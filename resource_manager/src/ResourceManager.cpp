@@ -39,8 +39,6 @@
 #include "SessionGsl.h"
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
-#include "HandsetMic.h"
-#include "TriMic.h"
 #include "Speaker.h"
 
 
@@ -161,39 +159,39 @@ static int pcm_device_table[3][2] = {
 #endif
 
 // To be defined in detail
-static const char * device_table[QAL_DEVICE_MAX] = {
-    [0] = "",
-    [QAL_DEVICE_NONE] = "none",
-    [QAL_DEVICE_OUT_EARPIECE] = "handset",
-    [QAL_DEVICE_OUT_SPEAKER] = "speaker",
-    [QAL_DEVICE_OUT_WIRED_HEADSET] = "",
-    [QAL_DEVICE_OUT_WIRED_HEADPHONE] = "",
-    [QAL_DEVICE_OUT_LINE] = "",
-    [QAL_DEVICE_OUT_BLUETOOTH_SCO] = "",
-    [QAL_DEVICE_OUT_BLUETOOTH_A2DP] = "",
-    [QAL_DEVICE_OUT_AUX_DIGITAL] = "",
-    [QAL_DEVICE_OUT_HDMI] = "",
-    [QAL_DEVICE_OUT_USB_DEVICE] = "",
-    [QAL_DEVICE_OUT_USB_HEADSET] = "",
-    [QAL_DEVICE_OUT_SPDIF] = "",
-    [QAL_DEVICE_OUT_FM] = "",
-    [QAL_DEVICE_OUT_AUX_LINE] = "",
-    [QAL_DEVICE_OUT_PROXY] = "",
 
-    [QAL_DEVICE_IN_HANDSET_MIC] = "handset-mic",
-    [QAL_DEVICE_IN_SPEAKER_MIC] = "speaker-mic",
-    [QAL_DEVICE_IN_TRI_MIC] = "three-mic",
-    [QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET] = "",
-    [QAL_DEVICE_IN_WIRED_HEADSET] = "",
-    [QAL_DEVICE_IN_AUX_DIGITAL] = "",
-    [QAL_DEVICE_IN_HDMI] = "",
-    [QAL_DEVICE_IN_USB_ACCESSORY] = "",
-    [QAL_DEVICE_IN_USB_DEVICE] = "",
-    [QAL_DEVICE_IN_USB_HEADSET] = "",
-    [QAL_DEVICE_IN_FM_TUNER] = "",
-    [QAL_DEVICE_IN_LINE] = "",
-    [QAL_DEVICE_IN_SPDIF] = "",
-    [QAL_DEVICE_IN_PROXY] = "",
+std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
+    {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
+    {QAL_DEVICE_OUT_EARPIECE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
+    {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
+    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
+    {QAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
+    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
+    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
+    {QAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
+    {QAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
+    {QAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+
+    {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "" }}},
+    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
+    {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
+    {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
+    {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
+    {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
+    {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}}
 };
 
 const std::map<std::string, uint32_t> deviceIdLUT {
@@ -416,16 +414,18 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
-            if (attributes->direction == QAL_AUDIO_OUTPUT){
-                channels = attributes->out_media_config.ch_info->channels;
-                samplerate = attributes->out_media_config.sample_rate;
-                bitwidth = attributes->out_media_config.bit_width;
-            } else {
+            if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info->channels;
                 samplerate = attributes->in_media_config.sample_rate;
                 bitwidth = attributes->in_media_config.bit_width;
+            } else {
+                channels = attributes->out_media_config.ch_info->channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
             }
-            rc = StreamPCM::isBitWidthSupported(bitwidth) && StreamPCM::isSampleRateSupported(samplerate) && StreamPCM::isChannelSupported(channels);
+            rc = (StreamPCM::isBitWidthSupported(bitwidth) |
+                 StreamPCM::isSampleRateSupported(samplerate) |
+                 StreamPCM::isChannelSupported(channels));
             if (rc != 0) {
                 QAL_ERR(LOG_TAG,"config not supported");
                 return result;
@@ -434,18 +434,18 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             result = true;
             break;
         case QAL_STREAM_VOICE_UI:
-            if (attributes->direction == QAL_AUDIO_OUTPUT){
-                channels = attributes->out_media_config.ch_info->channels;
-                samplerate = attributes->out_media_config.sample_rate;
-                bitwidth = attributes->out_media_config.bit_width;
-            } else {
+            if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info->channels;
                 samplerate = attributes->in_media_config.sample_rate;
                 bitwidth = attributes->in_media_config.bit_width;
+            } else {
+                channels = attributes->out_media_config.ch_info->channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
             }
-            rc = StreamSoundTrigger::isBitWidthSupported(bitwidth) &&
-                 StreamSoundTrigger::isSampleRateSupported(samplerate) &&
-                 StreamSoundTrigger::isChannelSupported(channels);
+            rc = (StreamSoundTrigger::isBitWidthSupported(bitwidth) |
+                 StreamSoundTrigger::isSampleRateSupported(samplerate) |
+                 StreamSoundTrigger::isChannelSupported(channels));
             if (rc != 0) {
                 QAL_ERR(LOG_TAG,"config not supported");
                 return result;
@@ -467,16 +467,18 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
 
         switch(devices[i].id){
             case QAL_DEVICE_OUT_SPEAKER:
-                    rc = Speaker::isBitWidthSupported(bitwidth) && Speaker::isSampleRateSupported(samplerate) && Speaker::isChannelSupported(channels);
+                    rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
+                         Speaker::isSampleRateSupported(dev_samplerate) |
+                         Speaker::isChannelSupported(dev_channels));
                     break;
             case QAL_DEVICE_IN_HANDSET_MIC:
-                    rc = HandsetMic::isBitWidthSupported(bitwidth) && HandsetMic::isSampleRateSupported(samplerate) && HandsetMic::isChannelSupported(channels);
-                    break;
             case QAL_DEVICE_IN_SPEAKER_MIC:
-                    rc = SpeakerMic::isBitWidthSupported(bitwidth) && SpeakerMic::isSampleRateSupported(samplerate) && SpeakerMic::isChannelSupported(channels);
-                    break;
             case QAL_DEVICE_IN_TRI_MIC:
-                    rc = TriMic::isBitWidthSupported(bitwidth) && TriMic::isSampleRateSupported(samplerate) && TriMic::isChannelSupported(channels);
+                    QAL_ERR(LOG_TAG,"%s:%d device attributes", __func__, __LINE__);
+                    rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
+                         SpeakerMic::isSampleRateSupported(dev_samplerate) |
+                         SpeakerMic::isChannelSupported(dev_channels));
+                    QAL_ERR(LOG_TAG,"%s:%d device attributes rc = %d", __func__, __LINE__, rc);
                     break;
             default:
                     QAL_ERR(LOG_TAG,"unknown device id %d", devices[i].id);
@@ -778,7 +780,7 @@ int ResourceManager::getDeviceName(int deviceId, char *device_name)
 {
     if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY)
     {
-        strlcpy(device_name, device_table[deviceId], DEVICE_NAME_MAX_SIZE);
+        strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
     }
     else
     {
@@ -880,6 +882,10 @@ void ResourceManager::updateLinkName(int32_t deviceId, std::string linkName) {
     deviceLinkName[deviceId].second = linkName;
 }
 
+void ResourceManager::updateSndName(int32_t deviceId, std::string sndName) {
+    sndDeviceNameLUT[deviceId].second = sndName;
+}
+
 int convertCharToHex(std::string num) {
     int32_t hexNum = 0;
     int32_t base = 1;
@@ -965,6 +971,14 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr) {
     }
     std::string linkName(attr[5]);
     updateLinkName(deviceId, linkName);
+
+    if(strcmp(attr[6], "snd_device_name") != 0) {
+        QAL_ERR(LOG_TAG,"%s: 'snd_device_name' not found",__func__);
+        return;
+    }
+    QAL_ERR(LOG_TAG,"updated snd name %s", attr[7]);
+    std::string sndName(attr[7]);
+    updateSndName(deviceId, sndName);
 }
 
 void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name,
