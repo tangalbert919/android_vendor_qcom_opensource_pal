@@ -233,8 +233,8 @@ int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle, size_t *i
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, const size_t in_buf_size,
-                                    const size_t in_buf_count, const size_t out_buf_size,
+int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, size_t *in_buf_size,
+                                    const size_t in_buf_count, size_t *out_buf_size,
                                     const size_t out_buf_count);
 
 /**

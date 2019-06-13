@@ -108,8 +108,8 @@ public:
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
-    int32_t setBufInfo(size_t in_buf_size, size_t in_buf_count,
-                       size_t out_buf_size, size_t out_buf_count);
+    int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
+                       size_t *out_buf_size, size_t out_buf_count);
     int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                        size_t *out_buf_size, size_t *out_buf_count);
     int32_t getVolumeData(struct qal_volume_data *vData);

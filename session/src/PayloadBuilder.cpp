@@ -154,7 +154,6 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     uint8_t* pcmChannel;
     struct apm_module_param_data_t* header;
 
-    //numChannels = config->ch_info->channels; 
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct media_format_t) +
                   sizeof(struct payload_media_fmt_pcm_t) +
@@ -216,6 +215,45 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     } else if (data->numChannel == 2) {
         pcmChannel[0] = PCM_CHANNEL_L;
         pcmChannel[1] = PCM_CHANNEL_R;
+    } else if (data->numChannel == 3) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+    }  else if (data->numChannel == 4) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_LB;
+        pcmChannel[3] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 5) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LB;
+        pcmChannel[4] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 6) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 7) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_LB;
+        pcmChannel[6] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 8) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_CS;
+        pcmChannel[6] = PCM_CHANNEL_LB;
+        pcmChannel[7] = PCM_CHANNEL_RB;
     }
     QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
@@ -294,6 +332,45 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     } else if (data->numChannel == 2) {
         pcmChannel[0] = PCM_CHANNEL_L;
         pcmChannel[1] = PCM_CHANNEL_R;
+    } else if (data->numChannel == 3) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+    } else if (data->numChannel == 4) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_LB;
+        pcmChannel[3] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 5) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LB;
+        pcmChannel[4] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 6) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 7) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_LB;
+        pcmChannel[6] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 8) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_CS;
+        pcmChannel[6] = PCM_CHANNEL_LB;
+        pcmChannel[7] = PCM_CHANNEL_RB;
     }
     QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
 
@@ -341,12 +418,20 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     codecConfig->intf_indx = codecConf[codecLinkIdx].intfIdx;
     if (data->numChannel == 1) {
        codecConfig->active_channels_mask = 0x1;
-    }
-    else if (data->numChannel == 2) {
+    } else if (data->numChannel == 2) {
        codecConfig->active_channels_mask = 0x3;
-    }
-    else if (data->numChannel == 3) {
+    } else if (data->numChannel == 3) {
        codecConfig->active_channels_mask = 0x7;
+    } else if (data->numChannel == 4) {
+       codecConfig->active_channels_mask = 0xF;
+    } else if (data->numChannel == 5) {
+       codecConfig->active_channels_mask = 0x1F;
+    } else if (data->numChannel == 6) {
+       codecConfig->active_channels_mask = 0x3F;
+    } else if (data->numChannel == 7) {
+       codecConfig->active_channels_mask = 0x7F;
+    } else if (data->numChannel == 8) {
+       codecConfig->active_channels_mask = 0xFF;
     }
     QAL_ERR(LOG_TAG,"%s: Codec Config \n cdc_dma_type:%d intf_idx:%d active_channels_mask:%d",
                       __func__, codecConfig->lpaif_type, codecConfig->intf_indx,

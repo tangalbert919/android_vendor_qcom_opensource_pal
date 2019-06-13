@@ -141,6 +141,12 @@ enum Key_Mute {
 enum Key_Channels {
 	CHANNEL1 = 1, /**< @h2xmle_name {CH1}*/
 	CHANNEL2 = 2, /**< @h2xmle_name {CH2}*/
+        CHANNEL3 = 3, /**< @h2xmle_name {CH3}*/
+	CHANNEL4 = 4, /**< @h2xmle_name {CH4}*/
+        CHANNEL5 = 5, /**< @h2xmle_name {CH5}*/
+	CHANNEL6 = 6, /**< @h2xmle_name {CH6}*/
+        CHANNEL7 = 7, /**< @h2xmle_name {CH7}*/
+	CHANNEL8 = 8, /**< @h2xmle_name {CH8}*/
 };
 /**
 	@h2xmlk_gkeys

@@ -800,36 +800,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
         sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
     }
     sessionData->metadata = NULL;
-    QAL_ERR(LOG_TAG,"%s,: session bit width %d, sample rate %d, and channels %d\n",
-            __func__, sessionData->bitWidth,sessionData->sampleRate,sessionData->numChannel);
-    switch (sessionData->sampleRate) {
-        case SAMPLINGRATE_8K :
-             setConfig(s,MODULE,MFC_SR_8K);
-             break;
-        case SAMPLINGRATE_16K :
-             setConfig(s,MODULE,MFC_SR_16K);
-             break;
-        case SAMPLINGRATE_32K :
-             setConfig(s,MODULE,MFC_SR_32K);
-             break;
-        case SAMPLINGRATE_44K :
-             setConfig(s,MODULE,MFC_SR_44K);
-             break;
-        case SAMPLINGRATE_48K :
-             setConfig(s,MODULE,MFC_SR_48K);
-             break;
-        case SAMPLINGRATE_96K :
-             setConfig(s,MODULE,MFC_SR_96K);
-             break;
-        case SAMPLINGRATE_192K :
-             setConfig(s,MODULE,MFC_SR_192K);
-             break;
-        case SAMPLINGRATE_384K :
-             setConfig(s,MODULE,MFC_SR_384K);
-             break;
-        default:
-             QAL_ERR(LOG_TAG,"%s: Invalid sample rate = %d\n", __func__, sessionData->sampleRate);
-    }
+    QAL_ERR(LOG_TAG,"%s,: session bit width %d, sample rate %d, and channels %d\n",__func__, sessionData->bitWidth,sessionData->sampleRate,sessionData->numChannel);
 
     for (i=0; i<streamTag.size(); i++) {
         moduleInfo = NULL;
@@ -865,6 +836,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
     for (i=0; i < deviceTag.size(); i++) {
         moduleInfo = NULL;
         moduleInfoSize = 0;
+        deviceData->metadata = NULL;
         status = gslGetTaggedModuleInfo(gkv, deviceTag[i], &moduleInfo, &moduleInfoSize);
         if (status != 0)
             continue;
@@ -896,7 +868,36 @@ int SessionGsl::setPayloadConfig(Stream *s) {
             deviceData->bitWidth = dAttr.config.bit_width;
             deviceData->sampleRate = dAttr.config.sample_rate;
             deviceData->numChannel = dAttr.config.ch_info->channels;
-            deviceData->metadata = NULL;
+            QAL_ERR(LOG_TAG,"%s,: EP Device bit width %d, sample rate %d, and channels %d\n",__func__, deviceData->bitWidth,deviceData->sampleRate,deviceData->numChannel);
+            switch (deviceData->sampleRate) {
+                case SAMPLINGRATE_8K :
+                    setConfig(s,MODULE,MFC_SR_8K);
+                    break;
+                case SAMPLINGRATE_16K :
+                    setConfig(s,MODULE,MFC_SR_16K);
+                    break;
+                case SAMPLINGRATE_32K :
+                    setConfig(s,MODULE,MFC_SR_32K);
+                    break;
+                case SAMPLINGRATE_44K :
+                    setConfig(s,MODULE,MFC_SR_44K);
+                    break;
+                case SAMPLINGRATE_48K :
+                    setConfig(s,MODULE,MFC_SR_48K);
+                    break;
+                case SAMPLINGRATE_96K :
+                    setConfig(s,MODULE,MFC_SR_96K);
+                    break;
+                case SAMPLINGRATE_192K :
+                    setConfig(s,MODULE,MFC_SR_192K);
+                    break;
+                case SAMPLINGRATE_384K :
+                    setConfig(s,MODULE,MFC_SR_384K);
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG,"%s: Invalid sample rate = %d\n", __func__, deviceData->sampleRate);
+            }
+            
             builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], deviceData, epname);
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
@@ -1146,6 +1147,7 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag) {
             QAL_ERR(LOG_TAG,"%s: tkv key %x value %x\n", __func__,(tkv->kvp[0].key),(tkv->kvp[0].value));
             status = gslSetConfig(graphHandle, tagsent, tkv);
             if (0 != status) {
+                QAL_ERR(LOG_TAG,"%s: Failed to set tag data\n", __func__);
                 goto exit;
             } 
             break;
