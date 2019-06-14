@@ -853,8 +853,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         continue;
                     sessionData->direction = PLAYBACK;
                 }
-            }
-            else{
+            } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
@@ -864,6 +863,8 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         continue;
                     sessionData->direction = RECORD;
                 }
+            } else {
+                continue;
             }
             deviceData->bitWidth = dAttr.config.bit_width;
             deviceData->sampleRate = dAttr.config.sample_rate;
@@ -926,7 +927,7 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         continue;
                     sessionData->direction = PLAYBACK;
                 }
-            } else {
+            } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
@@ -935,7 +936,8 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                         continue;               
                     sessionData->direction = RECORD; 
 		            }
-            }
+            } else
+                continue;
             deviceData->bitWidth = dAttr.config.bit_width;
             deviceData->sampleRate = dAttr.config.sample_rate;
             deviceData->numChannel = dAttr.config.ch_info->channels;
