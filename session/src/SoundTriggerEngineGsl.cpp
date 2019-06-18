@@ -415,6 +415,11 @@ int32_t SoundTriggerEngineGsl::update_config(Stream *s, struct qal_st_recognitio
     uint32_t size = sizeof(struct audio_dam_downstream_setup_duration) +
                     num_output_ports * sizeof(struct audio_dam_downstream_setup_duration_t);
     pSetupDuration = (struct audio_dam_downstream_setup_duration *)calloc(1, size);
+    if (!pSetupDuration)
+    {
+        QAL_ERR(LOG_TAG, "Failed to allocate pSetupDuration");
+        return ENOMEM;
+    }
     pSetupDuration->num_output_ports = num_output_ports;
 
     for (int i = 0; i < pSetupDuration->num_output_ports; i++)

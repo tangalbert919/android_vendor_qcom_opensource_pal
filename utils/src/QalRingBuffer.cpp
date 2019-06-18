@@ -43,11 +43,10 @@ size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader, void* rea
 
 size_t QalRingBuffer::getFreeSize(){
 
-    int32_t i, n = 0;
     size_t freeSize = bufferEnd_;
     std::vector<QalRingBufferReader*>::iterator it;
 
-    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++)
+    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++)
     {
         if ((*(it))->state_ == READER_ENABLED)
             freeSize = std::min(freeSize, bufferEnd_ - (*(it))->unreadSize_);

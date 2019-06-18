@@ -484,6 +484,10 @@ int32_t StreamSoundTrigger::generate_recognition_config_payload(unsigned char **
     }
 
     conf_levels = (unsigned char*)calloc(1, num_conf_levels);
+    if (!conf_levels) {
+        QAL_ERR(LOG_TAG, "Failed to alllocate conf_levels");
+        return -ENOMEM;
+    }
 
     user_id_tracker = (unsigned char *) calloc(1, num_conf_levels);
     if (!user_id_tracker) {
@@ -566,6 +570,11 @@ int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc
     //Need to support parsing of opaque data
 
     sm_rc_config = (struct qal_st_recognition_config *) calloc(1, sizeof(struct qal_st_recognition_config) + rc_config->data_size);
+    if (!sm_rc_config) {
+        QAL_ERR(LOG_TAG, "Failed to allocate sm_rc_config");
+        status = ENOMEM;
+        goto exit;
+    }
 
     memcpy(sm_rc_config, rc_config, sizeof(struct qal_st_recognition_config));
     memcpy((uint8_t *)sm_rc_config + rc_config->data_offset, (uint8_t *)rc_config + rc_config->data_offset,
@@ -603,11 +612,17 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
                 // TODO: Generate unique stage id
                 uint32_t id = i;
 
-                SoundTriggerEngine *stEngine;
+                SoundTriggerEngine *stEngine = NULL;
                 if (!reader_)
                     stEngine = SoundTriggerEngine::create(this, id, i, &reader_, NULL);
                 else
                     stEngine = SoundTriggerEngine::create(this, id, i, &reader_, reader_->ringBuffer_);
+                if (!stEngine || !reader_)
+                {
+                    QAL_ERR(LOG_TAG, "Failed to create SoundTriggerEngine or ring buffer reader");
+                    status = EINVAL;
+                    goto exit;
+                }
                 registerSoundTriggerEngine(id, stEngine);
                 // parse sound model to structure which can be set to GSL
                 status = stEngine->load_sound_model(this, sm_data, stages);
