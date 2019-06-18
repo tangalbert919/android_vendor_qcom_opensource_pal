@@ -395,8 +395,7 @@ int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandl
        delete builder;
        break;
     default:
-    //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
-    keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+    keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
     QAL_ERR(LOG_TAG,"%s: Entered default\n", __func__);
     break;
     }
