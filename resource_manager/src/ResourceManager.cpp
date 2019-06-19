@@ -100,6 +100,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "tdm-pri" }}},
+    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
+    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -133,6 +135,8 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_IN_HANDSET_MIC,           0},
     {QAL_DEVICE_IN_SPEAKER_MIC,           0},
     {QAL_DEVICE_IN_TRI_MIC,               0},
+    {QAL_DEVICE_IN_QUAD_MIC,              0},
+    {QAL_DEVICE_IN_EIGHT_MIC,             0},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
     {QAL_DEVICE_IN_WIRED_HEADSET,         0},
     {QAL_DEVICE_IN_AUX_DIGITAL,           0},
@@ -181,6 +185,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
     {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "" }}},
+    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
+    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -214,6 +220,8 @@ const std::map<std::string, uint32_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_IN_HANDSET_MIC" },           QAL_DEVICE_IN_HANDSET_MIC},
     {std::string{ "QAL_DEVICE_IN_SPEAKER_MIC" },           QAL_DEVICE_IN_SPEAKER_MIC},
     {std::string{ "QAL_DEVICE_IN_TRI_MIC" },               QAL_DEVICE_IN_TRI_MIC},
+    {std::string{ "QAL_DEVICE_IN_QUAD_MIC" },              QAL_DEVICE_IN_QUAD_MIC},
+    {std::string{ "QAL_DEVICE_IN_EIGHT_MIC" },             QAL_DEVICE_IN_EIGHT_MIC},
     {std::string{ "QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" }, QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET},
     {std::string{ "QAL_DEVICE_IN_WIRED_HEADSET" },         QAL_DEVICE_IN_WIRED_HEADSET},
     {std::string{ "QAL_DEVICE_IN_AUX_DIGITAL" },           QAL_DEVICE_IN_AUX_DIGITAL},
@@ -474,6 +482,8 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             case QAL_DEVICE_IN_HANDSET_MIC:
             case QAL_DEVICE_IN_SPEAKER_MIC:
             case QAL_DEVICE_IN_TRI_MIC:
+            case QAL_DEVICE_IN_QUAD_MIC:
+            case QAL_DEVICE_IN_EIGHT_MIC:
                     QAL_ERR(LOG_TAG,"%s:%d device attributes", __func__, __LINE__);
                     rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
                          SpeakerMic::isSampleRateSupported(dev_samplerate) |

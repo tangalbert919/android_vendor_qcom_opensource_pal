@@ -285,14 +285,12 @@ int populateGkv(Stream *s, struct gsl_key_vector *gkv) {
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
             break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
+        case QAL_DEVICE_IN_HANDSET_MIC:
+        case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
             keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
             break;
-        case QAL_DEVICE_IN_HANDSET_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
-           break;
-        case QAL_DEVICE_IN_TRI_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
-           break;
         default:
             QAL_ERR(LOG_TAG,"%s: Invalid device id %d\n", __func__,dev_id);
             status = -EINVAL;

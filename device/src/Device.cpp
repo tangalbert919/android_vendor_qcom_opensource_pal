@@ -44,6 +44,8 @@ std::shared_ptr<Device> Device::create(struct qal_device *device,
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
         case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
                 QAL_VERBOSE(LOG_TAG,"device  %d",device->id);
                 return CodecDevice::getInstance(device, Rm);
                 break;

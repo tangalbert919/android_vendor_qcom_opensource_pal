@@ -51,6 +51,8 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std:
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
         case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
                 QAL_VERBOSE(LOG_TAG,"speakerMic device", __func__);
                 return SpeakerMic::getInstance(device, Rm);
                 break;

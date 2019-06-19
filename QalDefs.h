@@ -168,6 +168,8 @@ typedef enum {
     QAL_DEVICE_IN_HANDSET_MIC,                 /**< Handset MIC*/
     QAL_DEVICE_IN_SPEAKER_MIC,                 /**< Speaker MIC*/
     QAL_DEVICE_IN_TRI_MIC,                     /**< Tri MIC*/
+    QAL_DEVICE_IN_QUAD_MIC,                    /**< Quad MIC*/
+    QAL_DEVICE_IN_EIGHT_MIC,                   /**< Eight MIC*/
     QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET,       /**< Bluetooth SCO Profile*/
     QAL_DEVICE_IN_WIRED_HEADSET,               /**< Wired headset mic*/
     QAL_DEVICE_IN_AUX_DIGITAL,                 /**< AUX Digital In*/
