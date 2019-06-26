@@ -41,7 +41,7 @@ StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr, struct qal_d
     Session* session = NULL;
     dev = nullptr;
 
-    QAL_ERR(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG, "Enter.");
 
     #ifdef CONFIG_GSL
         session = new SessionGsl(rm);
@@ -49,14 +49,14 @@ StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr, struct qal_d
         session = new SessionAlsaCompress();
     #endif
 
-    if (session == NULL){
-        QAL_ERR(LOG_TAG,"%s: session creation failed", __func__);
+    if (!session) {
+        QAL_ERR(LOG_TAG, "session creation failed");
         throw std::runtime_error("failed to create session object");
     }
 
     dev = Device::create(dAttr, rm);
-    if (dev == nullptr) {
-        QAL_ERR(LOG_TAG,"%s: Device creation is failed", __func__);
+    if (!dev) {
+        QAL_ERR(LOG_TAG, "Device creation is failed");
         throw std::runtime_error("failed to create device object");
     }
     devices.push_back(dev);

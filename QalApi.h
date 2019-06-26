@@ -63,10 +63,8 @@ int32_t qal_init( );
 
 /**
  *  De-Initialize QAL. Decreases the ref count.
- *
- *  @return 0 on success, error code on failure.
  */
-int32_t qal_deinit();
+void qal_deinit();
 
 /**
   * \brief Open the stream with specified configuration.

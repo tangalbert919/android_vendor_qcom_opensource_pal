@@ -39,18 +39,19 @@ Device::~Device(){}
 std::shared_ptr<Device> Device::create(struct qal_device *device,
                                               std::shared_ptr<ResourceManager> Rm)
 {
+    QAL_DBG(LOG_TAG, "Enter. device id %d", device->id);
     switch(device->id) {
-        case QAL_DEVICE_OUT_SPEAKER :
-        case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_HANDSET_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
-                QAL_VERBOSE(LOG_TAG,"device  %d",device->id);
-                return CodecDevice::getInstance(device, Rm);
-                break;
-        default:
-                return nullptr;
+    case QAL_DEVICE_OUT_SPEAKER:
+    case QAL_DEVICE_IN_SPEAKER_MIC:
+    case QAL_DEVICE_IN_HANDSET_MIC:
+    case QAL_DEVICE_IN_TRI_MIC:
+    case QAL_DEVICE_IN_QUAD_MIC:
+    case QAL_DEVICE_IN_EIGHT_MIC:
+        QAL_VERBOSE(LOG_TAG,"device  %d",device->id);
+        return CodecDevice::getInstance(device, Rm);
+        break;
+    default:
+        return nullptr;
     }
 }
 
@@ -59,7 +60,7 @@ int Device::getDeviceAtrributes(struct qal_device *dattr)
     int status = 0;
     if (!dattr) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalde device attributes", __func__);
+        QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
         goto exit;
     }
     memcpy(dattr, &deviceAttr, sizeof(struct qal_device));
@@ -78,6 +79,6 @@ int Device::setDeviceAttributes(struct qal_device dattr)
 
 int Device::getDeviceId()
 {
-    QAL_VERBOSE(LOG_TAG,"%s: Device Id %d acquired", __func__, deviceAttr.id);
+    QAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);
     return deviceAttr.id;
 }

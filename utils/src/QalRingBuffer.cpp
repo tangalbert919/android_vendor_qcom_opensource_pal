@@ -32,22 +32,24 @@
 #include "QalCommon.h"
 #define LOG_TAG "QalRingBuffer"
 
-int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader){
+int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader)
+{
 
     return 0;
 }
 
-size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer, size_t readSize){
+size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer, size_t readSize)
+{
     return 0;
 }
 
-size_t QalRingBuffer::getFreeSize(){
+size_t QalRingBuffer::getFreeSize()
+{
 
     size_t freeSize = bufferEnd_;
     std::vector<QalRingBufferReader*>::iterator it;
 
-    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++)
-    {
+    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++) {
         if ((*(it))->state_ == READER_ENABLED)
             freeSize = std::min(freeSize, bufferEnd_ - (*(it))->unreadSize_);
     }
@@ -59,17 +61,16 @@ void QalRingBuffer::updateUnReadSize(size_t writtenSize)
     int32_t i = 0;
     std::vector<QalRingBufferReader*>::iterator it;
 
-    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++)
-    {
-        if ((*(it))->state_ == READER_ENABLED)
-        {
+    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++) {
+        if ((*(it))->state_ == READER_ENABLED) {
             (*(it))->unreadSize_ += writtenSize;
-            QAL_VERBOSE(LOG_TAG, "%s: Reader (%d), unreadSize(%d)", __func__, i, (*(it))->unreadSize_);
+            QAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%d)", i, (*(it))->unreadSize_);
         }
     }
 }
 
-size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize){
+size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
+{
     /* update the unread size for each reader*/
     mutex_.lock();
     size_t freeSize = getFreeSize();
@@ -77,17 +78,16 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize){
     int32_t i = 0;
     size_t sizeToCopy = 0;
 
-    QAL_VERBOSE(LOG_TAG, "%s - enter freeSize(%d), writeOffset(%d)", __func__, freeSize, writeOffset_);
+    QAL_DBG(LOG_TAG, "Enter. freeSize(%d), writeOffset(%d)", freeSize, writeOffset_);
 
     if (writeSize <= freeSize)
         sizeToCopy = writeSize;
     else
         sizeToCopy = freeSize;
 
-    if (sizeToCopy)
-    {
-        if (writeOffset_ + sizeToCopy > bufferEnd_)//buffer wrapped around)
-        {
+    if (sizeToCopy) {
+        //buffer wrapped around
+        if (writeOffset_ + sizeToCopy > bufferEnd_) {
             i = bufferEnd_ - writeOffset_;
 
             memcpy(buffer_ + writeOffset_, writeBuffer, i);
@@ -96,9 +96,7 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize){
             memcpy(buffer_, (char*)writeBuffer + writtenSize, sizeToCopy);
             writtenSize += sizeToCopy;
             writeOffset_ = sizeToCopy;
-        }
-        else
-        {
+        } else {
             memcpy(buffer_ + writeOffset_, writeBuffer, sizeToCopy);
             writeOffset_ += sizeToCopy;
             writtenSize = sizeToCopy;
@@ -106,7 +104,7 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize){
     }
     updateUnReadSize(writtenSize);
     writeOffset_ = writeOffset_ % bufferEnd_;
-    QAL_VERBOSE(LOG_TAG, "%s - enter writeOffset(%d)", __func__, writeOffset_);
+    QAL_DBG(LOG_TAG, "Exit. writeOffset(%d)", writeOffset_);
     mutex_.unlock();
     return writtenSize;
 }
@@ -121,56 +119,46 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
     ringBuffer_->mutex_.lock();
 
     // when writeOffset leads readOffset
-    if (ringBuffer_->writeOffset_ > readOffset_)
-    {
+    if (ringBuffer_->writeOffset_ > readOffset_) {
         unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
 
-        if (bufferSize >= unreadSize_)
-        {
+        if (bufferSize >= unreadSize_) {
             memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, unreadSize_);
             readOffset_ += unreadSize_;
             readSize = unreadSize_;
             unreadSize_ = 0;
-        }
-        else
-        {
+        } else {
             memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, bufferSize);
             readOffset_ += bufferSize;
             readSize = bufferSize;
             unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
         }
-    }
-    else //When readOffset leads WriteOffset
-    {
+    } else {
+        //When readOffset leads WriteOffset
         int32_t freeClientSize = bufferSize;
         int32_t i = ringBuffer_->bufferEnd_ - readOffset_;
 
-        if (bufferSize >= i)
-        {
+        if (bufferSize >= i) {
             memcpy(readBuffer, (char*)(ringBuffer_->buffer_ + readOffset_), i);
             readSize = i;
             freeClientSize -= readSize;
             unreadSize_ = ringBuffer_->writeOffset_;
             readOffset_ = 0;
-
-            if (freeClientSize > unreadSize_) //copy remaining unread buffer
-            {
+            //copy remaining unread buffer
+            if (freeClientSize > unreadSize_) {
                 memcpy((char *)readBuffer + readSize, ringBuffer_->buffer_, unreadSize_);
                 readSize += unreadSize_;
                 readOffset_ = unreadSize_;
                 unreadSize_ = 0;
-            }
-            else
-            {   //copy whatever we can
+            } else {
+                //copy whatever we can
                 memcpy((char *)readBuffer + readSize, ringBuffer_->buffer_, freeClientSize);
                 readSize += freeClientSize;
                 readOffset_ = freeClientSize;
                 unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
             }
 
-        }
-        else
-        {
+        } else {
             memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, bufferSize);
             readSize = bufferSize;
             readOffset_ += bufferSize;
@@ -202,4 +190,3 @@ QalRingBufferReader* QalRingBuffer::newReader()
     readOffsets_.push_back(readOffset);
     return readOffset;
 }
-

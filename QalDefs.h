@@ -52,11 +52,6 @@ typedef void qal_stream_handle_t;
 /** Sound Trigger handle */
 typedef void qal_st_handle_t;
 
-/** Audio format enumeration */
-/**  commented as per pulseaudio comments*/
-/*typedef union {
-} qal_audio_fmt_cfg_t;*/
-
 /** QAL Audio format enumeration */
 typedef enum {
     QAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
@@ -205,6 +200,7 @@ typedef union {
     struct qal_stream_info opt_stream_info; /* optional */
     struct qal_voice_record_info voice_rec_info; /* mandatory */
 } qal_stream_info_t;
+
 /** Media configuraiton */
 struct qal_media_config {
     uint32_t sample_rate;                /**< sample rate */

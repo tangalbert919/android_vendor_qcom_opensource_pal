@@ -59,7 +59,6 @@
 #define DEFAULT_BIT_WIDTH 16
 #define DEFAULT_SAMPLE_RATE 48000
 #define DEFAULT_CHANNELS 2
-//#define DEFAULT_FORMAT QAL_AUDIO_FMT_DEFAULT_PCM
 #define DEFAULT_FORMAT 0x00000000u
 // TODO: double check and confirm actual
 // values for max sessions number
@@ -76,7 +75,6 @@ To be defined in detail, if GSL is defined,
 pcm device id is directly related to device,
 else using legacy design for alsa
 */
-//#ifdef CONFIG_GSL
 // Will update actual value when numbers got for VT
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
@@ -149,18 +147,6 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_IN_SPDIF,                 0},
     {QAL_DEVICE_IN_PROXY,                 0}
 };
-
-
-
-#if 0
-static int pcm_device_table[3][2] = {
-    [0] = {0,0},
-    [QAL_STREAM_PLAYBACK_LOW_LATENCY] = {LOWLATENCY_PCM_DEVICE,
-                                         LOWLATENCY_PCM_DEVICE},
-    [QAL_STREAM_PLAYBACK_DEEP_BUFFER] = {DEEP_BUFFER_PCM_DEVICE,
-                                         DEEP_BUFFER_PCM_DEVICE},
-};
-#endif
 
 // To be defined in detail
 
@@ -260,28 +246,26 @@ void ResourceManager::init_audio()
     char *snd_internal_name = NULL;
     char *tmp = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
-    while (snd_card_num < MAX_SND_CARD)
-    {
+    QAL_DBG(LOG_TAG, "Enter. rm %p", rm);
+    while (snd_card_num < MAX_SND_CARD) {
         rm->audio_mixer = mixer_open(snd_card_num);
-        if (!rm->audio_mixer)
-        {
+        if (!rm->audio_mixer) {
             snd_card_num++;
             continue;
-        } else
+        } else {
+            QAL_DBG(LOG_TAG, "mixer open success. snd_card_num = %d", snd_card_num);
             break;
+        }
     }
 
-    if (snd_card_num >= MAX_SND_CARD)
-    {
-        QAL_ERR(LOG_TAG,"%s: audio mixer open failure", __func__);
-        mixer_close(rm->audio_mixer);
+    if (snd_card_num >= MAX_SND_CARD) {
+        QAL_ERR(LOG_TAG, "audio mixer open failure");
         return;
     }
 
     snd_card_name = strdup(mixer_get_name(rm->audio_mixer));
-    if (!snd_card_name)
-    {
-        QAL_ERR(LOG_TAG,"%s: failed to allocate memory for snd_card_name\n", __func__);
+    if (!snd_card_name) {
+        QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
         mixer_close(rm->audio_mixer);
         return;
     }
@@ -292,8 +276,7 @@ void ResourceManager::init_audio()
     if (snd_internal_name != NULL)
         snd_internal_name = strtok_r(NULL, "-", &tmp);
 
-    if (snd_internal_name != NULL)
-    {
+    if (snd_internal_name != NULL) {
         strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, MIXER_PATH_MAX_LENGTH);
         ret = strcmp(snd_internal_name, snd_macro);
         if(ret == 0) {
@@ -307,40 +290,33 @@ void ResourceManager::init_audio()
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
     rm->audio_route = audio_route_init(snd_card_num, mixer_xml_file);
-    QAL_INFO(LOG_TAG,"audio route %p, mixer path %s", rm->audio_route, mixer_xml_file);
-    if (!rm->audio_route)
-    {
-        QAL_ERR(LOG_TAG,"%s: audio route init failure", __func__);
+    QAL_INFO(LOG_TAG, "audio route %p, mixer path %s", rm->audio_route, mixer_xml_file);
+    if (!rm->audio_route) {
+        QAL_ERR(LOG_TAG, "audio route init failed");
         mixer_close(rm->audio_mixer);
-        snd_card_num++;
         if (snd_card_name)
             free(snd_card_name);
+        if (snd_card_name_t)
+            free(snd_card_name_t);
         return;
     }
     // audio_route init success
-    QAL_DBG(LOG_TAG,"%s: audio route init success with card %d mixer path %s", __func__, snd_card_num, mixer_xml_file);
+    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s", snd_card_num, mixer_xml_file);
     rm->snd_card = snd_card_num;
-
-
 }
 
 int ResourceManager::init()
 {
-    if (rm == nullptr)
-    {
+    QAL_DBG(LOG_TAG, "Enter.");
+    if (!rm) {
         std::shared_ptr<ResourceManager> sp(new ResourceManager());
         rm = sp;
     }
     int ret = 0;
-    // set bOverwriteFlag to true by default
+    // TODO: set bOverwriteFlag to true by default
     // should we add api for client to set this value?
     rm->bOverwriteFlag = true;
     rm->snd_card = -1;
-
-    // Parse resource_manager.xml file
-    // Parse audio_policy.conf and platform_info.xml
-
-    /*Skip the file parsing for now*/
 
     // Init audio_route and audio_mixer
     rm->init_audio();
@@ -351,11 +327,16 @@ int ResourceManager::init()
     streamTag.clear();
     deviceTag.clear();
     ret = XmlParser(GECKOXMLFILE);
-    if(ret){
-        QAL_ERR(LOG_TAG,"error in xml parsing");
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in gecko xml parsing ret %d", ret);
         return ret;
     }
     ret = XmlParser(XMLFILE);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
+        return ret;
+    }
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -371,100 +352,99 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     // check if stream type is supported
     // and new stream session is allowed
     qal_stream_type_t type = attributes->type;
-    switch (type)
-    {
-        case QAL_STREAM_VOICE_CALL_RX:
-        case QAL_STREAM_VOICE_CALL_TX:
-        case QAL_STREAM_VOICE_CALL_RX_TX:
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-           cur_sessions = active_streams_ll.size();
-           max_sessions = MAX_SESSIONS_LOW_LATENCY;
-           break;
-        case QAL_STREAM_DEEP_BUFFER:
-           cur_sessions = active_streams_db.size();
-           max_sessions = MAX_SESSIONS_DEEP_BUFFER;
-           break;
-        case QAL_STREAM_COMPRESSED:
-           cur_sessions = active_streams_comp.size();
-           max_sessions = MAX_SESSIONS_COMPRESSED;
-           break;
-        case QAL_STREAM_VOICE_CALL_MUSIC:
-           break;
-        case QAL_STREAM_GENERIC:
-           cur_sessions = active_streams_ulla.size();
-           max_sessions = MAX_SESSIONS_GENERIC;
-           break;
-        case QAL_STREAM_RAW:
-        case QAL_STREAM_VOICE_ACTIVATION:
-        case QAL_STREAM_VOICE_CALL:
-        case QAL_STREAM_LOOPBACK:
-        case QAL_STREAM_TRANSCODE:
-        case QAL_STREAM_VOICE_UI:
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"%s: Invalid stream type = %d", __func__, type);
-            return result;
+    QAL_DBG(LOG_TAG, "Enter. type %d", type);
+    switch (type) {
+    case QAL_STREAM_VOICE_CALL_RX:
+    case QAL_STREAM_VOICE_CALL_TX:
+    case QAL_STREAM_VOICE_CALL_RX_TX:
+    case QAL_STREAM_LOW_LATENCY:
+    case QAL_STREAM_VOIP:
+    case QAL_STREAM_VOIP_RX:
+    case QAL_STREAM_VOIP_TX:
+        cur_sessions = active_streams_ll.size();
+        max_sessions = MAX_SESSIONS_LOW_LATENCY;
+        break;
+    case QAL_STREAM_DEEP_BUFFER:
+        cur_sessions = active_streams_db.size();
+        max_sessions = MAX_SESSIONS_DEEP_BUFFER;
+        break;
+    case QAL_STREAM_COMPRESSED:
+        cur_sessions = active_streams_comp.size();
+        max_sessions = MAX_SESSIONS_COMPRESSED;
+        break;
+    case QAL_STREAM_VOICE_CALL_MUSIC:
+        break;
+    case QAL_STREAM_GENERIC:
+        cur_sessions = active_streams_ulla.size();
+        max_sessions = MAX_SESSIONS_GENERIC;
+        break;
+    case QAL_STREAM_RAW:
+    case QAL_STREAM_VOICE_ACTIVATION:
+    case QAL_STREAM_VOICE_CALL:
+    case QAL_STREAM_LOOPBACK:
+    case QAL_STREAM_TRANSCODE:
+    case QAL_STREAM_VOICE_UI:
+        break;
+    default:
+        QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
+        return result;
     }
     if (cur_sessions == max_sessions) {
-        QAL_ERR(LOG_TAG,"%s: no new session allowed for stream %d", __func__, type);
+        QAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
         return result;
     }
 
     // check if param supported by audio configruation
     switch (type) {
-        case QAL_STREAM_VOICE_CALL_RX:
-        case QAL_STREAM_VOICE_CALL_TX:
-        case QAL_STREAM_VOICE_CALL_RX_TX:
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-            if (attributes->direction == QAL_AUDIO_INPUT) {
-                channels = attributes->in_media_config.ch_info->channels;
-                samplerate = attributes->in_media_config.sample_rate;
-                bitwidth = attributes->in_media_config.bit_width;
-            } else {
-                channels = attributes->out_media_config.ch_info->channels;
-                samplerate = attributes->out_media_config.sample_rate;
-                bitwidth = attributes->out_media_config.bit_width;
-            }
-            rc = (StreamPCM::isBitWidthSupported(bitwidth) |
-                 StreamPCM::isSampleRateSupported(samplerate) |
-                 StreamPCM::isChannelSupported(channels));
-            if (rc != 0) {
-                QAL_ERR(LOG_TAG,"config not supported");
-                return result;
-            }
-            QAL_INFO(LOG_TAG,"config suppported");
-            result = true;
-            break;
-        case QAL_STREAM_VOICE_UI:
-            if (attributes->direction == QAL_AUDIO_INPUT) {
-                channels = attributes->in_media_config.ch_info->channels;
-                samplerate = attributes->in_media_config.sample_rate;
-                bitwidth = attributes->in_media_config.bit_width;
-            } else {
-                channels = attributes->out_media_config.ch_info->channels;
-                samplerate = attributes->out_media_config.sample_rate;
-                bitwidth = attributes->out_media_config.bit_width;
-            }
-            rc = (StreamSoundTrigger::isBitWidthSupported(bitwidth) |
-                 StreamSoundTrigger::isSampleRateSupported(samplerate) |
-                 StreamSoundTrigger::isChannelSupported(channels));
-            if (rc != 0) {
-                QAL_ERR(LOG_TAG,"config not supported");
-                return result;
-            }
-            QAL_INFO(LOG_TAG,"config suppported");
-            result = true;
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"unknown type");
-            return false;
-            break;
+    case QAL_STREAM_VOICE_CALL_RX:
+    case QAL_STREAM_VOICE_CALL_TX:
+    case QAL_STREAM_VOICE_CALL_RX_TX:
+    case QAL_STREAM_LOW_LATENCY:
+    case QAL_STREAM_VOIP:
+    case QAL_STREAM_VOIP_RX:
+    case QAL_STREAM_VOIP_TX:
+        if (attributes->direction == QAL_AUDIO_INPUT) {
+            channels = attributes->in_media_config.ch_info->channels;
+            samplerate = attributes->in_media_config.sample_rate;
+            bitwidth = attributes->in_media_config.bit_width;
+        } else {
+            channels = attributes->out_media_config.ch_info->channels;
+            samplerate = attributes->out_media_config.sample_rate;
+            bitwidth = attributes->out_media_config.bit_width;
+        }
+        rc = (StreamPCM::isBitWidthSupported(bitwidth) |
+             StreamPCM::isSampleRateSupported(samplerate) |
+             StreamPCM::isChannelSupported(channels));
+        if (0 != rc) {
+            QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+            return result;
+        }
+        QAL_INFO(LOG_TAG, "config suppported");
+        result = true;
+        break;
+    case QAL_STREAM_VOICE_UI:
+        if (attributes->direction == QAL_AUDIO_INPUT) {
+            channels = attributes->in_media_config.ch_info->channels;
+            samplerate = attributes->in_media_config.sample_rate;
+            bitwidth = attributes->in_media_config.bit_width;
+        } else {
+            channels = attributes->out_media_config.ch_info->channels;
+            samplerate = attributes->out_media_config.sample_rate;
+            bitwidth = attributes->out_media_config.bit_width;
+        }
+        rc = (StreamSoundTrigger::isBitWidthSupported(bitwidth) |
+             StreamSoundTrigger::isSampleRateSupported(samplerate) |
+             StreamSoundTrigger::isChannelSupported(channels));
+        if (0 != rc) {
+            QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+            return result;
+        }
+        QAL_INFO(LOG_TAG, "config suppported");
+        result = true;
+        break;
+    default:
+        QAL_ERR(LOG_TAG, "unknown type");
+        return false;
     }
     // check if param supported by any of the devices
     for (int i = 0; i < no_of_devices; i++) {
@@ -473,35 +453,34 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         dev_samplerate = devices[i].config.sample_rate;
         dev_bitwidth = devices[i].config.bit_width;
 
-        switch(devices[i].id){
-            case QAL_DEVICE_OUT_SPEAKER:
-                    rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
-                         Speaker::isSampleRateSupported(dev_samplerate) |
-                         Speaker::isChannelSupported(dev_channels));
-                    break;
-            case QAL_DEVICE_IN_HANDSET_MIC:
-            case QAL_DEVICE_IN_SPEAKER_MIC:
-            case QAL_DEVICE_IN_TRI_MIC:
-            case QAL_DEVICE_IN_QUAD_MIC:
-            case QAL_DEVICE_IN_EIGHT_MIC:
-                    QAL_ERR(LOG_TAG,"%s:%d device attributes", __func__, __LINE__);
-                    rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
-                         SpeakerMic::isSampleRateSupported(dev_samplerate) |
-                         SpeakerMic::isChannelSupported(dev_channels));
-                    QAL_ERR(LOG_TAG,"%s:%d device attributes rc = %d", __func__, __LINE__, rc);
-                    break;
-            default:
-                    QAL_ERR(LOG_TAG,"unknown device id %d", devices[i].id);
-                    return false;
+        switch(devices[i].id) {
+        case QAL_DEVICE_OUT_SPEAKER:
+            rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
+                 Speaker::isSampleRateSupported(dev_samplerate) |
+                 Speaker::isChannelSupported(dev_channels));
+            break;
+        case QAL_DEVICE_IN_HANDSET_MIC:
+        case QAL_DEVICE_IN_SPEAKER_MIC:
+        case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
+            rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
+                 SpeakerMic::isSampleRateSupported(dev_samplerate) |SpeakerMic::isChannelSupported(dev_channels));
+            QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "unknown device id %d", devices[i].id);
+            return false;
         }
-        if (rc != 0) {
-            QAL_ERR(LOG_TAG,"%s: Attributes not supported by devices", __func__);
+        if (0 != rc) {
+            QAL_ERR(LOG_TAG, "Attributes not supported by devices");
             result = false;
             return result;
         } else {
             result = true;
         }
     }
+    QAL_DBG(LOG_TAG, "Exit. result %d", result);
     return result;
 }
 
@@ -517,55 +496,54 @@ int ResourceManager::registerStream(Stream *s)
 {
     int ret = 0;
     qal_stream_type_t type;
+    QAL_DBG(LOG_TAG, "Enter. stream %p", s);
     ret = s->getStreamType(&type);
-    if (ret)
-    {
-        QAL_ERR(LOG_TAG,"%s: getStreamType failed with status = %d", __func__, ret);
+    if (0 != ret) {
+        QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
         return ret;
     }
+    QAL_DBG(LOG_TAG, "stream type %d", type);
     mutex.lock();
-    switch (type)
+    switch (type) {
+    case QAL_STREAM_LOW_LATENCY:
+    case QAL_STREAM_VOIP_RX:
+    case QAL_STREAM_VOIP_TX:
     {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        {
-            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
-            ret = registerstream(sPCM, active_streams_ll);
-            break;
-        }
-        case QAL_STREAM_DEEP_BUFFER:
-        {
-            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
-            ret = registerstream(sDB, active_streams_db);
-            break;
-        }
-        case QAL_STREAM_COMPRESSED:
-        {
-            StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
-            ret = registerstream(sComp, active_streams_comp);
-            break;
-        }
-        case QAL_STREAM_GENERIC:
-        {
-            StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
-            ret = registerstream(sULLA, active_streams_ulla);
-            break;
-        }
-        case QAL_STREAM_VOICE_UI:
-        {
-            StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
-            ret = registerstream(sST, active_streams_st);
-            break;
-        }
-        default:
-        {
-            QAL_ERR(LOG_TAG,"%s: Invalid stream type = %d", __func__, type);
-            ret = -EINVAL;
-            break;
-        }
+        StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+        ret = registerstream(sPCM, active_streams_ll);
+        break;
+    }
+    case QAL_STREAM_DEEP_BUFFER:
+    {
+        StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+        ret = registerstream(sDB, active_streams_db);
+        break;
+    }
+    case QAL_STREAM_COMPRESSED:
+    {
+        StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
+        ret = registerstream(sComp, active_streams_comp);
+        break;
+    }
+    case QAL_STREAM_GENERIC:
+    {
+        StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
+        ret = registerstream(sULLA, active_streams_ulla);
+        break;
+    }
+    case QAL_STREAM_VOICE_UI:
+    {
+        StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
+        ret = registerstream(sST, active_streams_st);
+        break;
+    }
+    default:
+        ret = -EINVAL;
+        QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
+        break;
     }
     mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -586,86 +564,86 @@ int ResourceManager::deregisterStream(Stream *s)
 {
     int ret = 0;
     qal_stream_type_t type;
+    QAL_DBG(LOG_TAG, "Enter. stream %p", s);
     ret = s->getStreamType(&type);
-    if (ret)
-    {
-        QAL_ERR(LOG_TAG,"%s: getStreamType failed with status = %d", __func__, ret);
+    if (0 != ret) {
+        QAL_ERR(LOG_TAG, " getStreamType failed with status = %d", ret);
         return ret;
     }
-
+    QAL_DBG(LOG_TAG, "stream type %d", type);
     mutex.lock();
-    switch (type)
+    switch (type) {
+    case QAL_STREAM_LOW_LATENCY:
+    case QAL_STREAM_VOIP_RX:
+    case QAL_STREAM_VOIP_TX:
     {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        {
-            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
-            ret = deregisterstream(sPCM, active_streams_ll);
-            QAL_ERR(LOG_TAG,"%s:%d %d",__func__,__LINE__,active_streams_ll.size());
-            break;
-        }
-        case QAL_STREAM_DEEP_BUFFER:
-        {
-            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
-            ret = deregisterstream(sDB, active_streams_db);
-            break;
-        }
-        case QAL_STREAM_COMPRESSED:
-        {
-            StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
-            ret = deregisterstream(sComp, active_streams_comp);
-            break;
-        }
-        case QAL_STREAM_GENERIC:
-        {
-            StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
-            ret = deregisterstream(sULLA, active_streams_ulla);
-            break;
-        }
-        case QAL_STREAM_VOICE_UI:
-        {
-            StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
-            ret = deregisterstream(sST, active_streams_st);
-            break;
-        }
-        default:
-        {
-            QAL_ERR(LOG_TAG,"%s: Invalid stream type = %d", __func__, type);
-            ret = -EINVAL;
-            break;
-        }
+        StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+        ret = deregisterstream(sPCM, active_streams_ll);
+        break;
+    }
+    case QAL_STREAM_DEEP_BUFFER:
+    {
+        StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+        ret = deregisterstream(sDB, active_streams_db);
+        break;
+    }
+    case QAL_STREAM_COMPRESSED:
+    {
+        StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
+        ret = deregisterstream(sComp, active_streams_comp);
+        break;
+    }
+    case QAL_STREAM_GENERIC:
+    {
+        StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
+        ret = deregisterstream(sULLA, active_streams_ulla);
+        break;
+    }
+    case QAL_STREAM_VOICE_UI:
+    {
+        StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
+        ret = deregisterstream(sST, active_streams_st);
+        break;
+    }
+    default:
+        ret = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
+        break;
     }
     mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 int ResourceManager::registerDevice(std::shared_ptr<Device> d)
 {
+    QAL_DBG(LOG_TAG, "Enter.");
     mutex.lock();
     active_devices.push_back(d);
     mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
     return 0;
 }
 
 int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
 {
     int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
     mutex.lock();
     typename std::vector<std::shared_ptr<Device>>::iterator iter =
         std::find(active_devices.begin(), active_devices.end(), d);
     if (iter != active_devices.end())
         active_devices.erase(iter);
-    else
-    {
-        QAL_ERR(LOG_TAG,"%s: no device %d found in active device list", __func__, d->getDeviceId());
+    else {
         ret = -ENOENT;
+        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d", d->getDeviceId(), ret);
     }
     mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
-int ResourceManager::getactivedevices(std::vector<std::shared_ptr<Device>> &deviceList)
+int ResourceManager::getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList)
 {
     int ret = 0;
     mutex.lock();
@@ -676,40 +654,32 @@ int ResourceManager::getactivedevices(std::vector<std::shared_ptr<Device>> &devi
     return ret;
 }
 
-int ResourceManager::getaudioroute(struct audio_route** ar)
+int ResourceManager::getAudioRoute(struct audio_route** ar)
 {
-    if (audio_route)
-    {
-        *ar = audio_route;
-        QAL_ERR(LOG_TAG,"%s:ar %p  audio_route %p", __func__,ar, audio_route);
-        return 0;
-    }
-    else
-    {
-        QAL_ERR(LOG_TAG,"%s: no audio route found", __func__);
+    if (!audio_route) {
+        QAL_ERR(LOG_TAG, "no audio route found");
         return -ENOENT;
     }
+    *ar = audio_route;
+    QAL_DBG(LOG_TAG, "ar %p audio_route %p", ar, audio_route);
+    return 0;
 }
 
-int ResourceManager::getaudiomixer(struct audio_mixer * am)
+int ResourceManager::getAudioMixer(struct audio_mixer * am)
 {
-    if (audio_mixer)
-    {
-        am = audio_mixer;
-        return 0;
-    }
-    else
-    {
-        QAL_ERR(LOG_TAG,"%s: no audio mixer found", __func__);
+    if (!audio_mixer) {
+        QAL_ERR(LOG_TAG, "no audio mixer found");
         return -ENOENT;
     }
+    am = audio_mixer;
+    QAL_DBG(LOG_TAG, "ar %p audio_mixer %p", am, audio_mixer);
+    return 0;
 }
 
 template <class T>
 void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams, std::vector<T> sourcestreams)
 {
-    for(typename std::vector<T>::iterator iter = sourcestreams.begin(); iter != sourcestreams.end(); iter++)
-    {
+    for(typename std::vector<T>::iterator iter = sourcestreams.begin(); iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
         typename std::vector<std::shared_ptr<Device>>::iterator result = std::find(devices.begin(), devices.end(), d);
@@ -718,9 +688,10 @@ void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestr
     }
 }
 
-int ResourceManager::getactivestreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams)
+int ResourceManager::getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams)
 {
     int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
     mutex.lock();
     // merge all types of active streams into activestreams
     getActiveStreams(d, activestreams, active_streams_ll);
@@ -729,59 +700,54 @@ int ResourceManager::getactivestreams(std::shared_ptr<Device> d, std::vector<Str
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
 
-    if (activestreams.empty())
-    {
-        QAL_ERR(LOG_TAG,"%s: no active streams found for device %d", __func__, d->getDeviceId());
+    if (activestreams.empty()) {
         ret = -ENOENT;
+        QAL_ERR(LOG_TAG, "no active streams found for device %d ret %d", d->getDeviceId(), ret);
     }
     mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 /*blsUpdated - to specify if the config is updated by rm*/
 int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* blsUpdated)
 {
-    // check if device config is supported
+    int ret = -EINVAL;
+    if (!device || !blsUpdated){
+        QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", ret);
+        return ret;
+    }
+    //TODO:check if device config is supported
     bool dev_supported = false;
     *blsUpdated = false;
-    int ret = -EINVAL;;
     uint16_t channels = device->config.ch_info->channels;
     uint32_t samplerate = device->config.sample_rate;
     uint32_t bitwidth = device->config.bit_width;
 
-    // check and rewrite params if needed
+    QAL_DBG(LOG_TAG, "Enter.");
+    //TODO: check and rewrite params if needed
     // only compare with default value for now
     // because no config file parsed in init
-    if (channels != DEFAULT_CHANNELS)
-    {
-        if (bOverwriteFlag)
-        {
+    if (channels != DEFAULT_CHANNELS) {
+        if (bOverwriteFlag) {
             device->config.ch_info->channels = DEFAULT_CHANNELS;
             *blsUpdated = true;
         }
-    }
-    else if (samplerate != DEFAULT_SAMPLE_RATE)
-    {
-        if (bOverwriteFlag)
-        {
+    } else if (samplerate != DEFAULT_SAMPLE_RATE) {
+        if (bOverwriteFlag) {
             device->config.sample_rate = DEFAULT_SAMPLE_RATE;
             *blsUpdated = true;
         }
-    }
-    else if (bitwidth != DEFAULT_BIT_WIDTH)
-    {
-        if (bOverwriteFlag)
-        {
+    } else if (bitwidth != DEFAULT_BIT_WIDTH) {
+        if (bOverwriteFlag) {
             device->config.bit_width = DEFAULT_BIT_WIDTH;
             *blsUpdated = true;
         }
-    }
-    else
-    {
+    } else {
         ret = 0;
         dev_supported = true;
     }
-
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -799,14 +765,11 @@ int ResourceManager::getSndCard()
 
 int ResourceManager::getDeviceName(int deviceId, char *device_name)
 {
-    if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY)
-    {
+    if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
-    }
-    else
-    {
+    } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
-        QAL_ERR(LOG_TAG,"%s: Invalid device id %d", __func__, deviceId);
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;
@@ -817,7 +780,7 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
     if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY) {
         epName.assign(deviceLinkName[deviceId].second);
     } else {
-        QAL_ERR(LOG_TAG,"%s: Invalid device id %d", __func__, deviceId);
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;   
@@ -827,27 +790,12 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
 int ResourceManager::getPcmDeviceId(int deviceId)
 {
     int pcm_device_id = -1;
-    if (deviceId < QAL_DEVICE_OUT_EARPIECE || deviceId > QAL_DEVICE_IN_PROXY)
-    {
-        QAL_ERR(LOG_TAG,"%s: Invalid device id %d", __func__, deviceId);
+    if (deviceId < QAL_DEVICE_OUT_EARPIECE || deviceId > QAL_DEVICE_IN_PROXY) {
+        QAL_ERR(LOG_TAG, " Invalid device id %d", deviceId);
         return -EINVAL;
     }
 
-    //pcm_device_id = pcm_device_table[deviceId];
     pcm_device_id = devicePcmId[deviceId].second;
-//#else
-#if 0
-    qal_stream_type_t stream = QAL_STREAM_PLAYBACK_LOW_LATENCY;
-    if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_OUT_PROXY)
-    {
-        pcm_device_id = pcm_device_table[stream][0];
-    }
-    else if (dev_id >= QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY)
-    {
-        pcm_device_id = pcm_device_table[stream][1];
-    }
-#endif
-
     return pcm_device_id;
 }
 
@@ -858,7 +806,6 @@ void ResourceManager::deinit() {
 int ResourceManager::getStreamTag(std::vector <int> &tag) {
     int status = 0;
     for (int i=0; i < streamTag.size(); i++) {
-        //QAL_ERR(LOG_TAG,"%x",streamTag[i]);
         tag.push_back(streamTag[i]);
     }
     return status;
@@ -913,7 +860,7 @@ int convertCharToHex(std::string num) {
     const char * charNum = num.c_str();
     int32_t len = strlen(charNum);
     for (int i = len-1; i>=2; i--) {
-        if(charNum[i] >= '0' && charNum[i] <= '9'){
+        if (charNum[i] >= '0' && charNum[i] <= '9') {
             hexNum += (charNum[i] - 48) * base;
             base = base * 16;
         } else if (charNum[i] >= 'A' && charNum[i] <= 'F') {
@@ -936,34 +883,28 @@ void ResourceManager::processTagInfo(const XML_Char **attr) {
     int32_t tagId;
     int32_t found = 0;
     char tagChar[128] = {0};
-    if(strcmp(attr[0], "id" ) !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'id' not found",__func__);
+    if (strcmp(attr[0], "id" ) !=0 ) {
+        QAL_ERR(LOG_TAG, " 'id' not found");
         return;
     }
     std::string tagCh(attr[1]);
-    //strlcpy(attr[1], tagChar, 11);
-    //QAL_ERR(LOG_TAG,"tag id = %s, originial id = %s", tagCh.c_str(), attr[1]);
-    tagId = convertCharToHex(tagCh);
-    //QAL_ERR(LOG_TAG,"tag id = %d hex =%x", tagId, tagId);
 
-    if(strcmp(attr[2], "name") != 0) {
-        QAL_ERR(LOG_TAG,"%s: 'name' not found", __func__);
+    tagId = convertCharToHex(tagCh);
+    if (strcmp(attr[2], "name") != 0) {
+        QAL_ERR(LOG_TAG, " 'name' not found");
         return;
     }
 
     std::string name(attr[3]);
-    //QAL_ERR(LOG_TAG,"%s: name = %s and %s", __func__, attr[3], name.c_str());
     std::string String("stream");
     found = name.find(String);
-    if(found != std::string::npos){
+    if (found != std::string::npos){
         updateStreamTag(tagId);
-        //QAL_ERR(LOG_TAG,"%s:%d    %x", __func__, __LINE__, tagId);
     }
     found = 0;
     found = name.find(std::string("device"));
-    if(found != std::string::npos){
+    if (found != std::string::npos) {
         updateDeviceTag(tagId);
-        //QAL_ERR(LOG_TAG,"%s:%d    %x", __func__, __LINE__, tagId);
     }
 
 }
@@ -972,32 +913,30 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr) {
     int32_t deviceId;
     int32_t pcmId;
     if(strcmp(attr[0], "name" ) !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
+        QAL_ERR(LOG_TAG, " 'name' not found");
         return;
     }
 
     std::string deviceName(attr[1]);
     deviceId = deviceIdLUT.at(deviceName);
 
-    if(strcmp(attr[2],"pcm_id") !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'pcm_id' not found %s is the tag",__func__,attr[2]);
+    if (strcmp(attr[2],"pcm_id") !=0 ) {
+        QAL_ERR(LOG_TAG, " 'pcm_id' not found %s is the tag", attr[2]);
         return;
     }
     pcmId = atoi(attr[3]);
     updatePcmId(deviceId, pcmId);
-    //QAL_ERR(LOG_TAG,"updated pcm id");
     if(strcmp(attr[4],"hw_intf") !=0 ) {
-        QAL_ERR(LOG_TAG,"%s: 'hw_intf' not found",__func__);
+        QAL_ERR(LOG_TAG, " 'hw_intf' not found");
         return;
     }
     std::string linkName(attr[5]);
     updateLinkName(deviceId, linkName);
 
     if(strcmp(attr[6], "snd_device_name") != 0) {
-        QAL_ERR(LOG_TAG,"%s: 'snd_device_name' not found",__func__);
+        QAL_ERR(LOG_TAG, " 'snd_device_name' not found");
         return;
     }
-    QAL_ERR(LOG_TAG,"updated snd name %s", attr[7]);
     std::string sndName(attr[7]);
     updateSndName(deviceId, sndName);
 }
@@ -1017,22 +956,24 @@ void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name) 
 
 
 int ResourceManager::XmlParser(std::string xmlFile) {
-    XML_Parser      parser;
-    FILE            *file;
-    int             ret = 0;
-    int             bytes_read;
-    void            *buf;
-    QAL_ERR(LOG_TAG,"XML parsing started");
+    XML_Parser parser;
+    FILE *file = NULL;
+    int ret = 0;
+    int bytes_read;
+    void *buf = NULL;
+    QAL_DBG(LOG_TAG, "Enter. XML parsing started");
     file = fopen(xmlFile.c_str(), "r");
     if(!file) {
-        QAL_ERR(LOG_TAG,"%s: Failed to open xml file name %s",__func__, xmlFile.c_str());
-        return -EINVAL;
+        ret = EINVAL;
+        QAL_ERR(LOG_TAG, "Failed to open xml file name %s ret %d", xmlFile.c_str(), ret);
+        goto done;
     }
 
     parser = XML_ParserCreate(NULL);
     if (!parser) {
-        QAL_ERR(LOG_TAG,"%s: Failed to create XML");
-        return -EINVAL;
+        ret = -EINVAL;
+        QAL_ERR(LOG_TAG, "Failed to create XML ret %d", ret);
+        goto closeFile;
     }
 
     XML_SetElementHandler(parser, startTag, endTag);
@@ -1040,26 +981,27 @@ int ResourceManager::XmlParser(std::string xmlFile) {
     while(1) {
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {
-            QAL_ERR(LOG_TAG,"%s: XML_Getbuffer failed",__func__);
             ret = -EINVAL;
+            QAL_ERR(LOG_TAG, "XML_Getbuffer failed ret %d", ret);
             goto freeParser;
         }
 
         bytes_read = fread(buf, 1, 1024, file);
         if(bytes_read < 0) {
-            QAL_ERR(LOG_TAG,"%s: fread failed", __func__);
             ret = -EINVAL;
+            QAL_ERR(LOG_TAG, "fread failed ret %d", ret);
             goto freeParser;
         }
 
         if(XML_ParseBuffer(parser, bytes_read, bytes_read == 0) == XML_STATUS_ERROR) {
-            QAL_ERR(LOG_TAG,"%s: XML ParseBuffer failed for %s file", __func__, xmlFile.c_str());
             ret = -EINVAL;
+            QAL_ERR(LOG_TAG, "XML ParseBuffer failed for %s file ret %d", xmlFile.c_str(), ret);
             goto freeParser;
         }
         if (bytes_read == 0)
             break;
     }
+    QAL_DBG(LOG_TAG, "Exit.");
 
 freeParser:
     XML_ParserFree(parser);

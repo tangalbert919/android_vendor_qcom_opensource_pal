@@ -47,24 +47,29 @@ class Stream;
  */
 int32_t qal_init(void)
 {
+    QAL_INFO(LOG_TAG, "Enter.");
     int32_t ret = 0;
     ret = ResourceManager::init();
+    if (0 != ret) {
+        QAL_ERR(LOG_TAG, "qal init failed. ret : %d", ret);
+        return ret;
+    }
+    QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }
 
 /*
  * qal_deinit - De-initialize QAL
  *
- * Return 0 on success or error code otherwise
- *
  * Prerequisites
  *    QAL must be initialized.
  */
-int32_t qal_deinit(void)
+void qal_deinit(void)
 {
-    int32_t ret = 0;
+    QAL_INFO(LOG_TAG, "Enter.");
     ResourceManager::deinit();
-    return ret;
+    QAL_INFO(LOG_TAG, "Exit.");
+    return;
 }
 
 
@@ -77,225 +82,231 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
     void * stream = NULL;
     Stream *s = NULL;
     int status;
-    try{
+    if (!attributes || !devices) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
+    }
+    QAL_INFO(LOG_TAG, "Enter.");
+    try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers, no_of_modifiers);
-    }
-    catch(const std::exception& e)
-    {
-        QAL_ERR(LOG_TAG,"Stream create failed: %s",e.what());
+    } catch (const std::exception& e) {
+        QAL_ERR(LOG_TAG, "Stream create failed: %s", e.what());
         return -EINVAL;
     }
-    if (s == NULL) {
-        QAL_ERR(LOG_TAG,"stream creation failed");
-        return -EINVAL;
+    if (!s) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "stream creation failed status %d", status);
+        return status;
     }
     status = s->open();
-    if (status) {
-        QAL_ERR(LOG_TAG,"%s: qal_stream_open failed with status %d", __func__, status);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_open failed with status %d", status);
         return status;
     }
     stream = static_cast<void *>(s);
-    QAL_INFO(LOG_TAG,"Stream handle :%p",s);
-    QAL_INFO(LOG_TAG,"coverted handle:%p",stream);
     *stream_handle = stream;
-    QAL_INFO(LOG_TAG,"value of stream_handle %p",*stream_handle);
+    QAL_INFO(LOG_TAG, "Exit. Value of stream_handle %p, status %d", stream, status);
     return status;
 }
 
 int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"%s:%d:Stream handle :%p",__func__, __LINE__, stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s = static_cast<Stream *>(stream_handle);
-        status = s->close();
-        //free(stream_handle);
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s = static_cast<Stream *>(stream_handle);
+    status = s->close();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
+        return status;
     }
-    QAL_INFO(LOG_TAG,"%s:%d status %d", __func__, __LINE__, status);
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->start();
+    QAL_INFO(LOG_TAG, "Enter. Stream handle %p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->start();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->stop();
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->stop();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 ssize_t qal_stream_write(qal_stream_handle_t *stream_handle, struct qal_buffer *buf)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"%s:Stream handle :%p", __func__, stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle || !buf) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
     }
-    else
-    {
-        QAL_VERBOSE(LOG_TAG,"%s:Stream handle :%p calling write", __func__, stream_handle);
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->write(buf);
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->write(buf);
+    if (status < 0) {
+        QAL_ERR(LOG_TAG, "stream write failed status %d", status);
+        return status;
     }
-    QAL_INFO(LOG_TAG,"%s: return status %d",__func__, status);
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 ssize_t qal_stream_read(qal_stream_handle_t *stream_handle, struct qal_buffer *buf)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle || !buf) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->read(buf);
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->read(buf);
+    if (status < 0) {
+        QAL_ERR(LOG_TAG, "stream read failed status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_id, qal_param_payload *param_payload)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG, "Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle || !param_payload) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG,  "Invalid input parameters status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setParameters(param_id, (void *)param_payload);
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setParameters(param_id, (void *)param_payload);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle, struct qal_volume_data *volume)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle || !volume) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG,"Invalid input parameters status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setVolume(volume);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: setVolume failed with status %d", __func__, status);
-        }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setVolume(volume);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "setVolume failed with status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_set_mute(qal_stream_handle_t *stream_handle, bool state)
 {
     Stream *s = NULL;
-    //return 0;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setMute(state);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: setMute failed with status %d", __func__, status);
-        }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setMute(state);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "setMute failed with status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_pause(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setPause();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: qal_stream_pause failed with status %d", __func__, status);
-        }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setPause();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_pause failed with status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
 int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
-    QAL_INFO(LOG_TAG,"Stream handle :%p",stream_handle);
     int status;
-    if (!stream_handle)
-    {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setResume();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: qal_stream_resume failed with status %d", __func__, status);
-        }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setResume();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_resume failed with status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, size_t *in_buf_size,
@@ -304,20 +315,18 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, size_t *
 {
    Stream *s = NULL;
    int status;
-   QAL_INFO(LOG_TAG,"%s : Stream handle :%p ",__func__,stream_handle);
-    if (!stream_handle)
-    {
+    if (!stream_handle || !in_buf_size || !out_buf_size) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
     }
-    else
-    {
-        s =  static_cast<Stream *>(stream_handle);
-        status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: qal_stream_set_buffer_size failed with status %d", __func__, status);
-        }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%p", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
+        return status;
     }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
-

@@ -31,11 +31,13 @@
 #include "Speaker.h"
 #include "ResourceManager.h"
 #include "Device.h"
+#include "kvh2xml.h"
 
 std::shared_ptr<Device> Speaker::obj = nullptr;
 
-std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) {
-    if(obj == nullptr) {
+std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+{
+    if (!obj) {
         std::shared_ptr<Device> sp(new Speaker(device, Rm));
         obj = sp;
     }
@@ -44,58 +46,63 @@ std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device, std::sha
 
 
 Speaker::Speaker(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm) {
-    
-}
-
-Speaker::~Speaker() {
+CodecDevice(device, Rm)
+{
 
 }
 
-int32_t Speaker::isSampleRateSupported(uint32_t sampleRate) {
+Speaker::~Speaker()
+{
+
+}
+
+int32_t Speaker::isSampleRateSupported(uint32_t sampleRate)
+{
     int32_t rc = 0;
-    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
-    switch(sampleRate) {
-        case 48000:
-        case 96000:
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"sample rate not supported");
-            rc = -EINVAL;
-            break;
+    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    switch (sampleRate) {
+    case SAMPLINGRATE_48K:
+    case SAMPLINGRATE_96K:
+        break;
+    default:
+        rc = -EINVAL;
+        QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+        break;
     }
     return rc;
 }
 
-int32_t Speaker::isChannelSupported(uint32_t numChannels) {
+int32_t Speaker::isChannelSupported(uint32_t numChannels)
+{
     int32_t rc = 0;
-    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
-    switch(numChannels) {
-        case 1:
-        case 2:
-        case 4:
-        case 8:
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"channels not supported");
-            rc = -EINVAL;
-            break;
+    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    switch (numChannels) {
+    case CHANNEL1:
+    case CHANNEL2:
+    case CHANNEL4:
+    case CHANNEL8:
+        break;
+    default:
+        rc = -EINVAL;
+        QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+        break;
     }
     return rc;
 }
 
-int32_t Speaker::isBitWidthSupported(uint32_t bitWidth) {
+int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
+{
     int32_t rc = 0;
-    QAL_ERR(LOG_TAG,"%s:%d",__func__,__LINE__);
-    switch(bitWidth) {
-        case 16:
-        case 24:
-        case 32:
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"bit width not supported");
-            rc = -EINVAL;
-            break;
+    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    switch (bitWidth) {
+    case BITWIDTH_16:
+    case BITWIDTH_24:
+    case BITWIDTH_32:
+        break;
+    default:
+        rc = -EINVAL;
+        QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+        break;
     }
     return rc;
 }

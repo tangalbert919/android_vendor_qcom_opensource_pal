@@ -47,40 +47,40 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     std::lock_guard<std::mutex> lock(mtx);
     Stream* stream = NULL;
 
-    if (!sAttr) {
-        QAL_ERR(LOG_TAG,"%s: Invalid stream attributes", __func__);
+    if (!sAttr || !dAttr) {
+        QAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
-
+    QAL_DBG(LOG_TAG, "Enter.");
     /* get RM instance */
-    if (rm == nullptr) {
+    if (!rm) {
         rm = ResourceManager::getInstance();
-        if (rm == nullptr) {
-            QAL_ERR(LOG_TAG,"ResourceManager getInstance failed");
+        if (!rm) {
+            QAL_ERR(LOG_TAG, "ResourceManager getInstance failed");
             goto exit;
         }
     }
-    QAL_VERBOSE(LOG_TAG,"%s: get RM instance success", __func__);
+    QAL_VERBOSE(LOG_TAG, "get RM instance success");
 
     if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
         switch (sAttr->type) {
-            case QAL_STREAM_LOW_LATENCY:
-            case QAL_STREAM_DEEP_BUFFER:
-            case QAL_STREAM_GENERIC:
-            case QAL_STREAM_VOIP_TX :
-            case QAL_STREAM_VOIP_RX :
-                //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
-                stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-                break;
-            case QAL_STREAM_COMPRESSED:
-                stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-                break;
-            case QAL_STREAM_VOICE_UI:
-                stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-                break;
-            default:
-                QAL_ERR(LOG_TAG,"%s: unsupported stream type %x", __func__, sAttr->type);
-                break;
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_DEEP_BUFFER:
+        case QAL_STREAM_GENERIC:
+        case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_VOIP_RX:
+            //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
+            stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
+            break;
+        case QAL_STREAM_COMPRESSED:
+            stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
+            break;
+        case QAL_STREAM_VOICE_UI:
+            stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "unsupported stream type %x", sAttr->type);
+            break;
         }
     } else {
         QAL_ERR(LOG_TAG,"Requested config not supported");
@@ -88,9 +88,9 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     }
 exit:
     if (stream) {
-        QAL_ERR(LOG_TAG,"%s: stream creation success", __func__);
+        QAL_DBG(LOG_TAG, "Exit. stream creation success");
     } else {
-        QAL_ERR(LOG_TAG,"%s: stream creation failed", __func__);
+        QAL_ERR(LOG_TAG, "stream creation failed");
     }
     return stream;
 }
@@ -101,13 +101,11 @@ int32_t  Stream::getStreamAttributes(struct qal_stream_attributes *sAttr)
 
     if (!sAttr) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream attribute pointer", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
-
     memcpy(sAttr, attr, sizeof(qal_stream_attributes));
-    QAL_ERR(LOG_TAG,"%s: stream_type - %d stream_flags - %d direction - %d",
-           __func__, sAttr->type, sAttr->flags, sAttr->direction);
+    QAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d", sAttr->type, sAttr->flags, sAttr->direction);
 
 exit:
     return status;
@@ -119,12 +117,12 @@ int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifi
 
     if (!modifiers) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid modifers pointer", __func__);
+        QAL_ERR(LOG_TAG, "Invalid modifers pointer, status %d", status);
         goto exit;
     }
     memcpy (modifiers, modifiers_, sizeof(modifier_kv));
     *noOfModifiers = uNoOfModifiers;
-
+    QAL_DBG(LOG_TAG, "noOfModifiers %u", *noOfModifiers);
 exit:
     return status;
 }
@@ -135,11 +133,11 @@ int32_t  Stream::getStreamType (qal_stream_type_t* streamType)
 
     if (!streamType) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream type", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream type, status %d", status);
         goto exit;
     }
     *streamType = attr->type;
-    QAL_ERR(LOG_TAG,"%s: streamType - %d", __func__, *streamType);
+    QAL_DBG(LOG_TAG, "streamType - %d", *streamType);
 
 exit:
     return status;
@@ -148,7 +146,7 @@ exit:
 int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;
-    QAL_ERR(LOG_TAG,"%s: no. of devices - %d", __func__, devices.size());
+    QAL_DBG(LOG_TAG, "no. of devices %d", devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         aDevices.push_back(devices[i]);
     }
@@ -163,11 +161,11 @@ int32_t  Stream::getAssociatedSession(Session **s)
 
     if (!s) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid session\n", __func__);
+        QAL_ERR(LOG_TAG, "Invalid session, status %d", status);
         goto exit;
     }
     *s = session;
-    QAL_ERR(LOG_TAG,"%s: session - %p", __func__, s);
+    QAL_DBG(LOG_TAG, "session %p", *s);
 exit:
     return status;
 }
@@ -178,19 +176,18 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
 
     if (!vData) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"%s: Invalid stream attribute pointer", __func__);
+        QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
     
     if (vdata != NULL) {
-    memcpy(vData, vdata,sizeof(uint32_t) +
+        memcpy(vData, vdata,sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)));
 
-    QAL_ERR(LOG_TAG,"%s num config %x \n",__func__, (vdata->no_of_volpair));
-    for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
-        QAL_ERR(LOG_TAG,"%s: Volume payload mask:%x vol:%f\n",
-                  __func__, (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
-    }
+        QAL_DBG(LOG_TAG, "num config %x", (vdata->no_of_volpair));
+        for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
+            QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f", (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+        }
     }
 exit:
     return status;
@@ -202,37 +199,43 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
     int16_t nBlockAlign;        // block size of data
     struct qal_stream_attributes *sattr = NULL;
     sattr = (struct qal_stream_attributes *)malloc(sizeof(struct qal_stream_attributes));
+    if (!sattr) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG, "sattr malloc failed %s, status %d", strerror(errno), status);
+        return status;
+    }
     memset (sattr, 0, sizeof(struct qal_stream_attributes));
-    QAL_ERR(LOG_TAG,"%s: In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d\n",
-             __func__,in_buf_size,in_buf_count,out_buf_size,out_buf_count);
+    QAL_DBG(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
+             in_buf_size, in_buf_count, out_buf_size, out_buf_count);
 
     inBufCount = in_buf_count;
     outBufCount = out_buf_count;
 
     status = getStreamAttributes(sattr);
     if (sattr->direction == QAL_AUDIO_OUTPUT) {
-       outBufSize = (sattr->out_media_config.bit_width) * (sattr->out_media_config.ch_info->channels) * 32;
-       nBlockAlign = ((sattr->out_media_config.bit_width) / 8) * (sattr->out_media_config.ch_info->channels);
-       QAL_ERR(LOG_TAG,"%s: no of buf %d and send buf %x\n", __func__, outBufCount, outBufSize);
+        outBufSize = (sattr->out_media_config.bit_width) * (sattr->out_media_config.ch_info->channels) * 32;
+        nBlockAlign = ((sattr->out_media_config.bit_width) / 8) * (sattr->out_media_config.ch_info->channels);
+        QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
-       //If the read size is not a multiple of BlockAlign;
-       //Make sure we read blockaligned bytes from the file.
-       if ((outBufSize % nBlockAlign) != 0) {
-          outBufSize = ((outBufSize / nBlockAlign) * nBlockAlign);
-       }
-    *out_buf_size = outBufSize;
+        //If the read size is not a multiple of BlockAlign;
+        //Make sure we read blockaligned bytes from the file.
+        if ((outBufSize % nBlockAlign) != 0) {
+            outBufSize = ((outBufSize / nBlockAlign) * nBlockAlign);
+        }
+        *out_buf_size = outBufSize;
     } else {
-       //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info->channels) * 32;
-       nBlockAlign = ((sattr->in_media_config.bit_width) / 8) * (sattr->in_media_config.ch_info->channels);
-       //If the read size is not a multiple of BlockAlign;
-       //Make sure we read blockaligned bytes from the file.
-       if ((inBufSize % nBlockAlign) != 0) {
-          inBufSize = ((inBufSize / nBlockAlign) * nBlockAlign);
-       }
-       inBufSize = *in_buf_size;
+        //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info->channels) * 32;
+        nBlockAlign = ((sattr->in_media_config.bit_width) / 8) * (sattr->in_media_config.ch_info->channels);
+        //If the read size is not a multiple of BlockAlign;
+        //Make sure we read blockaligned bytes from the file.
+        if ((inBufSize % nBlockAlign) != 0) {
+            inBufSize = ((inBufSize / nBlockAlign) * nBlockAlign);
+        }
+        inBufSize = *in_buf_size;
     }
     return status;
 }
+
 int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                            size_t *out_buf_size, size_t *out_buf_count)
 {
@@ -241,7 +244,7 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
     *in_buf_count = inBufCount;
     *out_buf_size = outBufSize;
     *out_buf_count = outBufCount;
-    QAL_VERBOSE(LOG_TAG,"%s:In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d\n",
-                                            __func__,*in_buf_size,*in_buf_count,*out_buf_size,*out_buf_count);
+    QAL_VERBOSE(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
+                                            *in_buf_size,*in_buf_count,*out_buf_size,*out_buf_count);
     return status;
 }

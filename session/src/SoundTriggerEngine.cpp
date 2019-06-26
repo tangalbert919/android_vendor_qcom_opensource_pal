@@ -39,9 +39,8 @@ SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id, uint32_t 
 {
     SoundTriggerEngine *stEngine = NULL;
 
-    if (!s)
-    {
-        QAL_ERR(LOG_TAG,"%s: Invalid stream handle", __func__);
+    if (!s) {
+        QAL_ERR(LOG_TAG, "Invalid stream handle");
         goto exit;
     }
 
@@ -54,15 +53,11 @@ SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id, uint32_t 
 
     // TODO: register engine to RM if it is newly created
 exit:
-    if (!stEngine)
-    {
-        QAL_ERR(LOG_TAG,"%s: SoundTriggerEngine creation failed", __func__);
-    }
-    else
-    {
-        QAL_VERBOSE(LOG_TAG,"%s: SoundTriggerEngine creation success", __func__);
+    if (!stEngine) {
+        QAL_ERR(LOG_TAG, "SoundTriggerEngine creation failed");
+    } else {
+        QAL_VERBOSE(LOG_TAG, "SoundTriggerEngine creation success");
     }
 
     return stEngine;
 }
-
