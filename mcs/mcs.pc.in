@@ -1,0 +1,9 @@
+prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: acdbdata
+Description: media controller service library
+Version: @VERSION@
+Libs: -L${libdir}
+Cflags: -I${includedir}
