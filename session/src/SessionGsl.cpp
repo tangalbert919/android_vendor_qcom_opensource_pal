@@ -853,13 +853,14 @@ int SessionGsl::setPayloadConfig(Stream *s) {
     struct sessionToPayloadParam* sessionData = NULL;
     struct sessionToPayloadParam* deviceData = NULL;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::shared_ptr<Device>> associatedRecordDevices;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     int32_t status = 0;
     int32_t i;
     int32_t dev_id;
     struct qal_stream_attributes sAttr;
-    struct qal_device dAttr;
+    struct qal_device dAttr, devAttr;
     s->getStreamAttributes(&sAttr);
     char epName[128] = {0};
     std::string epname;
@@ -891,10 +892,22 @@ int SessionGsl::setPayloadConfig(Stream *s) {
         sessionData->sampleRate = sAttr.in_media_config.sample_rate;
         sessionData->bitWidth = sAttr.in_media_config.bit_width;
         sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
+        status = s->getAssociatedDevices(associatedRecordDevices);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG"%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
+        associatedRecordDevices[0]->getDeviceAtrributes(&devAttr);
+        if (devAttr.config.ch_info->channels == sessionData->numChannel) {
+            sessionData->native = 1;
+        } else {
+            sessionData->native = 0;
+        }
     } else {
         sessionData->sampleRate = sAttr.out_media_config.sample_rate;
         sessionData->bitWidth = sAttr.out_media_config.bit_width;
         sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
+        sessionData->native = 0;
     }
     sessionData->metadata = NULL;
     QAL_DBG(LOG_TAG, "session bit width %d, sample rate %d, and channels %d", sessionData->bitWidth, sessionData->sampleRate, sessionData->numChannel);

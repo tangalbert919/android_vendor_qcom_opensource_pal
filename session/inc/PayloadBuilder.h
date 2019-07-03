@@ -62,6 +62,7 @@ struct sessionToPayloadParam {
     uint32_t numChannel;
     struct qal_channel_info *ch_info;    /**< channel info */
     int direction;
+    int native;
     void *metadata;
 };
 

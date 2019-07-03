@@ -203,7 +203,11 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     /* TODO: Remove hardcoding */
     mediaFmtPayload->endianness = PCM_LITTLE_ENDIAN;
     mediaFmtPayload->alignment = 1;
-    mediaFmtPayload->num_channels = data->numChannel;
+    if(data->native == 1){
+        mediaFmtPayload->num_channels = PARAM_VAL_NATIVE;
+    } else {
+        mediaFmtPayload->num_channels = data->numChannel;
+    }
     mediaFmtPayload->sample_rate = data->sampleRate;
     mediaFmtPayload->bit_width = data->bitWidth;
 
@@ -327,7 +331,11 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
                   mediaFmtHdr->payload_size, numChannels);
     mediaFmtPayload->endianness = PCM_LITTLE_ENDIAN;
     mediaFmtPayload->alignment = 1;
-    mediaFmtPayload->num_channels = data->numChannel;
+    if(data->native == 1){
+        mediaFmtPayload->num_channels = PARAM_VAL_NATIVE;
+    } else {
+        mediaFmtPayload->num_channels = data->numChannel;
+    }
     mediaFmtPayload->bit_width = data->bitWidth;
     if (data->bitWidth == 16 || data->bitWidth == 32) {
         mediaFmtPayload->bits_per_sample = data->bitWidth;
