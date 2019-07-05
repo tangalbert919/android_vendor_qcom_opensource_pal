@@ -46,6 +46,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
     session = NULL;
     dev = nullptr;
     reader_ = NULL;
+    recEvent = NULL;
     memset(&detectionEventInfo, 0, sizeof(struct detection_event_info));
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
@@ -707,7 +708,7 @@ int32_t StreamSoundTrigger::setDetected(bool detected)
     // notify Client if no 2nd stage needed
     // for now just set event null
     if (stages == 1)
-        sm_rc_config->callback(NULL, NULL);
+        notifyClient();
     return status;
 }
 
@@ -809,7 +810,8 @@ int32_t StreamSoundTrigger::notifyClient()
 {
     int32_t status = 0;
     QAL_INFO(LOG_TAG, "Notify detection event back to client");
-    sm_rc_config->callback(NULL, NULL);
+    generate_callback_event(&recEvent);
+    sm_rc_config->callback(recEvent, sm_rc_config->cookie);
     return status;
 }
 
@@ -834,6 +836,43 @@ int32_t StreamSoundTrigger::setResume()
 {
     int32_t status = 0;
     return status;
+}
+
+int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_event **event)
+{
+    struct qal_st_phrase_recognition_event *phrase_event = NULL;
+    QAL_INFO(LOG_TAG, "Enter");
+    if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+        phrase_event = (struct qal_st_phrase_recognition_event *)malloc(sizeof(struct qal_st_phrase_recognition_event));
+        if (!phrase_event) {
+            QAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
+            return ENOMEM;
+        }
+
+        phrase_event->num_phrases = sm_rc_config->num_phrases;
+        memcpy(phrase_event->phrase_extras, sm_rc_config->phrases,
+               phrase_event->num_phrases * sizeof(struct qal_st_phrase_recognition_extra));
+
+        *event = &(phrase_event->common);
+        (*event)->status = 0;
+        (*event)->type = sound_model_type;
+        (*event)->st_handle = (qal_st_handle_t *)this;
+        (*event)->capture_available = true;
+        // TODO: generate capture session
+        (*event)->capture_session = 0;
+        (*event)->capture_delay_ms = 0;
+        (*event)->capture_preamble_ms = 0;
+        (*event)->trigger_in_data = true;
+        (*event)->data_size = 0;
+        (*event)->data_offset = sizeof(struct qal_st_phrase_recognition_event);
+        (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
+        (*event)->media_config.bit_width = BITWIDTH_16;
+        (*event)->media_config.ch_info->channels = CHANNEL1;
+        (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+    }
+    // TODO: handle for generic sound model
+    QAL_INFO(LOG_TAG, "Exit");
+    return 0;
 }
 
 int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
