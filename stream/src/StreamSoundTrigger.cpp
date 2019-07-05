@@ -38,8 +38,11 @@
 #include "kvh2xml.h"
 #include <unistd.h>
 
-StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, struct qal_device *dattr, uint32_t no_of_devices,
-                   struct modifier_kv *modifiers, uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
+StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
+                                       struct qal_device *dattr,
+                                       uint32_t no_of_devices,
+                                       struct modifier_kv *modifiers,
+                                       uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
 {
     mutex.lock();
     stages = 1;
@@ -61,7 +64,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
         mutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
-    memcpy (attr, sattr, sizeof(qal_stream_attributes));
+    casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
+                      sizeof(qal_stream_attributes));
 
     session = new SessionGsl(rm);
 
@@ -71,7 +75,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr, stru
         mutex.unlock();
         throw std::runtime_error("failed to create session object");
     }
-    QAL_VERBOSE(LOG_TAG, "session %p created", session);
+    QAL_VERBOSE(LOG_TAG, "session %pK created", session);
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
@@ -95,7 +99,8 @@ int32_t StreamSoundTrigger::open()
 {
     int32_t status = 0;
     mutex.lock();
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p device count - %d", session, devices.size());
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
+            devices.size());
     status = session->open(this);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session open failed with status %d", status);
@@ -124,7 +129,8 @@ int32_t StreamSoundTrigger::close()
     int32_t status = 0;
     mutex.lock();
 
-    QAL_DBG(LOG_TAG,  "Enter. session handle - %p device count - %d", session, devices.size());
+    QAL_DBG(LOG_TAG,  "Enter. session handle - %pK device count - %d", session,
+            devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         status = devices[i]->close();
         rm->deregisterDevice(devices[i]);
@@ -155,7 +161,8 @@ int32_t StreamSoundTrigger::start()
     int32_t status = 0;
     mutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p attr->direction - %d", session, attr->direction);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d", session,
+            attr->direction);
 
     for (int i = 0; i < activeEngines.size(); i++) {
         uint32_t id = activeEngines[i].first;
@@ -163,7 +170,8 @@ int32_t StreamSoundTrigger::start()
         QAL_VERBOSE(LOG_TAG, "start recognition for sound trigger engine %u", id);
         status = stEngine->start_recognition(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "start_recognition failed for sound trigger engine %u with status %d", id, status);
+            QAL_ERR(LOG_TAG, "start_recognition failed for sound trigger engine %u with status %d",
+                    id, status);
             goto exit;
         }
     }
@@ -202,7 +210,8 @@ int32_t StreamSoundTrigger::stop()
 
     mutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p attr->direction - %d device count %d", session, attr->direction, devices.size());
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d device count %d",
+            session, attr->direction, devices.size());
 
     for (int32_t i=0; i < devices.size(); i++) {
         status = devices[i]->stop();
@@ -219,7 +228,8 @@ int32_t StreamSoundTrigger::stop()
         QAL_VERBOSE(LOG_TAG, "stop recognition for sound trigger engine %u", id);
         status = stEngine->stop_recognition(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stop_recognition failed for sound trigger engine %u with status %d", id, status);
+            QAL_ERR(LOG_TAG, "stop_recognition failed for sound trigger engine %u with status %d",
+                    id, status);
             goto exit;
         }
     }
@@ -240,7 +250,7 @@ int32_t StreamSoundTrigger::prepare()
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mutex.lock();
     status = session->prepare(this);
@@ -258,11 +268,12 @@ int32_t StreamSoundTrigger::setStreamAttributes(struct qal_stream_attributes *sa
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     memset(attr, 0, sizeof(qal_stream_attributes));
     mutex.lock();
-    memcpy (attr, sattr, sizeof(qal_stream_attributes));
+    casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
+                      sizeof(qal_stream_attributes));
     mutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //TODO:gkv or ckv or tkv need to pass
     if (0 != status) {
@@ -278,7 +289,7 @@ exit:
 int32_t StreamSoundTrigger::read(struct qal_buffer* buf)
 {
     int32_t size;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mutex.lock();
     size = reader_->read(buf->buffer, buf->size);
     mutex.unlock();
@@ -294,7 +305,7 @@ int32_t StreamSoundTrigger::write(struct qal_buffer* buf)
 int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb)
 {
     callBack = cb;
-    QAL_DBG(LOG_TAG, "callBack = %p", callBack);
+    QAL_DBG(LOG_TAG, "callBack = %pK", callBack);
     return 0;
 }
 
@@ -305,7 +316,7 @@ int32_t StreamSoundTrigger::getCallBack(qal_stream_callback *cb)
         return -EINVAL;
     }
     *cb = callBack;
-    QAL_DBG(LOG_TAG, "callBack = %p", (*cb));
+    QAL_DBG(LOG_TAG, "callBack = %pK", (*cb));
     return 0;
 }
 
@@ -339,7 +350,8 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
             (phrase_sm->num_phrases == 0)) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid phrase sound model params data size=%d, data offset=%d, type=%d phrases=%d status %d",
-                   phrase_sm->common.data_size, phrase_sm->common.data_offset,phrase_sm->num_phrases, status);
+                   phrase_sm->common.data_size, phrase_sm->common.data_offset,
+                   phrase_sm->num_phrases, status);
             goto exit;
         }
         common_sm = (struct qal_st_sound_model*)&phrase_sm->common;
@@ -358,7 +370,8 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
             (sound_model->data_offset < sizeof(struct qal_st_sound_model))) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d, data offset=%d status %d",
-                    sound_model->data_size, sound_model->data_offset, status);
+                    sound_model->data_size,
+                    sound_model->data_offset, status);
             goto exit;
         }
         recognition_mode = 0x1; //TO-DO: add enum
@@ -367,7 +380,8 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
         sm_size = sizeof(struct qal_st_sound_model) + common_sm->data_size;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d", sound_model->type, status);
+        QAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
+                sound_model->type, status);
         goto exit;
     }
 
@@ -380,8 +394,9 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
     sound_model_type = sound_model->type;
 
     if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        memcpy(sm_data, (uint8_t*)phrase_sm, sizeof(*phrase_sm));
-        memcpy((uint8_t*)sm_data + sizeof(*phrase_sm),
+        casa_osal_memcpy(sm_data, sizeof(*phrase_sm), (uint8_t*)phrase_sm,
+                         sizeof(*phrase_sm));
+        casa_osal_memcpy((uint8_t*)sm_data + sizeof(*phrase_sm), phrase_sm->common.data_size,
                (uint8_t*)phrase_sm + phrase_sm->common.data_offset,
                phrase_sm->common.data_size);
         recognition_mode = phrase_sm->phrases[0].recognition_mode;
@@ -389,8 +404,9 @@ int32_t StreamSoundTrigger::parse_sound_model(struct qal_st_sound_model *sound_m
         QAL_VERBOSE(LOG_TAG, "phrase recognition mode - %d", recognition_mode);
 
     } else {
-        memcpy(sm_data, (uint8_t*)common_sm, sizeof(*common_sm));
-        memcpy((uint8_t*)sm_data + sizeof(*common_sm),
+        casa_osal_memcpy(sm_data, sizeof(*common_sm), (uint8_t*)common_sm,
+                         sizeof(*common_sm));
+        casa_osal_memcpy((uint8_t*)sm_data + sizeof(*common_sm), common_sm->data_size,
                (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
     }
 
@@ -399,7 +415,8 @@ exit:
     return status;
 }
 
-int32_t StreamSoundTrigger::generate_recognition_config_payload(unsigned char **out_payload, unsigned int *out_payload_size)
+int32_t StreamSoundTrigger::generate_recognition_config_payload(
+                    unsigned char **out_payload, unsigned int *out_payload_size)
 {
     int status = 0;
     unsigned int num_conf_levels = 0;
@@ -480,12 +497,14 @@ int32_t StreamSoundTrigger::generate_recognition_config_payload(unsigned char **
             if ((user_id < sm_rc_config->num_phrases) ||
                 (user_id >= num_conf_levels)) {
                 status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id, status);
+                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id,
+                        status);
                 goto exit;
             } else {
                 if (user_id_tracker[user_id] == 1) {
                     status = -EINVAL;
-                    QAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id, status);
+                    QAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
+                            status);
                     goto exit;
                 }
                 conf_levels[user_id] = (user_level < 100) ? user_level : 100;
@@ -519,16 +538,18 @@ int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc
     //TODO: need logic to check for existing config / free that before allocating
     //Need to support parsing of opaque data
 
-    sm_rc_config = (struct qal_st_recognition_config *) calloc(1, sizeof(struct qal_st_recognition_config) + rc_config->data_size);
+    sm_rc_config = (struct qal_st_recognition_config *) calloc(1,
+               sizeof(struct qal_st_recognition_config) + rc_config->data_size);
     if (!sm_rc_config) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "Failed to allocate sm_rc_config status %d", status);
         goto exit;
     }
 
-    memcpy(sm_rc_config, rc_config, sizeof(struct qal_st_recognition_config));
-    memcpy((uint8_t *)sm_rc_config + rc_config->data_offset, (uint8_t *)rc_config + rc_config->data_offset,
-           rc_config->data_size);
+    casa_osal_memcpy(sm_rc_config, sizeof(struct qal_st_recognition_config),
+                     rc_config, sizeof(struct qal_st_recognition_config));
+    casa_osal_memcpy((uint8_t *)sm_rc_config + rc_config->data_offset, rc_config->data_size,
+                 (uint8_t *)rc_config + rc_config->data_offset, rc_config->data_size);
 
     status = generate_recognition_config_payload(out_payload,out_payload_size);
 
@@ -543,7 +564,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
     struct qal_st_sound_model *sound_model = NULL;
     struct qal_st_recognition_config *rc_config = NULL;
 
-    QAL_DBG(LOG_TAG, "Enter. set parameter %u, session handle - %p", param_id, session);
+    QAL_DBG(LOG_TAG, "Enter. set parameter %u, session handle - %pK", param_id,
+            session);
 
     mutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
@@ -564,10 +586,12 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
             if (!reader_)
                 stEngine = SoundTriggerEngine::create(this, id, i, &reader_, NULL);
             else
-                stEngine = SoundTriggerEngine::create(this, id, i, &reader_, reader_->ringBuffer_);
+                stEngine = SoundTriggerEngine::create(this, id, i, &reader_,
+                           reader_->ringBuffer_);
             if (!stEngine || !reader_) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "Failed to create SoundTriggerEngine or ring buffer reader status %d", status);
+                QAL_ERR(LOG_TAG, "Failed to create SoundTriggerEngine or ring buffer reader status %d",
+                        status);
                 goto exit;
             }
             registerSoundTriggerEngine(id, stEngine);
@@ -585,7 +609,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
         rc_config = (struct qal_st_recognition_config *)payload;
         status = parse_rc_config(rc_config);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to parse recognition config status %d", status);
+            QAL_ERR(LOG_TAG, "Failed to parse recognition config status %d",
+                    status);
             goto exit;
         }
 
@@ -595,7 +620,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
             SoundTriggerEngine *stEngine = activeEngines[i].second;
 
             // parse recognition config to wakeup config and event config structure
-            QAL_VERBOSE(LOG_TAG, "sm_rc_config: %p", sm_rc_config);
+            QAL_VERBOSE(LOG_TAG, "sm_rc_config: %pK", sm_rc_config);
             status = stEngine->update_config(this, sm_rc_config);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to update config status %d", status);
@@ -610,14 +635,16 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
         goto exit;
     }
 
-    QAL_DBG(LOG_TAG, "Exit. session parameter %u set successful status %d", param_id, status);
+    QAL_DBG(LOG_TAG, "Exit. session parameter %u set successful status %d",
+            param_id, status);
 
 exit:
     mutex.unlock();
     return status;
 }
 
-void StreamSoundTrigger::registerSoundTriggerEngine(uint32_t id, SoundTriggerEngine *stEngine)
+void StreamSoundTrigger::registerSoundTriggerEngine(uint32_t id,
+                                                   SoundTriggerEngine *stEngine)
 {
     int index;
     if (!getSoundTriggerEngine(&index, id)) {
@@ -655,8 +682,8 @@ int32_t StreamSoundTrigger::getSoundTriggerEngine(int *index, uint32_t sm_id)
 }
 
 // Callback function for detection engine of first stage
-int32_t StreamSoundTrigger::handleDetectionEvent(qal_stream_handle_t *stream_handle, uint32_t event_id,
-                                                 uint32_t *event_data, void *cookie)
+int32_t StreamSoundTrigger::handleDetectionEvent(qal_stream_handle_t *stream_handle,
+                              uint32_t event_id, uint32_t *event_data, void *cookie)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter. Event detected on GECKO, event id = %u", event_id);
@@ -745,34 +772,49 @@ int32_t StreamSoundTrigger::parse_detection_payload(uint32_t event_id, uint32_t 
         switch (keyId) {
         case KEY_ID_CONFIDENCE_LEVELS_INFO:
             pConfidenceInfo = (struct confidence_level_info_t *)ptr;
-            detectionEventInfo.num_confidence_levels = pConfidenceInfo->number_of_confidence_values;
-            QAL_DBG(LOG_TAG, "num_confidence_levels = %u", detectionEventInfo.num_confidence_levels);
+            detectionEventInfo.num_confidence_levels =
+                                   pConfidenceInfo->number_of_confidence_values;
+            QAL_DBG(LOG_TAG, "num_confidence_levels = %u",
+                                      detectionEventInfo.num_confidence_levels);
             for (int i = 0; i < detectionEventInfo.num_confidence_levels; i++) {
-                detectionEventInfo.confidence_levels[i] = pConfidenceInfo->confidence_levels[i];
-                QAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i, detectionEventInfo.confidence_levels[i]);
+                detectionEventInfo.confidence_levels[i] =
+                                          pConfidenceInfo->confidence_levels[i];
+                QAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
+                            detectionEventInfo.confidence_levels[i]);
             }
             break;
         case KEY_ID_KWD_POSITION_INFO:
             pKeywordPositionInfo = (struct keyword_position_info_t *)ptr;
-            detectionEventInfo.kw_start_timestamp_lsw = pKeywordPositionInfo->kw_start_timestamp_lsw;
-            detectionEventInfo.kw_start_timestamp_msw = pKeywordPositionInfo->kw_start_timestamp_msw;
-            detectionEventInfo.kw_end_timestamp_lsw = pKeywordPositionInfo->kw_end_timestamp_lsw;
-            detectionEventInfo.kw_end_timestamp_msw = pKeywordPositionInfo->kw_end_timestamp_msw;
+            detectionEventInfo.kw_start_timestamp_lsw =
+                                   pKeywordPositionInfo->kw_start_timestamp_lsw;
+            detectionEventInfo.kw_start_timestamp_msw =
+                                   pKeywordPositionInfo->kw_start_timestamp_msw;
+            detectionEventInfo.kw_end_timestamp_lsw =
+                                     pKeywordPositionInfo->kw_end_timestamp_lsw;
+            detectionEventInfo.kw_end_timestamp_msw =
+                                     pKeywordPositionInfo->kw_end_timestamp_msw;
             QAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, end_lsw = %u, end_msw = %u",
-                     detectionEventInfo.kw_start_timestamp_lsw, detectionEventInfo.kw_start_timestamp_msw,
-                     detectionEventInfo.kw_end_timestamp_lsw, detectionEventInfo.kw_end_timestamp_msw);
+                    detectionEventInfo.kw_start_timestamp_lsw,
+                    detectionEventInfo.kw_start_timestamp_msw,
+                    detectionEventInfo.kw_end_timestamp_lsw,
+                    detectionEventInfo.kw_end_timestamp_msw);
             break;
         case KEY_ID_TIMESTAMP_INFO:
             pDetectionTimeStampInfo = (struct detection_timestamp_info_t *)ptr;
-            detectionEventInfo.detection_timestamp_lsw = pDetectionTimeStampInfo->detection_timestamp_lsw;
-            detectionEventInfo.detection_timestamp_msw = pDetectionTimeStampInfo->detection_timestamp_msw;
+            detectionEventInfo.detection_timestamp_lsw =
+                               pDetectionTimeStampInfo->detection_timestamp_lsw;
+            detectionEventInfo.detection_timestamp_msw =
+                               pDetectionTimeStampInfo->detection_timestamp_msw;
             QAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
-                     detectionEventInfo.detection_timestamp_lsw, detectionEventInfo.detection_timestamp_msw);
+                     detectionEventInfo.detection_timestamp_lsw,
+                     detectionEventInfo.detection_timestamp_msw);
             break;
         case KEY_ID_FTRT_DATA_INFO:
             pFtrtInfo = (struct ftrt_data_info_t *)ptr;
-            detectionEventInfo.ftrt_data_length_in_us = pFtrtInfo->ftrt_data_length_in_us;
-            QAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u", detectionEventInfo.ftrt_data_length_in_us);
+            detectionEventInfo.ftrt_data_length_in_us =
+                                              pFtrtInfo->ftrt_data_length_in_us;
+            QAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
+                                     detectionEventInfo.ftrt_data_length_in_us);
             break;
         default:
             status = -EINVAL;

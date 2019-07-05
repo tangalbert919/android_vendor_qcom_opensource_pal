@@ -175,8 +175,9 @@ protected:
     QalRingBufferReader *reader_;
 
 public:
-    StreamSoundTrigger(struct qal_stream_attributes *sattr, struct qal_device *dattr, uint32_t no_of_devices,
-             struct modifier_kv *modifiers, uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
+    StreamSoundTrigger(struct qal_stream_attributes *sattr, struct qal_device *dattr,
+                       uint32_t no_of_devices, struct modifier_kv *modifiers,
+                       uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
     ~StreamSoundTrigger();
     int32_t open() override;
     int32_t close() override;
@@ -214,8 +215,10 @@ private:
     /* functions*/
     int32_t parse_sound_model(struct qal_st_sound_model *sm_data);
     int32_t parse_rc_config(struct qal_st_recognition_config *rc_config);
-    int32_t generate_recognition_config_payload(unsigned char **out_payload, unsigned int *out_payload_size); //Need to track the buffer where the payload is allocated
-    static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle, uint32_t event_id, uint32_t *event_data, void *cookie);
+    int32_t generate_recognition_config_payload(unsigned char **out_payload,
+                                                unsigned int *out_payload_size); //Need to track the buffer where the payload is allocated
+    static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
+                         uint32_t event_id, uint32_t *event_data, void *cookie);
     int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
     int32_t generate_callback_event(struct qal_st_recognition_event **event);
 };

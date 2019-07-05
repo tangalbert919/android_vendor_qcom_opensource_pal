@@ -35,8 +35,10 @@
 #include "ResourceManager.h"
 #include "Device.h"
 
-StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr, struct qal_device *dAttr, uint32_t noOfDevices,
-                   struct modifier_kv *modifiers, uint32_t noOfModifiers, std::shared_ptr<ResourceManager> rm)
+StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr,
+                               struct qal_device *dAttr, uint32_t noOfDevices,
+                               struct modifier_kv *modifiers, uint32_t noOfModifiers,
+                               std::shared_ptr<ResourceManager> rm)
 {
     Session* session = NULL;
     dev = nullptr;

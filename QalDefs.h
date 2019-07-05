@@ -392,7 +392,8 @@ struct qal_st_recognition_event {
                                                               sound_trigger_phrase_recognition_event) */
 };
 
-typedef void(*qal_st_recognition_callback_t)(struct qal_st_recognition_event *event, void *cookie);
+typedef void(*qal_st_recognition_callback_t)(struct qal_st_recognition_event *event,
+                                             void *cookie);
 
 /* Payload for qal_st_start_recognition() */
 struct qal_st_recognition_config {
@@ -451,8 +452,9 @@ struct detection_engine_generic_event_cfg {
  * \param[in] cookie - cookie speificied in the
  *       qal_stream_open()
  */
-typedef int32_t (*qal_stream_callback)(qal_stream_handle_t *stream_handle, uint32_t event_id,
-                                       uint32_t *event_data, void *cookie);
+typedef int32_t (*qal_stream_callback)(qal_stream_handle_t *stream_handle,
+                                       uint32_t event_id, uint32_t *event_data,
+                                       void *cookie);
 
 #ifdef __cplusplus
 }  /* extern "C" */

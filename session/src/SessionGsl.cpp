@@ -47,7 +47,8 @@
 
 
 typedef int32_t (*gsl_init_t)(struct gsl_init_data *);
-typedef int32_t (*gsl_open_t)(const struct gsl_key_vector *,const struct gsl_key_vector *, gsl_handle_t *);
+typedef int32_t (*gsl_open_t)(const struct gsl_key_vector *,
+                              const struct gsl_key_vector *, gsl_handle_t *);
 typedef int32_t (*gsl_close_t)(gsl_handle_t);
 typedef int32_t (*gsl_set_cal_t)(gsl_handle_t , const struct gsl_key_vector *);
 typedef int32_t (*gsl_set_config_t)(gsl_handle_t, uint32_t, const struct gsl_key_vector *);
@@ -56,7 +57,8 @@ typedef int32_t (*gsl_get_custom_config_t)(gsl_handle_t, uint8_t *, size_t *);
 typedef int32_t (*gsl_ioctl_t)(gsl_handle_t, enum gsl_cmd_id, void *, size_t);
 typedef int32_t (*gsl_read_t)(gsl_handle_t, uint32_t, struct gsl_buff *, uint32_t *);
 typedef int32_t (*gsl_write_t)(gsl_handle_t, uint32_t, struct gsl_buff *, uint32_t *);
-typedef int32_t (*gsl_get_tagged_module_info_t)(const struct gsl_key_vector *, uint32_t, struct gsl_module_id_info **, size_t *);
+typedef int32_t (*gsl_get_tagged_module_info_t)(const struct gsl_key_vector *,
+                              uint32_t, struct gsl_module_id_info **, size_t *);
 typedef int32_t (*gsl_register_event_cb_t)(gsl_handle_t, gsl_cb_func_ptr, void *);
 typedef void (*gsl_deinit_t)(void);
 
@@ -77,19 +79,23 @@ gsl_deinit_t gslDeinit;
 int SessionGsl::seek = 0;
 void *SessionGsl::gslLibHandle = NULL;
 
-SessionGsl::SessionGsl() {
+SessionGsl::SessionGsl()
+{
 
 }
 
-SessionGsl::SessionGsl(std::shared_ptr<ResourceManager> Rm) {
+SessionGsl::SessionGsl(std::shared_ptr<ResourceManager> Rm)
+{
     rm = Rm;
 }
 
-SessionGsl::~SessionGsl() {
+SessionGsl::~SessionGsl()
+{
 
 }
 
-int SessionGsl::init(std::string acdbFile) {
+int SessionGsl::init(std::string acdbFile)
+{
     int ret = 0;
     struct gsl_acdb_data_files acdb_files;
     gsl_init_data init_data;
@@ -134,13 +140,15 @@ int SessionGsl::init(std::string acdbFile) {
         ret = -EINVAL;
         goto error;
     }
-    gslSetCustomConfig = (gsl_set_custom_config_t)dlsym(gslLibHandle, "gsl_set_custom_config");
+    gslSetCustomConfig = (gsl_set_custom_config_t)dlsym(gslLibHandle,
+                          "gsl_set_custom_config");
     if (!gslSetCustomConfig) {
         QAL_ERR(LOG_TAG, "dlsym error %s for gsl_set_custom_config", dlerror());
         ret = -EINVAL;
         goto error;
     }
-    gslGetCustomConfig = (gsl_get_custom_config_t)dlsym(gslLibHandle, "gsl_get_custom_config");
+    gslGetCustomConfig = (gsl_get_custom_config_t)dlsym(gslLibHandle,
+                          "gsl_get_custom_config");
     if (!gslGetCustomConfig) {
         QAL_ERR(LOG_TAG, "dlsym error %s for gsl_get_custom_config", dlerror());
         ret = -EINVAL;
@@ -152,13 +160,15 @@ int SessionGsl::init(std::string acdbFile) {
         ret = -EINVAL;
         goto error;
     }
-    gslGetTaggedModuleInfo = (gsl_get_tagged_module_info_t)dlsym(gslLibHandle, "gsl_get_tagged_module_info");
+    gslGetTaggedModuleInfo = (gsl_get_tagged_module_info_t)dlsym(gslLibHandle,
+                              "gsl_get_tagged_module_info");
     if (!gslGetTaggedModuleInfo) {
         QAL_ERR(LOG_TAG, "dlsym error %s for gsl_get_tagged_module_info", dlerror());
         ret = -EINVAL;
         goto error;
     }
-    gslRegisterEventCallBack = (gsl_register_event_cb_t)dlsym(gslLibHandle, "gsl_register_event_cb");
+    gslRegisterEventCallBack = (gsl_register_event_cb_t)dlsym(gslLibHandle,
+                                "gsl_register_event_cb");
     if (!gslRegisterEventCallBack) {
         QAL_ERR(LOG_TAG, "dlsym error %s for gsl_register_event_cb", dlerror());
         return -EINVAL;
@@ -212,7 +222,8 @@ exit:
     return ret;
 }
 
-void SessionGsl::deinit() {
+void SessionGsl::deinit()
+{
     if(NULL != gslLibHandle){
         gslDeinit();
         dlclose(gslLibHandle);
@@ -245,41 +256,41 @@ int populateGkv(Stream *s, struct gsl_key_vector *gkv) {
     }
     QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
     switch (sattr->type) {
-    case QAL_STREAM_LOW_LATENCY:
-        if (sattr->direction == QAL_AUDIO_OUTPUT) {
-            keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
-        }
-        else if (sattr->direction == QAL_AUDIO_INPUT) {
-            keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-        }
-        else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
-            keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
-        }
-        else {
+        case QAL_STREAM_LOW_LATENCY:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+            }
+            else if (sattr->direction == QAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
+            }
+            else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
+            }
+            else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
+            break;
+        case QAL_STREAM_DEEP_BUFFER:
+            break;
+        case QAL_STREAM_GENERIC:
+            break;
+        case QAL_STREAM_COMPRESSED:
+            break;
+        case QAL_STREAM_VOIP_TX:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
+            break;
+        case QAL_STREAM_VOIP_RX:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
+            break;
+        case QAL_STREAM_VOICE_UI:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
+            break;
+        default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+            QAL_ERR(LOG_TAG,"unsupported stream type %s status %d", sattr->type, status);
             goto free_sattr;
-        }
-        break;
-    case QAL_STREAM_DEEP_BUFFER:
-        break;
-    case QAL_STREAM_GENERIC:
-        break;
-    case QAL_STREAM_COMPRESSED:
-        break;
-    case QAL_STREAM_VOIP_TX:
-        keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
-        break;
-    case QAL_STREAM_VOIP_RX:
-        keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
-        break;
-    case QAL_STREAM_VOICE_UI:
-        keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
-        break;
-    default:
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG,"unsupported stream type %s status %d", sattr->type, status);
-        goto free_sattr;
     }
     
     //TODO: add stream PP and device PP population
@@ -320,7 +331,9 @@ exit:
     return status;
 }
 
-int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandle, SessionGsl *sg) {
+int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandle,
+                SessionGsl *sg)
+{
     int status = 0;
     float voldB = 0;
     std::vector <std::pair<int,int>> keyVector;
@@ -355,62 +368,65 @@ int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandl
     voldB = (voldata->volume_pair[0].vol);
     QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
     switch (tag) {
-    case TAG_STREAM_VOLUME:
-        if (0 <= voldB < 0.1) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-        } else if (0.1 <= voldB < 0.2) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
-        } else if (0.2 <= voldB < 0.3) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
-        } else if (0.3 <= voldB < 0.4) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
-        } else if (0.4 <= voldB < 0.5) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
-        } else if (0.5 <= voldB < 0.6) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
-        } else if (0.6 <= voldB < 0.7) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
-        } else if (0.7 <= voldB < 0.8) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
-        } else if (0.8 <= voldB < 0.9) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
-        } else if (0.9 <= voldB < 1) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
-        } else if (voldB >= 1) {
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
-            QAL_ERR(LOG_TAG, "max %d", (voldata->no_of_volpair));
-        }
-        status = gslGetTaggedModuleInfo(sg->gkv, tag,
+        case TAG_STREAM_VOLUME:
+            if (0 <= voldB < 0.1) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+            } else if (0.1 <= voldB < 0.2) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
+            } else if (0.2 <= voldB < 0.3) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
+            } else if (0.3 <= voldB < 0.4) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
+            } else if (0.4 <= voldB < 0.5) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
+            } else if (0.5 <= voldB < 0.6) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
+            } else if (0.6 <= voldB < 0.7) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
+            } else if (0.7 <= voldB < 0.8) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
+            } else if (0.8 <= voldB < 0.9) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
+            } else if (0.9 <= voldB < 1) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
+            } else if (voldB >= 1) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
+                QAL_ERR(LOG_TAG, "max %d", (voldata->no_of_volpair));
+            }
+            status = gslGetTaggedModuleInfo(sg->gkv, tag,
                                      &moduleInfo, &moduleInfoSize);
-        if (0 != status || !moduleInfo) {
-            QAL_ERR(LOG_TAG, "Failed to get tag info %x module size status %d", tag, status);
-            goto free_voldata;
-        }
-
-        builder->payloadVolume(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, voldata, tag);
-        if (!payload) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-            goto free_moduleInfo;
-        }
-        QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
-            goto free_payload;
-        }
-        break;
-    default:
-        keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
-        QAL_ERR(LOG_TAG, "Entered default");
-        break;
+            if (0 != status || !moduleInfo) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x module size status %d",
+                        tag, status);
+                goto free_voldata;
+            }
+            builder->payloadVolume(&payload, &payloadSize,
+                                   moduleInfo->module_entry[0].module_iid,
+                                   voldata, tag);
+            if (!payload) {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto free_moduleInfo;
+            }
+            QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
+            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+                goto free_payload;
+            }
+            break;
+        default:
+            keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+            QAL_ERR(LOG_TAG, "Entered default");
+            break;
     }
     ckv->num_kvps = keyVector.size();
     ckv->kvp = new struct gsl_key_value_pair[keyVector.size()];
     for (int i = 0; i < keyVector.size(); i++) {
         ckv->kvp[i].key = keyVector[i].first;
         ckv->kvp[i].value = keyVector[i].second;
-        QAL_VERBOSE(LOG_TAG, "ckv key %x value %x", (ckv->kvp[i].key),(ckv->kvp[i].value));
+        QAL_VERBOSE(LOG_TAG, "ckv key %x value %x", (ckv->kvp[i].key),
+                   (ckv->kvp[i].value));
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 
@@ -426,62 +442,63 @@ exit:
     return status;
 }
 
-int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag) {
+int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag)
+{
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. tag %d", tag);
     std::vector <std::pair<int,int>> keyVector;
     switch (tag){
-    case MUTE_TAG:
-       keyVector.push_back(std::make_pair(MUTE,ON));
-       *gsltag = TAG_MUTE;
-       break;
-    case UNMUTE_TAG:
-       keyVector.push_back(std::make_pair(MUTE,OFF));
-       *gsltag = TAG_MUTE;
-       break;
-    case PAUSE_TAG:
-       keyVector.push_back(std::make_pair(PAUSE,ON));
-       *gsltag = TAG_PAUSE;
-       break;
-    case RESUME_TAG:
-       keyVector.push_back(std::make_pair(PAUSE,OFF));
-       *gsltag = TAG_PAUSE;
-       break;
-    case MFC_SR_8K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_16K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_32K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_44K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_48K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_96K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_192K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    case MFC_SR_384K:
-       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
-       *gsltag = TAG_STREAM_MFC_SR;
-       break;
-    default:
-       QAL_ERR(LOG_TAG, "Tag not supported");
-       break;
+        case MUTE_TAG:
+            keyVector.push_back(std::make_pair(MUTE,ON));
+            *gsltag = TAG_MUTE;
+            break;
+        case UNMUTE_TAG:
+            keyVector.push_back(std::make_pair(MUTE,OFF));
+            *gsltag = TAG_MUTE;
+            break;
+        case PAUSE_TAG:
+            keyVector.push_back(std::make_pair(PAUSE,ON));
+            *gsltag = TAG_PAUSE;
+            break;
+        case RESUME_TAG:
+            keyVector.push_back(std::make_pair(PAUSE,OFF));
+            *gsltag = TAG_PAUSE;
+            break;
+        case MFC_SR_8K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_16K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_32K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_44K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_48K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_96K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_192K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        case MFC_SR_384K:
+            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
+            *gsltag = TAG_STREAM_MFC_SR;
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Tag not supported");
+            break;
     }
     tkv->num_kvps = keyVector.size();
     tkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
@@ -502,12 +519,14 @@ void printCustomConfig(const uint8_t* payload, size_t size)
     size_t loop;
     uint32_t *temp = (uint32_t *)payload;
     for (loop = 0; loop < size;) {
-        QAL_VERBOSE(LOG_TAG,"%0x %0x %0x %0x\n",temp[0+loop],temp[1+loop],temp[2+loop],temp[3+loop]);
+        QAL_VERBOSE(LOG_TAG,"%0x %0x %0x %0x\n",temp[0+loop],temp[1+loop],
+                    temp[2+loop],temp[3+loop]);
         loop = loop + 4;
     }
 }
 
-int populateSVASoundModel(SessionGsl *s, int tagId, void* graphHandle, struct qal_st_sound_model *pSoundModel)
+int populateSVASoundModel(SessionGsl *s, int tagId, void* graphHandle,
+                          struct qal_st_sound_model *pSoundModel)
 {
     int32_t status = 0;
     struct gsl_module_id_info *moduleInfo = NULL;
@@ -525,10 +544,14 @@ int populateSVASoundModel(SessionGsl *s, int tagId, void* graphHandle, struct qa
                                     &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-              tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+                tagId, s->gkv->kvp[0].key,
+                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+                status);
         goto free_builder;
     }
-    builder->payloadSVASoundModel(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, pSoundModel);
+    builder->payloadSVASoundModel(&payload, &payloadSize,
+                                  moduleInfo->module_entry[0].module_iid,
+                                  pSoundModel);
     if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
@@ -552,7 +575,8 @@ exit:
     return status;
 }
 
-int populateSVAWakeUpConfig(SessionGsl *s, int tagId, void* graphHandle, struct detection_engine_config_voice_wakeup *pWakeUpConfig)
+int populateSVAWakeUpConfig(SessionGsl *s, int tagId, void* graphHandle,
+                     struct detection_engine_config_voice_wakeup *pWakeUpConfig)
 {
     int32_t status = 0;
     struct gsl_module_id_info *moduleInfo = NULL;
@@ -569,11 +593,14 @@ int populateSVAWakeUpConfig(SessionGsl *s, int tagId, void* graphHandle, struct 
                                     &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size structure values %x :%x and %x:%x status %d",
-              tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+                tagId, s->gkv->kvp[0].key,
+                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+                status);
         goto free_builder;
     }
 
-    builder->payloadSVAWakeUpConfig(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, pWakeUpConfig);
+    builder->payloadSVAWakeUpConfig(&payload, &payloadSize,
+                         moduleInfo->module_entry[0].module_iid, pWakeUpConfig);
     if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
@@ -597,7 +624,8 @@ exit:
     return status;
 }
 
-int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
+int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle,
+           struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
 {
     int32_t status = 0;
     struct gsl_module_id_info *moduleInfo = NULL;
@@ -615,10 +643,13 @@ int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle, s
         &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-            tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+                tagId, s->gkv->kvp[0].key,
+                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+                status);
         goto free_builder;
     }
-    builder->payloadSVAWakeUpBufferConfig(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, pWakeUpBufConfig);
+    builder->payloadSVAWakeUpBufferConfig(&payload, &payloadSize,
+                      moduleInfo->module_entry[0].module_iid, pWakeUpBufConfig);
     if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
@@ -645,7 +676,8 @@ exit:
     return status;
 }
 
-int populateSVAStreamSetupDuration(SessionGsl *s, int tagId, void* graphHandle, struct audio_dam_downstream_setup_duration *pSetupDuration)
+int populateSVAStreamSetupDuration(SessionGsl *s, int tagId, void* graphHandle,
+                     struct audio_dam_downstream_setup_duration *pSetupDuration)
 {
     int32_t status = 0;
     struct gsl_module_id_info *moduleInfo = NULL;
@@ -663,11 +695,14 @@ int populateSVAStreamSetupDuration(SessionGsl *s, int tagId, void* graphHandle, 
                                     &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-              tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+                tagId, s->gkv->kvp[0].key,
+                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+                status);
         goto free_builder;
     }
 
-    builder->payloadSVAStreamSetupDuration(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, pSetupDuration);
+    builder->payloadSVAStreamSetupDuration(&payload, &payloadSize,
+                        moduleInfo->module_entry[0].module_iid, pSetupDuration);
     if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
@@ -691,7 +726,8 @@ exit:
     return status;
 }
 
-int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle, struct detection_engine_generic_event_cfg *pEventConfig)
+int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle,
+                        struct detection_engine_generic_event_cfg *pEventConfig)
 {
     int32_t status = 0;
     struct gsl_module_id_info *moduleInfo = NULL;
@@ -709,7 +745,9 @@ int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle, struct d
                                     &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-              tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+               tagId, s->gkv->kvp[0].key,
+               s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+               status);
         goto free_builder;
     }
 
@@ -719,13 +757,16 @@ int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle, struct d
     reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
     reg_ev_payload.event_config_payload_size = 0;
     reg_ev_payload.is_register = 1;
-    status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload, sizeof(reg_ev_payload));
+    status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload,
+                      sizeof(reg_ev_payload));
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to register custom event with status = %d\n", status);
         goto free_moduleInfo;
     }
 
-    builder->payloadSVAEventConfig(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, pEventConfig);
+    builder->payloadSVAEventConfig(&payload, &payloadSize,
+                                   moduleInfo->module_entry[0].module_iid,
+                                   pEventConfig);
     if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
@@ -768,7 +809,9 @@ int populateSVAEngineReset(SessionGsl *s, int tagId, void* graphHandle, Stream *
                                     &moduleInfo, &moduleInfoSize);
     if (0 != status || !moduleInfo) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x module size structure values %x :%x and %x:%x status %d",
-              tagId, s->gkv->kvp[0].key, s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value, status);
+                tagId, s->gkv->kvp[0].key,
+                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
+                status);
         goto free_builder;
     }
 
@@ -837,12 +880,13 @@ int SessionGsl::open(Stream *s) {
     }
     checkAndConfigConcurrency(s);
     setPayloadConfig(s);
-    QAL_DBG(LOG_TAG, "Exit. handle:%p status %d", graphHandle, status);
+    QAL_DBG(LOG_TAG, "Exit. handle:%pK status %d", graphHandle, status);
 exit:
      return status;
 }
 
-int SessionGsl::setPayloadConfig(Stream *s) {
+int SessionGsl::setPayloadConfig(Stream *s)
+{
     std::vector <int> streamTag;
     std::vector <int> streamPpTag;
     std::vector <int> mixerTag;
@@ -910,7 +954,8 @@ int SessionGsl::setPayloadConfig(Stream *s) {
         sessionData->native = 0;
     }
     sessionData->metadata = NULL;
-    QAL_DBG(LOG_TAG, "session bit width %d, sample rate %d, and channels %d", sessionData->bitWidth, sessionData->sampleRate, sessionData->numChannel);
+    QAL_DBG(LOG_TAG, "session bit width %d, sample rate %d, and channels %d",
+        sessionData->bitWidth, sessionData->sampleRate, sessionData->numChannel);
 
     for (i=0; i<streamTag.size(); i++) {
         moduleInfo = NULL;
@@ -922,7 +967,8 @@ int SessionGsl::setPayloadConfig(Stream *s) {
         else {
             payload = NULL;
             payloadSize = 0;
-            builder->payloadStreamConfig(&payload, &payloadSize, moduleInfo, streamTag[i], sessionData);
+            builder->payloadStreamConfig(&payload, &payloadSize, moduleInfo,
+                                         streamTag[i], sessionData);
             if (!payload) {
                 status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
@@ -968,6 +1014,12 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        deviceData->bitWidth = dAttr.config.bit_width;
+                        deviceData->sampleRate = dAttr.config.sample_rate;
+                        deviceData->numChannel = dAttr.config.ch_info->channels;
+                        QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d,and channels %d",
+                                deviceData->bitWidth,
+                                deviceData->sampleRate, deviceData->numChannel);
                     } else 
                         continue;
                     sessionData->direction = PLAYBACK;
@@ -978,6 +1030,12 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        deviceData->bitWidth = dAttr.config.bit_width;
+                        deviceData->sampleRate = dAttr.config.sample_rate;
+                        deviceData->numChannel = dAttr.config.ch_info->channels;
+                        QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d",
+                                deviceData->bitWidth,
+                                deviceData->sampleRate, deviceData->numChannel);
                     } else 
                         continue;
                     sessionData->direction = RECORD;
@@ -985,41 +1043,37 @@ int SessionGsl::setPayloadConfig(Stream *s) {
             } else {
                 continue;
             }
-            deviceData->bitWidth = dAttr.config.bit_width;
-            deviceData->sampleRate = dAttr.config.sample_rate;
-            deviceData->numChannel = dAttr.config.ch_info->channels;
-            QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d", deviceData->bitWidth,
-                    deviceData->sampleRate, deviceData->numChannel);
             switch (deviceData->sampleRate) {
-            case SAMPLINGRATE_8K :
-                setConfig(s,MODULE,MFC_SR_8K);
-                break;
-            case SAMPLINGRATE_16K :
-                setConfig(s,MODULE,MFC_SR_16K);
-                break;
-            case SAMPLINGRATE_32K :
-                setConfig(s,MODULE,MFC_SR_32K);
-                break;
-            case SAMPLINGRATE_44K :
-                setConfig(s,MODULE,MFC_SR_44K);
-                break;
-            case SAMPLINGRATE_48K :
-                setConfig(s,MODULE,MFC_SR_48K);
-                break;
-            case SAMPLINGRATE_96K :
-                setConfig(s,MODULE,MFC_SR_96K);
-                break;
-            case SAMPLINGRATE_192K :
-                setConfig(s,MODULE,MFC_SR_192K);
-                break;
-            case SAMPLINGRATE_384K :
-                setConfig(s,MODULE,MFC_SR_384K);
-                break;
-            default:
-                QAL_ERR(LOG_TAG, "Invalid sample rate = %d", deviceData->sampleRate);
+                case SAMPLINGRATE_8K :
+                    setConfig(s,MODULE,MFC_SR_8K);
+                    break;
+                case SAMPLINGRATE_16K :
+                    setConfig(s,MODULE,MFC_SR_16K);
+                    break;
+                case SAMPLINGRATE_32K :
+                    setConfig(s,MODULE,MFC_SR_32K);
+                    break;
+                case SAMPLINGRATE_44K :
+                    setConfig(s,MODULE,MFC_SR_44K);
+                    break;
+                case SAMPLINGRATE_48K :
+                    setConfig(s,MODULE,MFC_SR_48K);
+                    break;
+                case SAMPLINGRATE_96K :
+                    setConfig(s,MODULE,MFC_SR_96K);
+                    break;
+                case SAMPLINGRATE_192K :
+                    setConfig(s,MODULE,MFC_SR_192K);
+                    break;
+                case SAMPLINGRATE_384K :
+                    setConfig(s,MODULE,MFC_SR_384K);
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG, "Invalid sample rate = %d", deviceData->sampleRate);
             }
 
-            builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], deviceData, epname);
+            builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo,
+                                           deviceTag[i], deviceData, epname);
             if (!payload) {
                 status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
@@ -1048,6 +1102,12 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        deviceData->bitWidth = dAttr.config.bit_width;
+                        deviceData->sampleRate = dAttr.config.sample_rate;
+                        deviceData->numChannel = dAttr.config.ch_info->channels;
+                        QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d",
+                                deviceData->bitWidth,
+                                deviceData->sampleRate,deviceData->numChannel);
 		    } else
                         continue;
                     sessionData->direction = PLAYBACK;
@@ -1057,17 +1117,21 @@ int SessionGsl::setPayloadConfig(Stream *s) {
                     dev_id = associatedDevices[i]->getDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                       deviceData->bitWidth = dAttr.config.bit_width;
+                       deviceData->sampleRate = dAttr.config.sample_rate;
+                       deviceData->numChannel = dAttr.config.ch_info->channels;
+                       QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d,and channels %d",
+                               deviceData->bitWidth,
+                               deviceData->sampleRate,deviceData->numChannel);
                     } else
                         continue;               
                     sessionData->direction = RECORD; 
 		}
             } else
                 continue;
-            deviceData->bitWidth = dAttr.config.bit_width;
-            deviceData->sampleRate = dAttr.config.sample_rate;
-            deviceData->numChannel = dAttr.config.ch_info->channels;
-            QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d", deviceData->bitWidth,deviceData->sampleRate,deviceData->numChannel);
-            builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo, deviceTag[i], deviceData);
+
+            builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo,
+                                         deviceTag[i], deviceData);
             if (!payload) {
                 status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
@@ -1075,7 +1139,8 @@ int SessionGsl::setPayloadConfig(Stream *s) {
             }
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d",
+                        status);
                 //goto free_payload;
             }
         }
@@ -1095,7 +1160,8 @@ exit:
     return status;
 }
 
-int SessionGsl::prepare(Stream * s) {
+int SessionGsl::prepare(Stream * s)
+{
     int status = 0;
     size_t in_buf_size = 0,in_buf_count = 0;
     size_t out_buf_size = 0,out_buf_count = 0;
@@ -1114,14 +1180,16 @@ int SessionGsl::prepare(Stream * s) {
     case QAL_AUDIO_INPUT:
             status = readBufferInit(s, in_buf_count, in_buf_size, DATA_MODE_BLOCKING);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx session readBufferInit is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Tx session readBufferInit is failed with status %d",
+                        status);
                 goto exit;
             }
             break;
     case QAL_AUDIO_OUTPUT:
             status = writeBufferInit(s, out_buf_count, out_buf_size, DATA_MODE_BLOCKING);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx session writeBufferInit is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Rx session writeBufferInit is failed with status %d",
+                        status);
                 goto exit;
             }
             break;
@@ -1135,7 +1203,8 @@ exit:
     return status;
 }
 
-int SessionGsl::readBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag) {
+int SessionGsl::readBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag)
+{
     int status = 0;
 
     QAL_DBG(LOG_TAG, "Enter. bufSize:%d noOfBuf:%d flag:%d", bufSize, noOfBuf, flag);
@@ -1143,7 +1212,8 @@ int SessionGsl::readBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int f
     infoBuffer = (struct gslCmdGetReadWriteBufInfo*)malloc(sizeof(struct gslCmdGetReadWriteBufInfo));
     if (!infoBuffer) {
         status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "infoBuffer malloc failed %s status %d", strerror(errno), status);
+        QAL_ERR(LOG_TAG, "infoBuffer malloc failed %s status %d", strerror(errno),
+                status);
         return status;
     }
     infoBuffer->buff_size = bufSize;
@@ -1167,7 +1237,8 @@ exit:
     return status;
 }
 
-int SessionGsl::writeBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag) {
+int SessionGsl::writeBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag)
+{
     int status = 0;
     struct gslCmdGetReadWriteBufInfo buf;
 
@@ -1186,9 +1257,11 @@ int SessionGsl::writeBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int 
     infoBuffer->stop_threshold = 0;
 
     size = sizeof(struct gslCmdGetReadWriteBufInfo);
-    status = gslIoctl(graphHandle, GSL_CMD_CONFIGURE_WRITE_PARAMS, infoBuffer, size);
+    status = gslIoctl(graphHandle, GSL_CMD_CONFIGURE_WRITE_PARAMS, infoBuffer,
+                      size);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to initialize write buffer in gsl, status %d", status);
+        QAL_ERR(LOG_TAG, "Failed to initialize write buffer in gsl, status %d",
+                status);
         goto free_infoBuffer;
     }
     QAL_DBG(LOG_TAG, "Exit. status:%d ", status);
@@ -1200,9 +1273,10 @@ exit:
     return status;
 }
 
-int SessionGsl::close(Stream *s) {
+int SessionGsl::close(Stream *s)
+{
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p", graphHandle);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
 
     status = gslClose(graphHandle);
     if (0 != status) {
@@ -1222,9 +1296,10 @@ exit:
     return status;
 }
 
-int SessionGsl::start(Stream *s) {
+int SessionGsl::start(Stream *s)
+{
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p", graphHandle);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
 
     status = gslIoctl(graphHandle, GSL_CMD_START, payload, size);
     if (0 != status) {
@@ -1236,9 +1311,10 @@ exit:
     return status;
 }
 
-int SessionGsl::stop(Stream * s) {
+int SessionGsl::stop(Stream * s)
+{
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p", graphHandle);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
 
     status = gslIoctl(graphHandle, GSL_CMD_STOP, payload, size);
     if(0 != status) {
@@ -1250,10 +1326,12 @@ exit:
     return status;
 }
 
-int SessionGsl::setConfig(Stream *s, configType type, int tag) {
+int SessionGsl::setConfig(Stream *s, configType type, int tag)
+{
     int status = 0;
     uint32_t tagsent;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p type:%d tag:%d", graphHandle, type, tag);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK type:%d tag:%d", graphHandle, type,
+            tag);
     switch (type) {
     case GRAPH:
         break;
@@ -1261,10 +1339,12 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag) {
         tkv = new gsl_key_vector;
         status = populateTkv(s, tkv, tag, &tagsent);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set the tag configuration, status %d", status);
+            QAL_ERR(LOG_TAG, "Failed to set the tag configuration, status %d",
+                    status);
             goto exit;
         }
-        QAL_DBG(LOG_TAG, "MODULE: tag:%d tagsent:%x tkv key %x value %x", tag, tagsent, (tkv->kvp[0].key), (tkv->kvp[0].value));
+        QAL_DBG(LOG_TAG, "MODULE: tag:%d tagsent:%x tkv key %x value %x", tag,
+                tagsent, (tkv->kvp[0].key), (tkv->kvp[0].value));
         status = gslSetConfig(graphHandle, tagsent, tkv);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to set tag data status %d", status);
@@ -1297,7 +1377,8 @@ exit:
     return status;
 }
 
-int SessionGsl::fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size) {
+int SessionGsl::fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size)
+{
     std::fstream fs;
     QAL_DBG(LOG_TAG, "Enter.");
 
@@ -1317,9 +1398,10 @@ int SessionGsl::fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size)
     return 0;
 }
 
-int SessionGsl::read(Stream *s, int tag, struct qal_buffer *buf, int * size) {
+int SessionGsl::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
+{
     int status = 0, bytesRead = 0, bytesToRead = 0, offset = 0;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p buf:%p tag:%d", graphHandle, buf, tag);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK buf:%pK tag:%d", graphHandle, buf, tag);
     if (!buf || !s) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream or buffer, status %d", status);
@@ -1347,7 +1429,8 @@ int SessionGsl::read(Stream *s, int tag, struct qal_buffer *buf, int * size) {
         gslBuff.addr = static_cast<uint8_t*>(data);
         status = gslRead(graphHandle, tag, &gslBuff, &sizeRead);
         if ((0 != status) || (sizeRead == 0)) {
-            QAL_ERR(LOG_TAG, "Failed to read data from gsl %d bytes read %d", status, sizeRead);
+            QAL_ERR(LOG_TAG, "Failed to read data from gsl %d bytes read %d", status,
+                    sizeRead);
             break;
         }
         QAL_DBG(LOG_TAG, "bytes read %d and  sizeRead %d", bytesRead, sizeRead);
@@ -1359,7 +1442,8 @@ exit:
     return status;
 }
 
-int SessionGsl::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) {
+int SessionGsl::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+{
     std::fstream fs;
     QAL_DBG(LOG_TAG, "Enter.");
 
@@ -1375,10 +1459,12 @@ int SessionGsl::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size
     return 0;
 }
 
-int SessionGsl::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) {
+int SessionGsl::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+{
     int status = 0, bytesWritten = 0, bytesRemaining = 0, offset = 0;
     uint32_t sizeWritten = 0;
-    QAL_DBG(LOG_TAG, "Enter. graphHandle:%p buf:%p tag:%d flag:%d", graphHandle, buf, tag, flag);
+    QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK buf:%pK tag:%d flag:%d", graphHandle,
+            buf, tag, flag);
 
     void *data = nullptr;
     struct gsl_buff gslBuff;
@@ -1432,83 +1518,92 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
     switch (param_id) {
-    case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
-    {
-        struct qal_st_sound_model *pSoundModel = NULL;
-        pSoundModel = (struct qal_st_sound_model *)payload;
-        status = populateSVASoundModel(this, DEVICE_SVA, graphHandle, pSoundModel);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set sound model to gsl status %d", status);
+        case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
+        {
+            struct qal_st_sound_model *pSoundModel = NULL;
+            pSoundModel = (struct qal_st_sound_model *)payload;
+            status = populateSVASoundModel(this, DEVICE_SVA, graphHandle, pSoundModel);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set sound model to gsl status %d",
+                        status);
+                goto exit;
+            }
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
+        {
+            struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
+            pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
+            status = populateSVAWakeUpConfig(this, DEVICE_SVA, graphHandle, pWakeUpConfig);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d", status);
+                goto exit;
+            }
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
+        {
+            // register callback in gsl
+            status = gslRegisterEventCallBack(graphHandle, stCallBack, (void*)s);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to register recognition callback in gsl status %d",
+                        status);
+                goto exit;
+            }
+            struct detection_engine_generic_event_cfg *pEventConfig = NULL;
+            pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
+            // set custom config for detection event
+            status = populateSVAEventConfig(this, DEVICE_SVA, graphHandle, pEventConfig);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set detection event config to gsl status %d",
+                        status);
+                goto exit;
+            }
+            break;
+        }
+        case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
+        {
+            struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig =
+                                                                           NULL;
+            pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
+            status = populateSVAWakeUpBufferConfig(this, DEVICE_SVA, graphHandle,
+                                                   pWakeUpBufConfig);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d",
+                        status);
+                goto exit;
+            }
+            break;
+        }
+        case PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION:
+        {
+            struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
+            pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
+            status = populateSVAStreamSetupDuration(this, DEVICE_ADAM, graphHandle,
+                                                    pSetupDuration);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set down stream setup duration to gsl status %d",
+                        status);
+                goto exit;
+            }
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_RESET:
+        {
+            status = populateSVAEngineReset(this, DEVICE_SVA, graphHandle, s);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to reset detection engine status %d",
+                        status);
+                goto exit;
+            }
+            break;
+        }
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
             goto exit;
         }
-        break;
-    }
-    case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
-    {
-        struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
-        pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
-        status = populateSVAWakeUpConfig(this, DEVICE_SVA, graphHandle, pWakeUpConfig);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
-    {
-        // register callback in gsl
-        status = gslRegisterEventCallBack(graphHandle, stCallBack, (void*)s);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to register recognition callback in gsl status %d", status);
-            goto exit;
-        }
-        struct detection_engine_generic_event_cfg *pEventConfig = NULL;
-        pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
-        // set custom config for detection event
-        status = populateSVAEventConfig(this, DEVICE_SVA, graphHandle, pEventConfig);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set detection event config to gsl status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
-    {
-        struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
-        pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
-        status = populateSVAWakeUpBufferConfig(this, DEVICE_SVA, graphHandle, pWakeUpBufConfig);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    case PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION:
-    {
-        struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
-        pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
-        status = populateSVAStreamSetupDuration(this, DEVICE_ADAM, graphHandle, pSetupDuration);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set down stream setup duration to gsl status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    case PARAM_ID_DETECTION_ENGINE_RESET:
-    {
-        status = populateSVAEngineReset(this, DEVICE_SVA, graphHandle, s);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to reset detection engine status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    default:
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
-        goto exit;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+        QAL_DBG(LOG_TAG, "Exit. status %d", status);
 exit:
     return status;
 }
@@ -1519,7 +1614,7 @@ void SessionGsl::stCallBack(struct gsl_event_cb_params *event_params, void *clie
     qal_stream_callback callBack;
     Stream *s = (Stream *)client_data;
     s->getCallBack(&callBack);
-    QAL_DBG(LOG_TAG, "CallBack acquired %p", callBack);
+    QAL_DBG(LOG_TAG, "CallBack acquired %pK", callBack);
     qal_stream_handle_t *stream_handle = static_cast<void*>(s);
     uint32_t event_id = event_params->event_id;
     uint32_t *event_data = (uint32_t *)(event_params->event_payload);
@@ -1534,7 +1629,7 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     std::vector <std::pair<int,int>> keyVector;
     struct gsl_cmd_graph_select device_graph = {{0, nullptr}, {0, nullptr}};
     std::vector <Stream *> activeStreams;
-    qal_stream_type_t txStreamType;
+    qal_stream_type_t txStreamType = QAL_STREAM_LOW_LATENCY;
     std::vector <std::shared_ptr<Device>> activeDevices;
     std::vector <std::shared_ptr<Device>> deviceList;
 
@@ -1555,7 +1650,8 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         QAL_ERR(LOG_TAG, "No need to handle for concurrency");
         return;
     }
-    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
+    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(),
+            txDevice->getDeviceId());
     // get associated device list
     status = s->getAssociatedDevices(deviceList);
     if (0 != status) {
@@ -1599,8 +1695,9 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         device_graph.graph_key_vector.kvp[i].key = keyVector[i].first;
         device_graph.graph_key_vector.kvp[i].value = keyVector[i].second;
     }
-    status = gslIoctl(graphHandle, GSL_CMD_ADD_GRAPH, &device_graph, sizeof(device_graph));
+    status = gslIoctl(graphHandle, GSL_CMD_ADD_GRAPH, &device_graph,
+                      sizeof(device_graph));
     if (0 != status)
-        QAL_ERR(LOG_TAG, "Failed to add graph, status %d", status);
+        QAL_ERR(LOG_TAG, "Failed to add graph status %d", status);
     delete(device_graph.graph_key_vector.kvp);
 }

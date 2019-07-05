@@ -79,14 +79,15 @@ protected:
 public:
     ~ResourceManager();
     /* checks config for both stream and device */
-    bool isStreamSupported(struct qal_stream_attributes *attributes, struct qal_device *devices, int no_of_devices);
+    bool isStreamSupported(struct qal_stream_attributes *attributes,
+                           struct qal_device *devices, int no_of_devices);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);
     int deregisterDevice(std::shared_ptr<Device> d);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct qal_device *device ,bool* bIsUpdated);
-    static void init_audio();
+    static int init_audio();
     static int init();
     static void deinit();
     static std::shared_ptr<ResourceManager> getInstance();
@@ -112,7 +113,8 @@ public:
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void processDeviceInfo(const XML_Char **attr);
     static void processTagInfo(const XML_Char **attr);
-    static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
+    static void startTag(void *userdata __unused, const XML_Char *tag_name,
+                         const XML_Char **attr);
 };
 
 #endif

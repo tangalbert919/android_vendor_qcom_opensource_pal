@@ -68,7 +68,8 @@ protected:
     std::shared_ptr<QalRingBufferReader> ringBufferReader;
 
     uint32_t buffer_start_;
-    uint32_t buffer_end_; /* externally to allow engine to know where it can stop and start processing*/
+    uint32_t buffer_end_; /* externally to allow engine to know where it can
+                             stop and start processing*/
 
     uint64_t kw_start_timestamp_; /* input from 1st stage*/
     uint64_t kw_end_timestamp_;
@@ -81,7 +82,8 @@ protected:
     uint32_t confidence_score_;
 
 public:
-    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id,
+           QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
     ~SoundTriggerEngineCapiCnn();
     int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
     int32_t unload_sound_model(Stream *s) override;

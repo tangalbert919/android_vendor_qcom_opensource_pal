@@ -83,7 +83,8 @@ public:
     QalRingBufferReader* newReader();
 
     int32_t removeReader(std::shared_ptr<QalRingBufferReader> reader);
-    size_t read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer, size_t readSize);
+    size_t read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer,
+                size_t readSize);
     size_t write(void* writeBuffer, size_t writeSize);
     size_t getFreeSize();
 protected:

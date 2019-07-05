@@ -40,7 +40,8 @@
 #include "Stream.h"
 
 
-std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device,
+                                                 std::shared_ptr<ResourceManager> Rm)
 {
     if (!device || !Rm) {
         QAL_ERR(LOG_TAG, "Invalid input parameters");
@@ -71,7 +72,8 @@ CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceMana
 {
     rm = Rm;
     memset(&deviceAttr, 0, sizeof(struct qal_device));
-    memcpy(&deviceAttr, device, sizeof(struct qal_device));
+    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), device,
+                     sizeof(struct qal_device));
 }
 
 CodecDevice::CodecDevice()
@@ -116,7 +118,7 @@ int CodecDevice::open()
     }
     for (int i = 0; i < activestreams.size(); i++) {
         stream = static_cast<void *>(activestreams[i]);
-        QAL_VERBOSE(LOG_TAG, "Stream handle :%p", activestreams[i]);
+        QAL_VERBOSE(LOG_TAG, "Stream handle :%pK", activestreams[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
     goto exit;
@@ -125,7 +127,8 @@ exit :
     return status;
 }
 
-int CodecDevice::close() {
+int CodecDevice::close()
+{
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
     mutex.lock();
@@ -150,7 +153,8 @@ exit :
     return status;
 }
 
-int CodecDevice::prepare() {
+int CodecDevice::prepare()
+{
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
     mutex.lock();
@@ -185,7 +189,7 @@ int CodecDevice::start()
             QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
             goto exit;
         }
-        QAL_VERBOSE(LOG_TAG, "audio_route %p", audioRoute);
+        QAL_VERBOSE(LOG_TAG, "audio_route %pK", audioRoute);
         status = rm->getDeviceName(deviceAttr.id , deviceName); 
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);

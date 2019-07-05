@@ -268,7 +268,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
         pcmChannel[6] = PCM_CHANNEL_LB;
         pcmChannel[7] = PCM_CHANNEL_RB;
     }
-    QAL_DBG(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -397,7 +397,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
         pcmChannel[6] = PCM_CHANNEL_LB;
         pcmChannel[7] = PCM_CHANNEL_RB;
     }
-    QAL_DBG(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -429,15 +429,16 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
         return;
     }
     header = (struct apm_module_param_data_t*)payloadInfo;
-    codecConfig = (struct param_id_codec_dma_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    codecConfig = (struct param_id_codec_dma_intf_cfg_t*)(payloadInfo +
+                  sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_CODEC_DMA_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
-    QAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d \n", header->module_instance_id, header->param_id,
-                      header->error_code, header->param_size);
+    QAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d \n",
+                header->module_instance_id, header->param_id, header->error_code, header->param_size);
 
     int32_t linkIdx = intfLinkIdxLUT.at(epName);
     for (int32_t j = 0; j < codecConf.size(); j++) {
@@ -465,9 +466,9 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     } else if (data->numChannel == 8) {
        codecConfig->active_channels_mask = 0xFF;
     }
-    QAL_DBG(LOG_TAG, "Codec Config cdc_dma_type:%d intf_idx:%d active_channels_mask:%d", codecConfig->lpaif_type, codecConfig->intf_indx,
-                      codecConfig->active_channels_mask);
-    QAL_DBG(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_DBG(LOG_TAG, "Codec Config cdc_dma_type:%d intf_idx:%d active_channels_mask:%d",
+            codecConfig->lpaif_type, codecConfig->intf_indx,codecConfig->active_channels_mask);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -498,7 +499,8 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
         return;
     }
     header = (struct apm_module_param_data_t*)payloadInfo;
-    i2sConfig = (struct param_id_i2s_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    i2sConfig = (struct param_id_i2s_intf_cfg_t*)(payloadInfo +
+                sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_I2S_INTF_CFG;
@@ -521,14 +523,15 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     i2sConfig->ws_src = i2sConf[i2sLinkIdx].wsSrc;
     QAL_VERBOSE(LOG_TAG, "i2s Config intf_idx:%x sd_line_idx:%x ws_src:%x",
          i2sConfig->intf_idx, i2sConfig->sd_line_idx, i2sConfig->ws_src);
-    QAL_DBG(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size, 
-    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName)
+    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data,
+           std::string epName)
 {
     struct apm_module_param_data_t* header = NULL;
     struct param_id_tdm_intf_cfg_t* TdmConfig = NULL;
@@ -552,7 +555,8 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
         return;
     }
     header = (struct apm_module_param_data_t*)payloadInfo;
-    TdmConfig = (struct param_id_tdm_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    TdmConfig = (struct param_id_tdm_intf_cfg_t*)(payloadInfo +
+                sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_TDM_INTF_CFG;
@@ -584,18 +588,21 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     TdmConfig->ctrl_invert_sync_pulse = tdmConf[tdmLinkIdx].ctrlInvertSyncPulse;
     TdmConfig->ctrl_sync_data_delay = tdmConf[tdmLinkIdx].ctrlSyncDataDelay;
     TdmConfig->reserved = 0;
-    QAL_VERBOSE(LOG_TAG, "TDM Config intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d slot_per_frame:%d", TdmConfig->intf_idx,
-                TdmConfig->sync_src, TdmConfig->ctrl_data_out_enable, TdmConfig->slot_mask, TdmConfig->nslots_per_frame);
-    QAL_VERBOSE(LOG_TAG, "slot_width:%d sync_mode:%d ctrl_invert_sync_pulse:%d ctrl_sync_data_delay:%d", TdmConfig->slot_width,
-                TdmConfig->sync_mode, TdmConfig->ctrl_invert_sync_pulse, TdmConfig->ctrl_sync_data_delay);
-    QAL_DBG(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG, "TDM Config intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d slot_per_frame:%d",
+               TdmConfig->intf_idx,TdmConfig->sync_src,
+               TdmConfig->ctrl_data_out_enable, TdmConfig->slot_mask, TdmConfig->nslots_per_frame);
+    QAL_VERBOSE(LOG_TAG, "slot_width:%d sync_mode:%d ctrl_invert_sync_pulse:%d ctrl_sync_data_delay:%d",
+                TdmConfig->slot_width,TdmConfig->sync_mode,
+                TdmConfig->ctrl_invert_sync_pulse, TdmConfig->ctrl_sync_data_delay);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
-    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
+    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data,
+    std::string epName) {
     struct apm_module_param_data_t* header = NULL;
     struct param_id_hw_pcm_intf_cfg_t* AuxpcmConfig = NULL;
     uint8_t* payloadInfo = NULL;
@@ -614,12 +621,13 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
         return;
     }
     header = (struct apm_module_param_data_t*)payloadInfo;
-    AuxpcmConfig = (struct param_id_hw_pcm_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    AuxpcmConfig = (struct param_id_hw_pcm_intf_cfg_t*)(payloadInfo +
+                    sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_HW_PCM_INTF_CFG;
     header->error_code = 0x0;
-    header->param_size = payloadSize;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_DBG(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                       header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
@@ -659,13 +667,12 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
     AuxpcmConfig->frame_setting = auxpcmConf[AuxpcmLinkIdx].frameSetting;
     AuxpcmConfig->aux_mode = auxpcmConf[AuxpcmLinkIdx].auxMode;
 
-    QAL_DBG(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_DBG(LOG_TAG,"customPayload address %pK and size %d", payloadInfo, payloadSize);
 
     QAL_DBG(LOG_TAG,"PCM Config intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d frame_setting:%d aux_mode:%d",
-                AuxpcmConfig->intf_idx, AuxpcmConfig->sync_src, AuxpcmConfig->ctrl_data_out_enable,
-                AuxpcmConfig->slot_mask, AuxpcmConfig->frame_setting, AuxpcmConfig->aux_mode);
-
-
+            AuxpcmConfig->intf_idx,
+            AuxpcmConfig->sync_src, AuxpcmConfig->ctrl_data_out_enable,
+            AuxpcmConfig->slot_mask, AuxpcmConfig->frame_setting, AuxpcmConfig->aux_mode);
     *size = payloadSize;
     *payload = payloadInfo;
 }
@@ -693,13 +700,13 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
         return;
     }
     header = (struct apm_module_param_data_t*)payloadInfo;
-    hwEpConf = (struct param_id_hw_ep_mf_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    hwEpConf = (struct param_id_hw_ep_mf_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
 
     header->module_instance_id = moduleInfo->module_entry[0].module_iid;
     header->param_id = PARAM_ID_HW_EP_MF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    header->param_size = payloadSize;
     QAL_VERBOSE(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
@@ -712,7 +719,8 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
     QAL_VERBOSE(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d data_format:%d",
                       hwEpConf->sample_rate, hwEpConf->bit_width,
                       hwEpConf->num_channels, hwEpConf->data_format);
-    QAL_VERBOSE(LOG_TAG, "customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+                payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -733,31 +741,33 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
         struct sessionToPayloadParam* data)
 {
     switch(payloadTag) {
-    case IN_MEDIA:
-        payloadInMediaConfig(payload, size, moduleInfo, data);
-        break;
-    case PCM_ENCODER:
-        payloadOutMediaConfig(payload, size, moduleInfo, data);
-        break;
-    case PCM_DECODER:
-        payloadOutMediaConfig(payload, size, moduleInfo, data);
-        break;
-    case PCM_CONVERTOR:
-        payloadOutMediaConfig(payload, size, moduleInfo, data);
-        break;
-    default :
-        QAL_ERR(LOG_TAG, "invalid stream config tagid %x", payloadTag);
-        break;
+        case IN_MEDIA:
+            payloadInMediaConfig(payload, size, moduleInfo, data);
+            break;
+        case PCM_ENCODER:
+            payloadOutMediaConfig(payload, size, moduleInfo, data);
+            break;
+        case PCM_DECODER:
+            payloadOutMediaConfig(payload, size, moduleInfo, data);
+            break;
+        case PCM_CONVERTOR:
+            payloadOutMediaConfig(payload, size, moduleInfo, data);
+            break;
+        default :
+            QAL_ERR(LOG_TAG, "invalid stream config tagid %x", payloadTag);
+            break;
     }
 }
 
 void PayloadBuilder::payloadDeviceConfig(uint8_t** payload, size_t* size, 
-    struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam* data) {
+    struct gsl_module_id_info* moduleInfo, int payloadTag,
+    struct sessionToPayloadParam* data) {
     payloadHwEpConfig(payload, size, moduleInfo, data);
 }
 
 void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size, 
-    struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam *data, std::string epName)
+    struct gsl_module_id_info* moduleInfo, int payloadTag,
+    struct sessionToPayloadParam *data, std::string epName)
 {
     int found = 0;
     std::string cdc("cdc");
@@ -826,7 +836,7 @@ uint16_t numOfBitsSet(uint32_t lines)
 
 void PayloadBuilder::processI2sInfo(const XML_Char **attr)
 {
-    struct i2sConfig i2sCnf;
+    struct i2sConfig i2sCnf = {};
     if (strcmp(attr[0], "name") !=0 ) {
         QAL_ERR(LOG_TAG, "'name' not found");
         return;
@@ -842,59 +852,59 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr)
     uint16_t lines =  atoi(attr[3]);
     uint16_t numOfSdLines = numOfBitsSet(lines);
     switch (numOfSdLines) {
-    case 0:
-        QAL_ERR(LOG_TAG, "no line is assigned");
-        break;
-    case 1:
-        switch (lines) {
-        case MSM_MI2S_SD0:
-            i2sCnf.sdLineIdx = I2S_SD0;
+        case 0:
+            QAL_ERR(LOG_TAG, "no line is assigned");
             break;
-        case MSM_MI2S_SD1:
-            i2sCnf.sdLineIdx = I2S_SD1;
-            break;
-        case MSM_MI2S_SD2:
-            i2sCnf.sdLineIdx = I2S_SD2;
-            break;
-        case MSM_MI2S_SD3:
-            i2sCnf.sdLineIdx = I2S_SD3;
-            break;
-        default:
-             QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
-             return;
+        case 1:
+            switch (lines) {
+                case MSM_MI2S_SD0:
+                    i2sCnf.sdLineIdx = I2S_SD0;
+                    break;
+                case MSM_MI2S_SD1:
+                    i2sCnf.sdLineIdx = I2S_SD1;
+                    break;
+                case MSM_MI2S_SD2:
+                    i2sCnf.sdLineIdx = I2S_SD2;
+                    break;
+                case MSM_MI2S_SD3:
+                    i2sCnf.sdLineIdx = I2S_SD3;
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
+                    return;
         }
         break;
     case 2:
         switch (lines) {
-        case MSM_MI2S_SD0 | MSM_MI2S_SD1:
-            i2sCnf.sdLineIdx = I2S_QUAD01;
-            break;
-        case MSM_MI2S_SD2 | MSM_MI2S_SD3:
-            i2sCnf.sdLineIdx = I2S_QUAD23;
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
-            return;
+            case MSM_MI2S_SD0 | MSM_MI2S_SD1:
+                i2sCnf.sdLineIdx = I2S_QUAD01;
+                break;
+            case MSM_MI2S_SD2 | MSM_MI2S_SD3:
+                i2sCnf.sdLineIdx = I2S_QUAD23;
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
+                return;
         }
         break;
     case 3:
         switch (lines) {
-        case MSM_MI2S_SD0 | MSM_MI2S_SD1 | MSM_MI2S_SD2:
-            i2sCnf.sdLineIdx = I2S_6CHS;
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
-            return;
+            case MSM_MI2S_SD0 | MSM_MI2S_SD1 | MSM_MI2S_SD2:
+                i2sCnf.sdLineIdx = I2S_6CHS;
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
+                return;
         }
         break;
     case 4:
         switch (lines) {
-        case MSM_MI2S_SD0 | MSM_MI2S_SD1 | MSM_MI2S_SD2 | MSM_MI2S_SD3:
-            i2sCnf.sdLineIdx = I2S_8CHS;
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
-            return;
+            case MSM_MI2S_SD0 | MSM_MI2S_SD1 | MSM_MI2S_SD2 | MSM_MI2S_SD3:
+                i2sCnf.sdLineIdx = I2S_8CHS;
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "invalid SD lines %d", lines);
+                return;
         }
         break;
     default:
@@ -977,7 +987,7 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr)
 }
 
 void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr) {
-    struct auxpcmConfig auxpcmCnf;
+    struct auxpcmConfig auxpcmCnf = {};
 
     if(strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'name' not found");
@@ -1104,7 +1114,8 @@ done:
     return ret;
 }
 
-void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId, struct qal_volume_data *volumedata, int tag)
+void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
+                 uint32_t moduleId, struct qal_volume_data *volumedata, int tag)
 {
     struct volume_ctrl_multichannel_gain_t* volCtrlPayload;
     struct volume_ctrl_master_gain_t* volMasterPayload;
@@ -1118,7 +1129,8 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size, uint32_t mod
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
                       sizeof(uint32_t) +
-                      (sizeof(struct volume_ctrl_channels_gain_config_t) * (volumedata->no_of_volpair));
+                      (sizeof(struct volume_ctrl_channels_gain_config_t) *
+                      (volumedata->no_of_volpair));
 
     if (payloadSize % 8 != 0)
             payloadSize = payloadSize + (8 - payloadSize % 8);
@@ -1142,15 +1154,19 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size, uint32_t mod
                   header->error_code, header->param_size);
     
     volCtrlPayload->num_config = (volumedata->no_of_volpair);
-    QAL_DBG(LOG_TAG, "num config %x and given %x", (volCtrlPayload->num_config), (volumedata->no_of_volpair));
+    QAL_DBG(LOG_TAG, "num config %x and given %x", (volCtrlPayload->num_config),
+           (volumedata->no_of_volpair));
     for (int32_t i=0; i < (volumedata->no_of_volpair); i++) {
            QAL_VERBOSE(LOG_TAG, "volume sent:%f", (volumedata->volume_pair[i].vol));
-           volCtrlPayload->gain_data[i].channel_mask_lsb = (volumedata->volume_pair[i].channel_mask);
+           volCtrlPayload->gain_data[i].channel_mask_lsb =
+                                      (volumedata->volume_pair[i].channel_mask);
            volCtrlPayload->gain_data[i].channel_mask_msb = 0x0;
-           volCtrlPayload->gain_data[i].gain = (volumedata->volume_pair[i].vol)*(PLAYBACK_VOLUME_MASTER_GAIN_DEFAULT)*(1 << 15);
+           volCtrlPayload->gain_data[i].gain = (volumedata->volume_pair[i].vol)*
+                                (PLAYBACK_VOLUME_MASTER_GAIN_DEFAULT)*(1 << 15);
            QAL_VERBOSE(LOG_TAG, "Volume payload lsb:%x msb:%x gain:%x",
                   (volCtrlPayload->gain_data[i].channel_mask_lsb),
-                  (volCtrlPayload->gain_data[i].channel_mask_msb),(volCtrlPayload->gain_data[i].gain));
+                  (volCtrlPayload->gain_data[i].channel_mask_msb),
+                  (volCtrlPayload->gain_data[i].gain));
     }
 
     *size = payloadSize;
@@ -1158,7 +1174,8 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size, uint32_t mod
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId, struct qal_st_sound_model *soundModel)
+void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
+                       uint32_t moduleId, struct qal_st_sound_model *soundModel)
 {
     struct apm_module_param_data_t* header;
     uint8_t *phrase_sm;
@@ -1187,13 +1204,14 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size, uint3
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
     sm_data = (uint8_t *)soundModel + soundModel->data_offset;
-    memcpy(phrase_sm, sm_data, soundModelSize);
+    casa_osal_memcpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
     *size = payloadSize;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_config_voice_wakeup *pWakeUp)
+void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
+        uint32_t moduleId, struct detection_engine_config_voice_wakeup *pWakeUp)
 {
     struct apm_module_param_data_t* header;
     struct detection_engine_config_voice_wakeup *wakeUpConfig;
@@ -1232,17 +1250,23 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uin
 
     wakeUpConfig = (struct detection_engine_config_voice_wakeup*)
                    (payloadInfo + sizeof(struct apm_module_param_data_t));
-    memcpy(wakeUpConfig, pWakeUp, fixedConfigVoiceWakeupSize);
+    casa_osal_memcpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
+                     fixedConfigVoiceWakeupSize);
     confidence_level = (uint8_t*)((uint8_t*)wakeUpConfig + fixedConfigVoiceWakeupSize);
-    kw_user_enable = (uint8_t*)((uint8_t*)wakeUpConfig + fixedConfigVoiceWakeupSize + pWakeUp->num_active_models);
+    kw_user_enable = (uint8_t*)((uint8_t*)wakeUpConfig +
+                     fixedConfigVoiceWakeupSize +
+                     pWakeUp->num_active_models);
 
-    QAL_VERBOSE(LOG_TAG, "mode=%d custom_payload_size=%d", wakeUpConfig->mode, wakeUpConfig->custom_payload_size);
-    QAL_VERBOSE(LOG_TAG, "num_active_models=%d reserved=%d", wakeUpConfig->num_active_models, wakeUpConfig->reserved);
+    QAL_VERBOSE(LOG_TAG, "mode=%d custom_payload_size=%d", wakeUpConfig->mode,
+                wakeUpConfig->custom_payload_size);
+    QAL_VERBOSE(LOG_TAG, "num_active_models=%d reserved=%d",
+                wakeUpConfig->num_active_models, wakeUpConfig->reserved);
 
     for (int i = 0; i < pWakeUp->num_active_models; i++) {
         confidence_level[i] = pWakeUp->confidence_levels[i];
         kw_user_enable[i] = pWakeUp->keyword_user_enables[i];
-        QAL_VERBOSE(LOG_TAG, "confidence_level[%d] = %d KW_User_enable[%d] = %d", i, confidence_level[i], i, kw_user_enable[i]);
+        QAL_VERBOSE(LOG_TAG, "confidence_level[%d] = %d KW_User_enable[%d] = %d",
+                                  i, confidence_level[i], i, kw_user_enable[i]);
     }
 
     *size = payloadSize;
@@ -1250,7 +1274,8 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uin
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
+void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size,
+  uint32_t moduleId, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
 {
     struct apm_module_param_data_t* header;
     struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufCfg;
@@ -1280,14 +1305,16 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
 
     pWakeUpBufCfg = (struct detection_engine_voice_wakeup_buffer_config *)
                     (payloadInfo + sizeof(struct apm_module_param_data_t));
-    memcpy(pWakeUpBufCfg, pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
+    casa_osal_memcpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
+                     pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
 
     *size = payloadSize;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *size, uint32_t moduleId, struct audio_dam_downstream_setup_duration *pSetupDuration)
+void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *size,
+  uint32_t moduleId, struct audio_dam_downstream_setup_duration *pSetupDuration)
 {
     struct apm_module_param_data_t* header;
     struct audio_dam_downstream_setup_duration *pDownStreamSetupDuration;
@@ -1319,14 +1346,15 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
 
     pDownStreamSetupDuration = (struct audio_dam_downstream_setup_duration *)
                                (payloadInfo + sizeof(struct apm_module_param_data_t));
-    memcpy(pDownStreamSetupDuration, pSetupDuration, structSize);
+    casa_osal_memcpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_generic_event_cfg *pEventConfig)
+void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
+     uint32_t moduleId, struct detection_engine_generic_event_cfg *pEventConfig)
 {
     struct apm_module_param_data_t* header;
     struct detection_engine_generic_event_cfg *pEventCfg;
@@ -1356,14 +1384,16 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size, uint
 
     pEventCfg = (struct detection_engine_generic_event_cfg *)
                 (payloadInfo + sizeof(struct apm_module_param_data_t));
-    memcpy(pEventCfg, pEventConfig, sizeof(struct detection_engine_generic_event_cfg));
+    casa_osal_memcpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
+                     pEventConfig, sizeof(struct detection_engine_generic_event_cfg));
 
     *size = payloadSize;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId)
+void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
+                                                              uint32_t moduleId)
 {
     struct apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;

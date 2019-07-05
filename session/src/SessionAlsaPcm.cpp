@@ -81,16 +81,19 @@ int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
     return 0;
 }
 
-int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size,
+                          int flag)
 {
     return 0;
 }
 
-int SessionAlsaPcm::readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionAlsaPcm::readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize,
+                                   int flag)
 {
     return 0;
 }
-int SessionAlsaPcm::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionAlsaPcm::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize,
+                                    int flag)
 {
     return 0;
 }

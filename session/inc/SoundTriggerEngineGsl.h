@@ -61,7 +61,8 @@ protected:
     bool exit_thread_;
     bool exit_buffering_;
 public:
-    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id,
+                   QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
     ~SoundTriggerEngineGsl();
     int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
     int32_t unload_sound_model(Stream *s) override;

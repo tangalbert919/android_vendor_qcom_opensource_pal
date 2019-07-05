@@ -38,8 +38,9 @@
 #include "Device.h"
 #include <unistd.h>
 
-StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr, uint32_t no_of_devices,
-                   struct modifier_kv *modifiers, uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
+StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr,
+                     uint32_t no_of_devices, struct modifier_kv *modifiers,
+                     uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
 {
     mutex.lock();
     session = NULL;
@@ -57,7 +58,8 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
         mutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
-    memcpy (attr, sattr, sizeof(qal_stream_attributes));
+    casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
+                      sizeof(qal_stream_attributes));
 
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     #ifdef CONFIG_GSL
@@ -96,7 +98,8 @@ int32_t  StreamPCM::open()
     int32_t status = 0;
     mutex.lock();
 
-    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %p device count - %d", session, devices.size());
+    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
+                devices.size());
     status = session->open(this);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session open failed with status %d", status);
@@ -123,7 +126,8 @@ int32_t  StreamPCM::close()
     int32_t status = 0;
     mutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p device count - %d", session, devices.size());
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
+            devices.size());
     for (int32_t i=0; i < devices.size(); i++) {
         status = devices[i]->close();
         rm->deregisterDevice(devices[i]);
@@ -154,15 +158,18 @@ int32_t StreamPCM::start()
     int32_t status = 0;
     mutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p attr->direction - %d", session, attr->direction);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d", session,
+            attr->direction);
 
     switch (attr->direction) {
     case QAL_AUDIO_OUTPUT:
-        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d", devices.size());
+        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
+                    devices.size());
         for (int32_t i=0; i < devices.size(); i++) {
             status = devices[i]->start();
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx device start is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
+                        status);
                 goto exit;
             }
         }
@@ -170,32 +177,37 @@ int32_t StreamPCM::start()
 
         status = session->prepare(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d", status);
+            QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
+                    status);
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
         status = session->start(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Rx session start is failed with status %d", status);
+            QAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
+                    status);
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session start successful");
         break;
 
     case QAL_AUDIO_INPUT:
-        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d", devices.size());
+        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
+                    devices.size());
 
         status = session->prepare(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d", status);
+            QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
+                    status);
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
         status = session->start(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Tx session start is failed with status %d", status);
+            QAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
+                    status);
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session start successful");
@@ -203,14 +215,16 @@ int32_t StreamPCM::start()
         for (int32_t i=0; i < devices.size(); i++) {
             status = devices[i]->start();
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d",
+                        status);
                 goto exit;
             }
         }
         QAL_VERBOSE(LOG_TAG, "devices started successfully");
         break;
     case QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT:
-        QAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %d", devices.size());
+        QAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %d",
+                    devices.size());
         // start output device
         for (int32_t i=0; i < devices.size(); i++)
         {
@@ -219,7 +233,8 @@ int32_t StreamPCM::start()
                 continue;
             status = devices[i]->start();
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx device start is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
+                        status);
                 goto exit;
             }
         }
@@ -269,10 +284,12 @@ int32_t StreamPCM::stop()
 
     mutex.lock();
 
-    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %p attr->direction - %d", session, attr->direction);
+    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK attr->direction - %d",
+                session, attr->direction);
     switch (attr->direction) {
     case QAL_AUDIO_OUTPUT:
-        QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %d", devices.size());
+        QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %d",
+                    devices.size());
 
         status = session->stop(this);
         if (0 != status) {
@@ -292,7 +309,8 @@ int32_t StreamPCM::stop()
         break;
 
     case QAL_AUDIO_INPUT:
-        QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %d", devices.size());
+        QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %d",
+                    devices.size());
 
         for (int32_t i=0; i < devices.size(); i++) {
             status = devices[i]->stop();
@@ -320,7 +338,8 @@ int32_t StreamPCM::stop()
                 continue;
             status = devices[i]->stop();
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx device stop is failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Tx device stop is failed with status %d",
+                        status);
                 goto exit;
             }
         }
@@ -339,7 +358,8 @@ int32_t StreamPCM::stop()
                  continue;
              status = devices[i]->stop();
              if (0 != status) {
-                 QAL_ERR(LOG_TAG, "Rx device stop is failed with status %d", status);
+                 QAL_ERR(LOG_TAG, "Rx device stop is failed with status %d",
+                         status);
                  goto exit;
             }
         }
@@ -361,7 +381,7 @@ int32_t StreamPCM::prepare()
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mutex.lock();
     status = session->prepare(this);
@@ -377,11 +397,12 @@ int32_t  StreamPCM::setStreamAttributes(struct qal_stream_attributes *sattr)
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     memset(attr, 0, sizeof(struct qal_stream_attributes));
     mutex.lock();
-    memcpy (attr, sattr, sizeof(struct qal_stream_attributes));
+    casa_osal_memcpy (attr, sizeof(struct qal_stream_attributes), sattr,
+                      sizeof(struct qal_stream_attributes));
     mutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //TODO:gkv or ckv or tkv need to pass
     if (0 != status) {
@@ -397,7 +418,7 @@ exit:
 int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     if (volume->no_of_volpair == 0) {
         QAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
@@ -413,8 +434,11 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
     memset(vdata, 0, sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
     mutex.lock();
-    memcpy (vdata, volume, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
+    casa_osal_memcpy (vdata, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) *
+                      (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) *
+                      (volume->no_of_volpair))));
     mutex.unlock();
     for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
     QAL_ERR(LOG_TAG, "Volume payload mask:%x vol:%f",
@@ -422,11 +446,13 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
     }
     status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d", status);
+        QAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
+                status);
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),(volume->volume_pair->vol));
+                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                      (volume->volume_pair->vol));
 exit:
     return status;
 }
@@ -435,7 +461,7 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mutex.lock();
     status = session->read(this, SHMEM_ENDPOINT, buf, &size);
@@ -454,7 +480,7 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
     int32_t status = 0;
     int32_t size;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mutex.lock();
     status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
@@ -485,7 +511,7 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
 int32_t  StreamPCM::setMute( bool state)
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p state %d", session, state);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
     mutex.lock();
     switch (state) {
     case TRUE:
@@ -496,7 +522,8 @@ int32_t  StreamPCM::setMute( bool state)
        break;
     }
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d", status);
+        QAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
+                status);
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
@@ -508,11 +535,12 @@ exit:
 int32_t  StreamPCM::setPause()
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mutex.lock();
     status = session->setConfig(this, MODULE, PAUSE_TAG);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d", status);
+        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+                status);
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
@@ -524,11 +552,12 @@ exit:
 int32_t  StreamPCM::setResume()
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mutex.lock();
     status = session->setConfig(this, MODULE, RESUME_TAG);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d", status);
+        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+                status);
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");

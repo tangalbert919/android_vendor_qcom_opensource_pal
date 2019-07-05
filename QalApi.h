@@ -124,7 +124,8 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle);
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_register_for_event(qal_stream_handle_t *stream_handle, uint32_t event_id, qal_event_cfg_t *event_cfg);
+int32_t qal_stream_register_for_event(qal_stream_handle_t *stream_handle,
+                                 uint32_t event_id, qal_event_cfg_t *event_cfg);
 
 /**
   * \brief Start the stream.
@@ -211,7 +212,8 @@ int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t ty
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle, size_t *in_buffer, size_t *out_buffer);
+int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle,
+                                   size_t *in_buffer, size_t *out_buffer);
 
 /**
   * Set audio buffer size based on the direction of the stream.
@@ -287,7 +289,8 @@ ssize_t qal_stream_write(qal_stream_handle_t *stream_handle, struct qal_buffer *
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle, uint32_t no_of_devices, struct qal_device *devices);
+int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle,
+                            uint32_t no_of_devices, struct qal_device *devices);
 
 /**
   * \brief set new device on stream. This api will disable the
@@ -307,7 +310,8 @@ int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle, uint32_t no_of
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle, uint32_t *no_of_devices, struct qal_device *devices);
+int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
+                           uint32_t *no_of_devices, struct qal_device *devices);
 
 /**
   * \brief Get audio parameters specific to a stream.
@@ -321,7 +325,8 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle, uint32_t *no_o
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle, uint32_t param_id, qal_param_payload *param_payload);
+int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
+                           uint32_t param_id, qal_param_payload *param_payload);
 
 /**
   * \brief Set audio parameters specific to a stream.
@@ -335,7 +340,8 @@ int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle, uint32_t param_
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_id, qal_param_payload *param_payload);
+int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle,
+                           uint32_t param_id, qal_param_payload *param_payload);
 
 /**
   * \brief Get audio volume specific to a stream.
@@ -346,7 +352,8 @@ int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_volume(qal_stream_handle_t *stream_handle, struct qal_volume_data *volume);
+int32_t qal_stream_get_volume(qal_stream_handle_t *stream_handle,
+                              struct qal_volume_data *volume);
 
 /**
   * \brief Set audio volume specific to a stream.
@@ -358,7 +365,8 @@ int32_t qal_stream_get_volume(qal_stream_handle_t *stream_handle, struct qal_vol
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle, struct qal_volume_data *volume);
+int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle,
+                              struct qal_volume_data *volume);
 
 /**
   * \brief Get current audio audio mute state to a stream.

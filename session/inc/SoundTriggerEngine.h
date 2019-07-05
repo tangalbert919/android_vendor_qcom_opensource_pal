@@ -87,7 +87,8 @@ protected:
     QalRingBufferReader *reader_;
     bool eventDetected;
 public:
-    static SoundTriggerEngine* create(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+    static SoundTriggerEngine* create(Stream *s, uint32_t id, uint32_t stage_id,
+           QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
     virtual int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) = 0;
     virtual int32_t unload_sound_model(Stream *s) = 0;
     virtual int32_t start_recognition(Stream *s) = 0;

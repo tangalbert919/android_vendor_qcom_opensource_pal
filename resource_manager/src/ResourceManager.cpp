@@ -66,6 +66,7 @@
 #define MAX_SESSIONS_DEEP_BUFFER 1
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
+#define MAX_SESSIONS_VOICE_UI 2
 #define XMLFILE "/etc/resourcemanager.xml"
 #define GECKOXMLFILE "/etc/GECKO_ACDB_Data.xml"
 
@@ -237,16 +238,16 @@ ResourceManager::~ResourceManager()
     
 }
 
-void ResourceManager::init_audio()
+int ResourceManager::init_audio()
 {
     int snd_card_num = 0;
-    int ret;
+    int ret = 0;
     char snd_macro[] = "snd";
     char *snd_card_name = NULL, *snd_card_name_t = NULL;
     char *snd_internal_name = NULL;
     char *tmp = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
-    QAL_DBG(LOG_TAG, "Enter. rm %p", rm);
+    QAL_DBG(LOG_TAG, "Enter. rm %pK", rm);
     while (snd_card_num < MAX_SND_CARD) {
         rm->audio_mixer = mixer_open(snd_card_num);
         if (!rm->audio_mixer) {
@@ -260,14 +261,14 @@ void ResourceManager::init_audio()
 
     if (snd_card_num >= MAX_SND_CARD) {
         QAL_ERR(LOG_TAG, "audio mixer open failure");
-        return;
+        return -EINVAL;
     }
 
     snd_card_name = strdup(mixer_get_name(rm->audio_mixer));
     if (!snd_card_name) {
         QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
         mixer_close(rm->audio_mixer);
-        return;
+        return -EINVAL;
     }
 
     snd_card_name_t = strdup(snd_card_name);
@@ -290,7 +291,7 @@ void ResourceManager::init_audio()
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
     rm->audio_route = audio_route_init(snd_card_num, mixer_xml_file);
-    QAL_INFO(LOG_TAG, "audio route %p, mixer path %s", rm->audio_route, mixer_xml_file);
+    QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", rm->audio_route, mixer_xml_file);
     if (!rm->audio_route) {
         QAL_ERR(LOG_TAG, "audio route init failed");
         mixer_close(rm->audio_mixer);
@@ -298,11 +299,13 @@ void ResourceManager::init_audio()
             free(snd_card_name);
         if (snd_card_name_t)
             free(snd_card_name_t);
-        return;
+        return -EINVAL;
     }
     // audio_route init success
-    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s", snd_card_num, mixer_xml_file);
+    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+            snd_card_num, mixer_xml_file);
     rm->snd_card = snd_card_num;
+    return 0;
 }
 
 int ResourceManager::init()
@@ -319,7 +322,11 @@ int ResourceManager::init()
     rm->snd_card = -1;
 
     // Init audio_route and audio_mixer
-    rm->init_audio();
+    ret = rm->init_audio();
+    if (ret) { 
+        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+        return ret;
+    }
 
     //#ifdef CONFIG_GSL
     SessionGsl::init(DEFAULT_ACDB_FILES);
@@ -340,13 +347,15 @@ int ResourceManager::init()
     return ret;
 }
 
-bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes, struct qal_device *devices, int no_of_devices)
+bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
+                                        struct qal_device *devices, int no_of_devices)
 {
     bool result = false;
     uint16_t channels, dev_channels;
     uint32_t samplerate, bitwidth;
     uint32_t dev_samplerate, dev_bitwidth, rc;
-    size_t cur_sessions, max_sessions;
+    size_t cur_sessions = 0;
+    size_t max_sessions = 0;
     qal_audio_fmt_t format, dev_format;
 
     // check if stream type is supported
@@ -354,39 +363,41 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     qal_stream_type_t type = attributes->type;
     QAL_DBG(LOG_TAG, "Enter. type %d", type);
     switch (type) {
-    case QAL_STREAM_VOICE_CALL_RX:
-    case QAL_STREAM_VOICE_CALL_TX:
-    case QAL_STREAM_VOICE_CALL_RX_TX:
-    case QAL_STREAM_LOW_LATENCY:
-    case QAL_STREAM_VOIP:
-    case QAL_STREAM_VOIP_RX:
-    case QAL_STREAM_VOIP_TX:
-        cur_sessions = active_streams_ll.size();
-        max_sessions = MAX_SESSIONS_LOW_LATENCY;
-        break;
-    case QAL_STREAM_DEEP_BUFFER:
-        cur_sessions = active_streams_db.size();
-        max_sessions = MAX_SESSIONS_DEEP_BUFFER;
-        break;
-    case QAL_STREAM_COMPRESSED:
-        cur_sessions = active_streams_comp.size();
-        max_sessions = MAX_SESSIONS_COMPRESSED;
-        break;
-    case QAL_STREAM_VOICE_CALL_MUSIC:
-        break;
-    case QAL_STREAM_GENERIC:
-        cur_sessions = active_streams_ulla.size();
-        max_sessions = MAX_SESSIONS_GENERIC;
-        break;
-    case QAL_STREAM_RAW:
-    case QAL_STREAM_VOICE_ACTIVATION:
-    case QAL_STREAM_VOICE_CALL:
-    case QAL_STREAM_LOOPBACK:
-    case QAL_STREAM_TRANSCODE:
-    case QAL_STREAM_VOICE_UI:
-        break;
-    default:
-        QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
+        case QAL_STREAM_VOICE_CALL_RX:
+        case QAL_STREAM_VOICE_CALL_TX:
+        case QAL_STREAM_VOICE_CALL_RX_TX:
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+            cur_sessions = active_streams_ll.size();
+            max_sessions = MAX_SESSIONS_LOW_LATENCY;
+            break;
+        case QAL_STREAM_DEEP_BUFFER:
+            cur_sessions = active_streams_db.size();
+            max_sessions = MAX_SESSIONS_DEEP_BUFFER;
+            break;
+        case QAL_STREAM_COMPRESSED:
+            cur_sessions = active_streams_comp.size();
+            max_sessions = MAX_SESSIONS_COMPRESSED;
+            break;
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+            break;
+        case QAL_STREAM_GENERIC:
+            cur_sessions = active_streams_ulla.size();
+            max_sessions = MAX_SESSIONS_GENERIC;
+            break;
+        case QAL_STREAM_RAW:
+        case QAL_STREAM_VOICE_ACTIVATION:
+        case QAL_STREAM_VOICE_CALL:
+        case QAL_STREAM_LOOPBACK:
+        case QAL_STREAM_TRANSCODE:
+        case QAL_STREAM_VOICE_UI:
+            cur_sessions = active_streams_st.size();
+            max_sessions = MAX_SESSIONS_VOICE_UI;
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
     }
     if (cur_sessions == max_sessions) {
@@ -396,21 +407,21 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
 
     // check if param supported by audio configruation
     switch (type) {
-    case QAL_STREAM_VOICE_CALL_RX:
-    case QAL_STREAM_VOICE_CALL_TX:
-    case QAL_STREAM_VOICE_CALL_RX_TX:
-    case QAL_STREAM_LOW_LATENCY:
-    case QAL_STREAM_VOIP:
-    case QAL_STREAM_VOIP_RX:
-    case QAL_STREAM_VOIP_TX:
-        if (attributes->direction == QAL_AUDIO_INPUT) {
-            channels = attributes->in_media_config.ch_info->channels;
-            samplerate = attributes->in_media_config.sample_rate;
-            bitwidth = attributes->in_media_config.bit_width;
-        } else {
-            channels = attributes->out_media_config.ch_info->channels;
-            samplerate = attributes->out_media_config.sample_rate;
-            bitwidth = attributes->out_media_config.bit_width;
+        case QAL_STREAM_VOICE_CALL_RX:
+        case QAL_STREAM_VOICE_CALL_TX:
+        case QAL_STREAM_VOICE_CALL_RX_TX:
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+            if (attributes->direction == QAL_AUDIO_INPUT) {
+                channels = attributes->in_media_config.ch_info->channels;
+                samplerate = attributes->in_media_config.sample_rate;
+                bitwidth = attributes->in_media_config.bit_width;
+            } else {
+                channels = attributes->out_media_config.ch_info->channels;
+                samplerate = attributes->out_media_config.sample_rate;
+                bitwidth = attributes->out_media_config.bit_width;
         }
         rc = (StreamPCM::isBitWidthSupported(bitwidth) |
              StreamPCM::isSampleRateSupported(samplerate) |
@@ -454,22 +465,23 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         dev_bitwidth = devices[i].config.bit_width;
 
         switch(devices[i].id) {
-        case QAL_DEVICE_OUT_SPEAKER:
-            rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
-                 Speaker::isSampleRateSupported(dev_samplerate) |
-                 Speaker::isChannelSupported(dev_channels));
-            break;
-        case QAL_DEVICE_IN_HANDSET_MIC:
-        case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
-            rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
-                 SpeakerMic::isSampleRateSupported(dev_samplerate) |SpeakerMic::isChannelSupported(dev_channels));
-            QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "unknown device id %d", devices[i].id);
+            case QAL_DEVICE_OUT_SPEAKER:
+                rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
+                    Speaker::isSampleRateSupported(dev_samplerate) |
+                    Speaker::isChannelSupported(dev_channels));
+                break;
+            case QAL_DEVICE_IN_HANDSET_MIC:
+            case QAL_DEVICE_IN_SPEAKER_MIC:
+            case QAL_DEVICE_IN_TRI_MIC:
+            case QAL_DEVICE_IN_QUAD_MIC:
+            case QAL_DEVICE_IN_EIGHT_MIC:
+                rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
+                      SpeakerMic::isSampleRateSupported(dev_samplerate) |
+                      SpeakerMic::isChannelSupported(dev_channels));
+                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "unknown device id %d", devices[i].id);
             return false;
         }
         if (0 != rc) {
@@ -496,7 +508,7 @@ int ResourceManager::registerStream(Stream *s)
 {
     int ret = 0;
     qal_stream_type_t type;
-    QAL_DBG(LOG_TAG, "Enter. stream %p", s);
+    QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
     ret = s->getStreamType(&type);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
@@ -505,42 +517,42 @@ int ResourceManager::registerStream(Stream *s)
     QAL_DBG(LOG_TAG, "stream type %d", type);
     mutex.lock();
     switch (type) {
-    case QAL_STREAM_LOW_LATENCY:
-    case QAL_STREAM_VOIP_RX:
-    case QAL_STREAM_VOIP_TX:
-    {
-        StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
-        ret = registerstream(sPCM, active_streams_ll);
-        break;
-    }
-    case QAL_STREAM_DEEP_BUFFER:
-    {
-        StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
-        ret = registerstream(sDB, active_streams_db);
-        break;
-    }
-    case QAL_STREAM_COMPRESSED:
-    {
-        StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
-        ret = registerstream(sComp, active_streams_comp);
-        break;
-    }
-    case QAL_STREAM_GENERIC:
-    {
-        StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
-        ret = registerstream(sULLA, active_streams_ulla);
-        break;
-    }
-    case QAL_STREAM_VOICE_UI:
-    {
-        StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
-        ret = registerstream(sST, active_streams_st);
-        break;
-    }
-    default:
-        ret = -EINVAL;
-        QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
-        break;
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+        {
+            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sPCM, active_streams_ll);
+            break;
+        }
+        case QAL_STREAM_DEEP_BUFFER:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sDB, active_streams_db);
+            break;
+        }
+        case QAL_STREAM_COMPRESSED:
+        {
+            StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
+            ret = registerstream(sComp, active_streams_comp);
+            break;
+        }
+        case QAL_STREAM_GENERIC:
+        {
+            StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sULLA, active_streams_ulla);
+            break;
+        }
+        case QAL_STREAM_VOICE_UI:
+        {
+            StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
+            ret = registerstream(sST, active_streams_st);
+            break;
+        }
+        default:
+            ret = -EINVAL;
+            QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
+            break;
     }
     mutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
@@ -564,7 +576,7 @@ int ResourceManager::deregisterStream(Stream *s)
 {
     int ret = 0;
     qal_stream_type_t type;
-    QAL_DBG(LOG_TAG, "Enter. stream %p", s);
+    QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
     ret = s->getStreamType(&type);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, " getStreamType failed with status = %d", ret);
@@ -573,42 +585,42 @@ int ResourceManager::deregisterStream(Stream *s)
     QAL_DBG(LOG_TAG, "stream type %d", type);
     mutex.lock();
     switch (type) {
-    case QAL_STREAM_LOW_LATENCY:
-    case QAL_STREAM_VOIP_RX:
-    case QAL_STREAM_VOIP_TX:
-    {
-        StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
-        ret = deregisterstream(sPCM, active_streams_ll);
-        break;
-    }
-    case QAL_STREAM_DEEP_BUFFER:
-    {
-        StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
-        ret = deregisterstream(sDB, active_streams_db);
-        break;
-    }
-    case QAL_STREAM_COMPRESSED:
-    {
-        StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
-        ret = deregisterstream(sComp, active_streams_comp);
-        break;
-    }
-    case QAL_STREAM_GENERIC:
-    {
-        StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
-        ret = deregisterstream(sULLA, active_streams_ulla);
-        break;
-    }
-    case QAL_STREAM_VOICE_UI:
-    {
-        StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
-        ret = deregisterstream(sST, active_streams_st);
-        break;
-    }
-    default:
-        ret = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
-        break;
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+        {
+            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sPCM, active_streams_ll);
+            break;
+        }
+        case QAL_STREAM_DEEP_BUFFER:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sDB, active_streams_db);
+            break;
+        }
+        case QAL_STREAM_COMPRESSED:
+        {
+            StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
+            ret = deregisterstream(sComp, active_streams_comp);
+            break;
+        }
+        case QAL_STREAM_GENERIC:
+        {
+            StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sULLA, active_streams_ulla);
+            break;
+        }
+        case QAL_STREAM_VOICE_UI:
+        {
+            StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
+            ret = deregisterstream(sST, active_streams_st);
+            break;
+        }
+        default:
+            ret = -EINVAL;
+            QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
+            break;
     }
     mutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
@@ -636,7 +648,8 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
         active_devices.erase(iter);
     else {
         ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d", d->getDeviceId(), ret);
+        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
+                d->getDeviceId(), ret);
     }
     mutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
@@ -661,7 +674,7 @@ int ResourceManager::getAudioRoute(struct audio_route** ar)
         return -ENOENT;
     }
     *ar = audio_route;
-    QAL_DBG(LOG_TAG, "ar %p audio_route %p", ar, audio_route);
+    QAL_DBG(LOG_TAG, "ar %pK audio_route %pK", ar, audio_route);
     return 0;
 }
 
@@ -672,23 +685,27 @@ int ResourceManager::getAudioMixer(struct audio_mixer * am)
         return -ENOENT;
     }
     am = audio_mixer;
-    QAL_DBG(LOG_TAG, "ar %p audio_mixer %p", am, audio_mixer);
+    QAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
     return 0;
 }
 
 template <class T>
-void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams, std::vector<T> sourcestreams)
+void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams,
+                      std::vector<T> sourcestreams)
 {
-    for(typename std::vector<T>::iterator iter = sourcestreams.begin(); iter != sourcestreams.end(); iter++) {
+    for(typename std::vector<T>::iterator iter = sourcestreams.begin();
+                 iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
-        typename std::vector<std::shared_ptr<Device>>::iterator result = std::find(devices.begin(), devices.end(), d);
+        typename std::vector<std::shared_ptr<Device>>::iterator result =
+                 std::find(devices.begin(), devices.end(), d);
         if (result != devices.end())
             activestreams.push_back(*iter);
     }
 }
 
-int ResourceManager::getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams)
+int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
+                                     std::vector<Stream*> &activestreams)
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
@@ -803,7 +820,8 @@ void ResourceManager::deinit() {
     SessionGsl::deinit();
 }
 
-int ResourceManager::getStreamTag(std::vector <int> &tag) {
+int ResourceManager::getStreamTag(std::vector <int> &tag)
+{
     int status = 0;
     for (int i=0; i < streamTag.size(); i++) {
         tag.push_back(streamTag[i]);
@@ -811,7 +829,8 @@ int ResourceManager::getStreamTag(std::vector <int> &tag) {
     return status;
 }
 
-int ResourceManager::getStreamPpTag(std::vector <int> &tag) {
+int ResourceManager::getStreamPpTag(std::vector <int> &tag)
+{
     int status = 0;
     for (int i=0; i < streamPpTag.size(); i++) {
         tag.push_back(streamPpTag[i]);
@@ -819,7 +838,8 @@ int ResourceManager::getStreamPpTag(std::vector <int> &tag) {
     return status;
 }
 
-int ResourceManager::getMixerTag(std::vector <int> &tag) {
+int ResourceManager::getMixerTag(std::vector <int> &tag)
+{
     int status = 0;
     for (int i=0; i < mixerTag.size(); i++) {
         tag.push_back(mixerTag[i]);
@@ -827,7 +847,8 @@ int ResourceManager::getMixerTag(std::vector <int> &tag) {
     return status;
 }
 
-int ResourceManager::getDeviceTag(std::vector <int> &tag) {
+int ResourceManager::getDeviceTag(std::vector <int> &tag)
+{
     int status = 0;
     for (int i=0; i < deviceTag.size(); i++) {
         tag.push_back(deviceTag[i]);
@@ -835,26 +856,32 @@ int ResourceManager::getDeviceTag(std::vector <int> &tag) {
     return status;
 }
 
-int ResourceManager::getDevicePpTag(std::vector <int> &tag) {
+int ResourceManager::getDevicePpTag(std::vector <int> &tag)
+{
     int status = 0;
     for (int i=0; i < devicePpTag.size(); i++) {
         tag.push_back(devicePpTag[i]);
     }
     return status;
 }
-void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId) {
+
+void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId)
+{
     devicePcmId[deviceId].second = pcmId;
 }
 
-void ResourceManager::updateLinkName(int32_t deviceId, std::string linkName) {
+void ResourceManager::updateLinkName(int32_t deviceId, std::string linkName)
+{
     deviceLinkName[deviceId].second = linkName;
 }
 
-void ResourceManager::updateSndName(int32_t deviceId, std::string sndName) {
+void ResourceManager::updateSndName(int32_t deviceId, std::string sndName)
+{
     sndDeviceNameLUT[deviceId].second = sndName;
 }
 
-int convertCharToHex(std::string num) {
+int convertCharToHex(std::string num)
+{
     int32_t hexNum = 0;
     int32_t base = 1;
     const char * charNum = num.c_str();
@@ -871,15 +898,18 @@ int convertCharToHex(std::string num) {
     return hexNum;
 }
 
-void ResourceManager::updateStreamTag(int32_t tagId) {
+void ResourceManager::updateStreamTag(int32_t tagId)
+{
     streamTag.push_back(tagId);
 }
 
-void ResourceManager::updateDeviceTag(int32_t tagId) {
+void ResourceManager::updateDeviceTag(int32_t tagId)
+{
     deviceTag.push_back(tagId);
 }
 
-void ResourceManager::processTagInfo(const XML_Char **attr) {
+void ResourceManager::processTagInfo(const XML_Char **attr)
+{
     int32_t tagId;
     int32_t found = 0;
     char tagChar[128] = {0};
@@ -909,7 +939,8 @@ void ResourceManager::processTagInfo(const XML_Char **attr) {
 
 }
 
-void ResourceManager::processDeviceInfo(const XML_Char **attr) {
+void ResourceManager::processDeviceInfo(const XML_Char **attr)
+{
     int32_t deviceId;
     int32_t pcmId;
     if(strcmp(attr[0], "name" ) !=0 ) {
@@ -942,7 +973,8 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr) {
 }
 
 void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name,
-    const XML_Char **attr) {
+    const XML_Char **attr)
+{
     if (strcmp(tag_name, "device") == 0) {
         processDeviceInfo(attr);
     } else if (strcmp(tag_name, "Tag") == 0) {
@@ -950,12 +982,14 @@ void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name
     }
 }
 
-void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name) {
+void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name)
+{
     return;
 }
 
 
-int ResourceManager::XmlParser(std::string xmlFile) {
+int ResourceManager::XmlParser(std::string xmlFile)
+{
     XML_Parser parser;
     FILE *file = NULL;
     int ret = 0;

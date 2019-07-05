@@ -224,13 +224,20 @@ enum TAG_STREAM_MFC_SR_Keys {
 	@h2xmlk_modTagList
 */
 typedef enum {
-        /**@h2xmle_name {sh_ep} */                        SHMEM_ENDPOINT              = 0xC0000001,  
-	/**@h2xmle_name {stream_input_media_format} */    STREAM_INPUT_MEDIA_FORMAT   = 0xC0000002,  
-	/**@h2xmle_name {stream_pcm_decoder} */           STREAM_PCM_DECODER          = 0xC0000003,  
-	/**@h2xmle_name {stream_pcm_encoder} */           STREAM_PCM_ENCODER          = 0xC0000004,  
-	/**@h2xmle_name {stream_pcm_converter} */         STREAM_PCM_CONVERTER        = 0xC0000005,  
-	/**@h2xmle_name {device_sva} */                   DEVICE_SVA                  = 0xC0000010,  
-	/**@h2xmle_name {device_adam} */                  DEVICE_ADAM                 = 0xC0000011,  
+    /**@h2xmle_name {sh_ep} */                        SHMEM_ENDPOINT
+                                                                   = 0xC0000001,
+	/**@h2xmle_name {stream_input_media_format} */    STREAM_INPUT_MEDIA_FORMAT
+	                                                               = 0xC0000002,
+	/**@h2xmle_name {stream_pcm_decoder} */           STREAM_PCM_DECODER
+	                                                               = 0xC0000003,
+	/**@h2xmle_name {stream_pcm_encoder} */           STREAM_PCM_ENCODER
+	                                                               = 0xC0000004,
+	/**@h2xmle_name {stream_pcm_converter} */         STREAM_PCM_CONVERTER
+	                                                               = 0xC0000005,
+	/**@h2xmle_name {device_sva} */                   DEVICE_SVA
+	                                                               = 0xC0000010,
+	/**@h2xmle_name {device_adam} */                  DEVICE_ADAM
+	                                                               = 0xC0000011,
 }TAGS_DEFINITIONS;
 
 

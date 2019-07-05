@@ -46,7 +46,8 @@ extern "C" {
 #define CODEC_DEVICE_GSL_PERIOD_512 512
 #define CODEC_DEVICE_GSL_PERIOD_COUNT_8 8
 
-struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_)
+struct pcm * CodecDeviceGsl::open(struct qal_device *device,
+                                  std::shared_ptr<ResourceManager> rm_)
 {
     if (!device || !rm_) {
         QAL_ERR(LOG_TAG, "Invalid input parameters");
@@ -81,7 +82,7 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device, std::shared_ptr<Res
         QAL_ERR(LOG_TAG, "Failed to open the device %s", strerror(errno));
         return NULL;
     }
-    QAL_DBG(LOG_TAG, "Exit. PCMFd %p", pcmFd);
+    QAL_DBG(LOG_TAG, "Exit. PCMFd %pK", pcmFd);
     return pcmFd;
 }
 
@@ -93,7 +94,7 @@ int CodecDeviceGsl::close(struct pcm *pcmFd)
          QAL_ERR(LOG_TAG, "Invalid pcmFd to close the device status %d", status);
          return status;
      }
-     QAL_DBG(LOG_TAG, "Enter. pcmfd %p", pcmFd);
+     QAL_DBG(LOG_TAG, "Enter. pcmfd %pK", pcmFd);
      status = pcm_close(pcmFd);
      if (0 != status) {
          QAL_ERR(LOG_TAG, "failed to close the device %s status %d", strerror(errno), status);
@@ -111,7 +112,7 @@ int CodecDeviceGsl::start(struct pcm *pcmFd)
          QAL_ERR(LOG_TAG, "Invalid pcmFd to start the device status %d", status);
          return status;
      }
-     QAL_ERR(LOG_TAG, "PCMFd %p", pcmFd);
+     QAL_ERR(LOG_TAG, "PCMFd %pK", pcmFd);
      return status;
 }
 
@@ -123,10 +124,11 @@ int CodecDeviceGsl::prepare (struct pcm *pcmFd)
          QAL_ERR(LOG_TAG, "Invalid pcmFd to prepare the device status %d", status);
          return status;
      }
-     QAL_DBG(LOG_TAG, "Enter. pcmfd %p", pcmFd);
+     QAL_DBG(LOG_TAG, "Enter. pcmfd %pK", pcmFd);
      status = pcm_prepare(pcmFd);
      if (0 != status) {
-         QAL_ERR(LOG_TAG, "failed to prepare and start the device %s status %d", strerror(errno), status);
+         QAL_ERR(LOG_TAG, "failed to prepare and start the device %s status %d",
+                 strerror(errno), status);
          return status;
      }
      QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -141,7 +143,7 @@ int CodecDeviceGsl::stop(struct pcm *pcmFd)
          QAL_ERR(LOG_TAG, "Invalid pcmFd to stop the device status %d", status);
          return status;
      }
-     QAL_DBG(LOG_TAG, "Enter. pcmfd %p", pcmFd);
+     QAL_DBG(LOG_TAG, "Enter. pcmfd %pK", pcmFd);
      status = pcm_stop(pcmFd);
      if (0 != status) {
          QAL_ERR(LOG_TAG, "failed to stop the device %s status %d", strerror(errno), status);

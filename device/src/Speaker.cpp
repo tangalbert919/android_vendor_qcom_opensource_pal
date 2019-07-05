@@ -35,7 +35,8 @@
 
 std::shared_ptr<Device> Speaker::obj = nullptr;
 
-std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device,
+                                             std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
         std::shared_ptr<Device> sp(new Speaker(device, Rm));
@@ -61,13 +62,13 @@ int32_t Speaker::isSampleRateSupported(uint32_t sampleRate)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch (sampleRate) {
-    case SAMPLINGRATE_48K:
-    case SAMPLINGRATE_96K:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
-        break;
+        case SAMPLINGRATE_48K:
+        case SAMPLINGRATE_96K:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            break;
     }
     return rc;
 }
@@ -77,15 +78,15 @@ int32_t Speaker::isChannelSupported(uint32_t numChannels)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
-    case CHANNEL1:
-    case CHANNEL2:
-    case CHANNEL4:
-    case CHANNEL8:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
-        break;
+        case CHANNEL1:
+        case CHANNEL2:
+        case CHANNEL4:
+        case CHANNEL8:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            break;
     }
     return rc;
 }
@@ -95,14 +96,14 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch (bitWidth) {
-    case BITWIDTH_16:
-    case BITWIDTH_24:
-    case BITWIDTH_32:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
-        break;
+        case BITWIDTH_16:
+        case BITWIDTH_24:
+        case BITWIDTH_32:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+            break;
     }
     return rc;
 }

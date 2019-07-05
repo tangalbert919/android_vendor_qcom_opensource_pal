@@ -109,23 +109,52 @@ private:
     static std::vector<i2sConfig> i2sConf;
     static std::vector<tdmConfig> tdmConf;
     static std::vector<auxpcmConfig> auxpcmConf;
-    void payloadInMediaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
-    void payloadOutMediaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
-    void payloadCodecDmaConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
-    void payloadI2sConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
-    void payloadTdmConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
-    void payloadAuxpcmConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo,  struct sessionToPayloadParam* data, std::string epName);
-    void payloadHwEpConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data);
+    void payloadInMediaConfig(uint8_t** payload, size_t* size,
+                              struct gsl_module_id_info* moduleInfo,
+                              struct sessionToPayloadParam* data);
+    void payloadOutMediaConfig(uint8_t** payload, size_t* size,
+                               struct gsl_module_id_info* moduleInfo,
+                               struct sessionToPayloadParam* data);
+    void payloadCodecDmaConfig(uint8_t** payload, size_t* size,
+                               struct gsl_module_id_info* moduleInfo,
+                               struct sessionToPayloadParam* data,
+                               std::string epName);
+    void payloadI2sConfig(uint8_t** payload, size_t* size,
+                          struct gsl_module_id_info* moduleInfo,
+                          struct sessionToPayloadParam* data,
+                          std::string epName);
+    void payloadTdmConfig(uint8_t** payload, size_t* size,
+                          struct gsl_module_id_info* moduleInfo,
+                          struct sessionToPayloadParam* data, std::string epName);
+    void payloadAuxpcmConfig(uint8_t** payload, size_t* size,
+                             struct gsl_module_id_info* moduleInfo,
+                             struct sessionToPayloadParam* data, std::string epName);
+    void payloadHwEpConfig(uint8_t** payload, size_t* size,
+                           struct gsl_module_id_info* moduleInfo,
+                           struct sessionToPayloadParam* data);
 public:
-    void payloadStreamConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam* data);
-    void payloadDeviceEpConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam* data, std::string epName);
-    void payloadDeviceConfig(uint8_t** payload, size_t* size, struct gsl_module_id_info* moduleInfo, int payloadTag, struct sessionToPayloadParam* data);
-    void payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId, struct qal_volume_data *volumedata, int tag);
-    void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId, struct qal_st_sound_model *soundModel);
-    void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_config_voice_wakeup *pWakeUp);
-    void payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_voice_wakeup_buffer_config *pBufferConfig);
-    void payloadSVAStreamSetupDuration(uint8_t **payload, size_t *size, uint32_t moduleId, struct audio_dam_downstream_setup_duration *pSetupDuration);
-    void payloadSVAEventConfig(uint8_t **payload, size_t *size, uint32_t moduleId, struct detection_engine_generic_event_cfg *pEventConfig);
+    void payloadStreamConfig(uint8_t** payload, size_t* size,
+                             struct gsl_module_id_info* moduleInfo,
+                             int payloadTag, struct sessionToPayloadParam* data);
+    void payloadDeviceEpConfig(uint8_t** payload, size_t* size,
+                               struct gsl_module_id_info* moduleInfo,
+                               int payloadTag, struct sessionToPayloadParam* data,
+                               std::string epName);
+    void payloadDeviceConfig(uint8_t** payload, size_t* size,
+                             struct gsl_module_id_info* moduleInfo,
+                             int payloadTag, struct sessionToPayloadParam* data);
+    void payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId,
+                       struct qal_volume_data *volumedata, int tag);
+    void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId,
+                              struct qal_st_sound_model *soundModel);
+    void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
+                                struct detection_engine_config_voice_wakeup *pWakeUp);
+    void payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
+                    struct detection_engine_voice_wakeup_buffer_config *pBufferConfig);
+    void payloadSVAStreamSetupDuration(uint8_t **payload, size_t *size, uint32_t moduleId,
+                    struct audio_dam_downstream_setup_duration *pSetupDuration);
+    void payloadSVAEventConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
+                       struct detection_engine_generic_event_cfg *pEventConfig);
     void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
     static int init();
     static void endTag(void *userdata __unused, const XML_Char *tag_name);

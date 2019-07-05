@@ -38,7 +38,8 @@ int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader)
     return 0;
 }
 
-size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer, size_t readSize)
+size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader,
+                           void* readBuffer, size_t readSize)
 {
     return 0;
 }
@@ -90,14 +91,16 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
         if (writeOffset_ + sizeToCopy > bufferEnd_) {
             i = bufferEnd_ - writeOffset_;
 
-            memcpy(buffer_ + writeOffset_, writeBuffer, i);
+            casa_osal_memcpy(buffer_ + writeOffset_, i, writeBuffer, i);
             writtenSize += i;
             sizeToCopy -= writtenSize;
-            memcpy(buffer_, (char*)writeBuffer + writtenSize, sizeToCopy);
+            casa_osal_memcpy(buffer_, sizeToCopy, (char*)writeBuffer + writtenSize,
+                             sizeToCopy);
             writtenSize += sizeToCopy;
             writeOffset_ = sizeToCopy;
         } else {
-            memcpy(buffer_ + writeOffset_, writeBuffer, sizeToCopy);
+            casa_osal_memcpy(buffer_ + writeOffset_, sizeToCopy, writeBuffer,
+                             sizeToCopy);
             writeOffset_ += sizeToCopy;
             writtenSize = sizeToCopy;
         }
@@ -123,12 +126,14 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
         unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
 
         if (bufferSize >= unreadSize_) {
-            memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, unreadSize_);
+            casa_osal_memcpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
+                             readOffset_, unreadSize_);
             readOffset_ += unreadSize_;
             readSize = unreadSize_;
             unreadSize_ = 0;
         } else {
-            memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, bufferSize);
+            casa_osal_memcpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
+                             readOffset_, bufferSize);
             readOffset_ += bufferSize;
             readSize = bufferSize;
             unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
@@ -139,30 +144,35 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
         int32_t i = ringBuffer_->bufferEnd_ - readOffset_;
 
         if (bufferSize >= i) {
-            memcpy(readBuffer, (char*)(ringBuffer_->buffer_ + readOffset_), i);
+            casa_osal_memcpy(readBuffer, i, (char*)(ringBuffer_->buffer_ +
+                             readOffset_), i);
             readSize = i;
             freeClientSize -= readSize;
             unreadSize_ = ringBuffer_->writeOffset_;
             readOffset_ = 0;
             //copy remaining unread buffer
             if (freeClientSize > unreadSize_) {
-                memcpy((char *)readBuffer + readSize, ringBuffer_->buffer_, unreadSize_);
+                casa_osal_memcpy((char *)readBuffer + readSize, unreadSize_,
+                                 ringBuffer_->buffer_, unreadSize_);
                 readSize += unreadSize_;
                 readOffset_ = unreadSize_;
                 unreadSize_ = 0;
             } else {
                 //copy whatever we can
-                memcpy((char *)readBuffer + readSize, ringBuffer_->buffer_, freeClientSize);
+                casa_osal_memcpy((char *)readBuffer + readSize, freeClientSize,
+                                 ringBuffer_->buffer_, freeClientSize);
                 readSize += freeClientSize;
                 readOffset_ = freeClientSize;
                 unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
             }
 
         } else {
-            memcpy(readBuffer, ringBuffer_->buffer_ + readOffset_, bufferSize);
+            casa_osal_memcpy(readBuffer, bufferSize, ringBuffer_->buffer_ +
+                             readOffset_, bufferSize);
             readSize = bufferSize;
             readOffset_ += bufferSize;
-            unreadSize_ = ringBuffer_->bufferEnd_ - readOffset_ + ringBuffer_->writeOffset_;
+            unreadSize_ = ringBuffer_->bufferEnd_ - readOffset_ +
+                          ringBuffer_->writeOffset_;
         }
     }
     ringBuffer_->mutex_.unlock();
@@ -186,7 +196,8 @@ void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
 
 QalRingBufferReader* QalRingBuffer::newReader()
 {
-    QalRingBufferReader* readOffset = new QalRingBufferReader((std::shared_ptr<QalRingBuffer>)this);
+    QalRingBufferReader* readOffset =
+                  new QalRingBufferReader((std::shared_ptr<QalRingBuffer>)this);
     readOffsets_.push_back(readOffset);
     return readOffset;
 }

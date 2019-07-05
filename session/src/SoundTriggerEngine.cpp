@@ -35,7 +35,9 @@
 #include "Session.h"
 #include "Stream.h"
 
-SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id,
+                                uint32_t stage_id, QalRingBufferReader **reader,
+                                std::shared_ptr<QalRingBuffer> buffer)
 {
     SoundTriggerEngine *stEngine = NULL;
 

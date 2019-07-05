@@ -38,8 +38,8 @@ class CodecDevice : public Device
 protected:
     std::shared_ptr<Device> devObj;
     int deviceCount = 0;
-    struct audio_route *audioRoute = NULL;           //getAudioRoute() from RM and store
-    struct audio_mixer *audioMixer = NULL;           //getAudioMixer() from RM and store
+    struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
+    struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
     char deviceName[128] = {0};
     void *deviceHandle;
     struct pcm *pcmFd = NULL; //pcm_open fd
@@ -52,7 +52,8 @@ public:
     int start() override;
     int stop() override;
     int prepare() override;
-    static std::shared_ptr<Device> getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
     ~CodecDevice();
 };
 

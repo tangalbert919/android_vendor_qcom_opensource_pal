@@ -116,7 +116,8 @@ int32_t SoundTriggerEngineGsl::start_buffering()
     size_t outputBufNum;
     size_t toWrite = 0;
 
-    streamHandle->getBufInfo(&inputBufSize, &inputBufNum, &outputBufSize, &outputBufNum);
+    streamHandle->getBufInfo(&inputBufSize, &inputBufNum, &outputBufSize,
+                             &outputBufNum);
     memset(&buf, 0, sizeof(struct qal_buffer));
     buf.size = inputBufSize * inputBufNum;
     buf.buffer = (uint8_t *)calloc(1, buf.size);
@@ -155,7 +156,8 @@ int32_t SoundTriggerEngineGsl::start_keyword_detection()
     return status;
 }
 
-SoundTriggerEngineGsl::SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngineGsl::SoundTriggerEngineGsl(Stream *s, uint32_t id,
+    uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
 {
     struct qal_stream_attributes sAttr;
     uint32_t sampleRate;
@@ -179,8 +181,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t st
         QAL_INFO(LOG_TAG, "creating new ring buffer");
         struct qal_stream_attributes sAttr;
         s->getStreamAttributes(&sAttr);
-        if (sAttr.direction == QAL_AUDIO_INPUT)
-        {
+        if (sAttr.direction == QAL_AUDIO_INPUT) {
             sampleRate = sAttr.in_media_config.sample_rate;
             bitWidth = sAttr.in_media_config.bit_width;
             channels = sAttr.in_media_config.ch_info->channels;
@@ -212,7 +213,8 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl()
     QAL_DBG(LOG_TAG, "Exit.");
 }
 
-int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data, uint32_t num_models)
+int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data,
+                                                uint32_t num_models)
 {
     int32_t status = 0;
     struct qal_st_phrase_sound_model *phrase_sm = NULL;
@@ -244,12 +246,14 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data, uint32
                         QAL_ERR(LOG_TAG, "sm_data malloc failed, status %d", status);
                         goto exit;
                     }
-                    memcpy(sm_data, (char *)phrase_sm, sizeof(*phrase_sm));
+                    casa_osal_memcpy(sm_data, sizeof(*phrase_sm), (char *)phrase_sm,
+                                     sizeof(*phrase_sm));
                     common_sm = (struct qal_st_sound_model *)sm_data;
                     common_sm->data_size = big_sm->size;
-                    common_sm->data_offset += sizeof(SML_GlobalHeaderType) + sizeof(SML_HeaderTypeV3) +
+                    common_sm->data_offset += sizeof(SML_GlobalHeaderType) +
+                                              sizeof(SML_HeaderTypeV3) +
                         (num_models * sizeof(SML_BigSoundModelTypeV3)) + big_sm->offset;
-                    memcpy(sm_data + sizeof(*phrase_sm),
+                    casa_osal_memcpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
                            (char *)phrase_sm + common_sm->data_offset,
                            common_sm->data_size);
                     common_sm->data_offset = sizeof(struct qal_st_phrase_sound_model);
@@ -266,8 +270,9 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data, uint32
                 QAL_ERR(LOG_TAG, "sm_data malloc failed, status %d", status);
                 goto exit;
             }
-            memcpy(sm_data, (char *)phrase_sm, sizeof(*phrase_sm));
-            memcpy(sm_data + sizeof(*phrase_sm),
+            casa_osal_memcpy(sm_data, sizeof(*phrase_sm), (char *)phrase_sm,
+                             sizeof(*phrase_sm));
+            casa_osal_memcpy(sm_data + sizeof(*phrase_sm), phrase_sm->common.data_size,
                    (char *)phrase_sm + phrase_sm->common.data_offset,
                    phrase_sm->common.data_size);
         }
@@ -280,14 +285,16 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data, uint32
             QAL_ERR(LOG_TAG, "sm_data malloc failed, status %d", status);
             goto exit;
         }
-        memcpy(sm_data, (char *)common_sm, sizeof(*common_sm));
-        memcpy(sm_data + sizeof(*common_sm),
+        casa_osal_memcpy(sm_data, sizeof(*common_sm), (char *)common_sm,
+                         sizeof(*common_sm));
+        casa_osal_memcpy(sm_data + sizeof(*common_sm), common_sm->data_size,
                (char *)common_sm + common_sm->data_offset,
                common_sm->data_size);
     }
     pSoundModel = (struct qal_st_sound_model *)sm_data;
 
-    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_SOUND_MODEL, (void *)pSoundModel);
+    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_SOUND_MODEL,
+                                   (void *)pSoundModel);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
         goto exit;
@@ -325,25 +332,32 @@ int32_t SoundTriggerEngineGsl::start_recognition(Stream *s)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP, &pWakeUpConfig);
+    status = session->setParameters(streamHandle,
+                                  PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
+                                  &pWakeUpConfig);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
         goto exit;
     }
 
-    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG, &pEventConfig);
+    status = session->setParameters(streamHandle,
+                                    PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG,
+                                    &pEventConfig);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set event config, status = %d", status);
         goto exit;
     }
 
-    status = session->setParameters(streamHandle, PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG, &pBufConfig);
+    status = session->setParameters(streamHandle, PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
+                                    &pBufConfig);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d", status);
         goto exit;
     }
 
-    status = session->setParameters(streamHandle, PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION, pSetupDuration);
+    status = session->setParameters(streamHandle,
+                                   PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION,
+                                   pSetupDuration);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set downstream setup duration, status = %d", status);
         goto exit;
@@ -403,7 +417,7 @@ int32_t SoundTriggerEngineGsl::update_config(Stream *s, struct qal_st_recognitio
         QAL_ERR(LOG_TAG, "Failed to generate wakeup config status %d", status);
         return -EINVAL;
     }
-    QAL_DBG(LOG_TAG, "Enter. config: %p", config);
+    QAL_DBG(LOG_TAG, "Enter. config: %pK", config);
 
     // event mode indicates info provided by DSP when event detected
     // TODO: set this from StreamSoundTrigger
@@ -456,7 +470,7 @@ int32_t SoundTriggerEngineGsl::generate_wakeup_config(struct qal_st_recognition_
     unsigned int user_level, user_id;
     unsigned int i = 0, j = 0;
     unsigned char *conf_levels = NULL;
-    unsigned char *user_id_tracker;
+    unsigned char *user_id_tracker = NULL;
     struct qal_st_phrase_sound_model *phrase_sm = NULL;
 
     phrase_sm = (struct qal_st_phrase_sound_model *)pSoundModel;
@@ -529,18 +543,21 @@ int32_t SoundTriggerEngineGsl::generate_wakeup_config(struct qal_st_recognition_
             if ((user_id < config->num_phrases) ||
                 (user_id >= num_conf_levels)) {
                 status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id, status);
+                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id,
+                        status);
                 goto exit;
             }
             else {
                 if (user_id_tracker[user_id] == 1) {
                     status = -EINVAL;
-                    QAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id, status);
+                    QAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
+                            status);
                     goto exit;
                 }
                 conf_levels[user_id] = (user_level < 100) ? user_level : 100;
                 user_id_tracker[user_id] = 1;
-                QAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",user_id, conf_levels[user_id]);
+                QAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",user_id,
+                            conf_levels[user_id]);
             }
         }
     }

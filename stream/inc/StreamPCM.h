@@ -39,8 +39,10 @@ class Session;
 class StreamPCM : public Stream
 {
 public:
-   StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr, uint32_t no_of_devices,
-            struct modifier_kv *modifiers, uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
+   StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr,
+             uint32_t no_of_devices,
+            struct modifier_kv *modifiers, uint32_t no_of_modifiers,
+            std::shared_ptr<ResourceManager> rm);
    //StreamPCM();
    ~StreamPCM();
    int32_t open() override;

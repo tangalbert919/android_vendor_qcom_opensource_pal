@@ -43,11 +43,13 @@ void SoundTriggerEngineCapiCnn::buffer_thread_loop()
 
     while (!sndEngCapiCnn_->exit_thread_) {
         //sndEngCapiCnn_->exit_buffering_ = false;
-        QAL_VERBOSE(LOG_TAG, "waiting on cond, eventDetected = %d", sndEngCapiCnn_->eventDetected);
+        QAL_VERBOSE(LOG_TAG, "waiting on cond, eventDetected = %d",
+                    sndEngCapiCnn_->eventDetected);
         /* Wait for keyword buffer data from DSP */
         if (!sndEngCapiCnn_->eventDetected)
             sndEngCapiCnn_->cv_.wait(lck);
-        QAL_VERBOSE(LOG_TAG, "done waiting on cond, exit_buffering = %d", sndEngCapiCnn_->exit_buffering_);
+        QAL_VERBOSE(LOG_TAG, "done waiting on cond, exit_buffering = %d",
+                    sndEngCapiCnn_->exit_buffering_);
 
         if (sndEngCapiCnn_->exit_thread_) {
             break;
@@ -136,7 +138,8 @@ int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
         if (readFillSize == 0)
             continue;
 
-        QAL_INFO(LOG_TAG, "Processed : %u, start: %u, end: %u", bytes_processed_, buffer_start_, buffer_end_);
+        QAL_INFO(LOG_TAG, "Processed : %u, start: %u, end: %u", bytes_processed_,
+                 buffer_start_, buffer_end_);
         stream_input->bufs_num = 1;
         stream_input->buf_ptr->max_data_len = buffer_size_;
         stream_input->buf_ptr->actual_data_len = readFillSize;
@@ -211,7 +214,8 @@ int32_t SoundTriggerEngineCapiCnn::prepare_sound_engine()
     return result;
 }
 
-SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id,
+    uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
 {
     int32_t result = 0;
     const char *lib = "libcapiv2svacnn.so";
@@ -292,14 +296,12 @@ SoundTriggerEngineCapiCnn::~SoundTriggerEngineCapiCnn()
     if (sm_params_data)
         free(sm_params_data);
 
-    if (capi_lib_handle_)
-    {
+    if (capi_lib_handle_) {
         dlclose(capi_lib_handle_);
         capi_lib_handle_ = NULL;
     }
 
-    if (capi_handle_)
-    {
+    if (capi_handle_) {
         capi_handle_->vtbl_ptr = NULL;
         free(capi_handle_);
         capi_handle_ = NULL;
@@ -316,7 +318,7 @@ int32_t SoundTriggerEngineCapiCnn::start_sound_engine()
 
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_buf_t capi_buf;
-    sva_threshold_config_t *threshold_cfg;
+    sva_threshold_config_t *threshold_cfg = NULL;
 
     QAL_DBG(LOG_TAG, "Enter.");
     bufferThreadHandler_ = std::thread(SoundTriggerEngineCapiCnn::buffer_thread_loop);
@@ -390,7 +392,8 @@ int32_t SoundTriggerEngineCapiCnn::stop_sound_engine()
     return result;
 }
 
-int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data, uint32_t num_models)
+int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
+                                                    uint32_t num_models)
 {
     int32_t status = 0;
     struct qal_st_phrase_sound_model *phrase_sm = NULL;
@@ -409,22 +412,19 @@ int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data, ui
 
     common_sm = (struct qal_st_sound_model *)data;
     QAL_INFO(LOG_TAG, "Sound model type: %u", common_sm->type);
-    if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE)
-    {
+    if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
         sm_payload = (uint8_t *)common_sm + common_sm->data_offset;
-        for (int i = 0; i < num_models; i++)
-        {
+        for (int i = 0; i < num_models; i++) {
             big_sm = (SML_BigSoundModelTypeV3 *)(sm_payload + sizeof(SML_GlobalHeaderType) +
                 sizeof(SML_HeaderTypeV3) + (i * sizeof(SML_BigSoundModelTypeV3)));
             QAL_INFO(LOG_TAG, "type = %u, size = %u", big_sm->type, big_sm->size);
-            if (big_sm->type != ST_SM_ID_SVA_GMM)
-            {
+            if (big_sm->type != ST_SM_ID_SVA_GMM) {
                 sm_data_size = big_sm->size;
                 uint8_t *ptr = (uint8_t *)(sm_payload + sizeof(SML_GlobalHeaderType) +
                     sizeof(SML_HeaderTypeV3) + (num_models * sizeof(SML_BigSoundModelTypeV3)) +
                     big_sm->offset);
                 sm_data = (uint8_t *)calloc(1, sm_data_size);
-                memcpy(sm_data, ptr, sm_data_size);
+                casa_osal_memcpy(sm_data, sm_data_size, ptr, sm_data_size);
             }
         }
     }
@@ -491,8 +491,7 @@ int32_t SoundTriggerEngineCapiCnn::stop_recognition(Stream *s)
     int32_t status = 0;
 
     status = stop_sound_engine();
-    if (status)
-    {
+    if (status) {
         QAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
         goto exit;
     }
@@ -505,7 +504,8 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiCnn::update_config(Stream *s, struct qal_st_recognition_config *config)
+int32_t SoundTriggerEngineCapiCnn::update_config(Stream *s,
+                                       struct qal_st_recognition_config *config)
 {
     int32_t status = 0;
     size_t config_size;

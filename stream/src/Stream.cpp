@@ -64,23 +64,26 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
 
     if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
         switch (sAttr->type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_DEEP_BUFFER:
-        case QAL_STREAM_GENERIC:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOIP_RX:
-            //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
-            stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-            break;
-        case QAL_STREAM_COMPRESSED:
-            stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-            break;
-        case QAL_STREAM_VOICE_UI:
-            stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers, noOfModifiers, rm);
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "unsupported stream type %x", sAttr->type);
-            break;
+            case QAL_STREAM_LOW_LATENCY:
+            case QAL_STREAM_DEEP_BUFFER:
+            case QAL_STREAM_GENERIC:
+            case QAL_STREAM_VOIP_TX:
+            case QAL_STREAM_VOIP_RX:
+                //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
+                stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers,
+                                   noOfModifiers, rm);
+                break;
+            case QAL_STREAM_COMPRESSED:
+                stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers,
+                                        noOfModifiers, rm);
+                break;
+            case QAL_STREAM_VOICE_UI:
+                stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "unsupported stream type %x", sAttr->type);
+                break;
         }
     } else {
         QAL_ERR(LOG_TAG,"Requested config not supported");
@@ -104,8 +107,10 @@ int32_t  Stream::getStreamAttributes(struct qal_stream_attributes *sAttr)
         QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
-    memcpy(sAttr, attr, sizeof(qal_stream_attributes));
-    QAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d", sAttr->type, sAttr->flags, sAttr->direction);
+    casa_osal_memcpy(sAttr, sizeof(qal_stream_attributes), attr,
+                     sizeof(qal_stream_attributes));
+    QAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d",
+            sAttr->type, sAttr->flags, sAttr->direction);
 
 exit:
     return status;
@@ -120,7 +125,8 @@ int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifi
         QAL_ERR(LOG_TAG, "Invalid modifers pointer, status %d", status);
         goto exit;
     }
-    memcpy (modifiers, modifiers_, sizeof(modifier_kv));
+    casa_osal_memcpy (modifiers, sizeof(modifier_kv), modifiers_,
+                      sizeof(modifier_kv));
     *noOfModifiers = uNoOfModifiers;
     QAL_DBG(LOG_TAG, "noOfModifiers %u", *noOfModifiers);
 exit:
@@ -165,7 +171,7 @@ int32_t  Stream::getAssociatedSession(Session **s)
         goto exit;
     }
     *s = session;
-    QAL_DBG(LOG_TAG, "session %p", *s);
+    QAL_DBG(LOG_TAG, "session %pK", *s);
 exit:
     return status;
 }
@@ -181,12 +187,15 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
     }
     
     if (vdata != NULL) {
-        memcpy(vData, vdata,sizeof(uint32_t) +
+        casa_osal_memcpy(vData,sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)),
+                      vdata, sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)));
 
         QAL_DBG(LOG_TAG, "num config %x", (vdata->no_of_volpair));
         for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
-            QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f", (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+            QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
+                (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
         }
     }
 exit:
@@ -206,15 +215,18 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
     }
     memset (sattr, 0, sizeof(struct qal_stream_attributes));
     QAL_DBG(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
-             in_buf_size, in_buf_count, out_buf_size, out_buf_count);
+            in_buf_size, in_buf_count, out_buf_size,
+            out_buf_count);
 
     inBufCount = in_buf_count;
     outBufCount = out_buf_count;
 
     status = getStreamAttributes(sattr);
     if (sattr->direction == QAL_AUDIO_OUTPUT) {
-        outBufSize = (sattr->out_media_config.bit_width) * (sattr->out_media_config.ch_info->channels) * 32;
-        nBlockAlign = ((sattr->out_media_config.bit_width) / 8) * (sattr->out_media_config.ch_info->channels);
+        outBufSize = (sattr->out_media_config.bit_width) *
+                     (sattr->out_media_config.ch_info->channels) * 32;
+        nBlockAlign = ((sattr->out_media_config.bit_width) / 8) *
+                      (sattr->out_media_config.ch_info->channels);
         QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
@@ -225,7 +237,8 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         *out_buf_size = outBufSize;
     } else {
         //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info->channels) * 32;
-        nBlockAlign = ((sattr->in_media_config.bit_width) / 8) * (sattr->in_media_config.ch_info->channels);
+        nBlockAlign = ((sattr->in_media_config.bit_width) / 8) *
+                      (sattr->in_media_config.ch_info->channels);
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
         if ((inBufSize % nBlockAlign) != 0) {
@@ -245,6 +258,7 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
     *out_buf_size = outBufSize;
     *out_buf_count = outBufCount;
     QAL_VERBOSE(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
-                                            *in_buf_size,*in_buf_count,*out_buf_size,*out_buf_count);
+                *in_buf_size,*in_buf_count,
+                *out_buf_size,*out_buf_count);
     return status;
 }
