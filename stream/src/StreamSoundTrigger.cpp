@@ -867,6 +867,7 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         (*event)->data_offset = sizeof(struct qal_st_phrase_recognition_event);
         (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
         (*event)->media_config.bit_width = BITWIDTH_16;
+        (*event)->media_config.ch_info = (struct qal_channel_info *)malloc(sizeof(struct qal_channel_info));
         (*event)->media_config.ch_info->channels = CHANNEL1;
         (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
     }
