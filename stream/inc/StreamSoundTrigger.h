@@ -209,8 +209,7 @@ private:
     uint32_t recognition_mode;
     uint8_t *sm_data;                   //This needs to be moved down to individual classes
     struct qal_st_recognition_config *sm_rc_config;
-    uint8_t* conf_levels_payload;       //confidence Level
-    uint32_t num_of_conf_levels;        //these 2 need to be moved down to SM classes
+    struct qal_st_recognition_event *recEvent;
     struct detection_event_info detectionEventInfo;
     /* functions*/
     int32_t parse_sound_model(struct qal_st_sound_model *sm_data);
@@ -218,5 +217,6 @@ private:
     int32_t generate_recognition_config_payload(unsigned char **out_payload, unsigned int *out_payload_size); //Need to track the buffer where the payload is allocated
     static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle, uint32_t event_id, uint32_t *event_data, void *cookie);
     int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
+    int32_t generate_callback_event(struct qal_st_recognition_event **event);
 };
 #endif//STREAMSOUNDTRIGGER_H_

@@ -403,8 +403,9 @@ struct qal_st_recognition_config {
                                                 instance */
     uint32_t      num_phrases;                /**< number of key phrases recognition extras */
     struct qal_st_phrase_recognition_extra phrases[QAL_SOUND_TRIGGER_MAX_PHRASES];
-	                                          /**< configuration for each key phrase */
-	qal_st_recognition_callback_t callback;	  /**<callback for recognition events */
+                                              /**< configuration for each key phrase */
+    qal_st_recognition_callback_t callback;   /**< callback for recognition events */
+    void *        cookie;                     /**< cookie set from client*/
     uint32_t      data_size;                  /**< size of opaque capture configuration data */
     uint32_t      data_offset;                /**< offset of opaque data start from start of this struct
                                               (e.g sizeof struct sound_trigger_recognition_config) */
