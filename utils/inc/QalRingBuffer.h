@@ -59,6 +59,7 @@ public:
     size_t advanceReadOffset(size_t advanceSize);
     size_t read(void* readBuffer, size_t readSize);
     void updateState(qal_ring_buffer_reader_state state);
+    size_t getUnreadSize();
     QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
         readOffset_(0),
         unreadSize_(0),

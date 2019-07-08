@@ -27,31 +27,30 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "SoundTriggerEngineCapiCnn"
+#define LOG_TAG "SoundTriggerEngineCapiVop"
 
-#include "SoundTriggerEngineCapiCnn.h"
+#include "SoundTriggerEngineCapiVop.h"
 #include "StreamSoundTrigger.h"
 #include <dlfcn.h>
 #include "Stream.h"
+#include <fstream>
 
-std::shared_ptr<SoundTriggerEngineCapiCnn> SoundTriggerEngineCapiCnn::sndEngCapiCnn_ = NULL;
+std::shared_ptr<SoundTriggerEngineCapiVop> SoundTriggerEngineCapiVop::sndEngCapiVop_ = NULL;
 
-void SoundTriggerEngineCapiCnn::buffer_thread_loop()
+void SoundTriggerEngineCapiVop::buffer_thread_loop()
 {
-    QAL_DBG(LOG_TAG, "Enter.");
-    std::unique_lock<std::mutex> lck(sndEngCapiCnn_->mutex_);
+    std::unique_lock<std::mutex> lck(sndEngCapiVop_->mutex_);
 
-    while (!sndEngCapiCnn_->exit_thread_) {
-        //sndEngCapiCnn_->exit_buffering_ = false;
-        QAL_VERBOSE(LOG_TAG, "waiting on cond, eventDetected = %d",
-                    sndEngCapiCnn_->eventDetected);
+    while (!sndEngCapiVop_->exit_thread_)
+    {
+        sndEngCapiVop_->exit_buffering_ = false;
+        QAL_VERBOSE(LOG_TAG,"waiting on cond, eventDetected = %d", sndEngCapiVop_->eventDetected);
         /* Wait for keyword buffer data from DSP */
-        if (!sndEngCapiCnn_->eventDetected)
-            sndEngCapiCnn_->cv_.wait(lck);
-        QAL_VERBOSE(LOG_TAG, "done waiting on cond, exit_buffering = %d",
-                    sndEngCapiCnn_->exit_buffering_);
+        if (!sndEngCapiVop_->eventDetected)
+            sndEngCapiVop_->cv_.wait(lck);
+        QAL_VERBOSE(LOG_TAG,"done waiting on cond, exit_buffering = %d", sndEngCapiVop_->exit_buffering_);
 
-        if (sndEngCapiCnn_->exit_thread_) {
+        if (sndEngCapiVop_->exit_thread_) {
             break;
         }
 
@@ -61,14 +60,14 @@ void SoundTriggerEngineCapiCnn::buffer_thread_loop()
         * for the next detection.
         */
         /* we might be able to check states of the engine to avoid this buffering flag */
-        if (sndEngCapiCnn_->exit_buffering_) {
+        if (sndEngCapiVop_->exit_buffering_)
+        {
             continue; /* skip over processing if we want to exit already*/
         }
 
-        if (sndEngCapiCnn_->eventDetected)
-            sndEngCapiCnn_->start_keyword_detection();
+        if (sndEngCapiVop_->eventDetected)
+            sndEngCapiVop_->start_keyword_detection();
     }
-    QAL_DBG(LOG_TAG, "Exit.");
 }
 
 
@@ -78,44 +77,66 @@ static uint32_t us_to_bytes(uint64_t input_us)
             (BITS_PER_BYTE * US_PER_SEC));
 }
 
-int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
+int32_t SoundTriggerEngineCapiVop::start_keyword_detection()
 {
     int32_t result = 0;
 
     char *process_input_buff = NULL;
     capi_v2_err_t rc;
     capi_v2_stream_data_t *stream_input = NULL;
-    sva_result_t *result_cfg_ptr = NULL;
+    capi_v2_buf_t capi_uv_ptr;
+    voiceprint2_result_t *result_cfg_ptr = NULL;
+    voiceprint2_sva_uv_score_t *uv_cfg_ptr = NULL;
     unsigned int det_status = 0;
     int32_t readFillSize = 0;
     capi_v2_buf_t capi_result;
 
-    QAL_DBG(LOG_TAG, "Enter.");
     process_input_buff = (char*)calloc(1, buffer_size_);
     if (!process_input_buff) {
+        QAL_ERR(LOG_TAG,"failed to allocate process_input_buff");
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to allocate process_input_buff, result %d", result);
         goto exit;
     }
 
     stream_input = (capi_v2_stream_data_t *)calloc(1, sizeof(capi_v2_stream_data_t));
     if (!stream_input) {
+        QAL_ERR(LOG_TAG,"failed to allocate stream_input");
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to allocate stream_input, result %d", result);
         goto exit;
     }
 
     stream_input->buf_ptr = (capi_v2_buf_t*)calloc(1, sizeof(capi_v2_buf_t));
     if (!stream_input->buf_ptr) {
+        QAL_ERR(LOG_TAG,"failed to allocate stream_input->buf_ptr");
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to allocate stream_input->buf_ptr, result %d", result);
         goto exit;
     }
 
-    result_cfg_ptr = (sva_result_t*)calloc(1, sizeof(sva_result_t));
+    result_cfg_ptr = (voiceprint2_result_t*)calloc(1, sizeof(voiceprint2_result_t));
     if (!result_cfg_ptr) {
+        QAL_ERR(LOG_TAG, "failed to allocate result_cfg_ptr");
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to allocate result_cfg_ptr result %d", result);
+        goto exit;
+    }
+
+    uv_cfg_ptr = (voiceprint2_sva_uv_score_t *)calloc(1, sizeof(voiceprint2_sva_uv_score_t));
+    if (!uv_cfg_ptr) {
+        QAL_ERR(LOG_TAG, "failed to allocate uv_cfg_ptr");
+        result = -ENOMEM;
+        goto exit;
+    }
+
+    uv_cfg_ptr->sva_uv_confidence_score = confidence_score_;
+    capi_uv_ptr.data_ptr = (int8_t *)uv_cfg_ptr;
+    capi_uv_ptr.actual_data_len = sizeof(voiceprint2_sva_uv_score_t);
+    capi_uv_ptr.max_data_len = sizeof(voiceprint2_sva_uv_score_t);
+
+    QAL_VERBOSE(LOG_TAG, "Issuing capi_set_param for param %d", VOICEPRINT2_ID_SVA_UV_SCORE);
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+        VOICEPRINT2_ID_SVA_UV_SCORE, NULL, &capi_uv_ptr);
+    if (CAPI_V2_EOK != rc) {
+        QAL_ERR(LOG_TAG, "set_param VOICEPRINT2_ID_SVA_UV_SCORE failed, result = %d", rc);
+        result = -EINVAL;
         goto exit;
     }
 
@@ -126,7 +147,8 @@ int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
         buffer_start_ = us_to_bytes(kw_start_timestamp_);
 
     while (!exit_buffering_ &&
-        (bytes_processed_ < buffer_end_ - buffer_start_)) {
+        (bytes_processed_ < buffer_end_ - buffer_start_))
+    {
         /* Original code had some time of wait will need to revisit*/
         /* need to take into consideration the start and end buffer*/
 
@@ -140,47 +162,48 @@ int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
         readFillSize = reader_->read((void*)process_input_buff, buffer_size_);
         if (readFillSize == 0)
             continue;
-
-        QAL_INFO(LOG_TAG, "Processed : %u, start: %u, end: %u", bytes_processed_,
-                 buffer_start_, buffer_end_);
+        QAL_INFO(LOG_TAG, "Processed : %u, start: %u, end: %u", bytes_processed_, buffer_start_, buffer_end_);
         stream_input->bufs_num = 1;
         stream_input->buf_ptr->max_data_len = buffer_size_;
         stream_input->buf_ptr->actual_data_len = readFillSize;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
-        QAL_VERBOSE(LOG_TAG, "Calling Capi Process");
+        QAL_VERBOSE(LOG_TAG, "Calling Capi Process\n", __func__);
 
         rc = capi_handle_->vtbl_ptr->process(capi_handle_, &stream_input, NULL);
 
-        if (CAPI_V2_EFAILED == rc) {
+        if (CAPI_V2_EFAILED == rc)
+        {
+            QAL_ERR(LOG_TAG, "capi process failed\n");
             result = -EINVAL;
-            QAL_ERR(LOG_TAG, "capi process failed, result %d", result);
             goto exit;
         }
 
         bytes_processed_ += readFillSize;
 
         capi_result.data_ptr = (int8_t*)result_cfg_ptr;
-        capi_result.actual_data_len = sizeof(sva_result_t);
-        capi_result.max_data_len = sizeof(sva_result_t);
+        capi_result.actual_data_len = sizeof(voiceprint2_result_t);
+        capi_result.max_data_len = sizeof(voiceprint2_result_t);
 
-        QAL_VERBOSE(LOG_TAG, "Calling Capi get param for result");
+        QAL_VERBOSE(LOG_TAG, "Calling Capi get param for result\n");
 
-        rc = capi_handle_->vtbl_ptr->get_param(capi_handle_, SVA_ID_RESULT, NULL,
+        rc = capi_handle_->vtbl_ptr->get_param(capi_handle_, VOICEPRINT2_ID_RESULT, NULL,
             &capi_result);
 
-        if (CAPI_V2_EFAILED == rc) {
+        if (CAPI_V2_EFAILED == rc)
+        {
+            QAL_ERR(LOG_TAG, "capi get param failed\n");
             result = -EINVAL;
-            QAL_ERR(LOG_TAG, "capi get param failed, result %d", result);
             goto exit;
         }
 
-        if (result_cfg_ptr->is_detected) {
+        if (result_cfg_ptr->is_detected)
+        {
             exit_buffering_ = true;
 
             // TODO: Notify StreamSoundTrigger
             StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(streamHandle);
-            s->setDetectionState(CNN_DETECTED);
+            s->setDetectionState(VOP_DETECTED);
             reader_->updateState(READER_DISABLED);
             eventDetected = false;
             //we detected the keyword using second stage
@@ -189,26 +212,26 @@ int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
             //pieces of info
             QAL_INFO(LOG_TAG, "KW Second Stage Detected")
         }
+        exit_buffering_ = true;
     }
-    QAL_DBG(LOG_TAG, "Exit. result %d", result);
-    goto exit;
 
 exit:
     if (process_input_buff)
         free(process_input_buff);
-    if (stream_input) {
+    if (stream_input)
+    {
         if (stream_input->buf_ptr)
             free(stream_input->buf_ptr);
         free(stream_input);
     }
     if (result_cfg_ptr)
         free(result_cfg_ptr);
-    //TODO: add code to handle unwind
+    // add code to handle unwind
     return result;
 }
 
 
-int32_t SoundTriggerEngineCapiCnn::prepare_sound_engine()
+int32_t SoundTriggerEngineCapiVop::prepare_sound_engine()
 {
     int32_t result = 0;
 
@@ -217,16 +240,11 @@ int32_t SoundTriggerEngineCapiCnn::prepare_sound_engine()
     return result;
 }
 
-SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id,
-    uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer)
 {
     int32_t result = 0;
-    const char *lib = "libcapiv2svacnn.so";
-    capi_v2_proplist_t init_set_proplist;
-    capi_v2_prop_t sm_prop_ptr;
-    capi_v2_err_t rc;
-    QAL_DBG (LOG_TAG, "Enter.");
-    sndEngCapiCnn_ = (std::shared_ptr<SoundTriggerEngineCapiCnn>)this;
+    const char *lib = "libcapiv2vop.so";
+    sndEngCapiVop_ = (std::shared_ptr<SoundTriggerEngineCapiVop>)this;
 
     engineId = id;
     stageId = stage_id;
@@ -244,9 +262,10 @@ SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id,
     buffer_end_ = 0;
     bytes_processed_ = 0;
 
-    capi_handle_ = (capi_v2_t *)calloc(1, sizeof(capi_v2_t)+sizeof(char *));
+    capi_handle_ = (capi_v2_t *)calloc(1, sizeof(capi_v2_t) + (3 * sizeof(char *)));
 
-    if (!capi_handle_) {
+    if (!capi_handle_)
+    {
         result = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to allocate capi handle = %d", result);
         /* handle here */
@@ -254,9 +273,10 @@ SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id,
     }
 
     capi_lib_handle_ = dlopen(lib, RTLD_NOW);
-    if (!capi_lib_handle_) {
+    if (!capi_lib_handle_)
+    {
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG,  "failed to open capi so = %d", result);
+        QAL_ERR(LOG_TAG, "failed to open capi so = %d", result);
         /* handle here */
         goto err_exit;
     }
@@ -265,23 +285,22 @@ SoundTriggerEngineCapiCnn::SoundTriggerEngineCapiCnn(Stream *s, uint32_t id,
 
     capi_init = (capi_v2_init_f)dlsym(capi_lib_handle_, "capi_v2_init");
 
-    if (!capi_init) {
-        QAL_ERR(LOG_TAG,  "failed to map capi init function = %d", result);
+    if (!capi_init)
+    {
+        QAL_ERR(LOG_TAG, "failed to map capi init function = %d", result);
         /* handle here */
         goto err_exit;
     }
 
-    if (!capi_handle_) {
-        result = -EINVAL;
-        QAL_ERR(LOG_TAG, "capi_handle is NULL, exiting result %d", result);
-        goto err_exit;
-    }
     streamHandle = s;
-    if (!buffer) {
+    if (!buffer)
+    {
         buffer_ = new QalRingBuffer(DEFAULT_QAL_RING_BUFFER_SIZE);
         reader_ = NULL;
         *reader = buffer_->newReader();
-    } else {
+    }
+    else
+    {
         buffer_ = NULL;
         reader_ = buffer->newReader();
     }
@@ -290,79 +309,77 @@ err_exit:
     QAL_ERR(LOG_TAG, "constructor exit result = %d", result);
 }
 
-SoundTriggerEngineCapiCnn::~SoundTriggerEngineCapiCnn()
+SoundTriggerEngineCapiVop::~SoundTriggerEngineCapiVop()
 {
-    QAL_DBG(LOG_TAG,"Enter.");
     if (sm_data)
         free(sm_data);
 
     if (sm_params_data)
         free(sm_params_data);
 
-    if (capi_lib_handle_) {
+    if (capi_lib_handle_)
+    {
         dlclose(capi_lib_handle_);
         capi_lib_handle_ = NULL;
     }
 
-    if (capi_handle_) {
+    if (capi_handle_)
+    {
         capi_handle_->vtbl_ptr = NULL;
         free(capi_handle_);
         capi_handle_ = NULL;
     }
-    QAL_DBG(LOG_TAG, "Exit.");
 }
 
-int32_t SoundTriggerEngineCapiCnn::start_sound_engine()
+int32_t SoundTriggerEngineCapiVop::start_sound_engine()
 {
     int32_t result = 0;
-    eventDetected = false;
-    exit_thread_ = false;
-    exit_buffering_ = false;
 
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_buf_t capi_buf;
-    sva_threshold_config_t *threshold_cfg = NULL;
+    voiceprint2_threshold_config_t *threshold_cfg;
 
-    QAL_DBG(LOG_TAG, "Enter.");
-    bufferThreadHandler_ = std::thread(SoundTriggerEngineCapiCnn::buffer_thread_loop);
+    bufferThreadHandler_ = std::thread(SoundTriggerEngineCapiVop::buffer_thread_loop);
 
-    if (!bufferThreadHandler_.joinable()) {
+    if (!bufferThreadHandler_.joinable())
+    {
         result = -EINVAL;
         QAL_ERR(LOG_TAG, "failed to create buffer thread = %d", result);
         goto exit;
     }
 
-    threshold_cfg = (sva_threshold_config_t*) calloc(1, sizeof(sva_threshold_config_t));
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+                VOICEPRINT2_ID_REINIT, NULL, NULL);
+    if (CAPI_V2_EOK != rc)
+    {
+        result = -EINVAL;
+        QAL_ERR(LOG_TAG,"set_param VOICEPRINT2_ID_REINIT failed, result = %d", result);
+        goto exit;
+    }
+
+    threshold_cfg = (voiceprint2_threshold_config_t *)calloc(1, sizeof(voiceprint2_threshold_config_t));
     if (!threshold_cfg) {
+        QAL_ERR(LOG_TAG, "failed to allocate threshold_cfg");
         result = -ENOMEM;
-        QAL_ERR(LOG_TAG, "threshold_cfg calloc failed, result %d", result);
         goto exit;
     }
-    capi_buf.data_ptr = (int8_t*) threshold_cfg;
-    capi_buf.actual_data_len = sizeof(sva_threshold_config_t);
-    capi_buf.max_data_len = sizeof(sva_threshold_config_t);
-    threshold_cfg->smm_threshold = confidence_threshold_;
-    QAL_VERBOSE( LOG_TAG, "Keyword detection (CNN) confidence level = %d",
-        confidence_threshold_);
 
-    result = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-                SVA_ID_THRESHOLD_CONFIG, NULL, &capi_buf);
+    capi_buf.data_ptr = (int8_t *)threshold_cfg;
+    capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
+    capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
+    threshold_cfg->user_verification_threshold = confidence_threshold_;
+    QAL_VERBOSE(LOG_TAG, "Keyword detection (VOP) confidence level = %d", confidence_threshold_);
 
-    if (CAPI_V2_EOK != result) {
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+             VOICEPRINT2_ID_THRESHOLD_CONFIG, NULL, &capi_buf);
+
+    if (CAPI_V2_EOK != rc)
+    {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG, "set_param SVA_ID_THRESHOLD_CONFIG failed, result = %d", result);
+        QAL_ERR(LOG_TAG,"set_param VOICEPRINT2_ID_THRESHOLD_CONFIG failed, result = %d", rc);
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Issuing capi_set_param for param %d", SVA_ID_REINIT_ALL);
-    result = capi_handle_->vtbl_ptr->set_param(capi_handle_,SVA_ID_REINIT_ALL, NULL, NULL);
-
-    if (CAPI_V2_EOK != result) {
-        result = -EINVAL;
-        QAL_ERR(LOG_TAG, "set_param SVA_ID_REINIT_ALL failed, result = %d", result);
-        goto exit;
-    }
-    QAL_DBG(LOG_TAG, "Exit. result %d", result);
 exit:
     if (threshold_cfg)
         free(threshold_cfg);
@@ -370,33 +387,34 @@ exit:
     return result;
 }
 
-int32_t SoundTriggerEngineCapiCnn::stop_sound_engine()
+int32_t SoundTriggerEngineCapiVop::stop_sound_engine()
 {
     int32_t result = 0;
     capi_v2_err_t rc;
 
-    QAL_DBG(LOG_TAG, "Enter. Issuing capi_end");
+    QAL_VERBOSE(LOG_TAG,"%s: Issuing capi_end", __func__);
     result = capi_handle_->vtbl_ptr->end(capi_handle_);
-    if (result != CAPI_V2_EOK) {
+    if (result != CAPI_V2_EOK)
+    {
         QAL_ERR(LOG_TAG, "Capi end function failed, result = %d",
             result);
+
         result = -EINVAL;
     }
     {
         eventDetected = false;
-        std::lock_guard<std::mutex> lck(sndEngCapiCnn_->mutex_);
+        std::lock_guard<std::mutex> lck(sndEngCapiVop_->mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;
 
         cv_.notify_one();
     }
     bufferThreadHandler_.join();
-    QAL_DBG(LOG_TAG, "Exit. result %d", result);
+
     return result;
 }
 
-int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
-                                                    uint32_t num_models)
+int32_t SoundTriggerEngineCapiVop::load_sound_model(Stream *s, uint8_t *data, uint32_t num_models)
 {
     int32_t status = 0;
     struct qal_st_phrase_sound_model *phrase_sm = NULL;
@@ -407,27 +425,31 @@ int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
     capi_v2_prop_t sm_prop_ptr;
     capi_v2_err_t rc;
 
-    if (!data) {
+    if (!data || num_models <= 1)
+    {
+        QAL_ERR(LOG_TAG, "Invalid sound model data");
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid sound model data, status %d", status);
         goto exit;
     }
 
     common_sm = (struct qal_st_sound_model *)data;
     QAL_INFO(LOG_TAG, "Sound model type: %u", common_sm->type);
-    if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+    if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE)
+    {
         sm_payload = (uint8_t *)common_sm + common_sm->data_offset;
-        for (int i = 0; i < num_models; i++) {
+        for (int i = 0; i < num_models; i++)
+        {
             big_sm = (SML_BigSoundModelTypeV3 *)(sm_payload + sizeof(SML_GlobalHeaderType) +
                 sizeof(SML_HeaderTypeV3) + (i * sizeof(SML_BigSoundModelTypeV3)));
             QAL_INFO(LOG_TAG, "type = %u, size = %u", big_sm->type, big_sm->size);
-            if (big_sm->type == ST_SM_ID_SVA_CNN) {
+            if (big_sm->type == ST_SM_ID_SVA_VOP)
+            {
                 sm_data_size = big_sm->size;
                 uint8_t *ptr = (uint8_t *)(sm_payload + sizeof(SML_GlobalHeaderType) +
                     sizeof(SML_HeaderTypeV3) + (num_models * sizeof(SML_BigSoundModelTypeV3)) +
                     big_sm->offset);
                 sm_data = (uint8_t *)calloc(1, sm_data_size);
-                casa_osal_memcpy(sm_data, sm_data_size, ptr, sm_data_size);
+                memcpy(sm_data, ptr, sm_data_size);
             }
         }
     }
@@ -443,18 +465,24 @@ int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
     rc = capi_init(capi_handle_, &init_set_proplist);
 
     if (rc != CAPI_V2_EOK) {
+        QAL_ERR(LOG_TAG, "capi_init result is %d, exiting", rc);
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "capi_init result is %d, exiting, status %d",  rc, status);
         goto exit;
     }
 
-    if (!(capi_handle_->vtbl_ptr)) {
+    if (NULL == capi_handle_) {
+        QAL_ERR(LOG_TAG, "capi_handle is NULL, exiting");
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "capi_handle->vtbl_ptr is NULL, exiting, status %d", status);
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Exit. Load sound model success");
+    if (NULL == capi_handle_->vtbl_ptr) {
+        QAL_ERR(LOG_TAG, "capi_handle->vtbl_ptr is NULL, exiting");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "Load sound model success");
     return status;
 
 exit:
@@ -462,7 +490,7 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiCnn::unload_sound_model(Stream *s)
+int32_t SoundTriggerEngineCapiVop::unload_sound_model(Stream *s)
 {
     int32_t status = 0;
 
@@ -471,12 +499,13 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiCnn::start_recognition(Stream *s)
+int32_t SoundTriggerEngineCapiVop::start_recognition(Stream *s)
 {
     int32_t status = 0;
 
     status = start_sound_engine();
-    if (0 != status) {
+    if (status)
+    {
         QAL_ERR(LOG_TAG, "Failed to start sound engine, status = %d", status);
         goto exit;
     }
@@ -489,12 +518,13 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiCnn::stop_recognition(Stream *s)
+int32_t SoundTriggerEngineCapiVop::stop_recognition(Stream *s)
 {
     int32_t status = 0;
 
     status = stop_sound_engine();
-    if (status) {
+    if (status)
+    {
         QAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
         goto exit;
     }
@@ -507,33 +537,40 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiCnn::update_config(Stream *s,
-                                       struct qal_st_recognition_config *config)
+int32_t SoundTriggerEngineCapiVop::update_config(Stream *s, struct qal_st_recognition_config *config)
 {
     int32_t status = 0;
     size_t config_size;
-    if (!config) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid config, status %d", status);
-        return status;
+    if (!config)
+    {
+        QAL_ERR(LOG_TAG, "Invalid config");
+        return -EINVAL;
     }
 
-    confidence_threshold_ = 20;
-    QAL_VERBOSE(LOG_TAG, "update config success, status %d", status);
+    confidence_threshold_ = config->phrases[0].levels[0].level;
+    QAL_INFO(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
+    QAL_VERBOSE(LOG_TAG, "update config success");
     return status;
 }
 
-void SoundTriggerEngineCapiCnn::setDetected(bool detected)
+void SoundTriggerEngineCapiVop::setDetected(bool detected)
 {
-    QAL_DBG(LOG_TAG, "setDetected %d", detected);
-    std::lock_guard<std::mutex> lck(sndEngCapiCnn_->mutex_);
-    if (detected != eventDetected) {
+    QAL_INFO(LOG_TAG, "setDetected %d", detected);
+    std::lock_guard<std::mutex> lck(sndEngCapiVop_->mutex_);
+    if (detected != eventDetected)
+    {
         // TODO: update indices/timestamp info also
         // for now we just estimate the values
         eventDetected = detected;
         QAL_INFO(LOG_TAG, "eventDetected set to %d", detected);
         cv_.notify_one();
+
+        struct detection_event_info *info = NULL;
+        StreamSoundTrigger *str = dynamic_cast<StreamSoundTrigger *>(streamHandle);
+        str->getDetectionEventInfo(&info);
+        confidence_score_ = info->confidence_levels[1];
     }
     else
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
 }
+

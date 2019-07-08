@@ -32,26 +32,37 @@
 #include "SoundTriggerEngine.h"
 #include "SoundTriggerEngineGsl.h"
 #include "SoundTriggerEngineCapiCnn.h"
+#include "SoundTriggerEngineCapiVop.h"
 #include "Session.h"
 #include "Stream.h"
 
-SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, uint32_t id,
-                                uint32_t stage_id, QalRingBufferReader **reader,
-                                std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, listen_model_indicator_enum type,
+                                               QalRingBufferReader **reader,
+                                               std::shared_ptr<QalRingBuffer> buffer)
 {
     SoundTriggerEngine *stEngine = NULL;
+    uint32_t id;
 
     if (!s) {
         QAL_ERR(LOG_TAG, "Invalid stream handle");
         goto exit;
     }
 
-    if (stage_id == 0)
-        // first stage on GECKO
-        stEngine = new SoundTriggerEngineGsl(s, id, stage_id, reader, buffer);
-    else
-        // second stage on ARM
-        stEngine = new SoundTriggerEngineCapiCnn(s, id, stage_id, reader, buffer);
+    id = static_cast<uint32_t>(type);
+    switch (type) {
+        case ST_SM_ID_SVA_GMM:
+            stEngine = new SoundTriggerEngineGsl(s, id, id, reader, buffer);
+            break;
+        case ST_SM_ID_SVA_CNN:
+            stEngine = new SoundTriggerEngineCapiCnn(s, id, id, reader, buffer);
+            break;
+        case ST_SM_ID_SVA_VOP:
+            stEngine = new SoundTriggerEngineCapiVop(s, id, id, reader, buffer);
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid model type: %u", id);
+            goto exit;
+    }
 
     // TODO: register engine to RM if it is newly created
 exit:

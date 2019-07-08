@@ -50,6 +50,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     dev = nullptr;
     reader_ = NULL;
     recEvent = NULL;
+    detectionState = ENGINE_IDLE;
+    notificationState = GMM_DETECTED;
     memset(&detectionEventInfo, 0, sizeof(struct detection_event_info));
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
@@ -291,7 +293,12 @@ int32_t StreamSoundTrigger::read(struct qal_buffer* buf)
     int32_t size;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mutex.lock();
-    size = reader_->read(buf->buffer, buf->size);
+    if (reader_)
+        size = reader_->read(buf->buffer, buf->size);
+    else {
+        QAL_ERR(LOG_TAG, "Failed to read data as no valid reader present");
+        return -EINVAL;
+    }
     mutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
@@ -415,111 +422,6 @@ exit:
     return status;
 }
 
-int32_t StreamSoundTrigger::generate_recognition_config_payload(
-                    unsigned char **out_payload, unsigned int *out_payload_size)
-{
-    int status = 0;
-    unsigned int num_conf_levels = 0;
-    unsigned int user_level, user_id;
-    unsigned int i = 0, j = 0;
-    unsigned char *conf_levels = NULL;
-    unsigned char *user_id_tracker;
-    struct qal_st_phrase_sound_model *phrase_sm = NULL;
-
-    phrase_sm = (struct qal_st_phrase_sound_model *) sm_data;
-
-    QAL_DBG(LOG_TAG, "Enter.");
-
-    if (!phrase_sm || !sm_rc_config) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "invalid input status %d", status);
-        goto exit;
-    }
-
-    if ((sm_rc_config->num_phrases == 0) ||
-        (sm_rc_config->num_phrases > phrase_sm->num_phrases)) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid phrase data status %d", status);
-        goto exit;
-    }
-
-    for (i = 0; i < sm_rc_config->num_phrases; i++) {
-        num_conf_levels++;
-        for (j = 0; j < sm_rc_config->phrases[i].num_levels; j++)
-            num_conf_levels++;
-    }
-
-    conf_levels = (unsigned char*)calloc(1, num_conf_levels);
-    if (!conf_levels) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to alllocate conf_levels status %d", status);
-        goto exit;
-    }
-
-    user_id_tracker = (unsigned char *) calloc(1, num_conf_levels);
-    if (!user_id_tracker) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d", status);
-        free(conf_levels);
-        goto exit;
-    }
-
-    /* for debug */
-    for (i = 0; i < sm_rc_config->num_phrases; i++) {
-        QAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
-        sm_rc_config->phrases[i].confidence_level);
-        for (j = 0; j < sm_rc_config->phrases[i].num_levels; j++) {
-            QAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
-                        sm_rc_config->phrases[i].levels[j].user_id,
-                        sm_rc_config->phrases[i].levels[j].level);
-        }
-    }
-
-/* Example: Say the recognition structure has 3 keywords with users
-        [0] k1 |uid|
-                [0] u1 - 1st trainer
-                [1] u2 - 4th trainer
-                [3] u3 - 3rd trainer
-        [1] k2
-                [2] u2 - 2nd trainer
-                [4] u3 - 5th trainer
-        [2] k3
-                [5] u4 - 6th trainer
-
-      Output confidence level array will be
-      [k1, k2, k3, u1k1, u2k1, u2k2, u3k1, u3k2, u4k3]
-*/
-    for (i = 0; i < sm_rc_config->num_phrases; i++) {
-        conf_levels[i] = sm_rc_config->phrases[i].confidence_level;
-        for (j = 0; j < sm_rc_config->phrases[i].num_levels; j++) {
-            user_level = sm_rc_config->phrases[i].levels[j].level;
-            user_id = sm_rc_config->phrases[i].levels[j].user_id;
-            if ((user_id < sm_rc_config->num_phrases) ||
-                (user_id >= num_conf_levels)) {
-                status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id,
-                        status);
-                goto exit;
-            } else {
-                if (user_id_tracker[user_id] == 1) {
-                    status = -EINVAL;
-                    QAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
-                            status);
-                    goto exit;
-                }
-                conf_levels[user_id] = (user_level < 100) ? user_level : 100;
-                user_id_tracker[user_id] = 1;
-                QAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",
-                            user_id, conf_levels[user_id]);
-            }
-        }
-    }
-
-    QAL_DBG(LOG_TAG, "Exit. status - %d", status);
-exit:
-    return status;
-}
-
 //TODO:	- look into how cookies are used here
 int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc_config){
     int32_t status = 0;
@@ -551,8 +453,6 @@ int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc
     casa_osal_memcpy((uint8_t *)sm_rc_config + rc_config->data_offset, rc_config->data_size,
                  (uint8_t *)rc_config + rc_config->data_offset, rc_config->data_size);
 
-    status = generate_recognition_config_payload(out_payload,out_payload_size);
-
     QAL_DBG(LOG_TAG, "Exit. status - %d", status);
 exit:
     return status;
@@ -578,29 +478,12 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
             QAL_ERR(LOG_TAG, "Failed to parse sound model status %d", status);
             goto exit;
         }
-        for (int i = 0; i < stages; i++) {
-            // TODO: Generate unique stage id
-            uint32_t id = i;
 
-            SoundTriggerEngine *stEngine = NULL;
-            if (!reader_)
-                stEngine = SoundTriggerEngine::create(this, id, i, &reader_, NULL);
-            else
-                stEngine = SoundTriggerEngine::create(this, id, i, &reader_,
-                           reader_->ringBuffer_);
-            if (!stEngine || !reader_) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "Failed to create SoundTriggerEngine or ring buffer reader status %d",
-                        status);
-                goto exit;
-            }
-            registerSoundTriggerEngine(id, stEngine);
-            // parse sound model to structure which can be set to GSL
-            status = stEngine->load_sound_model(this, sm_data, stages);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to load sound model status %d", status);
-                goto exit;
-            }
+        // TODO: Move to SoundTriggerEngineUtil
+        status = create_st_engine(activeEngines);
+        if (status || !reader_) {
+            QAL_ERR(LOG_TAG, "Failed to load sound model status %d", status);
+            goto exit;
         }
         break;
     }
@@ -703,6 +586,7 @@ int32_t StreamSoundTrigger::handleDetectionEvent(qal_stream_handle_t *stream_han
         return status;
     }
 
+    s->setDetectionState(GMM_DETECTED);
     // Notify Engine and client
     status = s->setDetected(true);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -715,17 +599,8 @@ int32_t StreamSoundTrigger::setDetected(bool detected)
     for (int i = 0; i < activeEngines.size(); i++) {
         QAL_VERBOSE(LOG_TAG, "Notify detection event %d to ST engine %d", detected, i);
         SoundTriggerEngine *stEngine = activeEngines[i].second;
-        /* Each engine has a bool member indicating
-           if event detected in first stage
-           TODO: implement setDetected in second
-           stage engine so that it can fetch data
-           and start keyword detection*/
         stEngine->setDetected(detected);
     }
-    // notify Client if no 2nd stage needed
-    // for now just set event null
-    if (stages == 1)
-        notifyClient();
     return status;
 }
 
@@ -864,6 +739,29 @@ int32_t StreamSoundTrigger::notifyClient()
     return status;
 }
 
+int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
+{
+    switch (state)
+    {
+        case ENGINE_IDLE:
+        case GMM_DETECTED:
+        case CNN_DETECTED:
+        case VOP_DETECTED:
+            detectionState = detectionState | state;
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid state %x", state);
+            return EINVAL;
+    }
+
+    QAL_INFO(LOG_TAG, "detectionState = %u, notificationState = %u", detectionState, notificationState);
+    if (detectionState == notificationState) {
+        QAL_INFO(LOG_TAG, "Notify detection event back to client");
+        notifyClient();
+    }
+    return 0;
+}
+
 int32_t StreamSoundTrigger::setVolume(struct qal_volume_data *volume)
 {
     int32_t status = 0;
@@ -884,6 +782,64 @@ int32_t StreamSoundTrigger::setPause()
 int32_t StreamSoundTrigger::setResume()
 {
     int32_t status = 0;
+    return status;
+}
+
+int32_t StreamSoundTrigger::create_st_engine(std::vector<std::pair<uint32_t, SoundTriggerEngine *>> &engines)
+{
+    int32_t status = 0;
+    uint32_t engineId;
+    struct qal_st_phrase_sound_model *phrase_sm = NULL;
+    struct qal_st_sound_model *common_sm = NULL;
+    SML_BigSoundModelTypeV3 *big_sm;
+    uint8_t *sm_payload = NULL;
+    SoundTriggerEngine *stEngine = NULL;
+
+    if (!sm_data) {
+        QAL_ERR(LOG_TAG, "Invalid sound model");
+        status = EINVAL;
+        goto exit;
+    }
+
+    // Create Engine GMM
+    if (!reader_)
+        stEngine = SoundTriggerEngine::create(this, ST_SM_ID_SVA_GMM, &reader_, NULL);
+    else
+        stEngine = SoundTriggerEngine::create(this, ST_SM_ID_SVA_GMM, &reader_, reader_->ringBuffer_);
+    if (!stEngine || !reader_) {
+        QAL_ERR(LOG_TAG, "Creation of GMM Engine or reader failed");
+        status = ENOENT;
+        goto exit;
+    }
+    engineId = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
+    registerSoundTriggerEngine(engineId, stEngine);
+    stEngine->load_sound_model(this, sm_data, stages);
+
+    if (stages == 1)
+        goto exit;
+    // Create other engines if any
+    common_sm = (struct qal_st_sound_model *)sm_data;
+    QAL_INFO(LOG_TAG, "Sound model type: %u", common_sm->type);
+    if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+        sm_payload = (uint8_t *)common_sm + common_sm->data_offset;
+        for (int i = 0; i < stages; i++) {
+            big_sm = (SML_BigSoundModelTypeV3 *)(sm_payload + sizeof(SML_GlobalHeaderType) +
+                sizeof(SML_HeaderTypeV3) + (i * sizeof(SML_BigSoundModelTypeV3)));
+            QAL_INFO(LOG_TAG, "type = %u, size = %u", big_sm->type, big_sm->size);
+            if (big_sm->type == ST_SM_ID_SVA_GMM)
+                continue;
+
+            uint32_t engineId = static_cast<uint32_t>(big_sm->type);
+            notificationState = notificationState | engineId;
+            stEngine = SoundTriggerEngine::create(this, big_sm->type, &reader_, reader_->ringBuffer_);
+            registerSoundTriggerEngine(engineId, stEngine);
+            stEngine->load_sound_model(this, sm_data, stages);
+        }
+    } else if (common_sm->type == QAL_SOUND_MODEL_TYPE_GENERIC) {
+        //TODO: handle for generic sound model type also
+    }
+
+exit:
     return status;
 }
 

@@ -194,6 +194,11 @@ void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
     // TODO: Handle read offsets for different scenario
 }
 
+size_t QalRingBufferReader::getUnreadSize()
+{
+    return unreadSize_;
+}
+
 QalRingBufferReader* QalRingBuffer::newReader()
 {
     QalRingBufferReader* readOffset =
