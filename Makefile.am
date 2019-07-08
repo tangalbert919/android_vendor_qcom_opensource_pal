@@ -16,6 +16,7 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/SpeakerMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
+            ./session/inc/kvh2xml.h \
             ./session/inc/SessionGsl.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SoundTriggerEngine.h \
