@@ -772,8 +772,17 @@ int populateSVAEngineReset(SessionGsl *s, int tagId, void* graphHandle, Stream *
         goto free_builder;
     }
 
+    // Deregister custom config, no need to check status
+    // as this may be called before custom event registered
+    struct gsl_cmd_register_custom_event reg_ev_payload;
+    reg_ev_payload.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+    reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
+    reg_ev_payload.event_config_payload_size = 0;
+    reg_ev_payload.is_register = 0;
+    status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload, sizeof(reg_ev_payload));
+
     builder->payloadSVAEngineReset(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid);
-   if (!payload) {
+    if (!payload) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
         goto free_moduleInfo;

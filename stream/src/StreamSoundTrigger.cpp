@@ -120,6 +120,7 @@ exit:
 
 int32_t StreamSoundTrigger::close()
 {
+    // TODO: handle stop by stream states
     int32_t status = 0;
     mutex.lock();
 
@@ -133,17 +134,6 @@ int32_t StreamSoundTrigger::close()
         }
     }
     QAL_VERBOSE(LOG_TAG, "closed the devices successfully");
-
-    for (int i = 0; i < activeEngines.size(); i++) {
-        uint32_t id = activeEngines[i].first;
-        SoundTriggerEngine *stEngine = activeEngines[i].second;
-        QAL_VERBOSE(LOG_TAG,  "stop recognition for sound trigger engine %u", id);
-        status = stEngine->stop_recognition(this);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "stop_recognition failed for sound trigger engine %u with status %d", id, status);
-            goto exit;
-        }
-    }
 
     status = session->close(this);
     if (0 != status) {
@@ -810,8 +800,25 @@ int32_t StreamSoundTrigger::notifyClient()
 {
     int32_t status = 0;
     QAL_INFO(LOG_TAG, "Notify detection event back to client");
-    generate_callback_event(&recEvent);
-    sm_rc_config->callback(recEvent, sm_rc_config->cookie);
+    status = generate_callback_event(&recEvent);
+    if (!status)
+        sm_rc_config->callback(recEvent, sm_rc_config->cookie);
+    // release recEvent after callback so that
+    // recEvent can be used in next detection
+    if (recEvent) {
+        if (recEvent->media_config.ch_info) {
+            free(recEvent->media_config.ch_info);
+            recEvent->media_config.ch_info = NULL;
+        }
+        if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+            struct qal_st_phrase_recognition_event *phrase_event =
+                (struct qal_st_phrase_recognition_event *)recEvent;
+            free(phrase_event);
+        } else
+            free(recEvent);
+        recEvent = NULL;
+    }
+
     return status;
 }
 
@@ -841,6 +848,7 @@ int32_t StreamSoundTrigger::setResume()
 int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_event **event)
 {
     struct qal_st_phrase_recognition_event *phrase_event = NULL;
+    struct qal_channel_info *ch_info = NULL;
     QAL_INFO(LOG_TAG, "Enter");
     if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
         phrase_event = (struct qal_st_phrase_recognition_event *)malloc(sizeof(struct qal_st_phrase_recognition_event));
@@ -854,6 +862,7 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
                phrase_event->num_phrases * sizeof(struct qal_st_phrase_recognition_extra));
 
         *event = &(phrase_event->common);
+        (*event)->media_config.ch_info = NULL;
         (*event)->status = 0;
         (*event)->type = sound_model_type;
         (*event)->st_handle = (qal_st_handle_t *)this;
@@ -865,9 +874,15 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         (*event)->trigger_in_data = true;
         (*event)->data_size = 0;
         (*event)->data_offset = sizeof(struct qal_st_phrase_recognition_event);
+
+        ch_info = (struct qal_channel_info *)malloc(sizeof(struct qal_channel_info));
+        if (!ch_info) {
+            QAL_ERR(LOG_TAG, "Failed to alloc memory for channel info");
+            return ENOMEM;
+        }
         (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
         (*event)->media_config.bit_width = BITWIDTH_16;
-        (*event)->media_config.ch_info = (struct qal_channel_info *)malloc(sizeof(struct qal_channel_info));
+        (*event)->media_config.ch_info = ch_info;
         (*event)->media_config.ch_info->channels = CHANNEL1;
         (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
     }

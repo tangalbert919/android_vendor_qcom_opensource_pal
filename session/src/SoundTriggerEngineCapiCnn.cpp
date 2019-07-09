@@ -310,6 +310,9 @@ SoundTriggerEngineCapiCnn::~SoundTriggerEngineCapiCnn()
 int32_t SoundTriggerEngineCapiCnn::start_sound_engine()
 {
     int32_t result = 0;
+    eventDetected = false;
+    exit_thread_ = false;
+    exit_buffering_ = false;
 
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_buf_t capi_buf;

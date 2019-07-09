@@ -79,6 +79,9 @@ int32_t SoundTriggerEngineGsl::prepare_sound_engine()
 int32_t SoundTriggerEngineGsl::start_sound_engine()
 {
     int32_t status = 0;
+    eventDetected = false;
+    exit_thread_ = false;
+    exit_buffering_ = false;
     bufferThreadHandler_ = std::thread(SoundTriggerEngineGsl::buffer_thread_loop);
 
     if (!bufferThreadHandler_.joinable()) {
@@ -91,10 +94,12 @@ int32_t SoundTriggerEngineGsl::start_sound_engine()
 int32_t SoundTriggerEngineGsl::stop_sound_engine()
 {
     int32_t status = 0;
-    std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
-    exit_thread_ = true;
-    exit_buffering_ = true;
-    cv_.notify_one();
+    {
+        std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
+        exit_thread_ = true;
+        exit_buffering_ = true;
+        cv_.notify_one();
+    }
     bufferThreadHandler_.join();
     return status;
 }
