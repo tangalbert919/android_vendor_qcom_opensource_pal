@@ -57,7 +57,7 @@
 #define HW_EP_RX DEVICE_HW_ENDPOINT_RX
 
 struct sessionToPayloadParam {
-	uint32_t sampleRate;                /**< sample rate */
+    uint32_t sampleRate;                /**< sample rate */
     uint32_t bitWidth;                  /**< bit width */
     uint32_t numChannel;
     struct qal_channel_info *ch_info;    /**< channel info */

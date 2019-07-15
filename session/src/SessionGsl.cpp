@@ -230,7 +230,8 @@ void SessionGsl::deinit()
     }
 }
 
-int populateGkv(Stream *s, struct gsl_key_vector *gkv) {
+int populateGkv(Stream *s, struct gsl_key_vector *gkv)
+{
     int status = 0;
     int32_t dev_id = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
@@ -848,7 +849,8 @@ exit:
     return status;
 }
 
-int SessionGsl::open(Stream *s) {
+int SessionGsl::open(Stream *s)
+{
     int status = 0;
     struct qal_stream_attributes sAttr;
 
@@ -1108,7 +1110,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                         QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d",
                                 deviceData->bitWidth,
                                 deviceData->sampleRate,deviceData->numChannel);
-		    } else
+                    } else
                         continue;
                     sessionData->direction = PLAYBACK;
                 }
@@ -1126,7 +1128,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     } else
                         continue;               
                     sessionData->direction = RECORD; 
-		}
+                }
             } else
                 continue;
 

@@ -130,6 +130,6 @@ libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat -ldl
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
-libqal_la_CPPFLAGS += -DNDEBUG
-libqal_la_LDFLAGS   = -shared -avoid-version
+libqal_la_CPPFLAGS += -DNDEBUG -ftest-coverage -fprofile-arcs
+libqal_la_LDFLAGS   = -shared -avoid-version -lgcov
 libqal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h

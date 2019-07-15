@@ -38,6 +38,18 @@
 class Stream;
 
 /*
+ * enable_gcov - Enable gcov for qal
+ *
+ * Prerequisites
+ *   Should be call from CATF
+ */
+
+void enable_gcov()
+{
+    __gcov_flush();
+}
+
+/*
  * qal_init - Initialize QAL
  *
  * Return 0 on success or error code otherwise

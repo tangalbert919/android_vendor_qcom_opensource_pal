@@ -602,7 +602,8 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
 
 void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data,
-    std::string epName) {
+    std::string epName)
+{
     struct apm_module_param_data_t* header = NULL;
     struct param_id_hw_pcm_intf_cfg_t* AuxpcmConfig = NULL;
     uint8_t* payloadInfo = NULL;
@@ -678,7 +679,8 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
 }
 
 void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
-        struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data) {
+        struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data)
+{
     struct apm_module_param_data_t* header = NULL;
     struct param_id_hw_ep_mf_t* hwEpConf = NULL;
     uint8_t* payloadInfo = NULL;
@@ -733,7 +735,7 @@ PayloadBuilder::PayloadBuilder()
 
 PayloadBuilder::~PayloadBuilder()
 {
-	
+
 }
 
 void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
@@ -761,7 +763,8 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
 
 void PayloadBuilder::payloadDeviceConfig(uint8_t** payload, size_t* size, 
     struct gsl_module_id_info* moduleInfo, int payloadTag,
-    struct sessionToPayloadParam* data) {
+    struct sessionToPayloadParam* data)
+{
     payloadHwEpConfig(payload, size, moduleInfo, data);
 }
 
@@ -986,7 +989,8 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr)
     tdmConf.push_back(tdmCnf);
 }
 
-void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr) {
+void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr)
+{
     struct auxpcmConfig auxpcmCnf = {};
 
     if(strcmp(attr[0], "name" ) !=0 ) {

@@ -566,60 +566,63 @@ exit:
     return status;
 }
 
-int32_t StreamPCM::isSampleRateSupported(uint32_t sampleRate) {
+int32_t StreamPCM::isSampleRateSupported(uint32_t sampleRate)
+{
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch(sampleRate) {
-    case SAMPLINGRATE_8K:
-    case SAMPLINGRATE_16K:
-    case SAMPLINGRATE_32K:
-    case SAMPLINGRATE_44K:
-    case SAMPLINGRATE_48K:
-    case SAMPLINGRATE_96K:
-    case SAMPLINGRATE_192K:
-    case SAMPLINGRATE_384K:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "sample rate not supported %d rc %d", sampleRate, rc);
-        break;
+        case SAMPLINGRATE_8K:
+        case SAMPLINGRATE_16K:
+        case SAMPLINGRATE_32K:
+        case SAMPLINGRATE_44K:
+        case SAMPLINGRATE_48K:
+        case SAMPLINGRATE_96K:
+        case SAMPLINGRATE_192K:
+        case SAMPLINGRATE_384K:
+            break;
+       default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "sample rate not supported %d rc %d", sampleRate, rc);
+            break;
     }
     return rc;
 }
 
-int32_t StreamPCM::isChannelSupported(uint32_t numChannels) {
+int32_t StreamPCM::isChannelSupported(uint32_t numChannels)
+{
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch(numChannels) {
-    case CHANNEL1:
-    case CHANNEL2:
-    case CHANNEL3:
-    case CHANNEL4:
-    case CHANNEL5:
-    case CHANNEL6:
-    case CHANNEL7:
-    case CHANNEL8:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "channels not supported %d rc %d", numChannels, rc);
-        break;
+        case CHANNEL1:
+        case CHANNEL2:
+        case CHANNEL3:
+        case CHANNEL4:
+        case CHANNEL5:
+        case CHANNEL6:
+        case CHANNEL7:
+        case CHANNEL8:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "channels not supported %d rc %d", numChannels, rc);
+            break;
     }
     return rc;
 }
 
-int32_t StreamPCM::isBitWidthSupported(uint32_t bitWidth) {
+int32_t StreamPCM::isBitWidthSupported(uint32_t bitWidth)
+{
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch(bitWidth) {
-    case BITWIDTH_16:
-    case BITWIDTH_24:
-    case BITWIDTH_32:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "bit width not supported %d rc %d", bitWidth, rc);
-        break;
+        case BITWIDTH_16:
+        case BITWIDTH_24:
+        case BITWIDTH_32:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "bit width not supported %d rc %d", bitWidth, rc);
+            break;
     }
     return rc;
 }

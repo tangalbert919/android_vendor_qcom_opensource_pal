@@ -521,7 +521,8 @@ exit:
 }
 
 //TODO:	- look into how cookies are used here
-int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc_config){
+int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc_config)
+{
     int32_t status = 0;
 
     unsigned char **out_payload;
@@ -933,23 +934,24 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
     return 0;
 }
 
-int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
+int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate)
+{
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch(sampleRate) {
-    case SAMPLINGRATE_8K:
-    case SAMPLINGRATE_16K:
-    case SAMPLINGRATE_32K:
-    case SAMPLINGRATE_44K:
-    case SAMPLINGRATE_48K:
-    case SAMPLINGRATE_96K:
-    case SAMPLINGRATE_192K:
-    case SAMPLINGRATE_384K:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
-        break;
+        case SAMPLINGRATE_8K:
+        case SAMPLINGRATE_16K:
+        case SAMPLINGRATE_32K:
+        case SAMPLINGRATE_44K:
+        case SAMPLINGRATE_48K:
+        case SAMPLINGRATE_96K:
+        case SAMPLINGRATE_192K:
+        case SAMPLINGRATE_384K:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            break;
     }
     return rc;
 }
@@ -959,19 +961,19 @@ int32_t StreamSoundTrigger::isChannelSupported(uint32_t numChannels)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch(numChannels) {
-    case CHANNEL1:
-    case CHANNEL2:
-    case CHANNEL3:
-    case CHANNEL4:
-    case CHANNEL5:
-    case CHANNEL6:
-    case CHANNEL7:
-    case CHANNEL8:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
-        break;
+        case CHANNEL1:
+        case CHANNEL2:
+        case CHANNEL3:
+        case CHANNEL4:
+        case CHANNEL5:
+        case CHANNEL6:
+        case CHANNEL7:
+        case CHANNEL8:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            break;
     }
     return rc;
 }
@@ -981,14 +983,14 @@ int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch(bitWidth) {
-    case BITWIDTH_16:
-    case BITWIDTH_24:
-    case BITWIDTH_32:
-        break;
-    default:
-        rc = -EINVAL;
-        QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
-        break;
+        case BITWIDTH_16:
+        case BITWIDTH_24:
+        case BITWIDTH_32:
+            break;
+        default:
+            rc = -EINVAL;
+            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+            break;
     }
     return rc;
 }

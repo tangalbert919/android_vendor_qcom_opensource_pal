@@ -323,7 +323,7 @@ int ResourceManager::init()
 
     // Init audio_route and audio_mixer
     ret = rm->init_audio();
-    if (ret) { 
+    if (ret) {
         QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
         return ret;
     }
@@ -816,7 +816,8 @@ int ResourceManager::getPcmDeviceId(int deviceId)
     return pcm_device_id;
 }
 
-void ResourceManager::deinit() {
+void ResourceManager::deinit()
+{
     SessionGsl::deinit();
 }
 
