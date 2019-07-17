@@ -37,6 +37,8 @@
 #include "QalCommon.h"
 class Stream;
 
+static bool init_done = false;
+
 /*
  * enable_gcov - Enable gcov for qal
  *
@@ -61,10 +63,13 @@ int32_t qal_init(void)
 {
     QAL_INFO(LOG_TAG, "Enter.");
     int32_t ret = 0;
-    ret = ResourceManager::init();
-    if (0 != ret) {
-        QAL_ERR(LOG_TAG, "qal init failed. ret : %d", ret);
-        return ret;
+    if (!init_done) {
+        ret = ResourceManager::init();
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG, "qal init failed. ret : %d", ret);
+            return ret;
+        }
+        init_done = true;
     }
     QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
