@@ -36,6 +36,7 @@
 #include "StreamSoundTrigger.h"
 #include "kvh2xml.h"
 
+// TODO: Move to sound trigger xml files
 #define HIST_BUFFER_DURATION_MS 1750
 #define PRE_ROLL_DURATION_IN_MS 250
 #define DWNSTRM_SETUP_DURATION_MS 300
