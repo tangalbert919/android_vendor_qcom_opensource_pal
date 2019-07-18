@@ -27,8 +27,16 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define LOG_TAG "Session"
+
 #include "Session.h"
 #include "Stream.h"
+#include "ResourceManager.h"
+
+
+#include "SessionGsl.h"
+#include "SessionAlsaPcm.h"
+#include "SessionAlsaCompress.h"
 
 Session::Session()
 {
@@ -39,3 +47,39 @@ Session::~Session()
 {
 
 }
+
+
+Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr)
+{
+    if (!rm || !sAttr) {
+        QAL_ERR(LOG_TAG,"Invalid parameters passed");
+        return nullptr;
+    }
+
+    const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
+    Session* s = (Session*) nullptr;
+
+    switch (ag) {
+        case ALSA:{
+                switch (sAttr->type) {
+                    //create compressed if the stream type is compressed
+                    case QAL_STREAM_COMPRESSED:
+                        s =  new SessionAlsaCompress(rm);
+                        break;
+                    default:
+                        s = new SessionAlsaPcm(rm);
+                        break;
+                    }
+                }
+                break;
+        case GSL:
+                s = ((Session*) new SessionGsl(rm));
+                break;
+         default:
+                s = ((Session*) nullptr);
+                break;
+    };
+
+    return s;
+}
+

@@ -29,12 +29,40 @@
 
 #include "CodecDeviceAlsa.h"
 
-int CodecDeviceAlsa::open(std::shared_ptr<Device> d)
+CodecDeviceAlsa::CodecDeviceAlsa()
+{
+}
+
+CodecDeviceAlsa::~CodecDeviceAlsa()
+{
+}
+
+int CodecDeviceAlsa::open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_)
 {
     return 0;
 }
 
-int CodecDeviceAlsa::close(std::shared_ptr<Device> d)
+int CodecDeviceAlsa::close()
 {
     return 0;
 }
+
+int CodecDeviceAlsa::prepare()
+{
+    return 0;
+}
+
+
+int CodecDeviceAlsa::start()
+{
+    return 0;
+}
+
+
+int CodecDeviceAlsa::stop()
+{
+    return 0;
+}
+
+
+

@@ -46,12 +46,12 @@ extern "C" {
 #define CODEC_DEVICE_GSL_PERIOD_512 512
 #define CODEC_DEVICE_GSL_PERIOD_COUNT_8 8
 
-struct pcm * CodecDeviceGsl::open(struct qal_device *device,
+int CodecDeviceGsl::open(struct qal_device *device,
                                   std::shared_ptr<ResourceManager> rm_)
 {
     if (!device || !rm_) {
         QAL_ERR(LOG_TAG, "Invalid input parameters");
-        return NULL;
+        return -EINVAL;
     }
     int sndCard = rm_->getSndCard();
     int pcmId = rm_->getPcmDeviceId(device->id);
@@ -75,18 +75,17 @@ struct pcm * CodecDeviceGsl::open(struct qal_device *device,
     config.silence_threshold = 0;
     config.silence_size = 0;
     config.avail_min = 512;
-    struct pcm *pcmFd = NULL;
 
     pcmFd = pcm_open(sndCard, pcmId, flags, &config);
     if (!pcmFd) {
         QAL_ERR(LOG_TAG, "Failed to open the device %s", strerror(errno));
-        return NULL;
+        return -EIO;
     }
     QAL_DBG(LOG_TAG, "Exit. PCMFd %pK", pcmFd);
-    return pcmFd;
+    return 0;
 }
 
-int CodecDeviceGsl::close(struct pcm *pcmFd)
+int CodecDeviceGsl::close()
 {
      int status = 0;
      if (!pcmFd) {
@@ -100,11 +99,12 @@ int CodecDeviceGsl::close(struct pcm *pcmFd)
          QAL_ERR(LOG_TAG, "failed to close the device %s status %d", strerror(errno), status);
          return status;
      }
+     pcmFd = NULL;
      QAL_DBG(LOG_TAG, "Exit. status %d", status);
      return status;
 }
 
-int CodecDeviceGsl::start(struct pcm *pcmFd)
+int CodecDeviceGsl::start()
 {
      int status = 0;
      if (!pcmFd) {
@@ -116,7 +116,7 @@ int CodecDeviceGsl::start(struct pcm *pcmFd)
      return status;
 }
 
-int CodecDeviceGsl::prepare (struct pcm *pcmFd)
+int CodecDeviceGsl::prepare ()
 {
      int status = 0;
      if (!pcmFd) {
@@ -135,7 +135,7 @@ int CodecDeviceGsl::prepare (struct pcm *pcmFd)
      return status;
 }
 
-int CodecDeviceGsl::stop(struct pcm *pcmFd)
+int CodecDeviceGsl::stop()
 {
      int status = 0;
      if (!pcmFd) {
@@ -155,10 +155,10 @@ int CodecDeviceGsl::stop(struct pcm *pcmFd)
 
 CodecDeviceGsl::CodecDeviceGsl()
 {
-
+   pcmFd = NULL;
 }
 
 CodecDeviceGsl::~CodecDeviceGsl()
 {
-
+    pcmFd = NULL;
 }

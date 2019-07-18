@@ -34,6 +34,7 @@
 #define XML_FILE "/etc/hw_ep_info.xml"
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
+#define TAG_STREAM_MFC_SR  TAG_DEVICE_PP_MFC
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
@@ -1453,3 +1454,545 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
+
+
+int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = -EINVAL;
+    struct qal_stream_attributes *sattr = NULL;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    sattr = new struct qal_stream_attributes;
+    if (!sattr) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG,"sattr malloc failed %s status %d", strerror(errno), status);
+        goto exit;
+    }
+    memset (sattr, 0, sizeof(struct qal_stream_attributes));
+
+    status = s->getStreamAttributes(sattr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        goto free_sattr;
+    }
+
+    //todo move the keys to a to an xml of stream type to key
+    //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
+    //from there create a map and retrieve the right keys
+    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    switch (sattr->type) {
+        case QAL_STREAM_LOW_LATENCY:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                QAL_VERBOSE(LOG_TAG,"%s: Stream \n", __func__);
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+            }
+            else if (sattr->direction == QAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
+            }
+            else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
+            } else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG,"%s: Invalid direction, status %d \n", __func__, status);
+                goto free_sattr;
+            }
+            break;
+        case QAL_STREAM_DEEP_BUFFER:
+            break;
+        case QAL_STREAM_GENERIC:
+            break;
+        case QAL_STREAM_COMPRESSED:
+            break;
+        case QAL_STREAM_VOIP_TX:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
+            break;
+        case QAL_STREAM_VOIP_RX:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
+            break;
+        case QAL_STREAM_VOICE_UI:
+            keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
+            break;
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+            goto free_sattr;
+        }
+
+free_sattr:
+    delete sattr;
+exit:
+    return status;
+
+}
+
+int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector) {
+    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    int status = -ENOSYS;
+
+
+    return status;
+}
+
+
+int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = 0;
+    int32_t dev_id = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    //todo move the keys to a to an xml  of device type to key
+    //something like device_type=DEVICETX, key=SPEAKER
+    //from there create a map and retrieve the right keys
+
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed status %d\n", __func__, status);
+        goto error;
+    }
+
+//TODO change this mapping to xml
+    for (int32_t i=0; i<(associatedDevices.size()); i++) {
+        dev_id = associatedDevices[i]->getDeviceId();
+        switch(dev_id) {
+        case QAL_DEVICE_OUT_SPEAKER :
+            keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
+            break;
+        case QAL_DEVICE_IN_SPEAKER_MIC:
+        case QAL_DEVICE_IN_HANDSET_MIC:
+        case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
+           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           break;
+        default:
+            QAL_ERR(LOG_TAG,"%s: Invalid device id %d\n", __func__,dev_id);
+            status = -EINVAL;
+            goto error;
+        }
+    }
+
+error:
+    return status;
+
+}
+
+int PayloadBuilder::populateGkv(Stream *s, struct gsl_key_vector *gkv) {
+
+    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    int status = 0;
+    std::vector <std::pair<int,int>> keyVector;
+
+    if (0!= populateStreamKV(s, keyVector)) {
+        QAL_ERR(LOG_TAG, "%s: Error in populating stream KV");
+        status = -EINVAL;
+        goto error_1;
+    }
+
+    //todo add
+    //no stream device KV in GSL as of now
+
+    if (0!= populateDeviceKV(s, keyVector)) {
+        QAL_ERR(LOG_TAG, "%s: Error in populating device KV");
+        status = -EINVAL;
+        goto error_1;
+    }
+
+    gkv->num_kvps = keyVector.size();
+
+    gkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
+    if (!gkv->kvp) {
+        status = -ENOMEM;
+        goto error_1;
+
+    }
+
+    QAL_VERBOSE(LOG_TAG,"%s: gkv size %d", __func__,(gkv->num_kvps));
+
+    for(int32_t i=0; i < (keyVector.size()); i++) {
+        gkv->kvp[i].key = keyVector[i].first;
+        gkv->kvp[i].value = keyVector[i].second;
+        QAL_VERBOSE(LOG_TAG,"%s: gkv key %x value %x", __func__,(gkv->kvp[i].key),(gkv->kvp[i].value));
+    }
+
+error_1:
+    return status;
+}
+
+int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag,
+        struct qal_volume_data **volume_data)
+{
+    int status = 0;
+    float voldB = 0.0;
+    //std::vector <std::pair<int,int>> keyVector;
+    struct qal_volume_data *voldata = NULL;
+
+    voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
+    if (!voldata) {
+        status = -ENOMEM;
+        goto exit;
+    }
+    memset (voldata, 0, sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
+
+    status = s->getVolumeData(voldata);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
+        goto free_voldata;
+    }
+    voldB = (voldata->volume_pair[0].vol);
+    QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
+    switch (tag) {
+    case TAG_STREAM_VOLUME:
+       if (0 <= voldB < 0.1) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+       } else if (0.1 <= voldB < 0.2) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
+       } else if (0.2 <= voldB < 0.3) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
+       } else if (0.3 <= voldB < 0.4) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
+       } else if (0.4 <= voldB < 0.5) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
+       } else if (0.5 <= voldB < 0.6) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
+       } else if (0.6 <= voldB < 0.7) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
+       } else if (0.7 <= voldB < 0.8) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
+       } else if (0.8 <= voldB < 0.9) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
+       } else if (0.9 <= voldB < 1) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
+       } else {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
+       }
+       break;
+    default:
+        //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
+        keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+        break;
+    }
+
+    if (volume_data)
+        *volume_data = voldata;
+
+free_voldata:
+	if (status)
+        free(voldata);
+exit:
+    return status;
+}
+
+int PayloadBuilder::populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, struct qal_volume_data **volume_data) {
+    int status = 0;
+    std::vector <std::pair<int,int>> keyVector;
+#if 0
+    float voldB = 0.0;
+    struct qal_volume_data *voldata = NULL;
+
+    QAL_DBG(LOG_TAG,"%s: enter \n", __func__);
+    voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
+    if (!voldata) {
+        status = -ENOMEM;
+        goto exit;
+    }
+    memset (voldata, 0, sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
+
+    status = s->getVolumeData(voldata);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
+        goto free_voldata;
+    }
+
+    voldB = (voldata->volume_pair[0].vol);
+    QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
+
+    switch (tag) {
+    case TAG_STREAM_VOLUME:
+       if (0 <= voldB < 0.1) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+       } else if (0.1 <= voldB < 0.2) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
+       } else if (0.2 <= voldB < 0.3) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
+       } else if (0.3 <= voldB < 0.4) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
+       } else if (0.4 <= voldB < 0.5) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
+       } else if (0.5 <= voldB < 0.6) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
+       } else if (0.6 <= voldB < 0.7) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
+       } else if (0.7 <= voldB < 0.8) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
+       } else if (0.8 <= voldB < 0.9) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
+       } else if (0.9 <= voldB < 1) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
+       } else if (voldB >= 1) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
+          QAL_ERR(LOG_TAG,"%s:max %d \n",__func__, (voldata->no_of_volpair));
+       }
+#if 0
+        status = gslGetTaggedModuleInfo(sg->gkv, tag,
+                                     &moduleInfo, &moduleInfoSize);
+        if (0 != status || !moduleInfo) {
+            QAL_ERR(LOG_TAG, "Failed to get tag info %x module size status %d", tag, status);
+            goto free_voldata;
+        }
+
+        this->payloadVolume(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, voldata, tag);
+        if (!payload) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            goto free_moduleInfo;
+        }
+        QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
+        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+            goto free_payload;
+        }
+#endif
+
+       break;
+    default:
+        //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
+        keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+        QAL_ERR(LOG_TAG,"%s: Entered default\n", __func__);
+        break;
+    }
+#else
+    status = populateStreamCkv(s, keyVector, tag, volume_data);
+    if (status)
+        goto exit;
+#endif
+    ckv->num_kvps = keyVector.size();
+    ckv->kvp = new struct gsl_key_value_pair[keyVector.size()];
+    for (int i = 0; i < keyVector.size(); i++) {
+        ckv->kvp[i].key = keyVector[i].first;
+        ckv->kvp[i].value = keyVector[i].second;
+    }
+    QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
+
+#if 0
+	if (volume_data)
+	     *volume_data = voldata;
+
+free_voldata:
+	if (status)
+        free(voldata);
+#endif
+exit:
+    return status;
+}
+
+int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag) {
+    int status = 0;
+    QAL_VERBOSE(LOG_TAG,"%s: enter \n", __func__);
+    std::vector <std::pair<int,int>> keyVector;
+
+    float voldB = 0.0;
+    struct qal_volume_data *voldata = NULL;
+    voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
+    if (!voldata) {
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    status = s->getVolumeData(voldata);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
+        goto error_1;
+    }
+
+    QAL_VERBOSE(LOG_TAG,"%s: volume sent:%f \n",__func__, (voldata->volume_pair[0].vol));
+    voldB = (voldata->volume_pair[0].vol);
+
+    switch (tag) {
+    case TAG_STREAM_VOLUME:
+       if (0 <= voldB < 0.1) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
+       }
+       else if (0.1 <= voldB < 0.2) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
+       }
+       else if (0.2 <= voldB < 0.3) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
+       }
+       else if (0.3 <= voldB < 0.4) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
+       }
+       else if (0.4 <= voldB < 0.5) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
+       }
+       else if (0.5 <= voldB < 0.6) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
+       }
+       else if (0.6 <= voldB < 0.7) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
+       }
+       else if (0.7 <= voldB < 0.8) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
+       }
+       else if (0.8 <= voldB < 0.9) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
+       }
+       else if (0.9 <= voldB < 1) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
+       }
+       else if (voldB >= 1) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
+       }
+
+       break;
+    default:
+        keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
+        break;
+    }
+
+    QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
+error_1:
+    free(voldata);
+exit:
+    return status;
+}
+
+int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag) {
+    int status = 0;
+    std::vector <std::pair<int,int>> keyVector;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    switch (tag){
+    case MUTE_TAG:
+       keyVector.push_back(std::make_pair(MUTE,ON));
+       *gsltag = TAG_MUTE;
+       break;
+    case UNMUTE_TAG:
+       keyVector.push_back(std::make_pair(MUTE,OFF));
+       *gsltag = TAG_MUTE;
+       break;
+    case PAUSE_TAG:
+       keyVector.push_back(std::make_pair(PAUSE,ON));
+       *gsltag = TAG_PAUSE;
+       break;
+    case RESUME_TAG:
+       keyVector.push_back(std::make_pair(PAUSE,OFF));
+       *gsltag = TAG_PAUSE;
+       break;
+    case MFC_SR_8K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_16K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_32K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_44K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_48K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_96K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_192K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_384K:
+       keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    default:
+       QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
+       break;
+    }
+    tkv->num_kvps = keyVector.size();
+    tkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
+    for (int i = 0; i < keyVector.size(); i++) {
+        tkv->kvp[i].key = keyVector[i].first;
+        tkv->kvp[i].value = keyVector[i].second;
+    }
+    QAL_DBG(LOG_TAG,"%s: tkv size %d", __func__,(tkv->num_kvps));
+    QAL_DBG(LOG_TAG,"%s: exit status- %d", __func__, status);
+    return status;
+}
+
+int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag) {
+    int status = 0;
+    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+
+    switch (tag){
+    case MUTE_TAG:
+       tkv.push_back(std::make_pair(MUTE,ON));
+       *gsltag = TAG_MUTE;
+       break;
+    case UNMUTE_TAG:
+       tkv.push_back(std::make_pair(MUTE,OFF));
+       *gsltag = TAG_MUTE;
+       break;
+    case PAUSE_TAG:
+       tkv.push_back(std::make_pair(PAUSE,ON));
+       *gsltag = TAG_PAUSE;
+       break;
+    case RESUME_TAG:
+       tkv.push_back(std::make_pair(PAUSE,OFF));
+       *gsltag = TAG_PAUSE;
+       break;
+    case MFC_SR_8K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_16K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_32K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_44K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_48K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_96K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_192K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    case MFC_SR_384K:
+       tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
+       *gsltag = TAG_STREAM_MFC_SR;
+       break;
+    default:
+       QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
+       break;
+    }
+
+    QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
+    return status;
+}
+

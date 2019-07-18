@@ -49,7 +49,7 @@
 #define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
 #define MIXER_PATH_MAX_LENGTH 100
 
-#define MAX_SND_CARD 8
+#define MAX_SND_CARD 110
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
 #define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
@@ -70,6 +70,9 @@
 #define MAX_SESSIONS_VOICE_UI 2
 #define XMLFILE "/etc/resourcemanager.xml"
 #define GECKOXMLFILE "/etc/kvh2xml.xml"
+#define SNDPARSER "/etc/card-defs.xml"
+#define MAX_FRONT_ENDS 2
+
 
 
 /*
@@ -230,28 +233,68 @@ std::vector <int> ResourceManager::mixerTag = {0};
 std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mutex;
+std::vector <int> ResourceManager::listAllFrontEndIds = {0};
+std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
+std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmRecordFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmLoopbackRxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmLoopbackTxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllCompressPlaybackFrontEnds = {0};
+std::vector <int> ResourceManager::listAllCompressRecordFrontEnds = {0};
+struct audio_mixer* ResourceManager::audio_mixer = NULL;
+struct audio_route* ResourceManager::audio_route = NULL;
+int ResourceManager::snd_card = 0;
+std::vector<deviceCap> ResourceManager::devInfo;
+
+//std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
+
+std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
+    {QAL_DEVICE_NONE,                     {std::string{ "" }}},
+    {QAL_DEVICE_OUT_EARPIECE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "none" }}},
+    {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
+    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
+    {QAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
+    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
+    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
+    {QAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
+    {QAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
+    {QAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+
+    {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
+    {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "none" }}},
+    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "none" }}},
+    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
+    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
+    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
+    {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
+    {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
+    {QAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
+    {QAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
+    {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
+    {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
+    {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}}
+};
 
 ResourceManager::ResourceManager()
 {
     QAL_INFO(LOG_TAG, "Enter.");
     int ret = 0;
+    const qal_alsa_or_gsl ag = getQALConfigALSAOrGSL();
     // TODO: set bOverwriteFlag to true by default
     // should we add api for client to set this value?
     bool bOverwriteFlag = true;
-    int snd_card = -1;
     // Init audio_route and audio_mixer
-    ret = ResourceManager::init_audio();
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
-    }
-    //#ifdef CONFIG_GSL
-    ret = SessionGsl::init(DEFAULT_ACDB_FILES);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "session gsl init failed ret %d", ret);
-    }
 
-
-     //Initialize QTS
+    //Initialize QTS
     SessionQts::init();
 
     //TODO: parse the tag and populate in the tags
@@ -265,6 +308,58 @@ ResourceManager::ResourceManager()
     if (ret) {
         QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
+    if (ag == ALSA) {
+        listAllFrontEndIds.clear();
+        listFreeFrontEndIds.clear();
+        listAllPcmPlaybackFrontEnds.clear();
+        listAllPcmRecordFrontEnds.clear();
+        listAllPcmLoopbackRxFrontEnds.clear();
+        listAllPcmLoopbackTxFrontEnds.clear();
+        listAllCompressPlaybackFrontEnds.clear();
+        listAllCompressRecordFrontEnds.clear();
+
+        ret = ResourceManager::XmlParser(SNDPARSER);
+        if (ret) {
+            QAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
+        }
+        for (int i=0; i < devInfo.size(); i++) {
+            if (devInfo[i].type == PCM) {
+                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                    listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
+                } else if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                    listAllPcmLoopbackTxFrontEnds.push_back(devInfo[i].deviceId);
+                } else if (devInfo[i].playback == 1 && devInfo[i].loopback == 0) {
+                    listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
+                } else if (devInfo[i].record == 1 && devInfo[i].loopback == 0) {
+                    listAllPcmRecordFrontEnds.push_back(devInfo[i].deviceId);
+                }
+            } else if (devInfo[i].type == COMPRESS) {
+                if (devInfo[i].playback == 1) {
+                    listAllCompressPlaybackFrontEnds.push_back(devInfo[i].deviceId);
+                } else if (devInfo[i].record == 1){
+                    listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
+                }
+            }
+        }
+
+        std::vector<int>::iterator it = listAllFrontEndIds.begin();
+        for (int i = 0; i < MAX_FRONT_ENDS; i++) {
+            listAllFrontEndIds.insert(it, i);
+            it++;
+        }
+
+        listFreeFrontEndIds = listAllFrontEndIds;
+    }
+
+    ret = ResourceManager::init_audio();
+    QAL_INFO(LOG_TAG, "Enter.");
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+    }
+
+    if (ag == GSL) {
+        ret = SessionGsl::init(DEFAULT_ACDB_FILES);
+    }
     QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
@@ -275,7 +370,6 @@ ResourceManager::~ResourceManager()
 
 int ResourceManager::init_audio()
 {
-    int snd_card_num = 0;
     int ret = 0;
     char snd_macro[] = "snd";
     char *snd_card_name = NULL, *snd_card_name_t = NULL;
@@ -283,18 +377,20 @@ int ResourceManager::init_audio()
     char *tmp = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
     QAL_DBG(LOG_TAG, "Enter.");
-    while (snd_card_num < MAX_SND_CARD) {
-        audio_mixer = mixer_open(snd_card_num);
+    snd_card = 0;
+    while (snd_card < MAX_SND_CARD) {
+        audio_mixer = mixer_open(snd_card);
         if (!audio_mixer) {
-            snd_card_num++;
+            snd_card++;
             continue;
         } else {
-            QAL_DBG(LOG_TAG, "mixer open success. snd_card_num = %d", snd_card_num);
+            QAL_INFO(LOG_TAG, "mixer open success. snd_card_num = %d, am:%p",
+                    snd_card, rm->audio_mixer);
             break;
         }
     }
 
-    if (snd_card_num >= MAX_SND_CARD) {
+    if (snd_card >= MAX_SND_CARD) {
         QAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
     }
@@ -325,7 +421,7 @@ int ResourceManager::init_audio()
     } else
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
-    audio_route = audio_route_init(snd_card_num, mixer_xml_file);
+    audio_route = audio_route_init(snd_card, mixer_xml_file);
     QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
     if (!audio_route) {
         QAL_ERR(LOG_TAG, "audio route init failed");
@@ -338,8 +434,7 @@ int ResourceManager::init_audio()
     }
     // audio_route init success
     QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
-            snd_card_num, mixer_xml_file);
-    snd_card = snd_card_num;
+            snd_card, mixer_xml_file);
     return 0;
 }
 
@@ -679,13 +774,13 @@ int ResourceManager::getAudioRoute(struct audio_route** ar)
     return 0;
 }
 
-int ResourceManager::getAudioMixer(struct audio_mixer * am)
+int ResourceManager::getAudioMixer(struct audio_mixer ** am)
 {
     if (!audio_mixer) {
         QAL_ERR(LOG_TAG, "no audio mixer found");
         return -ENOENT;
     }
-    am = audio_mixer;
+    *am = audio_mixer;
     QAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
     return 0;
 }
@@ -875,6 +970,100 @@ int ResourceManager::getDevicePpTag(std::vector <int> &tag)
     return status;
 }
 
+const qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
+
+//TODO move this to xml configuration
+
+//#ifdef ALSA
+//    return ALSA;
+//#ifdef GSL
+    return ALSA;
+
+}
+
+const int ResourceManager::getNumFEs(const qal_stream_type_t sType) const {
+    int n = 1;
+
+    switch (sType) {
+        case QAL_STREAM_LOOPBACK:
+        case QAL_STREAM_TRANSCODE:
+            n = 2;
+            break;
+        default:
+            n = 1;
+            break;
+    }
+
+    return n;
+}
+
+const std::vector<int> ResourceManager::allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction) {
+    //TODO: lock resource manager
+    std::vector<int> f;
+    f.clear();
+    int howMany = getNumFEs(sType);
+    int id = 0;
+    std::vector<int>::iterator it;
+    if ( howMany > listFreeFrontEndIds.size()) {
+        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error", howMany, listFreeFrontEndIds.size());
+        goto error;
+    }
+
+    id = (listFreeFrontEndIds.size() - 1);
+
+    //get iterator to end
+    it =  (listFreeFrontEndIds.begin() + id);
+
+
+    for (int i = 0; i < howMany; i++) {
+        f.push_back(listFreeFrontEndIds.at(id));
+        listFreeFrontEndIds.erase(it);
+        QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+        it -= 1;
+        id -= 1;
+    }
+
+error:
+    return f;
+}
+
+void ResourceManager::freeFrontEndIds (const std::vector<int> frontend) {
+    //TODO: lock resource manager?
+
+    for (int i = 0; i < frontend.size(); i++) {
+        listFreeFrontEndIds.push_back(frontend.at(i));
+    }
+
+    return;
+}
+
+
+const std::vector<std::string> ResourceManager::getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const
+{
+    std::vector<std::string> backEndNames;
+    std::string epname;
+    backEndNames.clear();
+
+    int dev_id;
+
+    for (int i = 0; i < deviceList.size(); i++) {
+        dev_id = deviceList[i]->getDeviceId();
+        if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_IN_PROXY) {
+            epname.assign(listAllBackEndIds[dev_id].second);
+            backEndNames.push_back(epname);
+        } else {
+            QAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
+        }
+    }
+
+    for (int i = 0; i < backEndNames.size(); i++) {
+        QAL_DBG(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
+    }
+
+    return backEndNames;
+}
+
+
 void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId)
 {
     devicePcmId[deviceId].second = pcmId;
@@ -890,8 +1079,12 @@ void ResourceManager::updateSndName(int32_t deviceId, std::string sndName)
     sndDeviceNameLUT[deviceId].second = sndName;
 }
 
-int convertCharToHex(std::string num)
+void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndName)
 {
+    listAllBackEndIds[deviceId].second = backEndName;
+}
+
+int convertCharToHex(std::string num) {
     int32_t hexNum = 0;
     int32_t base = 1;
     const char * charNum = num.c_str();
@@ -983,25 +1176,180 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr)
     }
     std::string sndName(attr[7]);
     updateSndName(deviceId, sndName);
+    const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
+    if (ag == ALSA) {
+        if (strcmp(attr[8], "back_end_name") != 0) {
+            QAL_ERR(LOG_TAG, "'back_end_name' not found");
+            return;
+        }
+        std::string backName(attr[9]);
+        updateBackEndName(deviceId, backName);
+    }
+}
+
+void ResourceManager::processCardInfo(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    int card;
+    if (!strcmp(tag_name, "id")) {
+        card = atoi(data->data_buf);
+        snd_card = card;
+        data->card_found = true;
+    }
+}
+
+void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    int device, size = -1;
+    struct deviceCap dev;
+
+    memset(&dev, 0, sizeof(struct deviceCap));
+    if (!strcmp(tag_name, "pcm-device") ||
+        !strcmp(tag_name, "compress-device") ||
+        !strcmp(tag_name, "mixer"))
+        return;
+
+    if (!strcmp(tag_name, "id")) {
+        device = atoi(data->data_buf);
+        dev.deviceId = device;
+        devInfo.push_back(dev);
+    } else if (!strcmp(tag_name, "name")) {
+        size = devInfo.size() - 1;
+        if(strstr(data->data_buf,"PCM")){
+            devInfo[size].type = PCM;
+        } else if (strstr(data->data_buf,"COMP")){
+            devInfo[size].type = COMPRESS;
+        }
+    }
+}
+void ResourceManager::processDeviceCapability(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    int size = -1;
+    int val = -1;
+    if (!strlen(data->data_buf) || !strlen(tag_name))
+        return;
+    if (strcmp(tag_name,"props") == 0)
+        return;
+    size = devInfo.size() - 1;
+    if(strcmp(tag_name,"playback") == 0) {
+        val = atoi(data->data_buf);
+        devInfo[size].playback = val;
+    } else if (strcmp(tag_name,"capture") == 0) {
+        val = atoi(data->data_buf);
+        devInfo[size].record = val;
+    } else if (strcmp(tag_name,"hostless") == 0) {
+        val = atoi(data->data_buf);
+        devInfo[size].loopback = val;
+    }
+}
+
+void ResourceManager::snd_reset_data_buf(struct xml_userdata *data)
+{
+    data->offs = 0;
+    data->data_buf[data->offs] = '\0';
+}
+
+void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    if (data->offs <= 0)
+        return;
+
+    data->data_buf[data->offs] = '\0';
+
+    if (data->card_parsed)
+        return;
+
+    if (data->current_tag == TAG_ROOT)
+        return;
+
+    if (data->current_tag == TAG_CARD){
+        processCardInfo(data, tag_name);
+    }
+    else if (data->current_tag == TAG_PLUGIN) {
+        //snd_parse_plugin_properties(data, tag_name);
+    }
+    else if (data->current_tag == TAG_DEVICE) {
+        //QAL_ERR(LOG_TAG,"tag %s", (char*)tag_name);
+        processDeviceIdProp(data, tag_name);
+    }
+    else if (data->current_tag == TAG_DEV_PROPS) {
+        processDeviceCapability(data, tag_name);
+    }
 }
 
 void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name,
     const XML_Char **attr)
 {
+    snd_card_defs_xml_tags_t tagId;
+    stream_supported_type type;
     if (strcmp(tag_name, "device") == 0) {
         processDeviceInfo(attr);
+        return;
     } else if (strcmp(tag_name, "Tag") == 0) {
         processTagInfo(attr);
+        return;
     } else if (strcmp(tag_name, "TAG") == 0) {
         processTagInfo(attr);
+        return;
     }
+    struct xml_userdata *data = (struct xml_userdata *)userdata;
+    if (data->card_parsed)
+        return;
+
+    snd_reset_data_buf(data);
+
+    if (!strcmp(tag_name, "card"))
+        data->current_tag = TAG_CARD;
+    if (strcmp(tag_name, "pcm-device") == 0) {
+        type = PCM;
+        data->current_tag = TAG_DEVICE;
+    } else if (strcmp(tag_name, "compress-device") == 0) {
+        data->current_tag = TAG_DEVICE;
+        type = COMPRESS;
+    } else if (strcmp(tag_name, "mixer") == 0) {
+        data->current_tag = TAG_MIXER;
+    } else if (strstr(tag_name, "plugin")) {
+        data->current_tag = TAG_PLUGIN;
+    } else if (!strcmp(tag_name, "props")) {
+        data->current_tag = TAG_DEV_PROPS;
+    }
+    if (data->current_tag != TAG_CARD && !data->card_found)
+        return;
 }
 
 void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name)
 {
-    return;
+    struct xml_userdata *data = (struct xml_userdata *)userdata;
+
+    if (data->card_parsed)
+        return;
+    if (data->current_tag != TAG_CARD && !data->card_found)
+        return;
+    snd_process_data_buf(data, tag_name);
+    snd_reset_data_buf(data);
+    if (!strcmp(tag_name, "mixer") || !strcmp(tag_name, "pcm-device") || !strcmp(tag_name, "compress-device"))
+        data->current_tag = TAG_CARD;
+    else if (strstr(tag_name, "plugin") || !strcmp(tag_name, "props"))
+        data->current_tag = TAG_DEVICE;
+    else if(!strcmp(tag_name, "card")) {
+        data->current_tag = TAG_ROOT;
+        if (data->card_found)
+            data->card_parsed = true;
+    }
 }
 
+void ResourceManager::snd_data_handler(void *userdata, const XML_Char *s, int len)
+{
+   struct xml_userdata *data = (struct xml_userdata *)userdata;
+
+   if (len + data->offs >= sizeof(data->data_buf) ) {
+       data->offs += len;
+       /* string length overflow, return */
+       return;
+   } else {
+       memcpy(data->data_buf + data->offs, s, len);
+       data->offs += len;
+   }
+}
 
 int ResourceManager::XmlParser(std::string xmlFile)
 {
@@ -1010,7 +1358,10 @@ int ResourceManager::XmlParser(std::string xmlFile)
     int ret = 0;
     int bytes_read;
     void *buf = NULL;
-    QAL_DBG(LOG_TAG, "Enter. XML parsing started");
+    struct xml_userdata card_data;
+    memset(&card_data, 0, sizeof(card_data));
+
+    QAL_INFO(LOG_TAG, "Enter. XML parsing started - file name %s", xmlFile.c_str());
     file = fopen(xmlFile.c_str(), "r");
     if(!file) {
         ret = EINVAL;
@@ -1024,9 +1375,9 @@ int ResourceManager::XmlParser(std::string xmlFile)
         QAL_ERR(LOG_TAG, "Failed to create XML ret %d", ret);
         goto closeFile;
     }
-
+    XML_SetUserData(parser, &card_data);
     XML_SetElementHandler(parser, startTag, endTag);
-
+    XML_SetCharacterDataHandler(parser, snd_data_handler);
     while(1) {
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {

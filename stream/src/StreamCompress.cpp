@@ -35,10 +35,10 @@
 #include "ResourceManager.h"
 #include "Device.h"
 
-StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr,
-                               struct qal_device *dAttr, uint32_t noOfDevices,
-                               struct modifier_kv *modifiers, uint32_t noOfModifiers,
-                               std::shared_ptr<ResourceManager> rm)
+StreamCompress::StreamCompress(const struct qal_stream_attributes *sAttr,
+                               const struct qal_device *dAttr, const uint32_t noOfDevices,
+                               const struct modifier_kv *modifiers, const uint32_t noOfModifiers,
+                               const std::shared_ptr<ResourceManager> rm)
 {
     Session* session = NULL;
     dev = nullptr;
@@ -56,7 +56,7 @@ StreamCompress::StreamCompress(struct qal_stream_attributes *sAttr,
         throw std::runtime_error("failed to create session object");
     }
 
-    dev = Device::create(dAttr, rm);
+    dev = Device::create((struct qal_device *)dAttr, rm);
     if (!dev) {
         QAL_ERR(LOG_TAG, "Device creation is failed");
         throw std::runtime_error("failed to create device object");

@@ -42,7 +42,7 @@ protected:
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
     char deviceName[128] = {0};
     void *deviceHandle;
-    struct pcm *pcmFd = NULL; //pcm_open fd
+    bool initialized = false;
 
     CodecDevice(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     CodecDevice();

@@ -32,11 +32,12 @@
 #include "CodecDevice.h"
 #include <tinyalsa/asoundlib.h>
 #include "CodecDeviceAlsa.h"
+#include "CodecDeviceGsl.h"
 #include "ResourceManager.h"
 #include "Device.h"
 #include "Speaker.h"
 #include "SpeakerMic.h"
-#include "CodecDeviceGsl.h"
+#include "CodecDeviceImpl.h"
 #include "Stream.h"
 
 
@@ -78,7 +79,7 @@ CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceMana
 
 CodecDevice::CodecDevice()
 {
-
+    initialized = false;
 }
 
 CodecDevice::~CodecDevice()
@@ -93,22 +94,31 @@ int CodecDevice::open()
     mutex.lock();
     void *stream;
     std::vector<Stream*> activestreams;
-    if (!pcmFd) {
-        CodecDeviceGsl *gsl = new CodecDeviceGsl();
-        if (!gsl) {
+    CodecDeviceImpl *codecImpl;
+
+    if(!initialized) {
+        const qal_alsa_or_gsl alsaConf = rm->getQALConfigALSAOrGSL();
+        if (ALSA == alsaConf) {
+            codecImpl = new CodecDeviceAlsa();
+        } else {
+            codecImpl = new CodecDeviceGsl();
+        }
+        if (!codecImpl) {
             status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "CodecDeviceGsl instantiation failed status %d", status);
+            QAL_ERR(LOG_TAG, "CodecDeviceImpl instantiation failed status %d", status);
             goto exit;
         }
-        pcmFd = gsl->open(&(this->deviceAttr), rm);
-        if (!pcmFd) {
-            status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "Failed to open the device status %d", status);
-            delete gsl;
+        status = codecImpl->open(&(this->deviceAttr), rm);
+        if(0!= status) {
+            QAL_ERR(LOG_TAG,"Failed to open the device status %d", status);
+            delete codecImpl;
             goto exit;
         }
-        deviceHandle = static_cast<void *>(gsl);
+
+        deviceHandle = static_cast<void *>(codecImpl);
+        initialized = true;
     }
+
     devObj = CodecDevice::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream(devObj, activestreams);
     if (0 != status) {
@@ -121,8 +131,7 @@ int CodecDevice::open()
         QAL_VERBOSE(LOG_TAG, "Stream handle :%pK", activestreams[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-    goto exit;
-exit :
+exit:
     mutex.unlock();
     return status;
 }
@@ -132,21 +141,21 @@ int CodecDevice::close()
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
     mutex.lock();
-    if (deviceCount == 0) {
-        CodecDeviceGsl *gsl= static_cast<CodecDeviceGsl *>(deviceHandle);
-        if (!gsl) {
+    if (deviceCount == 0 && initialized) {
+        CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
+        if (!codecDev) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
             goto exit;
         }
-        status = gsl->close(pcmFd);
+        status = codecDev->close();
         if (0 != status) {
             status = -ENOMEM;
             QAL_ERR(LOG_TAG, "Failed to close the device status %d", status);
-            delete gsl;
-            goto exit;
         }
-        pcmFd = NULL;
+        delete codecDev;
+        initialized = false;
+        deviceHandle = nullptr;
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
@@ -159,17 +168,17 @@ int CodecDevice::prepare()
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
     mutex.lock();
-    if (0 == deviceCount) {
-        CodecDeviceGsl *gsl= static_cast<CodecDeviceGsl *>(deviceHandle);
-         if (!gsl) {
-            status = -ENOMEM;
+    if (deviceCount == 0 && initialized) {
+        CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
+         if (!codecDev) {
+            status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
             goto exit;
         }
-        status = gsl->prepare(pcmFd);
+        status = codecDev->prepare();
         if (0 != status) {
-            status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "GSL Prepare failed status %d", status);
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Codec Prepare failed status %d", status);
             goto exit;
         }
     }
@@ -184,7 +193,7 @@ int CodecDevice::start()
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
     mutex.lock();
-    if (0 == deviceCount) {
+    if (deviceCount == 0 && initialized) {
         status = rm->getAudioRoute(&audioRoute);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
@@ -198,20 +207,24 @@ int CodecDevice::start()
         }
         enableDevice(audioRoute, deviceName);
 
-        CodecDeviceGsl *gsl= static_cast<CodecDeviceGsl *>(deviceHandle);
-        if (!gsl) {
+        CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
+        if (!codecDev) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
             goto exit;
         }
-        status = gsl->prepare(pcmFd);
+        status = codecDev->prepare();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to prepare the device status %d", status);
             goto exit;
         }
-
+        status = codecDev->start();
+        if(0 != status)
+        {
+            QAL_ERR(LOG_TAG,"%s: Failed to start the device", __func__);
+            goto exit;
+        }
     }
-
     deviceCount += 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
@@ -223,17 +236,17 @@ int CodecDevice::stop()
 {
     int status = 0;
     mutex.lock();
-    if(deviceCount == 1) {
+    if(deviceCount == 1 && initialized) {
         disableDevice(audioRoute, deviceName);
-        CodecDeviceGsl *gsl= static_cast<CodecDeviceGsl *>(deviceHandle);
-        if (!gsl) {
+        CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
+        if (!codecDev) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
             goto exit;
         }
-        status = gsl->stop(pcmFd);
+        status = codecDev->stop();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "GSL Stop failed status %d", status);
+            QAL_ERR(LOG_TAG, "Codec Device Stop failed status %d", status);
             goto exit;
         }
     }

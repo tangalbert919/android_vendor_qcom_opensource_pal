@@ -27,53 +27,41 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SESSION_ALSAPCM_H
-#define SESSION_ALSAPCM_H
+#ifndef SESSION_ALSAUTILS_H
+#define SESSION_ALSAUTILS_H
 
-#include "PayloadBuilder.h"
 #include "Session.h"
-#include "QalAudioRoute.h"
+#include "ResourceManager.h"
+#include "PayloadBuilder.h"
+
+
 #include <tinyalsa/asoundlib.h>
+#include <sound/asound.h>
+
 
 class Stream;
 class Session;
 
-class SessionAlsaPcm : public Session
-{
-private:
-    void * graphHandle;
-    void * payload;
-    size_t size = 0;
-    PayloadBuilder* builder;
-    struct pcm *pcm;
-    std::shared_ptr<ResourceManager> rm;
-    struct mixer *mixer;
-    size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
-    std::vector<int> pcmDevIds;
-    std::vector<std::string> aifBackEnds;
-    std::vector <std::pair<int, int>> gkv;
-    std::vector <std::pair<int, int>> ckv;
-    std::vector <std::pair<int, int>> tkv;
-
-
-public:
-
-    SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
-    ~SessionAlsaPcm();
-    int open(Stream * s) override;
-    int prepare(Stream * s) override;
-    int setConfig(Stream * s, configType type, int tag = 0) override;
-    //int getConfig(Stream * s) override;
-    int start(Stream * s) override;
-    int stop(Stream * s) override;
-    int close(Stream * s) override;
-    int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
-    int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
-    int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
-    int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
-
+enum class MixerCtlType: uint32_t {
+    MIXER_SET_ID_STRING,
+    MIXER_SET_ID_VALUE,
+    MIXER_SET_ID_ARRAY,
 };
 
-#endif //SESSION_ALSAPCM_H
+class SessionAlsaUtils
+{
+private:
+    SessionAlsaUtils() {};
+public:
+    ~SessionAlsaUtils();
+    static int setMixerCtlData(struct mixer_ctl *ctl, MixerCtlType id, void *data, int size);
+    static int getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
+                              const std::vector <std::pair<int, int>> &ckv,
+                              struct prop_data *propData, uint32_t &mdSize, uint8_t **data);
+    static int getTagMetadata(int32_t tagsent, std::vector <std::pair<int, int>> &tkv, struct agm_tag_config *tagConfig);
+    static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);
+    static unsigned int bitsToAlsaFormat(unsigned int bits);
+    static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds, const std::vector<std::string> &BackEnds);
+};
+
+#endif //SESSION_ALSA_UTILS

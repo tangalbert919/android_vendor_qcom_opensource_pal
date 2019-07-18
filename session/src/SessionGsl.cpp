@@ -43,7 +43,7 @@
 #define PLAYBACK 0x1
 #define RECORD 0x2
 #define BUFFER_EOS 1
-
+#define TAG_STREAM_MFC_SR  STREAM_MFC
 
 
 typedef int32_t (*gsl_init_t)(struct gsl_init_data *);
@@ -84,16 +84,52 @@ void *SessionGsl::gslLibHandle = NULL;
 
 SessionGsl::SessionGsl()
 {
+    builder = nullptr;
+
+    builder = new PayloadBuilder();
+    if (!builder) {
+       QAL_ERR(LOG_TAG,"%s: PayloadloadBuilder creation failed", __func__);
+       goto error;
+    }
+
+    gkv = new gsl_key_vector;
+    if (!gkv) {
+        QAL_ERR(LOG_TAG,"%s: Failed to malloc gkv", __func__);
+        goto error_1;
+    }
+
+
+    ckv = new gsl_key_vector;
+    if (!ckv) {
+        QAL_ERR(LOG_TAG,"%s: new ckv failed", __func__);
+        goto error_2;
+    }
+
+
+error_2:
+    delete gkv;
+    gkv = nullptr;
+
+error_1:
+    delete builder;
+    builder = nullptr;
+
+error:
+    return;
 
 }
 
 SessionGsl::SessionGsl(std::shared_ptr<ResourceManager> Rm)
 {
     rm = Rm;
+    SessionGsl();
 }
 
 SessionGsl::~SessionGsl()
 {
+    delete builder;
+    delete gkv;
+    delete ckv;
 
 }
 
@@ -249,342 +285,6 @@ void SessionGsl::deinit()
     }
 }
 
-int populateGkv(Stream *s, struct gsl_key_vector *gkv)
-{
-    int status = 0;
-    int32_t dev_id = 0;
-    std::vector<std::shared_ptr<Device>> associatedDevices;
-    std::vector <std::pair<int,int>> keyVector;
-    struct qal_stream_attributes *sattr = NULL;
-    QAL_DBG(LOG_TAG, "Enter.");
-    sattr = (struct qal_stream_attributes *)malloc(sizeof(struct qal_stream_attributes));
-    if (!sattr) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "sattr malloc failed %s status %d", strerror(errno), status);
-        goto exit;
-    }
-    memset (sattr, 0, sizeof(struct qal_stream_attributes)); 
-    status = s->getStreamAttributes(sattr);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "getStreamAttributes Failed status %d", status);
-        goto free_sattr;
-    }
-    status = s->getAssociatedDevices(associatedDevices);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "getAssociatedDevices Failed status %d", status);
-        goto free_sattr;
-    }
-    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-    switch (sattr->type) {
-        case QAL_STREAM_LOW_LATENCY:
-            if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
-            } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels >= 3)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
-            } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 1)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_SMECNS));
-            }else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 2)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-            } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
-            } else {
-                QAL_ERR(LOG_TAG,"%s: Invalid direction \n", __func__);
-                status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        case QAL_STREAM_DEEP_BUFFER:
-            break;
-        case QAL_STREAM_GENERIC:
-            break;
-        case QAL_STREAM_COMPRESSED:
-            break;
-        case QAL_STREAM_VOIP_TX:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
-            keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
-            break;
-        case QAL_STREAM_VOIP_RX:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
-            break;
-        case QAL_STREAM_VOICE_UI:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
-            keyVector.push_back(std::make_pair(DEVICEPP_TX,VOICE_FLUENCE_FFECNS));
-            break;
-        default:
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG,"unsupported stream type %s status %d", sattr->type, status);
-            goto free_sattr;
-    }
-    
-    //TODO: add stream PP and device PP population
-    for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getDeviceId();
-        switch(dev_id) {
-        case QAL_DEVICE_OUT_SPEAKER :
-            keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
-            break;
-        case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_HANDSET_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
-            keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
-            break;
-        default:
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid device id %d status %d", dev_id, status);
-            goto free_sattr;
-        }
-    }
-    gkv->num_kvps = keyVector.size();
-    gkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
-    for(int32_t i=0; i < (keyVector.size()); i++) {
-        gkv->kvp[i].key = keyVector[i].first;
-        gkv->kvp[i].value = keyVector[i].second;
-    }
-    QAL_DBG(LOG_TAG, "gkv size %d", (gkv->num_kvps));
-    for(int32_t i=0; i < (keyVector.size()); i++) {
-       QAL_INFO(LOG_TAG, "gkv key %x value %x", (gkv->kvp[i].key),(gkv->kvp[i].value));
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-    goto exit;
-free_sattr:
-    free(sattr);
-exit:
-    return status;
-}
-
-int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandle,
-                SessionGsl *sg)
-{
-    int status = 0;
-    float voldB = 0;
-    std::vector <std::pair<int,int>> keyVector;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize = 0;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    struct qal_volume_data *voldata = NULL;
-
-    QAL_DBG(LOG_TAG, "Enter.");
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to create builder %s", strerror(errno));
-        goto exit;
-    }
-    voldata = (struct qal_volume_data *)malloc(sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
-    if (!voldata) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "voldata malloc failed %s", strerror(errno));
-        goto free_builder;
-    }
-    memset (voldata, 0, sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
-
-    status = s->getVolumeData(voldata);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "getVolumeData Failed status %d", status);
-        goto free_voldata;
-    }
-    voldB = (voldata->volume_pair[0].vol);
-    QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
-    switch (tag) {
-        case TAG_STREAM_VOLUME:
-            if (0 <= voldB < 0.1) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-            } else if (0.1 <= voldB < 0.2) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
-            } else if (0.2 <= voldB < 0.3) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
-            } else if (0.3 <= voldB < 0.4) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
-            } else if (0.4 <= voldB < 0.5) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
-            } else if (0.5 <= voldB < 0.6) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
-            } else if (0.6 <= voldB < 0.7) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
-            } else if (0.7 <= voldB < 0.8) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
-            } else if (0.8 <= voldB < 0.9) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
-            } else if (0.9 <= voldB < 1) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
-            } else if (voldB >= 1) {
-                keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
-                QAL_ERR(LOG_TAG, "max %d", (voldata->no_of_volpair));
-            }
-            status = gslGetTaggedModuleInfo(sg->gkv, tag,
-                                     &moduleInfo, &moduleInfoSize);
-            if (0 != status || !moduleInfo) {
-                QAL_ERR(LOG_TAG, "Failed to get tag info %x module size status %d",
-                        tag, status);
-                goto free_voldata;
-            }
-            builder->payloadVolume(&payload, &payloadSize,
-                                   moduleInfo->module_entry[0].module_iid,
-                                   voldata, tag);
-            if (!payload) {
-                status = -EINVAL;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                goto free_moduleInfo;
-            }
-            QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
-                goto free_payload;
-            }
-            break;
-        default:
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
-            QAL_ERR(LOG_TAG, "Entered default");
-            break;
-    }
-    ckv->num_kvps = keyVector.size();
-    ckv->kvp = new struct gsl_key_value_pair[keyVector.size()];
-    for (int i = 0; i < keyVector.size(); i++) {
-        ckv->kvp[i].key = keyVector[i].first;
-        ckv->kvp[i].value = keyVector[i].second;
-        QAL_VERBOSE(LOG_TAG, "ckv key %x value %x", (ckv->kvp[i].key),
-                   (ckv->kvp[i].value));
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_voldata :
-    free(voldata);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag, void* graphHandle, SessionGsl *sg)
-{
-    int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. tag %d\n", tag);
-    std::vector <std::pair<int,int>> keyVector;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize = 0;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    PayloadBuilder *builder = new PayloadBuilder();
-    switch (tag){
-        case MUTE_TAG:
-            keyVector.push_back(std::make_pair(MUTE,ON));
-            *gsltag = TAG_MUTE;
-            break;
-        case UNMUTE_TAG:
-            keyVector.push_back(std::make_pair(MUTE,OFF));
-            *gsltag = TAG_MUTE;
-            break;
-        case PAUSE_TAG:
-        //TODO: Remove this pause resume hack once QACT fixes tkv
-            keyVector.push_back(std::make_pair(PAUSE,ON));
-            *gsltag = TAG_PAUSE;
-            status = gslGetTaggedModuleInfo(sg->gkv, *gsltag,
-                                         &moduleInfo, &moduleInfoSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"Failed to get tag info %x module size\n", tag);
-                goto exit;
-            }
-            builder->payloadPause(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid);
-            QAL_DBG(LOG_TAG,"%x - payload and %d size\n", payload , payloadSize);
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"Set custom config failed with status = %d\n", status);
-            }
-            break;
-        case RESUME_TAG:
-            keyVector.push_back(std::make_pair(PAUSE,OFF));
-            *gsltag = TAG_PAUSE;
-            status = gslGetTaggedModuleInfo(sg->gkv, *gsltag,
-                                         &moduleInfo, &moduleInfoSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"Failed to get tag info %x module size\n", tag);
-                goto exit;
-            }
-            builder->payloadResume(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid);
-            QAL_DBG(LOG_TAG,"%x - payload and %d size\n", payload , payloadSize);
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"Set custom config failed with status = %d\n", status);
-            }
-            break;
-        case MFC_SR_8K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_16K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_32K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_44K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_48K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_96K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_192K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case MFC_SR_384K:
-            keyVector.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
-            *gsltag = TAG_DEVICE_PP_MFC;
-            break;
-        case FLUENCE_ON_TAG:
-            keyVector.push_back(std::make_pair(FLUENCE,FLUENCE_ON));
-            *gsltag = TAG_FLUENCE;
-            break;
-        case FLUENCE_OFF_TAG:
-            keyVector.push_back(std::make_pair(FLUENCE,FLUENCE_OFF));
-            *gsltag = TAG_FLUENCE;
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "Tag not supported");
-            break;
-    }
-    tkv->num_kvps = keyVector.size();
-    tkv->kvp = new struct gsl_key_value_pair[keyVector.size()];
-    for (int i = 0; i < keyVector.size(); i++) {
-        tkv->kvp[i].key = keyVector[i].first;
-        tkv->kvp[i].value = keyVector[i].second;
-    }
-    QAL_DBG(LOG_TAG, "tkv size %d", (tkv->num_kvps));
-    for(int32_t i=0; i < (keyVector.size()); i++) {
-       QAL_VERBOSE(LOG_TAG, "tkv key %x value %x", (tkv->kvp[i].key), (tkv->kvp[i].value));
-    }
-    QAL_DBG(LOG_TAG, "Exit. status- %d", status);
-exit:
-    if (moduleInfo)
-       free(moduleInfo);
-    if (payload)
-        delete [] payload;
-    delete builder;
-    return status;
-}
-
 void printCustomConfig(const uint8_t* payload, size_t size)
 {
     size_t loop;
@@ -601,23 +301,26 @@ int SessionGsl::open(Stream *s)
     int status = 0;
     struct qal_stream_attributes sAttr;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    if (!builder) {
+        QAL_ERR(LOG_TAG,"%s: No builder initialized", __func__);
+        return -EINVAL;
+    }
+
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG, "getStreamAttributes Failed status %d", status);
         return status;
     }
     QAL_DBG(LOG_TAG, "direction: %d", sAttr.direction);
-
     gkv = new gsl_key_vector;
-    status = populateGkv(s, gkv);
+    status = builder->populateGkv(s, gkv);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to populate gkv status %d", status);
         goto exit;
     }
 
     ckv = new gsl_key_vector;
-    status = populateCkv(s, ckv, 0, 0, 0);
+    status = builder->populateCkv(s, ckv, 0, NULL);//0, 0);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to populate ckv status %d", status);
         goto exit;
@@ -658,17 +361,11 @@ int SessionGsl::setPayloadConfig(Stream *s)
     std::string epname;
 
     QAL_DBG(LOG_TAG, "Enter.");
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to create builder status %d", status);
-        goto exit;
-    }
     sessionData = (struct sessionToPayloadParam *)calloc(1, sizeof(struct sessionToPayloadParam));
     if (!sessionData) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "sessionData malloc failed status %d", status);
-        goto free_builder;
+        goto exit;
     }
     deviceData = (struct sessionToPayloadParam *)calloc(1, sizeof(struct sessionToPayloadParam));
     if (!deviceData) {
@@ -719,7 +416,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             if (!payload) {
                 status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                //goto free_moduleInfo;
+                continue;
             }
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
@@ -823,7 +520,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             if (!payload) {
                 status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                goto free_moduleInfo;
+                continue;
             }
             status = gslSetCustomConfig(graphHandle, payload, payloadSize);
             if (0 != status) {
@@ -893,15 +590,17 @@ int SessionGsl::setPayloadConfig(Stream *s)
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload:
-    delete [] payload;
+    if (payload)
+       free(payload);
 free_moduleInfo:
-    free(moduleInfo);
+    if (moduleInfo)
+       free(moduleInfo);
 free_deviceData:
-    free(deviceData);
+    if (deviceData)
+       free(deviceData);
 free_sessionData:
-    free(sessionData);
-free_builder :
-    delete builder;
+    if (sessionData)
+       free(sessionData);
 exit:    
     return status;
 }
@@ -1077,20 +776,27 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag)
 {
     int status = 0;
     uint32_t tagsent;
+    struct qal_volume_data *voldata = NULL;
+    struct gsl_module_id_info *moduleInfo = NULL;
+    size_t moduleInfoSize;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+
     QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK type:%d tag:%d", graphHandle, type,
             tag);
     gkv = new gsl_key_vector;
-    status = populateGkv(s, gkv);
+    status = builder->populateGkv(s, gkv);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to populate gkv status %d", status);
         goto exit;
     }
+
     switch (type) {
     case GRAPH:
         break;
     case MODULE:
         tkv = new gsl_key_vector;
-        status = populateTkv(s, tkv, tag, &tagsent, graphHandle, this);
+        status = builder->populateTkv(s, tkv, tag, &tagsent);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to set the tag configuration, status %d",
                     status);
@@ -1110,12 +816,34 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag)
         }
         break;
     case CALIBRATION:
-        ckv = new gsl_key_vector;
-        status = populateCkv(s, ckv, tag, graphHandle, this);
+//        ckv = new gsl_key_vector;
+        status = builder->populateCkv(s, ckv, tag, &voldata); //, graphHandle, this);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to populate calibration data status %d", status);
             goto exit;
         }
+        status = gslGetTaggedModuleInfo(gkv, tag,
+                                     &moduleInfo, &moduleInfoSize);
+        if (0 != status || !moduleInfo) {
+            QAL_ERR(LOG_TAG, "Failed to get tag info %x module size status %d", tag, status);
+            goto free_voldata;
+        }
+        builder->payloadVolume(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid, voldata, tag);
+        if (!payload) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            goto free_moduleinfo;
+        }
+        QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
+        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+        }
+		free(payload);
+free_moduleinfo:
+		free(moduleInfo);
+free_voldata:
+		free(voldata);
         QAL_DBG(LOG_TAG, "graph handle %x", graphHandle);
         QAL_DBG(LOG_TAG, "ckv key %x value %x\n", (ckv->kvp[0].key),(ckv->kvp[0].value));
         status = gslSetCal(graphHandle, gkv, ckv);
@@ -1371,7 +1099,7 @@ int SessionGsl::setParameters(Stream *s, int tagId, uint32_t param_id, void *pay
             builder->payloadSVASoundModel(&param, &paramSize,
                                           moduleInfo->module_entry[0].module_iid,
                                           pSoundModel);
-            break;
+           break;
         }
         case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
         {

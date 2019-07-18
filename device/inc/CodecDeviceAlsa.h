@@ -31,15 +31,21 @@
 #define CODEC_DEVICE_ALSA_H
 
 #include "Device.h"
-
+#include "CodecDeviceImpl.h"
 
 class Speaker;
 
-class CodecDeviceAlsa
+class CodecDeviceAlsa: public CodecDeviceImpl
 {
 public:
-    int open(std::shared_ptr<Device> d);
-    int close(std::shared_ptr<Device> d);
+
+     CodecDeviceAlsa();
+     ~CodecDeviceAlsa();
+     int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
+     int close() override;
+     int prepare() override;
+     int start() override;
+     int stop() override;
 
 };
 

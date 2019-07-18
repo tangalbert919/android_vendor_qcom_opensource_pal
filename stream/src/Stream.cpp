@@ -301,3 +301,15 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                 *out_buf_size,*out_buf_count);
     return status;
 }
+
+bool Stream::isStreamAudioOutFmtSupported(qal_audio_fmt_t format)
+{
+    switch (format) {
+        case QAL_AUDIO_FMT_DEFAULT_PCM:
+        case QAL_AUDIO_FMT_MP3:
+            return true;
+        default:
+            return false;
+    }
+}
+

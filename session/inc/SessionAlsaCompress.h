@@ -27,39 +27,73 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SESSION_ALSAPCM_H
-#define SESSION_ALSAPCM_H
+#ifndef SESSION_ALSACOMPRESS_H
+#define SESSION_ALSACOMPRESS_H
 
-#include "PayloadBuilder.h"
+
 #include "Session.h"
+
+#include "ResourceManager.h"
+#include "PayloadBuilder.h"
+#include <algorithm>
+#include <queue>
+#include <deque>
 #include "QalAudioRoute.h"
 #include <tinyalsa/asoundlib.h>
+#include <condition_variable>
+#include <sound/compress_params.h>
+#include <tinycompress/tinycompress.h>
 
 class Stream;
 class Session;
 
-class SessionAlsaPcm : public Session
+enum {
+    OFFLOAD_CMD_EXIT,               /* exit compress offload thread loop*/
+    OFFLOAD_CMD_DRAIN,              /* send a full drain request to DSP */
+    OFFLOAD_CMD_PARTIAL_DRAIN,      /* send a partial drain request to DSP */
+    OFFLOAD_CMD_WAIT_FOR_BUFFER,    /* wait for buffer released by DSP */
+    OFFLOAD_CMD_ERROR               /* offload playback hit some error */
+};
+
+struct offload_msg {
+    offload_msg(int c)
+        :cmd(c) {}
+    int cmd; /**< command */
+};
+
+class SessionAlsaCompress : public Session
 {
 private:
+
     void * graphHandle;
+    struct compress *compress;
     void * payload;
     size_t size = 0;
     PayloadBuilder* builder;
-    struct pcm *pcm;
-    std::shared_ptr<ResourceManager> rm;
-    struct mixer *mixer;
-    size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
-    std::vector<int> pcmDevIds;
+    struct snd_codec codec;
+    //  unsigned int compressDevId;
+    std::vector<int> compressDevIds;
     std::vector<std::string> aifBackEnds;
-    std::vector <std::pair<int, int>> gkv;
-    std::vector <std::pair<int, int>> ckv;
-    std::vector <std::pair<int, int>> tkv;
+    std::unique_ptr<std::thread> worker_thread;
+    std::queue<std::shared_ptr<offload_msg>> msg_queue_;
 
-
+    std::condition_variable cv_; /* used to wait for incoming requests */
+    std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
+    struct mixer_ctl *feCtrl;
+    struct mixer_ctl *feMdCtrl;
+    struct mixer_ctl *aifMdCtrl;
+    struct mixer_ctl *connectCtrl;
+    struct mixer_ctl *aifMfCtrl;
+    struct mixer_ctl *disconnectCtrl;
+    void getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr);
+    int getSndCodecId(qal_audio_fmt_t fmt);
+    bool playback_started;
+    int ioMode;
+    session_callback sessionCb;
+    void *cbCookie;
 public:
-
-    SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
-    ~SessionAlsaPcm();
+    SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
+    virtual ~SessionAlsaCompress();
     int open(Stream * s) override;
     int prepare(Stream * s) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
@@ -69,11 +103,13 @@ public:
     int close(Stream * s) override;
     int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
+    int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload);
+    int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload);
     int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
     int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
-    int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
-    int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
-
+    static void offloadThreadLoop(SessionAlsaCompress *ob);
+    int registerCallBack(session_callback cb, void *cookie);
+    int drain(qal_drain_type_t type);
 };
 
-#endif //SESSION_ALSAPCM_H
+#endif //SESSION_ALSACOMPRESS_H

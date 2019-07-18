@@ -27,53 +27,19 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SESSION_ALSAPCM_H
-#define SESSION_ALSAPCM_H
+#ifndef CODEC_DEVICE_IMPL_H
+#define CODEC_DEVICE_IMPL_H
 
-#include "PayloadBuilder.h"
-#include "Session.h"
-#include "QalAudioRoute.h"
-#include <tinyalsa/asoundlib.h>
-
-class Stream;
-class Session;
-
-class SessionAlsaPcm : public Session
+class CodecDeviceImpl
 {
-private:
-    void * graphHandle;
-    void * payload;
-    size_t size = 0;
-    PayloadBuilder* builder;
-    struct pcm *pcm;
-    std::shared_ptr<ResourceManager> rm;
-    struct mixer *mixer;
-    size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
-    std::vector<int> pcmDevIds;
-    std::vector<std::string> aifBackEnds;
-    std::vector <std::pair<int, int>> gkv;
-    std::vector <std::pair<int, int>> ckv;
-    std::vector <std::pair<int, int>> tkv;
-
-
 public:
-
-    SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
-    ~SessionAlsaPcm();
-    int open(Stream * s) override;
-    int prepare(Stream * s) override;
-    int setConfig(Stream * s, configType type, int tag = 0) override;
-    //int getConfig(Stream * s) override;
-    int start(Stream * s) override;
-    int stop(Stream * s) override;
-    int close(Stream * s) override;
-    int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
-    int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
-    int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
-    int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
+    virtual int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) = 0;
+    virtual int close() = 0;
+    virtual int prepare() = 0;
+    virtual int start() = 0;
+    virtual int stop() = 0;
 
 };
 
-#endif //SESSION_ALSAPCM_H
+#endif
+

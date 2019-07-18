@@ -52,6 +52,8 @@ typedef enum {
     OUT_MEDIA_CONFIG
 }configType;
 
+typedef int32_t (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
+
 class Stream;
 class ResourceManager;
 class Session
@@ -60,11 +62,10 @@ protected:
     void * handle_t;
     std::mutex mutex;
     Session();
-    struct audio_route;
-    struct audio_mixer;
     std::shared_ptr<ResourceManager> rm;
 public:
     ~Session();
+    static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;

@@ -38,6 +38,10 @@
 #include <algorithm>
 #include <expat.h>
 #include <map>
+#include "Stream.h"
+#include "Device.h"
+
+
 #define MSM_MI2S_SD0 (1 << 0)
 #define MSM_MI2S_SD1 (1 << 1)
 #define MSM_MI2S_SD2 (1 << 2)
@@ -102,6 +106,8 @@ struct auxpcmConfig{
     uint32_t auxMode;
 };
 
+class SessionGsl;
+
 class PayloadBuilder
 {
 private:
@@ -158,6 +164,16 @@ public:
     void payloadSVAEventConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
                        struct detection_engine_generic_event_cfg *pEventConfig);
     void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
+    int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateGkv(Stream *s, struct gsl_key_vector *gkv);
+    int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, struct qal_volume_data **);
+    int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);
+    int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag);
+    int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
+    int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
+
     static int init();
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void processCodecInfo(const XML_Char **attr);

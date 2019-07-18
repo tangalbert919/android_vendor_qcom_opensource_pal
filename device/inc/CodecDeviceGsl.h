@@ -31,19 +31,21 @@
 #define CODEC_DEVICE_GSL_H
 
 #include "Device.h"
+#include "CodecDeviceImpl.h"
 
 class ResourceManager;
 
-class CodecDeviceGsl
+class CodecDeviceGsl: public CodecDeviceImpl
 {
+    struct pcm *pcmFd;
 public:
     CodecDeviceGsl();
     ~CodecDeviceGsl();
-    struct pcm * open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_);
-    int close(struct pcm *pcmFd);
-    int prepare(struct pcm *pcmFd);
-    int start(struct pcm *pcmFd);
-    int stop(struct pcm *pcmFd);
+    int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
+    int close() override;
+    int prepare() override;
+    int start() override;
+    int stop() override;
 };
 
 

@@ -119,6 +119,7 @@ public:
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct qal_stream_attributes *sattr, struct qal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
+    bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
 };
 
 #endif//STREAM_H_

@@ -55,6 +55,16 @@ typedef void qal_st_handle_t;
 /** QAL Audio format enumeration */
 typedef enum {
     QAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
+    QAL_AUDIO_FMT_MP3 = 0x2,
+
+    QAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
+
+    QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+
+    QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
+
+    QAL_AUDIO_FMT_COMPRESSED_RANGE_END   = QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
+
 } qal_audio_fmt_t;
 
 
@@ -180,6 +190,12 @@ typedef enum {
 } qal_device_id_t;
 
 
+/* type of asynchronous write callback events. Mutually exclusive */
+typedef enum {
+    QAL_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
+    QAL_STREAM_CBK_EVENT_DRAIN_READY,  /* drain completed */
+    QAL_STREAM_CBK_EVENT_ERROR, /* stream hit some error, let AF take action */
+} qal_stream_callback_event_t;
 
 struct qal_stream_info {
     int64_t version;                    /** version of structure*/
@@ -211,15 +227,12 @@ struct qal_media_config {
 };
 
 /**  Available stream flags of an audio session*/
-enum {
+typedef enum {
     QAL_STREAM_FLAG_TIMESTAMP,          /**< Enable time stamps associated to audio buffers  */
     QAL_STREAM_FLAG_NON_BLOCKING,       /**< Stream IO operations are non blocking */
-} ;
+} qal_stream_flags_t;
 
-//todo:add a link to above flags in the stream_attributes api.
-
-/**  Stream flags, OR'able */
-typedef uint32_t qal_stream_flags_t;
+#define QAL_STREAM_FLAG_NON_BLOCKING_MASK 0x2
 
 /**< QAL stream attributes to be specified, used in qal_stream_open cmd */
 struct qal_stream_attributes {

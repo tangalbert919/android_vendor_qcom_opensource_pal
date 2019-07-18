@@ -45,6 +45,10 @@
 #include "audio_dam_buffer_api.h"
 #include "codec_dma_api.h"
 #include "detection_cmn_api.h"
+#include "PayloadBuilder.h"
+#include "Stream.h"
+
+
 
 /* Param ID definitions */
 #define PARAM_ID_MEDIA_FORMAT 0x0800100C
@@ -114,13 +118,27 @@ class SessionGsl : public Session
 private:
     void * graphHandle;
     void * payload = NULL;
+    std::shared_ptr<ResourceManager> rm;
     size_t size = 0;
     size_t gkvLen, ckvLen, tkvLen;
     struct gslCmdGetReadWriteBufInfo *infoBuffer;
     static int seek;
     static void* gslLibHandle;
+    PayloadBuilder* builder;
+      //TODO: move this to private
+    struct gsl_key_vector *gkv;
+    struct gsl_key_vector *ckv;
+    struct gsl_key_vector *tkv;
+
     int fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag);
     int fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size);
+    int setCalibration(Stream *s, int tag);
+    int populateSVASoundModel(int tagId, void* graphHandle, struct qal_st_sound_model *pSoundModel);
+    int populateSVAWakeUpConfig(int tagId, void* graphHandle, struct detection_engine_config_voice_wakeup *pWakeUpConfig);
+    int populateSVAWakeUpBufferConfig(int tagId, void* graphHandle, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig);
+    int populateSVAStreamSetupDuration(int tagId, void* graphHandle, struct audio_dam_downstream_setup_duration *pSetupDuration);
+    int populateSVAEventConfig(int tagId, void* graphHandle, struct detection_engine_generic_event_cfg *pEventConfig);
+    int populateSVAEngineReset(int tagId, void* graphHandle, Stream *st);
     SessionGsl();
     
 public:
@@ -144,9 +162,7 @@ public:
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
-    struct gsl_key_vector *gkv;
-    struct gsl_key_vector *ckv;
-    struct gsl_key_vector *tkv;
+
 };
 
 #endif //SESSION_GSL_H

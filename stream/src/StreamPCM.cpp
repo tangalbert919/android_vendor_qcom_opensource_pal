@@ -38,9 +38,9 @@
 #include "Device.h"
 #include <unistd.h>
 
-StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dattr,
-                     uint32_t no_of_devices, struct modifier_kv *modifiers,
-                     uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
+StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, const struct qal_device *dattr,
+                    const uint32_t no_of_devices, const struct modifier_kv *modifiers,
+                    const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm)
 {
     mutex.lock();
     session = NULL;
@@ -62,12 +62,7 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
                       sizeof(qal_stream_attributes));
 
     QAL_VERBOSE(LOG_TAG, "Create new Session");
-    #ifdef CONFIG_GSL
-        session = new SessionGsl(rm);
-    #else
-        session = new SessionAlsapcm();
-    #endif
-
+    session = Session::makeSession(rm, sattr);
     if (!session) {
         QAL_ERR(LOG_TAG, "session creation failed");
         free(attr);
@@ -77,7 +72,7 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
-        dev = Device::create(&dattr[i] , rm);
+        dev = Device::create((struct qal_device *)&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
             free(attr);
@@ -147,6 +142,8 @@ int32_t  StreamPCM::close()
 exit:
     mutex.unlock();
     status = rm->deregisterStream(this);
+    delete session;
+    session = nullptr;
     QAL_ERR(LOG_TAG, "status - %d", status);
     return status;
 }

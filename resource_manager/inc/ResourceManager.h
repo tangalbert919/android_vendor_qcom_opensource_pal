@@ -41,8 +41,47 @@
 #include "QalCommon.h"
 #include <map>
 #include <expat.h>
+#include "QalDefs.h"
 
 #define audio_mixer mixer
+
+enum qal_alsa_or_gsl {
+    ALSA = 0,
+    GSL
+};
+
+typedef enum {
+    TAG_ROOT,
+    TAG_CARD,
+    TAG_DEVICE,
+    TAG_PLUGIN,
+    TAG_DEV_PROPS,
+    TAG_NONE,
+    TAG_MIXER,
+} snd_card_defs_xml_tags_t;
+
+typedef enum {
+    PCM,
+    COMPRESS,
+} stream_supported_type;
+
+struct xml_userdata {
+    char data_buf[1024];
+    size_t offs;
+
+    unsigned int card;
+    bool card_found;
+    bool card_parsed;
+    snd_card_defs_xml_tags_t current_tag;
+};
+
+struct deviceCap {
+    int deviceId;
+    stream_supported_type type;
+    int playback;
+    int record;
+    int loopback;
+};
 
 class Device;
 class Stream;
@@ -53,6 +92,9 @@ class SoundTriggerEngine;
 
 class ResourceManager
 {
+
+private:
+    const int getNumFEs(const qal_stream_type_t sType) const;
 protected:
     std::vector <StreamPCM*> active_streams_ll;
     std::vector <StreamPCM*> active_streams_ulla;
@@ -63,10 +105,10 @@ protected:
     std::vector <std::shared_ptr<Device>> active_devices;
     bool bOverwriteFlag;
     static std::mutex mutex;
-    int snd_card;
+    static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
-    struct audio_route* audio_route = NULL;
-    struct audio_mixer* audio_mixer;
+    static struct audio_route* audio_route;
+    static struct audio_mixer* audio_mixer;
     static std::vector <int> streamTag;
     static std::vector <int> streamPpTag;
     static std::vector <int> mixerTag;
@@ -74,7 +116,17 @@ protected:
     static std::vector <int> deviceTag;
     static std::vector<std::pair<int32_t, int32_t>> devicePcmId;
     static std::vector<std::pair<int32_t, std::string>> deviceLinkName;
+    static std::vector<int> listAllFrontEndIds;
+    static std::vector<int> listAllPcmPlaybackFrontEnds;
+    static std::vector<int> listAllPcmRecordFrontEnds;
+    static std::vector<int> listAllPcmLoopbackRxFrontEnds;
+    static std::vector<int> listAllPcmLoopbackTxFrontEnds;
+    static std::vector<int> listAllCompressPlaybackFrontEnds;
+    static std::vector<int> listAllCompressRecordFrontEnds;
+    static std::vector<int> listFreeFrontEndIds;
+    static std::vector<std::pair<int32_t, std::string>> listAllBackEndIds;
     static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
+    static std::vector<deviceCap> devInfo;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -95,12 +147,13 @@ public:
     static void updatePcmId(int32_t deviceId, int32_t pcmId);
     static void updateLinkName(int32_t deviceId, std::string linkName);
     static void updateSndName(int32_t deviceId, std::string sndName);
+    static void updateBackEndName(int32_t deviceId, std::string backEndName);
     static void updateStreamTag(int32_t tagId);
     static void updateDeviceTag(int32_t tagId);
     int getSndCard();
     int getPcmDeviceId(int deviceId);
     int getAudioRoute(struct audio_route** ar);
-    int getAudioMixer(struct audio_mixer *am);
+    int getAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getDeviceName(int deviceId, char *device_name);
@@ -110,11 +163,20 @@ public:
     int getMixerTag(std::vector <int> &tag);
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
+    const qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
+    const std::vector<int> allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction);
+    void freeFrontEndIds (const std::vector<int> f);
+    const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
+    static void snd_reset_data_buf(struct xml_userdata *data);
+    static void snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name);
+    static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
     static void processDeviceInfo(const XML_Char **attr);
     static void processTagInfo(const XML_Char **attr);
-    static void startTag(void *userdata __unused, const XML_Char *tag_name,
-                         const XML_Char **attr);
+    static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
+    static void snd_data_handler(void *userdata, const XML_Char *s, int len);
+    static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);
+    static void processDeviceCapability(struct xml_userdata *data, const XML_Char *tag_name);
 };
 
 #endif

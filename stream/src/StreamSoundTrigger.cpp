@@ -69,7 +69,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
                       sizeof(qal_stream_attributes));
 
-    session = new SessionGsl(rm);
+    session = Session::makeSession(rm, sattr);
 
     if (!session) {
         QAL_ERR(LOG_TAG, "session creation failed");

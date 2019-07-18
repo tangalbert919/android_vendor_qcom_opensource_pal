@@ -13,12 +13,15 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/CodecDevice.h \
             ./device/inc/CodecDeviceAlsa.h \
             ./device/inc/CodecDeviceGsl.h \
+            ./device/inc/CodecDeviceImpl.h \
             ./device/inc/SpeakerMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
             ./session/inc/SessionQts.h \
+            ./session/inc/SessionAlsaUtils.h \
             ./session/inc/SessionAlsaPcm.h \
+            ./session/inc/SessionAlsaCompress.h \
             ./session/inc/SoundTriggerEngine.h \
             ./session/inc/SoundTriggerEngineGsl.h \
             ./session/inc/SoundTriggerEngineCapiCnn.h \
@@ -51,7 +54,9 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionGsl.cpp \
               ./session/src/SessionQts.cpp \
+              ./session/src/SessionAlsaUtils.cpp \
               ./session/src/SessionAlsaPcm.cpp \
+              ./session/src/SessionAlsaCompress.cpp\
               ./session/src/SoundTriggerEngine.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
               ./session/src/SoundTriggerEngineCapiCnn.cpp \
@@ -69,12 +74,15 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/CodecDevice.h \
             ${top_srcdir}/device/inc/CodecDeviceAlsa.h \
             ${top_srcdir}/device/inc/CodecDeviceGsl.h \
+            ${top_srcdir}/device/inc/CodecDeviceImpl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
             ${top_srcdir}/session/inc/SessionQts.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
+            ${top_srcdir}/session/inc/SessionAlsaCompress.h \
+            ${top_srcdir}/session/inc/SessionAlsaUtils.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineCapiCnn.h \
@@ -94,6 +102,7 @@ AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
 AM_CPPFLAGS += $(GECKO_CFLAGS)/
 AM_CPPFLAGS += $(ACDBDATA_CFLAGS)
+AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm
 
 qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
@@ -109,7 +118,9 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \
               ${top_srcdir}/session/src/SessionQts.cpp \
+              ${top_srcdir}/session/src/SessionAlsaUtils.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
+              ${top_srcdir}/session/src/SessionAlsaCompress.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \
@@ -133,7 +144,7 @@ libqal_la_LIBADD    = -lglib-2.0
 else
 libqal_la_LIBADD    = $(GLIB_LIBS)
 endif
-libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat -ldl
+libqal_la_LIBADD   += -ltinyalsa -laudioroute -lcasa_osal -lexpat -ldl -ltinycompress
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
