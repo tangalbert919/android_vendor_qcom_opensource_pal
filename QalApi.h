@@ -409,7 +409,7 @@ int32_t qal_get_mic_mute(bool *state);
   */
 int32_t qal_set_mic_mute(bool state);
 
-extern "C"  void  __gcov_flush();
+extern void  __gcov_flush();
 
 /**
  *  Enable Gcov for QAL.
