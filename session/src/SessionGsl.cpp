@@ -228,6 +228,7 @@ void SessionGsl::deinit()
     if(NULL != gslLibHandle){
         gslDeinit();
         dlclose(gslLibHandle);
+        gslLibHandle = NULL;
     }
 }
 

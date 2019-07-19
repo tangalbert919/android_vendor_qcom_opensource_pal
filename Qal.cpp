@@ -37,8 +37,6 @@
 #include "QalCommon.h"
 class Stream;
 
-static bool init_done = false;
-
 /*
  * enable_gcov - Enable gcov for qal
  *
@@ -63,13 +61,12 @@ int32_t qal_init(void)
 {
     QAL_INFO(LOG_TAG, "Enter.");
     int32_t ret = 0;
-    if (!init_done) {
-        ret = ResourceManager::init();
-        if (0 != ret) {
-            QAL_ERR(LOG_TAG, "qal init failed. ret : %d", ret);
-            return ret;
-        }
-        init_done = true;
+    std::shared_ptr<ResourceManager> ri = NULL;
+    try {
+        ri = ResourceManager::getInstance();
+    } catch (const std::exception& e) {
+        QAL_ERR(LOG_TAG, "qal init failed: %s", e.what());
+        return -EINVAL;
     }
     QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
@@ -335,7 +332,7 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle,
 {
    Stream *s = NULL;
    int status;
-    if (!stream_handle || !in_buf_size || !out_buf_size) {
+    if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;

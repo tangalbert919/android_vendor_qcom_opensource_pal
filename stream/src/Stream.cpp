@@ -205,7 +205,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
                            size_t *out_buf_size, size_t out_buf_count)
 {
     int32_t status = 0;
-    int16_t nBlockAlign;        // block size of data
+    int16_t nBlockAlignIn, nBlockAlignOut ;        // block size of data
     struct qal_stream_attributes *sattr = NULL;
     sattr = (struct qal_stream_attributes *)malloc(sizeof(struct qal_stream_attributes));
     if (!sattr) {
@@ -223,26 +223,63 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
 
     status = getStreamAttributes(sattr);
     if (sattr->direction == QAL_AUDIO_OUTPUT) {
+        if(!out_buf_size) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Invalid output buffer size status %d", status);
+            return status;
+        }
         outBufSize = (sattr->out_media_config.bit_width) *
                      (sattr->out_media_config.ch_info->channels) * 32;
-        nBlockAlign = ((sattr->out_media_config.bit_width) / 8) *
+        nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
                       (sattr->out_media_config.ch_info->channels);
         QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
-        if ((outBufSize % nBlockAlign) != 0) {
-            outBufSize = ((outBufSize / nBlockAlign) * nBlockAlign);
+        if ((outBufSize % nBlockAlignOut) != 0) {
+            outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
         }
         *out_buf_size = outBufSize;
-    } else {
+    } else if (sattr->direction == QAL_AUDIO_INPUT) {
+        if(!in_buf_size) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Invalid input buffer size status %d", status);
+            return status;
+        }
         //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info->channels) * 32;
-        nBlockAlign = ((sattr->in_media_config.bit_width) / 8) *
+        nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
                       (sattr->in_media_config.ch_info->channels);
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
-        if ((inBufSize % nBlockAlign) != 0) {
-            inBufSize = ((inBufSize / nBlockAlign) * nBlockAlign);
+        if ((inBufSize % nBlockAlignIn) != 0) {
+            inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
+        }
+        inBufSize = *in_buf_size;
+    } else {
+        if(!in_buf_size && !out_buf_size) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Invalid buffer size status %d", status);
+            return status;
+        }
+        outBufSize = (sattr->out_media_config.bit_width) *
+                     (sattr->out_media_config.ch_info->channels) * 32;
+        nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
+                      (sattr->out_media_config.ch_info->channels);
+        QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
+
+        //If the read size is not a multiple of BlockAlign;
+        //Make sure we read blockaligned bytes from the file.
+        if ((outBufSize % nBlockAlignOut) != 0) {
+            outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
+        }
+        *out_buf_size = outBufSize;
+
+        nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
+                      (sattr->in_media_config.ch_info->channels);
+        //If the read size is not a multiple of BlockAlign;
+        //Make sure we read blockaligned bytes from the file.
+        if ((inBufSize % nBlockAlignIn) != 0) {
+            inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
         }
         inBufSize = *in_buf_size;
     }

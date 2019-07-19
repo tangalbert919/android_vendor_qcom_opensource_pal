@@ -228,9 +228,38 @@ std::vector <int> ResourceManager::streamPpTag = {0};
 std::vector <int> ResourceManager::mixerTag = {0};
 std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
+std::mutex ResourceManager::mutex;
 
 ResourceManager::ResourceManager()
 {
+    QAL_INFO(LOG_TAG, "Enter.");
+    int ret = 0;
+    // TODO: set bOverwriteFlag to true by default
+    // should we add api for client to set this value?
+    bool bOverwriteFlag = true;
+    int snd_card = -1;
+    // Init audio_route and audio_mixer
+    ret = ResourceManager::init_audio();
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+    }
+    //#ifdef CONFIG_GSL
+    ret = SessionGsl::init(DEFAULT_ACDB_FILES);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "session gsl init failed ret %d", ret);
+    }
+    //TODO: parse the tag and populate in the tags
+    streamTag.clear();
+    deviceTag.clear();
+    ret = ResourceManager::XmlParser(GECKOXMLFILE);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in gecko xml parsing ret %d", ret);
+    }
+    ret = ResourceManager::XmlParser(XMLFILE);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
+    }
+    QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
 ResourceManager::~ResourceManager()
@@ -247,10 +276,10 @@ int ResourceManager::init_audio()
     char *snd_internal_name = NULL;
     char *tmp = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
-    QAL_DBG(LOG_TAG, "Enter. rm %pK", rm);
+    QAL_DBG(LOG_TAG, "Enter.");
     while (snd_card_num < MAX_SND_CARD) {
-        rm->audio_mixer = mixer_open(snd_card_num);
-        if (!rm->audio_mixer) {
+        audio_mixer = mixer_open(snd_card_num);
+        if (!audio_mixer) {
             snd_card_num++;
             continue;
         } else {
@@ -264,10 +293,10 @@ int ResourceManager::init_audio()
         return -EINVAL;
     }
 
-    snd_card_name = strdup(mixer_get_name(rm->audio_mixer));
+    snd_card_name = strdup(mixer_get_name(audio_mixer));
     if (!snd_card_name) {
         QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
-        mixer_close(rm->audio_mixer);
+        mixer_close(audio_mixer);
         return -EINVAL;
     }
 
@@ -290,11 +319,11 @@ int ResourceManager::init_audio()
     } else
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
 
-    rm->audio_route = audio_route_init(snd_card_num, mixer_xml_file);
-    QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", rm->audio_route, mixer_xml_file);
-    if (!rm->audio_route) {
+    audio_route = audio_route_init(snd_card_num, mixer_xml_file);
+    QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
+    if (!audio_route) {
         QAL_ERR(LOG_TAG, "audio route init failed");
-        mixer_close(rm->audio_mixer);
+        mixer_close(audio_mixer);
         if (snd_card_name)
             free(snd_card_name);
         if (snd_card_name_t)
@@ -304,47 +333,12 @@ int ResourceManager::init_audio()
     // audio_route init success
     QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card_num, mixer_xml_file);
-    rm->snd_card = snd_card_num;
+    snd_card = snd_card_num;
     return 0;
 }
 
 int ResourceManager::init()
 {
-    QAL_DBG(LOG_TAG, "Enter.");
-    if (!rm) {
-        std::shared_ptr<ResourceManager> sp(new ResourceManager());
-        rm = sp;
-    }
-    int ret = 0;
-    // TODO: set bOverwriteFlag to true by default
-    // should we add api for client to set this value?
-    rm->bOverwriteFlag = true;
-    rm->snd_card = -1;
-
-    // Init audio_route and audio_mixer
-    ret = rm->init_audio();
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
-        return ret;
-    }
-
-    //#ifdef CONFIG_GSL
-    SessionGsl::init(DEFAULT_ACDB_FILES);
-    //TODO: parse the tag and populate in the tags
-    streamTag.clear();
-    deviceTag.clear();
-    ret = XmlParser(GECKOXMLFILE);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in gecko xml parsing ret %d", ret);
-        return ret;
-    }
-    ret = XmlParser(XMLFILE);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
-        return ret;
-    }
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
-    return ret;
 }
 
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
@@ -770,8 +764,15 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
 
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
-    if (!rm)
-        init();
+    QAL_INFO(LOG_TAG, "Enter.");
+    if(!rm) {
+        std::lock_guard<std::mutex> lock(ResourceManager::mutex);
+        if (!rm) {
+            std::shared_ptr<ResourceManager> sp(new ResourceManager());
+            rm = sp;
+        }
+    }
+    QAL_INFO(LOG_TAG, "Exit.");
     return rm;
 }
 
@@ -818,6 +819,7 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 
 void ResourceManager::deinit()
 {
+    rm = nullptr;
     SessionGsl::deinit();
 }
 

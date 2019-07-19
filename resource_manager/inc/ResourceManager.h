@@ -62,7 +62,7 @@ protected:
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::shared_ptr<Device>> active_devices;
     bool bOverwriteFlag;
-    std::mutex mutex;
+    static std::mutex mutex;
     int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     struct audio_route* audio_route = NULL;
@@ -87,7 +87,7 @@ public:
     int deregisterDevice(std::shared_ptr<Device> d);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct qal_device *device ,bool* bIsUpdated);
-    static int init_audio();
+    int init_audio();
     static int init();
     static void deinit();
     static std::shared_ptr<ResourceManager> getInstance();
