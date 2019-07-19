@@ -68,7 +68,7 @@
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_VOICE_UI 2
 #define XMLFILE "/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/etc/GECKO_ACDB_Data.xml"
+#define GECKOXMLFILE "/etc/kvh2xml.xml"
 
 
 /*
@@ -894,6 +894,9 @@ int convertCharToHex(std::string num)
         } else if (charNum[i] >= 'A' && charNum[i] <= 'F') {
             hexNum += (charNum[i] - 55) * base;
             base = base * 16;
+        } else if (charNum[i] >= 'a' && charNum[i] <= 'f') {
+            hexNum += (charNum[i] - 87) * base;
+            base = base * 16;
         }
     }
     return hexNum;
@@ -979,6 +982,8 @@ void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name
     if (strcmp(tag_name, "device") == 0) {
         processDeviceInfo(attr);
     } else if (strcmp(tag_name, "Tag") == 0) {
+        processTagInfo(attr);
+    } else if (strcmp(tag_name, "TAG") == 0) {
         processTagInfo(attr);
     }
 }

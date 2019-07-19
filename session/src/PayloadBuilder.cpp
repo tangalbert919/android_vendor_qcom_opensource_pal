@@ -1178,6 +1178,48 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
+void PayloadBuilder::payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId)
+{
+    size_t payloadSize;
+    uint8_t *payloadInfo = NULL;
+    struct apm_module_param_data_t* header;
+    payloadSize = sizeof(struct apm_module_param_data_t);
+    if (payloadSize % 8 != 0)
+            payloadSize = payloadSize + (8 - payloadSize % 8);
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = moduleId;
+    header->param_id = PARAM_ID_SOFT_PAUSE_START;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+                  __func__, header->module_instance_id, header->param_id,
+                  header->error_code, header->param_size);
+    *size = payloadSize;
+    *payload = payloadInfo;
+}
+
+void PayloadBuilder::payloadResume(uint8_t **payload, size_t *size, uint32_t moduleId)
+{
+    size_t payloadSize;
+    uint8_t *payloadInfo = NULL;
+    struct apm_module_param_data_t* header;
+    payloadSize = sizeof(struct apm_module_param_data_t);
+    if (payloadSize % 8 != 0)
+            payloadSize = payloadSize + (8 - payloadSize % 8);
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = moduleId;
+    header->param_id = PARAM_ID_SOFT_PAUSE_RESUME;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+                  __func__, header->module_instance_id, header->param_id,
+                  header->error_code, header->param_size);
+    *size = payloadSize;
+    *payload = payloadInfo;
+}
+
 void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
                        uint32_t moduleId, struct qal_st_sound_model *soundModel)
 {

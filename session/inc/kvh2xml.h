@@ -29,10 +29,10 @@
 
 typedef enum {
 	PLATFORM_LA = 1, 	/**< @h2xmle_name {LA} */
+	PLATFORM_LE = 2,	/**< @h2xmle_name {LE} */
 }platforms;
 /**
-  	@h2xml_defType{Key}
-  	@h2xml_platforms{PLATFORM_LA}
+  	@h2xml_platforms{PLATFORM_LA,PLATFORM_LE}
 */
 
 enum AllKeyIds{
@@ -45,20 +45,39 @@ enum AllKeyIds{
 	PAUSE = 0xA7000000,          /**< @h2xmle_name{Pause} */
 	MUTE = 0xA8000000,           /**< @h2xmle_name{Mute} */
 	CHANNELS = 0xA9000000,       /**< @h2xmle_name{Channels} */
+	FLUENCE = 0xAA000000,       /**< @h2xmle_name{Fluence} */
+	INSTANCE = 0xAB000000,       /**< @h2xmle_name{Instance} */
+	DEVICEPP_RX = 0xAC000000,    /**< @h2xmle_name{DevicePP_Rx} */
+	DEVICEPP_TX = 0xAD000000,    /**< @h2xmle_name{DevicePP_Tx} */
 };
+
 /**
 	@h2xmlk_key {STREAM_TYPE}
 	@h2xmlk_description {Type of Stream}
 */
 enum Key_Stream {
-	PCM_LL_PLAYBACK = 0xA1000001, /**< @h2xmle_name {PCM_Playback}*/
+	PCM_LL_PLAYBACK = 0xA1000001, /**< @h2xmle_name {PCM_LL_Playback}*/
 	PCM_RECORD = 0xA1000002,      /**< @h2xmle_name {PCM_Record}*/
 	PCM_LOOPBACK = 0xA1000003,    /**< @h2xmle_name {PCM_Loopback}*/
 	VOICE_UI = 0xA1000004,        /**< @h2xmle_name {Voice_UI}*/
 	VOIP_RX_PLAYBACK = 0xA1000005,/**< @h2xmle_name {Voip_Rx}*/
 	VOIP_TX_RECORD = 0xA1000006,   /**< @h2xmle_name {Voip_Tx}*/
-	VOICE_UI_EC_REF_PATH = 0xA1000007, /**< @h2xmle_name {EC_REF}*/
+	VOICE_UI_EC_REF_PATH = 0xA1000007,/**< @h2xmle_name {Voice_UI_EC_Ref_Path}*/
+	VOIP_TX_EC_REF_PATH = 0xA1000008,   /**< @h2xmle_name {Voip_Tx_EC_Ref_Path}*/
+	PCM_RECORD_EC_REF_PATH = 0xA1000009,/**< @h2xmle_name {PCM_Record_EC_Ref_Path}*/
 };
+
+
+/**
+	@h2xmlk_key {INSTANCE}
+	@h2xmlk_description {Stream Instance Id}
+*/
+enum Key_Instance {
+	INSTANCE_1 = 1, /**< @h2xmle_name {Instance_1}*/
+	INSTANCE_2 = 2, /**< @h2xmle_name {Instance_2}*/
+	INSTANCE_3 = 3, /**< @h2xmle_name {Instance_3}*/
+};
+
 /**
 	@h2xmlk_key {DEVICERX}
 	@h2xmlk_description {Rx Device}
@@ -73,6 +92,26 @@ enum Key_DeviceRX {
 enum Key_DeviceTX {
 	HANDSETMIC = 0xA3000001, /**< @h2xmle_name {HandsetMic}*/
 };
+
+/**
+	@h2xmlk_key {DEVICEPP_RX}
+	@h2xmlk_description {Rx Device Post/Pre Processing Chain}
+*/
+enum Key_DevicePP_RX {
+	LL_DEFAULT_PP = 0xAC000001, /**< @h2xmle_name {Audio_LL_Default_PP} @h2xmlk_description {Low Latency Default Playback}*/
+};
+/**
+	@h2xmlk_key {DEVICEPP_TX}
+	@h2xmlk_description {Tx Device Post/Pre Processing Chain}
+*/
+enum Key_DevicePP_TX {
+	VOICE_FLUENCE_FFECNS  = 0xAD000001, /**< @h2xmle_name {Voice_Fluence_FFECNS} @h2xmlk_description {Used in Voice UI use-cases}*/
+	AUDIO_FLUENCE_SMECNS  = 0xAD000002, /**< @h2xmle_name {Audio_Fluence_SMECNS} @h2xmlk_description {Single Mic ECNS }*/
+	AUDIO_FLUENCE_ENDFIRE = 0xAD000003, /**< @h2xmle_name {Audio_Fluence_Endfire} @h2xmlk_description {EndFire_ECNS - Typically used for dual mic capture scenarios}*/
+	AUDIO_FLUENCE_PRO     = 0xAD000004, /**< @h2xmle_name {Audio_Fluence_Pro} @h2xmlk_description {Multi MIC scenarios ; at least 3 or more Micss}*/
+};
+
+
 /**
 	@h2xmlk_key {VOLUME}
 	@h2xmlk_description {Volume}
@@ -97,26 +136,27 @@ enum Key_Volume {
 };
 /**
 	@h2xmlk_key {SAMPLINGRATE}
+	@h2xmlk_sampleRate
 	@h2xmlk_description {Sampling Rate}
 */
 enum Key_SamplingRate {
-	SAMPLINGRATE_8K = 8000, /**< @h2xmle_description {8k}*/
-	SAMPLINGRATE_16K = 16000, /**< @h2xmle_description {16k}*/
-	SAMPLINGRATE_32K = 32000, /**< @h2xmle_description {32k}*/
-	SAMPLINGRATE_44K = 44100, /**< @h2xmle_description {44.1k}*/
-	SAMPLINGRATE_48K = 48000, /**< @h2xmle_description {48k}*/
-	SAMPLINGRATE_96K = 96000, /**< @h2xmle_description {96k}*/
-	SAMPLINGRATE_192K = 192000, /**< @h2xmle_description {192k}*/
-	SAMPLINGRATE_384K = 384000, /**< @h2xmle_description {384k}*/
+	SAMPLINGRATE_8K = 8000,   /**< @h2xmle_sampleRate{8000} @h2xmle_name {SR_8K}*/
+	SAMPLINGRATE_16K = 16000, /**< @h2xmle_sampleRate{16000} @h2xmle_name {SR_16K}*/
+	SAMPLINGRATE_32K = 32000, /**< @h2xmle_sampleRate{32000} @h2xmle_name {SR_32K}*/
+	SAMPLINGRATE_44K = 44100, /**< @h2xmle_sampleRate{44100} @h2xmle_name {SR_44.1K}*/
+	SAMPLINGRATE_48K = 48000, /**< @h2xmle_sampleRate{48000} @h2xmle_name {SR_48K}*/
+	SAMPLINGRATE_96K = 96000, /**< @h2xmle_sampleRate{96000} @h2xmle_name {SR_96K}*/
+	SAMPLINGRATE_192K = 192000, /**< @h2xmle_sampleRate{192000} @h2xmle_name {SR_192K}*/
+	SAMPLINGRATE_384K = 384000, /**< @h2xmle_sampleRate{384000} @h2xmle_name {SR_384K}*/
 };
 /**
 	@h2xmlk_key {BITWIDTH}
 	@h2xmlk_description {Bit Width}
 */
 enum Key_BitWidth {
-	BITWIDTH_16 = 16, /**< @h2xmle_name {Bit16}*/
-	BITWIDTH_24 = 24, /**< @h2xmle_name {Bit24}*/
-	BITWIDTH_32 = 32, /**< @h2xmle_name {Bit32}*/
+	BITWIDTH_16 = 16, /**< @h2xmle_name {BW_16}*/
+	BITWIDTH_24 = 24, /**< @h2xmle_name {BW_24}*/
+	BITWIDTH_32 = 32, /**< @h2xmle_name {BW_32}*/
 };
 /**
 	@h2xmlk_key {PAUSE}
@@ -139,33 +179,44 @@ enum Key_Mute {
 	@h2xmlk_description {Channels}
 */
 enum Key_Channels {
-	CHANNEL1 = 1, /**< @h2xmle_name {CH1}*/
-	CHANNEL2 = 2, /**< @h2xmle_name {CH2}*/
-        CHANNEL3 = 3, /**< @h2xmle_name {CH3}*/
-	CHANNEL4 = 4, /**< @h2xmle_name {CH4}*/
-        CHANNEL5 = 5, /**< @h2xmle_name {CH5}*/
-	CHANNEL6 = 6, /**< @h2xmle_name {CH6}*/
-        CHANNEL7 = 7, /**< @h2xmle_name {CH7}*/
-	CHANNEL8 = 8, /**< @h2xmle_name {CH8}*/
+	CHANNELS_1 = 1, /**< @h2xmle_name {CHS_1}*/
+	CHANNELS_2 = 2, /**< @h2xmle_name {CHS_2}*/
+        CHANNELS_3 = 3, /**< @h2xmle_name {CHS_3}*/
+	CHANNELS_4 = 4, /**< @h2xmle_name {CHS_4}*/
+        CHANNELS_5 = 5, /**< @h2xmle_name {CHS_5}*/
+        CHANNELS_5_1 = 6, /**< @h2xmle_name {CHS_6}*/
+	CHANNELS_7 = 7, /**< @h2xmle_name {CHS_7}*/
+	CHANNELS_8 = 8, /**< @h2xmle_name {CHS_8}*/
+};
+/**
+	@h2xmlk_key {FLUENCE}
+	@h2xmlk_description {Fluence}
+*/
+enum Key_Fluence {
+	FLUENCE_OFF = 0, /**< @h2xmle_name {Off}*/
+	FLUENCE_ON = 1, /**< @h2xmle_name {On}*/
 };
 /**
 	@h2xmlk_gkeys
-	@h2xmlk_description {Graph kv}
+	@h2xmlk_description {Graph Keys}
 */
 enum Graph_Keys {
 	gk_Stream = STREAM_TYPE,
 	gk_DeviceRX = DEVICERX,
 	gk_DeviceTX = DEVICETX,
+	gk_DevicePP_RX = DEVICEPP_RX,
+	gk_DevicePP_TX = DEVICEPP_TX,
+	gk_Instance = INSTANCE,
 };
 /**
 	@h2xmlk_ckeys
-	@h2xmlk_description {ckv}
+	@h2xmlk_description {Calibration Keys}
 */
 enum Cal_Keys {
 	ck_volume = VOLUME,
 };
 
-#define DEVICE_HW_ENDPOINT_RX        0xC0000006
+#define DEVICE_HW_ENDPOINT_RX        0xC0000004
 /**
         @h2xmlk_modTag {"device_hw_ep_rx",DEVICE_HW_ENDPOINT_RX}
 	@h2xmlk_description {Hw EP Rx}
@@ -176,7 +227,7 @@ enum HW_ENDPOINT_RX_Keys {
 	tk3_hweprx = BITWIDTH,
 	tk4_hweprx = CHANNELS,
 };
-#define DEVICE_HW_ENDPOINT_TX        0xC0000007
+#define DEVICE_HW_ENDPOINT_TX        0xC0000005
 /**
         @h2xmlk_modTag {"device_hw_ep_tx",DEVICE_HW_ENDPOINT_TX}
 	@h2xmlk_description {Hw EP Tx}
@@ -187,57 +238,64 @@ enum HW_ENDPOINT_TX_Keys {
 	tk3_hweptx = BITWIDTH,
 	tk4_hweptx = CHANNELS,
 };
-#define TAG_PAUSE       0xC0000008
+#define TAG_PAUSE       0xC0000006
 /**
-	@h2xmlk_modTag {"pause", TAG_PAUSE}
-	@h2xmlk_description {Pause}
+	@h2xmlk_modTag {"stream_pause", TAG_PAUSE}
+	@h2xmlk_description {Stream Pause}
 */
 enum TAG_PAUSE_Keys {
 	tk1_Pause = PAUSE,
 };
-#define TAG_MUTE        0xC0000009
+#define TAG_MUTE        0xC0000007
 /**
-	@h2xmlk_modTag {"mute", TAG_MUTE}
-	@h2xmlk_description {Mute}
+	@h2xmlk_modTag {"stream_mute", TAG_MUTE}
+	@h2xmlk_description {Stream Mute}
 */
 enum TAG_MUTE_Keys {
 	tk1_Mute = MUTE,
 };
-#define TAG_STREAM_VOLUME  0xC000000A
+
+#define TAG_FLUENCE  0xC000000A
 /**
-	@h2xmlk_modTag {"svolume", TAG_STREAM_VOLUME}
-	@h2xmlk_description {StreamVolume}
+	@h2xmlk_modTag {"device_fluence", TAG_FLUENCE}
+	@h2xmlk_description {Fluence On/Off}
+*/
+enum TAG_FLUENCE_Keys {
+	tk1_Fluence = FLUENCE,
+};
+
+#define TAG_STREAM_VOLUME  0xC000000D
+/**
+	@h2xmlk_modTag {"stream_volume", TAG_STREAM_VOLUME}
+	@h2xmlk_description {Stream Volume}
 */
 enum TAG_STREAM_VOLUME_Keys {
 	tk1_Volume = VOLUME,
 };
-#define TAG_STREAM_MFC_SR  0xC000000B
+
+#define TAG_DEVICE_PP_MFC  0xC0000011
 /**
-        @h2xmlk_modTag{"TAG_STREAM_MFC_SR",TAG_STREAM_MFC_SR}
-	@h2xmlk_description {StreamMFCSamplingrate}
+	@h2xmlk_modTag {"device_pp_mfc", TAG_DEVICE_PP_MFC}
+	@h2xmlk_description {Device PP MFC}
 */
-enum TAG_STREAM_MFC_SR_Keys {
-	tk1_MFC_SR = SAMPLINGRATE,
+enum TAG_DEVICE_PP_MFC_Keys {
+	tk1_SamplingRate = SAMPLINGRATE,
 };
+
 /**
-  	@h2xml_defType{Key}
 	@h2xmlk_modTagList
 */
-typedef enum {
-    /**@h2xmle_name {sh_ep} */                        SHMEM_ENDPOINT
-                                                                   = 0xC0000001,
-	/**@h2xmle_name {stream_input_media_format} */    STREAM_INPUT_MEDIA_FORMAT
-	                                                               = 0xC0000002,
-	/**@h2xmle_name {stream_pcm_decoder} */           STREAM_PCM_DECODER
-	                                                               = 0xC0000003,
-	/**@h2xmle_name {stream_pcm_encoder} */           STREAM_PCM_ENCODER
-	                                                               = 0xC0000004,
-	/**@h2xmle_name {stream_pcm_converter} */         STREAM_PCM_CONVERTER
-	                                                               = 0xC0000005,
-	/**@h2xmle_name {device_sva} */                   DEVICE_SVA
-	                                                               = 0xC0000010,
-	/**@h2xmle_name {device_adam} */                  DEVICE_ADAM
-	                                                               = 0xC0000011,
-}TAGS_DEFINITIONS;
-
+enum TAGS_DEFINITIONS {
+        SHMEM_ENDPOINT              = 0xC0000001, /**< @h2xmle_name {"sh_ep"} */
+        STREAM_INPUT_MEDIA_FORMAT   = 0xC0000002, /**< @h2xmle_name {"stream_input_media_format" } */
+        STREAM_OUTPUT_MEDIA_FORMAT  = 0xC0000003, /**< @h2xmle_name {"stream_output_media_format" } */
+        DEVICE_SVA                  = 0xC0000008, /**< @h2xmle_name {"device_sva"} */
+        DEVICE_ADAM                 = 0xC0000009, /**< @h2xmle_name {"device_adam"} */
+        STREAM_MFC                  = 0xC000000B, /**< @h2xmle_name {"stream_mfc"} */
+        DEVICE_MFC                  = 0xC000000C, /**< @h2xmle_name {"device_mfc"} */
+        STREAM_PCM_DECODER          = 0xC000000E, /**< @h2xmle_name {"stream_pcm_decoder"} */
+        STREAM_PCM_ENCODER          = 0xC000000F, /**< @h2xmle_name {"stream_pcm_encoder"} */
+        STREAM_PCM_CONVERTER        = 0xC0000010, /**< @h2xmle_name {"stream_pcm_converter"} */
+};
+typedef enum TAGS_DEFINITIONS TAGS_DEFINITIONS;
 

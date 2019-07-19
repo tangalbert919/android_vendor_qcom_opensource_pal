@@ -145,6 +145,8 @@ public:
                              int payloadTag, struct sessionToPayloadParam* data);
     void payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId,
                        struct qal_volume_data *volumedata, int tag);
+    void payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadResume(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId,
                               struct qal_st_sound_model *soundModel);
     void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId,

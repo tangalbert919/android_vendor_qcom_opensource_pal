@@ -505,7 +505,35 @@ int32_t  StreamPCM::getCallBack(qal_stream_callback *cb)
 
 int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
 {
-    return 0;
+    int32_t status = 0;
+    bool fluence_flag;
+    qal_param_payload *param_payload = NULL;
+    QAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
+
+    mutex.lock();
+    // Stream may not know about tags, so use setParameters instead of setConfig
+    switch (param_id) {
+        case QAL_PARAM_ID_FLUENCE_ON_OFF:
+        {
+            param_payload = (qal_param_payload *)payload;
+            fluence_flag = param_payload->has_fluence;
+            QAL_DBG(LOG_TAG,"fluence flag is %d",fluence_flag);
+            uint32_t fluenceTag = fluence_flag ? FLUENCE_ON_TAG : FLUENCE_OFF_TAG;
+            status = session->setConfig(this, MODULE, fluenceTag);
+            if (status)
+               QAL_ERR(LOG_TAG, "setConfig for fluence %s failed with %d",
+                       (fluence_flag ? "ON" : "OFF"), status);
+            break;
+        }
+        default:
+            QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
+            status = -EINVAL;
+            break;
+    }
+
+    mutex.unlock();
+    QAL_VERBOSE(LOG_TAG, "end, session parameter %u set with status %d", param_id, status);
+    return status;
 }
 
 int32_t  StreamPCM::setMute( bool state)
@@ -593,14 +621,14 @@ int32_t StreamPCM::isChannelSupported(uint32_t numChannels)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch(numChannels) {
-        case CHANNEL1:
-        case CHANNEL2:
-        case CHANNEL3:
-        case CHANNEL4:
-        case CHANNEL5:
-        case CHANNEL6:
-        case CHANNEL7:
-        case CHANNEL8:
+        case CHANNELS_1:
+        case CHANNELS_2:
+        case CHANNELS_3:
+        case CHANNELS_4:
+        case CHANNELS_5:
+        case CHANNELS_5_1:
+        case CHANNELS_7:
+        case CHANNELS_8:
             break;
         default:
             rc = -EINVAL;

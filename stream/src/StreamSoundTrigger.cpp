@@ -882,7 +882,7 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
         (*event)->media_config.bit_width = BITWIDTH_16;
         (*event)->media_config.ch_info = ch_info;
-        (*event)->media_config.ch_info->channels = CHANNEL1;
+        (*event)->media_config.ch_info->channels = CHANNELS_1;
         (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
     }
     // TODO: handle for generic sound model
@@ -917,14 +917,14 @@ int32_t StreamSoundTrigger::isChannelSupported(uint32_t numChannels)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch(numChannels) {
-        case CHANNEL1:
-        case CHANNEL2:
-        case CHANNEL3:
-        case CHANNEL4:
-        case CHANNEL5:
-        case CHANNEL6:
-        case CHANNEL7:
-        case CHANNEL8:
+        case CHANNELS_1:
+        case CHANNELS_2:
+        case CHANNELS_3:
+        case CHANNELS_4:
+        case CHANNELS_5:
+        case CHANNELS_5_1:
+        case CHANNELS_7:
+        case CHANNELS_8:
             break;
         default:
             rc = -EINVAL;

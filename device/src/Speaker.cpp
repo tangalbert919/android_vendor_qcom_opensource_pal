@@ -78,10 +78,11 @@ int32_t Speaker::isChannelSupported(uint32_t numChannels)
     int32_t rc = 0;
     QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
-        case CHANNEL1:
-        case CHANNEL2:
-        case CHANNEL4:
-        case CHANNEL8:
+        case CHANNELS_1:
+        case CHANNELS_2:
+        case CHANNELS_3:
+        case CHANNELS_4:
+        case CHANNELS_8:
             break;
         default:
             rc = -EINVAL;

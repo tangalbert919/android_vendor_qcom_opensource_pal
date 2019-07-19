@@ -60,7 +60,7 @@ typedef enum {
 
 /** Audio parameter data*/
 typedef union {
-
+   bool has_fluence;                     /**  true if fluence is to be enabled */
 } qal_param_payload;
 
 /** Audio channel map enumeration*/
@@ -291,7 +291,8 @@ typedef enum {
 
 typedef enum {
 	QAL_PARAM_ID_LOAD_SOUND_MODEL,
-	QAL_PARAM_ID_START_RECOGNITION
+	QAL_PARAM_ID_START_RECOGNITION,
+        QAL_PARAM_ID_FLUENCE_ON_OFF
 }qal_param_id_type_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */

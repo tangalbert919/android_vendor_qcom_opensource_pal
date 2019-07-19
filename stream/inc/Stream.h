@@ -63,6 +63,8 @@ typedef enum {
 #define MFC_SR_96K 9
 #define MFC_SR_192K 10
 #define MFC_SR_384K 11
+#define FLUENCE_ON_TAG 12
+#define FLUENCE_OFF_TAG 13
 
 class Device;
 class ResourceManager;
