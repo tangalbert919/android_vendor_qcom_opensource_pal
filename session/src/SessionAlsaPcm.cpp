@@ -37,11 +37,15 @@
 #include <agm/agm_api.h>
 #include <sstream>
 #include <string>
+#include "detection_cmn_api.h"
+#include "audio_dam_buffer_api.h"
 
 SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
 {
    rm = Rm;
    builder = new PayloadBuilder();
+   customPayload = NULL;
+   customPayloadSize = 0;
 }
 
 SessionAlsaPcm::~SessionAlsaPcm()
@@ -254,6 +258,10 @@ int SessionAlsaPcm::start(Stream * s)
     config.stop_threshold = 0;
     config.silence_threshold = 0;
 
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, customPayload, customPayloadSize);
+    }
+
     if (sAttr.direction == QAL_AUDIO_INPUT) {
         pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
     } else {
@@ -270,9 +278,23 @@ int SessionAlsaPcm::start(Stream * s)
         return -EINVAL;
     }
 
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), aifBackEnds[0].data(), false, DEVICE_SVA, true);
+    }
+
+    checkAndConfigConcurrency(s);
+
     status = pcm_start(pcm);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+    }
+
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        threadHandler = std::thread(SessionAlsaPcm::eventWaitThreadLoop, (void *)mixer, this);
+        if (!threadHandler.joinable()) {
+            QAL_ERR(LOG_TAG, "Failed to create threadHandler");
+            status = -EINVAL;
+        }
     }
     return status;
 }
@@ -280,9 +302,21 @@ int SessionAlsaPcm::start(Stream * s)
 int SessionAlsaPcm::stop(Stream * s)
 {
     int status = 0;
+    struct qal_stream_attributes sAttr;
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
+
     status = pcm_stop(pcm);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
+    }
+
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        threadHandler.join();
+        QAL_DBG(LOG_TAG, "threadHandler joined");
     }
     return status;
 }
@@ -296,6 +330,11 @@ int SessionAlsaPcm::close(Stream * s)
         goto exit;
     }
     pcm = NULL;
+    if (customPayload) {
+        free(customPayload);
+        customPayload = NULL;
+        customPayloadSize = 0;
+    }
 exit:
     return status;
 }
@@ -380,7 +419,276 @@ int SessionAlsaPcm::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize,
 
 int SessionAlsaPcm::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
 {
-    return 0;
+    int status = 0;
+    int device = pcmDevIds.at(0);
+    uint8_t* paramData = NULL;
+    size_t paramSize = 0;
+    uint32_t miid = 0;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    switch (param_id) {
+        case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
+        {
+            struct qal_st_sound_model *pSoundModel = NULL;
+            pSoundModel = (struct qal_st_sound_model *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_SVA, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
+                goto exit;
+            }
+            builder->payloadSVASoundModel(&paramData, &paramSize, miid, pSoundModel);
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
+        {
+            struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
+            pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_SVA, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
+                goto exit;
+            }
+            builder->payloadSVAWakeUpConfig(&paramData, &paramSize, miid, pWakeUpConfig);
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
+        {
+            // Restore stream pointer for event callback
+            cookie = (void *)s;
+            struct detection_engine_generic_event_cfg *pEventConfig = NULL;
+            pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
+            // set custom config for detection event
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_SVA, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
+                goto exit;
+            }
+            builder->payloadSVAEventConfig(&paramData, &paramSize, miid, pEventConfig);
+            break;
+        }
+        case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
+        {
+            struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
+            pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_SVA, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
+                goto exit;
+            }
+            builder->payloadSVAWakeUpBufferConfig(&paramData, &paramSize, miid, pWakeUpBufConfig);
+            break;
+        }
+        case PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION:
+        {
+            struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
+            pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_ADAM, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_ADAM, status);
+                goto exit;
+            }
+            builder->payloadSVAStreamSetupDuration(&paramData, &paramSize, miid, pSetupDuration);
+            break;
+        }
+        case PARAM_ID_DETECTION_ENGINE_RESET:
+        {
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, DEVICE_SVA, &miid);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
+                goto exit;
+            }
+            builder->payloadSVAEngineReset(&paramData, &paramSize, miid);
+            break;
+        }
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
+            goto exit;
+    }
+
+    if (!paramData) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+        goto exit;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+
+    if (param_id != PARAM_ID_DETECTION_ENGINE_RESET) {
+        if (!customPayloadSize) {
+            customPayload = (uint8_t *)calloc(1, paramSize);
+        } else {
+            customPayload = (uint8_t *)realloc(customPayload, customPayloadSize + paramSize);
+        }
+
+        if (!customPayload) {
+            status = -ENOMEM;
+            QAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+            goto free_payload;
+        }
+
+        memcpy(customPayload + customPayloadSize, paramData, paramSize);
+        customPayloadSize += paramSize;
+        QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+    }
+
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+free_payload :
+    free(paramData);
+exit:
+    return status;
+}
+
+void SessionAlsaPcm::eventWaitThreadLoop(void *context, SessionAlsaPcm *session)
+{
+    struct mixer *mixer = (struct mixer *)context;
+    int ret = 0;
+    struct snd_ctl_event mixer_event = {0};
+
+    QAL_VERBOSE(LOG_TAG, "subscribing for event");
+    mixer_subscribe_events(mixer, 1);
+
+    while (1) {
+        QAL_VERBOSE(LOG_TAG, "going to wait for event");
+        ret = mixer_wait_event(mixer, -1);
+        if (ret < 0) {
+            QAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
+        } else if (ret > 0) {
+            ret = mixer_read_event(mixer, &mixer_event);
+            if (ret >= 0) {
+                QAL_INFO(LOG_TAG, "Event Received %s", mixer_event.data.elem.id.name);
+                ret = session->handleMixerEvent(mixer, (char *)mixer_event.data.elem.id.name);
+            } else {
+                QAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
+            }
+            if (!ret)
+                break;
+            //done = 1;
+        }
+    }
+    mixer_subscribe_events(mixer, 0);
+}
+
+int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
+{
+    struct mixer_ctl *ctl;
+    char *buf = NULL;
+    unsigned int num_values;
+    int i, ret = 0;
+    struct agm_event_cb_params *params;
+    qal_stream_callback callBack;
+    Stream *s;
+
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    num_values = mixer_ctl_get_num_values(ctl);
+    QAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
+    buf = (char *)calloc(1, num_values);
+
+    ret = mixer_ctl_get_array(ctl, buf, num_values);
+    if (ret < 0) {
+        QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
+        free(buf);
+        return ret;
+    }
+
+    params = (struct agm_event_cb_params *)buf;
+    QAL_DBG(LOG_TAG, "params.source_module_id %x", params->source_module_id);
+    QAL_DBG(LOG_TAG, "params.event_id %d", params->event_id);
+    QAL_DBG(LOG_TAG, "params.event_payload_size %x", params->event_payload_size);
+
+    s = (Stream *)cookie;
+    s->getCallBack(&callBack);
+    uint32_t event_id = params->event_id;
+    uint32_t *event_data = (uint32_t *)(params->event_payload);
+    qal_stream_handle_t *stream_handle = static_cast<void*>(s);
+    callBack(stream_handle, event_id, event_data, NULL);
+    return ret;
+}
+
+void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
+{
+    int32_t status = 0;
+    std::shared_ptr<Device> rxDevice = nullptr;
+    std::shared_ptr<Device> txDevice = nullptr;
+    struct qal_stream_attributes sAttr;
+    std::vector <Stream *> activeStreams;
+    qal_stream_type_t txStreamType;
+    std::vector <std::shared_ptr<Device>> activeDevices;
+    std::vector <std::shared_ptr<Device>> deviceList;
+
+    // get stream attributes
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return;
+    }
+
+    // get associated device list
+    status = s->getAssociatedDevices(deviceList);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
+        return;
+    }
+
+    // get all active devices from rm and
+    // determine Rx and Tx for concurrency usecase
+    rm->getActiveDevices(activeDevices);
+    for (int i = 0; i < activeDevices.size(); i++) {
+        int deviceId = activeDevices[i]->getDeviceId();
+        if (deviceId == QAL_DEVICE_OUT_SPEAKER &&
+            sAttr.direction == QAL_AUDIO_INPUT) {
+            rxDevice = activeDevices[i];
+            for (int j = 0; j < deviceList.size(); j++) {
+                std::shared_ptr<Device> dev = deviceList[j];
+                if (dev->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
+                    dev->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+                    txDevice = dev;
+            }
+        }
+
+        if (deviceId >= QAL_DEVICE_IN_HANDSET_MIC &&
+            deviceId <= QAL_DEVICE_IN_TRI_MIC &&
+            sAttr.direction == QAL_AUDIO_OUTPUT) {
+            txDevice = activeDevices[i];
+            for (int j = 0; j < deviceList.size(); j++) {
+                std::shared_ptr<Device> dev = deviceList[j];
+                if (dev->getDeviceId() == QAL_DEVICE_OUT_SPEAKER) {
+                    rxDevice = dev;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!rxDevice || !txDevice) {
+        QAL_ERR(LOG_TAG, "No need to handle for concurrency");
+        return;
+    }
+
+    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
+    // determine concurrency usecase
+    for (int i = 0; i < deviceList.size(); i++) {
+        std::shared_ptr<Device> dev = deviceList[i];
+        if (dev == rxDevice) {
+            rm->getActiveStream(txDevice, activeStreams);
+            for (int j = 0; j < activeStreams.size(); j++) {
+                activeStreams[j]->getStreamType(&txStreamType);
+            }
+        }
+        else if (dev == txDevice)
+            s->getStreamType(&txStreamType);
+        else {
+            QAL_ERR(LOG_TAG, "Concurrency usecase exists, not related to current stream");
+            return;
+        }
+    }
+    QAL_DBG(LOG_TAG, "tx stream type = %d", txStreamType);
+    // TODO: use table to map types/devices to key values
+    if (txStreamType == QAL_STREAM_VOICE_UI) {
+        status = SessionAlsaUtils::setECRefPath(mixer, 1, false, "CODEC_DMA-LPAIF_WSA-RX-0");
+        if (status)
+            QAL_ERR(LOG_TAG, "Failed to set EC ref path");
+    }
 }
 
 int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)

@@ -203,6 +203,9 @@ int32_t StreamSoundTrigger::start()
         rm->registerDevice(devices[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. devices started successfully status %d", status);
+    for (int i = 0; i < devices.size(); i++) {
+        rm->registerDevice(devices[i]);
+    }
 
 exit:
     mutex.unlock();

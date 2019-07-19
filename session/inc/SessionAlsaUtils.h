@@ -62,6 +62,13 @@ public:
     static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);
     static unsigned int bitsToAlsaFormat(unsigned int bits);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds, const std::vector<std::string> &BackEnds);
+    static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
+                       bool isCompress, int tag_id, uint32_t *miid);
+    static int setMixerParameter(struct mixer *mixer, int device,
+                        bool isCompress, void *payload, int size);
+    static int setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress);
+    static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register);
+    static int setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name);
 };
 
 #endif //SESSION_ALSA_UTILS

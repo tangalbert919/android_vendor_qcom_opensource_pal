@@ -34,6 +34,10 @@
 #include "Session.h"
 #include "QalAudioRoute.h"
 #include <tinyalsa/asoundlib.h>
+#include <thread>
+
+#define PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP 0x08001049
+#define PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG 0x08001044
 
 class Stream;
 class Session;
@@ -42,7 +46,8 @@ class SessionAlsaPcm : public Session
 {
 private:
     void * graphHandle;
-    void * payload;
+    void * customPayload;
+    size_t customPayloadSize;
     size_t size = 0;
     PayloadBuilder* builder;
     struct pcm *pcm;
@@ -54,7 +59,8 @@ private:
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
-
+    void *cookie;
+    std::thread threadHandler;
 
 public:
 
@@ -73,7 +79,9 @@ public:
     int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
-
+    static void eventWaitThreadLoop(void *context, SessionAlsaPcm *session);
+    int handleMixerEvent(struct mixer *mixer, char *mixer_str);
+    void checkAndConfigConcurrency(Stream *s);
 };
 
 #endif //SESSION_ALSAPCM_H

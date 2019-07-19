@@ -1512,6 +1512,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
         case QAL_STREAM_VOICE_UI:
             keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
+            keyVector.push_back(std::make_pair(DEVICEPP_TX,VOICE_FLUENCE_FFECNS));
             break;
         default:
             status = -EINVAL;

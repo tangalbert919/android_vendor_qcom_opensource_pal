@@ -745,6 +745,7 @@ int SessionGsl::start(Stream *s)
 {
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
+    checkAndConfigConcurrency(s);
 
     checkAndConfigConcurrency(s);
     status = gslIoctl(graphHandle, GSL_CMD_START, payload, size);
@@ -1228,6 +1229,7 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     std::shared_ptr<Device> txDevice = nullptr;
     std::vector <std::pair<int,int>> keyVector;
     struct gsl_cmd_graph_select device_graph = {{0, nullptr}, {0, nullptr}};
+    struct qal_stream_attributes sAttr;
     std::vector <Stream *> activeStreams;
     qal_stream_type_t txStreamType = QAL_STREAM_LOW_LATENCY;
     std::vector <std::shared_ptr<Device>> activeDevices;
@@ -1301,6 +1303,7 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
             return;
         }
     }
+
     QAL_DBG(LOG_TAG, "tx stream type = %d", txStreamType);
     // TODO: use table to map types/devices to key values
     if (txStreamType == QAL_STREAM_VOICE_UI) {

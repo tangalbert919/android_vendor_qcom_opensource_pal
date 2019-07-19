@@ -38,7 +38,7 @@
 //#include "SessionAlsaCompress.h"
 #include "ResourceManager.h"
 #include <agm/agm_api.h>
-
+#include "detection_cmn_api.h"
 #include <tinyalsa/asoundlib.h>
 #include <sound/asound.h>
 
@@ -408,5 +408,230 @@ free_streammd:
     free(streamMetaData);
 exit:
    return status;
+}
+
+int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
+                       bool isCompress, int tag_id, uint32_t *miid)
+{
+    char *stream = "PCM";
+    char *control = "getTaggedInfo";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,ret = 0, i;
+    void *payload;
+    struct gsl_tag_module_info *tag_info;
+    struct gsl_tag_module_info_entry *tag_entry;
+    int offset = 0;
+
+    ret = setStreamMetadataType(mixer, device, intf_name, isCompress);
+    if (ret)
+        return ret;
+
+    if (isCompress)
+        stream = "COMPRESS";
+
+    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    if (!mixer_str)
+        return -ENOMEM;
+
+    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+
+    QAL_DBG(LOG_TAG, " - mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+
+    payload = calloc(1024, sizeof(char));
+    if (!payload) {
+        free(mixer_str);
+        return -ENOMEM;
+    }
+
+    ret = mixer_ctl_get_array(ctl, payload, 1024);
+    if (ret < 0) {
+        QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array\n");
+        free(payload);
+        free(mixer_str);
+        return ret;
+    }
+    tag_info = (struct gsl_tag_module_info *)payload;
+    QAL_DBG(LOG_TAG, "num of tags associated with stream %d is %d\n", device, tag_info->num_tags);
+    ret = -1;
+    tag_entry = (struct gsl_tag_module_info_entry *)(&tag_info->tag_module_entry[0]);
+    offset = 0;
+    for (i = 0; i < tag_info->num_tags; i++) {
+        tag_entry += offset/sizeof(struct gsl_tag_module_info_entry);
+
+        QAL_DBG(LOG_TAG, "tag id[%d] = %lx, num_modules = %lx\n", i, tag_entry->tag_id, tag_entry->num_modules);
+        offset = sizeof(struct gsl_tag_module_info_entry) + (tag_entry->num_modules * sizeof(struct gsl_module_id_info_entry));
+        if (tag_entry->tag_id == tag_id) {
+            struct gsl_module_id_info_entry *mod_info_entry;
+
+            if (tag_entry->num_modules) {
+                 mod_info_entry = &tag_entry->module_entry[0];
+                 *miid = mod_info_entry->module_iid;
+                 QAL_DBG(LOG_TAG, "MIID is %x\n", *miid);
+                 ret = 0;
+                 break;
+            }
+        }
+    }
+
+    free(payload);
+    free(mixer_str);
+    return ret;
+}
+
+int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
+                        bool isCompress, void *payload, int size)
+{
+    char *stream = "PCM";
+    char *control = "setParam";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,ret = 0;
+
+    if (isCompress)
+        stream = "COMPRESS";
+
+
+    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    if (!mixer_str) {
+        free(payload);
+        return -ENOMEM;
+    }
+    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+
+
+    ret = mixer_ctl_set_array(ctl, payload, size);
+
+    QAL_DBG(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
+    free(mixer_str);
+    return ret;
+}
+
+int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress)
+{
+    char *stream = "PCM";
+    char *control = "control";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,ret = 0;
+
+    if (isCompress)
+        stream = "COMPRESS";
+
+    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+
+    ret = mixer_ctl_set_enum_by_string(ctl, val);
+    free(mixer_str);
+    return ret;
+}
+
+int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register)
+{
+    char *stream = "PCM";
+    char *control = "event";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    struct agm_event_reg_cfg *event_cfg;
+    int payload_size = 0;
+    int ctl_len = 0,status = 0;
+    uint32_t miid;
+
+    // get module instance id
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device, intf_name, false, tag_id, &miid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", tag_id, status);
+        return EINVAL;
+    }
+
+
+    if (isCompress)
+        stream = "COMPRESS";
+
+    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    if (!mixer_str)
+        return -ENOMEM;
+
+    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+
+    ctl_len = sizeof(struct agm_event_reg_cfg) + payload_size;
+    event_cfg = (struct agm_event_reg_cfg *)calloc(1, ctl_len);
+    if (!event_cfg) {
+        free(mixer_str);
+        return -ENOMEM;
+    }
+
+    event_cfg->module_instance_id = miid;
+    event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+    event_cfg->event_config_payload_size = payload_size;
+    event_cfg->is_register = is_register ? 1 : 0;
+
+    status = mixer_ctl_set_array(ctl, event_cfg, ctl_len);
+    free(event_cfg);
+    free(mixer_str);
+    return status;
+}
+
+int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name)
+{
+    char *stream = "PCM";
+    char *control = "echoReference";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0;
+    int ret = 0;
+
+    if (isCompress)
+        stream = "COMPRESS";
+
+    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+
+    printf("%s - mixer -%s-\n", __func__, mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        printf("Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+
+    ret = mixer_ctl_set_enum_by_string(ctl, intf_name);
+    free(mixer_str);
+    return ret;
 }
 
