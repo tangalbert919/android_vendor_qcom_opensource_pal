@@ -38,7 +38,11 @@
 
 // TODO: Move to sound trigger xml files
 #define HIST_BUFFER_DURATION_MS 1750
+#ifdef FEATURE_IPQ_OPENWRT
+#define PRE_ROLL_DURATION_IN_MS 500
+#else
 #define PRE_ROLL_DURATION_IN_MS 250
+#endif
 #define DWNSTRM_SETUP_DURATION_MS 300
 
 std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::sndEngGsl_ = NULL;
