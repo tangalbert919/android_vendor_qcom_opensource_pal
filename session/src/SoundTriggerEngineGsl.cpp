@@ -96,6 +96,7 @@ int32_t SoundTriggerEngineGsl::stop_sound_engine()
 {
     int32_t status = 0;
     {
+        eventDetected = false;
         std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;

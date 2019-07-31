@@ -833,6 +833,11 @@ int32_t StreamSoundTrigger::create_st_engine(std::vector<std::pair<uint32_t, Sou
             uint32_t engineId = static_cast<uint32_t>(big_sm->type);
             notificationState = notificationState | engineId;
             stEngine = SoundTriggerEngine::create(this, big_sm->type, &reader_, reader_->ringBuffer_);
+            if (!stEngine) {
+                QAL_ERR(LOG_TAG, "Failed to create sound trigger engine for sound model type %d", big_sm->type);
+                status = ENOENT;
+                goto exit;
+            }
             registerSoundTriggerEngine(engineId, stEngine);
             stEngine->load_sound_model(this, sm_data, stages);
         }

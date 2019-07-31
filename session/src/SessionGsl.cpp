@@ -969,13 +969,13 @@ int SessionGsl::setPayloadConfig(Stream *s)
         QAL_ERR(LOG_TAG, "failed to create builder status %d", status);
         goto exit;
     }
-    sessionData = (struct sessionToPayloadParam *)malloc(sizeof(struct sessionToPayloadParam));
+    sessionData = (struct sessionToPayloadParam *)calloc(1, sizeof(struct sessionToPayloadParam));
     if (!sessionData) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "sessionData malloc failed status %d", status);
         goto free_builder;
     }
-    deviceData = (struct sessionToPayloadParam *)malloc(sizeof(struct sessionToPayloadParam));
+    deviceData = (struct sessionToPayloadParam *)calloc(1, sizeof(struct sessionToPayloadParam));
     if (!deviceData) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "deviceData malloc failed status %d", status);

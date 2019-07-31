@@ -337,7 +337,7 @@ int32_t SoundTriggerEngineCapiVop::start_sound_engine()
 
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_buf_t capi_buf;
-    voiceprint2_threshold_config_t *threshold_cfg;
+    voiceprint2_threshold_config_t *threshold_cfg = NULL;
 
     bufferThreadHandler_ = std::thread(SoundTriggerEngineCapiVop::buffer_thread_loop);
 
