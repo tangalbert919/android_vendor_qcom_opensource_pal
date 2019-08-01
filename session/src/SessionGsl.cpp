@@ -346,7 +346,7 @@ int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandl
     float voldB = 0;
     std::vector <std::pair<int,int>> keyVector;
     struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
+    size_t moduleInfoSize = 0;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     struct qal_volume_data *voldata = NULL;
@@ -455,8 +455,8 @@ int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. tag %d\n", tag);
     std::vector <std::pair<int,int>> keyVector;
-    struct gsl_module_id_info *moduleInfo;
-    size_t moduleInfoSize;
+    struct gsl_module_id_info *moduleInfo = NULL;
+    size_t moduleInfoSize = 0;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     PayloadBuilder *builder = new PayloadBuilder();
