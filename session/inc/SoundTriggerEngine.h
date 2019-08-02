@@ -152,6 +152,108 @@ typedef struct _SML_ModelType {
     } SMLModel;
 } SML_ModelType;
 
+#define ST_MAX_SOUND_MODELS 10
+#define ST_MAX_KEYWORDS 10
+#define ST_MAX_USERS 10
+
+enum st_param_key {
+    ST_PARAM_KEY_CONFIDENCE_LEVELS,
+    ST_PARAM_KEY_HISTORY_BUFFER_CONFIG,
+    ST_PARAM_KEY_KEYWORD_INDICES,
+    ST_PARAM_KEY_TIMESTAMP,
+    ST_PARAM_KEY_DETECTION_PERF_MODE,
+};
+
+typedef enum st_param_key st_param_key_t;
+
+struct __attribute__((__packed__)) st_param_header
+{
+    st_param_key_t key_id;
+    uint32_t payload_size;
+};
+
+struct __attribute__((__packed__)) st_user_levels
+{
+    uint32_t user_id;
+    uint8_t level;
+};
+
+struct __attribute__((__packed__)) st_keyword_levels
+{
+    uint8_t kw_level;
+    uint32_t num_user_levels;
+    struct st_user_levels user_levels[ST_MAX_USERS];
+};
+
+struct __attribute__((__packed__)) st_sound_model_conf_levels
+{
+    listen_model_indicator_enum sm_id;
+    uint32_t num_kw_levels;
+    struct st_keyword_levels kw_levels[ST_MAX_KEYWORDS];
+};
+
+struct __attribute__((__packed__)) st_confidence_levels_info
+{
+    uint32_t version; /* value: 0x1 */
+    uint32_t num_sound_models;
+    struct st_sound_model_conf_levels conf_levels[ST_MAX_SOUND_MODELS];
+};
+
+struct __attribute__((__packed__)) st_user_levels_v2
+{
+    uint32_t user_id;
+    int32_t level;
+};
+
+struct __attribute__((__packed__)) st_keyword_levels_v2
+{
+    int32_t kw_level;
+    uint32_t num_user_levels;
+    struct st_user_levels_v2 user_levels[ST_MAX_USERS];
+};
+
+struct __attribute__((__packed__)) st_sound_model_conf_levels_v2
+{
+    listen_model_indicator_enum sm_id;
+    uint32_t num_kw_levels;
+    struct st_keyword_levels_v2 kw_levels[ST_MAX_KEYWORDS];
+};
+
+struct __attribute__((__packed__)) st_confidence_levels_info_v2
+{
+    uint32_t version; /* value: 0x02 */
+    uint32_t num_sound_models;
+    struct st_sound_model_conf_levels_v2 conf_levels[ST_MAX_SOUND_MODELS];
+};
+
+struct __attribute__((__packed__)) st_hist_buffer_info
+{
+    uint32_t version; /* value: 0x02 */
+    uint32_t hist_buffer_duration_msec;
+    uint32_t pre_roll_duration_msec;
+};
+
+struct __attribute__((__packed__)) st_keyword_indices_info
+{
+    uint32_t version; /* value: 0x01 */
+    uint32_t start_index; /* in bytes */
+    uint32_t end_index;   /* in bytes */
+};
+
+struct __attribute__((__packed__)) st_timestamp_info
+{
+    uint32_t version; /* value: 0x01 */
+    uint64_t first_stage_det_event_time;  /* in nanoseconds */
+    uint64_t second_stage_det_event_time; /* in nanoseconds */
+};
+
+struct __attribute__((__packed__)) st_det_perf_mode_info
+{
+    uint32_t version; /* value: 0x01 */
+    uint8_t mode; /* 0 -Low Power, 1 -High performance */
+};
+
+
 typedef enum {
     IDLE,
     READY,

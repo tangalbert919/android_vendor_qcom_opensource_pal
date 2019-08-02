@@ -1505,6 +1505,13 @@ int SessionGsl::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
                     sizeRead);
             break;
         }
+
+        if (!bytesRead && buf->ts) {
+            buf->ts->tv_sec = gslBuff.timestamp / 1000000;
+            buf->ts->tv_nsec = (gslBuff.timestamp - buf->ts->tv_sec * 1000000) * 1000;
+            QAL_VERBOSE(LOG_TAG, "Timestamp %llu, tv_sec = %ld, tv_nsec = %ld",
+                        gslBuff.timestamp, buf->ts->tv_sec, buf->ts->tv_nsec);
+        }
         QAL_DBG(LOG_TAG, "bytes read %d and  sizeRead %d", bytesRead, sizeRead);
         bytesRead += sizeRead;
     }

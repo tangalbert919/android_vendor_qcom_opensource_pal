@@ -59,6 +59,7 @@ public:
     size_t advanceReadOffset(size_t advanceSize);
     size_t read(void* readBuffer, size_t readSize);
     void updateState(qal_ring_buffer_reader_state state);
+    void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
     QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
         readOffset_(0),
@@ -78,6 +79,8 @@ public:
     explicit QalRingBuffer(size_t bufferSize) :
         buffer_((char*)(new char[bufferSize])),
         writeOffset_(0),
+        startIndex(0),
+        endIndex(0),
         bufferEnd_(bufferSize)
     { /* empty constructor */}
 
@@ -88,9 +91,12 @@ public:
                 size_t readSize);
     size_t write(void* writeBuffer, size_t writeSize);
     size_t getFreeSize();
+    void updateIndices(uint32_t startIndice, uint32_t endIndice);
 protected:
     std::mutex mutex_;
     const size_t bufferEnd_;
+    uint32_t startIndex;
+    uint32_t endIndex;
     size_t writeOffset_;
     std::vector<QalRingBufferReader*> readOffsets_;
     char* buffer_;

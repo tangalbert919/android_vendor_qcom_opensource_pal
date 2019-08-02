@@ -60,6 +60,7 @@ protected:
     std::condition_variable cv_;
     bool exit_thread_;
     bool exit_buffering_;
+    bool timestampRecorded;
 public:
     SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id,
                    QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);

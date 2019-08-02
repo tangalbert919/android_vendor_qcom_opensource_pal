@@ -70,6 +70,13 @@ void QalRingBuffer::updateUnReadSize(size_t writtenSize)
     }
 }
 
+void QalRingBuffer::updateIndices(uint32_t startIndice, uint32_t endIndice)
+{
+    startIndex = startIndice;
+    endIndex = endIndice;
+    QAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u", startIndex, endIndex);
+}
+
 size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
 {
     /* update the unread size for each reader*/
@@ -192,6 +199,14 @@ void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
 {
     state_ = state;
     // TODO: Handle read offsets for different scenario
+}
+
+void QalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
+{
+    *startIndice = ringBuffer_->startIndex;
+    *endIndice = ringBuffer_->endIndex;
+    QAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u",
+                ringBuffer_->startIndex, ringBuffer_->endIndex);
 }
 
 size_t QalRingBufferReader::getUnreadSize()

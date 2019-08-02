@@ -587,7 +587,6 @@ int32_t StreamSoundTrigger::handleDetectionEvent(qal_stream_handle_t *stream_han
         return status;
     }
 
-    s->setDetectionState(GMM_DETECTED);
     // Notify Engine and client
     status = s->setDetected(true);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -853,9 +852,22 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
 {
     struct qal_st_phrase_recognition_event *phrase_event = NULL;
     struct qal_channel_info *ch_info = NULL;
-    QAL_INFO(LOG_TAG, "Enter");
+    struct st_param_header *param_hdr = NULL;
+    struct st_confidence_levels_info *conf_levels = NULL;
+    struct st_keyword_indices_info *kw_indices = NULL;
+    struct st_timestamp_info *timestamps = NULL;
+    size_t opaque_size = 0;
+    uint8_t *opaque_data = NULL;
+    QAL_DBG(LOG_TAG, "Enter");
+
     if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        phrase_event = (struct qal_st_phrase_recognition_event *)malloc(sizeof(struct qal_st_phrase_recognition_event));
+        opaque_size = (3 * sizeof(struct st_param_header)) +
+            sizeof(struct st_timestamp_info) +
+            sizeof(struct st_keyword_indices_info) +
+            sizeof(struct st_confidence_levels_info);
+
+        phrase_event = (struct qal_st_phrase_recognition_event *)
+                       calloc(1, (sizeof(struct qal_st_phrase_recognition_event) + opaque_size));
         if (!phrase_event) {
             QAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
             return ENOMEM;
@@ -876,10 +888,10 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         (*event)->capture_delay_ms = 0;
         (*event)->capture_preamble_ms = 0;
         (*event)->trigger_in_data = true;
-        (*event)->data_size = 0;
+        (*event)->data_size = opaque_size;
         (*event)->data_offset = sizeof(struct qal_st_phrase_recognition_event);
 
-        ch_info = (struct qal_channel_info *)malloc(sizeof(struct qal_channel_info));
+        ch_info = (struct qal_channel_info *)calloc(1, sizeof(struct qal_channel_info));
         if (!ch_info) {
             QAL_ERR(LOG_TAG, "Failed to alloc memory for channel info");
             return ENOMEM;
@@ -889,9 +901,53 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         (*event)->media_config.ch_info = ch_info;
         (*event)->media_config.ch_info->channels = CHANNELS_1;
         (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+
+        // Filling Opaque data
+        opaque_data = (uint8_t *)phrase_event + phrase_event->common.data_offset;
+
+        /* Pack the opaque data confidence levels structure */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
+        param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
+        opaque_data += sizeof(struct st_param_header);
+        conf_levels = (struct st_confidence_levels_info *)opaque_data;
+        conf_levels->version = 0x1;
+        conf_levels->num_sound_models = stages;
+        // TODO: update user conf levels
+        for (int i = 0; i < conf_levels->num_sound_models; i++) {
+            conf_levels->conf_levels[i].sm_id = ST_SM_ID_SVA_GMM;
+            conf_levels->conf_levels[i].num_kw_levels = 1;
+            conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                detectionEventInfo.confidence_levels[i];
+            conf_levels->conf_levels[i].kw_levels[0].num_user_levels = 0;
+        }
+        opaque_data += param_hdr->payload_size;
+
+        /* Pack the opaque data keyword indices structure */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
+        param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
+        opaque_data += sizeof(struct st_param_header);
+        kw_indices = (struct st_keyword_indices_info *)opaque_data;
+        kw_indices->version = 0x1;
+        reader_->getIndices(&kw_indices->start_index, &kw_indices->end_index);
+        opaque_data += sizeof(struct st_keyword_indices_info);
+
+        /* Pack the opaque data detection time structure
+           TODO: add support for 2nd stage detection timestamp */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
+        param_hdr->payload_size = sizeof(struct st_timestamp_info);
+        opaque_data += sizeof(struct st_param_header);
+        timestamps = (struct st_timestamp_info *)opaque_data;
+        timestamps->version = 0x1;
+        timestamps->first_stage_det_event_time =
+                ((uint64_t)detectionEventInfo.detection_timestamp_lsw +
+                (uint64_t)(detectionEventInfo.detection_timestamp_msw << 32)) * 1000;
+
     }
     // TODO: handle for generic sound model
-    QAL_INFO(LOG_TAG, "Exit");
+    QAL_DBG(LOG_TAG, "Exit");
     return 0;
 }
 

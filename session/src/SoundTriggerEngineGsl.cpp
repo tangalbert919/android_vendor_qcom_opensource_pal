@@ -71,6 +71,12 @@ void SoundTriggerEngineGsl::buffer_thread_loop()
     QAL_DBG(LOG_TAG, "Exit.");
 }
 
+static uint32_t us_to_bytes(uint64_t input_us)
+{
+    return (CNN_SAMPLE_RATE * CNN_BITWIDTH * CNN_CHANNELS * input_us /
+            (BITS_PER_BYTE * US_PER_SEC));
+}
+
 int32_t SoundTriggerEngineGsl::prepare_sound_engine()
 {
     int32_t status = 0;
@@ -100,6 +106,7 @@ int32_t SoundTriggerEngineGsl::stop_sound_engine()
         std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;
+        timestampRecorded = false;
         cv_.notify_one();
     }
     bufferThreadHandler_.join();
@@ -117,6 +124,12 @@ int32_t SoundTriggerEngineGsl::start_buffering()
     size_t outputBufSize;
     size_t outputBufNum;
     size_t toWrite = 0;
+    uint64_t timestamp = 0;
+    uint64_t startTs = 0;
+    uint64_t endTs = 0;
+    size_t startIndice = 0;
+    size_t endIndice = 0;
+    struct detection_event_info *info;
 
     streamHandle->getBufInfo(&inputBufSize, &inputBufNum, &outputBufSize,
                              &outputBufNum);
@@ -126,7 +139,14 @@ int32_t SoundTriggerEngineGsl::start_buffering()
     if (!buf.buffer) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "buffer calloc failed, status %d", status);
-        return status;
+        goto exit;
+    }
+
+    buf.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
+    if (!buf.ts) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG, "buffer calloc failed, status %d", status);
+        goto exit;
     }
 
     /*TODO: add max retry num to avoid dead lock*/
@@ -141,13 +161,31 @@ int32_t SoundTriggerEngineGsl::start_buffering()
 
     // write data to ring buffer
     if (toWrite) {
+        if (!timestampRecorded) {
+            timestamp = ((uint64_t)buf.ts->tv_sec * 1000000000 +
+                        (uint64_t)buf.ts->tv_nsec) / 1000;
+            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(streamHandle);
+            s->getDetectionEventInfo(&info);
+            startTs = (uint64_t)info->kw_start_timestamp_lsw +
+                      (uint64_t)(info->kw_start_timestamp_msw << 32);
+            endTs = (uint64_t)info->kw_end_timestamp_lsw +
+                    (uint64_t)(info->kw_end_timestamp_msw << 32);
+            startIndice = us_to_bytes(startTs - timestamp);
+            endIndice = us_to_bytes(endTs - timestamp);
+            buffer_->updateIndices(startIndice, endIndice);
+            timestampRecorded = true;
+            s->setDetectionState(GMM_DETECTED);
+        }
         size_t ret = buffer_->write(buf.buffer, toWrite);
         toWrite -= ret;
         QAL_INFO(LOG_TAG, "%u written to ring buffer", ret);
     }
 
+exit:
     if (buf.buffer)
         free(buf.buffer);
+    if (buf.ts)
+        free(buf.ts);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
@@ -171,6 +209,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(Stream *s, uint32_t id,
     eventDetected = false;
     exit_thread_ = false;
     exit_buffering_ = false;
+    timestampRecorded = false;
     sndEngGsl_ = (std::shared_ptr<SoundTriggerEngineGsl>)this;
     s->getAssociatedSession(&session);
     streamHandle = s;
