@@ -290,9 +290,10 @@ typedef enum {
 } qal_drain_type_t;
 
 typedef enum {
-	QAL_PARAM_ID_LOAD_SOUND_MODEL,
-	QAL_PARAM_ID_START_RECOGNITION,
-        QAL_PARAM_ID_FLUENCE_ON_OFF
+    QAL_PARAM_ID_LOAD_SOUND_MODEL,
+    QAL_PARAM_ID_START_RECOGNITION,
+    QAL_PARAM_ID_FLUENCE_ON_OFF,
+    QAL_PARAM_ID_DIRECTION_OF_ARRIVAL
 }qal_param_id_type_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */
@@ -439,6 +440,13 @@ struct detection_engine_voice_wakeup_buffer_config {
 
 struct detection_engine_generic_event_cfg {
     uint32_t event_mode;
+};
+
+struct ffv_doa_tracking_monitor_t
+{
+    int16_t target_angle_L16[2];
+    int16_t interf_angle_L16[2];
+    int8_t polarActivityGUI[360];
 };
 
 /** @brief Callback function prototype to be given for

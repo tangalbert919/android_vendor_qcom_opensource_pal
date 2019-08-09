@@ -574,3 +574,7 @@ void SoundTriggerEngineCapiVop::setDetected(bool detected)
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
 }
 
+int32_t SoundTriggerEngineCapiVop::getParameters(uint32_t param_id, void **payload)
+{
+    return 0;
+}

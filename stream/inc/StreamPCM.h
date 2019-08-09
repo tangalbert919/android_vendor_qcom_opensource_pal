@@ -59,6 +59,7 @@ public:
    int32_t write(struct qal_buffer *buf) override;
    int32_t registerCallBack(qal_stream_callback cb) override;
    int32_t getCallBack(qal_stream_callback *cb) override;
+   int32_t getParameters(uint32_t param_id, void **payload) override;
    int32_t setParameters(uint32_t param_id, void *payload) override;
    static int32_t isSampleRateSupported(uint32_t sampleRate);
    static int32_t isChannelSupported(uint32_t numChannels);

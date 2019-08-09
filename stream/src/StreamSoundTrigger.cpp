@@ -459,6 +459,25 @@ exit:
     return status;
 }
 
+int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload)
+{
+    int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter. get parameter %u, session handle - %pK", param_id,
+            session);
+
+    if (activeEngines.size()) {
+        SoundTriggerEngine *stEngine = activeEngines[0].second;
+        status = stEngine->getParameters(param_id, payload);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to get parameters from sound trigger engine");
+        }
+    } else {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "No primary sound trigger engine present");
+    }
+    return status;
+}
+
 int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;

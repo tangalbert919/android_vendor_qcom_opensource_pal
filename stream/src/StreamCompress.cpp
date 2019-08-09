@@ -114,6 +114,11 @@ int32_t StreamCompress::getCallBack(qal_stream_callback *cb)
     return 0;
 }
 
+int32_t StreamCompress::getParameters(uint32_t param_id, void **payload)
+{
+    return 0;
+}
+
 int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
 {
     return 0;

@@ -76,7 +76,8 @@ public:
     virtual int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) = 0;
     virtual int read(Stream *s, int tag, struct qal_buffer *buf, int * size) = 0;
     virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) = 0;
-    virtual int setParameters(Stream *s, uint32_t param_id, void *payload) = 0;
+    virtual int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) = 0;
+    virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) = 0;
 };
 
 #endif //SESSION_H

@@ -334,8 +334,9 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data,
     }
     pSoundModel = (struct qal_st_sound_model *)sm_data;
 
-    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_SOUND_MODEL,
-                                   (void *)pSoundModel);
+    status = session->setParameters(streamHandle, DEVICE_SVA,
+                                    PARAM_ID_DETECTION_ENGINE_SOUND_MODEL,
+                                    (void *)pSoundModel);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
         goto exit;
@@ -373,15 +374,15 @@ int32_t SoundTriggerEngineGsl::start_recognition(Stream *s)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    status = session->setParameters(streamHandle,
-                                  PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
-                                  &pWakeUpConfig);
+    status = session->setParameters(streamHandle, DEVICE_SVA,
+                                    PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
+                                    &pWakeUpConfig);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
         goto exit;
     }
 
-    status = session->setParameters(streamHandle,
+    status = session->setParameters(streamHandle, DEVICE_SVA,
                                     PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG,
                                     &pEventConfig);
     if (0 != status) {
@@ -389,16 +390,17 @@ int32_t SoundTriggerEngineGsl::start_recognition(Stream *s)
         goto exit;
     }
 
-    status = session->setParameters(streamHandle, PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
+    status = session->setParameters(streamHandle, DEVICE_SVA,
+                                    PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
                                     &pBufConfig);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d", status);
         goto exit;
     }
 
-    status = session->setParameters(streamHandle,
-                                   PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION,
-                                   pSetupDuration);
+    status = session->setParameters(streamHandle, DEVICE_ADAM,
+                                    PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION,
+                                    pSetupDuration);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to set downstream setup duration, status = %d", status);
         goto exit;
@@ -422,7 +424,7 @@ int32_t SoundTriggerEngineGsl::stop_recognition(Stream *s)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    status = session->setParameters(streamHandle, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
+    status = session->setParameters(streamHandle, DEVICE_SVA, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d", status);
         goto exit;
@@ -617,5 +619,31 @@ exit:
         free(conf_levels);
     if (user_id_tracker)
         free(user_id_tracker);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::getParameters(uint32_t param_id, void **payload)
+{
+    int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    switch (param_id) {
+        case QAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
+            status = session->getParameters(streamHandle, TAG_FLUENCE,
+                                            param_id, payload);
+            break;
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
+                    param_id, status);
+            goto exit;
+    }
+
+    if (status)
+        QAL_ERR(LOG_TAG, "Failed to get parameters, param_id %d, status %d",
+                param_id, status);
+
+exit:
+    QAL_DBG(LOG_TAG, "Exit. status - %d", status);
     return status;
 }

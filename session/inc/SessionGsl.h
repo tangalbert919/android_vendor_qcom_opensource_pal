@@ -55,6 +55,7 @@
 #define PLAYBACK_VOLUME_MASTER_GAIN_DEFAULT 0x2000
 #define PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP 0x08001049
 #define PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG 0x08001044
+#define PARAM_ID_FFV_DOA_TRACKING_MONITOR 0x080010A4
 
 #define WSA_CODEC_DMA_CORE  LPAIF_WSA
 #define VA_CODEC_DMA_CORE   LPAIF_VA
@@ -139,7 +140,8 @@ public:
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
     int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
-    int setParameters(Stream *s, uint32_t param_id, void *payload) override;
+    int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
+    int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
     struct gsl_key_vector *gkv;

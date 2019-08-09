@@ -60,6 +60,7 @@ typedef int32_t (*gsl_read_t)(gsl_handle_t, uint32_t, struct gsl_buff *, uint32_
 typedef int32_t (*gsl_write_t)(gsl_handle_t, uint32_t, struct gsl_buff *, uint32_t *);
 typedef int32_t (*gsl_get_tagged_module_info_t)(const struct gsl_key_vector *,
                               uint32_t, struct gsl_module_id_info **, size_t *);
+typedef int32_t (*gsl_get_tagged_custom_config_t)(gsl_handle_t, uint32_t, uint8_t *, size_t);
 typedef int32_t (*gsl_register_event_cb_t)(gsl_handle_t, gsl_cb_func_ptr, void *);
 typedef void (*gsl_deinit_t)(void);
 
@@ -69,6 +70,7 @@ gsl_set_cal_t gslSetCal;
 gsl_set_config_t gslSetConfig;
 gsl_set_custom_config_t gslSetCustomConfig;
 gsl_get_tagged_module_info_t gslGetTaggedModuleInfo;
+gsl_get_tagged_custom_config_t gslGetTaggedCustomConfig;
 gsl_register_event_cb_t gslRegisterEventCallBack;
 gsl_read_t gslRead;
 gsl_open_t gslOpen;
@@ -173,6 +175,13 @@ int SessionGsl::init(std::string acdbFile)
                               "gsl_get_tagged_module_info");
     if (!gslGetTaggedModuleInfo) {
         QAL_ERR(LOG_TAG, "dlsym error %s for gsl_get_tagged_module_info", dlerror());
+        ret = -EINVAL;
+        goto error;
+    }
+    gslGetTaggedCustomConfig = (gsl_get_tagged_custom_config_t)dlsym(gslLibHandle,
+                              "gsl_get_tagged_custom_config");
+    if (!gslGetTaggedCustomConfig) {
+        QAL_ERR(LOG_TAG, "dlsym error %s for gsl_get_tagged_custom_config", dlerror());
         ret = -EINVAL;
         goto error;
     }
@@ -585,329 +594,6 @@ void printCustomConfig(const uint8_t* payload, size_t size)
                     temp[2+loop],temp[3+loop]);
         loop = loop + 4;
     }
-}
-
-int populateSVASoundModel(SessionGsl *s, int tagId, void* graphHandle,
-                          struct qal_st_sound_model *pSoundModel)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-                                    &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-                tagId, s->gkv->kvp[0].key,
-                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-                status);
-        goto free_builder;
-    }
-    builder->payloadSVASoundModel(&payload, &payloadSize,
-                                  moduleInfo->module_entry[0].module_iid,
-                                  pSoundModel);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateSVAWakeUpConfig(SessionGsl *s, int tagId, void* graphHandle,
-                     struct detection_engine_config_voice_wakeup *pWakeUpConfig)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-                                    &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size structure values %x :%x and %x:%x status %d",
-                tagId, s->gkv->kvp[0].key,
-                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-                status);
-        goto free_builder;
-    }
-
-    builder->payloadSVAWakeUpConfig(&payload, &payloadSize,
-                         moduleInfo->module_entry[0].module_iid, pWakeUpConfig);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle,
-           struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder, status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-        &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-                tagId, s->gkv->kvp[0].key,
-                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-                status);
-        goto free_builder;
-    }
-    builder->payloadSVAWakeUpBufferConfig(&payload, &payloadSize,
-                      moduleInfo->module_entry[0].module_iid, pWakeUpBufConfig);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%pK - payload and %d size", payload , payloadSize);
-
-    QAL_VERBOSE(LOG_TAG, "History Buffer: %d", pWakeUpBufConfig->hist_buffer_duration_in_ms);
-    QAL_VERBOSE(LOG_TAG, "Pre-roll: %d", pWakeUpBufConfig->pre_roll_duration_in_ms);
-
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d\n", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateSVAStreamSetupDuration(SessionGsl *s, int tagId, void* graphHandle,
-                     struct audio_dam_downstream_setup_duration *pSetupDuration)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder, status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-                                    &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-                tagId, s->gkv->kvp[0].key,
-                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-                status);
-        goto free_builder;
-    }
-
-    builder->payloadSVAStreamSetupDuration(&payload, &payloadSize,
-                        moduleInfo->module_entry[0].module_iid, pSetupDuration);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle,
-                        struct detection_engine_generic_event_cfg *pEventConfig)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder, status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-                                    &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size\n structure values %x :%x and %x:%x status %d",
-               tagId, s->gkv->kvp[0].key,
-               s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-               status);
-        goto free_builder;
-    }
-
-    // Register custom config
-    struct gsl_cmd_register_custom_event reg_ev_payload;
-    reg_ev_payload.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
-    reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
-    reg_ev_payload.event_config_payload_size = 0;
-    reg_ev_payload.is_register = 1;
-    status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload,
-                      sizeof(reg_ev_payload));
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to register custom event with status = %d\n", status);
-        goto free_moduleInfo;
-    }
-
-    builder->payloadSVAEventConfig(&payload, &payloadSize,
-                                   moduleInfo->module_entry[0].module_iid,
-                                   pEventConfig);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
-}
-
-int populateSVAEngineReset(SessionGsl *s, int tagId, void* graphHandle, Stream *st)
-{
-    int32_t status = 0;
-    struct gsl_module_id_info *moduleInfo = NULL;
-    size_t moduleInfoSize;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-
-    PayloadBuilder *builder = new PayloadBuilder();
-    if (!builder) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "Failed to get builder, status %d", status);
-        goto exit;
-    }
-    status = gslGetTaggedModuleInfo(s->gkv, tagId,
-                                    &moduleInfo, &moduleInfoSize);
-    if (0 != status || !moduleInfo) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x module size structure values %x :%x and %x:%x status %d",
-                tagId, s->gkv->kvp[0].key,
-                s->gkv->kvp[0].value, s->gkv->kvp[1].key, s->gkv->kvp[1].value,
-                status);
-        goto free_builder;
-    }
-
-    // Deregister custom config, no need to check status
-    // as this may be called before custom event registered
-    struct gsl_cmd_register_custom_event reg_ev_payload;
-    reg_ev_payload.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
-    reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
-    reg_ev_payload.event_config_payload_size = 0;
-    reg_ev_payload.is_register = 0;
-    status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload, sizeof(reg_ev_payload));
-
-    builder->payloadSVAEngineReset(&payload, &payloadSize, moduleInfo->module_entry[0].module_iid);
-    if (!payload) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
-        goto free_moduleInfo;
-    }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
-    status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
-        goto free_payload;
-    }
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    delete [] payload;
-free_moduleInfo :
-    free(moduleInfo);
-free_builder :
-    delete builder;
-exit:
-    return status;
 }
 
 int SessionGsl::open(Stream *s)
@@ -1592,32 +1278,108 @@ exit:
     return 0;
 }
 
-int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
+int SessionGsl::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
 {
     int status = 0;
+    uint8_t *data = NULL;
+    uint8_t *config = NULL;
+    size_t moduleInfoSize;
+    size_t payloadSize = 0;
+    struct apm_module_param_data_t *header = NULL;
+    struct gsl_module_id_info *moduleInfo = NULL;
     QAL_DBG(LOG_TAG, "Enter.");
+
+    status = gslGetTaggedModuleInfo(gkv, tagId,
+                            &moduleInfo, &moduleInfoSize);
+    if (0 != status || !moduleInfo) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status %d", tagId, status);
+        goto exit;
+    }
+
+    switch (param_id) {
+        case QAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
+        {
+            payloadSize = sizeof(struct apm_module_param_data_t) +
+                          sizeof(ffv_doa_tracking_monitor_t);
+            data = (uint8_t*)calloc(1, payloadSize);
+            config = (uint8_t *)calloc(1, sizeof(ffv_doa_tracking_monitor_t));
+            if (!data || !config) {
+                status = ENOMEM;
+                QAL_ERR(LOG_TAG, "Failed to allocate memory for DOA payload");
+                goto exit;
+            }
+
+            header = (struct apm_module_param_data_t *)data;
+            header->module_instance_id = moduleInfo->module_entry[0].module_iid;
+            header->param_id = PARAM_ID_FFV_DOA_TRACKING_MONITOR;
+            header->error_code = 0x0;
+            header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+
+            status = gslGetTaggedCustomConfig(graphHandle, tagId, data, payloadSize);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to get DOA info from gsl, status = %d", status);
+                goto exit;
+            }
+
+            casa_osal_memcpy(config, sizeof(ffv_doa_tracking_monitor_t),
+                             data + sizeof(struct apm_module_param_data_t),
+                             sizeof(ffv_doa_tracking_monitor_t));
+            *payload = (void *)config;
+            break;
+        }
+        default:
+            status = EINVAL;
+            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
+            goto exit;
+    }
+
+exit:
+    if (data)
+        free(data);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
+int SessionGsl::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
+{
+    int status = 0;
+    size_t moduleInfoSize;
+    struct gsl_module_id_info *moduleInfo = NULL;
+    uint8_t *param = NULL;
+    size_t paramSize;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    PayloadBuilder *builder = new PayloadBuilder();
+    if (!builder) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG, "Failed to get builder status %d", status);
+        goto exit;
+    }
+
+    status = gslGetTaggedModuleInfo(gkv, tagId,
+                            &moduleInfo, &moduleInfoSize);
+    if (0 != status || !moduleInfo) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status %d", tagId, status);
+        goto free_builder;
+    }
+
     switch (param_id) {
         case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
         {
             struct qal_st_sound_model *pSoundModel = NULL;
             pSoundModel = (struct qal_st_sound_model *)payload;
-            status = populateSVASoundModel(this, DEVICE_SVA, graphHandle, pSoundModel);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to set sound model to gsl status %d",
-                        status);
-                goto exit;
-            }
+            builder->payloadSVASoundModel(&param, &paramSize,
+                                          moduleInfo->module_entry[0].module_iid,
+                                          pSoundModel);
             break;
         }
         case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
         {
             struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
             pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
-            status = populateSVAWakeUpConfig(this, DEVICE_SVA, graphHandle, pWakeUpConfig);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d", status);
-                goto exit;
-            }
+            builder->payloadSVAWakeUpConfig(&param, &paramSize,
+                                            moduleInfo->module_entry[0].module_iid,
+                                            pWakeUpConfig);
             break;
         }
         case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
@@ -1627,17 +1389,27 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to register recognition callback in gsl status %d",
                         status);
-                goto exit;
+                goto free_moduleInfo;
             }
+
+            // Register custom config
+            struct gsl_cmd_register_custom_event reg_ev_payload;
+            reg_ev_payload.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+            reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
+            reg_ev_payload.event_config_payload_size = 0;
+            reg_ev_payload.is_register = 1;
+            status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload,
+                              sizeof(reg_ev_payload));
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to register custom event with status = %d\n", status);
+                goto free_moduleInfo;
+            }
+
             struct detection_engine_generic_event_cfg *pEventConfig = NULL;
             pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
-            // set custom config for detection event
-            status = populateSVAEventConfig(this, DEVICE_SVA, graphHandle, pEventConfig);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to set detection event config to gsl status %d",
-                        status);
-                goto exit;
-            }
+            builder->payloadSVAEventConfig(&param, &paramSize,
+                                           moduleInfo->module_entry[0].module_iid,
+                                           pEventConfig);
             break;
         }
         case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
@@ -1645,44 +1417,65 @@ int SessionGsl::setParameters(Stream *s, uint32_t param_id, void *payload)
             struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig =
                                                                            NULL;
             pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
-            status = populateSVAWakeUpBufferConfig(this, DEVICE_SVA, graphHandle,
-                                                   pWakeUpBufConfig);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to set wake up config to gsl status %d",
-                        status);
-                goto exit;
-            }
+            builder->payloadSVAWakeUpBufferConfig(&param, &paramSize,
+                                                  moduleInfo->module_entry[0].module_iid,
+                                                  pWakeUpBufConfig);
             break;
         }
         case PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION:
         {
             struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
             pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
-            status = populateSVAStreamSetupDuration(this, DEVICE_ADAM, graphHandle,
-                                                    pSetupDuration);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to set down stream setup duration to gsl status %d",
-                        status);
-                goto exit;
-            }
+            builder->payloadSVAStreamSetupDuration(&param, &paramSize,
+                                                   moduleInfo->module_entry[0].module_iid,
+                                                   pSetupDuration);
             break;
         }
         case PARAM_ID_DETECTION_ENGINE_RESET:
         {
-            status = populateSVAEngineReset(this, DEVICE_SVA, graphHandle, s);
+            // Unregister custom config
+            struct gsl_cmd_register_custom_event reg_ev_payload;
+            reg_ev_payload.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+            reg_ev_payload.module_instance_id = moduleInfo->module_entry[0].module_iid;
+            reg_ev_payload.event_config_payload_size = 0;
+            reg_ev_payload.is_register = 0;
+            status = gslIoctl(graphHandle, GSL_CMD_REGISTER_CUSTOM_EVENT, &reg_ev_payload,
+                              sizeof(reg_ev_payload));
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to reset detection engine status %d",
-                        status);
-                goto exit;
+                QAL_ERR(LOG_TAG, "Failed to register custom event with status = %d\n", status);
+                goto free_moduleInfo;
             }
+
+            builder->payloadSVAEngineReset(&param, &paramSize,
+                                           moduleInfo->module_entry[0].module_iid);
             break;
         }
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
-            goto exit;
-        }
-        QAL_DBG(LOG_TAG, "Exit. status %d", status);
+            goto free_moduleInfo;
+    }
+
+    if (!param) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+        goto free_moduleInfo;
+    }
+    QAL_DBG(LOG_TAG, "%x - payload and %d size", param , paramSize);
+
+    status = gslSetCustomConfig(graphHandle, param, paramSize);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Set custom config failed with status = %d", status);
+        goto free_payload;
+    }
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+
+free_payload :
+    free(param);
+free_moduleInfo :
+    free(moduleInfo);
+free_builder :
+    delete builder;
 exit:
     return status;
 }

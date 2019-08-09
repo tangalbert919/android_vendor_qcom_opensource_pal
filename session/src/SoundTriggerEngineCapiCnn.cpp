@@ -537,3 +537,8 @@ void SoundTriggerEngineCapiCnn::setDetected(bool detected)
     else
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
 }
+
+int32_t SoundTriggerEngineCapiCnn::getParameters(uint32_t param_id, void **payload)
+{
+    return 0;
+}

@@ -86,6 +86,7 @@ public:
     int32_t start_recognition(Stream *s) override;
     int32_t stop_recognition(Stream *s) override;
     int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
+    int32_t getParameters(uint32_t param_id, void **payload) override;
     void setDetected(bool detected) override;
 };
 

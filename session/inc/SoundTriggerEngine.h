@@ -300,6 +300,7 @@ public:
     virtual int32_t stop_recognition(Stream *s) = 0;
     virtual int32_t update_config(Stream *s, struct qal_st_recognition_config *config) = 0;
     virtual void setDetected(bool detected) = 0;
+    virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
 };
 
 #endif //SOUNDTRIGGERENGINE_H

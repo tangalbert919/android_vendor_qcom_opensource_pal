@@ -107,6 +107,7 @@ public:
     virtual int32_t write(struct qal_buffer *buf) = 0;
     virtual int32_t registerCallBack(qal_stream_callback cb) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
+    virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);

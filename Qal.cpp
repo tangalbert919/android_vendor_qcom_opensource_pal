@@ -225,6 +225,27 @@ ssize_t qal_stream_read(qal_stream_handle_t *stream_handle, struct qal_buffer *b
     return status;
 }
 
+int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
+                             uint32_t param_id, qal_param_payload **param_payload)
+{
+    Stream *s = NULL;
+    int status;
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG,  "Invalid input parameters status %d", status);
+        return status;
+    }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->getParameters(param_id, (void **)param_payload);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "get parameters failed status %d param_id %u", status, param_id);
+        return status;
+    }
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
 int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_id,
                              qal_param_payload *param_payload)
 {
