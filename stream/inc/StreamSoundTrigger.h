@@ -97,7 +97,7 @@ public:
     int32_t setResume() override;
     int32_t read(struct qal_buffer *buf) override;
     int32_t write(struct qal_buffer *buf) override;
-    int32_t registerCallBack(qal_stream_callback cb) override;
+    int32_t registerCallBack(qal_stream_callback cb, void *cookie) override;
     int32_t getCallBack(qal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;

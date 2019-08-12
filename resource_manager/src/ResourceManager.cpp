@@ -518,40 +518,60 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                 channels = attributes->out_media_config.ch_info->channels;
                 samplerate = attributes->out_media_config.sample_rate;
                 bitwidth = attributes->out_media_config.bit_width;
-        }
-        rc = (StreamPCM::isBitWidthSupported(bitwidth) |
-             StreamPCM::isSampleRateSupported(samplerate) |
-             StreamPCM::isChannelSupported(channels));
-        if (0 != rc) {
-            QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
-            return result;
-        }
-        QAL_INFO(LOG_TAG, "config suppported");
-        result = true;
-        break;
-    case QAL_STREAM_VOICE_UI:
-        if (attributes->direction == QAL_AUDIO_INPUT) {
-            channels = attributes->in_media_config.ch_info->channels;
-            samplerate = attributes->in_media_config.sample_rate;
-            bitwidth = attributes->in_media_config.bit_width;
-        } else {
-            channels = attributes->out_media_config.ch_info->channels;
-            samplerate = attributes->out_media_config.sample_rate;
-            bitwidth = attributes->out_media_config.bit_width;
-        }
-        rc = (StreamSoundTrigger::isBitWidthSupported(bitwidth) |
-             StreamSoundTrigger::isSampleRateSupported(samplerate) |
-             StreamSoundTrigger::isChannelSupported(channels));
-        if (0 != rc) {
-            QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
-            return result;
-        }
-        QAL_INFO(LOG_TAG, "config suppported");
-        result = true;
-        break;
-    default:
-        QAL_ERR(LOG_TAG, "unknown type");
-        return false;
+            }
+            rc = (StreamPCM::isBitWidthSupported(bitwidth) |
+                  StreamPCM::isSampleRateSupported(samplerate) |
+                  StreamPCM::isChannelSupported(channels));
+            if (0 != rc) {
+               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               return result;
+            }
+            QAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
+        case QAL_STREAM_COMPRESSED:
+            if (attributes->direction == QAL_AUDIO_INPUT) {
+               channels = attributes->in_media_config.ch_info->channels;
+               samplerate = attributes->in_media_config.sample_rate;
+               bitwidth = attributes->in_media_config.bit_width;
+            } else {
+               channels = attributes->out_media_config.ch_info->channels;
+               samplerate = attributes->out_media_config.sample_rate;
+               bitwidth = attributes->out_media_config.bit_width;
+            }
+            rc = (StreamCompress::isBitWidthSupported(bitwidth) |
+                  StreamCompress::isSampleRateSupported(samplerate) |
+                  StreamCompress::isChannelSupported(channels));
+            if (0 != rc) {
+               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               return result;
+            }
+            QAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
+        case QAL_STREAM_VOICE_UI:
+            if (attributes->direction == QAL_AUDIO_INPUT) {
+               channels = attributes->in_media_config.ch_info->channels;
+               samplerate = attributes->in_media_config.sample_rate;
+               bitwidth = attributes->in_media_config.bit_width;
+            } else {
+               channels = attributes->out_media_config.ch_info->channels;
+               samplerate = attributes->out_media_config.sample_rate;
+               bitwidth = attributes->out_media_config.bit_width;
+            }
+            rc = (StreamSoundTrigger::isBitWidthSupported(bitwidth) |
+                  StreamSoundTrigger::isSampleRateSupported(samplerate) |
+                  StreamSoundTrigger::isChannelSupported(channels));
+            if (0 != rc) {
+               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               return result;
+            }
+            QAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "unknown type");
+            return false;
     }
     // check if param supported by any of the devices
     for (int i = 0; i < no_of_devices; i++) {

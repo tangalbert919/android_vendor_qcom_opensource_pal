@@ -73,7 +73,6 @@ class Session;
 class Stream
 {
 protected:
-    uint32_t noOfDevices;
     std::vector <std::shared_ptr<Device>> devices;
     std::shared_ptr <Device> dev;
     Session* session;
@@ -90,6 +89,8 @@ protected:
     size_t outBufCount;
 
 public:
+    qal_stream_callback streamCb;
+    void *cookie;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
@@ -105,7 +106,7 @@ public:
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     int32_t getStreamType(qal_stream_type_t* streamType);
     virtual int32_t write(struct qal_buffer *buf) = 0;
-    virtual int32_t registerCallBack(qal_stream_callback cb) = 0;
+    virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;

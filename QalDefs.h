@@ -56,21 +56,82 @@ typedef void qal_st_handle_t;
 typedef enum {
     QAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
     QAL_AUDIO_FMT_MP3 = 0x2,
-
+    QAL_AUDIO_FMT_AAC = 0x3,
+    QAL_AUDIO_FMT_AAC_ADTS = 0x4,
+    QAL_AUDIO_FMT_AAC_ADIF = 0x5,
+    QAL_AUDIO_FMT_AAC_LATM = 0x6,
+    QAL_AUDIO_FMT_WMA_STD = 0x7,
+    QAL_AUDIO_FMT_ALAC = 0x8,
+    QAL_AUDIO_FMT_APE = 0x9,
+    QAL_AUDIO_FMT_WMA_PRO = 0xA,
+    QAL_AUDIO_FMT_FLAC = 0xB,
+    QAL_AUDIO_FMT_FLAC_OGG = 0xC,   
     QAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
-
     QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
-
     QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
-
     QAL_AUDIO_FMT_COMPRESSED_RANGE_END   = QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
-
 } qal_audio_fmt_t;
 
+struct qal_snd_dec_aac {
+    uint16_t audio_obj_type;
+    uint16_t pce_bits_size;
+};
+
+struct qal_snd_dec_wma {
+    uint32_t fmt_tag;
+    uint32_t super_block_align;
+    uint32_t bits_per_sample;
+    uint32_t channelmask;
+    uint32_t encodeopt;
+    uint32_t encodeopt1;
+    uint32_t encodeopt2;
+    uint32_t avg_bit_rate;
+};
+
+struct qal_snd_dec_alac {
+    uint32_t frame_length;
+    uint8_t compatible_version;
+    uint8_t bit_depth;
+    uint8_t pb;
+    uint8_t mb;
+    uint8_t kb;
+    uint8_t num_channels;
+    uint16_t max_run;
+    uint32_t max_frame_bytes;
+    uint32_t avg_bit_rate;
+    uint32_t sample_rate;
+    uint32_t channel_layout_tag;
+};
+
+struct qal_snd_dec_ape {
+    uint16_t compatible_version;
+    uint16_t compression_level;
+    uint32_t format_flags;
+    uint32_t blocks_per_frame;
+    uint32_t final_frame_blocks;
+    uint32_t total_frames;
+    uint16_t bits_per_sample;
+    uint16_t num_channels;
+    uint32_t sample_rate;
+    uint32_t seek_table_present;
+};
+
+struct qal_snd_dec_flac {
+    uint16_t sample_size;
+    uint16_t min_blk_size;
+    uint16_t max_blk_size;
+    uint16_t min_frame_size;
+    uint16_t max_frame_size;
+};
 
 /** Audio parameter data*/
 typedef union {
-   bool has_fluence;                     /**  true if fluence is to be enabled */
+    bool has_fluence;                     /**  true if fluence is to be enabled */
+    struct qal_snd_dec_aac aac_dec;
+    struct qal_snd_dec_wma wma_dec;
+    struct qal_snd_dec_alac alac_dec;
+    struct qal_snd_dec_ape ape_dec;
+    struct qal_snd_dec_flac flac_dec;
 } qal_param_payload;
 
 /** Audio channel map enumeration*/

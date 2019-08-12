@@ -60,7 +60,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             goto exit;
         }
     }
-    QAL_VERBOSE(LOG_TAG, "get RM instance success");
+    QAL_VERBOSE(LOG_TAG, "get RM instance success and noOfDevices %d \n", noOfDevices);
 
     if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
         switch (sAttr->type) {
@@ -215,7 +215,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
     }
     memset (sattr, 0, sizeof(struct qal_stream_attributes));
     QAL_DBG(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
-            in_buf_size, in_buf_count, out_buf_size,
+            *in_buf_size, in_buf_count, *out_buf_size,
             out_buf_count);
 
     inBufCount = in_buf_count;
@@ -305,11 +305,20 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
 bool Stream::isStreamAudioOutFmtSupported(qal_audio_fmt_t format)
 {
     switch (format) {
-        case QAL_AUDIO_FMT_DEFAULT_PCM:
-        case QAL_AUDIO_FMT_MP3:
+	case QAL_AUDIO_FMT_DEFAULT_PCM:
+	case QAL_AUDIO_FMT_MP3:
+        case QAL_AUDIO_FMT_AAC:
+        case QAL_AUDIO_FMT_AAC_ADTS:
+        case QAL_AUDIO_FMT_AAC_ADIF:
+        case QAL_AUDIO_FMT_AAC_LATM:
+        case QAL_AUDIO_FMT_WMA_STD:
+        case QAL_AUDIO_FMT_ALAC:
+        case QAL_AUDIO_FMT_APE:
+        case QAL_AUDIO_FMT_WMA_PRO:
+        case QAL_AUDIO_FMT_FLAC:
             return true;
-        default:
-            return false;
-    }
+	default:
+	    return false;
+	}
 }
 

@@ -119,6 +119,8 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
         QAL_ERR(LOG_TAG, "qal_stream_open failed with status %d", status);
         return status;
     }
+    if (cb)
+       s->registerCallBack(cb, cookie);
     stream = static_cast<void *>(s);
     *stream_handle = stream;
     QAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);

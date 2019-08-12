@@ -495,7 +495,7 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
     return size;
 }
 
-int32_t  StreamPCM::registerCallBack(qal_stream_callback cb)
+int32_t  StreamPCM::registerCallBack(qal_stream_callback cb, void *cookie)
 {
     return 0;
 }

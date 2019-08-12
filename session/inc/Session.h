@@ -52,7 +52,7 @@ typedef enum {
     OUT_MEDIA_CONFIG
 }configType;
 
-typedef int32_t (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
+typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
 
 class Stream;
 class ResourceManager;
@@ -79,6 +79,8 @@ public:
     virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) = 0;
     virtual int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) = 0;
     virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) = 0;
+    virtual int registerCallBack(session_callback cb, void *cookie) {};
+    virtual int drain(qal_drain_type_t type) {};
 };
 
 #endif //SESSION_H

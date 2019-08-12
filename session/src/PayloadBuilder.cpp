@@ -1503,6 +1503,11 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_STREAM_GENERIC:
             break;
         case QAL_STREAM_COMPRESSED:
+           if (sattr->direction == QAL_AUDIO_OUTPUT) {
+               QAL_VERBOSE(LOG_TAG,"%s: Stream compressed \n", __func__);
+               keyVector.push_back(std::make_pair(STREAM_TYPE, COMPRESS_PLAYBACK));
+               keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+           }
             break;
         case QAL_STREAM_VOIP_TX:
             keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));

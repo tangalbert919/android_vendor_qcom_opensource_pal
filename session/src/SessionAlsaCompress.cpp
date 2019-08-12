@@ -35,6 +35,7 @@
 #include "ResourceManager.h"
 #include <agm/agm_api.h>
 #include <mutex>
+#include <fstream>
 
 
 void SessionAlsaCompress::getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr)
@@ -56,8 +57,30 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
         case QAL_AUDIO_FMT_MP3:
             id = SND_AUDIOCODEC_MP3;
             break;
+        case QAL_AUDIO_FMT_AAC:
+        case QAL_AUDIO_FMT_AAC_ADTS:
+        case QAL_AUDIO_FMT_AAC_ADIF:
+        case QAL_AUDIO_FMT_AAC_LATM:
+            id = SND_AUDIOCODEC_AAC;
+            break;
+        case QAL_AUDIO_FMT_WMA_STD:
+            id = SND_AUDIOCODEC_WMA;
+            break;
         case QAL_AUDIO_FMT_DEFAULT_PCM:
             id = SND_AUDIOCODEC_PCM;
+            break;
+        case QAL_AUDIO_FMT_ALAC:
+            id = SND_AUDIOCODEC_ALAC;
+            break;
+        case QAL_AUDIO_FMT_APE:
+            id = SND_AUDIOCODEC_APE;
+            break;
+        case QAL_AUDIO_FMT_WMA_PRO:
+            id = SND_AUDIOCODEC_WMA_PRO;
+            break;
+       case QAL_AUDIO_FMT_FLAC:
+       case QAL_AUDIO_FMT_FLAC_OGG:
+            id = SND_AUDIOCODEC_FLAC;
             break;
     }
 
@@ -127,17 +150,21 @@ int SessionAlsaCompress::open(Stream * s)
 
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         return status;
     }
 
     compressDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction);
+    for (int i = 0; i < compressDevIds.size(); i++) {
+       compressDevIds[i] = 105;
+    QAL_ERR(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
+    }
     aifBackEnds = rm->getBackEndNames(associatedDevices);
 
     status = SessionAlsaUtils::open(s, rm, compressDevIds, aifBackEnds);
@@ -145,6 +172,7 @@ int SessionAlsaCompress::open(Stream * s)
         QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
         rm->freeFrontEndIds(compressDevIds);
     }
+    audio_fmt = sAttr.out_media_config.aud_fmt_id;
     return status;
 }
 
@@ -186,7 +214,7 @@ int SessionAlsaCompress::start(Stream * s)
         goto free_feIds;
     }
     if (!is_compress_ready(compress)) {
-        QAL_ERR(LOG_TAG, "compress open not ready");
+        QAL_ERR(LOG_TAG, "compress open not ready %s", compress_get_error(compress));
         goto free_feIds;
     }
     /** set non blocking mode for writes */
@@ -200,8 +228,9 @@ int SessionAlsaCompress::stop(Stream * s)
 {
     int32_t status = 0;
 
-    if (compress)
-        status = compress_stop(compress);
+    if (compress && playback_started)
+//        status = compress_stop(compress);
+          status = compress_drain(compress);
 
    return status;
 }
@@ -216,9 +245,12 @@ int SessionAlsaCompress::close(Stream * s)
     mixer_ctl_set_enum_by_string(disconnectCtrl, (aifBackEnds.at(0)).data());
     compress_close(compress);
 
+    QAL_DBG(LOG_TAG, "out of compress close");
+    {
     std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
-std::lock_guard<std::mutex> lock(cv_mutex_);
+    std::lock_guard<std::mutex> lock(cv_mutex_);
     msg_queue_.push(msg);
+    }
     cv_.notify_all();
 
     /* wait for handler to exit */
@@ -228,7 +260,6 @@ std::lock_guard<std::mutex> lock(cv_mutex_);
     /* empty the pending messages in queue */
     while(!msg_queue_.empty())
         msg_queue_.pop();
-
    return 0;
 }
 
@@ -237,19 +268,35 @@ int SessionAlsaCompress::read(Stream *s, int tag, struct qal_buffer *buf, int * 
     return 0;
 }
 
+int SessionAlsaCompress::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+{
+    std::fstream fs;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    fs.open ("/data/testcompr.wav", std::fstream::binary | std::fstream::out | std::fstream::app);
+    QAL_ERR(LOG_TAG, "file open success");
+    char * buff=static_cast<char *>(buf->buffer);
+    fs.write (buff,buf->size);
+    QAL_ERR(LOG_TAG, "file write success");
+    fs.close();
+    QAL_ERR(LOG_TAG, "file close success");
+    *size = (int)(buf->size);
+    QAL_ERR(LOG_TAG,"iExit. size: %d", *size);
+    return 0;
+}
+
 int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
 {
     int bytes_written = 0;
     int status;
     bool non_blocking = (ioMode == QAL_STREAM_FLAG_NON_BLOCKING);
-
-    if (!buf || buf->buffer || buf->size)
-        return -EINVAL;
-
+    if (!buf || !(buf->buffer) || !(buf->size)){
+       return -EINVAL;
+    }
     bytes_written = compress_write(compress, buf->buffer, buf->size);
 
-    QAL_VERBOSE(LOG_TAG, "%s: writing buffer (%zu bytes) to compress device returned %d",
-            __func__, buf->size, bytes_written);
+    QAL_VERBOSE(LOG_TAG, "writing buffer (%zu bytes) to compress device returned %d",
+             buf->size, bytes_written);
 
     if (bytes_written >= 0 && bytes_written < (ssize_t)buf->size && non_blocking) {
         QAL_ERR(LOG_TAG, "No space available in compress driver, post msg to cb thread");
@@ -286,6 +333,119 @@ int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSi
 
 int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
 {
+    qal_param_payload *param_payload = NULL;
+    param_payload = (qal_param_payload *)payload;
+    QAL_INFO(LOG_TAG, "compress %x", audio_fmt);
+    switch (audio_fmt) {
+        case QAL_AUDIO_FMT_MP3:
+            break;
+        case QAL_AUDIO_FMT_AAC:
+            codec.format = SND_AUDIOSTREAMFORMAT_RAW;
+            codec.options.aac_dec.audio_obj_type = param_payload->aac_dec.audio_obj_type;
+            codec.options.aac_dec.pce_bits_size = param_payload->aac_dec.pce_bits_size;
+            QAL_VERBOSE(LOG_TAG, "format - %x, audio_obj_type - %x, pce_bits_size - %x", codec.format, codec.options.aac_dec.audio_obj_type, codec.options.aac_dec.pce_bits_size);
+            break;
+        case QAL_AUDIO_FMT_AAC_ADTS:
+            codec.format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
+            codec.options.aac_dec.audio_obj_type = param_payload->aac_dec.audio_obj_type;
+            codec.options.aac_dec.pce_bits_size = param_payload->aac_dec.pce_bits_size;
+            QAL_VERBOSE(LOG_TAG, "format - %x, audio_obj_type - %x, pce_bits_size - %x", codec.format, codec.options.aac_dec.audio_obj_type, codec.options.aac_dec.pce_bits_size);
+            break;
+        case QAL_AUDIO_FMT_AAC_ADIF:
+            codec.format = SND_AUDIOSTREAMFORMAT_ADIF;
+            codec.options.aac_dec.audio_obj_type = param_payload->aac_dec.audio_obj_type;
+            codec.options.aac_dec.pce_bits_size = param_payload->aac_dec.pce_bits_size;
+            QAL_VERBOSE(LOG_TAG, "format - %x, audio_obj_type - %x, pce_bits_size - %x", codec.format, codec.options.aac_dec.audio_obj_type, codec.options.aac_dec.pce_bits_size);
+            break;
+        case QAL_AUDIO_FMT_AAC_LATM:
+            codec.format = SND_AUDIOSTREAMFORMAT_MP4LATM;
+            codec.options.aac_dec.audio_obj_type = param_payload->aac_dec.audio_obj_type;
+            codec.options.aac_dec.pce_bits_size = param_payload->aac_dec.pce_bits_size;
+            QAL_VERBOSE(LOG_TAG, "format - %x, audio_obj_type - %x, pce_bits_size - %x", codec.format, codec.options.aac_dec.audio_obj_type, codec.options.aac_dec.pce_bits_size);
+            break;
+        case QAL_AUDIO_FMT_WMA_STD:
+            codec.format = param_payload->wma_dec.fmt_tag;
+            codec.options.wma_dec.super_block_align = param_payload->wma_dec.super_block_align;
+            codec.options.wma_dec.bits_per_sample = param_payload->wma_dec.bits_per_sample;
+            codec.options.wma_dec.channelmask = param_payload->wma_dec.channelmask;
+            codec.options.wma_dec.encodeopt = param_payload->wma_dec.encodeopt;
+            codec.options.wma_dec.encodeopt1 = param_payload->wma_dec.encodeopt1;
+            codec.options.wma_dec.encodeopt2 = param_payload->wma_dec.encodeopt2;
+            codec.options.wma_dec.avg_bit_rate = param_payload->wma_dec.avg_bit_rate;
+            QAL_VERBOSE(LOG_TAG, "format - %x, super_block_align - %x, bits_per_sample - %x, channelmask - %x \n", codec.format, codec.options.wma_dec.super_block_align,
+                        codec.options.wma_dec.bits_per_sample, codec.options.wma_dec.channelmask);
+            QAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x, avg_bit_rate - %x \n", codec.options.wma_dec.encodeopt, codec.options.wma_dec.encodeopt1,
+                        codec.options.wma_dec.encodeopt2, codec.options.wma_dec.avg_bit_rate);
+            break;
+        case QAL_AUDIO_FMT_WMA_PRO:
+            codec.format = param_payload->wma_dec.fmt_tag;
+            codec.options.wma_dec.super_block_align = param_payload->wma_dec.super_block_align;
+            codec.options.wma_dec.bits_per_sample = param_payload->wma_dec.bits_per_sample;
+            codec.options.wma_dec.channelmask = param_payload->wma_dec.channelmask;
+            codec.options.wma_dec.encodeopt = param_payload->wma_dec.encodeopt;
+            codec.options.wma_dec.encodeopt1 = param_payload->wma_dec.encodeopt1;
+            codec.options.wma_dec.encodeopt2 = param_payload->wma_dec.encodeopt2;
+            codec.options.wma_dec.avg_bit_rate = param_payload->wma_dec.avg_bit_rate;
+            QAL_VERBOSE(LOG_TAG, "format - %x, super_block_align - %x, bits_per_sample - %x, channelmask - %x \n",codec.format, codec.options.wma_dec.super_block_align, codec.options.wma_dec.bits_per_sample,
+                        codec.options.wma_dec.channelmask);
+            QAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x, avg_bit_rate - %x \n", codec.options.wma_dec.encodeopt, codec.options.wma_dec.encodeopt1,
+                        codec.options.wma_dec.encodeopt2, codec.options.wma_dec.avg_bit_rate);
+            break;
+        case QAL_AUDIO_FMT_ALAC:
+            codec.options.alac_dec.frame_length = param_payload->alac_dec.frame_length;
+            codec.options.alac_dec.compatible_version = param_payload->alac_dec.compatible_version;
+            codec.options.alac_dec.bit_depth =  param_payload->alac_dec.bit_depth;
+            codec.options.alac_dec.pb =  param_payload->alac_dec.pb;
+            codec.options.alac_dec.mb =  param_payload->alac_dec.mb;
+            codec.options.alac_dec.kb =  param_payload->alac_dec.kb;
+            codec.options.alac_dec.num_channels = param_payload->alac_dec.num_channels;
+            codec.options.alac_dec.max_run = param_payload->alac_dec.max_run;
+            codec.options.alac_dec.max_frame_bytes = param_payload->alac_dec.max_frame_bytes;
+            codec.options.alac_dec.avg_bit_rate = param_payload->alac_dec.avg_bit_rate;
+            codec.options.alac_dec.sample_rate = param_payload->alac_dec.sample_rate;
+            codec.options.alac_dec.channel_layout_tag = param_payload->alac_dec.channel_layout_tag;
+            QAL_VERBOSE(LOG_TAG, "frame_length - %x, compatible_version - %x, bit_depth - %x, pb - %x, mb - %x, kb - %x", codec.options.alac_dec.frame_length, codec.options.alac_dec.compatible_version
+                    ,codec.options.alac_dec.bit_depth, codec.options.alac_dec.pb, codec.options.alac_dec.mb, codec.options.alac_dec.kb);
+            QAL_VERBOSE(LOG_TAG, "num_channels - %x, max_run - %x, max_frame_bytes - %x, avg_bit_rate - %x, sample_rate - %x, channel_layout_tag - %x", codec.options.alac_dec.num_channels, codec.options.alac_dec.max_run
+                    ,codec.options.alac_dec.max_frame_bytes, codec.options.alac_dec.avg_bit_rate, codec.options.alac_dec.sample_rate, codec.options.alac_dec.channel_layout_tag);
+            break;
+       case QAL_AUDIO_FMT_APE:
+            codec.options.ape_dec.compatible_version = param_payload->ape_dec.compatible_version;
+            codec.options.ape_dec.compression_level = param_payload->ape_dec.compression_level;
+            codec.options.ape_dec.format_flags = param_payload->ape_dec.format_flags;
+            codec.options.ape_dec.blocks_per_frame = param_payload->ape_dec.blocks_per_frame;
+            codec.options.ape_dec.final_frame_blocks = param_payload->ape_dec.final_frame_blocks;
+            codec.options.ape_dec.total_frames = param_payload->ape_dec.total_frames;
+            codec.options.ape_dec.bits_per_sample = param_payload->ape_dec.bits_per_sample;
+            codec.options.ape_dec.num_channels = param_payload->ape_dec.num_channels;
+            codec.options.ape_dec.sample_rate = param_payload->ape_dec.sample_rate;
+            codec.options.ape_dec.seek_table_present = param_payload->ape_dec.seek_table_present;
+            QAL_VERBOSE(LOG_TAG, "compatible_version - %x, compression_level - %x, format_flags - %x, blocks_per_frame - %x, final_frame_blocks - %x", codec.options.ape_dec.compatible_version, codec.options.ape_dec.compression_level,
+                    codec.options.ape_dec.format_flags, codec.options.ape_dec.blocks_per_frame, codec.options.ape_dec.final_frame_blocks);
+            QAL_VERBOSE(LOG_TAG, "total_frames - %x, bits_per_sample - %x, num_channels - %x, sample_rate - %x, seek_table_present - %x",  codec.options.ape_dec.total_frames, codec.options.ape_dec.bits_per_sample,
+                    codec.options.ape_dec.num_channels, codec.options.ape_dec.sample_rate, codec.options.ape_dec.seek_table_present);
+            break;
+       case QAL_AUDIO_FMT_FLAC:
+            codec.format = SND_AUDIOSTREAMFORMAT_FLAC;
+            codec.options.flac_dec.sample_size = param_payload->flac_dec.sample_size;
+            codec.options.flac_dec.min_blk_size = param_payload->flac_dec.min_blk_size;
+            codec.options.flac_dec.max_blk_size = param_payload->flac_dec.max_blk_size;
+            codec.options.flac_dec.min_frame_size = param_payload->flac_dec.min_frame_size;
+            codec.options.flac_dec.max_frame_size = param_payload->flac_dec.max_frame_size;
+            QAL_VERBOSE(LOG_TAG, "sample_size - %x, min_blk_size - %x, max_blk_size - %x, min_frame_size - %x, max_frame_size - %x", codec.options.flac_dec.sample_size, codec.options.flac_dec.min_blk_size,
+                    codec.options.flac_dec.max_blk_size, codec.options.flac_dec.min_frame_size, codec.options.flac_dec.max_frame_size);
+            break;
+        case QAL_AUDIO_FMT_FLAC_OGG:
+            codec.format = SND_AUDIOSTREAMFORMAT_FLAC_OGG;
+            codec.options.flac_dec.sample_size = param_payload->flac_dec.sample_size;
+            codec.options.flac_dec.min_blk_size = param_payload->flac_dec.min_blk_size;
+            codec.options.flac_dec.max_blk_size = param_payload->flac_dec.max_blk_size;
+            codec.options.flac_dec.min_frame_size = param_payload->flac_dec.min_frame_size;
+            codec.options.flac_dec.max_frame_size = param_payload->flac_dec.max_frame_size;
+            QAL_VERBOSE(LOG_TAG, "sample_size - %x, min_blk_size - %x, max_blk_size - %x, min_frame_size - %x, max_frame_size - %x", codec.options.flac_dec.sample_size, codec.options.flac_dec.min_blk_size,
+                    codec.options.flac_dec.max_blk_size, codec.options.flac_dec.min_frame_size, codec.options.flac_dec.max_frame_size);
+            break;
+    }
     return 0;
 }
 
@@ -298,8 +458,8 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, void *cookie)
 
 int SessionAlsaCompress::drain(qal_drain_type_t type)
 {
-    if (compress)
-        compress_drain(compress);
+//    if (compress)
+//        compress_drain(compress);
     return 0;
 }
 

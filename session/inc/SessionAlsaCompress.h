@@ -91,6 +91,8 @@ private:
     int ioMode;
     session_callback sessionCb;
     void *cbCookie;
+    qal_audio_fmt_t audio_fmt;
+    int fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag);
 public:
     SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAlsaCompress();

@@ -319,7 +319,7 @@ int32_t StreamSoundTrigger::write(struct qal_buffer* buf)
     return 0;
 }
 
-int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb)
+int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb, void *cookie)
 {
     callBack = cb;
     QAL_DBG(LOG_TAG, "callBack = %pK", callBack);
@@ -528,7 +528,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
         }
 
         // register callback function in engine
-        registerCallBack(handleDetectionEvent);
+        registerCallBack(handleDetectionEvent, nullptr);
         for (int i = 0; i < activeEngines.size(); i++) {
             SoundTriggerEngine *stEngine = activeEngines[i].second;
 
