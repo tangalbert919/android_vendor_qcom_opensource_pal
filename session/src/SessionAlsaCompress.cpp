@@ -115,9 +115,12 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
             }
             if (compressObj->sessionCb)
                 compressObj->sessionCb(compressObj->cbCookie, event_id, NULL);
+
+            lock.lock();
         }
 
     }
+    QAL_DBG(LOG_TAG, "exit offloadThreadLoop");
 }
 
 SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
@@ -155,6 +158,11 @@ int SessionAlsaCompress::open(Stream * s)
         return status;
     }
 
+    ioMode = sAttr.flags & QAL_STREAM_FLAG_NON_BLOCKING_MASK;
+    if (!ioMode) {
+        QAL_ERR(LOG_TAG, "IO mode 0x%x not supported", ioMode);
+        return -EINVAL;
+    }
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
@@ -324,7 +332,7 @@ int SessionAlsaCompress::start(Stream * s)
         goto free_feIds;
     }
     /** set non blocking mode for writes */
-    compress_nonblock(compress, (ioMode == QAL_STREAM_FLAG_NON_BLOCKING));
+    compress_nonblock(compress, !!ioMode);
 
 free_feIds:
    return 0;
@@ -395,10 +403,15 @@ int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int *
 {
     int bytes_written = 0;
     int status;
-    bool non_blocking = (ioMode == QAL_STREAM_FLAG_NON_BLOCKING);
+    bool non_blocking = (!!ioMode);
     if (!buf || !(buf->buffer) || !(buf->size)){
-       return -EINVAL;
+        QAL_VERBOSE(LOG_TAG, "%s: buf: %pK, size: %d",
+            __func__, buf, (buf ? buf->size : 0));
+        return -EINVAL;
     }
+    QAL_DBG(LOG_TAG, "%s: buf->size is %d buf->buffer is %pK ",
+            __func__, buf->size, buf->buffer);
+
     bytes_written = compress_write(compress, buf->buffer, buf->size);
 
     QAL_VERBOSE(LOG_TAG, "writing buffer (%zu bytes) to compress device returned %d",
@@ -407,7 +420,6 @@ int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int *
     if (bytes_written >= 0 && bytes_written < (ssize_t)buf->size && non_blocking) {
         QAL_ERR(LOG_TAG, "No space available in compress driver, post msg to cb thread");
         std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_WAIT_FOR_BUFFER);
-//        msg->cmd = OFFLOAD_CMD_WAIT_FOR_BUFFER;
         std::lock_guard<std::mutex> lock(cv_mutex_);
         msg_queue_.push(msg);
 
