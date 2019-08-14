@@ -71,6 +71,7 @@ private:
     size_t size = 0;
     PayloadBuilder* builder;
     struct snd_codec codec;
+    struct mixer *mixer;
     //  unsigned int compressDevId;
     std::vector<int> compressDevIds;
     std::vector<std::string> aifBackEnds;
@@ -93,6 +94,9 @@ private:
     void *cbCookie;
     qal_audio_fmt_t audio_fmt;
     int fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag);
+    std::vector <std::pair<int, int>> ckv;
+    std::vector <std::pair<int, int>> tkv;
+
 public:
     SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAlsaCompress();

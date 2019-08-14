@@ -34,6 +34,7 @@
 #include "Stream.h"
 #include "ResourceManager.h"
 #include <agm/agm_api.h>
+#include <sstream>
 #include <mutex>
 #include <fstream>
 
@@ -166,7 +167,11 @@ int SessionAlsaCompress::open(Stream * s)
     QAL_ERR(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
     aifBackEnds = rm->getBackEndNames(associatedDevices);
-
+    status = rm->getAudioMixer(&mixer);
+    if (status) {
+        QAL_ERR(LOG_TAG,"mixer error");
+        return status;
+    }
     status = SessionAlsaUtils::open(s, rm, compressDevIds, aifBackEnds);
     if (status) {
         QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
@@ -183,7 +188,108 @@ int SessionAlsaCompress::prepare(Stream * s)
 
 int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 {
-   return 0;
+    int status = 0;
+    uint32_t tagsent;
+    struct agm_tag_config* tagConfig;
+    const char *setParamTagControl = "setParamTag";
+    const char *stream = "COMPRESS";
+    const char *setCalibrationControl = "setCalibration";
+    struct mixer_ctl *ctl;
+    struct agm_cal_config *calConfig;
+    std::ostringstream tagCntrlName;
+    std::ostringstream calCntrlName;
+    int tkv_size = 0;
+    int ckv_size = 0;
+
+    switch (type) {
+        case MODULE:
+            status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,"%s: Failed to set the tag configuration\n", __func__);
+                goto exit;
+            }
+
+            if (tkv.size() == 0) {
+                status = -EINVAL;
+                goto exit;
+            }
+
+            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+                            (tkv.size() * sizeof(agm_key_value)));
+
+            if(!tagConfig) {
+                status = -ENOMEM;
+                goto exit;
+            }
+
+            status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
+            if (0 != status) {
+                goto exit;
+            }
+            //TODO: how to get the id '5'
+            tagCntrlName<<stream<<compressDevIds.at(0)<<" "<<setParamTagControl;
+            ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
+            if (!ctl) {
+                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                return -ENOENT;
+            }
+            QAL_VERBOSE(LOG_TAG, "mixer control: %s\n", tagCntrlName.str().data());
+
+            tkv_size = tkv.size()*sizeof(struct agm_key_value);
+            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                goto exit;
+            }
+            ctl = NULL;
+            tkv.clear();
+            break;
+            //todo calibration
+        case CALIBRATION:
+            status = builder->populateCalKeyVector(s, ckv, tag);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,"%s: Failed to set the calibration data\n", __func__);
+                goto exit;
+            }
+            if (ckv.size() == 0) {
+                status = -EINVAL;
+                goto exit;
+            }
+
+            calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
+                            (ckv.size() * sizeof(agm_key_value)));
+            if(!calConfig) {
+                status = -EINVAL;
+                goto exit;
+            }
+            status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
+            //TODO: how to get the id '0'
+            calCntrlName<<stream<<compressDevIds.at(0)<<" "<<setCalibrationControl;
+            ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
+            if (!ctl) {
+                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
+                return -ENOENT;
+            }
+            QAL_VERBOSE(LOG_TAG, "mixer control: %s\n", calCntrlName.str().data());
+            ckv_size = ckv.size()*sizeof(struct agm_key_value);
+            //TODO make struct mixer and struct pcm as class private variables.
+            status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                goto exit;
+            }
+            ctl = NULL;
+            ckv.clear();
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            status = -EINVAL;
+            goto exit;
+    }
+
+exit:
+    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    return status;
 }
 /*
 int SessionAlsaCompress::getConfig(Stream * s)
