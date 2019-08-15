@@ -32,6 +32,8 @@
 #include "SessionGsl.h"
 
 #define XML_FILE "/etc/hw_ep_info.xml"
+#define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
+#define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
@@ -153,7 +155,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     }
     struct media_format_t* mediaFmtHdr = NULL;
     struct payload_media_fmt_pcm_t* mediaFmtPayload;
-    size_t payloadSize;
+    size_t payloadSize, padBytes;
     uint8_t *payloadInfo = NULL;
     int numChannels = data->numChannel;
     uint8_t* pcmChannel = NULL;
@@ -163,10 +165,9 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
                   sizeof(struct media_format_t) +
                   sizeof(struct payload_media_fmt_pcm_t) +
                   sizeof(uint8_t)*numChannels;
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-    
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -268,10 +269,11 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
         pcmChannel[6] = PCM_CHANNEL_LB;
         pcmChannel[7] = PCM_CHANNEL_RB;
     }
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
-    *size = payloadSize;
+    *size = (payloadSize + padBytes);
     *payload = payloadInfo;
+
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
 void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
@@ -283,7 +285,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     }
     struct media_format_t* mediaFmtHdr = NULL;
     struct payload_pcm_output_format_cfg_t* mediaFmtPayload = NULL;
-    size_t payloadSize;
+    size_t payloadSize, padBytes;
     uint8_t *payloadInfo = NULL;
     int numChannels = data->numChannel;
     uint8_t* pcmChannel = NULL;
@@ -293,10 +295,9 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
                   sizeof(struct media_format_t) +
                   sizeof(struct payload_pcm_output_format_cfg_t) +
                   sizeof(uint8_t)*numChannels;
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-    
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+  
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -397,10 +398,10 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
         pcmChannel[6] = PCM_CHANNEL_LB;
         pcmChannel[7] = PCM_CHANNEL_RB;
     }
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
-
-    *size = payloadSize;
+    *size = (payloadSize + padBytes);
     *payload = payloadInfo;
+
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
     
 void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size, 
@@ -409,7 +410,7 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header = NULL;
     struct param_id_codec_dma_intf_cfg_t* codecConfig = NULL;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     int32_t codecLinkIdx = 0;
 
     if (!moduleInfo || !data) {
@@ -420,10 +421,9 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof(struct param_id_codec_dma_intf_cfg_t);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -466,12 +466,13 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     } else if (data->numChannel == 8) {
        codecConfig->active_channels_mask = 0xFF;
     }
+
+    *size = (payloadSize + padBytes);
+    *payload = payloadInfo;
+
     QAL_DBG(LOG_TAG, "Codec Config cdc_dma_type:%d intf_idx:%d active_channels_mask:%d",
             codecConfig->lpaif_type, codecConfig->intf_indx,codecConfig->active_channels_mask);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
-
-    *size = payloadSize;
-    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
 void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size, 
@@ -480,7 +481,7 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header;
     struct  param_id_i2s_intf_cfg_t* i2sConfig;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     int32_t i2sLinkIdx = 0;
 
     if (! moduleInfo || !data) {
@@ -489,11 +490,9 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof(struct param_id_i2s_intf_cfg_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -521,12 +520,13 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     i2sConfig->intf_idx = i2sConf[i2sLinkIdx].intfIdx;
     i2sConfig->sd_line_idx = i2sConf[i2sLinkIdx].sdLineIdx;
     i2sConfig->ws_src = i2sConf[i2sLinkIdx].wsSrc;
+
+    *size = (payloadSize + padBytes);
+    *payload = payloadInfo;
+
     QAL_VERBOSE(LOG_TAG, "i2s Config intf_idx:%x sd_line_idx:%x ws_src:%x",
          i2sConfig->intf_idx, i2sConfig->sd_line_idx, i2sConfig->ws_src);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
-
-    *size = payloadSize;
-    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
 void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size, 
@@ -536,7 +536,7 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header = NULL;
     struct param_id_tdm_intf_cfg_t* TdmConfig = NULL;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     int32_t tdmLinkIdx = 0;
 
     if (!moduleInfo || !data) {
@@ -545,11 +545,9 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof( struct param_id_tdm_intf_cfg_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -594,10 +592,10 @@ void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     QAL_VERBOSE(LOG_TAG, "slot_width:%d sync_mode:%d ctrl_invert_sync_pulse:%d ctrl_sync_data_delay:%d",
                 TdmConfig->slot_width,TdmConfig->sync_mode,
                 TdmConfig->ctrl_invert_sync_pulse, TdmConfig->ctrl_sync_data_delay);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, payloadSize);
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
 void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
@@ -607,16 +605,14 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header = NULL;
     struct param_id_hw_pcm_intf_cfg_t* AuxpcmConfig = NULL;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     int32_t AuxpcmLinkIdx = 0,index;
 
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof( struct param_id_hw_pcm_intf_cfg_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed");
         return;
@@ -668,14 +664,14 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
     AuxpcmConfig->frame_setting = auxpcmConf[AuxpcmLinkIdx].frameSetting;
     AuxpcmConfig->aux_mode = auxpcmConf[AuxpcmLinkIdx].auxMode;
 
-    QAL_DBG(LOG_TAG,"customPayload address %pK and size %d", payloadInfo, payloadSize);
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG,"customPayload address %pK and size %d", payloadInfo, *size);
 
     QAL_DBG(LOG_TAG,"PCM Config intf_idx:%d sync_src:%d ctrl_data_out_enable:%d slot_mask:%d frame_setting:%d aux_mode:%d",
             AuxpcmConfig->intf_idx,
             AuxpcmConfig->sync_src, AuxpcmConfig->ctrl_data_out_enable,
             AuxpcmConfig->slot_mask, AuxpcmConfig->frame_setting, AuxpcmConfig->aux_mode);
-    *size = payloadSize;
-    *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
@@ -684,7 +680,7 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header = NULL;
     struct param_id_hw_ep_mf_t* hwEpConf = NULL;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
 
     if (!moduleInfo || !data) {
         QAL_ERR(LOG_TAG, "Invalid input parameters");
@@ -692,11 +688,9 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_hw_ep_mf_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -718,14 +712,14 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
 
     hwEpConf->num_channels = data->numChannel;
     hwEpConf->data_format = DATA_FORMAT_FIXED_POINT;
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
     QAL_VERBOSE(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d data_format:%d",
                       hwEpConf->sample_rate, hwEpConf->bit_width,
                       hwEpConf->num_channels, hwEpConf->data_format);
     QAL_VERBOSE(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
-                payloadSize);
-
-    *size = payloadSize;
-    *payload = payloadInfo;
+                *size);
 }
 
 PayloadBuilder::PayloadBuilder()
@@ -1123,7 +1117,7 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
 {
     struct volume_ctrl_multichannel_gain_t* volCtrlPayload;
     struct volume_ctrl_master_gain_t* volMasterPayload;
-    size_t payloadSize;
+    size_t payloadSize, padBytes = 0;
     uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
 
@@ -1135,11 +1129,9 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
                       sizeof(uint32_t) +
                       (sizeof(struct volume_ctrl_channels_gain_config_t) *
                       (volumedata->no_of_volpair));
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-            payloadSize = payloadSize + (8 - payloadSize % 8);
-        
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1180,13 +1172,18 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
 
 void PayloadBuilder::payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId)
 {
-    size_t payloadSize;
+    size_t payloadSize, padBytes;
     uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
+
     payloadSize = sizeof(struct apm_module_param_data_t);
-    if (payloadSize % 8 != 0)
-            payloadSize = payloadSize + (8 - payloadSize % 8);
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
     header = (struct apm_module_param_data_t*)payloadInfo;
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_SOFT_PAUSE_START;
@@ -1195,19 +1192,23 @@ void PayloadBuilder::payloadPause(uint8_t **payload, size_t *size, uint32_t modu
     QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadResume(uint8_t **payload, size_t *size, uint32_t moduleId)
 {
-    size_t payloadSize;
+    size_t payloadSize, padBytes;
     uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
+
     payloadSize = sizeof(struct apm_module_param_data_t);
-    if (payloadSize % 8 != 0)
-            payloadSize = payloadSize + (8 - payloadSize % 8);
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
     header = (struct apm_module_param_data_t*)payloadInfo;
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_SOFT_PAUSE_RESUME;
@@ -1216,7 +1217,7 @@ void PayloadBuilder::payloadResume(uint8_t **payload, size_t *size, uint32_t mod
     QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
                   __func__, header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
 }
 
@@ -1227,7 +1228,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     uint8_t *phrase_sm;
     uint8_t *sm_data;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     size_t soundModelSize = 0;
 
     if (!soundModel) {
@@ -1236,9 +1237,8 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     }
     soundModelSize = soundModel->data_size;
     payloadSize = sizeof(struct apm_module_param_data_t) + soundModelSize;
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1251,7 +1251,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
     sm_data = (uint8_t *)soundModel + soundModel->data_offset;
     casa_osal_memcpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
@@ -1262,7 +1262,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
     struct apm_module_param_data_t* header;
     struct detection_engine_config_voice_wakeup *wakeUpConfig;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     uint8_t *confidence_level;
     uint8_t *kw_user_enable;
     uint32_t fixedConfigVoiceWakeupSize = 0;
@@ -1277,13 +1277,9 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   fixedConfigVoiceWakeupSize +
                      pWakeUp->num_active_models * 2;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    QAL_VERBOSE(LOG_TAG, "payloadSize %d", payloadSize);
-
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1315,7 +1311,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
                                   i, confidence_level[i], i, kw_user_enable[i]);
     }
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
@@ -1326,7 +1322,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
     struct apm_module_param_data_t* header;
     struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufCfg;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
 
     if (!pWakeUpBufConfig) {
         QAL_ERR(LOG_TAG, "Invalid pWakeUpBufConfig param");
@@ -1334,11 +1330,9 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct detection_engine_voice_wakeup_buffer_config);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1354,7 +1348,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
     casa_osal_memcpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
                      pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
@@ -1365,7 +1359,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
     struct apm_module_param_data_t* header;
     struct audio_dam_downstream_setup_duration *pDownStreamSetupDuration;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
     if (!pSetupDuration) {
         QAL_ERR(LOG_TAG, "Invalid pSetupDuration param");
         return;
@@ -1375,11 +1369,9 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
                          sizeof(struct audio_dam_downstream_setup_duration_t));
 
     payloadSize = sizeof(struct apm_module_param_data_t) + structSize;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1394,7 +1386,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
                                (payloadInfo + sizeof(struct apm_module_param_data_t));
     casa_osal_memcpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
@@ -1405,7 +1397,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
     struct apm_module_param_data_t* header;
     struct detection_engine_generic_event_cfg *pEventCfg;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
 
     if (!pEventConfig) {
         QAL_ERR(LOG_TAG, "Invalid pEventConfig param");
@@ -1413,11 +1405,9 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
     }
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct detection_engine_generic_event_cfg);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1433,7 +1423,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
     casa_osal_memcpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
                      pEventConfig, sizeof(struct detection_engine_generic_event_cfg));
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
@@ -1443,14 +1433,12 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
 {
     struct apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0;
+    size_t payloadSize = 0, padBytes = 0;
 
     payloadSize = sizeof(struct apm_module_param_data_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    if (payloadSize % 8 != 0)
-        payloadSize = payloadSize + (8 - payloadSize % 8);
-
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -1461,7 +1449,7 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
-    *size = payloadSize;
+    *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
