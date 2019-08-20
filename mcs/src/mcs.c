@@ -517,7 +517,7 @@ int32_t process_record_request(uint8_t cmd,
                     if (param->graph_key_vector.graph_key_vector[i].key == DEVICETX)
                         no_of_devices++;
                 }
-                dattr = (struct qal_device*)malloc(sizeof(struct qal_device));
+                dattr = (struct qal_device*)calloc(no_of_devices,sizeof(struct qal_device));
                 if (dattr == NULL) {
                     CASA_LOG_ERR(LOG_TAG,"malloc failure");
                     return CASA_ENOMEMORY;
@@ -531,8 +531,23 @@ int32_t process_record_request(uint8_t cmd,
                         dattr[j].config.ch_info = &devicech;
                         switch (param->graph_key_vector.graph_key_vector[i].value) {
                             case HANDSETMIC:
-                                dattr[j].id = QAL_DEVICE_IN_SPEAKER_MIC;
-                                break;
+                                switch(devicech.channels)
+                                    case 1:
+                                        dattr[j].id = QAL_DEVICE_IN_HANDSET_MIC;
+                                        break:
+                                    case 2:
+                                        dattr[j].id = QAL_DEVICE_IN_SPEAKER_MIC;
+                                        break;
+                                    case 3:
+                                        dattr[j].id = QAL_DEVICE_IN_TRI_MIC;
+                                        break;
+                                    case 4:
+                                        dattr[j].id = QAL_DEVICE_IN_QUAD_MIC;
+                                        break;
+                                default:
+                                    CASA_LOG_ERR(LOG_TAG,"unsupported mic");
+                                    ret = CASA_EFAILED;
+                                    break;
                             default:
                                 CASA_LOG_ERR(LOG_TAG,"unsupported device");
                                 ret = CASA_EFAILED;
@@ -656,12 +671,6 @@ int32_t mcs_init()
         goto err_rec_ctxt;
     }
     mcs_info->rec_ctxt->cur_state = MCS_STATE_IDLE;
-
-    ret = qal_init();
-    if (ret != 0) {
-        CASA_LOG_ERR(LOG_TAG,"%s: qal init failed.", __func__);
-        goto err_ret;
-    }
 
     casa_osal_mutex_create(&mcs_info->lock);
 
