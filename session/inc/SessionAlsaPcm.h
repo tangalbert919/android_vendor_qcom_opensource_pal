@@ -51,10 +51,14 @@ private:
     size_t size = 0;
     PayloadBuilder* builder;
     struct pcm *pcm;
+    struct pcm *pcmRx;
+    struct pcm *pcmTx;
     std::shared_ptr<ResourceManager> rm;
     struct mixer *mixer;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevIds;
+    std::vector<int> pcmDevRxIds;
+    std::vector<int> pcmDevTxIds;
     std::vector<std::string> aifBackEnds;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;

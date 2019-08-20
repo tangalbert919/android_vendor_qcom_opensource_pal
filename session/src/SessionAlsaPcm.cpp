@@ -78,13 +78,13 @@ int SessionAlsaPcm::open(Stream * s)
         return status;
     }
 
-    pcmDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction);
     if(sAttr.direction == QAL_AUDIO_INPUT) {
-        for (int i = 0; i < pcmDevIds.size(); i++)
-            pcmDevIds[i] = 101;
+        pcmDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        pcmDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
     } else {
-        for (int i = 0; i < pcmDevIds.size(); i++)
-            pcmDevIds[i] = 100;
+        pcmDevRxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, RXLOOPBACK);
+        pcmDevTxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, TXLOOPBACK);
     }
     aifBackEnds = rm->getBackEndNames(associatedDevices);
     status = rm->getAudioMixer(&mixer);
@@ -92,12 +92,27 @@ int SessionAlsaPcm::open(Stream * s)
         QAL_ERR(LOG_TAG,"mixer error");
         return status;
     }
-    status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
-    if (status) {
-        QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-        rm->freeFrontEndIds(pcmDevIds);
+    switch(sAttr.direction) {
+        case QAL_AUDIO_INPUT:
+        case QAL_AUDIO_OUTPUT:
+            status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
+            if (status) {
+                QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+            }
+            break;
+        case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+            status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds, aifBackEnds);
+            if (status) {
+                QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                rm->freeFrontEndIds(pcmDevRxIds, sAttr.type, sAttr.direction, RXLOOPBACK);
+                rm->freeFrontEndIds(pcmDevTxIds, sAttr.type, sAttr.direction, TXLOOPBACK);
+            }
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"unsupported direction");
+            break;
     }
-
     return status;
 }
 
@@ -141,7 +156,6 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             if (0 != status) {
                 goto exit;
             }
-            //TODO: how to get the id '0'
             tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
@@ -182,7 +196,6 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             }
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
-            //TODO: how to get the id '0'
             calCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setCalibrationControl;
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
@@ -190,7 +203,6 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 return -ENOENT;
             }
             ckv_size = ckv.size()*sizeof(struct agm_key_value);
-            //TODO make struct mixer and struct pcm as class private variables.
             status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
             if (status != 0) {
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
@@ -220,13 +232,15 @@ int SessionAlsaPcm::start(Stream * s)
     struct pcm_config config;
     struct qal_stream_attributes sAttr;
     int32_t status = 0;
-
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dAttr;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
+
     s->getBufInfo(&in_buf_size,&in_buf_count,&out_buf_size,&out_buf_count);
     memset(&config, 0, sizeof(config));
 
@@ -258,24 +272,65 @@ int SessionAlsaPcm::start(Stream * s)
     config.stop_threshold = 0;
     config.silence_threshold = 0;
 
-    if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, customPayload, customPayloadSize);
-    }
+    switch(sAttr.direction) {
+        case QAL_AUDIO_INPUT:
+            if (sAttr.type == QAL_STREAM_VOICE_UI) {
+                SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, customPayload, customPayloadSize);
+            }
+ 
+            pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+            if (!pcm) {
+                QAL_ERR(LOG_TAG, "pcm open failed");
+                return -EINVAL;
+            }
 
-    if (sAttr.direction == QAL_AUDIO_INPUT) {
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
-    } else {
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
-    }
+            if (!pcm_is_ready(pcm)) {
+                QAL_ERR(LOG_TAG, "pcm open not ready");
+                return -EINVAL;
+            }
+            break;
+        case QAL_AUDIO_OUTPUT:
+            pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
+            if (!pcm) {
+                QAL_ERR(LOG_TAG, "pcm open failed");
+                return -EINVAL;
+            }
 
-    if (!pcm) {
-        QAL_ERR(LOG_TAG, "pcm open failed");
-        return -EINVAL;
-    }
+            if (!pcm_is_ready(pcm)) {
+                QAL_ERR(LOG_TAG, "pcm open not ready");
+                return -EINVAL;
+            }
+            break;
+        case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+            pcmRx = pcm_open(rm->getSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
+            if (!pcmRx) {
+                QAL_ERR(LOG_TAG, "pcm-rx open failed");
+                return -EINVAL;
+            }
 
-    if (!pcm_is_ready(pcm)) {
-        QAL_ERR(LOG_TAG, "pcm open not ready");
-        return -EINVAL;
+            if (!pcm_is_ready(pcmRx)) {
+                QAL_ERR(LOG_TAG, "pcm-rx open not ready");
+                return -EINVAL;
+            }
+            status = pcm_start(pcmRx);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+            }
+            pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
+            if (!pcmTx) {
+                QAL_ERR(LOG_TAG, "pcm-tx open failed");
+                return -EINVAL;
+            }
+
+            if (!pcm_is_ready(pcmTx)) {
+                QAL_ERR(LOG_TAG, "pcm-tx open not ready");
+                return -EINVAL;
+            }
+            status = pcm_start(pcmTx);
+            if (status) {
+               QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+            }
+            break;
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
@@ -284,9 +339,58 @@ int SessionAlsaPcm::start(Stream * s)
 
     checkAndConfigConcurrency(s);
 
-    status = pcm_start(pcm);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+    switch(sAttr.direction) {
+        case QAL_AUDIO_INPUT:
+        case QAL_AUDIO_OUTPUT:
+            status = s->getAssociatedDevices(associatedDevices);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            for (int i = 0; i < associatedDevices.size();i++) {
+                status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                if(0 != status) {
+                    QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                    return status;
+                }
+                switch (dAttr.config.sample_rate) {
+                    case SAMPLINGRATE_8K :
+                        setConfig(s,MODULE,MFC_SR_8K);
+                        break;
+                    case SAMPLINGRATE_16K :
+                        setConfig(s,MODULE,MFC_SR_16K);
+                        break;
+                    case SAMPLINGRATE_32K :
+                        setConfig(s,MODULE,MFC_SR_32K);
+                        break;
+                    case SAMPLINGRATE_44K :
+                        setConfig(s,MODULE,MFC_SR_44K);
+                        break;
+                    case SAMPLINGRATE_48K :
+                        setConfig(s,MODULE,MFC_SR_48K);
+                        break;
+                    case SAMPLINGRATE_96K :
+                        setConfig(s,MODULE,MFC_SR_96K);
+                        break;
+                    case SAMPLINGRATE_192K :
+                        setConfig(s,MODULE,MFC_SR_192K);
+                        break;
+                    case SAMPLINGRATE_384K :
+                        setConfig(s,MODULE,MFC_SR_384K);
+                        break;
+                }
+            }
+            //status = pcm_prepare(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_prepare failed %d", status);
+            }
+            status = pcm_start(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            }
+            break;
+        case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+            break;
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
@@ -308,10 +412,24 @@ int SessionAlsaPcm::stop(Stream * s)
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
-
-    status = pcm_stop(pcm);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
+    switch(sAttr.direction) {
+        case QAL_AUDIO_INPUT:
+        case QAL_AUDIO_OUTPUT:
+            status = pcm_stop(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
+            }
+            break;
+        case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+            status = pcm_stop(pcmRx);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
+            }
+            status = pcm_stop(pcmTx);
+            if (status) {
+               QAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
+            }
+            break;
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
@@ -324,12 +442,36 @@ int SessionAlsaPcm::stop(Stream * s)
 int SessionAlsaPcm::close(Stream * s)
 {
     int status = 0;
-    status = pcm_close(pcm);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
-        goto exit;
+    struct qal_stream_attributes sAttr;
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
     }
-    pcm = NULL;
+    switch(sAttr.direction) {
+        case QAL_AUDIO_INPUT:
+        case QAL_AUDIO_OUTPUT:
+            status = pcm_close(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_close failed %d", status);
+            }
+            rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+            pcm = NULL;
+            break;
+        case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+            status = pcm_close(pcmRx);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
+            }
+            status = pcm_close(pcmTx);
+            if (status) {
+               QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
+            }
+            pcmRx = NULL;
+            pcmTx = NULL;
+            break;
+    }
+
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;

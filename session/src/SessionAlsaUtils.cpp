@@ -635,3 +635,268 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, bool isCompr
     return ret;
 }
 
+int SessionAlsaUtils::open(Stream * s, std::shared_ptr<ResourceManager> rm,
+    const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds, const std::vector<std::string> &BackEnds)
+{
+    std::vector <std::pair<int, int>> streamKV;
+    std::vector <std::pair<int, int>> streamCKV;
+    std::vector <std::pair<int, int>> streamDeviceKV;
+    std::vector <std::pair<int, int>> deviceRxKV;
+    std::vector <std::pair<int, int>> deviceTxKV;
+    // Using as empty key vector pairs
+    std::vector <std::pair<int, int>> emptyKV;
+    int status = 0;
+    struct qal_stream_attributes sAttr;
+    struct qal_device dAttrRx, dAttrTx;
+    uint8_t *streamMetaData = nullptr;
+    uint8_t *deviceRxMetaData = nullptr;
+    uint8_t *deviceTxMetaData = nullptr;
+    uint8_t *streamDeviceMetaData = nullptr;
+    std::ostringstream cntrlName;
+    std::ostringstream pcmMdName;
+    std::ostringstream aifMdRxName;
+    std::ostringstream aifMdTxName;
+    std::ostringstream disconnectCtrlName;
+    std::ostringstream aifMfRxCtrlName;
+    std::ostringstream aifMfTxCtrlName;
+    std::ostringstream connectRxCtrlName;
+    std::ostringstream connectTxCtrlName;
+    std::ostringstream compressMdName;
+    std::ostringstream loopbackCtrlName;
+    std::ostringstream loopbackRxCtrlName;
+    struct mixer_ctl *ctl;
+    struct mixer_ctl *feCtrl;
+    struct mixer_ctl *feMdCtrl;
+    struct mixer_ctl *aifMdRxCtrl;
+    struct mixer_ctl *aifMdTxCtrl;
+    struct mixer_ctl *aifMfRxCtrl;
+    struct mixer_ctl *connectRxCtrl;
+    struct mixer_ctl *connectTxCtrl;
+    struct mixer_ctl *aifMfTxCtrl;
+    struct mixer_ctl *disconnectCtrl;
+    struct mixer_ctl *loopbackCtrl;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    long aif_media_config_rx[3];
+    long aif_media_config_tx[3];
+    uint32_t streamMetaDataSize = 0, deviceRxMetaDataSize = 0, deviceTxMetaDataSize = 0, streamDeviceMetaDataSize = 0;
+    struct mixer *am;
+
+    PayloadBuilder* builder = new PayloadBuilder();
+
+
+    status = s->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return status;
+    }
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+
+    status = rm->getAudioMixer(&am);
+    // get streamKV
+    if ((status = builder->populateStreamKV(s, streamKV)) != 0) {
+        QAL_ERR(LOG_TAG, "%s: get stream KV failed %d", status);
+        goto exit;
+    }
+    // get deviceKV
+    if ((status = builder->populateDeviceRxKV(s, deviceRxKV)) != 0) {
+        QAL_ERR(LOG_TAG, "%s: get device KV failed %d", status);
+        goto exit;
+    }
+    if ((status = builder->populateDeviceTxKV(s, deviceTxKV)) != 0) {
+        QAL_ERR(LOG_TAG, "%s: get device KV failed %d", status);
+        goto exit;
+    }
+    // get streamdeviceKV
+    status = builder->populateStreamDeviceKV(s, streamDeviceKV);
+    if (status) {
+        QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
+        status = 0; /**< ignore stream device KV failures */
+    }
+    status = builder->populateStreamCkv(s, streamCKV, 0, (struct qal_volume_data **)nullptr);
+    if (status) {
+        QAL_ERR(LOG_TAG, "%s: get stream ckv failed %d", status);
+        goto exit;
+    }
+    // get audio mixer
+    status = getAgmMetaData(streamKV, streamCKV, NULL, streamMetaDataSize, &streamMetaData);
+    //streamMetaData = getAgmMetaData(streamKV, streamMetaDataSize);
+    if (!streamMetaData) {
+        status = -EINVAL;
+		QAL_ERR(LOG_TAG, "%s: get stream meta data failed %d", status);
+		goto exit;
+    }
+    status = getAgmMetaData(deviceRxKV, emptyKV, NULL, deviceRxMetaDataSize, &deviceRxMetaData);
+    if (!deviceRxMetaData) {
+        status = -EINVAL;
+		QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", status);
+        goto free_streammd;
+    }
+    status = getAgmMetaData(deviceTxKV, emptyKV, NULL, deviceTxMetaDataSize, &deviceTxMetaData);
+    if (!deviceTxMetaData) {
+        status = -EINVAL;
+		QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", status);
+        goto free_streammd;
+    }
+    if (streamDeviceKV.size()) {
+        status = getAgmMetaData(streamDeviceKV, emptyKV, NULL, streamDeviceMetaDataSize, &streamDeviceMetaData);
+        if (!streamDeviceMetaData) {
+		    status = -EINVAL;
+            QAL_ERR(LOG_TAG, "%s: get stream device meta data failed %d", status);
+            goto free_devicemd;
+        }
+    }
+
+    switch (sAttr.type) {
+        case QAL_STREAM_COMPRESSED:
+            break;
+         default:
+             /** create compress mixer controls - stream, device and stream-device */
+            cntrlName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0) << " control";
+            compressMdName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0) << " metadata";
+            aifMdRxName << (BackEnds.at(0)).data() << " metadata";
+            aifMdTxName << (BackEnds.at(1)).data() << " metadata";
+            connectRxCtrlName << PCM_SND_DEV_NAME_PREFIX << RxDevIds.at(0) << " connect";
+            connectTxCtrlName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0) << " connect";
+            aifMfRxCtrlName << (BackEnds.at(0)).data() << " rate ch fmt";
+            aifMfTxCtrlName << (BackEnds.at(1)).data() << " rate ch fmt";
+            disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0) << " disconnect";
+            loopbackCtrlName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0) << " loopback";
+            loopbackRxCtrlName << PCM_SND_DEV_NAME_PREFIX << RxDevIds.at(0);
+            break;
+    }
+
+
+        /**
+         *  Set Stream, Device and SD mixer controls
+         *  cntrlName: COMPRESS0 control
+         *  pcmMdName: COMPRESS0 metadata
+         *  aifMdName: SLIMBUS_0_RX metadata
+         */
+        // ctl name: 'COMPRESS<DEVID> control' 'ZERO'
+        feCtrl = mixer_get_ctl_by_name(am, cntrlName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+        if (!feCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", cntrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_enum_by_string(feCtrl, "ZERO");
+
+        // ctl name: 'COMPRESS<DEVID> metadata' 'streamMetaData'
+        feMdCtrl = mixer_get_ctl_by_name(am, compressMdName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", compressMdName.str().data());
+        if (!feMdCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", compressMdName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_array(feMdCtrl, (void *)streamMetaData, streamMetaDataSize);
+
+        // ctl name: 'SLIMBUS_0_RX metadata' 'deviceMetaData'
+        aifMdRxCtrl = mixer_get_ctl_by_name(am, aifMdRxName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", aifMdRxName.str().data());
+        if (!aifMdRxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMdRxName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_array(aifMdRxCtrl, (void *)deviceRxMetaData, deviceRxMetaDataSize);
+        aifMdTxCtrl = mixer_get_ctl_by_name(am, aifMdTxName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", aifMdTxName.str().data());
+        if (!aifMdTxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMdTxName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_array(aifMdTxCtrl, (void *)deviceTxMetaData, deviceTxMetaDataSize);
+
+        // ctl name: 'COMPRESS<FEID> control' 'SLIMBUS_0_RX'
+        mixer_ctl_set_enum_by_string(feCtrl, (BackEnds.at(1)).data());
+        QAL_DBG(LOG_TAG,"device %s", (BackEnds.at(1)).data());
+        // ctl name: 'COMPRESS<FEID> metadata' 'streamDeviceMetaData'
+        if (streamDeviceMetaDataSize)
+            mixer_ctl_set_array(feMdCtrl, (void *)streamDeviceMetaData, streamDeviceMetaDataSize);
+
+        //ctl name: 'COMPRESS<DevID> connect' 'SLIMBUS_0_RX'
+        connectRxCtrl = mixer_get_ctl_by_name(am, connectRxCtrlName.str().data());
+        if (!connectRxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectRxCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        QAL_DBG(LOG_TAG,"mixer control %s", connectRxCtrlName.str().data());
+        QAL_DBG(LOG_TAG,"device %s", (BackEnds.at(0)).data());
+        mixer_ctl_set_enum_by_string(connectRxCtrl, (BackEnds.at(0)).data());
+
+        connectTxCtrl = mixer_get_ctl_by_name(am, connectTxCtrlName.str().data());
+        if (!connectTxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectTxCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        QAL_DBG(LOG_TAG,"mixer control %s", connectTxCtrlName.str().data());
+        QAL_DBG(LOG_TAG,"device %s", (BackEnds.at(1)).data());
+        mixer_ctl_set_enum_by_string(connectTxCtrl, (BackEnds.at(1)).data());
+
+        /**TODO: add only SSSD support for now */
+        associatedDevices[0]->getDeviceAtrributes(&dAttrRx);
+        // ctl name: 'SLIMBUS_0_RX rate ch fmt'
+        aif_media_config_rx[0] = dAttrRx.config.sample_rate;
+        aif_media_config_rx[1] = dAttrRx.config.ch_info->channels;
+        aif_media_config_rx[2] = bitsToAlsaFormat(dAttrRx.config.bit_width);
+
+        associatedDevices[1]->getDeviceAtrributes(&dAttrTx);
+        // ctl name: 'SLIMBUS_0_RX rate ch fmt'
+        aif_media_config_tx[0] = dAttrTx.config.sample_rate;
+        aif_media_config_tx[1] = dAttrTx.config.ch_info->channels;
+        aif_media_config_tx[2] = bitsToAlsaFormat(dAttrTx.config.bit_width);
+
+        aifMfRxCtrl = mixer_get_ctl_by_name(am, aifMfRxCtrlName.str().data());
+        QAL_ERR(LOG_TAG,"mixer control %s", aifMfRxCtrlName.str().data());
+        if (!aifMfRxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMfRxCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_array(aifMfRxCtrl, &aif_media_config_rx,
+                sizeof(aif_media_config_rx)/sizeof(aif_media_config_rx[0]));
+        aifMfTxCtrl = mixer_get_ctl_by_name(am, aifMfTxCtrlName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", aifMfTxCtrlName.str().data());
+        if (!aifMfTxCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMfTxCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_array(aifMfTxCtrl, &aif_media_config_tx,
+                sizeof(aif_media_config_tx)/sizeof(aif_media_config_tx[0]));
+
+        loopbackCtrl = mixer_get_ctl_by_name(am, loopbackCtrlName.str().data());
+        QAL_DBG(LOG_TAG,"mixer control %s", loopbackCtrlName.str().data());
+        if (!loopbackCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", loopbackCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+        mixer_ctl_set_enum_by_string(loopbackCtrl, loopbackRxCtrlName.str().data());
+        disconnectCtrl = mixer_get_ctl_by_name(am, disconnectCtrlName.str().data());
+        if (!disconnectCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
+            status = -EINVAL;
+            goto free_streamdevicemd;
+        }
+
+free_streamdevicemd:
+    free(streamDeviceMetaData);
+free_devicemd:
+    free(deviceRxMetaData);
+    free(deviceTxMetaData);
+free_streammd:
+    free(streamMetaData);
+exit:
+   return status;
+}

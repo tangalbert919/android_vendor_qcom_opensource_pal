@@ -42,7 +42,8 @@
 #include <map>
 #include <expat.h>
 #include "QalDefs.h"
-
+#define RXLOOPBACK 0
+#define TXLOOPBACK 1
 #define audio_mixer mixer
 
 enum qal_alsa_or_gsl {
@@ -164,8 +165,10 @@ public:
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
     const qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
-    const std::vector<int> allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction);
-    void freeFrontEndIds (const std::vector<int> f);
+    const std::vector<int> allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction,
+                                                int lDirection);
+    void freeFrontEndIds (const std::vector<int> f, const qal_stream_type_t sType,
+                          const qal_stream_direction_t direction, int lDirection);
     const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);

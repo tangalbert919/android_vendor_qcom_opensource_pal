@@ -189,7 +189,7 @@ int32_t StreamPCM::start()
         break;
 
     case QAL_AUDIO_INPUT:
-        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
+        QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_INPUT device count - %d",
                     devices.size());
 
         status = session->prepare(this);

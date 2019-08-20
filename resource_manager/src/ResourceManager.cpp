@@ -342,13 +342,6 @@ ResourceManager::ResourceManager()
             }
         }
 
-        std::vector<int>::iterator it = listAllFrontEndIds.begin();
-        for (int i = 0; i < MAX_FRONT_ENDS; i++) {
-            listAllFrontEndIds.insert(it, i);
-            it++;
-        }
-
-        listFreeFrontEndIds = listAllFrontEndIds;
     }
 
     ret = ResourceManager::init_audio();
@@ -1001,13 +994,14 @@ const qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
 
 }
 
-const int ResourceManager::getNumFEs(const qal_stream_type_t sType) const {
+const int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
+{
     int n = 1;
 
     switch (sType) {
         case QAL_STREAM_LOOPBACK:
         case QAL_STREAM_TRANSCODE:
-            n = 2;
+            n = 1;
             break;
         default:
             n = 1;
@@ -1017,43 +1011,195 @@ const int ResourceManager::getNumFEs(const qal_stream_type_t sType) const {
     return n;
 }
 
-const std::vector<int> ResourceManager::allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction) {
+const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_type_t sType,
+                                   const qal_stream_direction_t direction, int lDirection)
+{
     //TODO: lock resource manager
     std::vector<int> f;
     f.clear();
     int howMany = getNumFEs(sType);
     int id = 0;
     std::vector<int>::iterator it;
-    if ( howMany > listFreeFrontEndIds.size()) {
-        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error", howMany, listFreeFrontEndIds.size());
-        goto error;
-    }
 
-    id = (listFreeFrontEndIds.size() - 1);
-
-    //get iterator to end
-    it =  (listFreeFrontEndIds.begin() + id);
-
-
-    for (int i = 0; i < howMany; i++) {
-        f.push_back(listFreeFrontEndIds.at(id));
-        listFreeFrontEndIds.erase(it);
-        QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
-        it -= 1;
-        id -= 1;
+    switch(sType) {
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_VOICE_UI:
+            switch (direction) {
+                case QAL_AUDIO_INPUT:
+                    if ( howMany > listAllPcmRecordFrontEnds.size()) {
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                          howMany, listAllPcmRecordFrontEnds.size());
+                        goto error;
+                    }
+                    id = (listAllPcmRecordFrontEnds.size() - 1);
+                    it =  (listAllPcmRecordFrontEnds.begin() + id);
+                    for (int i = 0; i < howMany; i++) {
+                        f.push_back(listAllPcmRecordFrontEnds.at(id));
+                        listAllPcmRecordFrontEnds.erase(it);
+                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        it -= 1;
+                        id -= 1;
+                    }
+                    break;
+                case QAL_AUDIO_OUTPUT:
+                    if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                          howMany, listAllPcmPlaybackFrontEnds.size());
+                        goto error;
+                    }
+                    id = (listAllPcmPlaybackFrontEnds.size() - 1);
+                    it =  (listAllPcmPlaybackFrontEnds.begin() + id);
+                    for (int i = 0; i < howMany; i++) {
+                        f.push_back(listAllPcmPlaybackFrontEnds.at(id));
+                        listAllPcmPlaybackFrontEnds.erase(it);
+                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        it -= 1;
+                        id -= 1;
+                    }
+                    break;
+                case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+                    if (lDirection == RXLOOPBACK) {
+                        if ( howMany > listAllPcmLoopbackRxFrontEnds.size()) {
+                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                              howMany, listAllPcmLoopbackRxFrontEnds.size());
+                            goto error;
+                        }
+                        id = (listAllPcmLoopbackRxFrontEnds.size() - 1);
+                        it =  (listAllPcmLoopbackRxFrontEnds.begin() + id);
+                        for (int i = 0; i < howMany; i++) {
+                           f.push_back(listAllPcmLoopbackRxFrontEnds.at(id));
+                           listAllPcmLoopbackRxFrontEnds.erase(it);
+                           QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                           it -= 1;
+                           id -= 1;
+                        }
+                    } else {
+                        if ( howMany > listAllPcmLoopbackTxFrontEnds.size()) {
+                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                              howMany, listAllPcmLoopbackTxFrontEnds.size());
+                            goto error;
+                        }
+                        id = (listAllPcmLoopbackTxFrontEnds.size() - 1);
+                        it =  (listAllPcmLoopbackTxFrontEnds.begin() + id);
+                        for (int i = 0; i < howMany; i++) {
+                           f.push_back(listAllPcmLoopbackTxFrontEnds.at(id));
+                           listAllPcmLoopbackTxFrontEnds.erase(it);
+                           QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                           it -= 1;
+                           id -= 1;
+                        }
+                    }
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    break;
+            }
+            break;
+        case QAL_STREAM_COMPRESSED:
+            switch (direction) {
+                case QAL_AUDIO_INPUT:
+                    if ( howMany > listAllCompressRecordFrontEnds.size()) {
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                          howMany, listAllCompressRecordFrontEnds.size());
+                        goto error;
+                    }
+                    id = (listAllCompressRecordFrontEnds.size() - 1);
+                    it =  (listAllCompressRecordFrontEnds.begin() + id);
+                    for (int i = 0; i < howMany; i++) {
+                        f.push_back(listAllCompressRecordFrontEnds.at(id));
+                        listAllCompressRecordFrontEnds.erase(it);
+                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        it -= 1;
+                        id -= 1;
+                    }
+                    break;
+                case QAL_AUDIO_OUTPUT:
+                    if ( howMany > listAllCompressPlaybackFrontEnds.size()) {
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                          howMany, listAllCompressPlaybackFrontEnds.size());
+                        goto error;
+                    }
+                    id = (listAllCompressPlaybackFrontEnds.size() - 1);
+                    it =  (listAllCompressPlaybackFrontEnds.begin() + id);
+                    for (int i = 0; i < howMany; i++) {
+                        f.push_back(listAllCompressPlaybackFrontEnds.at(id));
+                        listAllCompressPlaybackFrontEnds.erase(it);
+                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        it -= 1;
+                        id -= 1;
+                    }
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    break;
+                }
+                break;
+        default:
+            break;
     }
 
 error:
     return f;
 }
 
-void ResourceManager::freeFrontEndIds (const std::vector<int> frontend) {
-    //TODO: lock resource manager?
-
-    for (int i = 0; i < frontend.size(); i++) {
-        listFreeFrontEndIds.push_back(frontend.at(i));
+void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal_stream_type_t sType,
+                       const qal_stream_direction_t direction, int lDirection)
+{
+    switch(sType) {
+        case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_VOIP:
+        case QAL_STREAM_VOIP_RX:
+        case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_VOICE_UI:
+            switch (direction) {
+                case QAL_AUDIO_INPUT:
+                    for (int i = 0; i < frontend.size(); i++) {
+                        listAllPcmRecordFrontEnds.push_back(frontend.at(i));
+                    }
+                    break;
+                case QAL_AUDIO_OUTPUT:
+                    for (int i = 0; i < frontend.size(); i++) {
+                        listAllPcmPlaybackFrontEnds.push_back(frontend.at(i));
+                    }
+                    break;
+                case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+                    if (lDirection == RXLOOPBACK) {
+                        for (int i = 0; i < frontend.size(); i++) {
+                            listAllPcmLoopbackRxFrontEnds.push_back(frontend.at(i));
+                        }
+                    } else {
+                        for (int i = 0; i < frontend.size(); i++) {
+                            listAllPcmLoopbackRxFrontEnds.push_back(frontend.at(i));
+                        }
+                    }
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    break;
+            }
+            break;
+        case QAL_STREAM_COMPRESSED:
+            switch (direction) {
+                case QAL_AUDIO_INPUT:
+                    for (int i = 0; i < frontend.size(); i++) {
+                        listAllCompressRecordFrontEnds.push_back(frontend.at(i));
+                    }
+                    break;
+                case QAL_AUDIO_OUTPUT:
+                    for (int i = 0; i < frontend.size(); i++) {
+                        listAllCompressPlaybackFrontEnds.push_back(frontend.at(i));
+                    }
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    break;
+                }
+        default:
+            break;
     }
-
     return;
 }
 
@@ -1104,7 +1250,8 @@ void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndNam
     listAllBackEndIds[deviceId].second = backEndName;
 }
 
-int convertCharToHex(std::string num) {
+int convertCharToHex(std::string num)
+{
     int32_t hexNum = 0;
     int32_t base = 1;
     const char * charNum = num.c_str();
@@ -1241,6 +1388,7 @@ void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_C
         }
     }
 }
+
 void ResourceManager::processDeviceCapability(struct xml_userdata *data, const XML_Char *tag_name)
 {
     int size = -1;

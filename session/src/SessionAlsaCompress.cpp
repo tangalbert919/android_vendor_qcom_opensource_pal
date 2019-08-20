@@ -169,10 +169,10 @@ int SessionAlsaCompress::open(Stream * s)
         return status;
     }
 
-    compressDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction);
+    compressDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
     for (int i = 0; i < compressDevIds.size(); i++) {
-       compressDevIds[i] = 105;
-    QAL_ERR(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
+       //compressDevIds[i] = 5;
+    QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
     aifBackEnds = rm->getBackEndNames(associatedDevices);
     status = rm->getAudioMixer(&mixer);
@@ -183,7 +183,7 @@ int SessionAlsaCompress::open(Stream * s)
     status = SessionAlsaUtils::open(s, rm, compressDevIds, aifBackEnds);
     if (status) {
         QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-        rm->freeFrontEndIds(compressDevIds);
+        rm->freeFrontEndIds(compressDevIds, sAttr.type, sAttr.direction, 0);
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
     return status;
@@ -352,6 +352,8 @@ int SessionAlsaCompress::stop(Stream * s)
 int SessionAlsaCompress::close(Stream * s)
 {
     int status = 0;
+    struct qal_stream_attributes sAttr;
+    s->getStreamAttributes(&sAttr);
     if (!compress)
         return -EINVAL;
 
@@ -374,7 +376,8 @@ int SessionAlsaCompress::close(Stream * s)
     /* empty the pending messages in queue */
     while(!msg_queue_.empty())
         msg_queue_.pop();
-   return 0;
+    rm->freeFrontEndIds(compressDevIds, sAttr.type, sAttr.direction, 0);
+    return 0;
 }
 
 int SessionAlsaCompress::read(Stream *s, int tag, struct qal_buffer *buf, int * size)

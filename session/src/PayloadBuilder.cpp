@@ -1532,7 +1532,8 @@ exit:
 
 }
 
-int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector) {
+int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
     int status = -ENOSYS;
 
@@ -1541,6 +1542,68 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int
 }
 
 
+int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = 0;
+    int32_t dev_id = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed status %d\n", __func__, status);
+        goto error;
+    }
+
+    for (int32_t i=0; i<(associatedDevices.size()); i++) {
+        dev_id = associatedDevices[i]->getDeviceId();
+        switch(dev_id) {
+        case QAL_DEVICE_OUT_SPEAKER :
+            keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
+            break;
+        default:
+            QAL_ERR(LOG_TAG,"%s: Invalid deviceRx id %d\n", __func__,dev_id);
+        }
+    }
+
+error:
+    return status;
+
+}
+
+int PayloadBuilder::populateDeviceTxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = 0;
+    int32_t dev_id = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    status = s->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed status %d\n", __func__, status);
+        goto error;
+    }
+
+    for (int32_t i=0; i<(associatedDevices.size()); i++) {
+        dev_id = associatedDevices[i]->getDeviceId();
+        switch(dev_id) {
+        case QAL_DEVICE_IN_SPEAKER_MIC:
+        case QAL_DEVICE_IN_HANDSET_MIC:
+        case QAL_DEVICE_IN_TRI_MIC:
+        case QAL_DEVICE_IN_QUAD_MIC:
+        case QAL_DEVICE_IN_EIGHT_MIC:
+           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           break;
+        default:
+            QAL_ERR(LOG_TAG,"%s: Invalid device tx id %d\n", __func__,dev_id);
+        }
+    }
+
+error:
+    return status;
+
+}
 int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
 {
     int status = 0;

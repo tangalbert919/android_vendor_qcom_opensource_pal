@@ -69,6 +69,8 @@ public:
     static int setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress);
     static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register);
     static int setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name);
+    static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
+                    const std::vector<std::string> &BackEnds);
 };
 
 #endif //SESSION_ALSA_UTILS
