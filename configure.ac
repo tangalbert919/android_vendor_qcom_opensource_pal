@@ -55,5 +55,14 @@ AS_IF([test "x$with_gecko" != "xno"], [GECKO_CFLAGS="-I$with_gecko"])
 
 AC_SUBST(GECKO_CFLAGS)
 
+AC_ARG_WITH([acdbdata],
+      AC_HELP_STRING([--with-acdbdata],
+         [enable acdbdata, Build against acdbdata. Use this when building for HLOS systems which use acdbdata]))
+
+ACDBDATA_CFLAGS=
+AS_IF([test "x$with_acdbdata" != "xno"], [ACDBDATA_CFLAGS="-I$with_acdbdata"])
+
+AC_SUBST(ACDBDATA_CFLAGS)
+
 AC_CONFIG_FILES([ Makefile qal.pc ])
 AC_OUTPUT

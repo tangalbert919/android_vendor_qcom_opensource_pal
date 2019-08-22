@@ -16,7 +16,6 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/SpeakerMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
-            ./session/inc/kvh2xml.h \
             ./session/inc/SessionGsl.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SoundTriggerEngine.h \
@@ -71,7 +70,6 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
-            $(top_srcdir)/session/inc/kvh2xml.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
@@ -91,7 +89,8 @@ AM_CPPFLAGS += -I $(top_srcdir)/session/inc
 AM_CPPFLAGS += -I $(top_srcdir)/resource_manager/inc
 AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
-AM_CPPFLAGS += $(GECKO_CFLAGS)
+AM_CPPFLAGS += $(GECKO_CFLAGS)/
+AM_CPPFLAGS += $(ACDBDATA_CFLAGS)
 
 qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
