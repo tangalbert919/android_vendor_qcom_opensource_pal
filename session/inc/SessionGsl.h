@@ -111,7 +111,7 @@ class SessionGsl : public Session
 {
 private:
     void * graphHandle;
-    void * payload;
+    void * payload = NULL;
     size_t size = 0;
     size_t gkvLen, ckvLen, tkvLen;
     struct gslCmdGetReadWriteBufInfo *infoBuffer;
