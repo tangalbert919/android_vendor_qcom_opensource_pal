@@ -37,6 +37,7 @@
 #include "StreamSoundTrigger.h"
 #include "gsl_intf.h"
 #include "SessionGsl.h"
+#include "SessionQts.h"
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
@@ -248,6 +249,11 @@ ResourceManager::ResourceManager()
     if (ret) {
         QAL_ERR(LOG_TAG, "session gsl init failed ret %d", ret);
     }
+
+
+     //Initialize QTS
+    SessionQts::init();
+
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
@@ -264,7 +270,7 @@ ResourceManager::ResourceManager()
 
 ResourceManager::~ResourceManager()
 {
-    
+
 }
 
 int ResourceManager::init_audio()
@@ -339,6 +345,7 @@ int ResourceManager::init_audio()
 
 int ResourceManager::init()
 {
+
 }
 
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
@@ -801,7 +808,7 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
         QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
-    return 0;   
+    return 0;
 }
 // TODO: Should pcm device be related to usecases used(ll/db/comp/ulla)?
 // Use Low Latency as default by now

@@ -956,7 +956,7 @@ int SessionGsl::readBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int f
 
     QAL_DBG(LOG_TAG, "Enter. bufSize:%d noOfBuf:%d flag:%d", bufSize, noOfBuf, flag);
 
-    infoBuffer = (struct gslCmdGetReadWriteBufInfo*)malloc(sizeof(struct gslCmdGetReadWriteBufInfo));
+    infoBuffer = (struct gslCmdGetReadWriteBufInfo*)calloc(1, sizeof(struct gslCmdGetReadWriteBufInfo));
     if (!infoBuffer) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "infoBuffer malloc failed %s status %d", strerror(errno),

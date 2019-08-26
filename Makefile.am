@@ -17,6 +17,7 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
+            ./session/inc/SessionQts.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SoundTriggerEngine.h \
             ./session/inc/SoundTriggerEngineGsl.h \
@@ -49,6 +50,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionGsl.cpp \
+              ./session/src/SessionQts.cpp \
               ./session/src/SessionAlsaPcm.cpp \
               ./session/src/SoundTriggerEngine.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
@@ -71,6 +73,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
+            ${top_srcdir}/session/inc/SessionQts.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
@@ -105,6 +108,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \
+              ${top_srcdir}/session/src/SessionQts.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
