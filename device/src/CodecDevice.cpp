@@ -146,6 +146,7 @@ int CodecDevice::close()
             delete gsl;
             goto exit;
         }
+        pcmFd = NULL;
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
