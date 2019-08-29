@@ -29,11 +29,7 @@
 
 #ifndef ACDB_MCS_H
 #define ACDB_MCS_H
-
 #include "qts.h"
-#include "QalDefs.h"
-#include "QalApi.h"
-#include "kvh2xml.h"
 #include "casa_osal_log.h"
 #include "casa_osal_mutex.h"
 #include "casa_osal_thread.h"

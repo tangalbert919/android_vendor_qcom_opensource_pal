@@ -29,6 +29,9 @@
 
 #define LOG_TAG "MCS"
 #include "mcs.h"
+#include "kvh2xml.h"
+#include "QalDefs.h"
+#include "QalApi.h"
 #include <unistd.h>
 #define NO_OF_BUFS 4
 #define BUFFER_COUNT 32
@@ -531,10 +534,10 @@ int32_t process_record_request(uint8_t cmd,
                         dattr[j].config.ch_info = &devicech;
                         switch (param->graph_key_vector.graph_key_vector[i].value) {
                             case HANDSETMIC:
-                                switch(devicech.channels)
+                                switch(devicech.channels) {
                                     case 1:
                                         dattr[j].id = QAL_DEVICE_IN_HANDSET_MIC;
-                                        break:
+                                        break;
                                     case 2:
                                         dattr[j].id = QAL_DEVICE_IN_SPEAKER_MIC;
                                         break;
@@ -544,10 +547,11 @@ int32_t process_record_request(uint8_t cmd,
                                     case 4:
                                         dattr[j].id = QAL_DEVICE_IN_QUAD_MIC;
                                         break;
-                                default:
-                                    CASA_LOG_ERR(LOG_TAG,"unsupported mic");
-                                    ret = CASA_EFAILED;
-                                    break;
+                                    default:
+                                        CASA_LOG_ERR(LOG_TAG,"unsupported mic");
+                                        ret = CASA_EFAILED;
+                                        break;
+                                }
                             default:
                                 CASA_LOG_ERR(LOG_TAG,"unsupported device");
                                 ret = CASA_EFAILED;

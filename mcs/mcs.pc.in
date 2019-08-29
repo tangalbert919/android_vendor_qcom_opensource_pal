@@ -2,7 +2,7 @@ prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: acdbdata
+Name: mcs
 Description: media controller service library
 Version: @VERSION@
 Libs: -L${libdir}

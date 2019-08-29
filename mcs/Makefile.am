@@ -6,6 +6,7 @@ h_sources = ${top_srcdir}/inc/mcs.h \
             ${top_srcdir}/inc/qts.h
 
 AM_CFLAGS := -I ${top_srcdir}/inc
+AM_CFLAGS += $(ACDBDATA_CFLAGS)
 
 library_include_HEADERS = $(h_sources)
 AM_CFLAGS +=  -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/qal/
@@ -20,7 +21,6 @@ libmcs_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_s
 libmcs_la_LDFLAGS = -shared -avoid-version
 
 test_sources = ${top_srcdir}/test/src/mcs-test.c
-
 bin_PROGRAMS = mcs_test
 mcs_test_CC = @CC@
 mcs_test_SOURCES = $(test_sources)
