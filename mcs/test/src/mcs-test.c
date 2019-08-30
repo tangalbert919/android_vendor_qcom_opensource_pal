@@ -29,6 +29,7 @@
 
 #define LOG_TAG "MCS-TEST"
 #include "mcs.h"
+#include "kvh2xml.h"
 #include "qts.h"
 #include "acdb.h"
 #include <unistd.h>
@@ -56,7 +57,7 @@ void execute_playback()
 
     playbuf.stream_properties.sample_rate = 48000;
     playbuf.stream_properties.num_channels = 2;
-    playbuf.stream_properties.channel_mask = 3;
+    playbuf.stream_properties.channel_mapping = (uint8_t *)(intptr_t)3;
     playbuf.stream_properties.bit_width = 16;
     cmd = QTS_CMD_MCS_PLAY;
     CASA_LOG_ERR(LOG_TAG,"command service id %x", cmd);
@@ -92,7 +93,7 @@ void execute_record()
 
     recbuf.stream_properties.sample_rate = 48000;
     recbuf.stream_properties.num_channels = 2;
-    recbuf.stream_properties.channel_mask = 3;
+    recbuf.stream_properties.channel_mapping = (uint8_t *)(intptr_t)3;
     recbuf.stream_properties.bit_width = 16;
     cmd = QTS_CMD_MCS_RECORD;
     CASA_LOG_ERR(LOG_TAG,"command service id %x", cmd);
