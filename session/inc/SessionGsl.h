@@ -82,6 +82,7 @@ struct gslCmdGetReadWriteBufInfo {
     uint32_t start_threshold;
     uint32_t stop_threshold;
     uint32_t attritubes;
+	uint32_t tag;
 };
 
 struct __attribute__((__packed__)) volume_ctrl_channels_gain_config_t

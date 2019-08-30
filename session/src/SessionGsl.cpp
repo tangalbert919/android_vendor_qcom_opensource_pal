@@ -98,14 +98,22 @@ SessionGsl::~SessionGsl()
 int SessionGsl::init(std::string acdbFile)
 {
     int ret = 0;
+    std::string deltaFileStr = "/data/audio/delta";
     struct gsl_acdb_data_files acdb_files;
+    struct gsl_acdb_file delta_file;
     gsl_init_data init_data;
+
+    delta_file.fileNameLen = deltaFileStr.size();
+    strlcpy(delta_file.fileName, deltaFileStr.c_str(),
+              deltaFileStr.size()+1);
+
     acdb_files.num_files = 1;
     strlcpy(acdb_files.acdbFiles[0].fileName, acdbFile.c_str(),
               acdbFile.size()+1);
+
     acdb_files.acdbFiles[0].fileNameLen = acdbFile.size();
     init_data.acdb_files = &acdb_files;
-    init_data.acdb_delta_file = NULL;
+    init_data.acdb_delta_file = &delta_file;
     init_data.acdb_addr = 0x0;
     init_data.max_num_ready_checks = 1;
     init_data.ready_check_interval_ms = 100;
@@ -1297,7 +1305,7 @@ int SessionGsl::writeBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int 
 
     QAL_DBG(LOG_TAG, "Enter. bufSize:%d noOfBuf:%d flag:%d", bufSize, noOfBuf, flag);
 
-    infoBuffer = (struct gslCmdGetReadWriteBufInfo*)malloc(sizeof(struct gslCmdGetReadWriteBufInfo));
+    infoBuffer = (struct gslCmdGetReadWriteBufInfo*)calloc(1, sizeof(struct gslCmdGetReadWriteBufInfo));
     if (!infoBuffer) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "infoBuffer malloc failed %s status %d", strerror(errno), status);
