@@ -51,7 +51,8 @@ typedef int32_t (*gsl_open_t)(const struct gsl_key_vector *,
                               const struct gsl_key_vector *, gsl_handle_t *);
 typedef int32_t (*gsl_close_t)(gsl_handle_t);
 typedef int32_t (*gsl_set_cal_t)(gsl_handle_t ,const struct gsl_key_vector *, const struct gsl_key_vector *);
-typedef int32_t (*gsl_set_config_t)(gsl_handle_t, uint32_t, const struct gsl_key_vector *);
+typedef int32_t (*gsl_set_config_t)(gsl_handle_t, const struct gsl_key_vector *,
+        uint32_t, const struct gsl_key_vector *);
 typedef int32_t (*gsl_set_custom_config_t)(gsl_handle_t, const uint8_t *, const size_t);
 typedef int32_t (*gsl_get_custom_config_t)(gsl_handle_t, uint8_t *, size_t *);
 typedef int32_t (*gsl_ioctl_t)(gsl_handle_t, enum gsl_cmd_id, void *, size_t);
@@ -227,6 +228,7 @@ void SessionGsl::deinit()
     if(NULL != gslLibHandle){
         gslDeinit();
         dlclose(gslLibHandle);
+        gslLibHandle = NULL;
     }
 }
 
@@ -1406,7 +1408,7 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag)
         if (tagsent == TAG_PAUSE) {
             QAL_VERBOSE(LOG_TAG,"Do not call gslSetConfig if tagsent:%x \n", tagsent);
         } else {
-            status = gslSetConfig(graphHandle, tagsent, tkv);
+            status = gslSetConfig(graphHandle, nullptr, tagsent, tkv);
             if (0 != status) {
                QAL_ERR(LOG_TAG, "Failed to set tag data status %d", status);
                goto exit;
