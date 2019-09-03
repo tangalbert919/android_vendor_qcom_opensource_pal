@@ -439,7 +439,7 @@ int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, void* graphHandl
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_voldata :
@@ -561,7 +561,7 @@ exit:
     if (moduleInfo)
        free(moduleInfo);
     if (payload)
-       free(payload);
+        delete [] payload;
     delete builder;
     return status;
 }
@@ -618,7 +618,7 @@ int populateSVASoundModel(SessionGsl *s, int tagId, void* graphHandle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -667,7 +667,7 @@ int populateSVAWakeUpConfig(SessionGsl *s, int tagId, void* graphHandle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -707,7 +707,7 @@ int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle,
         QAL_ERR(LOG_TAG, "failed to get payload, status %d", status);
         goto free_moduleInfo;
     }
-    QAL_DBG(LOG_TAG, "%x - payload and %d size", payload , payloadSize);
+    QAL_DBG(LOG_TAG, "%pK - payload and %d size", payload , payloadSize);
 
     QAL_VERBOSE(LOG_TAG, "History Buffer: %d", pWakeUpBufConfig->hist_buffer_duration_in_ms);
     QAL_VERBOSE(LOG_TAG, "Pre-roll: %d", pWakeUpBufConfig->pre_roll_duration_in_ms);
@@ -719,7 +719,7 @@ int populateSVAWakeUpBufferConfig(SessionGsl *s, int tagId, void* graphHandle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -769,7 +769,7 @@ int populateSVAStreamSetupDuration(SessionGsl *s, int tagId, void* graphHandle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -834,7 +834,7 @@ int populateSVAEventConfig(SessionGsl *s, int tagId, void* graphHandle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -891,7 +891,7 @@ int populateSVAEngineReset(SessionGsl *s, int tagId, void* graphHandle, Stream *
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
-    free(payload);
+    delete [] payload;
 free_moduleInfo :
     free(moduleInfo);
 free_builder :
@@ -1198,7 +1198,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload:
-    free(payload);
+    delete [] payload;
 free_moduleInfo:
     free(moduleInfo);
 free_deviceData:
