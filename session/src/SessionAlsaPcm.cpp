@@ -133,6 +133,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
     switch (type) {
         case MODULE:
+            tkv.clear();
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: Failed to set the tag configuration\n", __func__);

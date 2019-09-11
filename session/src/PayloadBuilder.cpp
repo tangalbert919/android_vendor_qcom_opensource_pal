@@ -1483,18 +1483,22 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     switch (sattr->type) {
         case QAL_STREAM_LOW_LATENCY:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                QAL_VERBOSE(LOG_TAG,"%s: Stream \n", __func__);
                 keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
                 keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
-            }
-            else if (sattr->direction == QAL_AUDIO_INPUT) {
+            } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels >= 3)) {
                 keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-            }
-            else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
+                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
+            } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 1)) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
+                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_SMECNS));
+            } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 2)) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
+            } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
                 keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
             } else {
+                QAL_ERR(LOG_TAG,"%s: Invalid direction \n", __func__);
                 status = -EINVAL;
-                QAL_ERR(LOG_TAG,"%s: Invalid direction, status %d \n", __func__, status);
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
                 goto free_sattr;
             }
             break;
@@ -1511,6 +1515,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
         case QAL_STREAM_VOIP_TX:
             keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
+            keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
             break;
         case QAL_STREAM_VOIP_RX:
             keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
@@ -1532,8 +1537,7 @@ exit:
 
 }
 
-int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
-{
+int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector) {
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
     int status = -ENOSYS;
 
@@ -1934,7 +1938,8 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag) {
+int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag)
+{
     int status = 0;
     std::vector <std::pair<int,int>> keyVector;
 
@@ -2003,7 +2008,8 @@ int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, 
     return status;
 }
 
-int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag) {
+int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag)
+{
     int status = 0;
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
 
