@@ -215,15 +215,6 @@ int32_t StreamSoundTrigger::stop()
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d device count %d",
             session, attr->direction, devices.size());
 
-    for (int32_t i=0; i < devices.size(); i++) {
-        status = devices[i]->stop();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Tx device stop failed with status %d", status);
-            goto exit;
-        }
-    }
-    QAL_VERBOSE(LOG_TAG, "devices stop successful");
-
     for (int i = 0; i < activeEngines.size(); i++) {
         uint32_t id = activeEngines[i].first;
         SoundTriggerEngine *stEngine = activeEngines[i].second;
@@ -235,6 +226,15 @@ int32_t StreamSoundTrigger::stop()
             goto exit;
         }
     }
+
+    for (int32_t i=0; i < devices.size(); i++) {
+        status = devices[i]->stop();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Tx device stop failed with status %d", status);
+            goto exit;
+        }
+    }
+    QAL_VERBOSE(LOG_TAG, "devices stop successful");
 
     status = session->stop(this);
     if (0 != status) {

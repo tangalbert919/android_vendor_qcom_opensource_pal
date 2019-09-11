@@ -291,6 +291,7 @@ protected:
     QalRingBuffer *buffer_;
     QalRingBufferReader *reader_;
     bool eventDetected;
+    std::mutex mutex;
 public:
     static SoundTriggerEngine* create(Stream *s, listen_model_indicator_enum type,
            QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);

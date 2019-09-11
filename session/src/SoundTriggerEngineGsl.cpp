@@ -52,15 +52,15 @@ void SoundTriggerEngineGsl::buffer_thread_loop()
     QAL_INFO(LOG_TAG, "Enter. start thread loop");
     std::unique_lock<std::mutex> lck(sndEngGsl_->mutex_);
     while (!sndEngGsl_->exit_thread_) {
-        sndEngGsl_->exit_buffering_ = false;
         QAL_VERBOSE(LOG_TAG, "waiting on cond");
         /* Wait for keyword buffer data from DSP */
         if (!sndEngGsl_->eventDetected)
             sndEngGsl_->cv_.wait(lck);
-        QAL_INFO(LOG_TAG, "done waiting on cond, exit_buffering = %d",
-            sndEngGsl_->exit_buffering_);
+        QAL_INFO(LOG_TAG, "done waiting on cond, exit_buffering = %d, exit_thread = %d",
+            sndEngGsl_->exit_buffering_, sndEngGsl_->exit_thread_);
 
         if (sndEngGsl_->exit_thread_) {
+            QAL_VERBOSE(LOG_TAG, "Exit buffer thread");
             break;
         }
 
@@ -69,7 +69,7 @@ void SoundTriggerEngineGsl::buffer_thread_loop()
         }
 
         if (sndEngGsl_->start_buffering()) {
-            break;
+            sndEngGsl_->eventDetected = false;
         }
     }
     QAL_DBG(LOG_TAG, "Exit.");
@@ -105,15 +105,21 @@ int32_t SoundTriggerEngineGsl::start_sound_engine()
 int32_t SoundTriggerEngineGsl::stop_sound_engine()
 {
     int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
     {
         eventDetected = false;
         std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
+        QAL_VERBOSE(LOG_TAG, "Event lock acquired");
+        mutex.lock();
         exit_thread_ = true;
         exit_buffering_ = true;
         timestampRecorded = false;
         cv_.notify_one();
     }
     bufferThreadHandler_.join();
+    QAL_INFO(LOG_TAG, "Thread joined");
+    mutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
     return status;
 }
 
@@ -134,6 +140,12 @@ int32_t SoundTriggerEngineGsl::start_buffering()
     size_t startIndice = 0;
     size_t endIndice = 0;
     struct detection_event_info *info;
+
+    mutex.lock();
+    if (exit_buffering_ || !eventDetected) {
+        mutex.unlock();
+        return status;
+    }
 
     streamHandle->getBufInfo(&inputBufSize, &inputBufNum, &outputBufSize,
                              &outputBufNum);
@@ -191,6 +203,7 @@ exit:
     if (buf.ts)
         free(buf.ts);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -273,6 +286,7 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data,
         goto exit;
     }
 
+    mutex.lock();
     QAL_DBG(LOG_TAG, "Enter.");
     common_sm = (struct qal_st_sound_model *)data;
     if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -347,9 +361,11 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data,
     }
 
     QAL_DBG(LOG_TAG, "Exit. Load sound model success status %d", status);
+    mutex.unlock();
     return status;
 
 exit:
+    mutex.unlock();
     return status;
 }
 
@@ -358,6 +374,7 @@ int32_t SoundTriggerEngineGsl::unload_sound_model(Stream *s)
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
 
+    mutex.lock();
     if (!sm_data) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG,  "No sound model can be unloaded, status %d", status);
@@ -367,10 +384,12 @@ int32_t SoundTriggerEngineGsl::unload_sound_model(Stream *s)
     sm_data_size = 0;
 
     QAL_DBG(LOG_TAG, "Exit. Unload sound model success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -378,6 +397,7 @@ int32_t SoundTriggerEngineGsl::start_recognition(Stream *s)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
+    mutex.lock();
     status = session->setParameters(streamHandle, DEVICE_SVA,
                                     PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
                                     &pWakeUpConfig);
@@ -417,10 +437,12 @@ int32_t SoundTriggerEngineGsl::start_recognition(Stream *s)
     }
 
     QAL_DBG(LOG_TAG, "Exit. start recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -428,23 +450,26 @@ int32_t SoundTriggerEngineGsl::stop_recognition(Stream *s)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    status = session->setParameters(streamHandle, DEVICE_SVA, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d", status);
-        goto exit;
-    }
-
     status = stop_sound_engine();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
         goto exit;
     }
 
+    mutex.lock();
+    status = session->setParameters(streamHandle, DEVICE_SVA, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d", status);
+        goto exit;
+    }
+
     QAL_DBG(LOG_TAG, "Exit. stop recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG,  "Failed to stop recognition, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -452,17 +477,20 @@ int32_t SoundTriggerEngineGsl::update_config(Stream *s, struct qal_st_recognitio
 {
     int32_t status = 0;
     size_t config_size;
+    size_t num_output_ports;
+    uint32_t size;
 
+    mutex.lock();
     if (!config) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid config, status %d", status);
-        return status;
+        goto exit;
     }
 
     status = generate_wakeup_config(config);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to generate wakeup config status %d", status);
-        return -EINVAL;
+        goto exit;
     }
     QAL_DBG(LOG_TAG, "Enter. config: %pK", config);
 
@@ -476,14 +504,14 @@ int32_t SoundTriggerEngineGsl::update_config(Stream *s, struct qal_st_recognitio
     pBufConfig.hist_buffer_duration_in_ms = HIST_BUFFER_DURATION_MS;
     pBufConfig.pre_roll_duration_in_ms = PRE_ROLL_DURATION_IN_MS;
 
-    size_t num_output_ports = 1;
-    uint32_t size = sizeof(struct audio_dam_downstream_setup_duration) +
-                    num_output_ports * sizeof(struct audio_dam_downstream_setup_duration_t);
+    num_output_ports = 1;
+    size = sizeof(struct audio_dam_downstream_setup_duration) +
+                  num_output_ports * sizeof(struct audio_dam_downstream_setup_duration_t);
     pSetupDuration = (struct audio_dam_downstream_setup_duration *)calloc(1, size);
     if (!pSetupDuration) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "Failed to allocate pSetupDuration, status %d", status);
-        return -status;
+        goto exit;
     }
     pSetupDuration->num_output_ports = num_output_ports;
 
@@ -493,12 +521,19 @@ int32_t SoundTriggerEngineGsl::update_config(Stream *s, struct qal_st_recognitio
     }
 
     QAL_DBG(LOG_TAG, "Exit. Update config success");
+    mutex.unlock();
+    return status;
+
+exit:
+    QAL_DBG(LOG_TAG, "Exit. Update config failure");
+    mutex.unlock();
     return status;
 }
 
 void SoundTriggerEngineGsl::setDetected(bool detected)
 {
     QAL_INFO(LOG_TAG, "setDetected %d", detected);
+    mutex.lock();
     std::lock_guard<std::mutex> lck(sndEngGsl_->mutex_);
     if (detected != eventDetected) {
         QAL_INFO(LOG_TAG, "notify condition variable");
@@ -508,6 +543,7 @@ void SoundTriggerEngineGsl::setDetected(bool detected)
     }
     else
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
+    mutex.unlock();
 }
 
 int32_t SoundTriggerEngineGsl::generate_wakeup_config(struct qal_st_recognition_config *config)
