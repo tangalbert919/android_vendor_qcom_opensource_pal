@@ -162,6 +162,7 @@ public:
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
+    int getTimestamp(struct qal_session_time *stime) override;
 
 };
 

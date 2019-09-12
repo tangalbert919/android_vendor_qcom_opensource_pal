@@ -41,7 +41,6 @@
 #include "Stream.h"
 #include "Device.h"
 
-
 #define MSM_MI2S_SD0 (1 << 0)
 #define MSM_MI2S_SD1 (1 << 1)
 #define MSM_MI2S_SD2 (1 << 2)
@@ -175,7 +174,7 @@ public:
     int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
-
+    void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);
     static int init();
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void processCodecInfo(const XML_Char **attr);

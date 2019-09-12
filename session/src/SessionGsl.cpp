@@ -1346,3 +1346,8 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         QAL_ERR(LOG_TAG, "Failed to add graph status %d", status);
     delete(device_graph.graph_key_vector.kvp);
 }
+
+int SessionGsl::getTimestamp(struct qal_session_time *stime)
+{
+   return 0;
+}

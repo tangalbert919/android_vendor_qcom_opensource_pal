@@ -113,6 +113,11 @@ int SessionAlsaPcm::open(Stream * s)
             QAL_ERR(LOG_TAG,"unsupported direction");
             break;
     }
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0), aifBackEnds[0].data(), false, STREAM_SPR, &spr_miid);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+        return status;
+    }
     return status;
 }
 
@@ -837,4 +842,15 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
 int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
 {
     return 0;
+}
+
+int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
+{
+    int status = 0;
+    status = SessionAlsaUtils::getTimestamp(mixer, false, pcmDevIds, spr_miid, stime);
+    if (0 != status) {
+       QAL_ERR(LOG_TAG, "getTimestamp failed status = %d", status);
+       return status;
+    }
+    return status;
 }

@@ -69,6 +69,7 @@ private:
     struct compress *compress;
     void * payload;
     size_t size = 0;
+    uint32_t spr_miid = 0;
     PayloadBuilder* builder;
     struct snd_codec codec;
     struct mixer *mixer;
@@ -116,6 +117,7 @@ public:
     static void offloadThreadLoop(SessionAlsaCompress *ob);
     int registerCallBack(session_callback cb, void *cookie);
     int drain(qal_drain_type_t type);
+    int getTimestamp(struct qal_session_time *stime) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

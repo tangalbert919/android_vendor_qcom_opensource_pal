@@ -409,6 +409,18 @@ int32_t qal_get_mic_mute(bool *state);
   */
 int32_t qal_set_mic_mute(bool state);
 
+/**
+  * \brief Get time stamp.
+  *
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from qal_stream_open
+  * \param[out] stime - time stamp data to be retrieved from the
+  *       stream.
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle, struct qal_session_time *stime);
+
 extern void  __gcov_flush();
 
 /**

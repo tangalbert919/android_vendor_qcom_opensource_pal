@@ -322,3 +322,19 @@ bool Stream::isStreamAudioOutFmtSupported(qal_audio_fmt_t format)
 	}
 }
 
+int32_t Stream::getTimestamp(struct qal_session_time *stime)
+{
+    int32_t status = 0;
+    if (!stime) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid session time pointer, status %d", status);
+        goto exit;
+    }
+    status = session->getTimestamp(stime);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to get session timestamp status %d", status);
+    }
+exit:
+    return status;
+}
+

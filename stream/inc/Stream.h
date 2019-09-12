@@ -102,6 +102,7 @@ public:
     virtual int32_t setPause() = 0;
     virtual int32_t setResume()= 0;
     virtual int32_t read(struct qal_buffer *buf) = 0;
+    int32_t getTimestamp(struct qal_session_time *stime);
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     int32_t getStreamType(qal_stream_type_t* streamType);

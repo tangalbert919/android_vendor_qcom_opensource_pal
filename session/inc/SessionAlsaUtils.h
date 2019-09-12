@@ -34,7 +34,6 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 
-
 #include <tinyalsa/asoundlib.h>
 #include <sound/asound.h>
 
@@ -71,6 +70,7 @@ public:
     static int setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::string> &BackEnds);
+    static int getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
 };
 
 #endif //SESSION_ALSA_UTILS

@@ -346,6 +346,19 @@ struct qal_volume_data {
     struct qal_channel_vol_kv volume_pair[0];     /**< channel mask and volume pair */
 };
 
+struct qal_time_us {
+    uint32_t value_lsw;   /** Lower 32 bits of 64 bit time value in microseconds */
+    uint32_t value_msw;   /** Upper 32 bits of 64 bit time value in microseconds */
+};
+
+/** Timestamp strucutre defintion used as argument for
+ *  gettimestamp api */
+struct qal_session_time {
+    qal_time_us session_time;   /** Value of the current session time in microseconds */
+    qal_time_us absolute_time;  /** Value of the absolute time in microseconds */
+    qal_time_us timestamp;      /** Value of the last processed time stamp in microseconds */
+};
+
 /** EVENT configurations data strucutre defintion used as
  *  argument for mute command */
 typedef union {

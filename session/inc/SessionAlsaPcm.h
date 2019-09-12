@@ -49,6 +49,7 @@ private:
     void * customPayload;
     size_t customPayloadSize;
     size_t size = 0;
+    uint32_t spr_miid = 0;
     PayloadBuilder* builder;
     struct pcm *pcm;
     struct pcm *pcmRx;
@@ -86,6 +87,7 @@ public:
     static void eventWaitThreadLoop(void *context, SessionAlsaPcm *session);
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
     void checkAndConfigConcurrency(Stream *s);
+    int getTimestamp(struct qal_session_time *stime) override;
 };
 
 #endif //SESSION_ALSAPCM_H

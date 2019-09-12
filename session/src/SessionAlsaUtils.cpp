@@ -39,6 +39,8 @@
 #include "ResourceManager.h"
 #include <agm/agm_api.h>
 #include "detection_cmn_api.h"
+#include "spr_api.h"
+#include "apm_api.h"
 #include <tinyalsa/asoundlib.h>
 #include <sound/asound.h>
 
@@ -244,13 +246,13 @@ int SessionAlsaUtils::open(Stream * s, std::shared_ptr<ResourceManager> rm,
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
 
@@ -406,8 +408,58 @@ free_devicemd:
     free(deviceMetaData);
 free_streammd:
     free(streamMetaData);
+
 exit:
+   delete builder;
    return status;
+}
+
+int SessionAlsaUtils::getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds,
+                                   uint32_t spr_miid, struct qal_session_time *stime)
+{
+    int status = 0;
+    const char *getParamControl = "getParam";
+    const char *stream = "PCM";
+    struct mixer_ctl *ctl;
+    std::ostringstream CntrlName;
+    struct param_id_spr_session_time_t *spr_session_time;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    if (isCompress)
+        stream = "COMPRESS";
+
+    PayloadBuilder* builder = new PayloadBuilder();
+    CntrlName<<stream<<DevIds.at(0)<<" "<<getParamControl;
+    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        return -ENOENT;
+    }
+
+    builder->payloadTimestamp(&payload, &payloadSize, spr_miid);
+    status = mixer_ctl_set_array(ctl, payload, payloadSize);
+    if (0 != status) {
+         QAL_ERR(LOG_TAG, "Set failed status = %d", status);
+         goto exit;
+    }
+    memset(payload, 0, payloadSize);
+    status = mixer_ctl_get_array(ctl, payload, payloadSize);
+    if (0 != status) {
+         QAL_ERR(LOG_TAG, "Get failed status = %d", status);
+         goto exit;
+    }
+    spr_session_time = (struct param_id_spr_session_time_t *)
+                     (payload + sizeof(struct apm_module_param_data_t));
+    stime->session_time.value_lsw = spr_session_time->session_time.value_lsw;
+    stime->session_time.value_msw = spr_session_time->session_time.value_msw;
+    stime->absolute_time.value_lsw = spr_session_time->absolute_time.value_lsw;
+    stime->absolute_time.value_msw = spr_session_time->absolute_time.value_msw;
+    stime->timestamp.value_lsw = spr_session_time->timestamp.value_lsw;
+    stime->timestamp.value_msw = spr_session_time->timestamp.value_msw;
+    //flags from Gecko are igonred
+exit:
+    delete builder;
+    return status;
 }
 
 int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,

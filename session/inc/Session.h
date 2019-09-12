@@ -81,6 +81,7 @@ public:
     virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) = 0;
     virtual int registerCallBack(session_callback cb, void *cookie) {};
     virtual int drain(qal_drain_type_t type) {};
+    virtual int getTimestamp(struct qal_session_time *stime) = 0;
 };
 
 #endif //SESSION_H

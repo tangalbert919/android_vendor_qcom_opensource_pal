@@ -370,3 +370,27 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle,
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
+
+int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle,
+                          struct qal_session_time *stime)
+{
+    Stream *s = NULL;
+    int status;
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d\n", status);
+        return status;
+    }
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK\n", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->getTimestamp(stime);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_get_timestamp failed with status %d\n", status);
+        return status;
+    }
+    QAL_VERBOSE(LOG_TAG, "stime->session_time.value_lsw = %u, stime->session_time.value_msw = %u \n", stime->session_time.value_lsw, stime->session_time.value_msw);
+    QAL_VERBOSE(LOG_TAG, "stime->absolute_time.value_lsw = %u, stime->absolute_time.value_msw = %u \n", stime->absolute_time.value_lsw, stime->absolute_time.value_msw);
+    QAL_VERBOSE(LOG_TAG, "stime->timestamp.value_lsw = %u, stime->timestamp.value_msw = %u \n", stime->timestamp.value_lsw, stime->timestamp.value_msw);
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    return status;
+}

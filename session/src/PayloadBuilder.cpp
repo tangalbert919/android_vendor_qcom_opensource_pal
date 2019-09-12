@@ -30,6 +30,7 @@
 #define LOG_TAG "PayloadBuilder"
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
+#include "spr_api.h"
 
 #define XML_FILE "/etc/hw_ep_info.xml"
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
@@ -1190,8 +1191,8 @@ void PayloadBuilder::payloadPause(uint8_t **payload, size_t *size, uint32_t modu
     header->param_id = PARAM_ID_SOFT_PAUSE_START;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
-                  __func__, header->module_instance_id, header->param_id,
+    QAL_VERBOSE(LOG_TAG,"header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
@@ -1215,11 +1216,37 @@ void PayloadBuilder::payloadResume(uint8_t **payload, size_t *size, uint32_t mod
     header->param_id = PARAM_ID_SOFT_PAUSE_RESUME;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    QAL_VERBOSE(LOG_TAG,"%s: header params IID:%x param_id:%x error_code:%d param_size:%d\n",
-                  __func__, header->module_instance_id, header->param_id,
+    QAL_VERBOSE(LOG_TAG,"header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+                  header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+}
+
+void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId)
+{
+    size_t payloadSize, padBytes;
+    uint8_t *payloadInfo = NULL;
+    struct apm_module_param_data_t* header;
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_spr_session_time_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = moduleId;
+    header->param_id = PARAM_ID_SPR_SESSION_TIME;
+    header->error_code = 0x0;
+    header->param_size = payloadSize -  sizeof(struct apm_module_param_data_t);
+    QAL_VERBOSE(LOG_TAG,"header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+                  header->module_instance_id, header->param_id,
+                  header->error_code, header->param_size);
+    *size = payloadSize + padBytes;;
+    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
