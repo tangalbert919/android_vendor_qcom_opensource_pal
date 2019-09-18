@@ -361,8 +361,8 @@ struct qal_session_time {
 
 /** EVENT configurations data strucutre defintion used as
  *  argument for mute command */
-typedef union {
-} qal_event_cfg_t;
+//typedef union {
+//} qal_event_cfg_t;
 
 /** event id of the event generated*/
 typedef uint32_t qal_event_id;

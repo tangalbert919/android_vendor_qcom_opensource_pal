@@ -143,6 +143,8 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
         return status;
     }
+
+    delete s;
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }

@@ -124,8 +124,8 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle);
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_register_for_event(qal_stream_handle_t *stream_handle,
-                                 uint32_t event_id, qal_event_cfg_t *event_cfg);
+//int32_t qal_stream_register_for_event(qal_stream_handle_t *stream_handle,
+  //                               uint32_t event_id, qal_event_cfg_t *event_cfg);
 
 /**
   * \brief Start the stream.
