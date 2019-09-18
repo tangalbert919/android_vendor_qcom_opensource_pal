@@ -71,10 +71,24 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device,
 
 CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
+    struct qal_channel_info *codec_device_ch_info;
+    uint16_t channels = device->config.ch_info->channels;
+    uint16_t ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
     rm = Rm;
+
+    codec_device_ch_info = (struct qal_channel_info *) calloc(1, ch_info_size);
+    if (codec_device_ch_info == NULL) {
+        QAL_ERR(LOG_TAG, "Allocation failed for channel map");
+    }
+
     memset(&deviceAttr, 0, sizeof(struct qal_device));
     casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), device,
                      sizeof(struct qal_device));
+    // copy channel info
+    deviceAttr.config.ch_info = codec_device_ch_info;
+    casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
+                     ch_info_size);
+
 }
 
 CodecDevice::CodecDevice()
@@ -84,7 +98,8 @@ CodecDevice::CodecDevice()
 
 CodecDevice::~CodecDevice()
 {
-
+    if (deviceAttr.config.ch_info)
+        free(deviceAttr.config.ch_info);
 }
 
 int CodecDevice::open()
