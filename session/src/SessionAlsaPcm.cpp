@@ -841,7 +841,77 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
 
 int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
 {
-    return 0;
+    int status = 0;
+    uint8_t *ptr = NULL;
+    uint8_t *config = NULL;
+    uint8_t *payloadData = NULL;
+    size_t payloadSize = 0;
+    size_t configSize = 0;
+    int device = pcmDevIds.at(0);
+    uint32_t miid = 0;
+    const char *control = "getParam";
+    const char *stream = "PCM";
+    struct mixer_ctl *ctl;
+    std::ostringstream CntrlName;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    CntrlName << stream << pcmDevIds.at(0) << " " << control;
+    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        status = -ENOENT;
+        goto exit;
+    }
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device, aifBackEnds[0].data(), false, tagId, &miid);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+        goto exit;
+    }
+
+
+    switch (param_id) {
+        case QAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
+        {
+            configSize = sizeof(struct ffv_doa_tracking_monitor_t);
+            builder->payloadDOAInfo(&payloadData, &payloadSize, miid);
+            break;
+        }
+        default:
+            status = EINVAL;
+            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
+            goto exit;
+    }
+
+    status = mixer_ctl_set_array(ctl, payloadData, payloadSize);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Set custom config failed, status = %d", status);
+        goto exit;
+    }
+
+    status = mixer_ctl_get_array(ctl, payloadData, payloadSize);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Get custom config failed, status = %d", status);
+        goto exit;
+    }
+
+    ptr = (uint8_t *)payloadData + sizeof(struct apm_module_param_data_t);
+    config = (uint8_t *)calloc(1, configSize);
+    if (!config) {
+        QAL_ERR(LOG_TAG, "Failed to allocate memory for config");
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    casa_osal_memcpy(config, configSize, ptr, configSize);
+    *payload = (void *)config;
+
+
+exit:
+    if(payloadData)
+        free(payloadData);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+    return status;
 }
 
 int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)

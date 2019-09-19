@@ -174,6 +174,7 @@ public:
     void payloadSVAEventConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
                        struct detection_engine_generic_event_cfg *pEventConfig);
     void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
