@@ -29,12 +29,13 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc\
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
-LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/proprietary/casa/gecko/api
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/apm
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/proprietary/mm-audio/capiv2_api
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/agm/service/inc
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_acdbdata
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
@@ -42,6 +43,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
 LOCAL_CFLAGS     := $(qal-def)
 LOCAL_CFLAGS += -Wno-macro-redefined
+#LOCAL_CFLAGS += -Werror
 LOCAL_CFLAGS += -DCONFIG_GSL
 LOCAL_CFLAGS += -D_GNU_SOURCE
 LOCAL_CPPFLAGS += -fexceptions -frtti
@@ -69,7 +71,8 @@ LOCAL_SRC_FILES        := Qal.cpp\
         session/src/SoundTriggerEngineCapiVop.cpp \
 	session/src/SoundTriggerEngineGsl.cpp \
 	resource_manager/src/ResourceManager.cpp \
-	utils/src/QalRingBuffer.cpp
+	utils/src/QalRingBuffer.cpp \
+session/src/SessionQts.cpp
 
 LOCAL_MODULE               := libqal
 LOCAL_MODULE_OWNER         := qti
@@ -84,6 +87,10 @@ LOCAL_SHARED_LIBRARIES := \
 	libtinyalsa \
 	libtinycompress\
 	libagm
+
+LOCAL_HEADER_LIBRARIES := \
+libcasa-acdbdata \
+libgecko-headers
 
 LOCAL_COPY_HEADERS_TO   := mm-audio/qal
 LOCAL_COPY_HEADERS      := QalApi.h \

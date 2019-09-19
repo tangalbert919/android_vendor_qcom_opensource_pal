@@ -434,7 +434,7 @@ int ResourceManager::init_audio()
 
 int ResourceManager::init()
 {
-
+ return 0;
 }
 
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
