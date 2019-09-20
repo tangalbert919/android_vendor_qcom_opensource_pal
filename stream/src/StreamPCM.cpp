@@ -85,7 +85,6 @@ StreamPCM::StreamPCM(struct qal_stream_attributes *sattr, struct qal_device *dat
             throw std::runtime_error("failed to create device object");
         }
         devices.push_back(dev);
-        rm->registerDevice(dev);
         dev = nullptr;
     }
     mutex.unlock();
@@ -271,8 +270,11 @@ int32_t StreamPCM::start()
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
         break;
-   }
-   QAL_DBG(LOG_TAG, "Exit.");
+    }
+    for (int i = 0; i < devices.size(); i++) {
+        rm->registerDevice(devices[i]);
+    }
+    QAL_DBG(LOG_TAG, "Exit.");
 exit:
     mutex.unlock();
     return status;
@@ -369,6 +371,9 @@ int32_t StreamPCM::stop()
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
         break;
+    }
+    for (int i = 0; i < devices.size(); i++) {
+        rm->deregisterDevice(devices[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 

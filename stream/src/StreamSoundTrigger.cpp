@@ -89,7 +89,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
             throw std::runtime_error("failed to create device object");
         }
         devices.push_back(dev);
-        rm->registerDevice(dev);
         dev = nullptr;
     }
     mutex.unlock();
@@ -199,6 +198,10 @@ int32_t StreamSoundTrigger::start()
             goto exit;
         }
     }
+
+    for (int i = 0; i < devices.size(); i++) {
+        rm->registerDevice(devices[i]);
+    }
     QAL_DBG(LOG_TAG, "Exit. devices started successfully status %d", status);
 
 exit:
@@ -240,6 +243,10 @@ int32_t StreamSoundTrigger::stop()
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
         goto exit;
+    }
+
+    for (int i = 0; i < devices.size(); i++) {
+        rm->deregisterDevice(devices[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. session stop successful");
 

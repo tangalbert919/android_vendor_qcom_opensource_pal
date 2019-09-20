@@ -627,7 +627,6 @@ int SessionGsl::open(Stream *s)
         QAL_ERR(LOG_TAG, "Failed to open the graph with status %d", status);
         goto exit;
     }
-    checkAndConfigConcurrency(s);
     setPayloadConfig(s);
     QAL_DBG(LOG_TAG, "Exit. handle:%pK status %d", graphHandle, status);
 exit:
@@ -1048,6 +1047,7 @@ int SessionGsl::start(Stream *s)
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
 
+    checkAndConfigConcurrency(s);
     status = gslIoctl(graphHandle, GSL_CMD_START, payload, size);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to start the graph, status %d", status);
@@ -1505,9 +1505,18 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     std::vector <std::shared_ptr<Device>> activeDevices;
     std::vector <std::shared_ptr<Device>> deviceList;
     struct qal_stream_attributes sattr;
+
+    // get stream attributes
     status = s->getStreamAttributes(&sattr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return;
+    }
+
+    // get associated device list
+    status = s->getAssociatedDevices(deviceList);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
         return;
     }
 
@@ -1516,26 +1525,37 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     rm->getActiveDevices(activeDevices);
     for (int i = 0; i < activeDevices.size(); i++) {
         int deviceId = activeDevices[i]->getDeviceId();
-        if (deviceId == QAL_DEVICE_OUT_SPEAKER)
+        if (deviceId == QAL_DEVICE_OUT_SPEAKER &&
+            sattr.direction == QAL_AUDIO_INPUT) {
             rxDevice = activeDevices[i];
+            for (int j = 0; j < deviceList.size(); j++) {
+                std::shared_ptr<Device> dev = deviceList[j];
+                if (dev->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
+                    dev->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+                    txDevice = dev;
+            }
+        }
 
         if (deviceId >= QAL_DEVICE_IN_HANDSET_MIC &&
-            deviceId <= QAL_DEVICE_IN_TRI_MIC)
+            deviceId <= QAL_DEVICE_IN_TRI_MIC &&
+            sattr.direction == QAL_AUDIO_OUTPUT) {
             txDevice = activeDevices[i];
+            for (int j = 0; j < deviceList.size(); j++) {
+                std::shared_ptr<Device> dev = deviceList[j];
+                if (dev->getDeviceId() == QAL_DEVICE_OUT_SPEAKER) {
+                    rxDevice = dev;
+                    break;
+                }
+            }
+        }
     }
 
     if (!rxDevice || !txDevice) {
-        QAL_ERR(LOG_TAG, "No need to handle for concurrency");
+        QAL_VERBOSE(LOG_TAG, "No need to handle for concurrency");
         return;
     }
-    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(),
-            txDevice->getDeviceId());
-    // get associated device list
-    status = s->getAssociatedDevices(deviceList);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
-        return;
-    }
+
+    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
 
     // determine concurrency usecase
     for (int i = 0; i < deviceList.size(); i++) {
