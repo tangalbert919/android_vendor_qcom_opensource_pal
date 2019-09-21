@@ -58,6 +58,7 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
         case QAL_AUDIO_FMT_MP3:
             id = SND_AUDIOCODEC_MP3;
             break;
+#ifdef COMPRESS_UAPI_DEC_HEADER
         case QAL_AUDIO_FMT_AAC:
         case QAL_AUDIO_FMT_AAC_ADTS:
         case QAL_AUDIO_FMT_AAC_ADIF:
@@ -83,6 +84,7 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
        case QAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
             break;
+#endif
     }
 
     return id;
@@ -680,6 +682,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
     switch (audio_fmt) {
         case QAL_AUDIO_FMT_MP3:
             break;
+#ifdef COMPRESS_UAPI_DEC_HEADER
         case QAL_AUDIO_FMT_AAC:
             codec.format = SND_AUDIOSTREAMFORMAT_RAW;
             codec.options.aac_dec.audio_obj_type = param_payload->qal_snd_dec.aac_dec.audio_obj_type;
@@ -786,6 +789,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
             QAL_VERBOSE(LOG_TAG, "sample_size - %x, min_blk_size - %x, max_blk_size - %x, min_frame_size - %x, max_frame_size - %x", codec.options.flac_dec.sample_size, codec.options.flac_dec.min_blk_size,
                     codec.options.flac_dec.max_blk_size, codec.options.flac_dec.min_frame_size, codec.options.flac_dec.max_frame_size);
             break;
+#endif
     }
     return 0;
 }

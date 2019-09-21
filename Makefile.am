@@ -169,3 +169,6 @@ if BUILDSYSTEM_OPENWRT
 libqal_la_LIBADD += -lglib-2.0
 endif
 
+if COMPILE_COMPRESS
+libqal_la_CPPFLAGS += -DCOMPRESS_UAPI_DEC_HEADER
+endif

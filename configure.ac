@@ -64,5 +64,11 @@ AS_IF([test "x$with_acdbdata" != "xno"], [ACDBDATA_CFLAGS="-I$with_acdbdata"])
 
 AC_SUBST(ACDBDATA_CFLAGS)
 
+AC_ARG_WITH([compress],
+    AS_HELP_STRING([compile compress (default is no)]),
+    [with_compress=$withval],
+    [with_compress=no])
+AM_CONDITIONAL([COMPILE_COMPRESS], [test "x${with_compress}" = "xyes"])
+
 AC_CONFIG_FILES([ Makefile qal.pc ])
 AC_OUTPUT
