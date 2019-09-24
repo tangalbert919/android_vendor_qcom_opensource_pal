@@ -319,7 +319,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
                   sizeof(struct payload_pcm_output_format_cfg_t) +
                   sizeof(uint8_t)*numChannels;
     padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
-  
+
     payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
@@ -345,7 +345,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     QAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    
+
     mediaFmtHdr->data_format = DATA_FORMAT_FIXED_POINT;
     mediaFmtHdr->fmt_id = MEDIA_FMT_ID_PCM;
     mediaFmtHdr->payload_size = sizeof(payload_pcm_output_format_cfg_t) +
@@ -426,8 +426,8 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
 
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
-    
-void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size, 
+
+void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName)
 {
     struct apm_module_param_data_t* header = NULL;
@@ -440,7 +440,7 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
         QAL_ERR(LOG_TAG, "Invalid input parameters");
         return;
     }
-    
+
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof(struct param_id_codec_dma_intf_cfg_t);
 
@@ -556,7 +556,7 @@ void PayloadBuilder::payloadSlimConfig(uint8_t** payload, size_t* size,
     *payload = payloadInfo;
 }
 
-void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size, 
+void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName)
 {
     struct apm_module_param_data_t* header;
@@ -610,7 +610,7 @@ void PayloadBuilder::payloadI2sConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
 }
 
-void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size, 
+void PayloadBuilder::payloadTdmConfig(uint8_t** payload, size_t* size,
     struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data,
            std::string epName)
 {
@@ -837,14 +837,14 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
     }
 }
 
-void PayloadBuilder::payloadDeviceConfig(uint8_t** payload, size_t* size, 
+void PayloadBuilder::payloadDeviceConfig(uint8_t** payload, size_t* size,
     struct gsl_module_id_info* moduleInfo, int payloadTag,
     struct sessionToPayloadParam* data)
 {
     payloadHwEpConfig(payload, size, moduleInfo, data);
 }
 
-void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size, 
+void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size,
     struct gsl_module_id_info* moduleInfo, int payloadTag,
     struct sessionToPayloadParam *data, std::string epName)
 {
@@ -1016,28 +1016,28 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr)
 void PayloadBuilder::processSlimInfo(const XML_Char **attr) {
     struct slimConfig slimCnf;
 
-	// read interface name
+    // read interface name
     if(strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
         return;
     }
     std::string linkName(attr[1]);
     slimCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
-	// parse slimbus device id
+    // parse slimbus device id
     if(strcmp(attr[2], "slim_dev_id" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'slim_dev_id' not found",__func__);
         return;
     }
     std::string slimDevIdName(attr[3]);
     slimCnf.dev_id = slimDevId.at(slimDevIdName);
-	//parse index_0
+    //parse index_0
     if(strcmp(attr[4], "index_0" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'index_0' not found",__func__);
         return;
     }
     std::string slimIdx0(attr[5]);
     slimCnf.sh_mapping_idx_0 = slimSharedChannels.at(slimIdx0);
-	//parse index_1
+    //parse index_1
     if(strcmp(attr[6], "index_1" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'index_1' not found",__func__);
         return;
@@ -1272,7 +1272,7 @@ void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
     QAL_DBG(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    
+
     volCtrlPayload->num_config = (volumedata->no_of_volpair);
     QAL_DBG(LOG_TAG, "num config %x and given %x", (volCtrlPayload->num_config),
            (volumedata->no_of_volpair));
@@ -1741,6 +1741,9 @@ int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
             break;
+        case QAL_DEVICE_OUT_WIRED_HEADPHONE :
+           keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
+           break;
         default:
             QAL_ERR(LOG_TAG,"%s: Invalid deviceRx id %d\n", __func__,dev_id);
         }
@@ -1807,6 +1810,9 @@ int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>>
         switch(dev_id) {
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
+            break;
+        case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+            keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
             break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
@@ -1932,7 +1938,7 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
         *volume_data = voldata;
 
 free_voldata:
-	if (status)
+    if (status)
         free(voldata);
 exit:
     return status;
@@ -2033,11 +2039,11 @@ int PayloadBuilder::populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, 
     QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
 
 #if 0
-	if (volume_data)
-	     *volume_data = voldata;
+    if (volume_data)
+         *volume_data = voldata;
 
 free_voldata:
-	if (status)
+    if (status)
         free(voldata);
 #endif
 exit:

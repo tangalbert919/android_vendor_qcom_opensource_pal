@@ -10,6 +10,7 @@ h_sources = ./stream/inc/Stream.h \
             ./stream/inc/StreamSoundTrigger.h \
             ./device/inc/Device.h \
             ./device/inc/Speaker.h \
+            ./device/inc/Headphone.h \
             ./device/inc/CodecDevice.h \
             ./device/inc/CodecDeviceAlsa.h \
             ./device/inc/CodecDeviceGsl.h \
@@ -46,6 +47,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./stream/src/StreamSoundTrigger.cpp \
               ./device/src/Device.cpp \
               ./device/src/Speaker.cpp \
+              ./device/src/Headphone.cpp \
               ./device/src/CodecDeviceAlsa.cpp \
               ./device/src/CodecDevice.cpp \
               ./device/src/SpeakerMic.cpp \
@@ -71,6 +73,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamSoundTrigger.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/Speaker.h \
+            ${top_srcdir}/device/inc/Headphone.h \
             ${top_srcdir}/device/inc/CodecDevice.h \
             ${top_srcdir}/device/inc/CodecDeviceAlsa.h \
             ${top_srcdir}/device/inc/CodecDeviceGsl.h \
@@ -125,6 +128,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamSoundTrigger.cpp \
               ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/Speaker.cpp \
+              ${top_srcdir}/device/src/Headphone.cpp \
               ${top_srcdir}/device/src/CodecDeviceAlsa.cpp \
               ${top_srcdir}/device/src/CodecDevice.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \

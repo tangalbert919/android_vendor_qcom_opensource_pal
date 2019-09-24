@@ -38,9 +38,11 @@
 #include "gsl_intf.h"
 #include "SessionGsl.h"
 #include "SessionQts.h"
+#include "Headphone.h"
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
+
 
 
 #define MIXER_FILE_DELIMITER "_"
@@ -434,7 +436,7 @@ int ResourceManager::init_audio()
 
 int ResourceManager::init()
 {
- return 0;
+    return 0;
 }
 
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
@@ -579,6 +581,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                 rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
                     Speaker::isSampleRateSupported(dev_samplerate) |
                     Speaker::isChannelSupported(dev_channels));
+                break;
+            case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+                rc = (Headphone::isBitWidthSupported(dev_bitwidth) |
+                     Headphone::isSampleRateSupported(dev_samplerate) |
+                     Headphone::isChannelSupported(dev_channels));
                 break;
             case QAL_DEVICE_IN_HANDSET_MIC:
             case QAL_DEVICE_IN_SPEAKER_MIC:
@@ -989,10 +996,9 @@ const qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
 
 //TODO move this to xml configuration
 
-//#ifdef ALSA
-//    return ALSA;
+   return ALSA;
 //#ifdef GSL
-    return ALSA;
+   // return GSL;
 
 }
 

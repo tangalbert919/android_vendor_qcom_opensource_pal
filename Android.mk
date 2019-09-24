@@ -22,10 +22,10 @@ qal-def += -D_ANDROID_
 #LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/gsl
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc\
-	$(LOCAL_PATH)/device/inc\
-	$(LOCAL_PATH)/session/inc\
-	$(LOCAL_PATH)/resource_manager/inc\
-	$(LOCAL_PATH)/utils/inc
+    $(LOCAL_PATH)/device/inc\
+    $(LOCAL_PATH)/session/inc\
+    $(LOCAL_PATH)/resource_manager/inc\
+    $(LOCAL_PATH)/utils/inc
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
@@ -50,28 +50,29 @@ LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
 LOCAL_SRC_FILES        := Qal.cpp\
-	stream/src/Stream.cpp\
-	stream/src/StreamCompress.cpp\
-	stream/src/StreamPCM.cpp\
-	stream/src/StreamSoundTrigger.cpp\
-	device/src/Device.cpp \
-	device/src/Speaker.cpp \
-	device/src/CodecDeviceAlsa.cpp \
-	device/src/CodecDevice.cpp \
-	device/src/SpeakerMic.cpp \
-	device/src/CodecDeviceGsl.cpp \
-	session/src/Session.cpp \
-	session/src/PayloadBuilder.cpp \
-	session/src/SessionGsl.cpp \
-	session/src/SessionAlsaPcm.cpp \
-	session/src/SessionAlsaUtils.cpp \
-	session/src/SessionAlsaCompress.cpp \
-	session/src/SoundTriggerEngine.cpp \
-	session/src/SoundTriggerEngineCapiCnn.cpp \
+    stream/src/Stream.cpp\
+    stream/src/StreamCompress.cpp\
+    stream/src/StreamPCM.cpp\
+    stream/src/StreamSoundTrigger.cpp\
+    device/src/Headphone.cpp \
+    device/src/Device.cpp \
+    device/src/Speaker.cpp \
+    device/src/CodecDeviceAlsa.cpp \
+    device/src/CodecDevice.cpp \
+    device/src/SpeakerMic.cpp \
+    device/src/CodecDeviceGsl.cpp \
+    session/src/Session.cpp \
+    session/src/PayloadBuilder.cpp \
+    session/src/SessionGsl.cpp \
+    session/src/SessionAlsaPcm.cpp \
+    session/src/SessionAlsaUtils.cpp \
+    session/src/SessionAlsaCompress.cpp \
+    session/src/SoundTriggerEngine.cpp \
+    session/src/SoundTriggerEngineCapiCnn.cpp \
         session/src/SoundTriggerEngineCapiVop.cpp \
-	session/src/SoundTriggerEngineGsl.cpp \
-	resource_manager/src/ResourceManager.cpp \
-	utils/src/QalRingBuffer.cpp \
+    session/src/SoundTriggerEngineGsl.cpp \
+    resource_manager/src/ResourceManager.cpp \
+    utils/src/QalRingBuffer.cpp \
 session/src/SessionQts.cpp
 
 LOCAL_MODULE               := libqal
@@ -79,14 +80,14 @@ LOCAL_MODULE_OWNER         := qti
 LOCAL_MODULE_TAGS          := optional
 
 LOCAL_SHARED_LIBRARIES := \
-	libcasa-gsl\
-	liblog\
-	libexpat\
-	liblx-osal\
-	libaudioroute\
-	libtinyalsa \
-	libtinycompress\
-	libagm
+    libcasa-gsl\
+    liblog\
+    libexpat\
+    liblx-osal\
+    libaudioroute\
+    libtinyalsa \
+    libtinycompress\
+    libagm
 
 LOCAL_HEADER_LIBRARIES := \
 libcasa-acdbdata \
@@ -94,7 +95,7 @@ libgecko-headers
 
 LOCAL_COPY_HEADERS_TO   := mm-audio/qal
 LOCAL_COPY_HEADERS      := QalApi.h \
-			   QalDefs.h
+               QalDefs.h
 
 LOCAL_VENDOR_MODULE := true
 

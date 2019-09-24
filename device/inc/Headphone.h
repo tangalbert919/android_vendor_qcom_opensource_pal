@@ -27,60 +27,25 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Device"
-#include "Device.h"
+#ifndef HEADPHONE_H
+#define HEADPHONE_H
+
 #include "CodecDevice.h"
-#include "ResourceManager.h"
+#include "QalAudioRoute.h"
 
-Device::Device(){}
-
-Device::~Device(){}
-
-std::shared_ptr<Device> Device::create(struct qal_device *device,
-                                              std::shared_ptr<ResourceManager> Rm)
+class Headphone : public CodecDevice
 {
-    QAL_DBG(LOG_TAG, "Enter. device id %d", device->id);
-    switch(device->id) {
-        case QAL_DEVICE_OUT_SPEAKER:
-        case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_HANDSET_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
-            QAL_VERBOSE(LOG_TAG,"device  %d",device->id);
-            return CodecDevice::getInstance(device, Rm);
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"Unsupported device id %d", device->id);
-            return nullptr;
-    }
-}
-
-int Device::getDeviceAtrributes(struct qal_device *dattr)
-{
-    int status = 0;
-    if (!dattr) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
-        goto exit;
-    }
-    casa_osal_memcpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
-exit:
-    return status;
-}
+protected:
+    static std::shared_ptr<Device> obj;
+    Headphone(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+public:
+    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
+    static int32_t isSampleRateSupported(uint32_t sampleRate);
+    static int32_t isChannelSupported(uint32_t numChannels);
+    static int32_t isBitWidthSupported(uint32_t bitWidth);
+    ~Headphone();
+};
 
 
-int Device::setDeviceAttributes(struct qal_device dattr)
-{
-    int status = 0;
-    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr, sizeof(struct qal_device));
-    return status;
-}
-
-
-int Device::getDeviceId()
-{
-    QAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);
-    return deviceAttr.id;
-}
+#endif //HEADPHONE_H

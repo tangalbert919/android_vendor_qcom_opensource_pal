@@ -830,7 +830,7 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     rm->getActiveDevices(activeDevices);
     for (int i = 0; i < activeDevices.size(); i++) {
         int deviceId = activeDevices[i]->getDeviceId();
-        if (deviceId == QAL_DEVICE_OUT_SPEAKER &&
+        if ((deviceId == QAL_DEVICE_OUT_SPEAKER) || (deviceId == QAL_DEVICE_OUT_WIRED_HEADPHONE) &&
             sAttr.direction == QAL_AUDIO_INPUT) {
             rxDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
@@ -847,7 +847,7 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
             txDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getDeviceId() == QAL_DEVICE_OUT_SPEAKER) {
+                if ((deviceId == QAL_DEVICE_OUT_SPEAKER) || (deviceId == QAL_DEVICE_OUT_WIRED_HEADPHONE)) {
                     rxDevice = dev;
                     break;
                 }

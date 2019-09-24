@@ -36,6 +36,7 @@
 #include "ResourceManager.h"
 #include "Device.h"
 #include "Speaker.h"
+#include "Headphone.h"
 #include "SpeakerMic.h"
 #include "CodecDeviceImpl.h"
 #include "Stream.h"
@@ -53,6 +54,10 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+        QAL_VERBOSE(LOG_TAG, "headphone device");
+        return Headphone::getInstance(device, Rm);
         break;
     case QAL_DEVICE_IN_SPEAKER_MIC:
     case QAL_DEVICE_IN_HANDSET_MIC:
