@@ -421,6 +421,18 @@ int32_t qal_set_mic_mute(bool state);
   */
 int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle, struct qal_session_time *stime);
 
+/**
+  * \brief Add remove effects for Voip TX path.
+  *
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from qal_stream_open
+  * \param[in] effect - effect to be enabled or disable
+  * \param[in] enable - enable/disable
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle, qal_audio_effect_t effect, bool enable);
+
 extern void  __gcov_flush();
 
 /**

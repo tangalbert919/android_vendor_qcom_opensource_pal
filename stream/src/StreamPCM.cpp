@@ -661,3 +661,37 @@ int32_t StreamPCM::isBitWidthSupported(uint32_t bitWidth)
     }
     return rc;
 }
+
+int32_t StreamPCM::addRemoveEffect(qal_audio_effect_t effect, bool enable)
+{
+    int32_t status = 0;
+    int32_t tag = 0;
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    mutex.lock();
+
+    if (!enable) {
+        tag = FLUENCE_OFF_TAG;
+    } else {
+        if (QAL_AUDIO_EFFECT_EC == effect) {
+            tag = FLUENCE_EC_TAG;
+        } else if (QAL_AUDIO_EFFECT_NS == effect) {
+            tag = FLUENCE_NS_TAG;
+        } else if (QAL_AUDIO_EFFECT_ECNS == effect) {
+            tag = FLUENCE_ON_TAG;
+        } else {
+            QAL_ERR(LOG_TAG, "Invalid effect ID %d");
+            status = -EINVAL;
+            goto exit;
+        }
+    }
+    status = session->setConfig(this, MODULE, tag);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "session setConfig for addRemoveEffect failed with status %d",
+                status);
+        goto exit;
+    }
+    QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+exit:
+    mutex.unlock();
+    return status;
+}

@@ -65,6 +65,8 @@ typedef enum {
 #define MFC_SR_384K 11
 #define FLUENCE_ON_TAG 12
 #define FLUENCE_OFF_TAG 13
+#define FLUENCE_EC_TAG 14
+#define FLUENCE_NS_TAG 15
 
 class Device;
 class ResourceManager;
@@ -108,6 +110,7 @@ public:
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     int32_t getStreamType(qal_stream_type_t* streamType);
+    virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0;
     virtual int32_t write(struct qal_buffer *buf) = 0;
     virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;

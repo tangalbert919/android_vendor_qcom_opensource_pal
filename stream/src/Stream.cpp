@@ -337,4 +337,3 @@ int32_t Stream::getTimestamp(struct qal_session_time *stime)
 exit:
     return status;
 }
-

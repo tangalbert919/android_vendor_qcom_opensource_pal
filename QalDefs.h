@@ -219,6 +219,13 @@ typedef enum {
     QAL_AUDIO_INPUT_OUTPUT  = 0x3, /**< transcode usecases*/
 } qal_stream_direction_t;
 
+/** Audio Voip TX Effect enumeration */
+typedef enum {
+    QAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation*/
+    QAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression*/
+    QAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
+} qal_audio_effect_t;
+
 /** Audio stream types */
 typedef enum {
     QAL_STREAM_LOW_LATENCY = 1,      /**< :low latency, higher power*/

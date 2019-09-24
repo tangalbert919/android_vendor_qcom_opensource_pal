@@ -2241,6 +2241,22 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
        *gsltag = TAG_STREAM_MFC_SR;
        break;
+    case FLUENCE_ON_TAG:
+       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_ON));
+       *gsltag = TAG_FLUENCE;
+       break;
+    case FLUENCE_OFF_TAG:
+       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_OFF));
+       *gsltag = TAG_FLUENCE;
+       break;
+    case FLUENCE_EC_TAG:
+       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_EC));
+       *gsltag = TAG_FLUENCE;
+       break;
+    case FLUENCE_NS_TAG:
+       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_NS));
+       *gsltag = TAG_FLUENCE;
+       break;
     default:
        QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
        break;

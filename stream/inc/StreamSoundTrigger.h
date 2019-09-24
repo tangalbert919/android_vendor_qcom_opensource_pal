@@ -132,5 +132,6 @@ private:
     int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
     int32_t create_st_engine(std::vector<std::pair<uint32_t, SoundTriggerEngine *>> &engines);
     int32_t generate_callback_event(struct qal_st_recognition_event **event);
+    int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
 };
 #endif//STREAMSOUNDTRIGGER_H_

@@ -1069,3 +1069,9 @@ int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth)
     }
     return rc;
 }
+
+int32_t StreamSoundTrigger::addRemoveEffect(qal_audio_effect_t effect, bool enable)
+{
+    QAL_ERR(LOG_TAG, " Function not supported");
+    return -ENOSYS;
+}
