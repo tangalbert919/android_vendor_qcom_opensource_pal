@@ -61,6 +61,8 @@ private:
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
     std::vector<std::string> aifBackEnds;
+    std::vector<std::string> rxAifBackEnds;
+    std::vector<std::string> txAifBackEnds;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;

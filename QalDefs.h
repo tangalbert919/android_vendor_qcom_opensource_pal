@@ -270,6 +270,7 @@ typedef enum {
     QAL_DEVICE_OUT_FM,                         /**< FM */
     QAL_DEVICE_OUT_AUX_LINE,                   /**< AUX LINE Out*/
     QAL_DEVICE_OUT_PROXY,                      /**< PROXY OUT*/
+    /** Add New RX OUT Devices Here */
 
     //INPUT DEVICES
     QAL_DEVICE_IN_HANDSET_MIC,                 /**< Handset MIC*/
@@ -288,6 +289,7 @@ typedef enum {
     QAL_DEVICE_IN_LINE,                        /**< LINE IN*/
     QAL_DEVICE_IN_SPDIF,                       /**< SPDIF IN*/
     QAL_DEVICE_IN_PROXY,                       /**< PROXY IN*/
+    /** Add New TX IN Devices Here */
 
 } qal_device_id_t;
 
@@ -299,12 +301,21 @@ typedef enum {
     QAL_STREAM_CBK_EVENT_ERROR, /* stream hit some error, let AF take action */
 } qal_stream_callback_event_t;
 
+typedef enum {
+    QAL_STREAM_LOOPBACK_PCM,
+    QAL_STREAM_LOOPBACK_HFP_RX,
+    QAL_STREAM_LOOPBACK_HFP_TX,
+    QAL_STREAM_LOOPBACK_COMPRESS,
+} qal_stream_loopback_type_t;
+
 struct qal_stream_info {
     int64_t version;                    /** version of structure*/
     int64_t size;                       /** size of structure*/
     int64_t duration_us;                /** duration in microseconds, -1 if unknown */
     bool has_video;                     /** optional, true if stream is tied to a video stream */
     bool is_streaming;                  /** true if streaming, false if local playback */
+    int32_t loopback_type;              /** used only if stream_type is LOOPBACK. One of the */
+                                        /** enums defined in enum qal_stream_loopback_type */
     //qal_audio_attributes_t usage;       /** Not sure if we make use of this */
 };
 

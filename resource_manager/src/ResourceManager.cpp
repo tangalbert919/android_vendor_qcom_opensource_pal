@@ -1313,7 +1313,6 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
     return;
 }
 
-
 const std::vector<std::string> ResourceManager::getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const
 {
     std::vector<std::string> backEndNames;
@@ -1337,6 +1336,36 @@ const std::vector<std::string> ResourceManager::getBackEndNames(const std::vecto
     }
 
     return backEndNames;
+}
+
+void ResourceManager::getBackEndNames(
+        const std::vector<std::shared_ptr<Device>> &deviceList,
+        std::vector<std::string> &rxBackEndNames,
+        std::vector<std::string> &txBackEndNames) const
+{
+    std::string epname;
+    rxBackEndNames.clear();
+    txBackEndNames.clear();
+
+    int dev_id;
+
+    for (int i = 0; i < deviceList.size(); i++) {
+        dev_id = deviceList[i]->getSndDeviceId();
+        if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_OUT_PROXY) {
+            epname.assign(listAllBackEndIds[dev_id].second);
+            rxBackEndNames.push_back(epname);
+        } else if (dev_id >= QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
+            epname.assign(listAllBackEndIds[dev_id].second);
+            txBackEndNames.push_back(epname);
+        } else {
+            QAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
+        }
+    }
+
+    for (int i = 0; i < rxBackEndNames.size(); i++)
+        QAL_DBG(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].c_str());
+    for (int i = 0; i < txBackEndNames.size(); i++)
+        QAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].c_str());
 }
 #if 0
 const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,

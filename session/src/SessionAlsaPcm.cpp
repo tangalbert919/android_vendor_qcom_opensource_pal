@@ -91,7 +91,7 @@ int SessionAlsaPcm::open(Stream * s)
         pcmDevRxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, RXLOOPBACK);
         pcmDevTxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, TXLOOPBACK);
     }
-    aifBackEnds = rm->getBackEndNames(associatedDevices);
+    rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
     status = rm->getAudioMixer(&mixer);
     if (status) {
         QAL_ERR(LOG_TAG,"mixer error");
@@ -99,14 +99,14 @@ int SessionAlsaPcm::open(Stream * s)
     }
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
-            status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
+            status = SessionAlsaUtils::open(s, rm, pcmDevIds, txAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
             }
             break;
         case QAL_AUDIO_OUTPUT:
-            status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
+            status = SessionAlsaUtils::open(s, rm, pcmDevIds, rxAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
@@ -118,9 +118,15 @@ int SessionAlsaPcm::open(Stream * s)
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
                 status = 0; //TODO: add this to some policy in qal
             }
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0), aifBackEnds[0].data(), false, STREAM_SPR, &spr_miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                return status;
+            }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
-            status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds, aifBackEnds);
+            status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds,
+                    rxAifBackEnds, txAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevRxIds, sAttr.type, sAttr.direction, RXLOOPBACK);

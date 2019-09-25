@@ -1606,7 +1606,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
 }
 
 void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
-                                                              uint32_t moduleId)
+                                           uint32_t moduleId)
 {
     struct apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
@@ -1657,6 +1657,46 @@ void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t mo
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
+/** Used for Loopback stream types only */
+int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx)
+{
+    int status = 0;
+    struct qal_stream_attributes *sattr = NULL;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    sattr = new struct qal_stream_attributes();
+    if (!sattr) {
+        QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
+        return -ENOMEM;
+    }
+    status = s->getStreamAttributes(sattr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        goto free_sattr;
+    }
+
+    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    switch (sattr->type) {
+        case QAL_STREAM_LOOPBACK:
+            if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_RX) {
+                keyVectorRx.push_back(std::make_pair(STREAMRX, HFP_RX_PLAYBACK));
+                keyVectorTx.push_back(std::make_pair(STREAMRX, HFP_RX_CAPTURE));
+            } else if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_TX) {
+                /** no StreamKV for HFP TX */
+            } else /** pcm loopback*/ {
+                keyVectorRx.push_back(std::make_pair(STREAMTX, PCM_RX_LOOPBACK));
+            }
+            break;
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+    }
+free_sattr:
+    delete sattr;
+exit:
+    return status;
+}
 
 int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
 {
@@ -1685,18 +1725,18 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     switch (sattr->type) {
         case QAL_STREAM_LOW_LATENCY:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
                 keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
             } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels >= 3)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
+                keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_PRO));
             } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 1)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
-                keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_SMECNS));
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
+                keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_SMECNS));
             } else if (sattr->direction == QAL_AUDIO_INPUT && (sattr->in_media_config.ch_info->channels == 2)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_RECORD));
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
             } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_RX_LOOPBACK));
             } else {
                 status = -EINVAL;
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
@@ -1705,7 +1745,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
         case QAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
                 keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_2));
             } else {
                 status = -EINVAL;
@@ -1718,20 +1758,20 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_STREAM_COMPRESSED:
            if (sattr->direction == QAL_AUDIO_OUTPUT) {
                QAL_VERBOSE(LOG_TAG,"%s: Stream compressed \n", __func__);
-               keyVector.push_back(std::make_pair(STREAM_TYPE, COMPRESS_PLAYBACK));
+               keyVector.push_back(std::make_pair(STREAMRX, COMPRESSED_OFFLOAD_PLAYBACK));
                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
            }
             break;
         case QAL_STREAM_VOIP_TX:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_TX_RECORD));
-            keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
+            keyVector.push_back(std::make_pair(STREAMTX,VOIP_TX_RECORD));
+            keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_PRO));
             break;
         case QAL_STREAM_VOIP_RX:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOIP_RX_PLAYBACK));
+            keyVector.push_back(std::make_pair(STREAMRX,VOIP_RX_PLAYBACK));
             break;
         case QAL_STREAM_VOICE_UI:
-            keyVector.push_back(std::make_pair(STREAM_TYPE,VOICE_UI));
-            keyVector.push_back(std::make_pair(DEVICEPP_TX,VOICE_FLUENCE_FFECNS));
+            keyVector.push_back(std::make_pair(STREAMTX,VOICE_UI));
+            keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
             break;
         default:
             status = -EINVAL;
@@ -1746,16 +1786,32 @@ exit:
 
 }
 
-int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector) {
+int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = 0;
+
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
-    int status = -ENOSYS;
-
-
     return status;
 }
 
+int PayloadBuilder::populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx)
+{
+    int status = -ENOSYS;
 
-int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    status = populateStreamKV(s, keyVectorRx, keyVectorTx);
+    if (status)
+        goto exit;
+
+    status = populateDeviceKV(s, keyVectorRx, keyVectorTx);
+
+exit:
+    return status;
+}
+
+int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx)
 {
     int status = 0;
     int32_t dev_id = 0;
@@ -1769,58 +1825,85 @@ int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int
         goto error;
     }
 
-    for (int32_t i=0; i<(associatedDevices.size()); i++) {
+    for (int32_t i = 0; i < (associatedDevices.size()); i++) {
         dev_id = associatedDevices[i]->getSndDeviceId();
         switch(dev_id) {
         case QAL_DEVICE_OUT_SPEAKER :
-            keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
+            keyVectorRx.push_back(std::make_pair(DEVICERX,SPEAKER));
+            break;
+        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+            keyVectorRx.push_back(std::make_pair(DEVICERX, BT_SCO));
             break;
         case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE :
-           keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
+           keyVectorRx.push_back(std::make_pair(DEVICERX,HEADPHONES));
            break;
-        default:
-            QAL_ERR(LOG_TAG,"%s: Invalid deviceRx id %d\n", __func__,dev_id);
-        }
-    }
-
-error:
-    return status;
-
-}
-
-int PayloadBuilder::populateDeviceTxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
-{
-    int status = 0;
-    int32_t dev_id = 0;
-    std::vector<std::shared_ptr<Device>> associatedDevices;
-
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
-    status = s->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed status %d\n", __func__, status);
-        goto error;
-    }
-
-    for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getSndDeviceId();
-        switch(dev_id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
         case QAL_DEVICE_IN_TRI_MIC:
         case QAL_DEVICE_IN_QUAD_MIC:
         case QAL_DEVICE_IN_EIGHT_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           keyVectorTx.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           break;
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+           keyVectorTx.push_back(std::make_pair(DEVICETX, BT_SCO_MIC));
            break;
         default:
-            QAL_ERR(LOG_TAG,"%s: Invalid device tx id %d\n", __func__,dev_id);
+            QAL_ERR(LOG_TAG,"%s: Invalid device id %d\n", __func__,dev_id);
+            break;
         }
     }
-
 error:
     return status;
-
 }
+
+int PayloadBuilder::populateDevicePPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+                                       std::vector <std::pair<int,int>> &keyVectorTx )
+{
+    int status = 0;
+    struct qal_stream_attributes *sattr = NULL;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    sattr = new struct qal_stream_attributes;
+    if (!sattr) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG,"sattr malloc failed %s status %d", strerror(errno), status);
+        goto exit;
+    }
+    memset (sattr, 0, sizeof(struct qal_stream_attributes));
+
+    status = s->getStreamAttributes(sattr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        goto free_sattr;
+    }
+
+    //todo move the keys to a to an xml of stream type to key
+    //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
+    //from there create a map and retrieve the right keys
+    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    switch (sattr->type) {
+        case QAL_STREAM_VOICE_CALL:
+            keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_VOICE_DEFAULT_PP));
+            if (sattr->in_media_config.ch_info->channels == 1) {
+                 keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_SMECNS));
+            } else if (sattr->in_media_config.ch_info->channels == 2) {
+                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE));
+            } else if(sattr->in_media_config.ch_info->channels >= 3){
+                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_PRO));
+            }
+        break;
+        default:
+            QAL_ERR(LOG_TAG,"steam type %s doesnt support populateDevicePPRxKV ", sattr->type);
+            goto free_sattr;
+        }
+
+free_sattr:
+    delete sattr;
+exit:
+    return status;
+}
+
 int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
 {
     int status = 0;
@@ -1844,18 +1927,24 @@ int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>>
         dev_id = associatedDevices[i]->getSndDeviceId();
         switch(dev_id) {
         case QAL_DEVICE_OUT_SPEAKER :
-            keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
+            keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
+            break;
+        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+            keyVector.push_back(std::make_pair(DEVICERX, BT_SCO));
             break;
         case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-            keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
+            keyVector.push_back(std::make_pair(DEVICERX,HEADPHONES));
             break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
         case QAL_DEVICE_IN_TRI_MIC:
         case QAL_DEVICE_IN_QUAD_MIC:
         case QAL_DEVICE_IN_EIGHT_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX,HANDSETMIC));
+           keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
+           break;
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+           keyVector.push_back(std::make_pair(DEVICETX, BT_SCO_MIC));
            break;
         default:
             QAL_ERR(LOG_TAG,"%s: Invalid device id %d\n", __func__,dev_id);

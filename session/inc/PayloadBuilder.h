@@ -179,10 +179,16 @@ public:
     void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx);
     int populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateStreamDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx);
     int populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
-    int populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
-    int populateDeviceTxKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
+    int populateDeviceKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx);
+    int populateDevicePPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+                           std::vector <std::pair<int,int>> &keyVectorTx);
     int populateGkv(Stream *s, struct gsl_key_vector *gkv);
     int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, struct qal_volume_data **);
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);

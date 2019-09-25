@@ -47,20 +47,54 @@ enum class MixerCtlType: uint32_t {
     MIXER_SET_ID_ARRAY,
 };
 
+enum FeCtrlsIndex {
+    FE_CONTROL,
+    FE_METADATA,
+    FE_CONNECT,
+    FE_DISCONNECT,
+    FE_SETPARAM,
+    FE_GETTAGGEDINFO,
+    FE_SETPARAMTAG,
+    FE_GETPARAM,
+    FE_ECHOREFERENCE,
+    FE_SIDETONE,
+    FE_LOOPBACK,
+    FE_EVENT,
+    FE_SETCAL,
+    FE_MAX_NUM_MIXER_CONTROLS,
+};
+
+enum BeCtrlsIndex {
+    BE_METADATA,
+    BE_MEDIAFMT,
+    BE_MAX_NUM_MIXER_CONTROLS,
+};
+
+
 class SessionAlsaUtils
 {
 private:
     SessionAlsaUtils() {};
+    static bool isRxDevice(uint32_t devId);
+    static void getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
+                        const std::vector <std::pair<int, int>> &ckv, 
+                        struct prop_data *propData,
+                        struct agmMetaData &md);
+    static struct mixer_ctl *getFeMixerControl(struct mixer *am, std::string feName,
+        uint32_t idx);
+    static struct mixer_ctl *getBeMixerControl(struct mixer *am, std::string beName,
+        uint32_t idx);
 public:
     ~SessionAlsaUtils();
     static int setMixerCtlData(struct mixer_ctl *ctl, MixerCtlType id, void *data, int size);
-    static int getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
-                              const std::vector <std::pair<int, int>> &ckv,
-                              struct prop_data *propData, uint32_t &mdSize, uint8_t **data);
     static int getTagMetadata(int32_t tagsent, std::vector <std::pair<int, int>> &tkv, struct agm_tag_config *tagConfig);
     static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);
     static unsigned int bitsToAlsaFormat(unsigned int bits);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds, const std::vector<std::string> &BackEnds);
+    static int open(Stream * s, std::shared_ptr<ResourceManager> rm,
+                    const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
+                    const std::vector<std::string> &rxBackEnds,
+                    const std::vector<std::string> &txBackEnds);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
                        bool isCompress, int tag_id, uint32_t *miid);
     static int setMixerParameter(struct mixer *mixer, int device,
@@ -68,8 +102,7 @@ public:
     static int setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress);
     static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register);
     static int setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name);
-    static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
-                    const std::vector<std::string> &BackEnds);
+
     static int getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
     static int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,

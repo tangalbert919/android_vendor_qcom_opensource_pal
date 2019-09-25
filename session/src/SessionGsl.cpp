@@ -1313,21 +1313,21 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     QAL_DBG(LOG_TAG, "tx stream type = %d", txStreamType);
     // TODO: use table to map types/devices to key values
     if (txStreamType == QAL_STREAM_VOICE_UI) {
-        keyVector.push_back(std::make_pair(STREAM_TYPE, VOICE_UI_EC_REF_PATH));
-        keyVector.push_back(std::make_pair(DEVICEPP_TX,VOICE_FLUENCE_FFECNS));
+        keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
+        keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
     } else if (txStreamType == QAL_STREAM_VOIP_TX) {
-        keyVector.push_back(std::make_pair(STREAM_TYPE, VOIP_TX_EC_REF_PATH));
-        keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
+        keyVector.push_back(std::make_pair(STREAMTX, VOIP_TX_RECORD));
+        keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_PRO));
     }
     else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
              && (sAttr.in_media_config.ch_info->channels >= 3)) {
-        keyVector.push_back(std::make_pair(STREAM_TYPE, PCM_RECORD_EC_REF_PATH));
-        keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_PRO));
+        keyVector.push_back(std::make_pair(STREAMTX, PCM_RECORD));
+        keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_PRO));
     }
     else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
               && (sAttr.in_media_config.ch_info->channels == 1)) {
-        keyVector.push_back(std::make_pair(STREAM_TYPE, PCM_RECORD_EC_REF_PATH));
-        keyVector.push_back(std::make_pair(DEVICEPP_TX,AUDIO_FLUENCE_SMECNS));
+        keyVector.push_back(std::make_pair(STREAMTX, PCM_RECORD));
+        keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
     }
     else
         // TODO: handle for other concurrency usecases also
