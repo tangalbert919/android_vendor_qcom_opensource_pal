@@ -39,6 +39,7 @@
 #include <string>
 #include "detection_cmn_api.h"
 #include "audio_dam_buffer_api.h"
+#include "apm_api.h"
 
 SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
 {
