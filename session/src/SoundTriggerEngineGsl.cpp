@@ -54,7 +54,7 @@ void SoundTriggerEngineGsl::buffer_thread_loop()
     while (!sndEngGsl_->exit_thread_) {
         QAL_VERBOSE(LOG_TAG, "waiting on cond");
         /* Wait for keyword buffer data from DSP */
-        if (!sndEngGsl_->eventDetected)
+        if (!sndEngGsl_->eventDetected || sndEngGsl_->exit_buffering_)
             sndEngGsl_->cv_.wait(lck);
         QAL_INFO(LOG_TAG, "done waiting on cond, exit_buffering = %d, exit_thread = %d",
             sndEngGsl_->exit_buffering_, sndEngGsl_->exit_thread_);
@@ -280,13 +280,13 @@ int32_t SoundTriggerEngineGsl::load_sound_model(Stream *s, uint8_t *data,
     SML_BigSoundModelTypeV3 *big_sm;
     uint8_t *sm_payload = NULL;
 
+    mutex.lock();
     if (!data) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid sound model data status %d", status);
         goto exit;
     }
 
-    mutex.lock();
     QAL_DBG(LOG_TAG, "Enter.");
     common_sm = (struct qal_st_sound_model *)data;
     if (common_sm->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -446,6 +446,35 @@ exit:
     return status;
 }
 
+int32_t SoundTriggerEngineGsl::stop_buffering(Stream *s)
+{
+    int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+    mutex.lock();
+    exit_buffering_ = true;
+    if (buffer_)
+        buffer_->reset();
+    else {
+        status = -EINVAL;
+        goto exit;
+    }
+
+    status = session->setParameters(streamHandle, DEVICE_SVA, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d", status);
+        goto exit;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "stop buffering success");
+    mutex.unlock();
+    return status;
+
+exit:
+    QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
+    mutex.unlock();
+    return status;
+}
+
 int32_t SoundTriggerEngineGsl::stop_recognition(Stream *s)
 {
     int32_t status = 0;
@@ -538,6 +567,7 @@ void SoundTriggerEngineGsl::setDetected(bool detected)
     if (detected != eventDetected) {
         QAL_INFO(LOG_TAG, "notify condition variable");
         eventDetected = detected;
+        exit_buffering_ = !eventDetected;
         QAL_INFO(LOG_TAG, "eventDetected set to %d", detected);
         cv_.notify_one();
     }

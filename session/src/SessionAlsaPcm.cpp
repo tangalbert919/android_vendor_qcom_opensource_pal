@@ -454,6 +454,7 @@ int SessionAlsaPcm::stop(Stream * s)
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
         threadHandler.join();
         QAL_DBG(LOG_TAG, "threadHandler joined");
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), aifBackEnds[0].data(), false, DEVICE_SVA, false);
     }
     return status;
 }
@@ -503,6 +504,11 @@ exit:
 int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
 {
     int status = 0, bytesRead = 0, bytesToRead = 0, offset = 0, pcmReadSize = 0;
+    uint64_t timestamp = 0;
+    const char *control = "bufTimestamp";
+    const char *stream = "PCM";
+    struct mixer_ctl *ctl;
+    std::ostringstream CntrlName;
     while (1) {
         offset = bytesRead + buf->offset;
         bytesToRead = buf->size - offset;
@@ -518,6 +524,27 @@ int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
         if ((0 != status) || (pcmReadSize == 0)) {
             QAL_ERR(LOG_TAG,"%s: Failed to read data %d bytes read %d", __func__, status, pcmReadSize);
             break;
+        }
+
+        if (!bytesRead && buf->ts) {
+            CntrlName << stream << pcmDevIds.at(0) << " " << control;
+            ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+            if (!ctl) {
+                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+                status = -ENOENT;
+                goto exit;
+            }
+
+            status = mixer_ctl_get_array(ctl, (void *)&timestamp, sizeof(uint64_t));
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Get timestamp failed, status = %d", status);
+                goto exit;
+            }
+
+            buf->ts->tv_sec = timestamp / 1000000;
+            buf->ts->tv_nsec = (timestamp - buf->ts->tv_sec * 1000000) * 1000;
+            QAL_VERBOSE(LOG_TAG, "Timestamp %llu, tv_sec = %ld, tv_nsec = %ld",
+                        timestamp, buf->ts->tv_sec, buf->ts->tv_nsec);
         }
         bytesRead += pcmReadSize;
     }
@@ -659,6 +686,11 @@ int SessionAlsaPcm::setParameters(Stream *s, int tagId, uint32_t param_id, void 
                 goto exit;
             }
             builder->payloadSVAEngineReset(&paramData, &paramSize, miid);
+            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, paramData, paramSize);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set mixer param, status = %d", status);
+                goto exit;
+            }
             break;
         }
         default:
@@ -776,6 +808,8 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     qal_stream_type_t txStreamType;
     std::vector <std::shared_ptr<Device>> activeDevices;
     std::vector <std::shared_ptr<Device>> deviceList;
+    std::vector <std::shared_ptr<Device>> rxDeviceList;
+    std::vector <std::string> backendNames;
 
     // get stream attributes
     status = s->getStreamAttributes(&sAttr);
@@ -846,7 +880,9 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     QAL_DBG(LOG_TAG, "tx stream type = %d", txStreamType);
     // TODO: use table to map types/devices to key values
     if (txStreamType == QAL_STREAM_VOICE_UI) {
-        status = SessionAlsaUtils::setECRefPath(mixer, 1, false, "CODEC_DMA-LPAIF_WSA-RX-0");
+        rxDeviceList.push_back(rxDevice);
+        backendNames = rm->getBackEndNames(rxDeviceList);
+        status = SessionAlsaUtils::setECRefPath(mixer, 1, false, backendNames[0].c_str());
         if (status)
             QAL_ERR(LOG_TAG, "Failed to set EC ref path");
     }

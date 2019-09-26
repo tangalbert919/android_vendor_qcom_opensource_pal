@@ -91,6 +91,7 @@ int32_t SoundTriggerEngineCapiCnn::start_keyword_detection()
     capi_v2_buf_t capi_result;
 
     QAL_DBG(LOG_TAG, "Enter.");
+    mutex.lock();
     process_input_buff = (char*)calloc(1, buffer_size_);
     if (!process_input_buff) {
         result = -ENOMEM;
@@ -204,6 +205,7 @@ exit:
     if (result_cfg_ptr)
         free(result_cfg_ptr);
     //TODO: add code to handle unwind
+    mutex.unlock();
     return result;
 }
 
@@ -407,6 +409,7 @@ int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
     capi_v2_prop_t sm_prop_ptr;
     capi_v2_err_t rc;
 
+    mutex.lock();
     if (!data) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid sound model data, status %d", status);
@@ -455,10 +458,12 @@ int32_t SoundTriggerEngineCapiCnn::load_sound_model(Stream *s, uint8_t *data,
     }
 
     QAL_VERBOSE(LOG_TAG, "Exit. Load sound model success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -474,7 +479,7 @@ exit:
 int32_t SoundTriggerEngineCapiCnn::start_recognition(Stream *s)
 {
     int32_t status = 0;
-
+    mutex.lock();
     status = start_sound_engine();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to start sound engine, status = %d", status);
@@ -482,17 +487,38 @@ int32_t SoundTriggerEngineCapiCnn::start_recognition(Stream *s)
     }
 
     QAL_VERBOSE(LOG_TAG, "start recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+    mutex.unlock();
+    return status;
+}
+
+int32_t SoundTriggerEngineCapiCnn::stop_buffering(Stream *s)
+{
+    int32_t status = 0;
+
+    exit_buffering_ = true;
+    if (reader_)
+        reader_->reset();
+    else {
+        status = EINVAL;
+        goto exit;
+    }
+    QAL_VERBOSE(LOG_TAG, "stop buffering success");
+    return status;
+
+exit:
+    QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineCapiCnn::stop_recognition(Stream *s)
 {
     int32_t status = 0;
-
+    mutex.lock();
     status = stop_sound_engine();
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
@@ -500,10 +526,12 @@ int32_t SoundTriggerEngineCapiCnn::stop_recognition(Stream *s)
     }
 
     QAL_VERBOSE(LOG_TAG, "stop recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to stop recognition, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -518,14 +546,18 @@ int32_t SoundTriggerEngineCapiCnn::update_config(Stream *s,
         return status;
     }
 
+    mutex.lock();
+    // TODO: remove hard-coded value
     confidence_threshold_ = 20;
     QAL_VERBOSE(LOG_TAG, "update config success, status %d", status);
+    mutex.unlock();
     return status;
 }
 
 void SoundTriggerEngineCapiCnn::setDetected(bool detected)
 {
     QAL_DBG(LOG_TAG, "setDetected %d", detected);
+    mutex.lock();
     std::lock_guard<std::mutex> lck(sndEngCapiCnn_->mutex_);
     if (detected != eventDetected) {
         // TODO: update indices/timestamp info also
@@ -536,6 +568,7 @@ void SoundTriggerEngineCapiCnn::setDetected(bool detected)
     }
     else
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
+    mutex.unlock();
 }
 
 int32_t SoundTriggerEngineCapiCnn::getParameters(uint32_t param_id, void **payload)

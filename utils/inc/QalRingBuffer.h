@@ -61,6 +61,7 @@ public:
     void updateState(qal_ring_buffer_reader_state state);
     void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
+    void reset();
     QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
         readOffset_(0),
         unreadSize_(0),
@@ -92,6 +93,7 @@ public:
     size_t write(void* writeBuffer, size_t writeSize);
     size_t getFreeSize();
     void updateIndices(uint32_t startIndice, uint32_t endIndice);
+    void reset();
 protected:
     std::mutex mutex_;
     const size_t bufferEnd_;

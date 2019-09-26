@@ -299,6 +299,7 @@ public:
     virtual int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) = 0;
     virtual int32_t unload_sound_model(Stream *s) = 0;
     virtual int32_t start_recognition(Stream *s) = 0;
+    virtual int32_t stop_buffering(Stream *s) = 0;
     virtual int32_t stop_recognition(Stream *s) = 0;
     virtual int32_t update_config(Stream *s, struct qal_st_recognition_config *config) = 0;
     virtual void setDetected(bool detected) = 0;

@@ -68,6 +68,7 @@ public:
     int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
     int32_t unload_sound_model(Stream *s) override;
     int32_t start_recognition(Stream *s) override;
+    int32_t stop_buffering(Stream *s) override;
     int32_t stop_recognition(Stream *s) override;
     int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
     void setDetected(bool detected) override;

@@ -91,6 +91,7 @@ int32_t SoundTriggerEngineCapiVop::start_keyword_detection()
     int32_t readFillSize = 0;
     capi_v2_buf_t capi_result;
 
+    mutex.lock();
     process_input_buff = (char*)calloc(1, buffer_size_);
     if (!process_input_buff) {
         QAL_ERR(LOG_TAG,"failed to allocate process_input_buff");
@@ -227,6 +228,7 @@ exit:
     if (result_cfg_ptr)
         free(result_cfg_ptr);
     // add code to handle unwind
+    mutex.unlock();
     return result;
 }
 
@@ -425,6 +427,7 @@ int32_t SoundTriggerEngineCapiVop::load_sound_model(Stream *s, uint8_t *data, ui
     capi_v2_prop_t sm_prop_ptr;
     capi_v2_err_t rc;
 
+    mutex.lock();
     if (!data || num_models <= 1)
     {
         QAL_ERR(LOG_TAG, "Invalid sound model data");
@@ -483,10 +486,12 @@ int32_t SoundTriggerEngineCapiVop::load_sound_model(Stream *s, uint8_t *data, ui
     }
 
     QAL_VERBOSE(LOG_TAG, "Load sound model success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -502,7 +507,7 @@ exit:
 int32_t SoundTriggerEngineCapiVop::start_recognition(Stream *s)
 {
     int32_t status = 0;
-
+    mutex.lock();
     status = start_sound_engine();
     if (status)
     {
@@ -511,17 +516,38 @@ int32_t SoundTriggerEngineCapiVop::start_recognition(Stream *s)
     }
 
     QAL_VERBOSE(LOG_TAG, "start recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+    mutex.unlock();
+    return status;
+}
+
+int32_t SoundTriggerEngineCapiVop::stop_buffering(Stream *s)
+{
+    int32_t status = 0;
+
+    exit_buffering_ = true;
+    if (reader_)
+        reader_->reset();
+    else {
+        status = EINVAL;
+        goto exit;
+    }
+    QAL_VERBOSE(LOG_TAG, "stop buffering success");
+    return status;
+
+exit:
+    QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineCapiVop::stop_recognition(Stream *s)
 {
     int32_t status = 0;
-
+    mutex.lock();
     status = stop_sound_engine();
     if (status)
     {
@@ -530,10 +556,12 @@ int32_t SoundTriggerEngineCapiVop::stop_recognition(Stream *s)
     }
 
     QAL_VERBOSE(LOG_TAG, "stop recognition success");
+    mutex.unlock();
     return status;
 
 exit:
     QAL_ERR(LOG_TAG, "Failed to stop recognition, status = %d", status);
+    mutex.unlock();
     return status;
 }
 
@@ -547,7 +575,9 @@ int32_t SoundTriggerEngineCapiVop::update_config(Stream *s, struct qal_st_recogn
         return -EINVAL;
     }
 
+    mutex.lock();
     confidence_threshold_ = config->phrases[0].levels[0].level;
+    mutex.unlock();
     QAL_INFO(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
     QAL_VERBOSE(LOG_TAG, "update config success");
     return status;
@@ -556,6 +586,7 @@ int32_t SoundTriggerEngineCapiVop::update_config(Stream *s, struct qal_st_recogn
 void SoundTriggerEngineCapiVop::setDetected(bool detected)
 {
     QAL_INFO(LOG_TAG, "setDetected %d", detected);
+    mutex.lock();
     std::lock_guard<std::mutex> lck(sndEngCapiVop_->mutex_);
     if (detected != eventDetected)
     {
@@ -572,6 +603,7 @@ void SoundTriggerEngineCapiVop::setDetected(bool detected)
     }
     else
         QAL_VERBOSE(LOG_TAG, "eventDetected unchanged");
+    mutex.unlock();
 }
 
 int32_t SoundTriggerEngineCapiVop::getParameters(uint32_t param_id, void **payload)

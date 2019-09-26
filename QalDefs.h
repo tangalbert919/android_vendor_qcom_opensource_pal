@@ -415,7 +415,8 @@ typedef enum {
     QAL_PARAM_ID_START_RECOGNITION,
     QAL_PARAM_ID_FLUENCE_ON_OFF,
     QAL_PARAM_ID_DIRECTION_OF_ARRIVAL,
-    QAL_PARAM_ID_UIEFFECT
+    QAL_PARAM_ID_UIEFFECT,
+    QAL_PARAM_ID_STOP_BUFFERING
 }qal_param_id_type_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */

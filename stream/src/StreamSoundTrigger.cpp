@@ -542,6 +542,20 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
         }
         break;
     }
+    case QAL_PARAM_ID_STOP_BUFFERING:
+    {
+        for (int i = 0; i < activeEngines.size(); i++) {
+            SoundTriggerEngine *stEngine = activeEngines[i].second;
+
+            status = stEngine->stop_buffering(this);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
+                goto exit;
+            }
+            stEngine->setDetected(false);
+        }
+        break;
+    }
     default:
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
@@ -770,6 +784,7 @@ int32_t StreamSoundTrigger::notifyClient()
 
 int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
 {
+    int32_t status = 0;
     switch (state)
     {
         case ENGINE_IDLE:
@@ -778,9 +793,22 @@ int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
         case VOP_DETECTED:
             detectionState = detectionState | state;
             break;
+        case CNN_REJECTED:
+        case VOP_REJECTED:
+            QAL_DBG(LOG_TAG, "Second stage rejected, stop buffering");
+            for (int i = 0; i < activeEngines.size(); i++) {
+                SoundTriggerEngine *stEngine = activeEngines[i].second;
+                status = stEngine->stop_buffering(this);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
+                    goto exit;
+                }
+            }
+            break;
         default:
             QAL_ERR(LOG_TAG, "Invalid state %x", state);
-            return EINVAL;
+            status = -EINVAL;
+            goto exit;
     }
 
     QAL_INFO(LOG_TAG, "detectionState = %u, notificationState = %u", detectionState, notificationState);
@@ -788,7 +816,8 @@ int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
         QAL_INFO(LOG_TAG, "Notify detection event back to client");
         notifyClient();
     }
-    return 0;
+exit:
+    return status;
 }
 
 int32_t StreamSoundTrigger::setVolume(struct qal_volume_data *volume)

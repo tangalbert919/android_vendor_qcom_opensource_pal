@@ -119,6 +119,14 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
     return writtenSize;
 }
 
+void QalRingBuffer::reset()
+{
+    mutex_.lock();
+    writeOffset_ = 0;
+    mutex_.unlock();
+    // reset indices also
+}
+
 size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
 {
     int32_t readSize = 0;
@@ -212,6 +220,15 @@ void QalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
 size_t QalRingBufferReader::getUnreadSize()
 {
     return unreadSize_;
+}
+
+void QalRingBufferReader::reset()
+{
+    ringBuffer_->mutex_.lock();
+    readOffset_ = 0;
+    unreadSize_ = 0;
+    state_ = READER_ENABLED;
+    ringBuffer_->mutex_.unlock();
 }
 
 QalRingBufferReader* QalRingBuffer::newReader()

@@ -49,7 +49,9 @@ enum
     ENGINE_IDLE  = 0x0,
     GMM_DETECTED = 0x1,
     CNN_DETECTED = 0x2,
+    CNN_REJECTED = 0x3,
     VOP_DETECTED = 0x4,
+    VOP_REJECTED = 0x5,
 };
 
 struct detection_event_info
