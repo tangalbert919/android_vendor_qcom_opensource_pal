@@ -95,11 +95,23 @@ int SessionAlsaPcm::open(Stream * s)
     }
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
+            status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
+            if (status) {
+                QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+                rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+            }
+            break;
         case QAL_AUDIO_OUTPUT:
             status = SessionAlsaUtils::open(s, rm, pcmDevIds, aifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+                break;
+            }
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0), aifBackEnds[0].data(),
+                    false, STREAM_SPR, &spr_miid);
+            if (0 != status) {
+               QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
             }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
@@ -113,11 +125,6 @@ int SessionAlsaPcm::open(Stream * s)
         default:
             QAL_ERR(LOG_TAG,"unsupported direction");
             break;
-    }
-    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0), aifBackEnds[0].data(), false, STREAM_SPR, &spr_miid);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-        return status;
     }
     return status;
 }
