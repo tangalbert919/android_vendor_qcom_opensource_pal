@@ -432,10 +432,16 @@ int SessionAlsaCompress::close(Stream * s)
 {
     int status = 0;
     struct qal_stream_attributes sAttr;
+    std::ostringstream disconnectCtrlName;
     s->getStreamAttributes(&sAttr);
     if (!compress)
         return -EINVAL;
-
+    disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
+    disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
+    if (!disconnectCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
+        return -EINVAL;
+    }
     /** Disconnect FE to BE */
     mixer_ctl_set_enum_by_string(disconnectCtrl, (aifBackEnds.at(0)).data());
     compress_close(compress);
