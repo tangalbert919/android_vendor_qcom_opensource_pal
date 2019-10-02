@@ -52,14 +52,23 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, const struct qal
 
     QAL_DBG(LOG_TAG, "Enter.");
     uNoOfModifiers = no_of_modifiers;
+    struct qal_channel_info * ch_info = NULL;
     attr = (struct qal_stream_attributes *) malloc(sizeof(struct qal_stream_attributes));
     if (!attr) {
         QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
         mutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
+    ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
+    if (!ch_info) {
+       QAL_ERR(LOG_TAG,"malloc for ch_info failed");
+       mutex.unlock();
+       throw std::runtime_error("failed to malloc for ch_info");
+    }
     casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
                       sizeof(qal_stream_attributes));
+    attr->out_media_config.ch_info = ch_info;
+    casa_osal_memcpy (attr->out_media_config.ch_info, sizeof(qal_channel_info), sattr->out_media_config.ch_info, sizeof(qal_channel_info));
 
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);
