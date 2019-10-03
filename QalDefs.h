@@ -395,9 +395,9 @@ struct qal_time_us {
 /** Timestamp strucutre defintion used as argument for
  *  gettimestamp api */
 struct qal_session_time {
-    qal_time_us session_time;   /** Value of the current session time in microseconds */
-    qal_time_us absolute_time;  /** Value of the absolute time in microseconds */
-    qal_time_us timestamp;      /** Value of the last processed time stamp in microseconds */
+    struct qal_time_us session_time;   /** Value of the current session time in microseconds */
+    struct qal_time_us absolute_time;  /** Value of the absolute time in microseconds */
+    struct qal_time_us timestamp;      /** Value of the last processed time stamp in microseconds */
 };
 
 /** EVENT configurations data strucutre defintion used as
