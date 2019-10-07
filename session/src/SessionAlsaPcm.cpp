@@ -111,7 +111,8 @@ int SessionAlsaPcm::open(Stream * s)
             status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0), aifBackEnds[0].data(),
                     false, STREAM_SPR, &spr_miid);
             if (0 != status) {
-               QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                status = 0; //TODO: add this to some policy in qal
             }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
