@@ -119,6 +119,10 @@ public:
     int registerCallBack(session_callback cb, void *cookie);
     int drain(qal_drain_type_t type);
     int getTimestamp(struct qal_session_time *stime) override;
+    int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect) override;
+    int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToDisconnect) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

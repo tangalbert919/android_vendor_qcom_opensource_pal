@@ -43,11 +43,13 @@ class Device
 {
 protected:
     Device();
-    std::mutex mutex;
+    std::mutex mDeviceMutex;
+    std::string mQALDeviceName;
     struct qal_device deviceAttr;
     std::shared_ptr<ResourceManager> rm;
 public:
-    int getDeviceId();
+    int getSndDeviceId();
+    std::string getQALDeviceName();
     virtual int open() = 0;
     virtual int close() = 0;
     virtual int start() = 0;

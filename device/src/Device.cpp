@@ -39,21 +39,16 @@ Device::~Device(){}
 std::shared_ptr<Device> Device::create(struct qal_device *device,
                                               std::shared_ptr<ResourceManager> Rm)
 {
-    QAL_DBG(LOG_TAG, "Enter. device id %d", device->id);
-    switch(device->id) {
-        case QAL_DEVICE_OUT_SPEAKER:
-        case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_HANDSET_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
-            QAL_VERBOSE(LOG_TAG,"device  %d",device->id);
-            return CodecDevice::getInstance(device, Rm);
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"Unsupported device id %d", device->id);
-            return nullptr;
+
+    const bool isNonALSACodec = Rm->isNonALSACodec(device);
+
+    if (isNonALSACodec) {
+        //TBD: Create new ALSA codec here.
+        QAL_ERR(LOG_TAG, "%s: Going to create NON ALSA Codec", __func__);
+        return NULL;
+
+    } else {
+        return CodecDevice::getInstance(device, Rm); //could be NULL if device is unsupported
     }
 }
 
@@ -79,8 +74,15 @@ int Device::setDeviceAttributes(struct qal_device dattr)
 }
 
 
-int Device::getDeviceId()
+int Device::getSndDeviceId()
 {
     QAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);
     return deviceAttr.id;
 }
+
+std::string Device::getQALDeviceName()
+{
+    QAL_VERBOSE(LOG_TAG, "%s: Device name %s acquired", __func__, mQALDeviceName.c_str());
+    return mQALDeviceName;
+}
+

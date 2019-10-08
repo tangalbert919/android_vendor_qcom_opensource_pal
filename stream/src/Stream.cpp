@@ -39,19 +39,19 @@
 #include "Device.h"
 
 std::shared_ptr<ResourceManager> Stream::rm = nullptr;
-std::mutex Stream::mtx;
+std::mutex Stream::mBaseStreamMutex;
 
 Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *dAttr,
     uint32_t noOfDevices, struct modifier_kv *modifiers, uint32_t noOfModifiers)
 {
-    std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard<std::mutex> lock(mBaseStreamMutex);
     Stream* stream = NULL;
 
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Enter.");
+    QAL_DBG(LOG_TAG, "Enter. %s", __func__);
     /* get RM instance */
     if (!rm) {
         rm = ResourceManager::getInstance();
@@ -107,7 +107,7 @@ int32_t  Stream::getStreamAttributes(struct qal_stream_attributes *sAttr)
         QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
-    casa_osal_memcpy(sAttr, sizeof(qal_stream_attributes), attr,
+    casa_osal_memcpy(sAttr, sizeof(qal_stream_attributes), mStreamAttr,
                      sizeof(qal_stream_attributes));
     QAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d",
             sAttr->type, sAttr->flags, sAttr->direction);
@@ -120,14 +120,14 @@ int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifi
 {
     int32_t status = 0;
 
-    if (!modifiers) {
+    if (!mModifiers || !noOfModifiers) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid modifers pointer, status %d", status);
         goto exit;
     }
-    casa_osal_memcpy (modifiers, sizeof(modifier_kv), modifiers_,
+    casa_osal_memcpy (modifiers, sizeof(modifier_kv), mModifiers,
                       sizeof(modifier_kv));
-    *noOfModifiers = uNoOfModifiers;
+    *noOfModifiers = mNoOfModifiers;
     QAL_DBG(LOG_TAG, "noOfModifiers %u", *noOfModifiers);
 exit:
     return status;
@@ -137,12 +137,12 @@ int32_t  Stream::getStreamType (qal_stream_type_t* streamType)
 {
     int32_t status = 0;
 
-    if (!streamType) {
+    if (!streamType || !mStreamAttr) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream type, status %d", status);
         goto exit;
     }
-    *streamType = attr->type;
+    *streamType = mStreamAttr->type;
     QAL_DBG(LOG_TAG, "streamType - %d", *streamType);
 
 exit:
@@ -152,9 +152,10 @@ exit:
 int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "no. of devices %d", devices.size());
-    for (int32_t i=0; i < devices.size(); i++) {
-        aDevices.push_back(devices[i]);
+
+    QAL_DBG(LOG_TAG, "no. of devices %d", mDevices.size());
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        aDevices.push_back(mDevices[i]);
     }
 
 exit:
@@ -185,17 +186,17 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
         QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
-    
-    if (vdata != NULL) {
-        casa_osal_memcpy(vData,sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)),
-                      vdata, sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (vdata->no_of_volpair)));
 
-        QAL_DBG(LOG_TAG, "num config %x", (vdata->no_of_volpair));
-        for(int32_t i=0; i < (vdata->no_of_volpair); i++) {
+    if (mVolumeData != NULL) {
+        casa_osal_memcpy(vData, sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (mVolumeData->no_of_volpair)),
+                      mVolumeData, sizeof(uint32_t) +
+                      (sizeof(struct qal_channel_vol_kv) * (mVolumeData->no_of_volpair)));
+
+        QAL_DBG(LOG_TAG, "num config %x", (mVolumeData->no_of_volpair));
+        for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
             QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
-                (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
         }
     }
 exit:
@@ -207,17 +208,20 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
     int32_t status = 0;
     int16_t nBlockAlignIn, nBlockAlignOut ;        // block size of data
     struct qal_stream_attributes *sattr = NULL;
-    sattr = (struct qal_stream_attributes *)malloc(sizeof(struct qal_stream_attributes));
+    sattr = (struct qal_stream_attributes *)calloc(1, sizeof(struct qal_stream_attributes));
     if (!sattr) {
         status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "sattr malloc failed %s, status %d", strerror(errno), status);
+        QAL_ERR(LOG_TAG, "stream attribute malloc failed %s, status %d", strerror(errno), status);
         goto exit;
     }
-    memset (sattr, 0, sizeof(struct qal_stream_attributes));
-    QAL_DBG(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
-            *in_buf_size, in_buf_count, *out_buf_size,
-            out_buf_count);
+    
+    if (!in_buf_size)
+        QAL_DBG(LOG_TAG, "%s: In Buffer size %d, In Buffer count %d",
+            __func__, *in_buf_size, in_buf_count);
 
+    if (!out_buf_size)
+        QAL_DBG(LOG_TAG, "%s: Out Buffer size %d and Out Buffer count %d",
+        __func__, *out_buf_size, out_buf_count);
     inBufCount = in_buf_count;
     outBufCount = out_buf_count;
 
@@ -292,13 +296,24 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                            size_t *out_buf_size, size_t *out_buf_count)
 {
     int32_t status = 0;
-    *in_buf_size = inBufSize;
-    *in_buf_count = inBufCount;
-    *out_buf_size = outBufSize;
-    *out_buf_count = outBufCount;
-    QAL_VERBOSE(LOG_TAG, "In Buffer size %d, In Buffer count %d, Out Buffer size %d and Out Buffer count %d",
-                *in_buf_size,*in_buf_count,
-                *out_buf_size,*out_buf_count);
+
+    if (in_buf_size)
+        *in_buf_size = inBufSize;
+    if (in_buf_count)
+        *in_buf_count = inBufCount;
+    if (out_buf_size)
+        *out_buf_size = outBufSize;
+    if (out_buf_count)
+        *out_buf_count = outBufCount;
+
+    if (!in_buf_size)
+        QAL_DBG(LOG_TAG, "%s: In Buffer size %d, In Buffer count %d",
+        __func__, *in_buf_size, in_buf_count);
+
+    if (!out_buf_size)
+        QAL_DBG(LOG_TAG, "%s: Out Buffer size %d and Out Buffer count %d",
+        __func__, *out_buf_size, out_buf_count);
+
     return status;
 }
 
@@ -337,3 +352,103 @@ int32_t Stream::getTimestamp(struct qal_session_time *stime)
 exit:
     return status;
 }
+
+int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray)
+{
+    int32_t status = -EINVAL;
+    mStreamMutex.lock();
+    std::shared_ptr<Device> dev = nullptr;
+
+    if ((no_of_devices == 0) || (!deviceArray)) {
+        QAL_ERR(LOG_TAG, "invalid param for device switch");
+        status = -EINVAL;
+        goto error_1;
+    }
+
+    //tell rm we are disabling existing mDevices, so that it can disable any streams running on
+    // 1. mDevices with common backend
+    //TBD: as there are no devices with common backend now.
+    //rm->disableDevice(mDevices);
+
+    QAL_ERR(LOG_TAG, "device %d name %s, going to stop %d devices",
+        mDevices[0]->getSndDeviceId(), mDevices[0]->getQALDeviceName().c_str(), mDevices.size());
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+        QAL_ERR(LOG_TAG, "device %d name %s, going to stopi2",
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->stop();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Rx device stop failed with status %d", status);
+            goto error_1;
+        }
+
+        rm->deregisterDevice(mDevices[i]);
+
+        status = mDevices[i]->close();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+            goto error_1;
+        }
+
+    }
+
+    //clear existing devices and enable new devices
+    mDevices.clear();
+
+    QAL_ERR(LOG_TAG, "Incoming device count %d, first id %d", no_of_devices, deviceArray[0].id);
+            
+
+    for (int i = 0; i < no_of_devices; i++) {
+        //Check with RM if the configuration given can work or not
+        //for e.g., if incoming stream needs 24 bit device thats also
+        //being used by another stream, then the other stream should route
+
+        dev = Device::create((struct qal_device *)&deviceArray[i], rm);
+        if (!dev) {
+            QAL_ERR(LOG_TAG, "Device creation failed");
+            free(mStreamAttr);
+            //TBD::free session too
+            mStreamMutex.unlock();
+            throw std::runtime_error("failed to create device object");
+        }
+
+        status = dev->open();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                dev->getSndDeviceId(), status);
+            goto error_2;
+        }
+
+        QAL_ERR(LOG_TAG, "device %d name %s, going to start",
+            dev->getSndDeviceId(), dev->getQALDeviceName().c_str());
+
+        status = dev->start();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
+                dev->getSndDeviceId(), dev->getQALDeviceName().c_str(), status);
+            goto error_2;
+        }
+
+        mDevices.push_back(dev);
+        session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
+        rm->registerDevice(dev);
+        dev = nullptr;
+    }
+
+    goto error_1;
+
+error_2:
+    if (mStreamAttr) {
+        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamAttr = NULL;
+    }
+error_1:
+    mStreamMutex.unlock();
+    return status;
+
+}
+
+

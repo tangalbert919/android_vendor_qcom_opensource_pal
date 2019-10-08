@@ -187,7 +187,8 @@ int SessionAlsaCompress::open(Stream * s)
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
 
-    status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)), (aifBackEnds.at(0)).data(), true, STREAM_SPR, &spr_miid);
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
+            (aifBackEnds.at(0)).data(), true, STREAM_SPR, &spr_miid);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
         return status;
@@ -195,6 +196,36 @@ int SessionAlsaCompress::open(Stream * s)
     return status;
 }
 
+int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToDisconnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector<std::string> aifBackEndsToDisconnect;
+    struct qal_device dAttr;
+
+    deviceList.push_back(deviceToDisconnect);
+    aifBackEndsToDisconnect = rm->getBackEndNames(deviceList);
+    deviceToDisconnect->getDeviceAtrributes(&dAttr);
+
+    return SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, aifBackEndsToDisconnect);
+}
+
+int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector<std::string> aifBackEndsToConnect;
+    struct qal_device dAttr;
+
+    deviceList.push_back(deviceToConnect);
+    aifBackEndsToConnect = rm->getBackEndNames(deviceList);
+    deviceToConnect->getDeviceAtrributes(&dAttr);
+
+    return SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, aifBackEndsToConnect);
+}
+ 
 int SessionAlsaCompress::prepare(Stream * s)
 {
    return 0;

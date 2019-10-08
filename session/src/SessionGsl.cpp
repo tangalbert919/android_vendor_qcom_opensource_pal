@@ -432,7 +432,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
     }
 
     for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getDeviceId();
+        dev_id = associatedDevices[i]->getSndDeviceId();
         rm->getDeviceEpName(dev_id, epname);
         QAL_VERBOSE(LOG_TAG, "epname = %s", epname.c_str());
     }
@@ -453,7 +453,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             payloadSize = 0;
             if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getDeviceId();
+                    dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
@@ -469,7 +469,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                 }
             } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getDeviceId();
+                    dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
                         rm->getDeviceEpName(dev_id, epname);
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
@@ -479,7 +479,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                         QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d",
                                 deviceData->bitWidth,
                                 deviceData->sampleRate, deviceData->numChannel);
-                    } else 
+                    } else
                         continue;
                     sessionData->direction = RECORD;
                 }
@@ -544,7 +544,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             payloadSize = 0;
             if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getDeviceId();
+                    dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id >=QAL_DEVICE_NONE && dev_id <= QAL_DEVICE_OUT_PROXY) {
                         associatedDevices[i]->getDeviceAtrributes(&dAttr);
                         deviceData->bitWidth = dAttr.config.bit_width;
@@ -559,7 +559,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                 }
             } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getDeviceId();
+                    dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id >=QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {
                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
                        deviceData->bitWidth = dAttr.config.bit_width;
@@ -603,7 +603,7 @@ free_deviceData:
 free_sessionData:
     if (sessionData)
        free(sessionData);
-exit:    
+exit:
     return status;
 }
 
@@ -1241,12 +1241,11 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     qal_stream_type_t txStreamType = QAL_STREAM_LOW_LATENCY;
     std::vector <std::shared_ptr<Device>> activeDevices;
     std::vector <std::shared_ptr<Device>> deviceList;
-    struct qal_stream_attributes sattr;
 
     // get stream attributes
-    status = s->getStreamAttributes(&sattr);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
         return;
     }
 
@@ -1261,25 +1260,26 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     // determine Rx and Tx for concurrency usecase
     rm->getActiveDevices(activeDevices);
     for (int i = 0; i < activeDevices.size(); i++) {
-        int deviceId = activeDevices[i]->getDeviceId();
+        int deviceId = activeDevices[i]->getSndDeviceId();
         if (deviceId == QAL_DEVICE_OUT_SPEAKER &&
-            sattr.direction == QAL_AUDIO_INPUT) {
+            sAttr.direction == QAL_AUDIO_INPUT) {
             rxDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
-                    dev->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+                if (dev->getSndDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
+                    dev->getSndDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
                     txDevice = dev;
             }
         }
+        //TBD we SHOULD not be checking for individual devices like this. We need to make this more flexible
 
         if (deviceId >= QAL_DEVICE_IN_HANDSET_MIC &&
             deviceId <= QAL_DEVICE_IN_TRI_MIC &&
-            sattr.direction == QAL_AUDIO_OUTPUT) {
+            sAttr.direction == QAL_AUDIO_OUTPUT) {
             txDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getDeviceId() == QAL_DEVICE_OUT_SPEAKER) {
+                if (dev->getSndDeviceId() == QAL_DEVICE_OUT_SPEAKER) {
                     rxDevice = dev;
                     break;
                 }
@@ -1288,12 +1288,11 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     }
 
     if (!rxDevice || !txDevice) {
-        QAL_VERBOSE(LOG_TAG, "No need to handle for concurrency");
+        QAL_ERR(LOG_TAG, "No need to handle for concurrency");
         return;
     }
 
-    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
-
+    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getSndDeviceId(), txDevice->getSndDeviceId());
     // determine concurrency usecase
     for (int i = 0; i < deviceList.size(); i++) {
         std::shared_ptr<Device> dev = deviceList[i];
@@ -1334,11 +1333,11 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         // TODO: handle for other concurrency usecases also
         return;
 
-    if (txDevice->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC ||
-        txDevice->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+    if (txDevice->getSndDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC ||
+        txDevice->getSndDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
         keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
 
-    if (rxDevice->getDeviceId() == QAL_DEVICE_OUT_SPEAKER)
+    if (rxDevice->getSndDeviceId() == QAL_DEVICE_OUT_SPEAKER)
         keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
     device_graph.graph_key_vector.num_kvps = keyVector.size();
     device_graph.graph_key_vector.kvp = new struct gsl_key_value_pair[keyVector.size()];
@@ -1354,17 +1353,30 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
     delete(device_graph.graph_key_vector.kvp);
 }
 
-int SessionGsl::getTimestamp(struct qal_session_time *stime)
+int SessionGsl::getTimestamp(struct qal_session_time* /*stime*/)
 {
    return 0;
 }
 
-int SessionGsl::registerCallBack(session_callback cb, void *cookie)
+int SessionGsl::registerCallBack(session_callback /*cb*/, void* /*cookie*/)
 {
     return 0;
 }
 
-int SessionGsl::drain(qal_drain_type_t type)
+int SessionGsl::drain(qal_drain_type_t /*type*/)
 {
     return 0;
 }
+
+int SessionGsl::connectSessionDevice(Stream* /*streamHandle*/, qal_stream_type_t /*streamType*/,
+        std::shared_ptr<Device> /*deviceToConnect*/)
+{
+    return 0;
+}
+
+int SessionGsl::disconnectSessionDevice(Stream* /*streamHandle*/, qal_stream_type_t /*streamType*/,
+        std::shared_ptr<Device> /*deviceToDisconnect*/)
+{
+    return 0;
+}
+

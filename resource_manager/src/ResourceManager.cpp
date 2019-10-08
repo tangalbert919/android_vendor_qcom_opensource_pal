@@ -228,13 +228,50 @@ const std::map<std::string, uint32_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_IN_PROXY" },                 QAL_DEVICE_IN_PROXY}
 };
 
+//reverse mapping
+const std::map<uint32_t, std::string> deviceNameLUT {
+    {QAL_DEVICE_NONE,                     std::string{"QAL_DEVICE_NONE"}},
+    {QAL_DEVICE_OUT_EARPIECE,             std::string{"QAL_DEVICE_OUT_EARPIECE"}},
+    {QAL_DEVICE_OUT_SPEAKER,              std::string{"QAL_DEVICE_OUT_SPEAKER"}},
+    {QAL_DEVICE_OUT_WIRED_HEADSET,        std::string{"QAL_DEVICE_OUT_WIRED_HEADSET"}},
+    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      std::string{"QAL_DEVICE_OUT_WIRED_HEADPHONE"}},
+    {QAL_DEVICE_OUT_LINE,                 std::string{"QAL_DEVICE_OUT_LINE"}},
+    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        std::string{"QAL_DEVICE_OUT_BLUETOOTH_SCO"}},
+    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       std::string{"_DEVICE_OUT_BLUETOOTH_A2DP"}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL,          std::string{"_DEVICE_OUT_AUX_DIGITAL"}},
+    {QAL_DEVICE_OUT_HDMI,                 std::string{"_DEVICE_OUT_HDMI"}},
+    {QAL_DEVICE_OUT_USB_DEVICE,           std::string{"_DEVICE_OUT_USB_DEVICE"}},
+    {QAL_DEVICE_OUT_USB_HEADSET,          std::string{"_DEVICE_OUT_USB_HEADSET"}},
+    {QAL_DEVICE_OUT_SPDIF,                std::string{"_DEVICE_OUT_SPDIF"}},
+    {QAL_DEVICE_OUT_FM,                   std::string{"_DEVICE_OUT_FM"}},
+    {QAL_DEVICE_OUT_AUX_LINE,             std::string{"_DEVICE_OUT_AUX_LINE"}},
+    {QAL_DEVICE_OUT_PROXY,                std::string{"_DEVICE_OUT_PROXY"}},
+    {QAL_DEVICE_IN_HANDSET_MIC,           std::string{"_DEVICE_IN_HANDSET_MIC"}},
+    {QAL_DEVICE_IN_SPEAKER_MIC,           std::string{"_DEVICE_IN_SPEAKER_MIC"}},
+    {QAL_DEVICE_IN_TRI_MIC,               std::string{"_DEVICE_IN_TRI_MIC"}},
+    {QAL_DEVICE_IN_QUAD_MIC,              std::string{"_DEVICE_IN_QUAD_MIC"}},
+    {QAL_DEVICE_IN_EIGHT_MIC,             std::string{"_DEVICE_IN_EIGHT_MIC"}},
+    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, std::string{"_DEVICE_IN_BLUETOOTH_SCO_HEADSET"}},
+    {QAL_DEVICE_IN_WIRED_HEADSET,         std::string{"_DEVICE_IN_WIRED_HEADSET"}},
+    {QAL_DEVICE_IN_AUX_DIGITAL,           std::string{"_DEVICE_IN_AUX_DIGITAL"}},
+    {QAL_DEVICE_IN_HDMI,                  std::string{"_DEVICE_IN_HDMI"}},
+    {QAL_DEVICE_IN_USB_ACCESSORY,         std::string{"_DEVICE_IN_USB_ACCESSORY"}},
+    {QAL_DEVICE_IN_USB_DEVICE,            std::string{"_DEVICE_IN_USB_DEVICE"}},
+    {QAL_DEVICE_IN_USB_HEADSET,           std::string{"_DEVICE_IN_USB_HEADSET"}},
+    {QAL_DEVICE_IN_FM_TUNER,              std::string{"_DEVICE_IN_FM_TUNER"}},
+    {QAL_DEVICE_IN_LINE,                  std::string{"_DEVICE_IN_LINE"}},
+    {QAL_DEVICE_IN_SPDIF,                 std::string{"_DEVICE_IN_SPDIF"}},
+    {QAL_DEVICE_IN_PROXY,                 std::string{"_DEVICE_IN_PROXY"}}
+};
+
+
 std::shared_ptr<ResourceManager> ResourceManager::rm = nullptr;
 std::vector <int> ResourceManager::streamTag = {0};
 std::vector <int> ResourceManager::streamPpTag = {0};
 std::vector <int> ResourceManager::mixerTag = {0};
 std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
-std::mutex ResourceManager::mutex;
+std::mutex ResourceManager::mResourceManagerMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -626,13 +663,14 @@ int ResourceManager::registerStream(Stream *s)
     int ret = 0;
     qal_stream_type_t type;
     QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
+    qal_stream_attributes incomingStreamAttr;
     ret = s->getStreamType(&type);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
         return ret;
     }
     QAL_DBG(LOG_TAG, "stream type %d", type);
-    mutex.lock();
+    mResourceManagerMutex.lock();
     switch (type) {
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_VOIP_RX:
@@ -671,10 +709,28 @@ int ResourceManager::registerStream(Stream *s)
             QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
             break;
     }
-    mutex.unlock();
+
+#if 0
+    s->getStreamAttributes(&incomingStreamAttr);
+    int incomingPriority = getStreamAttrPriority(incomingStreamAttr);
+    if (incomingPriority > mPriorityHighestPriorityActiveStream) {
+        QAL_INFO(LOG_TAG, "%s: Added new stream with highest priority %d", __func__, incomingPriority);
+        mPriorityHighestPriorityActiveStream = incomingPriority;
+        mHighestPriorityActiveStream = s;
+    }
+    calculalte priority and store in Stream
+
+    mAllActiveStreams.push_back(s);
+#endif
+
+
+    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
+
+///private functions
+
 
 // template function to deregister stream
 template <class T>
@@ -699,8 +755,13 @@ int ResourceManager::deregisterStream(Stream *s)
         QAL_ERR(LOG_TAG, " getStreamType failed with status = %d", ret);
         return ret;
     }
+#if 0
+    remove s from mAllActiveStreams
+    get priority from remaining streams and find highest priority stream
+    and store in mHighestPriorityActiveStream
+#endif
     QAL_DBG(LOG_TAG, "stream type %d", type);
-    mutex.lock();
+    mResourceManagerMutex.lock();
     switch (type) {
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_VOIP_RX:
@@ -739,7 +800,7 @@ int ResourceManager::deregisterStream(Stream *s)
             QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
             break;
     }
-    mutex.unlock();
+    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -747,9 +808,9 @@ int ResourceManager::deregisterStream(Stream *s)
 int ResourceManager::registerDevice(std::shared_ptr<Device> d)
 {
     QAL_DBG(LOG_TAG, "Enter.");
-    mutex.lock();
+    mResourceManagerMutex.lock();
     active_devices.push_back(d);
-    mutex.unlock();
+    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit.");
     return 0;
 }
@@ -758,7 +819,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    mutex.lock();
+    mResourceManagerMutex.lock();
     typename std::vector<std::shared_ptr<Device>>::iterator iter =
         std::find(active_devices.begin(), active_devices.end(), d);
     if (iter != active_devices.end())
@@ -766,9 +827,9 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
     else {
         ret = -ENOENT;
         QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
-                d->getDeviceId(), ret);
+                d->getSndDeviceId(), ret);
     }
-    mutex.unlock();
+    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -776,11 +837,11 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
 int ResourceManager::getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList)
 {
     int ret = 0;
-    mutex.lock();
+    mResourceManagerMutex.lock();
     typename std::vector<std::shared_ptr<Device>>::iterator iter;
     for (iter = active_devices.begin(); iter != active_devices.end(); iter++)
         deviceList.push_back(*iter);
-    mutex.unlock();
+    mResourceManagerMutex.unlock();
     return ret;
 }
 
@@ -797,7 +858,7 @@ int ResourceManager::getAudioRoute(struct audio_route** ar)
 
 int ResourceManager::getAudioMixer(struct audio_mixer ** am)
 {
-    if (!audio_mixer) {
+    if (!audio_mixer || !am) {
         QAL_ERR(LOG_TAG, "no audio mixer found");
         return -ENOENT;
     }
@@ -805,6 +866,31 @@ int ResourceManager::getAudioMixer(struct audio_mixer ** am)
     QAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
     return 0;
 }
+//TBD: test this piece later, for concurrency
+#if 0
+template <class T>
+void ResourceManager::getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
+                      std::vector<T> sourcestreams)
+{
+    int existingStreamPriority = 0;
+    qal_stream_attributes sAttr;
+
+
+    typename std::vector<T>::iterator iter = sourcestreams.begin();
+
+
+    for(iter; iter != sourcestreams.end(); iter++) {
+        (*iter)->getStreamAttributes(&sAttr);
+
+        existingStreamPriority = getStreamAttrPriority(&sAttr);
+        if (existingStreamPriority > inComingStreamPriority)
+        {
+            activestreams.push_back(*iter);
+        }
+    }
+}
+#endif
+
 
 template <class T>
 void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams,
@@ -826,7 +912,7 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    mutex.lock();
+    mResourceManagerMutex.lock();
     // merge all types of active streams into activestreams
     getActiveStreams(d, activestreams, active_streams_ll);
     getActiveStreams(d, activestreams, active_streams_ulla);
@@ -836,9 +922,9 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 
     if (activestreams.empty()) {
         ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no active streams found for device %d ret %d", d->getDeviceId(), ret);
+        QAL_ERR(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
     }
-    mutex.unlock();
+    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -889,7 +975,7 @@ std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
     QAL_INFO(LOG_TAG, "Enter.");
     if(!rm) {
-        std::lock_guard<std::mutex> lock(ResourceManager::mutex);
+        std::lock_guard<std::mutex> lock(ResourceManager::mResourceManagerMutex);
         if (!rm) {
             std::shared_ptr<ResourceManager> sp(new ResourceManager());
             rm = sp;
@@ -904,7 +990,7 @@ int ResourceManager::getSndCard()
     return snd_card;
 }
 
-int ResourceManager::getDeviceName(int deviceId, char *device_name)
+int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
     if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
@@ -992,7 +1078,7 @@ int ResourceManager::getDevicePpTag(std::vector <int> &tag)
     return status;
 }
 
-const qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
+qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
 
 //TODO move this to xml configuration
 
@@ -1002,7 +1088,7 @@ const qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
 
 }
 
-const int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
+int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
 {
     int n = 1;
 
@@ -1025,7 +1111,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
     //TODO: lock resource manager
     std::vector<int> f;
     f.clear();
-    int howMany = getNumFEs(sType);
+    const int howMany = getNumFEs(sType);
     int id = 0;
     std::vector<int>::iterator it;
 
@@ -1205,6 +1291,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
                     QAL_ERR(LOG_TAG,"direction unsupported");
                     break;
                 }
+            break;
         default:
             break;
     }
@@ -1221,7 +1308,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(const std::vecto
     int dev_id;
 
     for (int i = 0; i < deviceList.size(); i++) {
-        dev_id = deviceList[i]->getDeviceId();
+        dev_id = deviceList[i]->getSndDeviceId();
         if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_IN_PROXY) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
@@ -1235,6 +1322,190 @@ const std::vector<std::string> ResourceManager::getBackEndNames(const std::vecto
     }
 
     return backEndNames;
+}
+#if 0
+const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
+    const qal_stream_attributes* sIncomingAttr) const {
+
+    bool dSwitch = false;
+    int existingPriority = 0;
+    int incomingPriority = 0;
+    bool ifVoice
+
+    if (!sExistingAttr || !sIncomingAttr)
+        goto error;
+
+    existingPriority = getStreamAttrPriority(existingStream->getStreamAttributes(&sExistingAttr));
+    incomingPriority = getStreamAttrPriority(incomingStream->getStreamAttributes(&sIncomingAttr));
+
+    dSwitch = (incomingPriority > existingPriority);
+
+    QAL_VERBOSE(LOG_TAG, "should Device switch or not %d, incoming Stream priority %d, existing stream priority %d",
+        dSwitch, incomingPriority, existingPriority);
+
+error:
+    return dSwitch;
+}
+#endif
+
+
+//when returning from this function, the device config will be updated with
+//the device config of the highest priority stream
+
+//TBD: manage re-routing of existing lower priority streams if incoming
+//stream is a higher priority stream. Priority defined in ResourceManager.h
+//(details below)
+bool ResourceManager::updateDeviceConfigs(const qal_stream_attributes* incomingStreamAttr ,
+    int noOfIncomingDevices, qal_device* incomingDevices)
+{
+     //loop through all stream configs and see if any higher priority stream is present, if yes, use that device config
+    bool isUpdated = false;
+    int status = -EINVAL;
+    std::vector <Stream *> activeStreams;
+    int incomingStreamPriority = getStreamAttrPriority (incomingStreamAttr);
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dattr;
+    std::vector<Stream*>::iterator sIter;
+
+    if (!incomingDevices || (noOfIncomingDevices == 0)) {
+        goto error;
+    }
+
+    //get the active streams on the device
+    //if higher priority stream exists on any of the incoming device, update the config of incoming device
+    //based on device config of higher priority stream
+
+    //TBD: if incoming stream is a higher priority,
+    //call callback into all streams
+    //for all devices matching incoming device id
+    //and route the lower priority to new device (disable session, disable device, enable session, enable device
+    //return from callback
+#if 0
+    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_ll);
+    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_ulla);
+    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_db);
+    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_comp);
+    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_st);
+#endif
+
+    //check if any of these higher priority streams are running on the incoming devices, if yes
+    //update the incoming device config to the device config from higher priority stream
+
+    if (activeStreams.size() == 0) {
+        //TBD: make QAL_VERBOSE
+        QAL_ERR(LOG_TAG, "no other active streams found");
+        goto error;
+    }
+
+
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        status = (*sIter)->getAssociatedDevices(associatedDevices);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+            goto error;
+        }
+
+        for(std::vector<std::shared_ptr<Device>>::iterator diter = associatedDevices.begin();
+                 diter != associatedDevices.end(); diter++) {
+            status = (*diter)->getDeviceAtrributes(&dattr);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+                goto error;
+            }
+
+            for (int i = 0; i < noOfIncomingDevices; i++) {
+                if (dattr.id == incomingDevices[i].id) {
+                    //found the same device on a higher priority stream, update incoming device's config
+                    //TBD: make qal_verbose
+                    QAL_ERR(LOG_TAG, "%s: Found higher priority stream running on the same device, update config", __func__);
+                    memcpy((void*)&incomingDevices[i], (void*)&dattr, sizeof(struct qal_device));
+                 }
+             }
+        }
+    }
+
+error:
+    return isUpdated;
+}
+
+const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
+{
+    QAL_ERR(LOG_TAG, "%s: id %d", __func__, id);
+#if 0
+    android::CallStack cs;
+    cs.update();
+    cs.dump(1);
+#endif
+    return deviceNameLUT.at(id);
+}
+
+bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const
+{
+
+    //return false on our target, move configuration to xml
+
+    return false;
+}
+
+
+
+
+
+
+bool ResourceManager::ifVoiceorVoipCall (const qal_stream_type_t streamType) const {
+
+   bool voiceOrVoipCall = false;
+
+   switch (streamType) {
+       case QAL_STREAM_VOIP:
+       case QAL_STREAM_VOIP_RX:
+       case QAL_STREAM_VOIP_TX:
+       case QAL_STREAM_VOICE_CALL_RX:
+       case QAL_STREAM_VOICE_CALL_TX:
+       case QAL_STREAM_VOICE_CALL_RX_TX:
+       case QAL_STREAM_VOICE_CALL:
+           voiceOrVoipCall = true;
+           break;
+       default:
+           voiceOrVoipCall = false;
+           break;
+    }
+
+    return voiceOrVoipCall;
+}
+
+int ResourceManager::getCallPriority(bool ifVoiceCall) const {
+
+//TBD: replace this with XML based priorities
+    if (ifVoiceCall) {
+        return 100;
+    } else {
+        return 0;
+    }
+}
+
+int ResourceManager::getStreamAttrPriority (const qal_stream_attributes* sAttr) const {
+    int priority = 0;
+
+    if (!sAttr)
+        goto exit;
+
+
+    priority = getCallPriority(ifVoiceorVoipCall(sAttr->type));
+
+
+    //44.1 or multiple or 24 bit
+
+    if ((sAttr->in_media_config.sample_rate % 44100) == 0) {
+        priority += 50;
+    }
+
+    if (sAttr->in_media_config.bit_width == 24) {
+        priority += 25;
+    }
+
+exit:
+    return priority;
 }
 
 

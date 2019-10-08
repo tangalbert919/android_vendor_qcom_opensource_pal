@@ -48,99 +48,128 @@ static void handleSessionCallBack(void *hdl, uint32_t event_id, void *data)
        cb(static_cast<qal_stream_handle_t *>(s), event_id, (uint32_t *)data, s->cookie);
 }
 
-StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, const struct qal_device *dattr,
+StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct qal_device *dattr,
                                const uint32_t no_of_devices, const struct modifier_kv *modifiers,
                                const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm)
 {
-    mutex.lock();
-    dev = nullptr;
+    mStreamMutex.lock();
+    std::shared_ptr<Device> dev = nullptr;
+    bool isDeviceConfigUpdated = false;
+    struct qal_channel_info * ch_info = NULL;
+
     session = nullptr;
     inBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     outBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     outBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
-    uNoOfModifiers = no_of_modifiers;
-    struct qal_channel_info * ch_info = NULL;
-    attr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
-    if (!attr) {
-       QAL_ERR(LOG_TAG,"malloc for stream attributes failed");
-       mutex.unlock();
-       throw std::runtime_error("failed to malloc for stream attributes");
+
+    //TBD handle modifiers later
+    mNoOfModifiers = 0; //no_of_modifiers;
+    mModifiers = (struct modifier_kv *) (NULL);
+    std::ignore = modifiers;
+    std::ignore = no_of_modifiers;
+
+    mStreamAttr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
+    if (!mStreamAttr) {
+        QAL_ERR(LOG_TAG,"malloc for stream attributes failed");
+        mStreamMutex.unlock();
+        throw std::runtime_error("failed to malloc for stream attributes");
     }
     ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
     if (!ch_info) {
-       QAL_ERR(LOG_TAG,"malloc for ch_info failed");
-       mutex.unlock();
-       throw std::runtime_error("failed to malloc for ch_info");
-    }
-    memcpy (attr, sattr, sizeof(qal_stream_attributes));
-    attr->out_media_config.ch_info = ch_info;
-    memcpy (attr->out_media_config.ch_info, sattr->out_media_config.ch_info, sizeof(qal_channel_info));
+          QAL_ERR(LOG_TAG,"malloc for ch_info failed");
+          free(mStreamAttr);
+          mStreamMutex.unlock();
+          throw std::runtime_error("failed to malloc for ch_info");
+       }
+
+    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
+    mStreamAttr->out_media_config.ch_info = ch_info;
+    casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
+    sattr->out_media_config.ch_info, sizeof(qal_channel_info));
     QAL_VERBOSE(LOG_TAG,"Create new compress session");
 
     session = Session::makeSession(rm, sattr);
     if (session == NULL){
-       QAL_ERR(LOG_TAG,"%s: session (compress) creation failed", __func__);
-       mutex.unlock();
+       QAL_ERR(LOG_TAG,"session (compress) creation failed");
+       free(mStreamAttr->out_media_config.ch_info);
+       free(mStreamAttr);
+       mStreamMutex.unlock();
        throw std::runtime_error("failed to create session object");
     }
+    isDeviceConfigUpdated = rm->updateDeviceConfigs(mStreamAttr, no_of_devices,
+        dattr);
+
+    if (isDeviceConfigUpdated)
+        QAL_VERBOSE(LOG_TAG, "Device config updated");
+
     session->registerCallBack(handleSessionCallBack, (void *)this);
     QAL_VERBOSE(LOG_TAG,"Create new Devices with no_of_devices - %d", no_of_devices);
     for (uint32_t i = 0; i < no_of_devices; i++) {
        dev = Device::create((struct qal_device *)&dattr[i] , rm);
        if (dev == nullptr) {
-          QAL_ERR(LOG_TAG,"Device creation is failed");
-          mutex.unlock();
+          QAL_ERR(LOG_TAG, "Device creation is failed");
+          free(mStreamAttr->out_media_config.ch_info);
+          free(mStreamAttr);
+          mStreamMutex.unlock();
           throw std::runtime_error("failed to create device object");
+        }
+        mDevices.push_back(dev);
+        rm->registerDevice(dev);
+        dev = nullptr;
     }
-    devices.push_back(dev);
-    rm->registerDevice(dev);
-    dev = nullptr;
-    }
-    mutex.unlock();
+    mStreamMutex.unlock();
     rm->registerStream(this);
-    QAL_VERBOSE(LOG_TAG,"end");
+    QAL_VERBOSE(LOG_TAG,"exit");
 }
 
 int32_t StreamCompress::open()
 {
     int32_t status = 0;
-    mutex.lock();
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %d", session, devices.size());
+    mStreamMutex.lock();
+
+    QAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %d", session, mDevices.size());
     status = session->open(this);
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session open failed with status %d", status);
        goto exit;
     }
-    QAL_VERBOSE(LOG_TAG,"session open successful");
-    for (int32_t i=0; i < devices.size(); i++) {
-       status = devices[i]->open();
-       if (0 != status) {
-          QAL_ERR(LOG_TAG,"device open failed with status %d", status);
-          goto exit;
-       }
+    QAL_VERBOSE(LOG_TAG, "session open successful");
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        QAL_ERR(LOG_TAG, "device %d name %s, going to open",
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->open();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"device open failed with status %d", status);
+            goto exit;
+         }
     }
     QAL_VERBOSE(LOG_TAG,"device open successful");
     QAL_VERBOSE(LOG_TAG,"exit stream compress opened");
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
 int32_t StreamCompress::close()
 {
     int32_t status = 0;
-    mutex.lock();
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %d", session, devices.size());
-    for (int32_t i=0; i < devices.size(); i++) {
-       status = devices[i]->close();
-       rm->deregisterDevice(devices[i]);
-       QAL_ERR(LOG_TAG,"deregister\n");
-       if (0 != status) {
-          QAL_ERR(LOG_TAG,"device close is failed with status %d",status);
-          goto exit;
-       }
+    mStreamMutex.lock();
+
+    QAL_VERBOSE(LOG_TAG,"start, session handle - %p mDevices count - %d", session, mDevices.size());
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        QAL_ERR(LOG_TAG, "device %d name %s, going to close",
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->close();
+        rm->deregisterDevice(mDevices[i]);
+        QAL_ERR(LOG_TAG,"deregister\n");
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"device close failed with status %d", status);
+            goto exit;
+        }
     }
     QAL_VERBOSE(LOG_TAG,"closed the devices successfully");
     status = session->close(this);
@@ -150,8 +179,21 @@ int32_t StreamCompress::close()
     }
     QAL_VERBOSE(LOG_TAG,"end, closed the session successfully");
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     status = rm->deregisterStream(this);
+    
+    
+    if (mStreamAttr) {
+        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamAttr = (struct qal_stream_attributes *)NULL;
+    }
+
+    if(mVolumeData)  {
+        free(mVolumeData);
+        mVolumeData = (struct qal_volume_data *)NULL;
+    }
+    
     delete session;
     session = nullptr;
     QAL_VERBOSE(LOG_TAG,"%d status - %d",__LINE__,status);
@@ -161,19 +203,25 @@ exit:
 int32_t StreamCompress::stop()
 {
     int32_t status = 0;
-    mutex.lock();
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p attr->direction - %d", session, attr->direction);
-    switch (attr->direction) {
+
+    mStreamMutex.lock();
+    QAL_VERBOSE(LOG_TAG,"Enter");
+    QAL_VERBOSE(LOG_TAG,"stop session handle - %p mStreamAttr->direction - %d", session, mStreamAttr->direction);
+    switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG,"In QAL_AUDIO_OUTPUT case, device count - %d", devices.size());
+            QAL_VERBOSE(LOG_TAG,"In QAL_AUDIO_OUTPUT case, device count - %d", mDevices.size());
             status = session->stop(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session stop failed with status %d",status);
                 goto exit;
             }
             QAL_VERBOSE(LOG_TAG,"session stop successful");
-            for (int32_t i=0; i < devices.size(); i++) {
-                status = devices[i]->stop();
+            for (int32_t i = 0; i < mDevices.size(); i++) {
+
+                QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
+                    mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+                status = mDevices[i]->stop();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG,"Rx device stop failed with status %d",status);
                     goto exit;
@@ -183,26 +231,32 @@ int32_t StreamCompress::stop()
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "invalid direction %d", attr->direction);
+            QAL_ERR(LOG_TAG, "invalid direction %d", mStreamAttr->direction);
             break;
     }
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
+    QAL_VERBOSE(LOG_TAG,"Exit status - %d", status);
     return status;
 }
 
 int32_t StreamCompress::start()
 {
     int32_t status = 0;
-    mutex.lock();
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p attr->direction - %d", session, attr->direction);
-    switch (attr->direction) {
+    mStreamMutex.lock();
+
+    QAL_VERBOSE(LOG_TAG,"start, session handle - %p mStreamAttr->direction - %d", session, mStreamAttr->direction);
+    switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG,"Inside QAL_AUDIO_OUTPUT device count - %d", devices.size());
-            for (int32_t i=0; i < devices.size(); i++) {
-                status = devices[i]->start();
+            QAL_VERBOSE(LOG_TAG,"Inside QAL_AUDIO_OUTPUT device count - %d", mDevices.size());
+            for (int32_t i=0; i < mDevices.size(); i++) {
+
+                QAL_ERR(LOG_TAG, "device %d name %s, going to start",
+                    mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+                status = mDevices[i]->start();
                 if (0 != status) {
-                    QAL_ERR(LOG_TAG,"Rx device start is failed with status %d",status);
+                    QAL_ERR(LOG_TAG,"Rx device start failed with status %d", status);
                     goto exit;
                 }
             }
@@ -222,36 +276,37 @@ int32_t StreamCompress::start()
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "direction %d not supported for compress streams", attr->direction);
+            QAL_ERR(LOG_TAG, "direction %d not supported for compress streams", mStreamAttr->direction);
             break;
     }
 
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
 int32_t StreamCompress::prepare()
 {
     int32_t status = 0;
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
-    mutex.lock();
+    QAL_VERBOSE(LOG_TAG,"Enter, session handle - %p", session);
+    mStreamMutex.lock();
     status = session->prepare(this);
     if (status)
        QAL_ERR(LOG_TAG,"session prepare failed with status = %d", status);
-    mutex.unlock();
-    QAL_VERBOSE(LOG_TAG,"end, status - %d", status);
-    return status;
+
+   mStreamMutex.lock();
+   QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+   return status;
 }
 
 int32_t StreamCompress::setStreamAttributes(struct qal_stream_attributes *sattr)
 {
     int32_t status = 0;
     QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
-    memset(attr, 0, sizeof(struct qal_stream_attributes));
-    mutex.lock();
-    memcpy (attr, sattr, sizeof(struct qal_stream_attributes));
-    mutex.unlock();
+    memset(mStreamAttr, 0, sizeof(struct qal_stream_attributes));
+    mStreamMutex.lock();
+    memcpy (mStreamAttr, sattr, sizeof(struct qal_stream_attributes));
+    mStreamMutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //gkv or ckv or tkv need to pass
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session setConfig failed with status %d",status);
@@ -263,7 +318,7 @@ exit:
     return status;
 }
 
-int32_t StreamCompress::read(struct qal_buffer *buf)
+int32_t StreamCompress::read(struct qal_buffer * /*buf*/)
 {
     return 0;
 }
@@ -273,11 +328,12 @@ int32_t StreamCompress::write(struct qal_buffer *buf)
     int32_t status = 0;
     int32_t size;
     QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
-    mutex.lock();
+
+    mStreamMutex.lock();
     status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
-    mutex.unlock();
+    mStreamMutex.unlock();
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session write is failed with status %d", status);
+        QAL_ERR(LOG_TAG, "session write failed with status %d", status);
         return -status;
     }
     QAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
@@ -297,7 +353,7 @@ int32_t StreamCompress::getCallBack(qal_stream_callback *cb)
     return 0;
 }
 
-int32_t StreamCompress::getParameters(uint32_t param_id, void **payload)
+int32_t StreamCompress::getParameters(uint32_t /*param_id*/, void ** /*payload*/)
 {
     return 0;
 }
@@ -343,23 +399,24 @@ exit:
 int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
 {
     int32_t status = 0;
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
-    if (volume->no_of_volpair == 0) {
-       QAL_ERR(LOG_TAG,"Error no of vol pair is %d",(volume->no_of_volpair));
+
+    QAL_VERBOSE(LOG_TAG, "start, session handle - %p", session);
+    if (!volume|| volume->no_of_volpair == 0) {
+       QAL_ERR(LOG_TAG,"%s: Invalid arguments", __func__);
        status = -EINVAL;
        goto exit;
     }
-    vdata = (struct qal_volume_data *)malloc(sizeof(uint32_t) +
+
+    mVolumeData = (struct qal_volume_data *)calloc(1, sizeof(uint32_t) +
              (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
-    memset(vdata, 0, sizeof(uint32_t) +
-           (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
-    mutex.lock();
-    memcpy (vdata, volume, (sizeof(uint32_t) +
+
+    mStreamMutex.lock();
+    memcpy (mVolumeData, volume, (sizeof(uint32_t) +
              (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
-    mutex.unlock();
-    for(int32_t i = 0; i < (vdata->no_of_volpair); i++) {
+    mStreamMutex.unlock();
+    for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
        QAL_VERBOSE(LOG_TAG,"Volume payload mask:%x vol:%f\n",
-               (vdata->volume_pair[i].channel_mask), (vdata->volume_pair[i].vol));
+               (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
     status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
     if (0 != status) {
@@ -390,8 +447,7 @@ int32_t  StreamCompress::setMute( bool state)
        QAL_ERR(LOG_TAG,"session setConfig for mute failed with status %d",status);
        goto exit;
     }
-    QAL_VERBOSE(LOG_TAG,"session setConfig successful");
-    QAL_VERBOSE(LOG_TAG,"end");
+    QAL_VERBOSE(LOG_TAG,"session setMute successful");
 exit:
     return status;
 }
@@ -405,8 +461,7 @@ int32_t  StreamCompress::setPause()
        QAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
-    QAL_VERBOSE(LOG_TAG,"session setConfig successful");
-    QAL_VERBOSE(LOG_TAG,"end");
+    QAL_VERBOSE(LOG_TAG,"%s: session setPause successful", __func__);
 exit:
     return status;
 }
@@ -420,8 +475,7 @@ int32_t  StreamCompress::setResume()
        QAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
-    QAL_VERBOSE(LOG_TAG,"session setConfig successful");
-    QAL_VERBOSE(LOG_TAG,"end");
+    QAL_VERBOSE(LOG_TAG,"session setConfig for pause successful");
 exit:
     return status;
 }
@@ -494,7 +548,7 @@ int32_t StreamCompress::isBitWidthSupported(uint32_t bitWidth)
     return rc;
 }
 
-int32_t StreamCompress::addRemoveEffect(qal_audio_effect_t effect, bool enable)
+int32_t StreamCompress::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*enable*/)
 {
     QAL_ERR(LOG_TAG, " Function not supported");
     return -ENOSYS;

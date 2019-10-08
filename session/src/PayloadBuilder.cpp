@@ -1736,7 +1736,7 @@ int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int
     }
 
     for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getDeviceId();
+        dev_id = associatedDevices[i]->getSndDeviceId();
         switch(dev_id) {
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
@@ -1768,7 +1768,7 @@ int PayloadBuilder::populateDeviceTxKV(Stream* s, std::vector <std::pair<int,int
     }
 
     for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getDeviceId();
+        dev_id = associatedDevices[i]->getSndDeviceId();
         switch(dev_id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_HANDSET_MIC:
@@ -1806,7 +1806,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>>
 
 //TODO change this mapping to xml
     for (int32_t i=0; i<(associatedDevices.size()); i++) {
-        dev_id = associatedDevices[i]->getDeviceId();
+        dev_id = associatedDevices[i]->getSndDeviceId();
         switch(dev_id) {
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));

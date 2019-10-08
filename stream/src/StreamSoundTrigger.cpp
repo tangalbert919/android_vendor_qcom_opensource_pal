@@ -44,10 +44,10 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        struct modifier_kv *modifiers,
                                        uint32_t no_of_modifiers,std::shared_ptr<ResourceManager> rm)
 {
-    mutex.lock();
+    mStreamMutex.lock();
     stages = 1;
     session = NULL;
-    dev = nullptr;
+    std::shared_ptr<Device> dev = nullptr;
     reader_ = NULL;
     recEvent = NULL;
     detectionState = ENGINE_IDLE;
@@ -59,39 +59,67 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     outBufCount = NO_OF_BUF;
 
     QAL_DBG(LOG_TAG, "Enter.");
-    uNoOfModifiers = no_of_modifiers;
-    attr = (struct qal_stream_attributes *) malloc(sizeof(struct qal_stream_attributes));
-    if (!attr) {
+    //TBD handle modifiers later
+    mNoOfModifiers = 0; //no_of_modifiers;
+    mModifiers = (struct modifier_kv *) (NULL);
+    std::ignore = modifiers;
+    std::ignore = no_of_modifiers;
+
+
+    mStreamAttr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
+    if (!mStreamAttr) {
         QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
-        mutex.unlock();
+        mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
-    casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
-                      sizeof(qal_stream_attributes));
+
+    struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
+    if (!ch_info) {
+          QAL_ERR(LOG_TAG,"malloc for ch_info failed");
+          free(mStreamAttr);
+          mStreamMutex.unlock();
+          throw std::runtime_error("failed to malloc for ch_info");
+       }
+
+    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
+    mStreamAttr->out_media_config.ch_info = ch_info;
+    casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
+        sattr->out_media_config.ch_info, sizeof(qal_channel_info));
 
     session = Session::makeSession(rm, sattr);
 
     if (!session) {
         QAL_ERR(LOG_TAG, "session creation failed");
-        free(attr);
-        mutex.unlock();
+        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
     }
-    QAL_VERBOSE(LOG_TAG, "session %pK created", session);
+    //Is this required for Voice UI?
+    QAL_ERR(LOG_TAG, "Updating device config for voice UI");
+    bool isDeviceConfigUpdated = rm->updateDeviceConfigs(mStreamAttr, no_of_devices,
+        dattr);
+
+    if (isDeviceConfigUpdated)
+        QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
+
+    QAL_VERBOSE(LOG_TAG, "%s: session %pK created", __func__, session);
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
         dev = Device::create(&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
-            free(attr);
-            mutex.unlock();
+            free(mStreamAttr->out_media_config.ch_info);
+            free(mStreamAttr);
+            mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
-        devices.push_back(dev);
+        mDevices.push_back(dev);
+        //rm->registerDevice(dev);
         dev = nullptr;
     }
-    mutex.unlock();
+    mStreamMutex.unlock();
     rm->registerStream(this);
     QAL_DBG(LOG_TAG, "Exit.");
 }
@@ -99,9 +127,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
 int32_t StreamSoundTrigger::open()
 {
     int32_t status = 0;
-    mutex.lock();
+    mStreamMutex.lock();
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
-            devices.size());
+            mDevices.size());
     status = session->open(this);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session open failed with status %d", status);
@@ -109,8 +137,8 @@ int32_t StreamSoundTrigger::open()
     }
     QAL_VERBOSE(LOG_TAG, "session open successful");
 
-    for (int32_t i=0; i < devices.size(); i++) {
-        status = devices[i]->open();
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        status = mDevices[i]->open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device open failed with status %d", status);
             goto exit;
@@ -120,7 +148,7 @@ int32_t StreamSoundTrigger::open()
     QAL_DBG(LOG_TAG, "Exit. StreamSoundTrigger opened status %d", status);
 
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
@@ -128,13 +156,17 @@ int32_t StreamSoundTrigger::close()
 {
     // TODO: handle stop by stream states
     int32_t status = 0;
-    mutex.lock();
+    mStreamMutex.lock();
 
-    QAL_DBG(LOG_TAG,  "Enter. session handle - %pK device count - %d", session,
-            devices.size());
-    for (int32_t i=0; i < devices.size(); i++) {
-        status = devices[i]->close();
-        rm->deregisterDevice(devices[i]);
+    QAL_DBG(LOG_TAG,  "Enter. session handle - %pK device count - %d" , session,
+            mDevices.size());
+    for (int32_t i=0; i < mDevices.size(); i++) {
+
+        QAL_ERR(LOG_TAG, "%s: device %d name %s, going to close", __func__,
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->close();
+        rm->deregisterDevice(mDevices[i]);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device close is failed with status %d", status);
             goto exit;
@@ -147,11 +179,25 @@ int32_t StreamSoundTrigger::close()
         QAL_ERR(LOG_TAG, "session close failed with status %d", status);
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. closed the session successfully status %d", status);
-
+    QAL_DBG(LOG_TAG, "Exit. closed the session successfully status %d", status);    
+    
+  
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     status = rm->deregisterStream(this);
+    
+    if (mStreamAttr) {
+        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamAttr = (struct qal_stream_attributes *)NULL;
+    }
+
+    if(mVolumeData)  {
+        free(mVolumeData);
+        mVolumeData = (struct qal_volume_data *)NULL;
+    }
+
+
     QAL_ERR(LOG_TAG, "status - %d", status);
     return status;
 }
@@ -160,10 +206,10 @@ exit:
 int32_t StreamSoundTrigger::start()
 {
     int32_t status = 0;
-    mutex.lock();
+    mStreamMutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d", session,
-            attr->direction);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d", session,
+            mStreamAttr->direction);
 
     for (int i = 0; i < activeEngines.size(); i++) {
         uint32_t id = activeEngines[i].first;
@@ -191,24 +237,24 @@ int32_t StreamSoundTrigger::start()
     }
     QAL_VERBOSE(LOG_TAG, "session start successful");
 
-    for (int32_t i=0; i < devices.size(); i++) {
-        status = devices[i]->start();
+    for (int32_t i=0; i < mDevices.size(); i++) {
+
+        QAL_ERR(LOG_TAG, "device %d name %s, going to start",
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->start();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
             goto exit;
         }
     }
-
-    for (int i = 0; i < devices.size(); i++) {
-        rm->registerDevice(devices[i]);
-    }
-    QAL_DBG(LOG_TAG, "Exit. devices started successfully status %d", status);
-    for (int i = 0; i < devices.size(); i++) {
-        rm->registerDevice(devices[i]);
+    QAL_DBG(LOG_TAG, "Exit. mDevices started successfully status %d", status);
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->registerDevice(mDevices[i]);
     }
 
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
@@ -216,10 +262,10 @@ int32_t StreamSoundTrigger::stop()
 {
     int32_t status = 0;
 
-    mutex.lock();
+    mStreamMutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK attr->direction - %d device count %d",
-            session, attr->direction, devices.size());
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d device count %d",
+            session, mStreamAttr->direction, mDevices.size());
 
     for (int i = 0; i < activeEngines.size(); i++) {
         uint32_t id = activeEngines[i].first;
@@ -233,8 +279,12 @@ int32_t StreamSoundTrigger::stop()
         }
     }
 
-    for (int32_t i=0; i < devices.size(); i++) {
-        status = devices[i]->stop();
+    for (int32_t i=0; i < mDevices.size(); i++) {
+
+        QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        status = mDevices[i]->stop();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Tx device stop failed with status %d", status);
             goto exit;
@@ -248,13 +298,13 @@ int32_t StreamSoundTrigger::stop()
         goto exit;
     }
 
-    for (int i = 0; i < devices.size(); i++) {
-        rm->deregisterDevice(devices[i]);
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. session stop successful");
 
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
@@ -264,7 +314,7 @@ int32_t StreamSoundTrigger::prepare()
 
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
-    mutex.lock();
+    mStreamMutex.lock();
     status = session->prepare(this);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
@@ -272,7 +322,7 @@ int32_t StreamSoundTrigger::prepare()
     }
     QAL_DBG(LOG_TAG, "Exit. status - %d", status);
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
@@ -282,11 +332,18 @@ int32_t StreamSoundTrigger::setStreamAttributes(struct qal_stream_attributes *sa
 
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
-    memset(attr, 0, sizeof(qal_stream_attributes));
-    mutex.lock();
-    casa_osal_memcpy (attr, sizeof(qal_stream_attributes), sattr,
+    if (!sattr) {
+        QAL_ERR(LOG_TAG, "Invalid param", session);
+        status = -EINVAL;
+        goto exit;
+    }
+
+
+    memset(mStreamAttr, 0, sizeof(qal_stream_attributes));
+    mStreamMutex.lock();
+    casa_osal_memcpy (mStreamAttr, sizeof(qal_stream_attributes), sattr,
                       sizeof(qal_stream_attributes));
-    mutex.unlock();
+    mStreamMutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //TODO:gkv or ckv or tkv need to pass
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
@@ -302,24 +359,24 @@ int32_t StreamSoundTrigger::read(struct qal_buffer* buf)
 {
     int32_t size;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    mutex.lock();
+    mStreamMutex.lock();
     if (reader_)
         size = reader_->read(buf->buffer, buf->size);
     else {
         QAL_ERR(LOG_TAG, "Failed to read data as no valid reader present");
         return -EINVAL;
     }
-    mutex.unlock();
+    mStreamMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 }
 
-int32_t StreamSoundTrigger::write(struct qal_buffer* buf)
+int32_t StreamSoundTrigger::write(struct qal_buffer* /*buf*/)
 {
     return 0;
 }
 
-int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb, void *cookie)
+int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb, void * /*cookie*/)
 {
     callBack = cb;
     QAL_DBG(LOG_TAG, "callBack = %pK", callBack);
@@ -437,9 +494,6 @@ int32_t StreamSoundTrigger::parse_rc_config(struct qal_st_recognition_config *rc
 {
     int32_t status = 0;
 
-    unsigned char **out_payload;
-    unsigned int *out_payload_size;
-
     QAL_DBG(LOG_TAG, "Enter.");
 
     if (!sm_data) {
@@ -497,7 +551,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
     QAL_DBG(LOG_TAG, "Enter. set parameter %u, session handle - %pK", param_id,
             session);
 
-    mutex.lock();
+    mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
     case QAL_PARAM_ID_LOAD_SOUND_MODEL:
@@ -566,7 +620,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
             param_id, status);
 
 exit:
-    mutex.unlock();
+    mStreamMutex.unlock();
     return status;
 }
 
@@ -610,7 +664,7 @@ int32_t StreamSoundTrigger::getSoundTriggerEngine(int *index, uint32_t sm_id)
 
 // Callback function for detection engine of first stage
 int32_t StreamSoundTrigger::handleDetectionEvent(qal_stream_handle_t *stream_handle,
-                              uint32_t event_id, uint32_t *event_data, void *cookie)
+                              uint32_t event_id, uint32_t *event_data, void * /*cookie*/)
 {
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter. Event detected on GECKO, event id = %u", event_id);
@@ -820,12 +874,12 @@ exit:
     return status;
 }
 
-int32_t StreamSoundTrigger::setVolume(struct qal_volume_data *volume)
+int32_t StreamSoundTrigger::setVolume(struct qal_volume_data * /*volume*/)
 {
     int32_t status = 0;
     return status;
 }
-int32_t StreamSoundTrigger::setMute(bool state)
+int32_t StreamSoundTrigger::setMute(bool /*state*/)
 {
     int32_t status = 0;
     return status;
@@ -919,6 +973,7 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
     QAL_DBG(LOG_TAG, "Enter");
 
     if (sound_model_type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+        //TBD::Will this be the same even for others sound models too (alexa etc?) too?
         opaque_size = (3 * sizeof(struct st_param_header)) +
             sizeof(struct st_timestamp_info) +
             sizeof(struct st_keyword_indices_info) +
@@ -1074,4 +1129,122 @@ int32_t StreamSoundTrigger::addRemoveEffect(qal_audio_effect_t effect, bool enab
 {
     QAL_ERR(LOG_TAG, " Function not supported");
     return -ENOSYS;
+}
+
+//TBD: to be tested, Yidong, is this enough?
+int32_t StreamSoundTrigger::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray)
+{
+    int32_t status = -EINVAL;
+    mStreamMutex.lock();
+    std::shared_ptr<Device> dev = nullptr;
+    if ((no_of_devices == 0) || (!deviceArray)) {
+        QAL_ERR("%s: invalid param for device switch", __func__);
+        status = -EINVAL;
+        goto error_1;
+    }
+
+
+    for (int i = 0; i < activeEngines.size(); i++) {
+        uint32_t id = activeEngines[i].first;
+        SoundTriggerEngine *stEngine = activeEngines[i].second;
+        QAL_VERBOSE(LOG_TAG, "stop recognition for sound trigger engine %u", id);
+        status = stEngine->stop_recognition(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: stop_recognition failed for sound trigger engine %u with status %d",
+                    __func__, id, status);
+            goto error_1;
+        }
+    }
+
+    //tell rm we are disabling existing mDevices, so that it can disable any streams running on
+    // 1. mDevices with common backend
+    //TBD: as there are no devices with common backend now.
+    //rm->disableDevice(mDevices);
+
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        QAL_ERR(LOG_TAG, "%s: device %d name %s, going to stop", __func__,
+            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+        session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+        status = mDevices[i]->stop();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: Rx device stop failed with status %d",
+                __func__, status);
+            goto error_1;
+        }
+
+        rm->deregisterDevice(mDevices[i]);
+
+        status = mDevices[i]->close();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: device close failed with status %d", __func__, status);
+            goto error_1;
+        }
+    }
+
+    //clear existing devices and enable new devices
+    mDevices.clear();
+
+    for (int i = 0; i < no_of_devices; i++) {
+        //Check with RM if the configuration given can work or not
+        //for e.g., if incoming stream needs 24 bit device thats also
+        //being used by another stream, then the other stream should route
+
+        dev = Device::create((struct qal_device *)&mDevices[i] , rm);
+        if (!dev) {
+            QAL_ERR(LOG_TAG, "%s: Device creation failed", __func__);
+            if (mStreamAttr) {
+                free(mStreamAttr->out_media_config.ch_info);
+                free(mStreamAttr);
+                mStreamAttr = NULL;
+            }
+            //TBD::free session too
+            mStreamMutex.unlock();
+            throw std::runtime_error("failed to create device object");
+        }
+
+        QAL_ERR(LOG_TAG, "%s: device %d name %s, going to start", __func__,
+                    mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+
+        status = mDevices[i]->start();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: device %d name %s, start failed with status %d", __func__,
+                        mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str(), status);
+            goto error_2;
+        }
+
+        mDevices.push_back(dev);
+        //enable sessions
+        session->connectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+        rm->registerDevice(dev);
+        dev = nullptr;
+    }
+
+    for (int i = 0; i < activeEngines.size(); i++) {
+        uint32_t id = activeEngines[i].first;
+        SoundTriggerEngine *stEngine = activeEngines[i].second;
+        QAL_VERBOSE(LOG_TAG, "%s: start recognition for sound trigger engine %u", __func__, id);
+        status = stEngine->start_recognition(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: start_recognition failed for sound trigger engine %u with status %d",
+                    __func__, id, status);
+            goto error_2;
+        }
+    }
+
+
+
+
+error_2:
+    if (mStreamAttr) {
+        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamAttr = NULL;
+    }
+error_1:
+    mStreamMutex.unlock();
+    return status;
+
 }

@@ -40,7 +40,7 @@ protected:
     int deviceCount = 0;
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
-    char deviceName[128] = {0};
+    char mSndDeviceName[128] = {0};
     void *deviceHandle;
     bool initialized = false;
 

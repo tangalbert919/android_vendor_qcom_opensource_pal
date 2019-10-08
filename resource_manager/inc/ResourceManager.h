@@ -95,7 +95,37 @@ class ResourceManager
 {
 
 private:
-    const int getNumFEs(const qal_stream_type_t sType) const;
+    //both of the below are update on register and deregister stream
+    int mPriorityHighestPriorityActiveStream; //priority of the highest priority active stream
+    Stream* mHighestPriorityActiveStream; //pointer to the highest priority active stream
+
+    int getNumFEs(const qal_stream_type_t sType) const;
+    /* shouldDeviceSwitch will return true, if the incoming stream properties and device
+           properties should force a device switch, these are the points to consider
+
+           order of priority
+
+
+           100 - voice and VOIP call streams have the highest priority (10 points or 0 points),
+           and device properties should be derived from that
+
+           50 - points if the stream is a 44.1 stream. This has the second highest priority
+
+           25 - points if the stream is a 24 bit stream. This has the third highest priority
+
+	const bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
+	    const qal_stream_attributes* sIncomingAttr) const
+    */
+
+
+    bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
+         const qal_stream_attributes* sIncomingAttr) const;
+    bool ifVoiceorVoipCall (qal_stream_type_t streamType) const;
+    int getCallPriority(bool ifVoiceCall) const;
+    int getStreamAttrPriority (const qal_stream_attributes* sAttr) const;
+    template <class T>
+    void getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
+	       std::vector<T> sourcestreams);
 protected:
     std::vector <StreamPCM*> active_streams_ll;
     std::vector <StreamPCM*> active_streams_ulla;
@@ -105,7 +135,7 @@ protected:
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::shared_ptr<Device>> active_devices;
     bool bOverwriteFlag;
-    static std::mutex mutex;
+    static std::mutex mResourceManagerMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -157,19 +187,24 @@ public:
     int getAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
-    int getDeviceName(int deviceId, char *device_name);
+    int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
-    const qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
+    qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
     const std::vector<int> allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction,
                                                 int lDirection);
     void freeFrontEndIds (const std::vector<int> f, const qal_stream_type_t sType,
                           const qal_stream_direction_t direction, int lDirection);
     const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
+    bool updateDeviceConfigs(const qal_stream_attributes* incomingStreamAttr,
+        int noOfIncomingDevices, qal_device* incomingDevices);
+    const std::string getQALDeviceName(const qal_device_id_t id) const;
+    bool isNonALSACodec(const struct qal_device *device) const;
+
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);
     static void snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name);

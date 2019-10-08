@@ -75,17 +75,17 @@ class Session;
 class Stream
 {
 protected:
-    uint32_t noOfDevices;
-    std::vector <std::shared_ptr<Device>> devices;
-    std::shared_ptr <Device> dev;
+    uint32_t mNoOfDevices;
+    std::vector <std::shared_ptr<Device>> mDevices;
+
     Session* session;
-    struct qal_stream_attributes* attr;
-    struct qal_volume_data* vdata = NULL;
-    std::mutex mutex;
-    static std::mutex mtx;
+    struct qal_stream_attributes* mStreamAttr;
+    struct qal_volume_data* mVolumeData = NULL;
+    std::mutex mStreamMutex;
+    static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
     static std::shared_ptr<ResourceManager> rm;
-    struct modifier_kv *modifiers_;
-    uint32_t uNoOfModifiers;
+    struct modifier_kv *mModifiers;
+    uint32_t mNoOfModifiers;
     size_t inBufSize;
     size_t outBufSize;
     size_t inBufCount;
@@ -93,29 +93,31 @@ protected:
 
 public:
     virtual ~Stream() {};
-    qal_stream_callback streamCb;
-    void *cookie;
+    qal_stream_callback streamCb; //TBD: why is this oublic
+    void *cookie; //TBD: why is this public
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
     virtual int32_t stop() = 0;
     virtual int32_t prepare() = 0;
     virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
-    virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
-    virtual int32_t setMute( bool state) = 0;
-    virtual int32_t setPause() = 0;
-    virtual int32_t setResume()= 0;
+    virtual int32_t setVolume( struct qal_volume_data *volume) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t setMute( bool state) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t setPause() = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t setResume()= 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t read(struct qal_buffer *buf) = 0;
-    int32_t getTimestamp(struct qal_session_time *stime);
-    int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
-    int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
-    int32_t getStreamType(qal_stream_type_t* streamType);
-    virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0;
-    virtual int32_t write(struct qal_buffer *buf) = 0;
+
+    virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
+    virtual int32_t write(struct qal_buffer *buf) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
-    virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
+
+
+    int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
+    int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
+    int32_t getStreamType(qal_stream_type_t* streamType);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
@@ -127,6 +129,8 @@ public:
     static Stream* create(struct qal_stream_attributes *sattr, struct qal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
     bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
+    int32_t getTimestamp(struct qal_session_time *stime);
+    int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
 };
 
 #endif//STREAM_H_

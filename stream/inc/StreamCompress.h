@@ -39,7 +39,7 @@ class Session;
 class StreamCompress : public Stream
 {
 public:
-    StreamCompress(const struct qal_stream_attributes *sattr, const struct qal_device *dattr, const uint32_t no_of_devices,
+    StreamCompress(const struct qal_stream_attributes *sattr, struct qal_device *dattr, const uint32_t no_of_devices,
                   const struct modifier_kv *modifiers, const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
     virtual ~StreamCompress() {};
     int32_t open() override;

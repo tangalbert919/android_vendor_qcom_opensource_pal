@@ -311,7 +311,7 @@ int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle,
   * \return 0 on success, error code otherwise
   */
 int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
-                           uint32_t *no_of_devices, struct qal_device *devices);
+                           uint32_t no_of_devices, struct qal_device *devices);
 
 /**
   * \brief Get audio parameters specific to a stream.

@@ -77,6 +77,28 @@ class StreamSoundTrigger : public Stream
 {
 
     union {};
+
+
+private:
+        int32_t stages;
+        qal_st_sound_model_type_t sound_model_type;
+        uint32_t recognition_mode;
+        uint8_t *sm_data;                   //This needs to be moved down to individual classes
+        struct qal_st_recognition_config *sm_rc_config;
+        struct qal_st_recognition_event *recEvent;
+        struct detection_event_info detectionEventInfo;
+        uint32_t detectionState;
+        uint32_t notificationState;
+        /* functions*/
+        int32_t parse_sound_model(struct qal_st_sound_model *sm_data);
+        int32_t parse_rc_config(struct qal_st_recognition_config *rc_config);
+        static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
+                             uint32_t event_id, uint32_t *event_data, void *cookie);
+        int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
+        int32_t create_st_engine(std::vector<std::pair<uint32_t, SoundTriggerEngine *>> &engines);
+        int32_t generate_callback_event(struct qal_st_recognition_event **event);
+        int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
+
 protected:
     qal_stream_callback callBack;
     std::vector<std::pair<uint32_t, SoundTriggerEngine *>> activeEngines;
@@ -114,24 +136,6 @@ public:
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
-private:
-    int32_t stages;
-    qal_st_sound_model_type_t sound_model_type;
-    uint32_t recognition_mode;
-    uint8_t *sm_data;                   //This needs to be moved down to individual classes
-    struct qal_st_recognition_config *sm_rc_config;
-    struct qal_st_recognition_event *recEvent;
-    struct detection_event_info detectionEventInfo;
-    uint32_t detectionState;
-    uint32_t notificationState;
-    /* functions*/
-    int32_t parse_sound_model(struct qal_st_sound_model *sm_data);
-    int32_t parse_rc_config(struct qal_st_recognition_config *rc_config);
-    static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
-                         uint32_t event_id, uint32_t *event_data, void *cookie);
-    int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
-    int32_t create_st_engine(std::vector<std::pair<uint32_t, SoundTriggerEngine *>> &engines);
-    int32_t generate_callback_event(struct qal_st_recognition_event **event);
-    int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
+    int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
 };
 #endif//STREAMSOUNDTRIGGER_H_

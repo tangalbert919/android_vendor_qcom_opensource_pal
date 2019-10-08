@@ -71,6 +71,13 @@ public:
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::string> &BackEnds);
     static int getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
+    static int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+        const std::vector<int> &pcmDevIds,
+        const std::vector<std::string> &aifBackEndsToDisconnect);
+    static int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+        const std::vector<int> &pcmDevIds, const std::vector<std::string> &aifBackEndsToConnect);
 };
 
 #endif //SESSION_ALSA_UTILS

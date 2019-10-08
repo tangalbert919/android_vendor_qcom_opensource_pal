@@ -39,6 +39,7 @@
 #include <memory>
 #include <errno.h>
 #include "QalCommon.h"
+#include "Device.h"
 
 
 
@@ -80,9 +81,14 @@ public:
     virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) = 0;
     virtual int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) = 0;
     virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) = 0;
-    virtual int registerCallBack(session_callback cb, void *cookie) {return 0;};
-    virtual int drain(qal_drain_type_t type) {return 0;};
+    virtual int registerCallBack(session_callback /*cb*/, void * /*cookie*/) {return 0;};
+    virtual int drain(qal_drain_type_t /*type*/) {return 0;};
     virtual int getTimestamp(struct qal_session_time *stime) = 0;
+    virtual int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToCconnect) = 0;
+    virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToDisconnect) = 0;
+
 };
 
 #endif //SESSION_H

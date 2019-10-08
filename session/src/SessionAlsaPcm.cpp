@@ -502,6 +502,36 @@ exit:
     return status;
 }
 
+int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
+        qal_stream_type_t streamType, std::shared_ptr<Device> deviceToDisconnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector<std::string> aifBackEndsToDisconnect;
+    struct qal_device dAttr;
+
+    deviceList.push_back(deviceToDisconnect);
+    aifBackEndsToDisconnect = rm->getBackEndNames(deviceList);
+    deviceToDisconnect->getDeviceAtrributes(&dAttr);
+
+    return SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+            dAttr, pcmDevIds, aifBackEndsToDisconnect);
+}
+
+int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector<std::string> aifBackEndsToConnect;
+    struct qal_device dAttr;
+
+    deviceList.push_back(deviceToConnect);
+    aifBackEndsToConnect = rm->getBackEndNames(deviceList);
+    deviceToConnect->getDeviceAtrributes(&dAttr);
+
+    return SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+            dAttr, pcmDevIds, aifBackEndsToConnect);
+}
+
 int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
 {
     int status = 0, bytesRead = 0, bytesToRead = 0, offset = 0, pcmReadSize = 0;
@@ -510,6 +540,13 @@ int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
     const char *stream = "PCM";
     struct mixer_ctl *ctl;
     std::ostringstream CntrlName;
+    struct qal_stream_attributes sAttr;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
     while (1) {
         offset = bytesRead + buf->offset;
         bytesToRead = buf->size - offset;
@@ -527,7 +564,8 @@ int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
             break;
         }
 
-        if (!bytesRead && buf->ts) {
+        if (!bytesRead && buf->ts &&
+            (sAttr.type == QAL_STREAM_VOICE_UI)) {
             CntrlName << stream << pcmDevIds.at(0) << " " << control;
             ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
             if (!ctl) {
@@ -595,18 +633,18 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
     return status;
 }
 
-int SessionAlsaPcm::readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize,
-                                   int flag)
+int SessionAlsaPcm::readBufferInit(Stream * /*streamHandle*/, size_t /*noOfBuf*/, size_t /*bufSize*/,
+                                   int /*flag*/)
 {
     return 0;
 }
-int SessionAlsaPcm::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize,
-                                    int flag)
+int SessionAlsaPcm::writeBufferInit(Stream * /*streamHandle*/, size_t /*noOfBuf*/, size_t /*bufSize*/,
+                                    int /*flag*/)
 {
     return 0;
 }
 
-int SessionAlsaPcm::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
+int SessionAlsaPcm::setParameters(Stream *streamHandle, int /*tagId*/, uint32_t param_id, void *payload)
 {
     int status = 0;
     int device = pcmDevIds.at(0);
@@ -643,7 +681,7 @@ int SessionAlsaPcm::setParameters(Stream *s, int tagId, uint32_t param_id, void 
         case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
         {
             // Restore stream pointer for event callback
-            cookie = (void *)s;
+            cookie = (void *)streamHandle;
             struct detection_engine_generic_event_cfg *pEventConfig = NULL;
             pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
             // set custom config for detection event
@@ -768,7 +806,7 @@ int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
     struct mixer_ctl *ctl;
     char *buf = NULL;
     unsigned int num_values;
-    int i, ret = 0;
+    int ret = 0;
     struct agm_event_cb_params *params;
     qal_stream_callback callBack;
     Stream *s;
@@ -830,14 +868,14 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     // determine Rx and Tx for concurrency usecase
     rm->getActiveDevices(activeDevices);
     for (int i = 0; i < activeDevices.size(); i++) {
-        int deviceId = activeDevices[i]->getDeviceId();
+        int deviceId = activeDevices[i]->getSndDeviceId();
         if ((deviceId == QAL_DEVICE_OUT_SPEAKER) || (deviceId == QAL_DEVICE_OUT_WIRED_HEADPHONE) &&
             sAttr.direction == QAL_AUDIO_INPUT) {
             rxDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
-                    dev->getDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+                if (dev->getSndDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
+                    dev->getSndDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
                     txDevice = dev;
             }
         }
@@ -861,7 +899,7 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
         return;
     }
 
-    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getDeviceId(), txDevice->getDeviceId());
+    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getSndDeviceId(), txDevice->getSndDeviceId());
     // determine concurrency usecase
     for (int i = 0; i < deviceList.size(); i++) {
         std::shared_ptr<Device> dev = deviceList[i];

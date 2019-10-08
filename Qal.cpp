@@ -198,14 +198,14 @@ ssize_t qal_stream_write(qal_stream_handle_t *stream_handle, struct qal_buffer *
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_VERBOSE(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
     status = s->write(buf);
     if (status < 0) {
         QAL_ERR(LOG_TAG, "stream write failed status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_VERBOSE(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -401,7 +401,7 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle,
                        qal_audio_effect_t effect, bool enable)
 {
     Stream *s = NULL;
-    int status;
+    int status = EINVAL;
     qal_stream_type_t type;
 
     if (!stream_handle) {
@@ -427,4 +427,29 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle,
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 
+}
+int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
+                           uint32_t no_of_devices, struct qal_device *devices)
+{
+    int status = -EINVAL;
+    Stream *s = NULL;
+
+    if (!stream_handle || !devices) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "%s: Invalid input parameters status %d", __func__, status);
+        return status;
+    }
+
+    QAL_ERR(LOG_TAG, "%s: Enter. Stream handle :%pK no_of_devices %d first_device id %d", __func__, stream_handle, no_of_devices, devices[0].id);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->switchDevice(s, no_of_devices, devices);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "%s: failed with status %d", __func__, status);
+        return status;
+    }
+
+    QAL_INFO(LOG_TAG, "%s: Exit. status %d", __func__, status);
+
+
+    return status;
 }

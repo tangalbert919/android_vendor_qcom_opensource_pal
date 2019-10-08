@@ -49,7 +49,13 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device,
         QAL_ERR(LOG_TAG, "Invalid input parameters");
         return NULL;
     }
-    QAL_DBG(LOG_TAG, "Enter. device id %d", device->id);
+
+    QAL_ERR(LOG_TAG, "Enter device id %d", device->id);
+
+
+    QAL_ERR(LOG_TAG, "Device config updated");
+
+    //TBD: decide on supported devices from XML and not in code
     switch(device->id) {
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
@@ -93,12 +99,14 @@ CodecDevice::CodecDevice(struct qal_device *device, std::shared_ptr<ResourceMana
     deviceAttr.config.ch_info = codec_device_ch_info;
     casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
                      ch_info_size);
+    mQALDeviceName.clear();
 
 }
 
 CodecDevice::CodecDevice()
 {
     initialized = false;
+    mQALDeviceName.clear();
 }
 
 CodecDevice::~CodecDevice()
@@ -110,8 +118,9 @@ CodecDevice::~CodecDevice()
 int CodecDevice::open()
 {
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
-    mutex.lock();
+    mDeviceMutex.lock();
+    QAL_ERR(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
+        deviceCount, this->deviceAttr.id, initialized);
     void *stream;
     std::vector<Stream*> activestreams;
     CodecDeviceImpl *codecImpl;
@@ -130,37 +139,43 @@ int CodecDevice::open()
         }
         status = codecImpl->open(&(this->deviceAttr), rm);
         if(0!= status) {
-            QAL_ERR(LOG_TAG,"Failed to open the device status %d", status);
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG,"Failed to open the device");
             delete codecImpl;
             goto exit;
         }
 
         deviceHandle = static_cast<void *>(codecImpl);
+        mQALDeviceName = rm->getQALDeviceName(this->deviceAttr.id);
         initialized = true;
+        QAL_ERR(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
     }
 
     devObj = CodecDevice::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream(devObj, activestreams);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "getActiveStream failed status %d", status);
-        free(deviceHandle);
+        QAL_ERR(LOG_TAG, "getActiveStream failed status %d, need not be fatal", status);
+        status = 0;
+        //free(deviceHandle);
         goto exit;
     }
+
+    //TBD:: why is this required?
     for (int i = 0; i < activestreams.size(); i++) {
         stream = static_cast<void *>(activestreams[i]);
         QAL_VERBOSE(LOG_TAG, "Stream handle :%pK", activestreams[i]);
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit:
-    mutex.unlock();
+    mDeviceMutex.unlock();
     return status;
 }
 
 int CodecDevice::close()
 {
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
-    mutex.lock();
+    mDeviceMutex.lock();
+    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
     if (deviceCount == 0 && initialized) {
         CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
         if (!codecDev) {
@@ -179,15 +194,15 @@ int CodecDevice::close()
     }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
-    mutex.unlock();
+    mDeviceMutex.unlock();
     return status;
 }
 
 int CodecDevice::prepare()
 {
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
-    mutex.lock();
+    mDeviceMutex.lock();
+    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
     if (deviceCount == 0 && initialized) {
         CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
          if (!codecDev) {
@@ -202,30 +217,33 @@ int CodecDevice::prepare()
             goto exit;
         }
     }
-    QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    QAL_DBG(LOG_TAG, "%s: Exit. device count %d", deviceCount);
 exit :
-    mutex.unlock();
+    mDeviceMutex.unlock();
     return status;
 }
 
 int CodecDevice::start()
 {
     int status = 0;
-    QAL_DBG(LOG_TAG, "Enter. device count %d", deviceCount);
-    mutex.lock();
+    mDeviceMutex.lock();
+
+    QAL_ERR(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
     if (deviceCount == 0 && initialized) {
         status = rm->getAudioRoute(&audioRoute);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
             goto exit;
         }
-        QAL_VERBOSE(LOG_TAG, "audio_route %pK", audioRoute);
-        status = rm->getDeviceName(deviceAttr.id , deviceName); 
+        status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
+
+        QAL_VERBOSE(LOG_TAG, "%s: audio_route %pK SND device name %s", __func__, audioRoute, mSndDeviceName);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
             goto exit;
         }
-        enableDevice(audioRoute, deviceName);
+
+        enableDevice(audioRoute, mSndDeviceName);
 
         CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
         if (!codecDev) {
@@ -248,16 +266,17 @@ int CodecDevice::start()
     deviceCount += 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
-    mutex.unlock();
+    mDeviceMutex.unlock();
     return status;
 }
 
 int CodecDevice::stop()
 {
     int status = 0;
-    mutex.lock();
+    mDeviceMutex.lock();
+    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
     if(deviceCount == 1 && initialized) {
-        disableDevice(audioRoute, deviceName);
+        disableDevice(audioRoute, mSndDeviceName);
         CodecDeviceImpl *codecDev = static_cast<CodecDeviceImpl *>(deviceHandle);
         if (!codecDev) {
             status = -EINVAL;
@@ -273,6 +292,6 @@ int CodecDevice::stop()
     deviceCount -= 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit :
-    mutex.unlock();
+    mDeviceMutex.unlock();
     return status;
 }

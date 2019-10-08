@@ -39,10 +39,10 @@ class Session;
 class StreamPCM : public Stream
 {
 public:
-   StreamPCM(const struct qal_stream_attributes *sattr, const struct qal_device *dattr,
+   StreamPCM(const struct qal_stream_attributes *sattr, struct qal_device *dattr,
              const uint32_t no_of_devices,
              const struct modifier_kv *modifiers, const uint32_t no_of_modifiers,
-             const std::shared_ptr<ResourceManager> rm);
+             const std::shared_ptr<ResourceManager> rm); //make this just pass parameters to Stream and avoid duplicating code between StreamPCM and StreamCompress
    //StreamPCM();
    virtual ~StreamPCM() { };
    int32_t open() override;

@@ -73,7 +73,7 @@ int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
     }
     return rc;
 }
-
+//TBD why do these channels have to be supported, headphones support only 1/2?
 int32_t Headphone::isChannelSupported(uint32_t numChannels)
 {
     int32_t rc = 0;
