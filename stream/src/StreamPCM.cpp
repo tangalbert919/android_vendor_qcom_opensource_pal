@@ -64,9 +64,8 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
     if (!sattr || !dattr) {
         QAL_ERR(LOG_TAG,"invalid arguments");
         mStreamMutex.unlock();
-        throw std::runtime_error("failed to malloc for ch_info");
+        throw std::runtime_error("invalid arguments");
     }
-
 
     mStreamAttr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
     if (!mStreamAttr) {
@@ -74,20 +73,33 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
-    casa_osal_memcpy (mStreamAttr, sizeof(qal_stream_attributes), sattr,
-                       sizeof(qal_stream_attributes));
-    struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
-    if (!ch_info) {
-          QAL_ERR(LOG_TAG,"malloc for ch_info failed");
-          free(mStreamAttr);
-          mStreamMutex.unlock();
-          throw std::runtime_error("failed to malloc for ch_info");
-       }
 
     casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
-    mStreamAttr->out_media_config.ch_info = ch_info;
-    casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
-    sattr->out_media_config.ch_info, sizeof(qal_channel_info));
+
+    if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
+        struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
+        if (!ch_info) {
+            QAL_ERR(LOG_TAG,"malloc for ch_info failed");
+            free(mStreamAttr);
+            mStreamMutex.unlock();
+            throw std::runtime_error("failed to malloc for ch_info output");
+        }
+
+        mStreamAttr->out_media_config.ch_info = ch_info;
+        casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
+                        sattr->out_media_config.ch_info, sizeof(qal_channel_info));
+    } else if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
+        struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
+        if (!ch_info) {
+            QAL_ERR(LOG_TAG,"malloc for ch_info failed");
+            free(mStreamAttr);
+            mStreamMutex.unlock();
+            throw std::runtime_error("failed to malloc for ch_info output");
+        }
+        mStreamAttr->in_media_config.ch_info = ch_info;
+        casa_osal_memcpy(mStreamAttr->in_media_config.ch_info, sizeof(qal_channel_info),
+        sattr->in_media_config.ch_info, sizeof(qal_channel_info));
+   }
 
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);

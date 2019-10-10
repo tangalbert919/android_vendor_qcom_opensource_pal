@@ -82,15 +82,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
        }
 
     casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
-    mStreamAttr->out_media_config.ch_info = ch_info;
-    casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
-        sattr->out_media_config.ch_info, sizeof(qal_channel_info));
+    mStreamAttr->in_media_config.ch_info = ch_info;
+    casa_osal_memcpy(mStreamAttr->in_media_config.ch_info, sizeof(qal_channel_info),
+        sattr->in_media_config.ch_info, sizeof(qal_channel_info));
 
     session = Session::makeSession(rm, sattr);
 
     if (!session) {
         QAL_ERR(LOG_TAG, "session creation failed");
-        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
@@ -110,7 +110,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         dev = Device::create(&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
-            free(mStreamAttr->out_media_config.ch_info);
+            free(mStreamAttr->in_media_config.ch_info);
             free(mStreamAttr);
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
@@ -187,7 +187,7 @@ exit:
     status = rm->deregisterStream(this);
     
     if (mStreamAttr) {
-        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
     }
@@ -1195,7 +1195,7 @@ int32_t StreamSoundTrigger::switchDevice(Stream* streamHandle, uint32_t no_of_de
         if (!dev) {
             QAL_ERR(LOG_TAG, "%s: Device creation failed", __func__);
             if (mStreamAttr) {
-                free(mStreamAttr->out_media_config.ch_info);
+                free(mStreamAttr->in_media_config.ch_info);
                 free(mStreamAttr);
                 mStreamAttr = NULL;
             }
@@ -1239,7 +1239,7 @@ int32_t StreamSoundTrigger::switchDevice(Stream* streamHandle, uint32_t no_of_de
 
 error_2:
     if (mStreamAttr) {
-        free(mStreamAttr->out_media_config.ch_info);
+        free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamAttr = NULL;
     }
