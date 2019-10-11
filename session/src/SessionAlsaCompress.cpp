@@ -421,6 +421,8 @@ int SessionAlsaCompress::start(Stream * s)
     struct qal_stream_attributes sAttr;
     int32_t status = 0;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dAttr;
 
     /** create an offload thread for posting callbacks */
     worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
@@ -443,6 +445,52 @@ int SessionAlsaCompress::start(Stream * s)
     }
     /** set non blocking mode for writes */
     compress_nonblock(compress, !!ioMode);
+
+    switch(sAttr.direction) {
+        case QAL_AUDIO_OUTPUT:
+            status = s->getAssociatedDevices(associatedDevices);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            for (int i = 0; i < associatedDevices.size();i++) {
+                status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                if(0 != status) {
+                    QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                    return status;
+                }
+                QAL_ERR(LOG_TAG,"%s: device sample rate %d \n", __func__, dAttr.config.sample_rate);
+                switch (dAttr.config.sample_rate) {
+                    case SAMPLINGRATE_8K :
+                        setConfig(s,MODULE,MFC_SR_8K);
+                        break;
+                    case SAMPLINGRATE_16K :
+                        setConfig(s,MODULE,MFC_SR_16K);
+                        break;
+                    case SAMPLINGRATE_32K :
+                        setConfig(s,MODULE,MFC_SR_32K);
+                        break;
+                    case SAMPLINGRATE_44K :
+                        setConfig(s,MODULE,MFC_SR_44K);
+                        break;
+                    case SAMPLINGRATE_48K :
+                        setConfig(s,MODULE,MFC_SR_48K);
+                        break;
+                    case SAMPLINGRATE_96K :
+                        setConfig(s,MODULE,MFC_SR_96K);
+                        break;
+                    case SAMPLINGRATE_192K :
+                        setConfig(s,MODULE,MFC_SR_192K);
+                        break;
+                    case SAMPLINGRATE_384K :
+                        setConfig(s,MODULE,MFC_SR_384K);
+                        break;
+                }
+            }
+            break;
+        default:
+            break;
+    }
 
 free_feIds:
    return 0;
