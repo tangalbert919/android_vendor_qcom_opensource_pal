@@ -455,13 +455,18 @@ exit:
 int32_t  StreamCompress::setPause()
 {
     int32_t status = 0;
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
+
+    QAL_VERBOSE(LOG_TAG,"Pause, session handle - %p", session);
+
     status = session->setConfig(this, MODULE, PAUSE_TAG);
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
+    isPaused = true;
+
     QAL_VERBOSE(LOG_TAG,"%s: session setPause successful", __func__);
+
 exit:
     return status;
 }
@@ -469,13 +474,18 @@ exit:
 int32_t  StreamCompress::setResume()
 {
     int32_t status = 0;
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
+
+    QAL_VERBOSE(LOG_TAG,"Resume, session handle - %p", session);
+
     status = session->setConfig(this, MODULE, RESUME_TAG);
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
-    QAL_VERBOSE(LOG_TAG,"session setConfig for pause successful");
+
+    isPaused = false;
+    QAL_VERBOSE(LOG_TAG,"session setResume successful");
+
 exit:
     return status;
 }
@@ -483,6 +493,16 @@ exit:
 int32_t StreamCompress::drain(qal_drain_type_t type)
 {
     return session->drain(type);
+}
+
+int32_t StreamCompress::flush()
+{
+    if (isPaused == false) {
+         QAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
+         return -EINVAL;
+    }
+
+    return session->flush();
 }
 
 int32_t StreamCompress::isSampleRateSupported(uint32_t sampleRate)

@@ -336,21 +336,74 @@ int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
+
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
+
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
+
     status = s->setResume();
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "qal_stream_resume failed with status %d", status);
+        QAL_ERR(LOG_TAG, "resume failed with status %d", status);
         return status;
     }
+
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
+
+int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t type)
+{
+    Stream *s = NULL;
+    int status;
+
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
+    }
+
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+
+    status = s->drain(type);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "drain failed with status %d", status);
+        return status;
+    }
+
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
+int32_t qal_stream_flush(qal_stream_handle_t *stream_handle)
+{
+    Stream *s = NULL;
+    int status;
+
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
+    }
+
+    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+
+    status = s->flush();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "flush failed with status %d", status);
+        return status;
+    }
+
+    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
 int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle,
                                     size_t *in_buf_size, const size_t in_buf_count,
                                     size_t *out_buf_size, const size_t out_buf_count)

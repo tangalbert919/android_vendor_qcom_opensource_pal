@@ -92,7 +92,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
 {
     std::shared_ptr<offload_msg> msg;
     uint32_t event_id;
-
+    int ret = 0;
     std::unique_lock<std::mutex> lock(compressObj->cv_mutex_);
 
     while (1) {
@@ -112,6 +112,15 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 compress_wait(compressObj->compress, -1);
                 QAL_VERBOSE(LOG_TAG, "out of compress_wait");
                 event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
+            } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
+                QAL_ERR(LOG_TAG, "calling compress_drain");
+                ret = compress_drain(compressObj->compress);
+                QAL_ERR(LOG_TAG, "out of compress_drain ret:%d", ret);
+                event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
+            } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
+                QAL_ERR(LOG_TAG, "calling partial compress_drain");
+                //return compress_partial_drain(compressObj->compress);
+                event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             }
             if (compressObj->sessionCb)
                 compressObj->sessionCb(compressObj->cbCookie, event_id, NULL);
@@ -501,9 +510,7 @@ int SessionAlsaCompress::stop(Stream * s)
     int32_t status = 0;
 
     if (compress && playback_started)
-//        status = compress_stop(compress);
-          status = compress_drain(compress);
-
+        status = compress_stop(compress);
    return status;
 }
 
@@ -741,10 +748,51 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, void *cookie)
     return 0;
 }
 
+int SessionAlsaCompress::flush()
+{
+    if (!compress) {
+        QAL_ERR(LOG_TAG, "Compress is invalid");
+        return -EINVAL;
+    }
+
+    return compress_stop(compress);
+}
+
 int SessionAlsaCompress::drain(qal_drain_type_t type)
 {
-//    if (compress)
-//        compress_drain(compress);
+    std::shared_ptr<offload_msg> msg;
+
+    if (!compress || !playback_started) {
+       QAL_ERR(LOG_TAG, "compress or playback_started is invalid");
+       return -EINVAL;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "drain type = %d", type);
+
+    switch(type) {
+    case QAL_DRAIN:
+    {
+        msg = std::make_shared<offload_msg>(OFFLOAD_CMD_DRAIN);
+        std::lock_guard<std::mutex> drain_lock(cv_mutex_);
+        msg_queue_.push(msg);
+        cv_.notify_all();
+    }
+    break;
+
+    case QAL_DRAIN_PARTIAL:
+    {
+        msg = std::make_shared<offload_msg>(OFFLOAD_CMD_PARTIAL_DRAIN);
+        std::lock_guard<std::mutex> partial_lock(cv_mutex_);
+        msg_queue_.push(msg);
+        cv_.notify_all();
+    }
+    break;
+
+    default:
+        QAL_ERR(LOG_TAG, "invalid drain type = %d", type);
+        return -EINVAL;
+    }
+
     return 0;
 }
 

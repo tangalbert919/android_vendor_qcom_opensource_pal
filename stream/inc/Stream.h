@@ -93,18 +93,21 @@ protected:
 
 public:
     virtual ~Stream() {};
-    qal_stream_callback streamCb; //TBD: why is this oublic
-    void *cookie; //TBD: why is this public
+    qal_stream_callback streamCb;
+    void *cookie;
+    bool isPaused;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
     virtual int32_t stop() = 0;
     virtual int32_t prepare() = 0;
+    virtual int32_t drain(qal_drain_type_t type) {return 0;}
     virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
-    virtual int32_t setVolume( struct qal_volume_data *volume) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
-    virtual int32_t setMute( bool state) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
-    virtual int32_t setPause() = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
-    virtual int32_t setResume()= 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
+    virtual int32_t setMute( bool state) = 0;
+    virtual int32_t setPause() = 0;
+    virtual int32_t setResume()= 0;
+    virtual int32_t flush() {return 0;}
     virtual int32_t read(struct qal_buffer *buf) = 0;
 
     virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
