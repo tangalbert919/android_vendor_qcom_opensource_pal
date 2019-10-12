@@ -529,14 +529,17 @@ int32_t SoundTriggerEngineCapiVop::stop_buffering(Stream *s)
 {
     int32_t status = 0;
 
+    mutex.lock();
+    eventDetected = false;
     exit_buffering_ = true;
     if (reader_)
         reader_->reset();
     else {
-        status = EINVAL;
+        status = -EINVAL;
         goto exit;
     }
     QAL_VERBOSE(LOG_TAG, "stop buffering success");
+    mutex.unlock();
     return status;
 
 exit:
@@ -555,6 +558,12 @@ int32_t SoundTriggerEngineCapiVop::stop_recognition(Stream *s)
         goto exit;
     }
 
+    if (reader_)
+        reader_->reset();
+    else {
+        status = -EINVAL;
+        goto exit;
+    }
     QAL_VERBOSE(LOG_TAG, "stop recognition success");
     mutex.unlock();
     return status;

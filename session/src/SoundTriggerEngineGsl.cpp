@@ -451,7 +451,9 @@ int32_t SoundTriggerEngineGsl::stop_buffering(Stream *s)
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter.");
     mutex.lock();
+    eventDetected = false;
     exit_buffering_ = true;
+    timestampRecorded = false;
     if (buffer_)
         buffer_->reset();
     else {
@@ -489,6 +491,13 @@ int32_t SoundTriggerEngineGsl::stop_recognition(Stream *s)
     status = session->setParameters(streamHandle, DEVICE_SVA, PARAM_ID_DETECTION_ENGINE_RESET, NULL);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d", status);
+        goto exit;
+    }
+
+    if (buffer_)
+        buffer_->reset();
+    else {
+        status = -EINVAL;
         goto exit;
     }
 

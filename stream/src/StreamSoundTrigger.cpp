@@ -301,6 +301,14 @@ int32_t StreamSoundTrigger::stop()
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i]);
     }
+
+    // reset ring buffer reader
+    if (reader_)
+        reader_->reset();
+    else {
+        status = -EINVAL;
+        goto exit;
+    }
     QAL_DBG(LOG_TAG, "Exit. session stop successful");
 
 exit:
@@ -606,7 +614,15 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
                 QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d", status);
                 goto exit;
             }
-            stEngine->setDetected(false);
+            //stEngine->setDetected(false);
+        }
+
+        // reset ring buffer reader
+        if (reader_)
+            reader_->reset();
+        else {
+            status = -EINVAL;
+            goto exit;
         }
         break;
     }

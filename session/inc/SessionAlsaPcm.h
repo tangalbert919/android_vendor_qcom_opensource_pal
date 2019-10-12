@@ -66,6 +66,7 @@ private:
     std::vector <std::pair<int, int>> tkv;
     void *cookie;
     std::thread threadHandler;
+    sessionState mState;
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
@@ -94,6 +95,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
+    bool isActive();
 };
 
 #endif //SESSION_ALSAPCM_H

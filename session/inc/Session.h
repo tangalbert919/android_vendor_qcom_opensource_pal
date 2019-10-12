@@ -53,6 +53,13 @@ typedef enum {
     OUT_MEDIA_CONFIG
 }configType;
 
+typedef enum {
+    SESSION_IDLE,
+    SESSION_OPENED,
+    SESSION_STARTED,
+    SESSION_STOPPED,
+}sessionState;
+
 typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
 
 class Stream;
