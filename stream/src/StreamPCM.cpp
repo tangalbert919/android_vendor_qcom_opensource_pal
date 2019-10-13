@@ -259,6 +259,16 @@ int32_t StreamPCM::start()
         QAL_VERBOSE(LOG_TAG, "%s: Inside QAL_AUDIO_INPUT device count - %d",
                     __func__, mDevices.size());
 
+        for (int32_t i=0; i < mDevices.size(); i++) {
+            status = mDevices[i]->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d",
+                        status);
+                goto exit;
+            }
+        }
+        QAL_VERBOSE(LOG_TAG, "devices started successfully");
+
         status = session->prepare(this);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
@@ -275,15 +285,6 @@ int32_t StreamPCM::start()
         }
         QAL_VERBOSE(LOG_TAG, "session start successful");
 
-        for (int32_t i=0; i < mDevices.size(); i++) {
-            status = mDevices[i]->start();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d",
-                        status);
-                goto exit;
-            }
-        }
-        QAL_VERBOSE(LOG_TAG, "devices started successfully");
         break;
     case QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT:
         QAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %d",

@@ -35,7 +35,8 @@
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define XML_FILE "/vendor/etc/hw_ep_info.xml"
-#define TAG_STREAM_MFC_SR  TAG_DEVICE_PP_MFC
+#define TAG_STREAM_MFC_SR TAG_STREAM_MFC
+#define TAG_DEVICE_MFC_SR TAG_DEVICE_PP_MFC
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
@@ -2203,7 +2204,15 @@ int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, 
 int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag)
 {
     int status = 0;
-    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    QAL_VERBOSE(LOG_TAG,"%s: enter, tag 0x%x", __func__, tag);
+    struct qal_stream_attributes sAttr;
+
+    status = s->getStreamAttributes(&sAttr);
+
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
 
     switch (tag){
     case MUTE_TAG:
@@ -2224,35 +2233,59 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        break;
     case MFC_SR_8K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_8K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_16K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_16K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_32K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_32K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_44K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_44K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_48K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_48K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_96K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_96K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_192K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_192K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case MFC_SR_384K:
        tkv.push_back(std::make_pair(SAMPLINGRATE,SAMPLINGRATE_384K));
-       *gsltag = TAG_STREAM_MFC_SR;
+       if (sAttr.direction == QAL_AUDIO_INPUT)
+            *gsltag = TAG_STREAM_MFC_SR;
+       else
+            *gsltag = TAG_DEVICE_MFC_SR;
        break;
     case FLUENCE_ON_TAG:
        tkv.push_back(std::make_pair(FLUENCE,FLUENCE_ON));

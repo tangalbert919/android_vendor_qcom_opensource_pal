@@ -366,6 +366,38 @@ int SessionAlsaPcm::start(Stream * s)
 
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
+
+            switch (sAttr.in_media_config.sample_rate) {
+                case SAMPLINGRATE_8K :
+                    setConfig(s,MODULE,MFC_SR_8K);
+                    break;
+                case SAMPLINGRATE_16K :
+                    setConfig(s,MODULE,MFC_SR_16K);
+                    break;
+                case SAMPLINGRATE_32K :
+                    setConfig(s,MODULE,MFC_SR_32K);
+                    break;
+                case SAMPLINGRATE_44K :
+                    setConfig(s,MODULE,MFC_SR_44K);
+                    break;
+                case SAMPLINGRATE_48K :
+                    setConfig(s,MODULE,MFC_SR_48K);
+                    break;
+                case SAMPLINGRATE_96K :
+                    setConfig(s,MODULE,MFC_SR_96K);
+                    break;
+                case SAMPLINGRATE_192K :
+                    setConfig(s,MODULE,MFC_SR_192K);
+                    break;
+                case SAMPLINGRATE_384K :
+                    setConfig(s,MODULE,MFC_SR_384K);
+                    break;
+            }
+            status = pcm_start(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            }
+            break;
         case QAL_AUDIO_OUTPUT:
             status = s->getAssociatedDevices(associatedDevices);
             if(0 != status) {
