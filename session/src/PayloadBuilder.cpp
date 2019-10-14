@@ -1372,6 +1372,32 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
+void PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
+            uint32_t *customPayload, uint32_t customPayloadSize,
+            uint32_t moduleInstanceId, uint32_t paramId) {
+    struct apm_module_param_data_t* header;
+    uint8_t *phrase_sm;
+    uint8_t *sm_data;
+    uint8_t* payloadInfo = NULL;
+    size_t alsaPayloadSize = 0;
+
+    alsaPayloadSize = QAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                        + customPayloadSize);
+    payloadInfo = (uint8_t *)malloc((size_t)alsaPayloadSize);
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = moduleInstanceId;
+    header->param_id = paramId;
+    header->error_code = 0x0;
+    header->param_size = customPayloadSize;
+    casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                        customPayloadSize,
+                        customPayload,
+                        customPayloadSize);
+    *size = alsaPayloadSize;
+    *alsaPayload = payloadInfo;
+    QAL_DBG(LOG_TAG, "ALSA payload %u size %d", *alsaPayload, *size);
+}
+
 void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
                        uint32_t moduleId, struct qal_st_sound_model *soundModel)
 {

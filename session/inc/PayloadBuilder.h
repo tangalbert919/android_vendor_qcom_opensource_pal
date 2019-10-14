@@ -163,6 +163,9 @@ public:
                        struct qal_volume_data *volumedata, int tag);
     void payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadResume(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadCustomParam(uint8_t **alsaPayload, size_t *size,
+                            uint32_t *customayload, uint32_t customPayloadSize,
+                            uint32_t moduleInstanceId, uint32_t dspParamId);
     void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId,
                               struct qal_st_sound_model *soundModel);
     void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId,

@@ -625,9 +625,48 @@ int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSi
 
 int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
 {
-    qal_param_payload *param_payload = NULL;
-    param_payload = (qal_param_payload *)payload;
-    QAL_INFO(LOG_TAG, "compress %x", audio_fmt);
+    qal_param_payload *param_payload = (qal_param_payload *)payload;
+    int status = 0;
+    int device = compressDevIds.at(0);
+    uint8_t* alsaParamData = NULL;
+    size_t alsaPayloadSize = 0;
+    uint32_t miid = 0;
+    uint32_t isPayloadTKV = PARAM_NONTKV;
+    uint32_t payloadSize = 0;
+    effect_qal_payload_t *effectQalPayload = nullptr;
+
+    switch (param_id) {
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            qal_effect_custom_payload_t *customPayload;
+            param_payload = (qal_param_payload *)payload;
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                           aifBackEnds[0].data(),
+                                                           true, tagId, &miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            } else {
+                customPayload = (qal_effect_custom_payload_t *)effectQalPayload->payload;
+                builder->payloadCustomParam(&alsaParamData, &alsaPayloadSize,
+                            customPayload->data, effectQalPayload->payloadSize - sizeof(uint32_t),
+                            miid, customPayload->dspParamId);
+                status = SessionAlsaUtils::setMixerParameter(mixer,
+                                                             compressDevIds.at(0),
+                                                             true, alsaParamData,
+                                                             alsaPayloadSize);
+                QAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
+                free(alsaParamData);
+            }
+            break;
+        }
+        default:
+            QAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
+            break;
+    }
+
+    QAL_INFO(LOG_TAG, "compress format %x", audio_fmt);
     switch (audio_fmt) {
         case QAL_AUDIO_FMT_MP3:
             break;
