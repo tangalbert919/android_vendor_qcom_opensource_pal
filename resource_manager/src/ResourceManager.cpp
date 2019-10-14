@@ -540,6 +540,8 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOICE_CALL_TX:
         case QAL_STREAM_VOICE_CALL_RX_TX:
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_DEEP_BUFFER:
+        case QAL_STREAM_GENERIC:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
@@ -1117,6 +1119,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
 
     switch(sType) {
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
@@ -1244,6 +1247,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
 {
     switch(sType) {
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:

@@ -1671,13 +1671,20 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
                 keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LOOPBACK));
             } else {
-                QAL_ERR(LOG_TAG,"%s: Invalid direction \n", __func__);
                 status = -EINVAL;
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
                 goto free_sattr;
             }
             break;
         case QAL_STREAM_DEEP_BUFFER:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAM_TYPE,PCM_LL_PLAYBACK));
+                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_2));
+            } else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
             break;
         case QAL_STREAM_GENERIC:
             break;
