@@ -48,6 +48,7 @@ public:
     int32_t stop() override;
     int32_t prepare() override;
     int32_t drain(qal_drain_type_t type);
+    int32_t flush();
     int32_t setStreamAttributes(struct qal_stream_attributes *sattr) override;
     int32_t setVolume( struct qal_volume_data *volume) override;
     int32_t setMute( bool state) override;

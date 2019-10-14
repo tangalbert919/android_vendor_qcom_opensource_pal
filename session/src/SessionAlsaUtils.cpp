@@ -236,7 +236,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct mixer_ctl *aifMfCtrl = NULL;
     struct mixer_ctl *disconnectCtrl;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    long aif_media_config[2][3];
+    long aif_media_config[3];
     struct mixer *mixerHandle;
     int ioMode;
     uint32_t streamMetaDataSize = 0, deviceMetaDataSize = 0, streamDeviceMetaDataSize = 0;
@@ -599,7 +599,7 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
-        QAL_ERR(LOG_TAG,"%s:calloc failed",_func_);
+        QAL_ERR(LOG_TAG,"%s:calloc failed",__func__);
         return ret;
     }
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
@@ -687,7 +687,7 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, bool isCompr
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
-        QAL_ERR(LOG_TAG,"%s:calloc failed",_func_);
+        QAL_ERR(LOG_TAG,"%s:calloc failed",__func__);
         return ret;
     }
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
@@ -801,21 +801,21 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     //streamMetaData = getAgmMetaData(streamKV, streamMetaDataSize);
     if (!streamMetaData) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: get stream meta data failed %d", _func_, status);
+        QAL_ERR(LOG_TAG, "%s: get stream meta data failed %d", __func__, status);
         goto exit;
     }
     status = getAgmMetaData(deviceRxKV, emptyKV, (struct prop_data *)devicePropId,
            deviceRxMetaDataSize, &deviceRxMetaData);
     if (!deviceRxMetaData) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", _func_, status);
+        QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", __func__, status);
         goto free_streammd;
     }
     status = getAgmMetaData(deviceTxKV, emptyKV, (struct prop_data *)devicePropId,
             deviceTxMetaDataSize, &deviceTxMetaData);
     if (!deviceTxMetaData) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", _func_, status);
+        QAL_ERR(LOG_TAG, "%s: get device meta data failed %d", __func__, status);
         goto free_streammd;
     }
     if (streamDeviceKV.size()) {
@@ -823,7 +823,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 streamDeviceMetaDataSize, &streamDeviceMetaData);
         if (!streamDeviceMetaData) {
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "%s: get stream device meta data failed %d", _func_, status);
+            QAL_ERR(LOG_TAG, "%s: get stream device meta data failed %d", __func__, status);
             goto free_devicemd;
         }
     }

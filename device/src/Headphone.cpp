@@ -60,9 +60,9 @@ Headphone::~Headphone()
 int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "%s: sampleRate %d", _func_, sampleRate);
+    QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, sampleRate);
     switch (sampleRate) {
-        case SAMPLINGRATE_44.1K:
+        case SAMPLINGRATE_44K:
         case SAMPLINGRATE_48K:
         case SAMPLINGRATE_96K:
             break;
