@@ -104,6 +104,7 @@ public:
     int open(Stream * s) override;
     int prepare(Stream * s) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
+    int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
     //int getConfig(Stream * s) override;
     int start(Stream * s) override;
     int stop(Stream * s) override;

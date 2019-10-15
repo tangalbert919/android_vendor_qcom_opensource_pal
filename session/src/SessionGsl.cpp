@@ -775,6 +775,11 @@ exit:
     return status;
 }
 
+int SessionGsl::setTKV(Stream * s, configType type, effect_qal_payload_t *payload)
+{
+    return 0;
+}
+
 int SessionGsl::setConfig(Stream *s, configType type, int tag)
 {
     int status = 0;

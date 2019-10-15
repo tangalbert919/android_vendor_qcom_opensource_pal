@@ -153,6 +153,7 @@ public:
     static void deinit();
     int open(Stream * s) override;
     int prepare(Stream * s) override;
+    int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
     int setPayloadConfig(Stream *s);
     //int getConfig(Stream * s) override;

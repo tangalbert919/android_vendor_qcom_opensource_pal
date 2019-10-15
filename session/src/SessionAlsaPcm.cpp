@@ -129,6 +129,11 @@ int SessionAlsaPcm::open(Stream * s)
     return status;
 }
 
+int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_qal_payload_t *payload)
+{
+    return 0;
+}
+
 int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 {
     int status = 0;

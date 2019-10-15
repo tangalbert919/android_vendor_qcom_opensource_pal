@@ -69,6 +69,7 @@ public:
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
+    virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) = 0;
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
     virtual int stop(Stream * s) = 0;

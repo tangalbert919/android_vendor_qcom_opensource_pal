@@ -124,14 +124,48 @@ struct qal_snd_dec_flac {
     uint16_t max_frame_size;
 };
 
+typedef struct qal_key_value_pair_s {
+    uint32_t key; /**< key */
+    uint32_t value; /**< value */
+} qal_key_value_pair_t;
+
+typedef struct qal_key_vector_s {
+    size_t num_tkvs;  /**< number of key value pairs */
+    qal_key_value_pair_t *kvp;  /**< vector of key value pairs */
+} qal_key_vector_t;
+
+typedef enum {
+    PARAM_NONTKV,
+    PARAM_TKV,
+} qal_param_type_t;
+
+typedef struct qal_effect_custom_payload_s {
+    uint32_t dspParamId;
+    uint32_t *data;
+} qal_effect_custom_payload_t;
+
+typedef struct effect_qal_payload_s {
+    qal_param_type_t isTKV;      /* payload type: 0->non-tkv 1->tkv*/
+    uint32_t tag;
+    uint32_t  payloadSize;
+    uint32_t  *payload; /* TKV uses qal_key_vector_t, while nonTKV uses qal_effect_custom_payload_t */
+} effect_qal_payload_t;
+
 /** Audio parameter data*/
 typedef union {
-    bool has_fluence;                     /**  true if fluence is to be enabled */
     struct qal_snd_dec_aac aac_dec;
     struct qal_snd_dec_wma wma_dec;
     struct qal_snd_dec_alac alac_dec;
     struct qal_snd_dec_ape ape_dec;
     struct qal_snd_dec_flac flac_dec;
+} qal_snd_dec_t;
+
+/** Audio parameter data*/
+typedef struct qal_param_payload_s {
+    bool has_fluence;                     /**  true if fluence is to be enabled */
+    bool has_effect;
+    qal_snd_dec_t qal_snd_dec;
+    uint32_t *effect_payload;
 } qal_param_payload;
 
 /** Audio channel map enumeration*/
@@ -380,7 +414,8 @@ typedef enum {
     QAL_PARAM_ID_LOAD_SOUND_MODEL,
     QAL_PARAM_ID_START_RECOGNITION,
     QAL_PARAM_ID_FLUENCE_ON_OFF,
-    QAL_PARAM_ID_DIRECTION_OF_ARRIVAL
+    QAL_PARAM_ID_DIRECTION_OF_ARRIVAL,
+    QAL_PARAM_ID_UIEFFECT
 }qal_param_id_type_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */

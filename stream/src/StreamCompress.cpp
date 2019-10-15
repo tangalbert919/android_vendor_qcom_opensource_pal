@@ -295,7 +295,40 @@ int32_t StreamCompress::getParameters(uint32_t param_id, void **payload)
 
 int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
 {
-    return session->setParameters(this, 0, param_id, payload);
+    int32_t status = 0;
+    qal_param_payload *param_payload = NULL;
+    uint32_t isPayloadTKV = false;
+    uint32_t payloadSize = 0;
+    effect_qal_payload_t *effectQalPayload = nullptr;
+
+    switch (param_id) {
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            param_payload = (qal_param_payload *)payload;
+            if (!param_payload->has_effect) {
+                QAL_ERR(LOG_TAG, "This is not effect param");
+                status = -EINVAL;
+                goto exit;
+            }
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            if (effectQalPayload->isTKV) {
+                status = session->setTKV(this, MODULE, effectQalPayload);
+            } else {
+                status = session->setParameters(this, effectQalPayload->tag, param_id, payload);
+            }
+            if (status) {
+               QAL_ERR(LOG_TAG, "setParameters %d failed with %d", param_id, status);
+            }
+            break;
+        }
+        default:
+            status = session->setParameters(this, 0, param_id, payload);
+            break;
+    }
+
+exit:
+    QAL_VERBOSE(LOG_TAG, "end, session parameter %u set with status %d", param_id, status);
+    return status;
 }
 
 int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
