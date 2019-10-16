@@ -47,14 +47,27 @@
 
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
+#define MIXER_PATH_MAX_LENGTH 100
+
+#if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
+#define MIXER_XML_BASE_STRING "/etc/mixer_paths"
+#define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
+#define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
+#define XMLFILE "/etc/resourcemanager.xml"
+#define GECKOXMLFILE "/etc/kvh2xml.xml"
+#define SNDPARSER "/etc/card-defs.xml"
+#else
 #define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
-#define MIXER_PATH_MAX_LENGTH 100
+#define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
+#define XMLFILE "/vendor/etc/resourcemanager.xml"
+#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
+#define SNDPARSER "/vendor/etc/card-defs.xml"
+#endif
 
 #define MAX_SND_CARD 110
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
-#define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
 #define DEVICE_NAME_MAX_SIZE 128
 // should be defined in qal_defs.h
 #define QAL_DEVICE_MAX QAL_DEVICE_IN_PROXY+1
@@ -70,9 +83,6 @@
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_VOICE_UI 2
-#define XMLFILE "/vendor/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
-#define SNDPARSER "/vendor/etc/card-defs.xml"
 #define MAX_FRONT_ENDS 2
 
 
