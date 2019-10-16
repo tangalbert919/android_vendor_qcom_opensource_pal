@@ -583,6 +583,10 @@ int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int *
             __func__, buf, (buf ? buf->size : 0));
         return -EINVAL;
     }
+    if (!compress) {
+        QAL_ERR(LOG_TAG, "NULL pointer access,compress is invalid");
+        return -EINVAL;
+    }
     QAL_DBG(LOG_TAG, "%s: buf->size is %d buf->buffer is %pK ",
             __func__, buf->size, buf->buffer);
 
@@ -789,12 +793,20 @@ int SessionAlsaCompress::registerCallBack(session_callback cb, void *cookie)
 
 int SessionAlsaCompress::flush()
 {
+    int status = 0;
+
     if (!compress) {
         QAL_ERR(LOG_TAG, "Compress is invalid");
         return -EINVAL;
     }
-
-    return compress_stop(compress);
+    QAL_VERBOSE(LOG_TAG,"Enter flush\n");
+    status = compress_stop(compress);
+    if (!status) {
+         playback_started = false;
+    }
+    QAL_VERBOSE(LOG_TAG,"playback_started %d status %d\n", playback_started,
+            status);
+    return status;
 }
 
 int SessionAlsaCompress::drain(qal_drain_type_t type)
