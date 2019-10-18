@@ -183,9 +183,9 @@ int32_t SoundTriggerEngineGsl::start_buffering()
             StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(streamHandle);
             s->getDetectionEventInfo(&info);
             startTs = (uint64_t)info->kw_start_timestamp_lsw +
-                      (uint64_t)(info->kw_start_timestamp_msw << 32);
+                      ((uint64_t)info->kw_start_timestamp_msw << 32);
             endTs = (uint64_t)info->kw_end_timestamp_lsw +
-                    (uint64_t)(info->kw_end_timestamp_msw << 32);
+                    ((uint64_t)info->kw_end_timestamp_msw << 32);
             startIndice = us_to_bytes(startTs - timestamp);
             endIndice = us_to_bytes(endTs - timestamp);
             buffer_->updateIndices(startIndice, endIndice);

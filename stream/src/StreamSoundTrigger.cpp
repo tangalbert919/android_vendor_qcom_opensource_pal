@@ -1072,7 +1072,7 @@ int32_t StreamSoundTrigger::generate_callback_event(struct qal_st_recognition_ev
         timestamps->version = 0x1;
         timestamps->first_stage_det_event_time =
                 ((uint64_t)detectionEventInfo.detection_timestamp_lsw +
-                (uint64_t)(detectionEventInfo.detection_timestamp_msw << 32)) * 1000;
+                ((uint64_t)detectionEventInfo.detection_timestamp_msw << 32)) * 1000;
 
     }
     // TODO: handle for generic sound model
