@@ -366,7 +366,6 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
-                goto exit;
             }
             ctl = NULL;
             tkv.clear();
@@ -403,7 +402,6 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
             if (status != 0) {
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
-                goto exit;
             }
             ctl = NULL;
             ckv.clear();
@@ -411,7 +409,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
         default:
             QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
             status = -EINVAL;
-            goto exit;
+            break;
     }
 
 exit:
