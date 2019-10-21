@@ -124,8 +124,8 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_NONE,                     0},
     {QAL_DEVICE_OUT_EARPIECE,             0},
     {QAL_DEVICE_OUT_SPEAKER,              1},
-    {QAL_DEVICE_OUT_WIRED_HEADSET,        0},
-    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      0},
+    {QAL_DEVICE_OUT_WIRED_HEADSET,        1},
+    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      1},
     {QAL_DEVICE_OUT_LINE,                 0},
     {QAL_DEVICE_OUT_BLUETOOTH_SCO,        0},
     {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       0},
@@ -621,6 +621,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                     Speaker::isSampleRateSupported(dev_samplerate) |
                     Speaker::isChannelSupported(dev_channels));
                 break;
+            case QAL_DEVICE_OUT_WIRED_HEADSET:
             case QAL_DEVICE_OUT_WIRED_HEADPHONE:
                 rc = (Headphone::isBitWidthSupported(dev_bitwidth) |
                      Headphone::isSampleRateSupported(dev_samplerate) |

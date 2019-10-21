@@ -1775,6 +1775,7 @@ int PayloadBuilder::populateDeviceRxKV(Stream* s, std::vector <std::pair<int,int
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
             break;
+        case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE :
            keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
            break;
@@ -1845,6 +1846,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX,SPEAKER));
             break;
+        case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
             keyVector.push_back(std::make_pair(DEVICERX,HEADPHONE));
             break;

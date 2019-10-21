@@ -61,6 +61,7 @@ std::shared_ptr<Device> CodecDevice::getInstance(struct qal_device *device,
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getInstance(device, Rm);
         break;
+    case QAL_DEVICE_OUT_WIRED_HEADSET:
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         QAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
