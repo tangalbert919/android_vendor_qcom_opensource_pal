@@ -93,6 +93,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
     std::shared_ptr<offload_msg> msg;
     uint32_t event_id;
     int ret = 0;
+    bool is_drain_called = false;
     std::unique_lock<std::mutex> lock(compressObj->cv_mutex_);
 
     while (1) {
@@ -114,12 +115,19 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
                 QAL_ERR(LOG_TAG, "calling compress_drain");
-                ret = compress_drain(compressObj->compress);
-                QAL_ERR(LOG_TAG, "out of compress_drain ret:%d", ret);
+                if (!is_drain_called) {
+                   QAL_ERR(LOG_TAG, "enter is_drain_called");
+                   ret = compress_drain(compressObj->compress);
+                   is_drain_called = false;
+                }
+                QAL_ERR(LOG_TAG, "out of compress_drain");
                 event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
                 QAL_ERR(LOG_TAG, "calling partial compress_drain");
                 //return compress_partial_drain(compressObj->compress);
+                ret = compress_drain(compressObj->compress);
+                is_drain_called = true;
+                QAL_ERR(LOG_TAG, "out of partial compress_drain");
                 event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             }
             if (compressObj->sessionCb)
