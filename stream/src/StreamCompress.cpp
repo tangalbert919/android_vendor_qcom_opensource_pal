@@ -498,8 +498,8 @@ int32_t StreamCompress::drain(qal_drain_type_t type)
 int32_t StreamCompress::flush()
 {
     if (isPaused == false) {
-         QAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
-         return -EINVAL;
+        QAL_DBG(LOG_TAG, "Flush called while stream is not Paused");
+        return 0;
     }
 
     return session->flush();

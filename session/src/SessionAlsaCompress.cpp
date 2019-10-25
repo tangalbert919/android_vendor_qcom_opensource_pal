@@ -116,13 +116,13 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 QAL_VERBOSE(LOG_TAG, "out of compress_wait");
                 event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
-                QAL_ERR(LOG_TAG, "calling compress_drain");
                 if (!is_drain_called) {
-                   QAL_ERR(LOG_TAG, "enter is_drain_called");
+                   QAL_ERR(LOG_TAG, "calling compress_drain");
                    ret = compress_drain(compressObj->compress);
                    is_drain_called = false;
+                   QAL_ERR(LOG_TAG, "out of compress_drain");
                 }
-                QAL_ERR(LOG_TAG, "out of compress_drain");
+                /*TODO: check for ret code and handle SSR */
                 event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
                 QAL_ERR(LOG_TAG, "calling partial compress_drain");
@@ -823,8 +823,8 @@ int SessionAlsaCompress::drain(qal_drain_type_t type)
 {
     std::shared_ptr<offload_msg> msg;
 
-    if (!compress || !playback_started) {
-       QAL_ERR(LOG_TAG, "compress or playback_started is invalid");
+    if (!compress) {
+       QAL_ERR(LOG_TAG, "compress is invalid");
        return -EINVAL;
     }
 
