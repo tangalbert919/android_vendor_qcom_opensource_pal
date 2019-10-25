@@ -37,6 +37,7 @@
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaCompress.h"
+#include "SessionAlsaVoice.h"
 
 Session::Session()
 {
@@ -65,6 +66,9 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
                     //create compressed if the stream type is compressed
                     case QAL_STREAM_COMPRESSED:
                         s =  new SessionAlsaCompress(rm);
+                        break;
+                    case QAL_STREAM_VOICE_CALL:
+                        s = new SessionAlsaVoice(rm);
                         break;
                     default:
                         s = new SessionAlsaPcm(rm);

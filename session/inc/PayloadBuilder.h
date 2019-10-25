@@ -186,6 +186,8 @@ public:
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx);
+    int populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx);
     int populateStreamDeviceKV(Stream* s, int32_t beDevId, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamDeviceKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx);

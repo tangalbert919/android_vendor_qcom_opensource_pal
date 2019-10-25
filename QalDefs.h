@@ -325,9 +325,29 @@ struct qal_voice_record_info {
     uint32_t record_direction;         /** use direction enum to indicate content to be record */
 };
 
+struct qal_voice_call_info {
+     uint32_t VSID;
+     uint32_t tty_mode;
+};
+
+typedef enum {
+    VOICEMMODE1 = 0x11C05000,
+    VOICEMMODE2 = 0x11DC5000,
+    VOICELBMMODE1 = 0x12006000,
+    VOICELBMMODE2 = 0x121C6000,
+}qal_VSID_t;
+
+typedef enum {
+    QAL_TTY_OFF = 0,
+    QAL_TTY_FULL = 1,
+    QAL_TTY_VCO = 2,
+    QAL_TTY_HCO = 3,
+}qal_tty_t;
+
 typedef union {
     struct qal_stream_info opt_stream_info; /* optional */
     struct qal_voice_record_info voice_rec_info; /* mandatory */
+    struct qal_voice_call_info voice_call_info; /* manatory for voice call*/
 } qal_stream_info_t;
 
 /** Media configuraiton */

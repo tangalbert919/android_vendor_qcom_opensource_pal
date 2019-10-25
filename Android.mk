@@ -29,6 +29,8 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc\
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/apm
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/vcpm
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
@@ -66,6 +68,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     session/src/SessionAlsaPcm.cpp \
     session/src/SessionAlsaUtils.cpp \
     session/src/SessionAlsaCompress.cpp \
+    session/src/SessionAlsaVoice.cpp \
     session/src/SoundTriggerEngine.cpp \
     session/src/SoundTriggerEngineCapiCnn.cpp \
     session/src/SoundTriggerEngineCapiVop.cpp \

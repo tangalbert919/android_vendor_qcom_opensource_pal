@@ -294,6 +294,10 @@ std::vector <int> ResourceManager::listAllPcmLoopbackRxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmLoopbackTxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressPlaybackFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressRecordFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmVoice1RxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmVoice1TxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmVoice2RxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmVoice2TxFrontEnds = {0};
 struct audio_mixer* ResourceManager::audio_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
@@ -383,6 +387,10 @@ ResourceManager::ResourceManager()
         listAllPcmLoopbackTxFrontEnds.clear();
         listAllCompressPlaybackFrontEnds.clear();
         listAllCompressRecordFrontEnds.clear();
+        listAllPcmVoice1RxFrontEnds.clear();
+        listAllPcmVoice1TxFrontEnds.clear();
+        listAllPcmVoice2RxFrontEnds.clear();
+        listAllPcmVoice2TxFrontEnds.clear();
 
         ret = ResourceManager::XmlParser(SNDPARSER);
         if (ret) {
@@ -404,6 +412,20 @@ ResourceManager::ResourceManager()
                     listAllCompressPlaybackFrontEnds.push_back(devInfo[i].deviceId);
                 } else if (devInfo[i].record == 1){
                     listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
+                }
+            } else if (devInfo[i].type == VOICE1) {
+                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                    listAllPcmVoice1RxFrontEnds.push_back(devInfo[i].deviceId);
+                }
+                if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                    listAllPcmVoice1TxFrontEnds.push_back(devInfo[i].deviceId);
+                }
+            } else if (devInfo[i].type == VOICE2) {
+                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                    listAllPcmVoice2RxFrontEnds.push_back(devInfo[i].deviceId);
+                }
+                if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                    listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
                 }
             }
         }
@@ -751,6 +773,21 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             QAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
+        case QAL_STREAM_VOICE_CALL:
+            channels = attributes->out_media_config.ch_info->channels;
+            samplerate = attributes->out_media_config.sample_rate;
+            bitwidth = attributes->out_media_config.bit_width;
+            rc = (StreamPCM::isBitWidthSupported(bitwidth) |
+                  StreamPCM::isSampleRateSupported(samplerate) |
+                  StreamPCM::isChannelSupported(channels));
+            if (0 != rc) {
+               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               return result;
+            }
+            QAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
+
         default:
             QAL_ERR(LOG_TAG, "unknown type");
             return false;
@@ -784,6 +821,7 @@ int ResourceManager::registerStream(Stream *s)
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_VOICE_CALL:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sPCM, active_streams_ll);
@@ -882,6 +920,7 @@ int ResourceManager::deregisterStream(Stream *s)
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_VOICE_CALL:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sPCM, active_streams_ll);
@@ -1233,17 +1272,16 @@ int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
     return n;
 }
 
-const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_type_t sType,
-                                   const qal_stream_direction_t direction, int lDirection)
+const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_stream_attributes sAttr, int lDirection)
 {
     //TODO: lock resource manager
     std::vector<int> f;
     f.clear();
-    const int howMany = getNumFEs(sType);
+    const int howMany = getNumFEs(sAttr.type);
     int id = 0;
     std::vector<int>::iterator it;
 
-    switch(sType) {
+    switch(sAttr.type) {
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
@@ -1251,7 +1289,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_VOICE_UI:
         case QAL_STREAM_PCM_OFFLOAD:
-            switch (direction) {
+            switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
                         QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
@@ -1323,7 +1361,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
             }
             break;
         case QAL_STREAM_COMPRESSED:
-            switch (direction) {
+            switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllCompressRecordFrontEnds.size()) {
                         QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
@@ -1361,6 +1399,38 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
                     break;
                 }
                 break;
+        case QAL_STREAM_VOICE_CALL:
+            switch (sAttr.direction) {
+              case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+                    if (lDirection == RXLOOPBACK) {
+                        if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                            sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
+                            f = allocateVoiceFrontEndIds(listAllPcmVoice1RxFrontEnds, howMany);
+                        } else if(sAttr.info.voice_call_info.VSID == VOICEMMODE2 ||
+                            sAttr.info.voice_call_info.VSID == VOICELBMMODE2){
+                            f = allocateVoiceFrontEndIds(listAllPcmVoice2RxFrontEnds, howMany);
+                        } else {
+                            QAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
+                                    sAttr.info.voice_call_info.VSID);
+                        }
+                    } else {
+                        if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                            sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
+                            f = allocateVoiceFrontEndIds(listAllPcmVoice1TxFrontEnds, howMany);
+                        } else if(sAttr.info.voice_call_info.VSID == VOICEMMODE2 ||
+                            sAttr.info.voice_call_info.VSID == VOICELBMMODE2){
+                            f = allocateVoiceFrontEndIds(listAllPcmVoice2TxFrontEnds, howMany);
+                        } else {
+                            QAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
+                                    sAttr.info.voice_call_info.VSID);
+                        }
+                    }
+                    break;
+              default:
+                  QAL_ERR(LOG_TAG,"direction unsupported voice must be RX and TX");
+                  break;
+            }
+
         default:
             break;
     }
@@ -1369,10 +1439,35 @@ error:
     return f;
 }
 
-void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal_stream_type_t sType,
-                       const qal_stream_direction_t direction, int lDirection)
+
+const std::vector<int> ResourceManager::allocateVoiceFrontEndIds(std::vector<int> listAllPcmVoiceFrontEnds, const int howMany)
 {
-    switch(sType) {
+    std::vector<int> f;
+    f.clear();
+    int id = 0;
+    std::vector<int>::iterator it;
+    if ( howMany > listAllPcmVoiceFrontEnds.size()) {
+        QAL_ERR(LOG_TAG, "allocate voice FrontEndIds: requested for %d front ends, have only %d error",
+                howMany, listAllPcmVoiceFrontEnds.size());
+        return f;
+    }
+    id = (listAllPcmVoiceFrontEnds.size() - 1);
+    it =  (listAllPcmVoiceFrontEnds.begin() + id);
+    for (int i = 0; i < howMany; i++) {
+        f.push_back(listAllPcmVoiceFrontEnds.at(id));
+        listAllPcmVoiceFrontEnds.erase(it);
+        QAL_INFO(LOG_TAG, "allocate VoiceFrontEndIds: front end %d", f[i]);
+        it -= 1;
+        id -= 1;
+    }
+
+    return f;
+}
+void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
+                                      const struct qal_stream_attributes sAttr,
+                                      int lDirection)
+{
+    switch(sAttr.type) {
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
@@ -1380,7 +1475,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_VOICE_UI:
         case QAL_STREAM_PCM_OFFLOAD:
-            switch (direction) {
+            switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllPcmRecordFrontEnds.push_back(frontend.at(i));
@@ -1407,8 +1502,32 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
                     break;
             }
             break;
+
+        case QAL_STREAM_VOICE_CALL:
+            if (lDirection == RXLOOPBACK) {
+                for (int i = 0; i < frontend.size(); i++) {
+                    if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                        sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
+                        listAllPcmVoice1RxFrontEnds.push_back(frontend.at(i));
+                    } else {
+                        listAllPcmVoice2RxFrontEnds.push_back(frontend.at(i));
+                    }
+
+                }
+            } else {
+                for (int i = 0; i < frontend.size(); i++) {
+                    if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                        sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
+                        listAllPcmVoice1TxFrontEnds.push_back(frontend.at(i));
+                    } else {
+                        listAllPcmVoice2TxFrontEnds.push_back(frontend.at(i));
+                    }
+                }
+            }
+            break;
+
         case QAL_STREAM_COMPRESSED:
-            switch (direction) {
+            switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressRecordFrontEnds.push_back(frontend.at(i));
@@ -2015,6 +2134,10 @@ void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_C
             devInfo[size].type = PCM;
         } else if (strstr(data->data_buf,"COMP")){
             devInfo[size].type = COMPRESS;
+        } else if (strstr(data->data_buf,"VOICEMMODE1")){
+            devInfo[size].type = VOICE1;
+        } else if (strstr(data->data_buf,"VOICEMMODE2")){
+            devInfo[size].type = VOICE2;
         }
     }
 }

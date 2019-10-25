@@ -83,6 +83,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             case QAL_STREAM_VOIP_TX:
             case QAL_STREAM_VOIP_RX:
             case QAL_STREAM_PCM_OFFLOAD:
+            case QAL_STREAM_VOICE_CALL:
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, mQalDevice, noOfDevices, modifiers,
                                    noOfModifiers, rm);
@@ -212,6 +213,9 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
             QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
                 (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
         }
+    } else {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "volume has not been set, status %d", status);
     }
 exit:
     return status;

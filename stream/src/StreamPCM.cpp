@@ -193,7 +193,6 @@ int32_t  StreamPCM::close()
             mDevices.size());
     for (int32_t i=0; i < mDevices.size(); i++) {
         status = mDevices[i]->close();
-        rm->deregisterDevice(mDevices[i]);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device close is failed with status %d", status);
             goto exit;
@@ -528,13 +527,13 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
         goto exit;
     }
 
-    mStreamMutex.lock();
+    //mStreamMutex.lock();
     casa_osal_memcpy (mVolumeData, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) *
                       (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) *
                       (volume->no_of_volpair))));
-    mStreamMutex.unlock();
+    //mStreamMutex.unlock();
     for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
         QAL_ERR(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));

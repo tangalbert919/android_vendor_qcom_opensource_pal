@@ -246,6 +246,14 @@ const std::map<std::string, uint32_t> lpaifIdxLUT {
     {std::string{ "LPAIF_AXI"},  4},
 };
 
+const std::map<uint32_t, uint32_t> VSIDtoKV {
+    /*for now map everything to default */
+    { VOICEMMODE1,  VSID_DEFAULT},
+    { VOICEMMODE2,  VSID_DEFAULT},
+    { VOICELBMMODE1, VSID_DEFAULT},
+    { VOICELBMMODE2, VSID_DEFAULT},
+};
+
 void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data)
 {
@@ -1566,6 +1574,7 @@ void PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
                         customPayloadSize);
     *size = alsaPayloadSize;
     *alsaPayload = payloadInfo;
+
     QAL_DBG(LOG_TAG, "ALSA payload %u size %d", *alsaPayload, *size);
 }
 
@@ -1859,8 +1868,49 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 keyVectorRx.push_back(std::make_pair(STREAMTX, PCM_RX_LOOPBACK));
             }
             break;
+    case QAL_STREAM_VOICE_CALL:
+            /*need to update*/
+            keyVectorRx.push_back(std::make_pair(STREAMRX,VOICE_CALL_RX));
+            keyVectorRx.push_back(std::make_pair(VSID,VSIDtoKV.at(sattr->info.voice_call_info.VSID)));
+            keyVectorTx.push_back(std::make_pair(STREAMTX,VOICE_CALL_TX));
+            keyVectorTx.push_back(std::make_pair(VSID,VSIDtoKV.at(sattr->info.voice_call_info.VSID)));
+            break;
         default:
             status = -EINVAL;
+            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+    }
+free_sattr:
+    delete sattr;
+exit:
+    return status;
+}
+
+/** Used for Loopback stream types only */
+int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
+        std::vector <std::pair<int,int>> &keyVectorTx)
+{
+    int status = 0;
+    struct qal_stream_attributes *sattr = NULL;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    sattr = new struct qal_stream_attributes();
+    if (!sattr) {
+        QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
+        return -ENOMEM;
+    }
+    status = s->getStreamAttributes(sattr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        goto free_sattr;
+    }
+
+    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    switch (sattr->type) {
+        case QAL_STREAM_VOICE_CALL:
+            /*need to update*/
+            keyVectorRx.push_back(std::make_pair(STREAMPP_RX, STREAMPP_RX_DEFAULT));
+            break;
+        default:
             QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
     }
 free_sattr:
@@ -1892,7 +1942,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     //todo move the keys to a to an xml of stream type to key
     //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
     //from there create a map and retrieve the right keys
-    QAL_ERR(LOG_TAG, "stream attribute type %d", sattr->type);
+    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
     switch (sattr->type) {
         case QAL_STREAM_LOW_LATENCY:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
@@ -2084,61 +2134,65 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
        }
        if ((dAttr.id == rxBeDevId) || (dAttr.id == txBeDevId)) {
           QAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info->channels, dAttr.id);
-          break;
        }
-    }
-    //todo move the keys to a to an xml of stream type to key
-    //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
-    //from there create a map and retrieve the right keys
-    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-    switch (sattr->type) {
-        case QAL_STREAM_VOICE_CALL:
-            keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_VOICE_DEFAULT_PP));
-            if (dAttr.config.ch_info->channels == 1) {
-                 keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_SMECNS));
-            } else if (dAttr.config.ch_info->channels == 2) {
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE));
-            } else if(dAttr.config.ch_info->channels >= 3){
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_PRO));
-            }
-            break;
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_COMPRESSED:
-        case QAL_STREAM_DEEP_BUFFER:
-        case QAL_STREAM_PCM_OFFLOAD:
-            if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
-            } else if (sattr->direction == QAL_AUDIO_INPUT &&
-                    (dAttr.config.ch_info->channels >= 3)) {
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_AUDIO_FLUENCE_PRO));
-            } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 1)) {
-                QAL_ERR(LOG_TAG, "sattr channels %d", sattr->in_media_config.ch_info->channels);
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_SMECNS));
-            } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 2)) {
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_ENDFIRE));
-            }
-            break;
-        case QAL_STREAM_VOIP_RX:
-            keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOIP_MBDRC));
-            break;
-        case QAL_STREAM_LOOPBACK:
-            if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_RX)
-                keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_HFPSINK));
-            break;
-        case QAL_STREAM_VOIP_TX:
-            if (dAttr.config.ch_info->channels >= 3) {
-               keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_PRO));
-            }
-            if (dAttr.config.ch_info->channels == 1) {
-               keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_SMECNS));
-            }
-            break;
-        case QAL_STREAM_VOICE_UI:
-            keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
-            break;
-        default:
-            QAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
-            goto free_sattr;
+
+        //todo move the keys to a to an xml of stream type to key
+        //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
+        //from there create a map and retrieve the right keys
+        QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+        switch (sattr->type) {
+            case QAL_STREAM_VOICE_CALL:
+                if (dAttr.id == rxBeDevId){
+                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOICE_DEFAULT));
+                }
+                if (dAttr.id == txBeDevId){
+                    if (dAttr.config.ch_info->channels == 1) {
+                         keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_SMECNS));
+                    } else if (dAttr.config.ch_info->channels == 2) {
+                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE));
+                    } else if(dAttr.config.ch_info->channels >= 3){
+                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_PRO));
+                    }
+                }
+                break;
+            case QAL_STREAM_LOW_LATENCY:
+            case QAL_STREAM_COMPRESSED:
+            case QAL_STREAM_DEEP_BUFFER:
+            case QAL_STREAM_PCM_OFFLOAD:
+                if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
+                } else if (sattr->direction == QAL_AUDIO_INPUT &&
+                        (dAttr.config.ch_info->channels >= 3)) {
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_AUDIO_FLUENCE_PRO));
+                } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 1)) {
+                    QAL_ERR(LOG_TAG, "sattr channels %d", sattr->in_media_config.ch_info->channels);
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_SMECNS));
+                } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 2)) {
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_ENDFIRE));
+                }
+                break;
+            case QAL_STREAM_VOIP_RX:
+                keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOIP_MBDRC));
+                break;
+            case QAL_STREAM_LOOPBACK:
+                if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_RX)
+                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_HFPSINK));
+                break;
+            case QAL_STREAM_VOIP_TX:
+                if (dAttr.config.ch_info->channels >= 3) {
+                   keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_PRO));
+                }
+                if (dAttr.config.ch_info->channels == 1) {
+                   keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_SMECNS));
+                }
+                break;
+            case QAL_STREAM_VOICE_UI:
+                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
+                break;
+            default:
+                QAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
+                goto free_sattr;
+        }
     }
     populateDeviceKV(s, rxBeDevId, keyVectorRx);
     populateDeviceKV(s, txBeDevId, keyVectorTx);
@@ -2201,96 +2255,11 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
         struct qal_volume_data **volume_data)
 {
     int status = 0;
-    float voldB = 0.0f;
-    //std::vector <std::pair<int,int>> keyVector;
-    struct qal_volume_data *voldata = NULL;
 
-    voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
-    if (!voldata) {
-        status = -ENOMEM;
-        goto exit;
-    }
-    memset (voldata, 0, sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
+    QAL_ERR(LOG_TAG,"%s: enter \n", __func__);
+    keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+    QAL_ERR(LOG_TAG,"%s: Entered default %x %x \n", __func__, VOLUME, LEVEL_0);
 
-    status = s->getVolumeData(voldata);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
-        goto free_voldata;
-    }
-    voldB = (voldata->volume_pair[0].vol);
-    QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
-    switch (static_cast<uint32_t>(tag)) {
-    case TAG_STREAM_VOLUME:
-       if(voldB == 0.0f) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-       }
-       else if (voldB < 0.002172f) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-       }
-       else if ((0.002171f < voldB) && (voldB < 0.004660f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_14));
-       }
-       else if ((0.004659f < voldB) && (voldB < 0.01f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
-       }
-       else if ((0.099999f < voldB) && (voldB < 0.014877f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_12));
-       }
-       else if ((0.014876f < voldB) && (voldB < 0.023646f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
-       }
-       else if ((0.023645f < voldB) && (voldB < 0.037584f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_10));
-       }
-       else if ((0.037583f < voldB) && (voldB < 0.055912f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
-       }
-       else if ((0.055911f < voldB) && (voldB < 0.088869f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_8));
-       }
-       else if ((0.088868f < voldB) && (voldB < 0.141254f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
-       }
-       else if ((0.141253f < voldB) && (voldB < 0.189453f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
-       }
-       else if ((0.189452f < voldB) && (voldB < 0.266840f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_5));
-       }
-       else if ((0.266839f < voldB) && (voldB < 0.375838f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
-       }
-       else if ((0.375837f < voldB) && (voldB < 0.504081f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
-       }
-       else if ((0.504080f < voldB) && (voldB < 0.709987f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
-       }
-       else if ((0.709988f < voldB) && (voldB < 0.9f)) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
-       }
-       else if (voldB == 1.0f) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
-       }
-
-       break;
-    default:
-        //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
-        QAL_ERR(LOG_TAG,"%s: enter \n", __func__);
-        keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
-        QAL_ERR(LOG_TAG,"%s: Entered default %x %x \n", __func__, VOLUME, LEVEL_0);
-        break;
-    }
-
-    if (volume_data)
-        *volume_data = voldata;
-
-free_voldata:
-    if (status)
-        free(voldata);
-exit:
     return status;
 }
 

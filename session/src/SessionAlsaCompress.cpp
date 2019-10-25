@@ -189,7 +189,7 @@ int SessionAlsaCompress::open(Stream * s)
         return status;
     }
 
-    compressDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
+    compressDevIds = rm->allocateFrontEndIds(sAttr, 0);
     for (int i = 0; i < compressDevIds.size(); i++) {
        //compressDevIds[i] = 5;
     QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
@@ -203,7 +203,7 @@ int SessionAlsaCompress::open(Stream * s)
     status = SessionAlsaUtils::open(s, rm, compressDevIds, rxAifBackEnds);
     if (status) {
         QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-        rm->freeFrontEndIds(compressDevIds, sAttr.type, sAttr.direction, 0);
+        rm->freeFrontEndIds(compressDevIds, sAttr, 0);
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
 
@@ -649,7 +649,7 @@ int SessionAlsaCompress::close(Stream * s)
     /* empty the pending messages in queue */
     while(!msg_queue_.empty())
         msg_queue_.pop();
-    rm->freeFrontEndIds(compressDevIds, sAttr.type, sAttr.direction, 0);
+    rm->freeFrontEndIds(compressDevIds, sAttr, 0);
     return 0;
 }
 

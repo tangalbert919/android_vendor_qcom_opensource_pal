@@ -47,6 +47,7 @@
 
 static constexpr const char* const COMPRESS_SND_DEV_NAME_PREFIX = "COMPRESS";
 static constexpr const char* const PCM_SND_DEV_NAME_PREFIX = "PCM";
+static constexpr const char* const PCM_SND_VOICE_DEV_NAME_PREFIX = "VOICEMMODE";
 
 static const char *feCtrlNames[] = {
     " control",
@@ -764,12 +765,20 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         QAL_ERR(LOG_TAG, "%s: get stream KV for Rx/Tx failed %d", status);
         goto exit;
     }
-    // get streamCKV
-    status = builder->populateStreamCkv(streamHandle, streamRxCKV, 0,
-            (struct qal_volume_data **)nullptr);
-    if (status) {
-        QAL_ERR(LOG_TAG, "%s: get stream ckv failed %d", status);
+    // get streamKV
+    if ((status = builder->populateStreamPPKV(streamHandle, streamRxKV,
+                    streamTxKV)) != 0) {
+        QAL_ERR(LOG_TAG, "%s: get streamPP KV for Rx/Tx failed %d", status);
         goto exit;
+    }
+    // get streamCKV
+    if (sAttr.type != QAL_STREAM_VOICE_CALL) {
+        status = builder->populateStreamCkv(streamHandle, streamRxCKV, 0,
+            (struct qal_volume_data **)nullptr);
+        if (status) {
+            QAL_ERR(LOG_TAG, "%s: get stream ckv failed %d", status);
+            goto exit;
+        }
     }
     // get deviceKV
     if ((status = builder->populateDeviceKV(streamHandle, rxBackEnds[0].first,
@@ -818,8 +827,20 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         goto freeTxMetaData;
     }
 
-    rxFeName << PCM_SND_DEV_NAME_PREFIX << RxDevIds.at(0);
-    txFeName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0);
+    if (sAttr.type == QAL_STREAM_VOICE_CALL) {
+        if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+            sAttr.info.voice_call_info.VSID == VOICELBMMODE1){
+            rxFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 1 << "p";
+            txFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 1 << "c";
+        } else {
+            rxFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 2 << "p";
+            txFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 2 << "c";
+        }
+
+    } else {
+        rxFeName << PCM_SND_DEV_NAME_PREFIX << RxDevIds.at(0);
+        txFeName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0);
+    }
 
     for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
         rxFeMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, rxFeName.str(), i);
@@ -898,14 +919,16 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     mixer_ctl_set_array(rxBeMixerCtrls[BE_MEDIAFMT], &aif_media_config_rx,
             sizeof(aif_media_config_rx)/sizeof(aif_media_config_rx[0]));
 
-    txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
-    if (!txFeMixerCtrls[FE_LOOPBACK]) {
-        QAL_ERR(LOG_TAG, "invalid mixer control %s%s",
-                txFeName.str().data(), feCtrlNames[i]);
-        status = -EINVAL;
-        goto freeTxMetaData;
+    if (sAttr.type != QAL_STREAM_VOICE_CALL) {
+        txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
+        if (!txFeMixerCtrls[FE_LOOPBACK]) {
+            QAL_ERR(LOG_TAG, "invalid mixer control %s%s",
+                    txFeName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeTxMetaData;
+        }
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
     }
-    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
 freeTxMetaData:
     free(streamDeviceTxMetaData.buf);
     free(deviceTxMetaData.buf);

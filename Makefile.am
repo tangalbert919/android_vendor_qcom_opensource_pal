@@ -25,6 +25,7 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/SessionAlsaUtils.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SessionAlsaCompress.h \
+            ./session/inc/SessionAlsaVoice.h \
             ./session/inc/SoundTriggerEngine.h \
             ./session/inc/SoundTriggerEngineGsl.h \
             ./session/inc/SoundTriggerEngineCapiCnn.h \
@@ -63,6 +64,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/SessionAlsaUtils.cpp \
               ./session/src/SessionAlsaPcm.cpp \
               ./session/src/SessionAlsaCompress.cpp\
+              ./session/src/SessionAlsaVoice.cpp\
               ./session/src/SoundTriggerEngine.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
               ./session/src/SoundTriggerEngineCapiCnn.cpp \
@@ -91,6 +93,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/SessionQts.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SessionAlsaCompress.h \
+            ${top_srcdir}/session/inc/SessionAlsaVoice.h \
             ${top_srcdir}/session/inc/SessionAlsaUtils.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
@@ -148,6 +151,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SessionAlsaUtils.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SessionAlsaCompress.cpp \
+              ${top_srcdir}/session/src/SessionAlsaVoice.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \

@@ -91,12 +91,12 @@ int SessionAlsaPcm::open(Stream * s)
 
     }
     if(sAttr.direction == QAL_AUDIO_INPUT) {
-        pcmDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
+        pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
-        pcmDevIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, 0);
+        pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
     } else {
-        pcmDevRxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, RXLOOPBACK);
-        pcmDevTxIds = rm->allocateFrontEndIds(sAttr.type, sAttr.direction, TXLOOPBACK);
+        pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RXLOOPBACK);
+        pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TXLOOPBACK);
     }
     status = rm->getAudioMixer(&mixer);
     if (status) {
@@ -108,14 +108,14 @@ int SessionAlsaPcm::open(Stream * s)
             status = SessionAlsaUtils::open(s, rm, pcmDevIds, txAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-                rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+                rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
             }
             break;
         case QAL_AUDIO_OUTPUT:
             status = SessionAlsaUtils::open(s, rm, pcmDevIds, rxAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-                rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+                rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
                 break;
             }
             status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
@@ -130,8 +130,8 @@ int SessionAlsaPcm::open(Stream * s)
                     rxAifBackEnds, txAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-                rm->freeFrontEndIds(pcmDevRxIds, sAttr.type, sAttr.direction, RXLOOPBACK);
-                rm->freeFrontEndIds(pcmDevTxIds, sAttr.type, sAttr.direction, TXLOOPBACK);
+                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXLOOPBACK);
+                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXLOOPBACK);
             }
             break;
         default:
@@ -590,7 +590,7 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_close failed %d", status);
             }
-            rm->freeFrontEndIds(pcmDevIds, sAttr.type, sAttr.direction, 0);
+            rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
             pcm = NULL;
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:

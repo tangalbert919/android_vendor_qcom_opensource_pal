@@ -67,6 +67,8 @@ typedef enum {
 typedef enum {
     PCM,
     COMPRESS,
+    VOICE1,
+    VOICE2,
 } stream_supported_type;
 
 struct xml_userdata {
@@ -145,6 +147,8 @@ private:
     template <class T>
     void getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
 	       std::vector<T> sourcestreams);
+    const std::vector<int> allocateVoiceFrontEndIds(std::vector<int> listAllPcmVoiceFrontEnds,
+                                  const int howMany);
 protected:
     std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
@@ -176,6 +180,10 @@ protected:
     static std::vector<int> listAllCompressPlaybackFrontEnds;
     static std::vector<int> listAllCompressRecordFrontEnds;
     static std::vector<int> listFreeFrontEndIds;
+    static std::vector<int> listAllPcmVoice1RxFrontEnds;
+    static std::vector<int> listAllPcmVoice1TxFrontEnds;
+    static std::vector<int> listAllPcmVoice2RxFrontEnds;
+    static std::vector<int> listAllPcmVoice2TxFrontEnds;
     static std::vector<std::pair<int32_t, std::string>> listAllBackEndIds;
     static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
     static std::vector<deviceCap> devInfo;
@@ -218,10 +226,11 @@ public:
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
     qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
-    const std::vector<int> allocateFrontEndIds (const qal_stream_type_t sType, const qal_stream_direction_t direction,
+    const std::vector<int> allocateFrontEndIds (const struct qal_stream_attributes,
                                                 int lDirection);
-    void freeFrontEndIds (const std::vector<int> f, const qal_stream_type_t sType,
-                          const qal_stream_direction_t direction, int lDirection);
+    void freeFrontEndIds (const std::vector<int> f,
+                          const struct qal_stream_attributes,
+                          int lDirection);
     const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,

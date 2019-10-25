@@ -78,26 +78,27 @@ public:
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
     virtual int setConfig(Stream * s, configType type, uint32_t tag1,
-            uint32_t tag2, uint32_t tag3) = 0;
-    virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) = 0;
+            uint32_t tag2, uint32_t tag3) {return 0;};
+    virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) {return 0;};
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
     virtual int stop(Stream * s) = 0;
     virtual int close(Stream * s) = 0;
-    virtual int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) = 0;
-    virtual int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) = 0;
-    virtual int read(Stream *s, int tag, struct qal_buffer *buf, int * size) = 0;
-    virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) = 0;
-    virtual int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) = 0;
-    virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) = 0;
+    virtual int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) {return 0;};
+    virtual int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) {return 0;};
+    virtual int read(Stream *s, int tag, struct qal_buffer *buf, int * size) {return 0;};
+    virtual int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) {return 0;};
+    virtual int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) {return 0;};
+    virtual int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) {return 0;};
     virtual int registerCallBack(session_callback cb, void *cookie) {return 0;};
     virtual int drain(qal_drain_type_t type) {return 0;};
     virtual int flush() {return 0;};
-    virtual int getTimestamp(struct qal_session_time *stime) = 0;
+    virtual int getTimestamp(struct qal_session_time *stime) {return 0;};
+    /*TODO need to implement connect/disconnect in basecase*/
     virtual int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToCconnect) = 0;
     virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
-        std::shared_ptr<Device> deviceToDisconnect) = 0;
+        std::shared_ptr<Device> deviceToDisconnect)= 0;
     void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
 
