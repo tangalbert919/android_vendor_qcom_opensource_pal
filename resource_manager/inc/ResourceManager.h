@@ -164,6 +164,7 @@ public:
     /* checks config for both stream and device */
     bool isStreamSupported(struct qal_stream_attributes *attributes,
                            struct qal_device *devices, int no_of_devices);
+    int32_t getDeviceConfig(struct qal_device *deviceattr);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);

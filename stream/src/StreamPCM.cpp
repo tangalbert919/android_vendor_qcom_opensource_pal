@@ -293,7 +293,7 @@ int32_t StreamPCM::start()
         for (int32_t i=0; i < mDevices.size(); i++)
         {
             int32_t dev_id = mDevices[i]->getSndDeviceId();
-            if (dev_id < QAL_DEVICE_OUT_EARPIECE || dev_id > QAL_DEVICE_OUT_PROXY)
+            if (dev_id < QAL_DEVICE_OUT_HANDSET || dev_id > QAL_DEVICE_OUT_PROXY)
                 continue;
             status = mDevices[i]->start();
             if (0 != status) {
@@ -426,7 +426,7 @@ int32_t StreamPCM::stop()
 
         for (int32_t i=0; i < mDevices.size(); i++) {
              int32_t dev_id = mDevices[i]->getSndDeviceId();
-             if (dev_id < QAL_DEVICE_OUT_EARPIECE || dev_id > QAL_DEVICE_OUT_PROXY)
+             if (dev_id < QAL_DEVICE_OUT_HANDSET || dev_id > QAL_DEVICE_OUT_PROXY)
                  continue;
              status = mDevices[i]->stop();
              if (0 != status) {

@@ -96,7 +96,7 @@ else using legacy design for alsa
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_EARPIECE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -132,7 +132,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_NONE,                     0},
-    {QAL_DEVICE_OUT_EARPIECE,             0},
+    {QAL_DEVICE_OUT_HANDSET,             0},
     {QAL_DEVICE_OUT_SPEAKER,              1},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        1},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      1},
@@ -169,7 +169,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_EARPIECE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -205,7 +205,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
 
 const std::map<std::string, uint32_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_NONE" },                     QAL_DEVICE_NONE},
-    {std::string{ "QAL_DEVICE_OUT_EARPIECE" },             QAL_DEVICE_OUT_EARPIECE},
+    {std::string{ "QAL_DEVICE_OUT_HANDSET" },             QAL_DEVICE_OUT_HANDSET},
     {std::string{ "QAL_DEVICE_OUT_SPEAKER" },              QAL_DEVICE_OUT_SPEAKER},
     {std::string{ "QAL_DEVICE_OUT_WIRED_HEADSET" },        QAL_DEVICE_OUT_WIRED_HEADSET},
     {std::string{ "QAL_DEVICE_OUT_WIRED_HEADPHONE" },      QAL_DEVICE_OUT_WIRED_HEADPHONE},
@@ -241,7 +241,7 @@ const std::map<std::string, uint32_t> deviceIdLUT {
 //reverse mapping
 const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_NONE,                     std::string{"QAL_DEVICE_NONE"}},
-    {QAL_DEVICE_OUT_EARPIECE,             std::string{"QAL_DEVICE_OUT_EARPIECE"}},
+    {QAL_DEVICE_OUT_HANDSET,              std::string{"QAL_DEVICE_OUT_HANDSET"}},
     {QAL_DEVICE_OUT_SPEAKER,              std::string{"QAL_DEVICE_OUT_SPEAKER"}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        std::string{"QAL_DEVICE_OUT_WIRED_HEADSET"}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      std::string{"QAL_DEVICE_OUT_WIRED_HEADPHONE"}},
@@ -299,7 +299,7 @@ std::vector<deviceCap> ResourceManager::devInfo;
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
     {QAL_DEVICE_NONE,                     {std::string{ "" }}},
-    {QAL_DEVICE_OUT_EARPIECE,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "none" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -484,6 +484,49 @@ int ResourceManager::init_audio()
 int ResourceManager::init()
 {
     return 0;
+}
+
+int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
+{
+    int32_t status = 0;
+    struct qal_channel_info *dev_ch_info = NULL;
+    QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
+    switch(deviceattr->id) {
+        case QAL_DEVICE_IN_SPEAKER_MIC:
+	case QAL_DEVICE_IN_HANDSET_MIC:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
+            dev_ch_info->channels = CHANNELS_3;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            dev_ch_info->ch_map[2] = QAL_CHMAP_CHANNEL_C;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_ERR(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->id = QAL_DEVICE_IN_SPEAKER_MIC;
+            break;
+        case QAL_DEVICE_OUT_SPEAKER:
+        case QAL_DEVICE_OUT_HANDSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
+            dev_ch_info->channels = CHANNELS_2;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_ERR(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->id = QAL_DEVICE_OUT_SPEAKER;
+            break;
+	default:
+            QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
+            status = -EINVAL;
+            //do nothing for rest of the devices
+            break;
+	}
+    QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
+    return status;
 }
 
 bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
@@ -1005,7 +1048,7 @@ int ResourceManager::getSndCard()
 
 int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
-    if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY) {
+    if (deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_IN_PROXY) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
@@ -1017,7 +1060,7 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 
 int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
 {
-    if (deviceId >= QAL_DEVICE_OUT_EARPIECE && deviceId <= QAL_DEVICE_IN_PROXY) {
+    if (deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_IN_PROXY) {
         epName.assign(deviceLinkName[deviceId].second);
     } else {
         QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
@@ -1030,7 +1073,7 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
 int ResourceManager::getPcmDeviceId(int deviceId)
 {
     int pcm_device_id = -1;
-    if (deviceId < QAL_DEVICE_OUT_EARPIECE || deviceId > QAL_DEVICE_IN_PROXY) {
+    if (deviceId < QAL_DEVICE_OUT_HANDSET || deviceId > QAL_DEVICE_IN_PROXY) {
         QAL_ERR(LOG_TAG, " Invalid device id %d", deviceId);
         return -EINVAL;
     }
@@ -1324,7 +1367,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
-        if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_IN_PROXY) {
+        if (dev_id >= QAL_DEVICE_OUT_HANDSET && dev_id <= QAL_DEVICE_IN_PROXY) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
         } else {

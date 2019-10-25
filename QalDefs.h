@@ -255,7 +255,7 @@ typedef enum {
     QAL_DEVICE_NONE = 1,                           /**< for transcode usecases*/
 
     //OUTPUT DEVICES
-    QAL_DEVICE_OUT_EARPIECE,                   /**< Handset device*/
+    QAL_DEVICE_OUT_HANDSET,                    /**< Handset device*/
     QAL_DEVICE_OUT_SPEAKER,                    /**< Speaker device*/
     QAL_DEVICE_OUT_WIRED_HEADSET,              /**< Wired headset with mic*/
     QAL_DEVICE_OUT_WIRED_HEADPHONE,            /**< Wired headphones without mic*/

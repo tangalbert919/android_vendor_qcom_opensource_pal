@@ -46,7 +46,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
 {
     std::lock_guard<std::mutex> lock(mBaseStreamMutex);
     Stream* stream = NULL;
-
+    int status = 0;
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
@@ -61,7 +61,13 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         }
     }
     QAL_VERBOSE(LOG_TAG, "get RM instance success and noOfDevices %d \n", noOfDevices);
-
+    for (int i = 0; i < noOfDevices; i++) {
+        //TODO: shift this to rm or somewhere else where we can read the supported config from xml
+        status = rm->getDeviceConfig((struct qal_device *)&dAttr[i]);
+        if (status) {
+           QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+        }
+    }
     if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
         switch (sAttr->type) {
             case QAL_STREAM_LOW_LATENCY:
