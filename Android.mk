@@ -57,6 +57,9 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/DeviceAlsa.cpp \
     device/src/SpeakerMic.cpp \
     device/src/DeviceGsl.cpp \
+    device/src/HeadsetMic.cpp \
+    device/src/HandsetMic.cpp \
+    device/src/Handset.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionGsl.cpp \
@@ -65,7 +68,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     session/src/SessionAlsaCompress.cpp \
     session/src/SoundTriggerEngine.cpp \
     session/src/SoundTriggerEngineCapiCnn.cpp \
-        session/src/SoundTriggerEngineCapiVop.cpp \
+    session/src/SoundTriggerEngineCapiVop.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
     resource_manager/src/ResourceManager.cpp \
     utils/src/QalRingBuffer.cpp \

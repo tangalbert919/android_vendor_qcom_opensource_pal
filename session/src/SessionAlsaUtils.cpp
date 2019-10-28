@@ -83,7 +83,7 @@ SessionAlsaUtils::~SessionAlsaUtils()
 
 bool SessionAlsaUtils::isRxDevice(uint32_t devId)
 {
-    if ((devId >= QAL_DEVICE_OUT_EARPIECE) && (devId < QAL_DEVICE_IN_HANDSET_MIC))
+    if ((devId >= QAL_DEVICE_OUT_HANDSET) && (devId < QAL_DEVICE_IN_HANDSET_MIC))
         return true;
 
     return false;

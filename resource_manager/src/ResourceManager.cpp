@@ -42,8 +42,9 @@
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
-
-
+#include "HeadsetMic.h"
+#include "HandsetMic.h"
+#include "Handset.h"
 
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
@@ -132,7 +133,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_NONE,                     0},
-    {QAL_DEVICE_OUT_HANDSET,             0},
+    {QAL_DEVICE_OUT_HANDSET,              1},
     {QAL_DEVICE_OUT_SPEAKER,              1},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        1},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      1},
@@ -493,27 +494,56 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
     QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch(deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
-	case QAL_DEVICE_IN_HANDSET_MIC:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
             dev_ch_info->channels = CHANNELS_3;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
             dev_ch_info->ch_map[2] = QAL_CHMAP_CHANNEL_C;
+            //dev_ch_info->ch_map[3] = QAL_CHMAP_CHANNEL_LS;
+            //dev_ch_info->ch_map[4] = QAL_CHMAP_CHANNEL_RS;
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_ERR(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             deviceattr->id = QAL_DEVICE_IN_SPEAKER_MIC;
             break;
-        case QAL_DEVICE_OUT_SPEAKER:
+        case QAL_DEVICE_IN_HANDSET_MIC:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
+            dev_ch_info->channels = CHANNELS_1;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+        case QAL_DEVICE_IN_WIRED_HEADSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
+            dev_ch_info->channels = CHANNELS_1;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
         case QAL_DEVICE_OUT_HANDSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
+            dev_ch_info->channels = CHANNELS_1;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+        case QAL_DEVICE_OUT_SPEAKER:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
             dev_ch_info->channels = CHANNELS_2;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_ERR(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
@@ -525,7 +555,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
             //do nothing for rest of the devices
             break;
 	}
-    QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     return status;
 }
 
@@ -669,6 +698,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         dev_bitwidth = devices[i].config.bit_width;
 
         switch(devices[i].id) {
+            case QAL_DEVICE_OUT_HANDSET:
+                rc = (Handset::isBitWidthSupported(dev_bitwidth) |
+                    Handset::isSampleRateSupported(dev_samplerate) |
+                    Handset::isChannelSupported(dev_channels));
+                break;
             case QAL_DEVICE_OUT_SPEAKER:
                 rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
                     Speaker::isSampleRateSupported(dev_samplerate) |
@@ -681,6 +715,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                      Headphone::isChannelSupported(dev_channels));
                 break;
             case QAL_DEVICE_IN_HANDSET_MIC:
+                rc = (HandsetMic::isBitWidthSupported(dev_bitwidth) |
+                      HandsetMic::isSampleRateSupported(dev_samplerate) |
+                      HandsetMic::isChannelSupported(dev_channels));
+                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
+                break;
             case QAL_DEVICE_IN_SPEAKER_MIC:
             case QAL_DEVICE_IN_TRI_MIC:
             case QAL_DEVICE_IN_QUAD_MIC:
@@ -688,6 +727,12 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                 rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
                       SpeakerMic::isSampleRateSupported(dev_samplerate) |
                       SpeakerMic::isChannelSupported(dev_channels));
+                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
+                break;
+            case QAL_DEVICE_IN_WIRED_HEADSET:
+                rc = (HeadsetMic::isBitWidthSupported(dev_bitwidth) |
+                      HeadsetMic::isSampleRateSupported(dev_samplerate) |
+                      HeadsetMic::isChannelSupported(dev_channels));
                 QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
                 break;
             default:
@@ -1395,7 +1440,7 @@ void ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
-        if (dev_id >= QAL_DEVICE_OUT_EARPIECE && dev_id <= QAL_DEVICE_OUT_PROXY) {
+        if (dev_id >= QAL_DEVICE_OUT_HANDSET && dev_id <= QAL_DEVICE_OUT_PROXY) {
             epname.assign(listAllBackEndIds[dev_id].second);
             rxBackEndNames.push_back(std::make_pair(dev_id, epname));
         } else if (dev_id >= QAL_DEVICE_IN_HANDSET_MIC && dev_id <= QAL_DEVICE_IN_PROXY) {

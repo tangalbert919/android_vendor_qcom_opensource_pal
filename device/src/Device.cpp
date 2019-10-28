@@ -40,6 +40,9 @@
 #include "SpeakerMic.h"
 #include "DeviceImpl.h"
 #include "Stream.h"
+#include "HeadsetMic.h"
+#include "HandsetMic.h"
+#include "Handset.h"
 
 
 std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
@@ -57,6 +60,10 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
 
     //TBD: decide on supported devices from XML and not in code
     switch(device->id) {
+    case QAL_DEVICE_OUT_HANDSET:
+        QAL_VERBOSE(LOG_TAG, "handset device");
+        return Handset::getInstance(device, Rm);
+        break;
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getInstance(device, Rm);
@@ -66,13 +73,20 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
         QAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
         break;
-    case QAL_DEVICE_IN_SPEAKER_MIC:
     case QAL_DEVICE_IN_HANDSET_MIC:
+        QAL_VERBOSE(LOG_TAG, "HandsetMic device");
+        return HandsetMic::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_IN_SPEAKER_MIC:
     case QAL_DEVICE_IN_TRI_MIC:
     case QAL_DEVICE_IN_QUAD_MIC:
     case QAL_DEVICE_IN_EIGHT_MIC:
         QAL_VERBOSE(LOG_TAG, "speakerMic device");
         return SpeakerMic::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_IN_WIRED_HEADSET:
+        QAL_VERBOSE(LOG_TAG, "HeadsetMic device");
+        return HeadsetMic::getInstance(device, Rm);
         break;
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
