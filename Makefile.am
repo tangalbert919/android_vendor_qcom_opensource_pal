@@ -115,7 +115,7 @@ AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm
 
 AM_CPPFLAGS += -I ${WORKSPACE}/audio/mm-audio/capiv2_api/
 
-AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
+AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\) -DLINUX_ENABLED
 
 AM_CPPFLAGS += -DCONFIG_GSL
 
