@@ -201,8 +201,8 @@ public:
                           const qal_stream_direction_t direction, int lDirection);
     const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
-                          std::vector<std::string> &rxBackEndNames,
-                          std::vector<std::string> &txBackEndNames) const;
+                          std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
+                          std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
     bool updateDeviceConfigs(const qal_stream_attributes* incomingStreamAttr,
         int noOfIncomingDevices, qal_device* incomingDevices);
     const std::string getQALDeviceName(const qal_device_id_t id) const;

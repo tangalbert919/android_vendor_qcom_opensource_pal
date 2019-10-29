@@ -170,6 +170,7 @@ int SessionAlsaCompress::open(Stream * s)
     int status = -EINVAL;
     struct qal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::pair<int32_t, std::string>> emptyBackEnds;
 
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
@@ -193,7 +194,7 @@ int SessionAlsaCompress::open(Stream * s)
        //compressDevIds[i] = 5;
     QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
-    aifBackEnds = rm->getBackEndNames(associatedDevices);
+    rm->getBackEndNames(associatedDevices, aifBackEnds, emptyBackEnds);
     status = rm->getAudioMixer(&mixer);
     if (status) {
         QAL_ERR(LOG_TAG,"mixer error");
@@ -207,7 +208,7 @@ int SessionAlsaCompress::open(Stream * s)
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
 
     status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
-            (aifBackEnds.at(0)).data(), true, STREAM_SPR, &spr_miid);
+            aifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
         return status;
@@ -219,30 +220,50 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, qal_strea
         std::shared_ptr<Device> deviceToDisconnect)
 {
     std::vector<std::shared_ptr<Device>> deviceList;
-    std::vector<std::string> aifBackEndsToDisconnect;
     struct qal_device dAttr;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToDisconnect;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEndsToDisconnect;
+    int32_t status = 0;
 
     deviceList.push_back(deviceToDisconnect);
-    aifBackEndsToDisconnect = rm->getBackEndNames(deviceList);
+    rm->getBackEndNames(deviceList, rxAifBackEndsToDisconnect,
+            txAifBackEndsToDisconnect);
     deviceToDisconnect->getDeviceAtrributes(&dAttr);
 
-    return SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
-            dAttr, compressDevIds, aifBackEndsToDisconnect);
+    if (!rxAifBackEndsToDisconnect.empty())
+        status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, rxAifBackEndsToDisconnect);
+
+    if (!txAifBackEndsToDisconnect.empty())
+        status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, txAifBackEndsToDisconnect);
+
+    return status;
 }
 
 int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect)
 {
     std::vector<std::shared_ptr<Device>> deviceList;
-    std::vector<std::string> aifBackEndsToConnect;
     struct qal_device dAttr;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToConnect;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEndsToConnect;
+    int32_t status = 0;
 
     deviceList.push_back(deviceToConnect);
-    aifBackEndsToConnect = rm->getBackEndNames(deviceList);
+    rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
+            txAifBackEndsToConnect);
     deviceToConnect->getDeviceAtrributes(&dAttr);
 
-    return SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
-            dAttr, compressDevIds, aifBackEndsToConnect);
+    if (!rxAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, rxAifBackEndsToConnect);
+
+    if (!txAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, txAifBackEndsToConnect);
+
+    return status;
 }
  
 int SessionAlsaCompress::prepare(Stream * s)
@@ -320,6 +341,67 @@ exit:
         tagConfig = nullptr;
     }
 
+    return status;
+}
+
+int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
+        uint32_t tag2, uint32_t tag3)
+{
+    int status = 0;
+    uint32_t tagsent = 0;
+    struct agm_tag_config* tagConfig = nullptr;
+    std::ostringstream tagCntrlName;
+    char const *stream = "COMPRESS";
+    const char *setParamTagControl = "setParamTag";
+    struct mixer_ctl *ctl = nullptr;
+    uint32_t tkv_size = 0;
+
+    switch (type) {
+        case MODULE:
+            tkv.clear();
+            if (tag1)
+                builder->populateTagKeyVector(s, tkv, tag1, &tagsent);
+            if (tag2)
+                builder->populateTagKeyVector(s, tkv, tag2, &tagsent);
+            if (tag3)
+                builder->populateTagKeyVector(s, tkv, tag3, &tagsent);
+
+            if (tkv.size() == 0) {
+                status = -EINVAL;
+                goto exit;
+            }
+            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+                            (tkv.size() * sizeof(agm_key_value)));
+            if(!tagConfig) {
+                status = -ENOMEM;
+                goto exit;
+            }
+            status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
+            if (0 != status) {
+                goto exit;
+            }
+            tagCntrlName << stream << compressDevIds.at(0) << " " << setParamTagControl;
+            ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
+            if (!ctl) {
+                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                return -ENOENT;
+            }
+
+            tkv_size = tkv.size() * sizeof(struct agm_key_value);
+            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                goto exit;
+            }
+            ctl = NULL;
+            tkv.clear();
+            break;
+        default:
+            status = 0;
+            break;
+    }
+
+exit:
     return status;
 }
 
@@ -440,6 +522,7 @@ int SessionAlsaCompress::start(Stream * s)
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
+    uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
 
     /** create an offload thread for posting callbacks */
     worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
@@ -477,32 +560,10 @@ int SessionAlsaCompress::start(Stream * s)
                     return status;
                 }
                 QAL_ERR(LOG_TAG,"%s: device sample rate %d \n", __func__, dAttr.config.sample_rate);
-                switch (dAttr.config.sample_rate) {
-                    case SAMPLINGRATE_8K :
-                        setConfig(s,MODULE,MFC_SR_8K);
-                        break;
-                    case SAMPLINGRATE_16K :
-                        setConfig(s,MODULE,MFC_SR_16K);
-                        break;
-                    case SAMPLINGRATE_32K :
-                        setConfig(s,MODULE,MFC_SR_32K);
-                        break;
-                    case SAMPLINGRATE_44K :
-                        setConfig(s,MODULE,MFC_SR_44K);
-                        break;
-                    case SAMPLINGRATE_48K :
-                        setConfig(s,MODULE,MFC_SR_48K);
-                        break;
-                    case SAMPLINGRATE_96K :
-                        setConfig(s,MODULE,MFC_SR_96K);
-                        break;
-                    case SAMPLINGRATE_192K :
-                        setConfig(s,MODULE,MFC_SR_192K);
-                        break;
-                    case SAMPLINGRATE_384K :
-                        setConfig(s,MODULE,MFC_SR_384K);
-                        break;
-                }
+                getSamplerateChannelBitwidthTags(&dAttr.config,
+                    mfc_sr_tag, ch_tag, bitwidth_tag);
+
+                setConfig(s, MODULE, mfc_sr_tag, ch_tag, bitwidth_tag);
             }
             break;
         default:
@@ -537,7 +598,7 @@ int SessionAlsaCompress::close(Stream * s)
         return -EINVAL;
     }
     /** Disconnect FE to BE */
-    mixer_ctl_set_enum_by_string(disconnectCtrl, (aifBackEnds.at(0)).data());
+    mixer_ctl_set_enum_by_string(disconnectCtrl, aifBackEnds[0].second.data());
     compress_close(compress);
 
     QAL_DBG(LOG_TAG, "out of compress close");
@@ -654,7 +715,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
             param_payload = (qal_param_payload *)payload;
             effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                           aifBackEnds[0].data(),
+                                                           aifBackEnds[0].second.data(),
                                                            true, tagId, &miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);

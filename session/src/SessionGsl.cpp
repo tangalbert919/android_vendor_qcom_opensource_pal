@@ -780,6 +780,12 @@ int SessionGsl::setTKV(Stream * s, configType type, effect_qal_payload_t *payloa
     return 0;
 }
 
+int SessionGsl::setConfig(Stream *s, configType type, uint32_t tag1,
+        uint32_t tag2, uint32_t tag3)
+{
+    return 0;
+}
+
 int SessionGsl::setConfig(Stream *s, configType type, int tag)
 {
     int status = 0;

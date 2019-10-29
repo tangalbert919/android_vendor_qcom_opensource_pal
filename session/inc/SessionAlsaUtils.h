@@ -90,11 +90,12 @@ public:
     static int getTagMetadata(int32_t tagsent, std::vector <std::pair<int, int>> &tkv, struct agm_tag_config *tagConfig);
     static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);
     static unsigned int bitsToAlsaFormat(unsigned int bits);
-    static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds, const std::vector<std::string> &BackEnds);
+    static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds,
+            const std::vector<std::pair<int32_t, std::string>> &BackEnds);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm,
                     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
-                    const std::vector<std::string> &rxBackEnds,
-                    const std::vector<std::string> &txBackEnds);
+                    const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
+                    const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
                        bool isCompress, int tag_id, uint32_t *miid);
     static int setMixerParameter(struct mixer *mixer, int device,
@@ -107,10 +108,13 @@ public:
     static int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,
-        const std::vector<std::string> &aifBackEndsToDisconnect);
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect);
     static int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
-        const std::vector<int> &pcmDevIds, const std::vector<std::string> &aifBackEndsToConnect);
+        const std::vector<int> &pcmDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
+    static std::shared_ptr<Device> getDeviceObj(int32_t beDevId,
+        std::vector<std::shared_ptr<Device>> &associatedDevices);
 };
 
 #endif //SESSION_ALSA_UTILS

@@ -77,6 +77,8 @@ public:
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
+    virtual int setConfig(Stream * s, configType type, uint32_t tag1,
+            uint32_t tag2, uint32_t tag3) = 0;
     virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) = 0;
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
@@ -96,6 +98,8 @@ public:
         std::shared_ptr<Device> deviceToCconnect) = 0;
     virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) = 0;
+    void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
+        uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
 
 };
 

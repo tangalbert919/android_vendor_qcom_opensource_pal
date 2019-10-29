@@ -60,9 +60,8 @@ private:
     std::vector<int> pcmDevIds;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
-    std::vector<std::string> aifBackEnds;
-    std::vector<std::string> rxAifBackEnds;
-    std::vector<std::string> txAifBackEnds;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
@@ -77,6 +76,8 @@ public:
     int prepare(Stream * s) override;
     int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
+    int setConfig(Stream * s, configType type, uint32_t tag1,
+            uint32_t tag2, uint32_t tag3) override;
     //int getConfig(Stream * s) override;
     int start(Stream * s) override;
     int stop(Stream * s) override;

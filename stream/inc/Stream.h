@@ -67,6 +67,17 @@ typedef enum {
 #define FLUENCE_OFF_TAG 13
 #define FLUENCE_EC_TAG 14
 #define FLUENCE_NS_TAG 15
+#define CHS_1 16
+#define CHS_2 17
+#define CHS_3 18
+#define CHS_4 19
+#define CHS_5 20
+#define CHS_6 21
+#define CHS_7 22
+#define CHS_8 23
+#define BW_16 24
+#define BW_24 25
+#define BW_32 26
 
 class Device;
 class ResourceManager;
