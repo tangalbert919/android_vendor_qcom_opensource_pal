@@ -95,7 +95,7 @@ public:
     virtual ~Stream() {};
     qal_stream_callback streamCb;
     void *cookie;
-    bool isPaused;
+    bool isPaused = false;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
