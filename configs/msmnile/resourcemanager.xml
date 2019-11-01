@@ -27,9 +27,12 @@
 <resource_manager_info>
     <pcm_ids>
         <device name="QAL_DEVICE_OUT_SPEAKER" pcm_id="0" hw_intf="slim-0-rx" snd_device_name="speaker" back_end_name="SLIM-DEV1-RX-0"/>
-		<device name="QAL_DEVICE_OUT_WIRED_HEADPHONE" pcm_id="0" hw_intf="slim-0-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
+		<device name="QAL_DEVICE_OUT_HANDSET" pcm_id="0" hw_intf="slim-0-rx" snd_device_name="handset" back_end_name="SLIM-DEV1-RX-0"/>
+		<device name="QAL_DEVICE_OUT_WIRED_HEADPHONE" pcm_id="0" hw_intf="slim-6-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
+		<device name="QAL_DEVICE_OUT_WIRED_HEADSET" pcm_id="0" hw_intf="slim-6-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
         <device name="QAL_DEVICE_IN_HANDSET_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="handset-mic" back_end_name="SLIM-DEV1-TX-0"/>
         <device name="QAL_DEVICE_IN_SPEAKER_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="speaker-tmic" back_end_name="SLIM-DEV1-TX-0"/>
 		<device name="QAL_DEVICE_IN_TRI_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="speaker-tmic" back_end_name="SLIM-DEV1-TX-0"/>
+		<device name="QAL_DEVICE_IN_WIRED_HEADSET" pcm_id="1" hw_intf="slim-1-tx" snd_device_name="headset-mic" back_end_name="SLIM-DEV1-TX-0"/>
     </pcm_ids>
 </resource_manager_info>
