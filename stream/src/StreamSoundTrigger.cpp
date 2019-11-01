@@ -104,15 +104,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     engine_id = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
     registerSoundTriggerEngine(engine_id, gsl_engine_);
 
-    // Is this required for Voice UI?
-    QAL_ERR(LOG_TAG, "Updating device config for voice UI");
-    bool isDeviceConfigUpdated = rm->updateDeviceConfigs(mStreamAttr,
-                                                         no_of_devices,
-                                                         dattr);
-
-    if (isDeviceConfigUpdated)
-        QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
-
     QAL_VERBOSE(LOG_TAG, "gsl engine %pK created", gsl_engine_);
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d",
@@ -125,6 +116,13 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
             free(mStreamAttr);
             throw std::runtime_error("failed to create device object");
         }
+        //Is this required for Voice UI?
+        QAL_ERR(LOG_TAG, "Updating device config for voice UI");
+        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, dattr);
+
+        if (isDeviceConfigUpdated)
+            QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
+
         mDevices.push_back(dev);
         dev = nullptr;
     }

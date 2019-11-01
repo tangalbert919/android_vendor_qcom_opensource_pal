@@ -487,7 +487,8 @@ int ResourceManager::init()
     return 0;
 }
 
-int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
+int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
+                                         struct qal_stream_attributes *sAttr)
 {
     int32_t status = 0;
     struct qal_channel_info *dev_ch_info = NULL;
@@ -524,9 +525,16 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
-            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            status = (HeadsetMic::checkAndUpdateBitWidth(&deviceattr->config.bit_width) |
+                HeadsetMic::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
+            if (status) {
+                QAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
+                status = -EINVAL;
+            }
+            QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
         case QAL_DEVICE_OUT_HANDSET:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
@@ -548,6 +556,24 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr)
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             deviceattr->id = QAL_DEVICE_OUT_SPEAKER;
+            break;
+        case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+        case QAL_DEVICE_OUT_WIRED_HEADSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
+            dev_ch_info->channels = CHANNELS_2;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            status = (Headphone::checkAndUpdateBitWidth(&deviceattr->config.bit_width) |
+                Headphone::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
+            if (status) {
+                QAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
+                status = -EINVAL;
+            }
+            QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
 	default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
@@ -810,6 +836,7 @@ int ResourceManager::registerStream(Stream *s)
             QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
             break;
     }
+    mActiveStreams.push_back(s);
 
 #if 0
     s->getStreamAttributes(&incomingStreamAttr);
@@ -901,6 +928,8 @@ int ResourceManager::deregisterStream(Stream *s)
             QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
             break;
     }
+
+    deregisterstream(s, mActiveStreams);
     mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
@@ -968,7 +997,7 @@ int ResourceManager::getAudioMixer(struct audio_mixer ** am)
     return 0;
 }
 //TBD: test this piece later, for concurrency
-#if 0
+#if 1
 template <class T>
 void ResourceManager::getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
                       std::vector<T> sourcestreams)
@@ -1412,6 +1441,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
+        QAL_ERR(LOG_TAG, "device id %d", dev_id);
         if (dev_id >= QAL_DEVICE_OUT_HANDSET && dev_id <= QAL_DEVICE_IN_PROXY) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
@@ -1421,7 +1451,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
     }
 
     for (int i = 0; i < backEndNames.size(); i++) {
-        QAL_DBG(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
+        QAL_ERR(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
     }
 
     return backEndNames;
@@ -1452,9 +1482,9 @@ void ResourceManager::getBackEndNames(
     }
 
     for (int i = 0; i < rxBackEndNames.size(); i++)
-        QAL_DBG(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
+        QAL_ERR(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
     for (int i = 0; i < txBackEndNames.size(); i++)
-        QAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
+        QAL_ERR(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
 }
 #if 0
 const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
@@ -1481,6 +1511,30 @@ error:
 }
 #endif
 
+bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
+         struct qal_device *inDevAttr)
+{
+    bool is_ds_required = false;
+    /*  This API may need stream attributes also to decide the priority like voice call has high priority */
+    /* Right now assume all playback streams are same priority and decide based on Active Device config */
+
+    switch (inDevAttr->id) {
+    /* speaker is always at 48k, 16 bit, 2 ch */
+    case QAL_DEVICE_OUT_SPEAKER:
+        is_ds_required = false;
+        break;
+    case QAL_DEVICE_OUT_WIRED_HEADSET:
+    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+        if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
+            (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
+            (activeDevAttr->config.ch_info->channels < inDevAttr->config.ch_info->channels)) {
+            is_ds_required = true;
+        }
+        break;
+    }
+
+    return is_ds_required;
+}
 
 //when returning from this function, the device config will be updated with
 //the device config of the highest priority stream
@@ -1488,19 +1542,18 @@ error:
 //TBD: manage re-routing of existing lower priority streams if incoming
 //stream is a higher priority stream. Priority defined in ResourceManager.h
 //(details below)
-bool ResourceManager::updateDeviceConfigs(const qal_stream_attributes* incomingStreamAttr ,
-    int noOfIncomingDevices, qal_device* incomingDevices)
+bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
+                                          struct qal_device *inDevAttr)
 {
-     //loop through all stream configs and see if any higher priority stream is present, if yes, use that device config
-    bool isUpdated = false;
+    bool isDeviceSwitch = false;
     int status = -EINVAL;
     std::vector <Stream *> activeStreams;
-    int incomingStreamPriority = getStreamAttrPriority (incomingStreamAttr);
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dattr;
     std::vector<Stream*>::iterator sIter;
+    std::shared_ptr<Device> inDevice = nullptr;
 
-    if (!incomingDevices || (noOfIncomingDevices == 0)) {
+    if (!inDev || !inDevAttr) {
         goto error;
     }
 
@@ -1513,24 +1566,15 @@ bool ResourceManager::updateDeviceConfigs(const qal_stream_attributes* incomingS
     //for all devices matching incoming device id
     //and route the lower priority to new device (disable session, disable device, enable session, enable device
     //return from callback
-#if 0
-    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_ll);
-    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_ulla);
-    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_db);
-    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_comp);
-    getHigherPriorityActiveStreams(incomingStreamPriority, activeStreams, active_streams_st);
-#endif
 
-    //check if any of these higher priority streams are running on the incoming devices, if yes
-    //update the incoming device config to the device config from higher priority stream
 
+    // TODO: update logic based on if voice call is active or not
+    getActiveStream(inDev, activeStreams);
     if (activeStreams.size() == 0) {
-        //TBD: make QAL_VERBOSE
         QAL_ERR(LOG_TAG, "no other active streams found");
         goto error;
     }
-
-
+    /* All the activesteams using device A should use same device config so no need to run through on all activestreams for device A */
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         status = (*sIter)->getAssociatedDevices(associatedDevices);
         if(0 != status) {
@@ -1546,19 +1590,26 @@ bool ResourceManager::updateDeviceConfigs(const qal_stream_attributes* incomingS
                 goto error;
             }
 
-            for (int i = 0; i < noOfIncomingDevices; i++) {
-                if (dattr.id == incomingDevices[i].id) {
-                    //found the same device on a higher priority stream, update incoming device's config
-                    //TBD: make qal_verbose
-                    QAL_ERR(LOG_TAG, "%s: Found higher priority stream running on the same device, update config", __func__);
-                    memcpy((void*)&incomingDevices[i], (void*)&dattr, sizeof(struct qal_device));
-                 }
-             }
+            if (dattr.id == inDevAttr->id) {
+                isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr);
+                if (isDeviceSwitch) {
+                    // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
+                    // Swichdevice will device all the devices on this stream and re-enable with what we send here
+                    // TODO: add new method to disable devices only what is required
+                    inDev->setDeviceAttributes(*inDevAttr);
+                    (*sIter)->switchDevice(*sIter, 1, &dattr);
+                } else {
+                    // case 2. If incoming device config has lower priority then update incoming device config with other stream config
+                    //TODO:  No need to loop through in this case as all active streams will be using same device config
+                    QAL_ERR(LOG_TAG, "%s: Found device %d is already running with higher priority device config", __func__, dattr.id);
+                    memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
+                }
+            }
         }
     }
 
 error:
-    return isUpdated;
+    return isDeviceSwitch;
 }
 
 const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const

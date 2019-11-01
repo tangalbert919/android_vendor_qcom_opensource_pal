@@ -348,6 +348,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             QAL_ERR(LOG_TAG, "%s: get device KV failed %d", status);
             goto freeStreamMetaData;
         }
+
         if (sAttr.direction == QAL_AUDIO_OUTPUT)
             status = builder->populateDevicePPKV(streamHandle, be->first, deviceKV, 0,
                     emptyKV);
@@ -400,6 +401,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
             mixer_ctl_set_array(beMixerCtrls[BE_MEDIAFMT], &aif_media_config,
                     sizeof(aif_media_config)/sizeof(aif_media_config[0]));
+            QAL_ERR(LOG_TAG,"rate ch fmt %d %d %d", dAttr.config.sample_rate, dAttr.config.ch_info->channels,
+                    dAttr.config.bit_width);
         }
         free(streamDeviceMetaData.buf);
         free(deviceMetaData.buf);
@@ -491,7 +494,7 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
 
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
 
-    QAL_DBG(LOG_TAG, " - mixer -%s-\n", mixer_str);
+    QAL_ERR(LOG_TAG, " - mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
         QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
@@ -552,7 +555,7 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     if (isCompress)
         stream = "COMPRESS";
 
-
+    QAL_ERR(LOG_TAG, "- mixer -%s-\n", stream);
     ctl_len = strlen(stream) + 4 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str) {
@@ -561,18 +564,16 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     }
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
 
-    QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    QAL_ERR(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
         QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
         free(mixer_str);
         return ENOENT;
     }
-
-
     ret = mixer_ctl_set_array(ctl, payload, size);
 
-    QAL_DBG(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
+    QAL_ERR(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
     free(mixer_str);
     return ret;
 }
@@ -971,6 +972,11 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
     struct mixer *mixerHandle = nullptr;
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
+    struct sessionToPayloadParam deviceData;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
+    bool is_compress = false;
 
 
     status = rmHandle->getAudioMixer(&mixerHandle);
@@ -1027,6 +1033,7 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
             connectCtrlName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " connect";
             aifMfCtrlName << aifBackEndsToConnect[0].second.data() << " rate ch fmt";
             feMdName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " metadata";
+            is_compress = true;
             break;
         default:
             cntrlName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " control";
@@ -1040,7 +1047,7 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
     status = rmHandle->getAudioMixer(&mixerHandle);
 
     aifMdCtrl = mixer_get_ctl_by_name(mixerHandle, aifMdName.str().data());
-    QAL_DBG(LOG_TAG,"mixer control %s", aifMdName.str().data());
+    QAL_ERR(LOG_TAG,"mixer control %s", aifMdName.str().data());
     if (!aifMdCtrl) {
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMdName.str().data());
         status = -EINVAL;
@@ -1049,7 +1056,7 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
     mixer_ctl_set_array(aifMdCtrl, (void *)deviceMetaData.buf, deviceMetaData.size);
 
     feCtrl = mixer_get_ctl_by_name(mixerHandle, cntrlName.str().data());
-    QAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+    QAL_ERR(LOG_TAG,"mixer control %s", cntrlName.str().data());
     if (!feCtrl) {
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", cntrlName.str().data());
         status = -EINVAL;
@@ -1080,6 +1087,28 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
     }
     mixer_ctl_set_array(aifMfCtrl, &aif_media_config,
             sizeof(aif_media_config)/sizeof(aif_media_config[0]));
+
+    /* Get PSPD MFC MIID and configure to match to device config */
+    /* This has to be done after sending all mixer controls and before connect */
+    status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
+                                                   aifBackEndsToConnect[0].second.data(),
+                                                   is_compress, TAG_DEVICE_MFC_SR, &miid);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+        return status;
+    }
+    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+            pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
+    deviceData.bitWidth = dAttr.config.bit_width;
+    deviceData.sampleRate = dAttr.config.sample_rate;
+    deviceData.numChannel = dAttr.config.ch_info->channels;
+    builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+    status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0), is_compress, payload, payloadSize);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"setMixerParameter failed");
+        return status;
+    }
+
     connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
     if (!connectCtrl) {
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());

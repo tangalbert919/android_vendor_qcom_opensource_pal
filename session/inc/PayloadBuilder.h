@@ -58,6 +58,8 @@
 #define I2S 1
 #define HW_EP_TX DEVICE_HW_ENDPOINT_TX
 #define HW_EP_RX DEVICE_HW_ENDPOINT_RX
+#define TAG_STREAM_MFC_SR TAG_STREAM_MFC
+#define TAG_DEVICE_MFC_SR PER_STREAM_PER_DEVICE_MFC
 
 struct sessionToPayloadParam {
     uint32_t sampleRate;                /**< sample rate */
@@ -159,6 +161,9 @@ public:
     void payloadDeviceConfig(uint8_t** payload, size_t* size,
                              struct gsl_module_id_info* moduleInfo,
                              int payloadTag, struct sessionToPayloadParam* data);
+    void payloadMFCConfig(uint8_t** payload, size_t* size,
+                           uint32_t miid,
+                           struct sessionToPayloadParam* data);
     void payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId,
                        struct qal_volume_data *volumedata, int tag);
     void payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId);

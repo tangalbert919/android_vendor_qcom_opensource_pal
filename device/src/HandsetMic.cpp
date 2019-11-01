@@ -50,7 +50,7 @@ std::shared_ptr<Device> HandsetMic::getInstance(struct qal_device *device,
 
 
 HandsetMic::HandsetMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm)
+Device(device, Rm)
 {
    
 }

@@ -88,7 +88,7 @@ class Stream
 protected:
     uint32_t mNoOfDevices;
     std::vector <std::shared_ptr<Device>> mDevices;
-
+    static struct qal_device* mQalDevice;
     Session* session;
     struct qal_stream_attributes* mStreamAttr;
     struct qal_volume_data* mVolumeData = NULL;

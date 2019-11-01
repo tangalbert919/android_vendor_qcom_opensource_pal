@@ -98,25 +98,24 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
        mStreamMutex.unlock();
        throw std::runtime_error("failed to create session object");
     }
-    isDeviceConfigUpdated = rm->updateDeviceConfigs(mStreamAttr, no_of_devices,
-        dattr);
-
-    if (isDeviceConfigUpdated)
-        QAL_VERBOSE(LOG_TAG, "Device config updated");
 
     session->registerCallBack(handleSessionCallBack, (void *)this);
     QAL_VERBOSE(LOG_TAG,"Create new Devices with no_of_devices - %d", no_of_devices);
     for (uint32_t i = 0; i < no_of_devices; i++) {
-       dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
-       if (dev == nullptr) {
-          QAL_ERR(LOG_TAG, "Device creation is failed");
-          free(mStreamAttr->out_media_config.ch_info);
-          free(mStreamAttr);
-          mStreamMutex.unlock();
-          throw std::runtime_error("failed to create device object");
+        dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
+        if (dev == nullptr) {
+            QAL_ERR(LOG_TAG, "Device creation is failed");
+            free(mStreamAttr->out_media_config.ch_info);
+            free(mStreamAttr);
+            mStreamMutex.unlock();
+            throw std::runtime_error("failed to create device object");
         }
+        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, dattr);
+        if (isDeviceConfigUpdated)
+            QAL_VERBOSE(LOG_TAG, "Device config updated");
+
         mDevices.push_back(dev);
-        rm->registerDevice(dev);
+        //rm->registerDevice(dev);
         dev = nullptr;
     }
     mStreamMutex.unlock();

@@ -31,9 +31,8 @@
 #define HANDSETMIC_H
 
 #include "Device.h"
-#include "CodecDevice.h"
 
-class HandsetMic : public CodecDevice
+class HandsetMic : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;

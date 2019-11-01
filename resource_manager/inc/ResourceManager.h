@@ -120,6 +120,8 @@ private:
 
     bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
          const qal_stream_attributes* sIncomingAttr) const;
+    bool isDeviceSwitchRequired(struct qal_device *activeDevAttr,
+         struct qal_device *inDevAttr);
     bool ifVoiceorVoipCall (qal_stream_type_t streamType) const;
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const qal_stream_attributes* sAttr) const;
@@ -127,6 +129,7 @@ private:
     void getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
 	       std::vector<T> sourcestreams);
 protected:
+    std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
     std::vector <StreamPCM*> active_streams_ulla;
     std::vector <StreamPCM*> active_streams_db;
@@ -164,7 +167,8 @@ public:
     /* checks config for both stream and device */
     bool isStreamSupported(struct qal_stream_attributes *attributes,
                            struct qal_device *devices, int no_of_devices);
-    int32_t getDeviceConfig(struct qal_device *deviceattr);
+    int32_t getDeviceConfig(struct qal_device *deviceattr,
+                            struct qal_stream_attributes *attributes);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);
@@ -204,8 +208,8 @@ public:
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
-    bool updateDeviceConfigs(const qal_stream_attributes* incomingStreamAttr,
-        int noOfIncomingDevices, qal_device* incomingDevices);
+    bool updateDeviceConfig(std::shared_ptr<Device> inDev,
+                                          struct qal_device *inDevAttr);
     const std::string getQALDeviceName(const qal_device_id_t id) const;
     bool isNonALSACodec(const struct qal_device *device) const;
 

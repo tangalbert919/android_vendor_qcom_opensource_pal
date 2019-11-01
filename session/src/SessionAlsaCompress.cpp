@@ -194,13 +194,13 @@ int SessionAlsaCompress::open(Stream * s)
        //compressDevIds[i] = 5;
     QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
-    rm->getBackEndNames(associatedDevices, aifBackEnds, emptyBackEnds);
+    rm->getBackEndNames(associatedDevices, rxAifBackEnds, emptyBackEnds);
     status = rm->getAudioMixer(&mixer);
     if (status) {
         QAL_ERR(LOG_TAG,"mixer error");
         return status;
     }
-    status = SessionAlsaUtils::open(s, rm, compressDevIds, aifBackEnds);
+    status = SessionAlsaUtils::open(s, rm, compressDevIds, rxAifBackEnds);
     if (status) {
         QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
         rm->freeFrontEndIds(compressDevIds, sAttr.type, sAttr.direction, 0);
@@ -208,7 +208,7 @@ int SessionAlsaCompress::open(Stream * s)
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
 
     status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
-            aifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
+            rxAifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
         return status;
@@ -523,6 +523,10 @@ int SessionAlsaCompress::start(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
     uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
+    struct sessionToPayloadParam deviceData;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
 
     /** create an offload thread for posting callbacks */
     worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
@@ -553,17 +557,46 @@ int SessionAlsaCompress::start(Stream * s)
                 QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
                 return status;
             }
+            rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
+            if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+                QAL_ERR(LOG_TAG, "no backend specified for this stream");
+                return status;
+
+            }
+
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
                 if(0 != status) {
                     QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
                     return status;
                 }
-                QAL_ERR(LOG_TAG,"%s: device sample rate %d \n", __func__, dAttr.config.sample_rate);
+                /* Get PSPD MFC MIID and configure to match to device config */
+                /* This has to be done after sending all mixer controls and before connect */
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
+                                                               rxAifBackEnds[0].second.data(),
+                                                               true, TAG_DEVICE_MFC_SR, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                        compressDevIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
+                deviceData.bitWidth = dAttr.config.bit_width;
+                deviceData.sampleRate = dAttr.config.sample_rate;
+                deviceData.numChannel = dAttr.config.ch_info->channels;
+                builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+                status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0), true,
+                                                             payload, payloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
+
+/*                QAL_ERR(LOG_TAG,"%s: device sample rate %d \n", __func__, dAttr.config.sample_rate);
                 getSamplerateChannelBitwidthTags(&dAttr.config,
                     mfc_sr_tag, ch_tag, bitwidth_tag);
 
-                setConfig(s, MODULE, mfc_sr_tag, ch_tag, bitwidth_tag);
+                setConfig(s, MODULE, mfc_sr_tag, ch_tag, bitwidth_tag);*/
             }
             break;
         default:
@@ -598,7 +631,7 @@ int SessionAlsaCompress::close(Stream * s)
         return -EINVAL;
     }
     /** Disconnect FE to BE */
-    mixer_ctl_set_enum_by_string(disconnectCtrl, aifBackEnds[0].second.data());
+    mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
     compress_close(compress);
 
     QAL_DBG(LOG_TAG, "out of compress close");
@@ -715,7 +748,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
             param_payload = (qal_param_payload *)payload;
             effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                           aifBackEnds[0].second.data(),
+                                                           rxAifBackEnds[0].second.data(),
                                                            true, tagId, &miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);

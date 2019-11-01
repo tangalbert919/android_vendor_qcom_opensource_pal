@@ -147,6 +147,7 @@ exit:
 int Device::setDeviceAttributes(struct qal_device dattr)
 {
     int status = 0;
+    QAL_ERR(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
     casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr, sizeof(struct qal_device));
     return status;
 }

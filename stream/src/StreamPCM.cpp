@@ -110,11 +110,6 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
     }
-    isDeviceConfigUpdated = rm->updateDeviceConfigs(sattr, no_of_devices,
-        dattr);
-
-    if (isDeviceConfigUpdated)
-        QAL_VERBOSE(LOG_TAG, "Device config updated");
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
@@ -132,10 +127,20 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, dattr);
+
+        if (isDeviceConfigUpdated)
+            QAL_VERBOSE(LOG_TAG, "Device config updated");
+
+        /* Create only update device attributes first time so update here using set*/
+        /* this will have issues if same device is being currently used by different stream */
+       // dev->setDeviceAttributes((struct qal_device)dattr[i]);
         mDevices.push_back(dev);
         //rm->registerDevice(dev);
         dev = nullptr;
     }
+
+
     mStreamMutex.unlock();
     rm->registerStream(this);
     QAL_DBG(LOG_TAG, "Exit.");

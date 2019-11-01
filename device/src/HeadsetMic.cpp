@@ -50,7 +50,7 @@ std::shared_ptr<Device> HeadsetMic::getInstance(struct qal_device *device,
 
 
 HeadsetMic::HeadsetMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm)
+Device(device, Rm)
 {
    
 }
@@ -106,5 +106,41 @@ int32_t HeadsetMic::isBitWidthSupported(uint32_t bitWidth)
             QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
             break;
     }
+    return rc;
+}
+
+int32_t HeadsetMic::checkAndUpdateBitWidth(uint32_t *bitWidth)
+{
+    int32_t rc = 0;
+    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    switch (*bitWidth) {
+        case BITWIDTH_16:
+        case BITWIDTH_24:
+        case BITWIDTH_32:
+            break;
+        default:
+            *bitWidth = BITWIDTH_16;
+            QAL_DBG(LOG_TAG, "bit width not supported, setting to default 16 bit");
+            break;
+    }
+    return rc;
+}
+
+int32_t HeadsetMic::checkAndUpdateSampleRate(uint32_t *sampleRate)
+{
+    int32_t rc = 0;
+
+    /* TODO: support native 44.1 later */
+    if (*sampleRate < SAMPLINGRATE_48K)
+        *sampleRate = SAMPLINGRATE_48K;
+    else if (*sampleRate > SAMPLINGRATE_48K && *sampleRate < SAMPLINGRATE_96K)
+        *sampleRate = SAMPLINGRATE_96K;
+    else if (*sampleRate > SAMPLINGRATE_96K && *sampleRate < SAMPLINGRATE_192K)
+        *sampleRate = SAMPLINGRATE_192K;
+    else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate < SAMPLINGRATE_384K)
+        *sampleRate = SAMPLINGRATE_384K;
+
+    QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, *sampleRate);
+
     return rc;
 }

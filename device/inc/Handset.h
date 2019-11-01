@@ -30,10 +30,9 @@
 #ifndef HANDSET_H
 #define HANDSET_H
 
-#include "CodecDevice.h"
-#include "QalAudioRoute.h"
+#include "Device.h"
 
-class Handset : public CodecDevice
+class Handset : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;

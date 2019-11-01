@@ -35,8 +35,84 @@
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define XML_FILE "/vendor/etc/hw_ep_info.xml"
-#define TAG_STREAM_MFC_SR TAG_STREAM_MFC
-#define TAG_DEVICE_MFC_SR TAG_DEVICE_PP_MFC
+
+/* ID of the Output Media Format parameters used by MODULE_ID_MFC */
+#define PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT            0x08001024
+#include "gk_begin_pack.h"
+#include "gk_begin_pragma.h"
+/* Payload of the PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT parameter in the
+ Media Format Converter Module. Following this will be the variable payload for channel_map. */
+struct param_id_mfc_output_media_fmt_t
+{
+   int32_t sampling_rate;
+   /**< @h2xmle_description  {Sampling rate in samples per second\n
+							  ->If the resampler type in the MFC is chosen to be IIR, 
+                              ONLY the following sample rates are ALLOWED:
+                              PARAM_VAL_NATIVE =-1;\n
+                              PARAM_VAL_UNSET = -2;\n
+                              8 kHz = 8000;\n
+                              16kHz = 16000;\n
+                              24kHz = 24000;\n
+                              32kHz = 32000;\n
+                              48kHz = 48000 \n
+							  -> For resampler type FIR, all values in the range
+							  below are allowed}
+        @h2xmle_rangeList   {"PARAM_VAL_UNSET" = -2;
+                             "PARAM_VAL_NATIVE" =-1;
+                             "8 kHz"=8000;
+                             "11.025 kHz"=11025;
+                             "12 kHz"=12000;
+                             "16 kHz"=16000;
+                             "22.05 kHz"=22050;
+                             "24 kHz"=24000;
+                             "32 kHz"=32000;
+                             "44.1 kHz"=44100;
+                             "48 kHz"=48000;
+                             "88.2 kHz"=88200;
+                             "96 kHz"=96000;
+                             "176.4 kHz"=176400;
+                             "192 kHz"=192000;
+                             "352.8 kHz"=352800;
+                             "384 kHz"=384000}
+        @h2xmle_default      {-1} */
+
+   int16_t bit_width;
+   /**< @h2xmle_description  {Bit width of audio samples \n
+                              ->Samples with bit width of 16 (Q15 format) are stored in 16 bit words \n
+							  ->Samples with bit width 24 bits (Q27 format) or 32 bits (Q31 format) are stored in 32 bit words}
+        @h2xmle_rangeList    {"PARAM_VAL_NATIVE"=-1;
+                              "PARAM_VAL_UNSET"=-2;
+                              "16-bit"= 16;
+                              "24-bit"= 24;
+                              "32-bit"=32}
+        @h2xmle_default      {-1}
+   */
+
+   int16_t num_channels;
+   /**< @h2xmle_description  {Number of channels. \n
+                              ->Ranges from -2 to 32 channels where \n
+                              -2 is PARAM_VAL_UNSET and -1 is PARAM_VAL_NATIVE}
+        @h2xmle_range        {-2..32}
+        @h2xmle_default      {-1}
+   */
+
+   uint16_t channel_type[0];
+   /**< @h2xmle_description  {Channel mapping array. \n
+                              ->Specify a channel mapping for each output channel \n
+                              ->If the number of channels is not a multiple of four, zero padding must be added
+                              to the channel type array to align the packet to a multiple of 32 bits. \n
+							  -> If num_channels field is set to PARAM_VAL_NATIVE (-1) or PARAM_VAL_UNSET(-2)
+							  this field will be ignored}
+        @h2xmle_variableArraySize {num_channels}
+        @h2xmle_range        {1..63}
+        @h2xmle_default      {1}    */
+}
+#include "gk_end_pragma.h"
+#include "gk_end_pack.h"
+;
+/* Structure type def for above payload. */
+typedef struct param_id_mfc_output_media_fmt_t param_id_mfc_output_media_fmt_t;
+
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
@@ -801,6 +877,101 @@ void PayloadBuilder::payloadHwEpConfig(uint8_t** payload, size_t* size,
                       hwEpConf->sample_rate, hwEpConf->bit_width,
                       hwEpConf->num_channels, hwEpConf->data_format);
     QAL_VERBOSE(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+                *size);
+}
+
+void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, struct sessionToPayloadParam* data)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_mfc_output_media_fmt_t *mfcConf;
+    int numChannels = data->numChannel;
+    uint16_t* pcmChannel = NULL;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    if (!data) {
+        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_mfc_output_media_fmt_t) +
+                  sizeof(uint16_t)*numChannels;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    mfcConf = (struct param_id_mfc_output_media_fmt_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
+    pcmChannel = (uint16_t*)(payloadInfo + sizeof(struct apm_module_param_data_t) +
+                                       sizeof(struct param_id_mfc_output_media_fmt_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_ERR(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    mfcConf->sampling_rate = data->sampleRate;
+    mfcConf->bit_width = data->bitWidth;
+    mfcConf->num_channels = data->numChannel;
+    if (data->numChannel == 1) {
+        pcmChannel[0] = PCM_CHANNEL_C;
+    } else if (data->numChannel == 2) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+    } else if (data->numChannel == 3) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+    } else if (data->numChannel == 4) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_LB;
+        pcmChannel[3] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 5) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LB;
+        pcmChannel[4] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 6) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 7) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_LB;
+        pcmChannel[6] = PCM_CHANNEL_RB;
+    } else if (data->numChannel == 8) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_CS;
+        pcmChannel[6] = PCM_CHANNEL_LB;
+        pcmChannel[7] = PCM_CHANNEL_RB;
+    }
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    QAL_ERR(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",
+                      mfcConf->sampling_rate, mfcConf->bit_width,
+                      mfcConf->num_channels);
+    QAL_ERR(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
                 *size);
 }
 
@@ -1721,7 +1892,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     //todo move the keys to a to an xml of stream type to key
     //something like stream_type=QAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
     //from there create a map and retrieve the right keys
-    QAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    QAL_ERR(LOG_TAG, "stream attribute type %d", sattr->type);
     switch (sattr->type) {
         case QAL_STREAM_LOW_LATENCY:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
@@ -1737,10 +1908,9 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 goto free_sattr;
             }
             break;
-        case QAL_STREAM_DEEP_BUFFER:
+    case QAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_2));
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_DEEP_BUFFER));
             } else {
                 status = -EINVAL;
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);

@@ -75,7 +75,8 @@ private:
     struct mixer *mixer;
     //  unsigned int compressDevId;
     std::vector<int> compressDevIds;
-    std::vector<std::pair<int32_t, std::string>> aifBackEnds;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     std::unique_ptr<std::thread> worker_thread;
     std::queue<std::shared_ptr<offload_msg>> msg_queue_;
 

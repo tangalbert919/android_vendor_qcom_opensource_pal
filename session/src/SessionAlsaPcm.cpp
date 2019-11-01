@@ -326,6 +326,11 @@ int SessionAlsaPcm::start(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
     uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
+    struct sessionToPayloadParam deviceData;
+    struct sessionToPayloadParam streamData;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -433,13 +438,30 @@ int SessionAlsaPcm::start(Stream * s)
 
     checkAndConfigConcurrency(s);
 
+
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
-            getSamplerateChannelBitwidthTags(&sAttr.in_media_config,
-                    mfc_sr_tag, ch_tag, bitwidth_tag);
-
-            setConfig(s, MODULE, mfc_sr_tag,
-                    ch_tag, bitwidth_tag);
+            /* Get MFC MIID and configure to match to stream config */
+            /* This has to be done after sending all mixer controls and before connect */
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                           txAifBackEnds[0].second.data(),
+                                                           false, TAG_STREAM_MFC_SR, &miid);
+            if (status != 0) {
+               QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+               return status;
+            }
+            QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
+                    pcmDevIds.at(0), txAifBackEnds[0].second.data());
+            streamData.bitWidth = sAttr.in_media_config.bit_width;
+            streamData.sampleRate = sAttr.in_media_config.sample_rate;
+            streamData.numChannel = sAttr.in_media_config.ch_info->channels;
+            builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
+            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                         payload, payloadSize);
+            if (status != 0) {
+               QAL_ERR(LOG_TAG,"setMixerParameter failed");
+               return status;
+            }
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -457,11 +479,27 @@ int SessionAlsaPcm::start(Stream * s)
                     QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
                     return status;
                 }
-            getSamplerateChannelBitwidthTags(&dAttr.config,
-                    mfc_sr_tag, ch_tag, bitwidth_tag);
-
-                setConfig(s, MODULE,
-                        mfc_sr_tag, ch_tag, bitwidth_tag);
+                /* Get PSPD MFC MIID and configure to match to device config */
+                /* This has to be done after sending all mixer controls and before connect */
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                               rxAifBackEnds[0].second.data(),
+                                                               false, TAG_DEVICE_MFC_SR, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                        pcmDevIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
+                deviceData.bitWidth = dAttr.config.bit_width;
+                deviceData.sampleRate = dAttr.config.sample_rate;
+                deviceData.numChannel = dAttr.config.ch_info->channels;
+                builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                             payload, payloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
             }
             //status = pcm_prepare(pcm);
             //if (status) {

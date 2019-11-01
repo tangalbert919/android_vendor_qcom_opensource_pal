@@ -40,6 +40,7 @@
 
 std::shared_ptr<ResourceManager> Stream::rm = nullptr;
 std::mutex Stream::mBaseStreamMutex;
+struct qal_device* Stream::mQalDevice = nullptr;
 
 Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *dAttr,
     uint32_t noOfDevices, struct modifier_kv *modifiers, uint32_t noOfModifiers)
@@ -61,14 +62,20 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         }
     }
     QAL_VERBOSE(LOG_TAG, "get RM instance success and noOfDevices %d \n", noOfDevices);
+    mQalDevice = new qal_device [noOfDevices];
+    if (!mQalDevice) {
+        QAL_ERR(LOG_TAG, "mQalDevice not created");
+        goto exit;
+    }
     for (int i = 0; i < noOfDevices; i++) {
         //TODO: shift this to rm or somewhere else where we can read the supported config from xml
-        status = rm->getDeviceConfig((struct qal_device *)&dAttr[i]);
+        mQalDevice[i].id = dAttr[i].id;
+        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[i], sAttr);
         if (status) {
            QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
         }
     }
-    if (rm->isStreamSupported(sAttr, dAttr, noOfDevices)) {
+    if (rm->isStreamSupported(sAttr, mQalDevice, noOfDevices)) {
         switch (sAttr->type) {
             case QAL_STREAM_LOW_LATENCY:
             case QAL_STREAM_DEEP_BUFFER:
@@ -76,15 +83,15 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             case QAL_STREAM_VOIP_TX:
             case QAL_STREAM_VOIP_RX:
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
-                stream = new StreamPCM(sAttr, dAttr, noOfDevices, modifiers,
+                stream = new StreamPCM(sAttr, mQalDevice, noOfDevices, modifiers,
                                    noOfModifiers, rm);
                 break;
             case QAL_STREAM_COMPRESSED:
-                stream = new StreamCompress(sAttr, dAttr, noOfDevices, modifiers,
+                stream = new StreamCompress(sAttr, mQalDevice, noOfDevices, modifiers,
                                         noOfModifiers, rm);
                 break;
             case QAL_STREAM_VOICE_UI:
-                stream = new StreamSoundTrigger(sAttr, dAttr, noOfDevices, modifiers,
+                stream = new StreamSoundTrigger(sAttr, mQalDevice, noOfDevices, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:
@@ -381,7 +388,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
 
     for (int i = 0; i < mDevices.size(); i++) {
         session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
-        QAL_ERR(LOG_TAG, "device %d name %s, going to stopi2",
+        QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
             mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
         status = mDevices[i]->stop();
@@ -403,10 +410,15 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     //clear existing devices and enable new devices
     mDevices.clear();
 
-    QAL_ERR(LOG_TAG, "Incoming device count %d, first id %d", no_of_devices, deviceArray[0].id);
+    QAL_ERR(LOG_TAG, "Incoming device count %d, first id %d, stream_type = %d", no_of_devices, deviceArray[0].id, mStreamAttr->type);
             
-
+    /* overwrite device config with default one for speaker and stream rate for headset */
+    /*TODO: handle other devices */
     for (int i = 0; i < no_of_devices; i++) {
+        status = rm->getDeviceConfig((struct qal_device *)&deviceArray[i], mStreamAttr);
+        if (status)
+           QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+
         //Check with RM if the configuration given can work or not
         //for e.g., if incoming stream needs 24 bit device thats also
         //being used by another stream, then the other stream should route
