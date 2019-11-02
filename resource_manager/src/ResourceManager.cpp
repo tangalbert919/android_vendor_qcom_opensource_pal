@@ -604,9 +604,11 @@ int ResourceManager::init_audio()
         if (ret == 0) {
             strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
         } else {
-            strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
+            //strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
+            //strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
             strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
+            QAL_ERR(LOG_TAG, "mixer_paths_xml name: %s", mixer_xml_file);
+
         }
     } else
         strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
@@ -623,7 +625,7 @@ int ResourceManager::init_audio()
         return -EINVAL;
     }
     // audio_route init success
-    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+    QAL_ERR(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
 }
