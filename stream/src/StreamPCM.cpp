@@ -669,6 +669,7 @@ int32_t  StreamPCM::setPause()
                 status);
         goto exit;
     }
+    isPaused = true;
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
     mStreamMutex.unlock();
@@ -686,7 +687,29 @@ int32_t  StreamPCM::setResume()
                 status);
         goto exit;
     }
+    isPaused = false;
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+exit:
+    mStreamMutex.unlock();
+    return status;
+}
+
+int32_t StreamPCM::flush()
+{
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    if (isPaused == false) {
+         QAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
+         goto exit;
+    }
+
+    if (mStreamAttr->type != QAL_STREAM_PCM_OFFLOAD) {
+         QAL_VERBOSE(LOG_TAG, "flush called for non PCM OFFLOAD stream, ignore");
+         goto exit;
+    }
+
+    status = session->flush();
 exit:
     mStreamMutex.unlock();
     return status;
@@ -708,8 +731,8 @@ int32_t StreamPCM::isSampleRateSupported(uint32_t sampleRate)
         case SAMPLINGRATE_384K:
             break;
        default:
-            rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported %d rc %d", sampleRate, rc);
+            rc = 0;
+            QAL_VERBOSE(LOG_TAG, "sample rate received %d rc %d", sampleRate, rc);
             break;
     }
     return rc;

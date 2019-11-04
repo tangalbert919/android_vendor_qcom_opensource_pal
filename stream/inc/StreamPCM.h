@@ -55,6 +55,7 @@ public:
    int32_t setMute( bool state) override;
    int32_t setPause() override;
    int32_t setResume() override;
+   int32_t flush();
    int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
    int32_t read(struct qal_buffer *buf) override;
    int32_t write(struct qal_buffer *buf) override;

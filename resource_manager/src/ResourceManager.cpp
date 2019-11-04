@@ -83,10 +83,11 @@
 #define MAX_SESSIONS_DEEP_BUFFER 1
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
+#define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 2
-#define MAX_FRONT_ENDS 2
-
-
+#define XMLFILE "/vendor/etc/resourcemanager.xml"
+#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
+#define SNDPARSER "/vendor/etc/card-defs.xml"
 
 /*
 To be defined in detail, if GSL is defined,
@@ -633,6 +634,10 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             cur_sessions = active_streams_st.size();
             max_sessions = MAX_SESSIONS_VOICE_UI;
             break;
+        case QAL_STREAM_PCM_OFFLOAD:
+            cur_sessions = active_streams_po.size();
+            max_sessions = MAX_SESSIONS_PCM_OFFLOAD;
+            break;
         default:
             QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -653,6 +658,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
+        case QAL_STREAM_PCM_OFFLOAD:
             if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info->channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -807,6 +813,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sPCM, active_streams_ll);
             break;
         }
+        case QAL_STREAM_PCM_OFFLOAD:
+        {
+            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sPCM, active_streams_po);
+            break;
+        }
         case QAL_STREAM_DEEP_BUFFER:
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
@@ -897,6 +909,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sPCM, active_streams_ll);
+            break;
+        }
+        case QAL_STREAM_PCM_OFFLOAD:
+        {
+            StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sPCM, active_streams_po);
             break;
         }
         case QAL_STREAM_DEEP_BUFFER:
@@ -1049,6 +1067,7 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_db);
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
+    getActiveStreams(d, activestreams, active_streams_po);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -1252,6 +1271,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const qal_stream_typ
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_VOICE_UI:
+        case QAL_STREAM_PCM_OFFLOAD:
             switch (direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
@@ -1380,6 +1400,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend, const qal
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_VOICE_UI:
+        case QAL_STREAM_PCM_OFFLOAD:
             switch (direction) {
                 case QAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {

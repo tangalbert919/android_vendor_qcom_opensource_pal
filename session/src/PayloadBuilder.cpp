@@ -1917,6 +1917,16 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 goto free_sattr;
             }
             break;
+        case QAL_STREAM_PCM_OFFLOAD:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_OFFLOAD_PLAYBACK));
+                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+            } else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
+            break;
         case QAL_STREAM_GENERIC:
             break;
         case QAL_STREAM_COMPRESSED:

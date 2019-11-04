@@ -82,6 +82,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             case QAL_STREAM_GENERIC:
             case QAL_STREAM_VOIP_TX:
             case QAL_STREAM_VOIP_RX:
+            case QAL_STREAM_PCM_OFFLOAD:
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, mQalDevice, noOfDevices, modifiers,
                                    noOfModifiers, rm);
@@ -95,7 +96,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
                                             noOfModifiers, rm);
                 break;
             default:
-                QAL_ERR(LOG_TAG, "unsupported stream type %x", sAttr->type);
+                QAL_ERR(LOG_TAG, "unsupported stream type 0x%x", sAttr->type);
                 break;
         }
     } else {

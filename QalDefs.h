@@ -242,13 +242,13 @@ typedef enum {
     QAL_STREAM_VOICE_CALL_TX,        /**< incall record, uplink */
     QAL_STREAM_VOICE_CALL_RX_TX,     /**< incall record, uplink & Downlink */
 
-    QAL_STREAM_VOICE_CALL,                    /**< voice call */
+    QAL_STREAM_VOICE_CALL,           /**< voice call */
 
-    QAL_STREAM_LOOPBACK,                      /**< loopback */
-    QAL_STREAM_TRANSCODE,                     /**< audio transcode */
-    QAL_STREAM_VOICE_UI,                      /**< voice ui */
+    QAL_STREAM_LOOPBACK,             /**< loopback */
+    QAL_STREAM_TRANSCODE,            /**< audio transcode */
+    QAL_STREAM_VOICE_UI,             /**< voice ui */
+    QAL_STREAM_PCM_OFFLOAD,          /**< pcm offload audio */
 } qal_stream_type_t;
-
 
 /** Audio devices available for enabling streams */
 typedef enum {

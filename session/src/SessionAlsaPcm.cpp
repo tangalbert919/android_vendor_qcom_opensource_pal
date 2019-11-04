@@ -537,7 +537,7 @@ int SessionAlsaPcm::stop(Stream * s)
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
         case QAL_AUDIO_OUTPUT:
-            if (pcm) {
+            if (pcm && isActive()) {
                 status = pcm_stop(pcm);
                 if (status) {
                     QAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
@@ -545,13 +545,13 @@ int SessionAlsaPcm::stop(Stream * s)
             }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
-            if (pcmRx) {
+            if (pcmRx && isActive()) {
                 status = pcm_stop(pcmRx);
                 if (status) {
                     QAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
                 }
             }
-            if (pcmTx) {
+            if (pcmTx && isActive()) {
                 status = pcm_stop(pcmTx);
                 if (status) {
                     QAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
@@ -1188,6 +1188,27 @@ int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
 int SessionAlsaPcm::drain(qal_drain_type_t type)
 {
     return 0;
+}
+
+int SessionAlsaPcm::flush()
+{
+    int status = 0;
+
+    if (!pcm) {
+        QAL_ERR(LOG_TAG, "Pcm is invalid");
+        return -EINVAL;
+    }
+    QAL_VERBOSE(LOG_TAG,"Enter flush\n");
+    if (pcm && isActive()) {
+        status = pcm_stop(pcm);
+
+        if (!status)
+            mState = SESSION_STOPPED;
+    }
+
+    QAL_VERBOSE(LOG_TAG,"status %d\n", status);
+
+    return status;
 }
 
 bool SessionAlsaPcm::isActive()

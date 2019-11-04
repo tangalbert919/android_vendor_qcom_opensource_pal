@@ -116,7 +116,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 QAL_VERBOSE(LOG_TAG, "out of compress_wait");
                 event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
-                if (!is_drain_called) {
+                if (!is_drain_called && compressObj->playback_started) {
                    QAL_ERR(LOG_TAG, "calling compress_drain");
                    ret = compress_drain(compressObj->compress);
                    is_drain_called = false;
@@ -903,10 +903,12 @@ int SessionAlsaCompress::flush()
         QAL_ERR(LOG_TAG, "Compress is invalid");
         return -EINVAL;
     }
-    QAL_VERBOSE(LOG_TAG,"Enter flush\n");
-    status = compress_stop(compress);
-    if (!status) {
-         playback_started = false;
+    if (playback_started) {
+        QAL_VERBOSE(LOG_TAG,"Enter flush\n");
+        status = compress_stop(compress);
+        if (!status) {
+            playback_started = false;
+        }
     }
     QAL_VERBOSE(LOG_TAG,"playback_started %d status %d\n", playback_started,
             status);
