@@ -31,65 +31,79 @@
 #ifndef SOUNDTRIGGERENGINECAPIVOP_H
 #define SOUNDTRIGGERENGINECAPIVOP_H
 
-#include "SoundTriggerEngine.h"
 #include "capi_v2.h"
 #include "capi_v2_extn.h"
-#include "QalRingBuffer.h"
 
-#include <condition_variable>
-#include <thread>
+#include "SoundTriggerEngine.h"
+#include "QalRingBuffer.h"
 
 class Stream;
 
 class SoundTriggerEngineCapiVop : public SoundTriggerEngine
 {
-protected:
-    struct qal_st_sound_model *pSoundModel; /* are we planning parse and repopulate this from stream side?*/
-    int32_t confidence_threshold_;
-    int32_t prepare_sound_engine();
-    int32_t start_sound_engine();
-    int32_t stop_sound_engine();
-    int32_t start_keyword_detection();
+ public:
+    SoundTriggerEngineCapiVop(Stream *s, uint32_t id, uint32_t stage_id,
+                              QalRingBufferReader **reader,
+                              std::shared_ptr<QalRingBuffer> buffer);
+    ~SoundTriggerEngineCapiVop();
+    int32_t LoadSoundModel(Stream *s, uint8_t *data,
+                           uint32_t data_size) override;
+    int32_t UnloadSoundModel(Stream *s) override;
+    int32_t StartRecognition(Stream *s) override;
+    int32_t StopBuffering(Stream *s) override;
+    int32_t StopRecognition(Stream *s) override;
+    int32_t UpdateConfLevels(
+        Stream *s,
+        struct qal_st_recognition_config *config,
+        uint8_t *conf_levels,
+        uint32_t num_conf_levels) override;
+    void SetDetected(bool detected) override;
 
+    // Functions with no-op
+    int32_t Open(Stream *s) {return 0;}
+    int32_t Close(Stream *s) {return 0;}
+    int32_t Prepare(Stream *s) {return 0;}
+    int32_t SetConfig(Stream * s, configType type, int tag) {return 0;}
+    int32_t getParameters(uint32_t param_id, void **payload) {return 0;}
+    int32_t ConnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_connect) {return 0;}
+    int32_t DisconnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_disconnect) {return 0;}
+    int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
+                            uint32_t pre_roll_duration) {return 0;}
+    void SetCaptureRequested(bool is_requested) {}
 
-    static std::shared_ptr<SoundTriggerEngineCapiVop> sndEngCapiVop_;
-    static void buffer_thread_loop();
-    std::thread bufferThreadHandler_;
-    uint32_t buffer_size_;
-    std::mutex mutex_;
-    std::condition_variable cv_;
+ protected:
+    int32_t PrepareSoundEngine() {return 0;}
+    int32_t StartSoundEngine();
+    int32_t StopSoundEngine();
+    int32_t StartDetection();
+    static void buffer_thread_loop(SoundTriggerEngineCapiVop *vop_engine);
+
     capi_v2_t *capi_handle_;
     void* capi_lib_handle_;
-    capi_v2_init_f  capi_init;
-    bool exit_thread_;
-    bool exit_buffering_;
-    std::shared_ptr<QalRingBufferReader> ringBufferReader;
+    capi_v2_init_f  capi_init_;
 
+    bool processing_started_;
+    bool keyword_detected_;
+    int32_t confidence_threshold_;
+    uint32_t buffer_size_;
+    /*
+     * externally to allow engine to know where
+     * it can stop and start processing
+     */
     uint32_t buffer_start_;
-    uint32_t buffer_end_; /* externally to allow engine to know where it can stop and start processing*/
-
-    uint64_t kw_start_timestamp_; /* input from 1st stage*/
+    uint32_t buffer_end_;
+    uint64_t kw_start_timestamp_;  // input from 1st stage
     uint64_t kw_end_timestamp_;
-
-
     uint32_t bytes_processed_;
-
     uint32_t kw_start_idx_;
     uint32_t kw_end_idx_;
     uint32_t confidence_score_;
-
-public:
-    SoundTriggerEngineCapiVop(Stream *s, uint32_t id, uint32_t stage_id, QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
-    ~SoundTriggerEngineCapiVop();
-    int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
-    int32_t unload_sound_model(Stream *s) override;
-    int32_t start_recognition(Stream *s) override;
-    int32_t stop_buffering(Stream *s) override;
-    int32_t stop_recognition(Stream *s) override;
-    int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
-    int32_t getParameters(uint32_t param_id, void **payload) override;
-    void setDetected(bool detected) override;
 };
 
-#endif //SOUNDTRIGGERENGINECAPIVOP_H
-
+#endif  // SOUNDTRIGGERENGINECAPIVOP_H

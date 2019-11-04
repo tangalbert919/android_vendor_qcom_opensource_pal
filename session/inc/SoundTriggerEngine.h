@@ -31,11 +31,16 @@
 #ifndef SOUNDTRIGGERENGINE_H
 #define SOUNDTRIGGERENGINE_H
 
-#include "QalDefs.h"
+#include <condition_variable>
+#include <thread>
 #include <mutex>
 #include <vector>
+
+#include "QalDefs.h"
 #include "QalCommon.h"
 #include "QalRingBuffer.h"
+#include "Session.h"
+#include "Device.h"
 
 // TODO: Move to sound trigger xml files
 #define CNN_SAMPLE_RATE 16000
@@ -46,8 +51,9 @@
 #define CNN_DURATION_US 2500000
 #define CNN_BUFFER_SIZE 15360
 #define RING_BUFFER_DURATION 3
+#define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
+#define CONF_LEVELS_INTF_VERSION_0002 0x02
 
-class Session;
 class Stream;
 
 enum {
@@ -98,6 +104,8 @@ typedef enum {
     ST_SM_ID_SVA_GMM      = 0x0001,
     ST_SM_ID_SVA_CNN      = 0x0002,
     ST_SM_ID_SVA_VOP      = 0x0004,
+    ST_SM_ID_SVA_RNN      = 0x0008,
+    ST_SM_ID_SVA_KWD      = 0x000A,            // ST_SM_ID_SVA_CNN | ST_SM_ID_SVA_RNN
     ST_SM_ID_SVA_END      = 0x00F0,
     ST_SM_ID_CUSTOM_START = 0x0100,
     ST_SM_ID_CUSTOM_END   = 0xF000,
@@ -144,7 +152,6 @@ typedef enum _SML_ModelVersion {
 
 // universial SML model structure
 typedef struct _SML_ModelType {
-
     SML_GlobalHeaderType header;                // global header
 
     union _sml_model {
@@ -253,57 +260,61 @@ struct __attribute__((__packed__)) st_det_perf_mode_info
     uint8_t mode; /* 0 -Low Power, 1 -High performance */
 };
 
-
-typedef enum {
-    IDLE,
-    READY,
-    ACTIVE,
-    BUFFERING,
-    HOLD_READY,
-    HOLD_ACTIVE,
-} sound_model_state_t;
-
-/* Structure representing a single sound model,
-   sound model data and recognition data of all
-   sound models registered merged to single blob
-   of sound model data and recogntion data, which
-   is set to Session. */
-struct SoundModel
-{
-    sound_model_state_t state;
-    uint32_t sm_id;
-    uint32_t sm_host_id;
-    void *sm_data;
-    void *sm_params_data;
-};
-
 class SoundTriggerEngine
 {
-protected:
-    uint32_t engineId;
-    uint8_t *sm_data;
-    uint32_t sm_data_size;
-    uint8_t *sm_params_data;
-    int stageId;
-    Session *session;
-    Stream *streamHandle;
-    std::vector<struct SoundModel*> SoundModels;
+ public:
+    static SoundTriggerEngine* create(Stream *s,
+                                      listen_model_indicator_enum type,
+                                      QalRingBufferReader **reader,
+                                      std::shared_ptr<QalRingBuffer> buffer);
+    virtual ~SoundTriggerEngine() {}
+
+    virtual int32_t LoadSoundModel(Stream *s, uint8_t *data,
+                                   uint32_t data_size) = 0;
+    virtual int32_t UnloadSoundModel(Stream *s) = 0;
+    virtual int32_t StartRecognition(Stream *s) = 0;
+    virtual int32_t StopBuffering(Stream *s) = 0;
+    virtual int32_t StopRecognition(Stream *s) = 0;
+    virtual int32_t UpdateConfLevels(
+        Stream *s,
+        struct qal_st_recognition_config *config,
+        uint8_t *conf_levels,
+        uint32_t num_conf_levels) = 0;
+    virtual int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
+                                    uint32_t pre_roll_duration) = 0;
+    virtual void SetDetected(bool detected) = 0;
+    virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
+    virtual int32_t Open(Stream *s) = 0;
+    virtual int32_t Close(Stream *s) = 0;
+    virtual int32_t Prepare(Stream *s) = 0;
+    virtual int32_t SetConfig(Stream * s, configType type, int tag) = 0;
+    virtual int32_t ConnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_connect) = 0;
+    virtual int32_t DisconnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_disconnect) = 0;
+    virtual void SetCaptureRequested(bool is_requested) = 0;
+
+ protected:
+    uint32_t engine_id_;
+    uint8_t *sm_data_;
+    uint32_t sm_data_size_;
+    int stage_id_;
+    bool capture_requested_;
+    Session *session_;
+    Stream *stream_handle_;
     QalRingBuffer *buffer_;
     QalRingBufferReader *reader_;
-    bool eventDetected;
-    std::mutex mutex;
-public:
-    static SoundTriggerEngine* create(Stream *s, listen_model_indicator_enum type,
-           QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
-    virtual ~SoundTriggerEngine() {};
-    virtual int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) = 0;
-    virtual int32_t unload_sound_model(Stream *s) = 0;
-    virtual int32_t start_recognition(Stream *s) = 0;
-    virtual int32_t stop_buffering(Stream *s) = 0;
-    virtual int32_t stop_recognition(Stream *s) = 0;
-    virtual int32_t update_config(Stream *s, struct qal_st_recognition_config *config) = 0;
-    virtual void setDetected(bool detected) = 0;
-    virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
+
+    std::thread buffer_thread_handler_;
+    std::mutex event_mutex_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    bool exit_thread_;
+    bool exit_buffering_;
 };
 
-#endif //SOUNDTRIGGERENGINE_H
+#endif  // SOUNDTRIGGERENGINE_H

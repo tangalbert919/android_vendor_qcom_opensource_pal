@@ -30,17 +30,20 @@
 #define LOG_TAG "SoundTriggerEngine"
 
 #include "SoundTriggerEngine.h"
+
 #include "SoundTriggerEngineGsl.h"
 #include "SoundTriggerEngineCapiCnn.h"
 #include "SoundTriggerEngineCapiVop.h"
 #include "Session.h"
 #include "Stream.h"
 
-SoundTriggerEngine* SoundTriggerEngine::create(Stream *s, listen_model_indicator_enum type,
-                                               QalRingBufferReader **reader,
-                                               std::shared_ptr<QalRingBuffer> buffer)
+SoundTriggerEngine* SoundTriggerEngine::create(
+    Stream *s,
+    listen_model_indicator_enum type,
+    QalRingBufferReader **reader,
+    std::shared_ptr<QalRingBuffer> buffer)
 {
-    SoundTriggerEngine *stEngine = NULL;
+    SoundTriggerEngine *stEngine = nullptr;
     uint32_t id;
 
     if (!s) {

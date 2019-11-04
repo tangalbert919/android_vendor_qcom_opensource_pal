@@ -32,6 +32,7 @@
 #define STREAMSOUNDTRIGGER_H_
 
 #include <utility>
+
 #include "Stream.h"
 #include "SoundTriggerEngine.h"
 #include "QalRingBuffer.h"
@@ -69,73 +70,91 @@ struct detection_event_info
 };
 
 class ResourceManager;
-class Device;
-class Session;
 class SoundTriggerEngine;
 
 class StreamSoundTrigger : public Stream
 {
-
-    union {};
-
-
-private:
-        int32_t stages;
-        qal_st_sound_model_type_t sound_model_type;
-        uint32_t recognition_mode;
-        uint8_t *sm_data;                   //This needs to be moved down to individual classes
-        struct qal_st_recognition_config *sm_rc_config;
-        struct qal_st_recognition_event *recEvent;
-        struct detection_event_info detectionEventInfo;
-        uint32_t detectionState;
-        uint32_t notificationState;
-        /* functions*/
-        int32_t parse_sound_model(struct qal_st_sound_model *sm_data);
-        int32_t parse_rc_config(struct qal_st_recognition_config *rc_config);
-        static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
-                             uint32_t event_id, uint32_t *event_data, void *cookie);
-        int32_t parse_detection_payload(uint32_t event_id, uint32_t *event_data);
-        int32_t create_st_engine(std::vector<std::pair<uint32_t, SoundTriggerEngine *>> &engines);
-        int32_t generate_callback_event(struct qal_st_recognition_event **event);
-        int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
-
-protected:
-    qal_stream_callback callBack;
-    std::vector<std::pair<uint32_t, SoundTriggerEngine *>> activeEngines;
-    QalRingBufferReader *reader_;
-
-public:
-    StreamSoundTrigger(struct qal_stream_attributes *sattr, struct qal_device *dattr,
-                       uint32_t no_of_devices, struct modifier_kv *modifiers,
-                       uint32_t no_of_modifiers, std::shared_ptr<ResourceManager> rm);
-    virtual ~StreamSoundTrigger() {};
+ public:
+    StreamSoundTrigger(struct qal_stream_attributes *sattr,
+                       struct qal_device *dattr,
+                       uint32_t no_of_devices,
+                       struct modifier_kv *modifiers __unused,
+                       uint32_t no_of_modifiers __unused,
+                       std::shared_ptr<ResourceManager> rm);
+    ~StreamSoundTrigger() {}
     int32_t open() override;
     int32_t close() override;
     int32_t start() override;
     int32_t stop() override;
     int32_t prepare() override;
-    int32_t setStreamAttributes( struct qal_stream_attributes *sattr) override;
-    int32_t setVolume( struct qal_volume_data *volume) override;
-    int32_t setMute( bool state) override;
+    int32_t setStreamAttributes(struct qal_stream_attributes *sattr) override;
+    int32_t setVolume(struct qal_volume_data * volume __unused) override;
+    int32_t setMute(bool state __unused) override;
     int32_t setPause() override;
     int32_t setResume() override;
     int32_t read(struct qal_buffer *buf) override;
-    int32_t write(struct qal_buffer *buf) override;
-    int32_t registerCallBack(qal_stream_callback cb, void *cookie) override;
+    int32_t write(struct qal_buffer *buf __unused) override;
+    int32_t registerCallBack(qal_stream_callback cb,
+        void *cookie __unused) override;
     int32_t getCallBack(qal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;
+    int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
+
     void registerSoundTriggerEngine(uint32_t id, SoundTriggerEngine *stEngine);
     void deregisterSoundTriggerEngine(uint32_t id);
     int32_t getSoundTriggerEngine(int *index, uint32_t sm_id);
-    int32_t setDetected(bool detected);
-    int32_t getDetectionEventInfo(struct detection_event_info **info);
+    void registerSoundModelData(uint32_t id, uint8_t *data);
+    void deregisterSoundModelData(uint32_t id);
+    int32_t getSoundModelData(int *index, uint32_t sm_id);
+    int32_t SetDetected(bool detected);
+    struct detection_event_info * getDetectionEventInfo() {
+        return &detection_event_info_;
+    }
     int32_t notifyClient();
     int32_t setDetectionState(uint32_t state);
-    friend class QalRingBufferReader;
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
-    int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
+    int switchDevice(Stream* stream_handle, uint32_t no_of_devices,
+                     struct qal_device *device_array);
+
+    friend class QalRingBufferReader;
+
+ private:
+    int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);
+    int32_t SendRecognitionConfig(struct qal_st_recognition_config *config);
+    int32_t ParseDetectionPayload(uint32_t event_id, uint32_t *event_data);
+    int32_t ParseOpaqueConfLevels(void *opaque_conf_levels,
+                                  uint32_t version,
+                                  uint8_t **out_conf_levels,
+                                  uint32_t *out_num_conf_levels);
+    int32_t FillConfLevels(struct qal_st_recognition_config *config,
+                           uint8_t **out_conf_levels,
+                           uint32_t *out_num_conf_levels);
+    int32_t FillOpaqueConfLevels(const void *sm_levels_generic,
+                                 uint8_t **out_payload,
+                                 uint32_t *out_payload_size,
+                                 uint32_t version);
+    int32_t GenerateCallbackEvent(struct qal_st_recognition_event **event);
+    static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
+                                        uint32_t event_id,
+                                        uint32_t *event_data,
+                                        void *cookie __unused);
+
+    int32_t stages_;
+    uint8_t *sm_data_;
+    std::vector<std::pair<uint32_t, uint8_t *>> active_sm_data_;
+    qal_st_sound_model_type_t sound_model_type_;
+    uint32_t recognition_mode_;
+    struct qal_st_recognition_config *rec_config_;
+    struct qal_st_recognition_event *rec_event_;
+    struct detection_event_info detection_event_info_;
+    uint32_t detection_state_;
+    uint32_t notification_state_;
+    qal_stream_callback callback_;
+    QalRingBufferReader *reader_;
+    SoundTriggerEngine *gsl_engine_;
+    std::vector<std::pair<uint32_t, SoundTriggerEngine *>> active_engines_;
 };
-#endif//STREAMSOUNDTRIGGER_H_
+#endif  // STREAMSOUNDTRIGGER_H_

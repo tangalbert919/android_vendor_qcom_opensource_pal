@@ -31,49 +31,63 @@
 #ifndef SOUNDTRIGGERENGINEGSL_H
 #define SOUNDTRIGGERENGINEGSL_H
 
-#include <condition_variable>
-#include <thread>
 #include "SoundTriggerEngine.h"
+#include "QalRingBuffer.h"
 
 class Session;
 class Stream;
 
 class SoundTriggerEngineGsl : public SoundTriggerEngine
 {
-protected:
-    struct qal_st_sound_model *pSoundModel;
-    struct detection_engine_config_voice_wakeup pWakeUpConfig;
-    struct detection_engine_generic_event_cfg pEventConfig;
-    struct detection_engine_voice_wakeup_buffer_config pBufConfig;
-    struct audio_dam_downstream_setup_duration *pSetupDuration;
-
-    int32_t prepare_sound_engine();
-    int32_t start_sound_engine();
-    int32_t stop_sound_engine();
-    int32_t start_keyword_detection();
-    int32_t start_buffering();
-
-    static std::shared_ptr<SoundTriggerEngineGsl> sndEngGsl_;
-    static void buffer_thread_loop();
-    std::thread bufferThreadHandler_;
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    bool exit_thread_;
-    bool exit_buffering_;
-    bool timestampRecorded;
-public:
+ public:
     SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id,
-                   QalRingBufferReader **reader, std::shared_ptr<QalRingBuffer> buffer);
+                          QalRingBufferReader **reader,
+                          std::shared_ptr<QalRingBuffer> buffer);
     ~SoundTriggerEngineGsl();
-    int32_t load_sound_model(Stream *s, uint8_t *data, uint32_t num_models) override;
-    int32_t unload_sound_model(Stream *s) override;
-    int32_t start_recognition(Stream *s) override;
-    int32_t stop_buffering(Stream *s) override;
-    int32_t stop_recognition(Stream *s) override;
-    int32_t update_config(Stream *s, struct qal_st_recognition_config *config) override;
-    void setDetected(bool detected) override;
+    int32_t LoadSoundModel(Stream *s, uint8_t *data,
+                           uint32_t data_size) override;
+    int32_t UnloadSoundModel(Stream *s) override;
+    int32_t StartRecognition(Stream *s) override;
+    int32_t StopBuffering(Stream *s) override;
+    int32_t StopRecognition(Stream *s) override;
+    int32_t UpdateConfLevels(
+        Stream *s __unused,
+        struct qal_st_recognition_config *config,
+        uint8_t *conf_levels,
+        uint32_t num_conf_levels) override;
+    int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
+                            uint32_t pre_roll_duration) override;
+    void SetDetected(bool detected) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
-    int32_t generate_wakeup_config(struct qal_st_recognition_config *config);
+    int32_t Open(Stream *s) override;
+    int32_t Close(Stream *s) override;
+    int32_t Prepare(Stream *s) override;
+    int32_t SetConfig(Stream * s, configType type, int tag) override;
+    int32_t ConnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_connect) override;
+    int32_t DisconnectSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_disconnect) override;
+    void SetCaptureRequested(bool is_requested) override;
+
+ protected:
+    int32_t Init();
+    int32_t PrepareSoundEngine() {return 0;}
+    int32_t StartSoundEngine();
+    int32_t StopSoundEngine();
+    int32_t StartBuffering();
+    static void buffer_thread_loop(SoundTriggerEngineGsl *gsl_engine);
+
+    bool event_detected_;
+    bool timestamp_recorded_;
+    bool is_stream_notified_;
+    struct detection_engine_config_voice_wakeup wakeup_config_;
+    struct detection_engine_generic_event_cfg event_config_;
+    struct detection_engine_voice_wakeup_buffer_config buffer_config_;
+    struct audio_dam_downstream_setup_duration *dam_setup_duration_;
 };
 
-#endif //SOUNDTRIGGERENGINEGSL_H
+#endif  // SOUNDTRIGGERENGINEGSL_H
