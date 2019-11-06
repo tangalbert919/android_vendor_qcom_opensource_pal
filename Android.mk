@@ -29,13 +29,10 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc\
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/apm
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
-LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/proprietary/mm-audio/capiv2_api
-LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/agm/service/inc
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_acdbdata
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/agm
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
@@ -91,7 +88,8 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_HEADER_LIBRARIES := \
 libcasa-acdbdata \
-libgecko-headers
+libgecko-headers \
+capiv2-headers
 
 LOCAL_COPY_HEADERS_TO   := mm-audio/qal
 LOCAL_COPY_HEADERS      := QalApi.h \
