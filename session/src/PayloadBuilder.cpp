@@ -1915,7 +1915,7 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
         struct qal_volume_data **volume_data)
 {
     int status = 0;
-    float voldB = 0.0;
+    float voldB = 0.0f;
     //std::vector <std::pair<int,int>> keyVector;
     struct qal_volume_data *voldata = NULL;
 
@@ -1937,30 +1937,58 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
     QAL_DBG(LOG_TAG, " tag %d voldb:%f", tag, (voldB));
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
-       if (0 <= voldB < 0.1) {
+       if(voldB == 0.0f) {
           keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-       } else if (0.1 <= voldB < 0.2) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
-       } else if (0.2 <= voldB < 0.3) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
-       } else if (0.3 <= voldB < 0.4) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
-       } else if (0.4 <= voldB < 0.5) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
-       } else if (0.5 <= voldB < 0.6) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
-       } else if (0.6 <= voldB < 0.7) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
-       } else if (0.7 <= voldB < 0.8) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
-       } else if (0.8 <= voldB < 0.9) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
-       } else if (0.9 <= voldB < 1) {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
-       } else {
-          keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
-          QAL_ERR(LOG_TAG,"%s:max %d \n",__func__, (voldata->no_of_volpair));
        }
+       else if (voldB < 0.002172f) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+       }
+       else if ((0.002171f < voldB) && (voldB < 0.004660f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_14));
+       }
+       else if ((0.004659f < voldB) && (voldB < 0.01f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_13));
+       }
+       else if ((0.099999f < voldB) && (voldB < 0.014877f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_12));
+       }
+       else if ((0.014876f < voldB) && (voldB < 0.023646f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_11));
+       }
+       else if ((0.023645f < voldB) && (voldB < 0.037584f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_10));
+       }
+       else if ((0.037583f < voldB) && (voldB < 0.055912f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_9));
+       }
+       else if ((0.055911f < voldB) && (voldB < 0.088869f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_8));
+       }
+       else if ((0.088868f < voldB) && (voldB < 0.141254f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_7));
+       }
+       else if ((0.141253f < voldB) && (voldB < 0.189453f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_6));
+       }
+       else if ((0.189452f < voldB) && (voldB < 0.266840f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_5));
+       }
+       else if ((0.266839f < voldB) && (voldB < 0.375838f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_4));
+       }
+       else if ((0.375837f < voldB) && (voldB < 0.504081f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_3));
+       }
+       else if ((0.504080f < voldB) && (voldB < 0.709987f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_2));
+       }
+       else if ((0.709988f < voldB) && (voldB < 0.9f)) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_1));
+       }
+       else if (voldB == 1.0f) {
+          keyVector.push_back(std::make_pair(VOLUME,LEVEL_0));
+       }
+
        break;
     default:
         //keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
@@ -2091,7 +2119,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     QAL_VERBOSE(LOG_TAG,"%s: enter \n", __func__);
     std::vector <std::pair<int,int>> keyVector;
 
-    float voldB = 0.0;
+    float voldB = 0.0f;
     struct qal_volume_data *voldata = NULL;
     voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
@@ -2111,44 +2139,59 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
 
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
-       if (0 <= voldB < 0.1) {
+       if(voldB == 0.0f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
        }
-       else if (0.1 <= voldB < 0.2) {
+       else if (voldB < 0.002172f) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
+       }
+       else if ((0.002171f < voldB) && (voldB < 0.004660f)) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
+       }
+       else if ((0.004659f < voldB) && (voldB < 0.01f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
        }
-       else if (0.2 <= voldB < 0.3) {
+       else if ((0.099999f < voldB) && (voldB < 0.014877f)) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
+       }
+       else if ((0.014876f < voldB) && (voldB < 0.023646f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
        }
-       else if (0.3 <= voldB < 0.4) {
+       else if ((0.023645f < voldB) && (voldB < 0.037584f)) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
+       }
+       else if ((0.037583f < voldB) && (voldB < 0.055912f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
        }
-       else if (0.4 <= voldB < 0.5) {
+       else if ((0.055911f < voldB) && (voldB < 0.088869f)) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
+       }
+       else if ((0.088868f < voldB) && (voldB < 0.141254f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
        }
-       else if (0.5 <= voldB < 0.6) {
+       else if ((0.141253f < voldB) && (voldB < 0.189453f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
        }
-       else if (0.6 <= voldB < 0.7) {
+       else if ((0.189452f < voldB) && (voldB < 0.266840f)) {
+          ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
+       }
+       else if ((0.266839f < voldB) && (voldB < 0.375838f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
        }
-       else if (0.7 <= voldB < 0.8) {
+       else if ((0.375837f < voldB) && (voldB < 0.504081f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
        }
-       else if (0.8 <= voldB < 0.9) {
+       else if ((0.504080f < voldB) && (voldB < 0.709987f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
        }
-       else if (0.9 <= voldB < 1) {
+       else if ((0.709988f < voldB) && (voldB < 0.9f)) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
        }
-       else if (voldB >= 1) {
+       else if (voldB == 1.0f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
-          QAL_ERR(LOG_TAG,"%s:max %d \n",__func__, (voldata->no_of_volpair));
        }
-
        break;
     default:
-        keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
         break;
     }
 
