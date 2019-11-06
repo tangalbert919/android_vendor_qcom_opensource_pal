@@ -45,6 +45,7 @@
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
 #include "Handset.h"
+#include <cutils/str_parms.h>
 
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
@@ -88,6 +89,8 @@
 #define XMLFILE "/vendor/etc/resourcemanager.xml"
 #define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
+
+static struct str_parms *configParamKVPairs;
 
 /*
 To be defined in detail, if GSL is defined,
@@ -296,7 +299,7 @@ struct audio_mixer* ResourceManager::audio_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
-
+static struct nativeAudioProp na_props;
 //std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
@@ -347,6 +350,10 @@ ResourceManager::ResourceManager()
 
     //Initialize QTS
     SessionQts::init();
+
+    na_props.rm_na_prop_enabled = false;
+    na_props.ui_na_prop_enabled = false;
+    na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
 
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
@@ -595,6 +602,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     size_t cur_sessions = 0;
     size_t max_sessions = 0;
     qal_audio_fmt_t format, dev_format;
+
+    if (!attributes || !devices || !no_of_devices) {
+        QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
+        return result;
+    }
 
     // check if stream type is supported
     // and new stream session is allowed
@@ -1533,11 +1545,16 @@ error:
 #endif
 
 bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
-         struct qal_device *inDevAttr)
+         struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr)
 {
     bool is_ds_required = false;
     /*  This API may need stream attributes also to decide the priority like voice call has high priority */
     /* Right now assume all playback streams are same priority and decide based on Active Device config */
+
+    if (!activeDevAttr || !inDevAttr || !inStrAttr) {
+        QAL_ERR(LOG_TAG, "Invalid input parameter ");
+        return is_ds_required;
+    }
 
     switch (inDevAttr->id) {
     /* speaker is always at 48k, 16 bit, 2 ch */
@@ -1546,7 +1563,17 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
         break;
     case QAL_DEVICE_OUT_WIRED_HEADSET:
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
+        if ((QAL_STREAM_COMPRESSED == inStrAttr->type || QAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
+            (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
+            (QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+            (inStrAttr->out_media_config.sample_rate % SAMPLINGRATE_44K == 0)) {
+
+            //Native Audio usecase
+            if (activeDevAttr->config.sample_rate |= inStrAttr->out_media_config.sample_rate) {
+                inDevAttr->config.sample_rate = inStrAttr->out_media_config.sample_rate;
+                is_ds_required = true;
+            }
+        } else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
             (activeDevAttr->config.ch_info->channels < inDevAttr->config.ch_info->channels)) {
             is_ds_required = true;
@@ -1564,7 +1591,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
 //stream is a higher priority stream. Priority defined in ResourceManager.h
 //(details below)
 bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
-                                          struct qal_device *inDevAttr)
+           struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr)
 {
     bool isDeviceSwitch = false;
     int status = -EINVAL;
@@ -1612,7 +1639,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
             }
 
             if (dattr.id == inDevAttr->id) {
-                isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr);
+                isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
                 if (isDeviceSwitch) {
                     // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
                     // Swichdevice will device all the devices on this stream and re-enable with what we send here
@@ -1651,11 +1678,6 @@ bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const
 
     return false;
 }
-
-
-
-
-
 
 bool ResourceManager::ifVoiceorVoipCall (const qal_stream_type_t streamType) const {
 
@@ -1713,7 +1735,145 @@ exit:
     return priority;
 }
 
+int ResourceManager::getNativeAudioSupport()
+{
+    int ret = NATIVE_AUDIO_MODE_INVALID;
+    if (na_props.rm_na_prop_enabled &&
+        na_props.ui_na_prop_enabled) {
+        ret = na_props.na_mode;
+    }
+    QAL_VERBOSE(LOG_TAG,"napb: ui Prop enabled(%d) mode(%d)",
+           na_props.ui_na_prop_enabled, na_props.na_mode);
+    return ret;
+}
 
+int ResourceManager::setNativeAudioSupport(int na_mode)
+{
+    if (NATIVE_AUDIO_MODE_SRC == na_mode || NATIVE_AUDIO_MODE_TRUE_44_1 == na_mode
+        || NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC == na_mode
+        || NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == na_mode) {
+        na_props.rm_na_prop_enabled = na_props.ui_na_prop_enabled = true;
+        na_props.na_mode = na_mode;
+        QAL_VERBOSE(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
+              ((na_mode == NATIVE_AUDIO_MODE_SRC)?"SRC":
+               (na_mode == NATIVE_AUDIO_MODE_TRUE_44_1)?"True":
+               (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC)?"Multiple_Mix_Codec":"Multiple_Mix_DSP"));
+    }
+    else {
+        na_props.rm_na_prop_enabled = false;
+        na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
+        QAL_VERBOSE(LOG_TAG,"napb: native audio playback disabled");
+    }
+
+    return 0;
+}
+
+void ResourceManager::getNativeAudioParams(struct str_parms *query,
+                             struct str_parms *reply,
+                             char *value, int len)
+{
+    int ret;
+    ret = str_parms_get_str(query, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
+                            value, len);
+    if (ret >= 0) {
+        if (na_props.rm_na_prop_enabled) {
+            str_parms_add_str(reply, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
+                          na_props.ui_na_prop_enabled ? "true" : "false");
+            QAL_VERBOSE(LOG_TAG,"napb: na_props.ui_na_prop_enabled: %d",
+                  na_props.ui_na_prop_enabled);
+        } else {
+            str_parms_add_str(reply, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
+                              "false");
+            QAL_VERBOSE(LOG_TAG,"napb: native audio not supported: %d",
+                  na_props.rm_na_prop_enabled);
+        }
+    }
+}
+
+int ResourceManager::setConfigParams(struct str_parms *parms)
+{
+    char *value=NULL;
+    int len;
+    int ret = 0, err;
+    char *kv_pairs = str_parms_to_str(parms);
+
+    if(kv_pairs == NULL) {
+        ret = -ENOMEM;
+        QAL_ERR(LOG_TAG," key-value pair is NULL");
+        goto done;
+    }
+
+    QAL_ERR(LOG_TAG," enter: %s", kv_pairs);
+
+    len = strlen(kv_pairs);
+    value = (char*)calloc(len, sizeof(char));
+    if(value == NULL) {
+        ret = -ENOMEM;
+        QAL_ERR(LOG_TAG,"failed to allocate memory");
+        goto done;
+    }
+    ret = setNativeAudioParams(parms, value, len);
+done:
+    QAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
+    if(kv_pairs != NULL)
+        free(kv_pairs);
+    if(value != NULL)
+        free(value);
+    return ret;
+}
+
+
+int ResourceManager::setNativeAudioParams(struct str_parms *parms,
+                                             char *value, int len)
+{
+    int ret = -EINVAL;
+    int mode = NATIVE_AUDIO_MODE_INVALID;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE,
+                             value, len);
+    QAL_VERBOSE(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "src", sizeof("src")))
+            mode = NATIVE_AUDIO_MODE_SRC;
+        else if (value && !strncmp(value, "true", sizeof("true")))
+            mode = NATIVE_AUDIO_MODE_TRUE_44_1;
+        else if (value && !strncmp(value, "multiple_mix_codec", sizeof("multiple_mix_codec")))
+            mode = NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC;
+        else if (value && !strncmp(value, "multiple_mix_dsp", sizeof("multiple_mix_dsp")))
+            mode = NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP;
+        else {
+            mode = NATIVE_AUDIO_MODE_INVALID;
+            QAL_ERR(LOG_TAG,"napb:native_audio_mode in RM xml,invalid mode(%s) string", value);
+        }
+        QAL_VERBOSE(LOG_TAG,"napb: updating mode (%d) from XML", mode);
+        setNativeAudioSupport(mode);
+    }
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
+                             value, len);
+    QAL_VERBOSE(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (na_props.rm_na_prop_enabled) {
+            if (!strncmp("true", value, sizeof("true"))) {
+                na_props.ui_na_prop_enabled = true;
+                QAL_VERBOSE(LOG_TAG,"napb: native audio feature enabled from UI");
+            } else {
+                na_props.ui_na_prop_enabled = false;
+                QAL_VERBOSE(LOG_TAG,"napb: native audio feature disabled from UI");
+            }
+
+            str_parms_del(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO);
+            //TO-DO
+            // Update the concurrencies
+        } else {
+              QAL_VERBOSE(LOG_TAG,"napb: native audio cannot be enabled from UI");
+        }
+    }
+    return ret;
+}
 void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId)
 {
     devicePcmId[deviceId].second = pcmId;
@@ -1839,6 +1999,24 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr)
     }
 }
 
+void ResourceManager::processConfigParams(const XML_Char **attr)
+{
+    if (strcmp(attr[0], "key") != 0) {
+        QAL_ERR(LOG_TAG,"'key' not found");
+        goto done;
+    }
+
+    if (strcmp(attr[2], "value") != 0) {
+        QAL_ERR(LOG_TAG,"'value' not found");
+        goto done;
+    }
+    QAL_VERBOSE(LOG_TAG, " String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
+    str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
+    setConfigParams(configParamKVPairs);
+done:
+    return;
+}
+
 void ResourceManager::processCardInfo(struct xml_userdata *data, const XML_Char *tag_name)
 {
     int card;
@@ -1943,6 +2121,9 @@ void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name
     } else if (strcmp(tag_name, "TAG") == 0) {
         processTagInfo(attr);
         return;
+    } else if(strcmp(tag_name, "param") == 0) {
+        processConfigParams(attr);
+        return;
     }
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     if (data->card_parsed)
@@ -2031,6 +2212,7 @@ int ResourceManager::XmlParser(std::string xmlFile)
     XML_SetUserData(parser, &card_data);
     XML_SetElementHandler(parser, startTag, endTag);
     XML_SetCharacterDataHandler(parser, snd_data_handler);
+    configParamKVPairs = str_parms_create();
     while(1) {
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {

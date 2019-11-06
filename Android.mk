@@ -84,6 +84,7 @@ LOCAL_SHARED_LIBRARIES := \
     libexpat\
     liblx-osal\
     libaudioroute\
+    libcutils \
     libtinyalsa \
     libtinycompress\
     libagm

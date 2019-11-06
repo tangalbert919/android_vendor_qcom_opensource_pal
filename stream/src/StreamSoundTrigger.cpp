@@ -118,7 +118,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         }
         //Is this required for Voice UI?
         QAL_ERR(LOG_TAG, "Updating device config for voice UI");
-        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, dattr);
+        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
 
         if (isDeviceConfigUpdated)
             QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);

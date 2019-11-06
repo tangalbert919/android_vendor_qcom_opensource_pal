@@ -127,7 +127,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, dattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
 
         if (isDeviceConfigUpdated)
             QAL_VERBOSE(LOG_TAG, "Device config updated");

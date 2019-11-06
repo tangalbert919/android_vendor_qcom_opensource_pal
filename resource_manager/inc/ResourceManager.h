@@ -46,6 +46,9 @@
 #define TXLOOPBACK 1
 #define audio_mixer mixer
 
+#define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
+#define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
+
 enum qal_alsa_or_gsl {
     ALSA = 0,
     GSL
@@ -82,6 +85,20 @@ struct deviceCap {
     int playback;
     int record;
     int loopback;
+};
+
+enum {
+    NATIVE_AUDIO_MODE_SRC = 1,
+    NATIVE_AUDIO_MODE_TRUE_44_1,
+    NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC,
+    NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP,
+    NATIVE_AUDIO_MODE_INVALID
+};
+
+struct nativeAudioProp {
+   bool rm_na_prop_enabled;
+   bool ui_na_prop_enabled;
+   int na_mode;
 };
 
 class Device;
@@ -121,7 +138,7 @@ private:
     bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
          const qal_stream_attributes* sIncomingAttr) const;
     bool isDeviceSwitchRequired(struct qal_device *activeDevAttr,
-         struct qal_device *inDevAttr);
+         struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
     bool ifVoiceorVoipCall (qal_stream_type_t streamType) const;
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const qal_stream_attributes* sAttr) const;
@@ -210,7 +227,7 @@ public:
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
     bool updateDeviceConfig(std::shared_ptr<Device> inDev,
-                                          struct qal_device *inDevAttr);
+             struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
     const std::string getQALDeviceName(const qal_device_id_t id) const;
     bool isNonALSACodec(const struct qal_device *device) const;
 
@@ -224,6 +241,12 @@ public:
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);
     static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);
     static void processDeviceCapability(struct xml_userdata *data, const XML_Char *tag_name);
+    static int getNativeAudioSupport();
+    static int setNativeAudioSupport(int na_mode);
+    static void getNativeAudioParams(struct str_parms *query,struct str_parms *reply,char *value, int len);
+    static int setConfigParams(struct str_parms *parms);
+    static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
+    static void processConfigParams(const XML_Char **attr);
 };
 
 #endif
