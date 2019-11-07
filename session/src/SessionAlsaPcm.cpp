@@ -746,6 +746,14 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
+        if(pcm && !isActive()) {
+            status = pcm_start(pcm);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+                return -EINVAL; 
+            }
+            mState = SESSION_STARTED;
+        }
         status = pcm_write(pcm, data, sizeWritten);
         if (0 != status) {
             QAL_ERR(LOG_TAG,"%s: Failed to write the data to gsl", __func__);
@@ -757,6 +765,14 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
+    if(pcm && !isActive()) {
+        status = pcm_start(pcm);
+        if (status) {
+            QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            return -EINVAL; 
+        }
+        mState = SESSION_STARTED;
+    }
     data = static_cast<char *>(data) + offset;
     status = pcm_write(pcm, data, sizeWritten);
     if (status != 0) {
