@@ -120,21 +120,20 @@ private:
 
     int getNumFEs(const qal_stream_type_t sType) const;
     /* shouldDeviceSwitch will return true, if the incoming stream properties and device
-           properties should force a device switch, these are the points to consider
-
-           order of priority
-
-
-           100 - voice and VOIP call streams have the highest priority (10 points or 0 points),
-           and device properties should be derived from that
-
-           50 - points if the stream is a 44.1 stream. This has the second highest priority
-
-           25 - points if the stream is a 24 bit stream. This has the third highest priority
-
-	const bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
-	    const qal_stream_attributes* sIncomingAttr) const
-    */
+     * properties should force a device switch, these are the points to consider
+     *
+     * order of priority
+     *
+     *     100 - voice and VOIP call streams have the highest priority (10 points or 0 points),
+     *     and device properties should be derived from that
+     *
+     *     50 - points if the stream is a 44.1 stream. This has the second highest priority
+     *
+     *     25 - points if the stream is a 24 bit stream. This has the third highest priority
+     *
+     * const bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
+     * const qal_stream_attributes* sIncomingAttr) const
+     */
 
 
     bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
@@ -145,10 +144,16 @@ private:
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const qal_stream_attributes* sAttr) const;
     template <class T>
-    void getHigherPriorityActiveStreams(const int inComingStreamPriority, std::vector<Stream*> &activestreams,
-	       std::vector<T> sourcestreams);
+
+    void getHigherPriorityActiveStreams(const int inComingStreamPriority,
+                                        std::vector<Stream*> &activestreams,
+                                        std::vector<T> sourcestreams);
     const std::vector<int> allocateVoiceFrontEndIds(std::vector<int> listAllPcmVoiceFrontEnds,
                                   const int howMany);
+
+    int handleScreenStatusChange(qal_param_screen_state_t screen_state);
+    int handleDeviceConnectionChange(qal_param_device_connection_t connection_state);
+
 protected:
     std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
@@ -159,7 +164,9 @@ protected:
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::shared_ptr<Device>> active_devices;
+    std::vector <qal_device_id_t> avail_devices_;
     bool bOverwriteFlag;
+    bool screen_state_;
     static std::mutex mResourceManagerMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
@@ -212,6 +219,14 @@ public:
     static void updateBackEndName(int32_t deviceId, std::string backEndName);
     static void updateStreamTag(int32_t tagId);
     static void updateDeviceTag(int32_t tagId);
+
+    int setParameter(uint32_t param_id, void *param_payload,
+                     size_t payload_size);
+
+    int getParameter(uint32_t param_id __unused,
+                     void **param_payload __unused,
+                     size_t *payload_size __unused) { return 0; }
+
     int getSndCard();
     int getPcmDeviceId(int deviceId);
     int getAudioRoute(struct audio_route** ar);
@@ -256,6 +271,8 @@ public:
     static int setConfigParams(struct str_parms *parms);
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
     static void processConfigParams(const XML_Char **attr);
+    bool getScreenState();
+    bool isDeviceAvailable(qal_device_id_t id);
 };
 
 #endif

@@ -433,6 +433,33 @@ int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle, struct qal_session
   */
 int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle, qal_audio_effect_t effect, bool enable);
 
+/**
+  * \brief Set qal parameters
+  *
+  * \param[in] param_id - param id whose parameters are to be
+  *       set.
+  * \param[in] param_payload - param data applicable to the
+  *       param_id
+  * \param[in] payload_size - size of payload
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_set_param(uint32_t param_id, void *param_payload,
+                      size_t payload_size);
+/**
+  * \brief Get qal parameters
+  *
+  * \param[in] param_id - param id whose parameters are
+  *       retrieved.
+  * \param[out] param_payload - param data applicable to the
+  *       param_id
+  * \param[out] payload_size - size of payload
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_get_param(uint32_t param_id, void **param_payload,
+                      size_t *payload_size);
+
 extern void  __gcov_flush();
 
 /**

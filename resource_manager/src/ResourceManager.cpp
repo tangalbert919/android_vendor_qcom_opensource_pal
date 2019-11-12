@@ -2029,6 +2029,116 @@ void ResourceManager::updateDeviceTag(int32_t tagId)
     deviceTag.push_back(tagId);
 }
 
+int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
+                                  size_t payload_size)
+{
+    int status = 0;
+
+    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    std::lock_guard<std::mutex> lock(mResourceManagerMutex);
+    switch (param_id) {
+        case QAL_PARAM_ID_SCREEN_STATE:
+        {
+            qal_param_screen_state_t* param_screen_st = (qal_param_screen_state_t*) param_payload;
+            QAL_INFO(LOG_TAG, "Screen State:%d", param_screen_st->screen_state);
+            if (payload_size == sizeof(qal_param_screen_state_t)) {
+                status = handleScreenStatusChange(*param_screen_st);
+            } else {
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                        sizeof(qal_param_screen_state_t), payload_size);
+                status = -EINVAL;
+            }
+        }
+        break;
+        case QAL_PARAM_ID_DEVICE_CONNECTION:
+        {
+            qal_param_device_connection_t *param_device_connection = (qal_param_device_connection_t *)param_payload;
+            QAL_INFO(LOG_TAG, "Device %d connected = %d",
+                        param_device_connection->id,
+                        param_device_connection->connection_state);
+            if (payload_size == sizeof(qal_param_device_connection_t)) {
+                status = handleDeviceConnectionChange(*param_device_connection);
+            } else {
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                      sizeof(qal_param_device_connection_t), payload_size);
+                status = -EINVAL;
+            }
+        }
+        break;
+        default:
+            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+    return status;
+}
+
+int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_state)
+{
+    int status = 0;
+
+    if (screen_state_ != screen_state.screen_state) {
+        if (screen_state.screen_state == false) {
+            /* have appropriate streams transition to LPI */
+            QAL_VERBOSE(LOG_TAG, "Screen State printout");
+        }
+        else {
+            /* have appropriate streams transition out of LPI */
+            QAL_ERR(LOG_TAG, "Screen State printout");
+        }
+        screen_state_ = screen_state.screen_state;
+        /* update
+         * for (typename std::vector<StreamSoundTrigger*>::iterator iter = active_streams_st.begin();
+         *    iter != active_streams_st.end(); iter++) {
+         *   status = (*iter)->handleScreenState(screen_state_);
+         *  }
+         */
+    }
+    return status;
+}
+
+bool ResourceManager::getScreenState()
+{
+    return screen_state_;
+}
+
+int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t connection_state)
+{
+    int status = 0;
+    qal_device_id_t device_id = connection_state.id;
+    bool is_connected = connection_state.connection_state;
+    bool device_available = isDeviceAvailable(device_id);
+
+    QAL_DBG(LOG_TAG, "%s Enter", __func__);
+    if (is_connected && !device_available) {
+        QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+        avail_devices_.push_back(device_id);
+    } else if (!is_connected && device_available) {
+        QAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
+        avail_devices_.erase(std::find(avail_devices_.begin(), avail_devices_.end(), device_id));
+    } else {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
+                is_connected, device_available);
+    }
+
+    QAL_DBG(LOG_TAG, "%s Exit, status %d", __func__, status);
+    return status;
+}
+
+bool ResourceManager::isDeviceAvailable(qal_device_id_t id)
+{
+    bool is_available = false;
+    typename std::vector<qal_device_id_t>::iterator iter =
+        std::find(avail_devices_.begin(), avail_devices_.end(), id);
+
+    if (iter != avail_devices_.end())
+        is_available = true;
+
+    QAL_DBG(LOG_TAG, "Device %d, is_available = %d", id, is_available);
+
+    return is_available;
+}
+
 void ResourceManager::processTagInfo(const XML_Char **attr)
 {
     int32_t tagId;

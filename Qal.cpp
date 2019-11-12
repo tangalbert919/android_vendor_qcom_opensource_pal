@@ -503,6 +503,35 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 
     QAL_INFO(LOG_TAG, "%s: Exit. status %d", __func__, status);
 
+    return status;
+}
 
+int32_t qal_set_param(uint32_t param_id, void *param_payload,
+                      size_t payload_size)
+{
+    int status = 0;
+    std::shared_ptr<ResourceManager> rm = NULL;
+
+    rm = ResourceManager::getInstance();
+
+    if (rm) {
+        status = rm->setParameter(param_id, param_payload, payload_size);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
+                    param_id, status);
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        status = -EINVAL;
+    }
+
+    return status;
+}
+
+int32_t qal_get_param(uint32_t param_id __unused, void **param_payload __unused,
+                      size_t *payload_size __unused)
+{
+    int status = 0;
+    /* to be implemented later */
     return status;
 }

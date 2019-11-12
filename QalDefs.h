@@ -460,8 +460,29 @@ typedef enum {
     QAL_PARAM_ID_FLUENCE_ON_OFF,
     QAL_PARAM_ID_DIRECTION_OF_ARRIVAL,
     QAL_PARAM_ID_UIEFFECT,
-    QAL_PARAM_ID_STOP_BUFFERING
-}qal_param_id_type_t;
+    QAL_PARAM_ID_STOP_BUFFERING,
+
+    /* Non-Stream Specific Parameters*/
+    QAL_PARAM_ID_DEVICE_CONNECTION,
+    QAL_PARAM_ID_SCREEN_STATE,
+    QAL_PARAM_ID_CHARGING_STATE,
+    QAL_PARAM_ID_DEVICE_ROTATION
+} qal_param_id_type_t;
+
+/* Payload For ID: QAL_PARAM_ID_DEVICE_CONNECTION
+ * Description   : Device Connection
+*/
+typedef struct qal_param_device_connection {
+    qal_device_id_t   id;
+    bool              connection_state;
+} qal_param_device_connection_t;
+
+/* Payload For ID: QAL_PARAM_ID_SCREEN_STATE
+ * Description   : Screen State
+*/
+typedef struct qal_param_screen_state {
+    bool              screen_state;
+} qal_param_screen_state_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */
 #define QAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6      /* max length of locale string. e.g en_US */
