@@ -47,7 +47,7 @@ std::shared_ptr<Device> Headphone::getInstance(struct qal_device *device,
 
 
 Headphone::Headphone(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm)
+Device(device, Rm)
 {
 
 }

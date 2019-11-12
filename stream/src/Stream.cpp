@@ -405,7 +405,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
         //for e.g., if incoming stream needs 24 bit device thats also
         //being used by another stream, then the other stream should route
 
-        dev = Device::create((struct qal_device *)&deviceArray[i], rm);
+        dev = Device::getInstance((struct qal_device *)&deviceArray[i], rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation failed");
             free(mStreamAttr);

@@ -107,7 +107,7 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
     session->registerCallBack(handleSessionCallBack, (void *)this);
     QAL_VERBOSE(LOG_TAG,"Create new Devices with no_of_devices - %d", no_of_devices);
     for (uint32_t i = 0; i < no_of_devices; i++) {
-       dev = Device::create((struct qal_device *)&dattr[i] , rm);
+       dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
        if (dev == nullptr) {
           QAL_ERR(LOG_TAG, "Device creation is failed");
           free(mStreamAttr->out_media_config.ch_info);

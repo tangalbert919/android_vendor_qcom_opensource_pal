@@ -27,20 +27,20 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CODEC_DEVICE_GSL_H
-#define CODEC_DEVICE_GSL_H
+#ifndef DEVICE_GSL_H
+#define DEVICE_GSL_H
 
 #include "Device.h"
-#include "CodecDeviceImpl.h"
+#include "DeviceImpl.h"
 
 class ResourceManager;
 
-class CodecDeviceGsl: public CodecDeviceImpl
+class DeviceGsl: public DeviceImpl
 {
     struct pcm *pcmFd;
 public:
-    CodecDeviceGsl();
-    virtual ~CodecDeviceGsl();
+    DeviceGsl();
+    virtual ~DeviceGsl();
     int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
     int close() override;
     int prepare() override;

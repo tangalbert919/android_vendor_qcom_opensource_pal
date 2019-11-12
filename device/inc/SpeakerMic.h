@@ -31,9 +31,9 @@
 #define SPEAKERMIC_H
 
 #include "Device.h"
-#include "CodecDevice.h"
+#include "Device.h"
 
-class SpeakerMic : public CodecDevice
+class SpeakerMic : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;

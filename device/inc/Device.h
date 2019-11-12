@@ -36,70 +36,42 @@
 #include "QalDefs.h"
 #include <string.h>
 #include "QalCommon.h"
+#include "Device.h"
+#include "QalAudioRoute.h"
 
 class ResourceManager;
 
 class Device
 {
 protected:
-    Device();
+    std::shared_ptr<Device> devObj;
     std::mutex mDeviceMutex;
     std::string mQALDeviceName;
     struct qal_device deviceAttr;
     std::shared_ptr<ResourceManager> rm;
+    int deviceCount = 0;
+    struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
+    struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
+    char mSndDeviceName[128] = {0};
+    void *deviceHandle;
+    bool initialized = false;
+
+    Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    Device();
 public:
+    int open();
+    int close();
+    int start();
+    int stop();
+    int prepare();
+    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
     int getSndDeviceId();
     std::string getQALDeviceName();
-    virtual int open() = 0;
-    virtual int close() = 0;
-    virtual int start() = 0;
-    virtual int stop() = 0;
-    virtual int prepare() = 0;
     int setDeviceAttributes (struct qal_device dattr);
     int getDeviceAtrributes (struct qal_device *dattr);
-    static std::shared_ptr<Device> create (struct qal_device *device,
-                                           std::shared_ptr<ResourceManager> Rm);
-
-    virtual ~Device() = 0;
+    ~Device();
 };
-
-/*
-class Headset : public Device
-{
-public:
-    int open() override;
-    int close() override;
-    int start() override;
-    int stop() override;
-    int setDeviceAttributes (device_attributes dattr);
-    int getDeviceAtrributes (device_attributes *dattr) override;
-
-};
-
-class Hdmi : public Device
-{
-public:
-    int open() override;
-    int close() override;
-    int start() override;
-    int stop() override;
-    int setDeviceAttributes (device_attributes dattr);
-    int getDeviceAtrributes (device_attributes *dattr) override;
-
-};
-
-class Usb : public Device
-{
-public:
-    int open() override;
-    int close() override;
-    int start() override;
-    int stop() override;
-    int setDeviceAttributes (device_attributes dattr);
-    int getDeviceAtrributes (device_attributes *dattr) override;
-
-};
-*/
 
 
 #endif //DEVICE_H

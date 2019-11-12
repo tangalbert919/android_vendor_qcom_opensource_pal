@@ -27,42 +27,20 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "CodecDeviceAlsa.h"
+#ifndef DEVICE_IMPL_H
+#define DEVICE_IMPL_H
 
-CodecDeviceAlsa::CodecDeviceAlsa()
+class DeviceImpl
 {
-}
+public:
+    virtual ~DeviceImpl() {};
+    virtual int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) = 0;
+    virtual int close() = 0;
+    virtual int prepare() = 0;
+    virtual int start() = 0;
+    virtual int stop() = 0;
 
-CodecDeviceAlsa::~CodecDeviceAlsa()
-{
-}
+};
 
-int CodecDeviceAlsa::open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_)
-{
-    return 0;
-}
-
-int CodecDeviceAlsa::close()
-{
-    return 0;
-}
-
-int CodecDeviceAlsa::prepare()
-{
-    return 0;
-}
-
-
-int CodecDeviceAlsa::start()
-{
-    return 0;
-}
-
-
-int CodecDeviceAlsa::stop()
-{
-    return 0;
-}
-
-
+#endif
 

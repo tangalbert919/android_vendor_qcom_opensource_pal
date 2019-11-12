@@ -47,7 +47,7 @@ std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device,
 
 
 Speaker::Speaker(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-CodecDevice(device, Rm)
+Device(device, Rm)
 {
 
 }
