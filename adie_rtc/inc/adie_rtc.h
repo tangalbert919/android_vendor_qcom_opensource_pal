@@ -57,7 +57,7 @@ enum cdc
     WCD937X = 27,
     WCD938X = 28,
     BOLERO = 26,
-    CODEC_UNDEFINED = UInt16.MaxValue - 1
+    CODEC_UNDEFINED = UINT16_MAX - 1
 };
 
 struct chipset_id_info {
