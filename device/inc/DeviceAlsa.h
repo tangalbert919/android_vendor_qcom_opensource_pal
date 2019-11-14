@@ -27,35 +27,26 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CODEC_DEVICE_H
-#define CODEC_DEVICE_H
+#ifndef DEVICE_ALSA_H
+#define DEVICE_ALSA_H
 
 #include "Device.h"
-#include "QalAudioRoute.h"
+#include "DeviceImpl.h"
 
-class CodecDevice : public Device
+class Speaker;
+
+class DeviceAlsa: public DeviceImpl
 {
-protected:
-    std::shared_ptr<Device> devObj;
-    int deviceCount = 0;
-    struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
-    struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
-    char mSndDeviceName[128] = {0};
-    void *deviceHandle;
-    bool initialized = false;
-
-    CodecDevice(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    CodecDevice();
 public:
-    int open() override;
-    int close() override;
-    int start() override;
-    int stop() override;
-    int prepare() override;
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
-                                               std::shared_ptr<ResourceManager> Rm);
-    ~CodecDevice();
+
+     DeviceAlsa();
+     virtual ~DeviceAlsa();
+     int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
+     int close() override;
+     int prepare() override;
+     int start() override;
+     int stop() override;
+
 };
 
-
-#endif //CODEC_DEVICE_H
+#endif

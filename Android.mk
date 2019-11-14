@@ -54,10 +54,9 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/Headphone.cpp \
     device/src/Device.cpp \
     device/src/Speaker.cpp \
-    device/src/CodecDeviceAlsa.cpp \
-    device/src/CodecDevice.cpp \
+    device/src/DeviceAlsa.cpp \
     device/src/SpeakerMic.cpp \
-    device/src/CodecDeviceGsl.cpp \
+    device/src/DeviceGsl.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionGsl.cpp \

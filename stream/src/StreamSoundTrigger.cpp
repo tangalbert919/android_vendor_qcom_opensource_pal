@@ -107,7 +107,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
-        dev = Device::create(&dattr[i] , rm);
+        dev = Device::getInstance(&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
             free(mStreamAttr->in_media_config.ch_info);
@@ -1207,7 +1207,7 @@ int32_t StreamSoundTrigger::switchDevice(Stream* streamHandle, uint32_t no_of_de
         //for e.g., if incoming stream needs 24 bit device thats also
         //being used by another stream, then the other stream should route
 
-        dev = Device::create((struct qal_device *)&mDevices[i] , rm);
+        dev = Device::getInstance((struct qal_device *)&mDevices[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "%s: Device creation failed", __func__);
             if (mStreamAttr) {

@@ -30,10 +30,10 @@
 #ifndef SPEAKER_H
 #define SPEAKER_H
 
-#include "CodecDevice.h"
+#include "Device.h"
 #include "QalAudioRoute.h"
 
-class Speaker : public CodecDevice
+class Speaker : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;

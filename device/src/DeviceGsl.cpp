@@ -27,9 +27,9 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "CodecDeviceGsl"
-#include "CodecDevice.h"
-#include "CodecDeviceGsl.h"
+#define LOG_TAG "DeviceGsl"
+#include "Device.h"
+#include "DeviceGsl.h"
 #include "ResourceManager.h"
 #include <tinyalsa/asoundlib.h>
 #include <errno.h>
@@ -38,15 +38,15 @@ extern "C" {
 #include <fcntl.h>
 }
 
-#define CODEC_DEVICE_GSL_DEFAULT_PERIED_SIZE 1920
-#define CODEC_DEVICE_GSL_DEFAULT_PERIED_COUNT 2
-#define CODEC_DEVICE_GSL_DEFAULT_START_THRESHOLD 1920/4
-#define CODEC_DEVICE_GSL_DEFAULT_STOP_THRESHOLD 32767
-#define CODEC_DEVICE_GSL_DEFAULT_AVAIL_MIN 1920/4
-#define CODEC_DEVICE_GSL_PERIOD_512 512
-#define CODEC_DEVICE_GSL_PERIOD_COUNT_8 8
+#define DEVICE_GSL_DEFAULT_PERIED_SIZE 1920
+#define DEVICE_GSL_DEFAULT_PERIED_COUNT 2
+#define DEVICE_GSL_DEFAULT_START_THRESHOLD 1920/4
+#define DEVICE_GSL_DEFAULT_STOP_THRESHOLD 32767
+#define DEVICE_GSL_DEFAULT_AVAIL_MIN 1920/4
+#define DEVICE_GSL_PERIOD_512 512
+#define DEVICE_GSL_PERIOD_COUNT_8 8
 
-int CodecDeviceGsl::open(struct qal_device *device,
+int DeviceGsl::open(struct qal_device *device,
                                   std::shared_ptr<ResourceManager> rm_)
 {
     if (!device || !rm_) {
@@ -67,11 +67,11 @@ int CodecDeviceGsl::open(struct qal_device *device,
     config.channels = device->config.ch_info->channels;
     config.rate = device->config.sample_rate;
     QAL_DBG(LOG_TAG,"channels %d and samplerate %d", config.channels, config.rate);
-    config.period_size = CODEC_DEVICE_GSL_PERIOD_512;
-    config.period_count = CODEC_DEVICE_GSL_PERIOD_COUNT_8;
+    config.period_size = DEVICE_GSL_PERIOD_512;
+    config.period_count = DEVICE_GSL_PERIOD_COUNT_8;
     config.format = PCM_FORMAT_S16_LE;
     config.start_threshold = 0;
-    config.stop_threshold = CODEC_DEVICE_GSL_DEFAULT_STOP_THRESHOLD;
+    config.stop_threshold = DEVICE_GSL_DEFAULT_STOP_THRESHOLD;
     config.silence_threshold = 0;
     config.silence_size = 0;
     config.avail_min = 512;
@@ -85,7 +85,7 @@ int CodecDeviceGsl::open(struct qal_device *device,
     return 0;
 }
 
-int CodecDeviceGsl::close()
+int DeviceGsl::close()
 {
      int status = 0;
      if (!pcmFd) {
@@ -104,7 +104,7 @@ int CodecDeviceGsl::close()
      return status;
 }
 
-int CodecDeviceGsl::start()
+int DeviceGsl::start()
 {
      int status = 0;
      if (!pcmFd) {
@@ -116,7 +116,7 @@ int CodecDeviceGsl::start()
      return status;
 }
 
-int CodecDeviceGsl::prepare ()
+int DeviceGsl::prepare ()
 {
      int status = 0;
      if (!pcmFd) {
@@ -135,7 +135,7 @@ int CodecDeviceGsl::prepare ()
      return status;
 }
 
-int CodecDeviceGsl::stop()
+int DeviceGsl::stop()
 {
      int status = 0;
      if (!pcmFd) {
@@ -153,12 +153,12 @@ int CodecDeviceGsl::stop()
      return status;
 }
 
-CodecDeviceGsl::CodecDeviceGsl()
+DeviceGsl::DeviceGsl()
 {
    pcmFd = NULL;
 }
 
-CodecDeviceGsl::~CodecDeviceGsl()
+DeviceGsl::~DeviceGsl()
 {
     pcmFd = NULL;
 }

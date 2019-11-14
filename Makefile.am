@@ -11,10 +11,10 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/Device.h \
             ./device/inc/Speaker.h \
             ./device/inc/Headphone.h \
-            ./device/inc/CodecDevice.h \
-            ./device/inc/CodecDeviceAlsa.h \
-            ./device/inc/CodecDeviceGsl.h \
-            ./device/inc/CodecDeviceImpl.h \
+            ./device/inc/Device.h \
+            ./device/inc/DeviceAlsa.h \
+            ./device/inc/DeviceGsl.h \
+            ./device/inc/DeviceImpl.h \
             ./device/inc/SpeakerMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
@@ -48,10 +48,10 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/Device.cpp \
               ./device/src/Speaker.cpp \
               ./device/src/Headphone.cpp \
-              ./device/src/CodecDeviceAlsa.cpp \
-              ./device/src/CodecDevice.cpp \
+              ./device/src/DeviceAlsa.cpp \
+              ./device/src/Device.cpp \
               ./device/src/SpeakerMic.cpp \
-              ./device/src/CodecDeviceGsl.cpp \
+              ./device/src/DeviceGsl.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionGsl.cpp \
@@ -74,10 +74,10 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/Speaker.h \
             ${top_srcdir}/device/inc/Headphone.h \
-            ${top_srcdir}/device/inc/CodecDevice.h \
-            ${top_srcdir}/device/inc/CodecDeviceAlsa.h \
-            ${top_srcdir}/device/inc/CodecDeviceGsl.h \
-            ${top_srcdir}/device/inc/CodecDeviceImpl.h \
+            ${top_srcdir}/device/inc/Device.h \
+            ${top_srcdir}/device/inc/DeviceAlsa.h \
+            ${top_srcdir}/device/inc/DeviceGsl.h \
+            ${top_srcdir}/device/inc/DeviceImpl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
@@ -129,10 +129,10 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/Speaker.cpp \
               ${top_srcdir}/device/src/Headphone.cpp \
-              ${top_srcdir}/device/src/CodecDeviceAlsa.cpp \
-              ${top_srcdir}/device/src/CodecDevice.cpp \
+              ${top_srcdir}/device/src/DeviceAlsa.cpp \
+              ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
-              ${top_srcdir}/device/src/CodecDeviceGsl.cpp \
+              ${top_srcdir}/device/src/DeviceGsl.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \

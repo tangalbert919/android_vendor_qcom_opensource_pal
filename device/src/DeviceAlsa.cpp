@@ -27,26 +27,42 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CODEC_DEVICE_ALSA_H
-#define CODEC_DEVICE_ALSA_H
+#include "DeviceAlsa.h"
 
-#include "Device.h"
-#include "CodecDeviceImpl.h"
-
-class Speaker;
-
-class CodecDeviceAlsa: public CodecDeviceImpl
+DeviceAlsa::DeviceAlsa()
 {
-public:
+}
 
-     CodecDeviceAlsa();
-     virtual ~CodecDeviceAlsa();
-     int open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_) override;
-     int close() override;
-     int prepare() override;
-     int start() override;
-     int stop() override;
+DeviceAlsa::~DeviceAlsa()
+{
+}
 
-};
+int DeviceAlsa::open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_)
+{
+    return 0;
+}
 
-#endif
+int DeviceAlsa::close()
+{
+    return 0;
+}
+
+int DeviceAlsa::prepare()
+{
+    return 0;
+}
+
+
+int DeviceAlsa::start()
+{
+    return 0;
+}
+
+
+int DeviceAlsa::stop()
+{
+    return 0;
+}
+
+
+

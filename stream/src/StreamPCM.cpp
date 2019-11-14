@@ -122,7 +122,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         //for e.g., if incoming stream needs 24 bit device thats also
         //being used by another stream, then the other stream should route
 
-        dev = Device::create((struct qal_device *)&dattr[i] , rm);
+        dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation failed");
             free(mStreamAttr->out_media_config.ch_info);
