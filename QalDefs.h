@@ -140,7 +140,7 @@ typedef enum {
 } qal_param_type_t;
 
 typedef struct qal_effect_custom_payload_s {
-    uint32_t dspParamId;
+    uint32_t paramId;
     uint32_t *data;
 } qal_effect_custom_payload_t;
 

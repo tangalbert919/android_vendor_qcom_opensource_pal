@@ -757,7 +757,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
                 customPayload = (qal_effect_custom_payload_t *)effectQalPayload->payload;
                 builder->payloadCustomParam(&alsaParamData, &alsaPayloadSize,
                             customPayload->data, effectQalPayload->payloadSize - sizeof(uint32_t),
-                            miid, customPayload->dspParamId);
+                            miid, customPayload->paramId);
                 status = SessionAlsaUtils::setMixerParameter(mixer,
                                                              compressDevIds.at(0),
                                                              true, alsaParamData,
