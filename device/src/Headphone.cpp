@@ -69,6 +69,8 @@ int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
         case SAMPLINGRATE_44K:
         case SAMPLINGRATE_48K:
         case SAMPLINGRATE_96K:
+        case SAMPLINGRATE_192K:
+        case SAMPLINGRATE_384K:
             break;
         default:
             rc = -EINVAL;
@@ -135,13 +137,13 @@ int32_t Headphone::checkAndUpdateSampleRate(uint32_t *sampleRate)
     if ((*sampleRate % SAMPLINGRATE_44K == 0) &&
         (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == ResourceManager::getNativeAudioSupport())) {
         QAL_DBG(LOG_TAG, "napb: setting sampling rate to %d", *sampleRate);
-    } else if (*sampleRate < SAMPLINGRATE_48K)
+    } else if (*sampleRate <= SAMPLINGRATE_48K)
         *sampleRate = SAMPLINGRATE_48K;
-    else if (*sampleRate > SAMPLINGRATE_48K && *sampleRate < SAMPLINGRATE_96K)
+    else if (*sampleRate > SAMPLINGRATE_48K && *sampleRate <= SAMPLINGRATE_96K)
         *sampleRate = SAMPLINGRATE_96K;
-    else if (*sampleRate > SAMPLINGRATE_96K && *sampleRate < SAMPLINGRATE_192K)
+    else if (*sampleRate > SAMPLINGRATE_96K && *sampleRate <= SAMPLINGRATE_192K)
         *sampleRate = SAMPLINGRATE_192K;
-    else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate < SAMPLINGRATE_384K)
+    else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate <= SAMPLINGRATE_384K)
         *sampleRate = SAMPLINGRATE_384K;
 
     QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, *sampleRate);

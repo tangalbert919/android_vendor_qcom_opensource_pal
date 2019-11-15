@@ -2105,6 +2105,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_COMPRESSED:
         case QAL_STREAM_DEEP_BUFFER:
+        case QAL_STREAM_PCM_OFFLOAD:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
                 keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
             } else if (sattr->direction == QAL_AUDIO_INPUT &&
@@ -2136,7 +2137,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
             keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
             break;
         default:
-            QAL_ERR(LOG_TAG,"stream type %s doesnt support populateDevicePPKV ", sattr->type);
+            QAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
             goto free_sattr;
     }
     populateDeviceKV(s, rxBeDevId, keyVectorRx);

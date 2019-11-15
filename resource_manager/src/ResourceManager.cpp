@@ -734,63 +734,6 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             QAL_ERR(LOG_TAG, "unknown type");
             return false;
     }
-    // check if param supported by any of the devices
-    for (int i = 0; i < no_of_devices; i++) {
-        rc = 0;
-        dev_channels = devices[i].config.ch_info->channels;
-        dev_samplerate = devices[i].config.sample_rate;
-        dev_bitwidth = devices[i].config.bit_width;
-
-        switch(devices[i].id) {
-            case QAL_DEVICE_OUT_HANDSET:
-                rc = (Handset::isBitWidthSupported(dev_bitwidth) |
-                    Handset::isSampleRateSupported(dev_samplerate) |
-                    Handset::isChannelSupported(dev_channels));
-                break;
-            case QAL_DEVICE_OUT_SPEAKER:
-                rc = (Speaker::isBitWidthSupported(dev_bitwidth) |
-                    Speaker::isSampleRateSupported(dev_samplerate) |
-                    Speaker::isChannelSupported(dev_channels));
-                break;
-            case QAL_DEVICE_OUT_WIRED_HEADSET:
-            case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-                rc = (Headphone::isBitWidthSupported(dev_bitwidth) |
-                     Headphone::isSampleRateSupported(dev_samplerate) |
-                     Headphone::isChannelSupported(dev_channels));
-                break;
-            case QAL_DEVICE_IN_HANDSET_MIC:
-                rc = (HandsetMic::isBitWidthSupported(dev_bitwidth) |
-                      HandsetMic::isSampleRateSupported(dev_samplerate) |
-                      HandsetMic::isChannelSupported(dev_channels));
-                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
-                break;
-            case QAL_DEVICE_IN_SPEAKER_MIC:
-            case QAL_DEVICE_IN_TRI_MIC:
-            case QAL_DEVICE_IN_QUAD_MIC:
-            case QAL_DEVICE_IN_EIGHT_MIC:
-                rc = (SpeakerMic::isBitWidthSupported(dev_bitwidth) |
-                      SpeakerMic::isSampleRateSupported(dev_samplerate) |
-                      SpeakerMic::isChannelSupported(dev_channels));
-                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
-                break;
-            case QAL_DEVICE_IN_WIRED_HEADSET:
-                rc = (HeadsetMic::isBitWidthSupported(dev_bitwidth) |
-                      HeadsetMic::isSampleRateSupported(dev_samplerate) |
-                      HeadsetMic::isChannelSupported(dev_channels));
-                QAL_DBG(LOG_TAG, "device attributes rc = %d", rc);
-                break;
-            default:
-                QAL_ERR(LOG_TAG, "unknown device id %d", devices[i].id);
-            return false;
-        }
-        if (0 != rc) {
-            QAL_ERR(LOG_TAG, "Attributes not supported by devices");
-            result = false;
-            return result;
-        } else {
-            result = true;
-        }
-    }
     QAL_DBG(LOG_TAG, "Exit. result %d", result);
     return result;
 }
