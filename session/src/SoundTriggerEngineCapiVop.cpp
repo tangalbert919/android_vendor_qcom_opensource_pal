@@ -38,7 +38,7 @@
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
 
-void SoundTriggerEngineCapiVop::buffer_thread_loop(
+void SoundTriggerEngineCapiVop::BufferThreadLoop(
     SoundTriggerEngineCapiVop *vop_engine)
 {
     StreamSoundTrigger *s = nullptr;
@@ -80,9 +80,9 @@ void SoundTriggerEngineCapiVop::buffer_thread_loop(
 
             status = vop_engine->StartDetection();
             if (status || !vop_engine->keyword_detected_)
-                s->setDetectionState(CNN_REJECTED);
+                s->SetDetectionState(CNN_REJECTED);
             else
-                s->setDetectionState(CNN_DETECTED);
+                s->SetDetectionState(CNN_DETECTED);
 
             vop_engine->keyword_detected_ = false;
             vop_engine->processing_started_ = false;
@@ -355,7 +355,7 @@ int32_t SoundTriggerEngineCapiVop::StartSoundEngine()
     voiceprint2_threshold_config_t *threshold_cfg = nullptr;
 
     buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapiVop::buffer_thread_loop, this);
+        std::thread(SoundTriggerEngineCapiVop::BufferThreadLoop, this);
 
     if (!buffer_thread_handler_.joinable()) {
         status = -EINVAL;

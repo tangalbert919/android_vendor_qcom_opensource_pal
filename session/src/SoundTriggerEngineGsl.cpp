@@ -47,7 +47,7 @@
 #endif
 #define DWNSTRM_SETUP_DURATION_MS 300
 
-void SoundTriggerEngineGsl::buffer_thread_loop(
+void SoundTriggerEngineGsl::BufferThreadLoop(
     SoundTriggerEngineGsl *gsl_engine)
 {
     StreamSoundTrigger *s = nullptr;
@@ -82,7 +82,7 @@ void SoundTriggerEngineGsl::buffer_thread_loop(
 
         if (gsl_engine->timestamp_recorded_ &&
             !gsl_engine->is_stream_notified_) {
-            s->setDetectionState(GMM_DETECTED);
+            s->SetDetectionState(GMM_DETECTED);
             gsl_engine->is_stream_notified_ = true;
         }
     }
@@ -107,7 +107,7 @@ int32_t SoundTriggerEngineGsl::StartSoundEngine()
         exit_buffering_ = false;
 
         buffer_thread_handler_ =
-            std::thread(SoundTriggerEngineGsl::buffer_thread_loop, this);
+            std::thread(SoundTriggerEngineGsl::BufferThreadLoop, this);
 
         if (!buffer_thread_handler_.joinable()) {
             status = -EINVAL;
@@ -280,6 +280,8 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
         QAL_ERR(LOG_TAG, "Failed to create session");
         throw std::runtime_error("Failed to create session");
     }
+
+    session_->registerCallBack(HandleSessionCallBack, this);
 
     // Init internal structures
     event_config_.event_mode = CONFIDENCE_LEVEL_INFO |
@@ -605,6 +607,38 @@ void SoundTriggerEngineGsl::SetDetected(bool detected)
     } else {
         QAL_VERBOSE(LOG_TAG, "event detected unchanged");
     }
+}
+
+void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
+                                                  void *data)
+{
+    int status = 0;
+    StreamSoundTrigger *s = nullptr;
+    SoundTriggerEngineGsl *engine = nullptr;
+
+    QAL_DBG(LOG_TAG, "Enter, event detected on GECKO, event id = %u", event_id);
+    if (!hdl || !data) {
+        QAL_ERR(LOG_TAG, "No engine handle or event data provided");
+        return;
+    }
+
+    engine = (SoundTriggerEngineGsl *)hdl;
+    s = dynamic_cast<StreamSoundTrigger *>(engine->stream_handle_);
+    status = s->ParseDetectionPayload(event_id, (uint32_t *)data);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to parse detection payload with ret = %d",
+                status);
+        return;
+    }
+
+    engine->SetDetected(true);
+
+    if (!engine->capture_requested_)
+        s->SetDetectionState(GMM_DETECTED);
+
+    QAL_DBG(LOG_TAG, "Exit");
+
+    return;
 }
 
 int32_t SoundTriggerEngineGsl::getParameters(uint32_t param_id, void **payload)

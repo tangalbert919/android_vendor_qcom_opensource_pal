@@ -79,7 +79,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine
     int32_t StartSoundEngine();
     int32_t StopSoundEngine();
     int32_t StartBuffering();
-    static void buffer_thread_loop(SoundTriggerEngineGsl *gsl_engine);
+    static void BufferThreadLoop(SoundTriggerEngineGsl *gsl_engine);
+    static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data);
 
     bool event_detected_;
     bool timestamp_recorded_;

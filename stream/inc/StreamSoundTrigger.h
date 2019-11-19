@@ -94,25 +94,24 @@ class StreamSoundTrigger : public Stream
     int32_t setResume() override;
     int32_t read(struct qal_buffer *buf) override;
     int32_t write(struct qal_buffer *buf __unused) override;
-    int32_t registerCallBack(qal_stream_callback cb,
-        void *cookie __unused) override;
+    int32_t registerCallBack(qal_stream_callback cb, void *cookie) override;
     int32_t getCallBack(qal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;
     int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
 
-    void registerSoundTriggerEngine(uint32_t id, SoundTriggerEngine *stEngine);
-    void deregisterSoundTriggerEngine(uint32_t id);
-    int32_t getSoundTriggerEngine(int *index, uint32_t sm_id);
-    void registerSoundModelData(uint32_t id, uint8_t *data);
-    void deregisterSoundModelData(uint32_t id);
-    int32_t getSoundModelData(int *index, uint32_t sm_id);
-    int32_t SetDetected(bool detected);
+    void RegisterSoundTriggerEngine(uint32_t id, SoundTriggerEngine *stEngine);
+    void DeregisterSoundTriggerEngine(uint32_t id);
+    int32_t GetSoundTriggerEngine(int *index, uint32_t sm_id);
+    void RegisterSoundModelData(uint32_t id, uint8_t *data);
+    void DeregisterSoundModelData(uint32_t id);
+    int32_t GetSoundModelData(int *index, uint32_t sm_id);
+    int32_t ParseDetectionPayload(uint32_t event_id, uint32_t *event_data);
     struct detection_event_info * getDetectionEventInfo() {
         return &detection_event_info_;
     }
-    int32_t notifyClient();
-    int32_t setDetectionState(uint32_t state);
+    int32_t NotifyClient();
+    int32_t SetDetectionState(uint32_t state);
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
@@ -124,7 +123,6 @@ class StreamSoundTrigger : public Stream
  private:
     int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);
     int32_t SendRecognitionConfig(struct qal_st_recognition_config *config);
-    int32_t ParseDetectionPayload(uint32_t event_id, uint32_t *event_data);
     int32_t ParseOpaqueConfLevels(void *opaque_conf_levels,
                                   uint32_t version,
                                   uint8_t **out_conf_levels,
@@ -137,10 +135,6 @@ class StreamSoundTrigger : public Stream
                                  uint32_t *out_payload_size,
                                  uint32_t version);
     int32_t GenerateCallbackEvent(struct qal_st_recognition_event **event);
-    static int32_t handleDetectionEvent(qal_stream_handle_t *stream_handle,
-                                        uint32_t event_id,
-                                        uint32_t *event_data,
-                                        void *cookie __unused);
 
     int32_t stages_;
     uint8_t *sm_data_;
@@ -153,6 +147,7 @@ class StreamSoundTrigger : public Stream
     uint32_t detection_state_;
     uint32_t notification_state_;
     qal_stream_callback callback_;
+    void *cookie_;
     QalRingBufferReader *reader_;
     SoundTriggerEngine *gsl_engine_;
     std::vector<std::pair<uint32_t, SoundTriggerEngine *>> active_engines_;

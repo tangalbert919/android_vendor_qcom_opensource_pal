@@ -68,6 +68,9 @@ private:
     void *cookie;
     std::thread threadHandler;
     sessionState mState;
+    session_callback sessionCb;
+    void *cbCookie;
+
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);

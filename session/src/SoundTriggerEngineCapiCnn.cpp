@@ -36,7 +36,7 @@
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
 
-void SoundTriggerEngineCapiCnn::buffer_thread_loop(
+void SoundTriggerEngineCapiCnn::BufferThreadLoop(
     SoundTriggerEngineCapiCnn *cnn_engine)
 {
     StreamSoundTrigger *s = nullptr;
@@ -77,9 +77,9 @@ void SoundTriggerEngineCapiCnn::buffer_thread_loop(
 
             status = cnn_engine->StartDetection();
             if (status || !cnn_engine->keyword_detected_)
-                s->setDetectionState(CNN_REJECTED);
+                s->SetDetectionState(CNN_REJECTED);
             else
-                s->setDetectionState(CNN_DETECTED);
+                s->SetDetectionState(CNN_DETECTED);
 
             cnn_engine->keyword_detected_ = false;
             cnn_engine->processing_started_ = false;
@@ -337,7 +337,7 @@ int32_t SoundTriggerEngineCapiCnn::StartSoundEngine()
 
     QAL_DBG(LOG_TAG, "Enter");
     buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapiCnn::buffer_thread_loop, this);
+        std::thread(SoundTriggerEngineCapiCnn::BufferThreadLoop, this);
 
     if (!buffer_thread_handler_.joinable()) {
         status = -EINVAL;

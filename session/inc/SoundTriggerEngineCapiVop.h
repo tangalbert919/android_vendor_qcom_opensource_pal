@@ -82,7 +82,7 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine
     int32_t StartSoundEngine();
     int32_t StopSoundEngine();
     int32_t StartDetection();
-    static void buffer_thread_loop(SoundTriggerEngineCapiVop *vop_engine);
+    static void BufferThreadLoop(SoundTriggerEngineCapiVop *vop_engine);
 
     capi_v2_t *capi_handle_;
     void* capi_lib_handle_;

@@ -441,26 +441,28 @@ int SessionAlsaPcm::start(Stream * s)
 
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
-            /* Get MFC MIID and configure to match to stream config */
-            /* This has to be done after sending all mixer controls and before connect */
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                           txAifBackEnds[0].second.data(),
-                                                           false, TAG_STREAM_MFC_SR, &miid);
-            if (status != 0) {
-               QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-               return status;
-            }
-            QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
-                    pcmDevIds.at(0), txAifBackEnds[0].second.data());
-            streamData.bitWidth = sAttr.in_media_config.bit_width;
-            streamData.sampleRate = sAttr.in_media_config.sample_rate;
-            streamData.numChannel = sAttr.in_media_config.ch_info->channels;
-            builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
-            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
-                                                         payload, payloadSize);
-            if (status != 0) {
-               QAL_ERR(LOG_TAG,"setMixerParameter failed");
-               return status;
+            if (sAttr.type != QAL_STREAM_VOICE_UI) {
+                /* Get MFC MIID and configure to match to stream config */
+                /* This has to be done after sending all mixer controls and before connect */
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                               txAifBackEnds[0].second.data(),
+                                                               false, TAG_STREAM_MFC_SR, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
+                        pcmDevIds.at(0), txAifBackEnds[0].second.data());
+                streamData.bitWidth = sAttr.in_media_config.bit_width;
+                streamData.sampleRate = sAttr.in_media_config.sample_rate;
+                streamData.numChannel = sAttr.in_media_config.ch_info->channels;
+                builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                             payload, payloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
             }
             status = pcm_start(pcm);
             if (status) {
@@ -833,8 +835,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int /*tagId*/, uint32_t 
         }
         case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
         {
-            // Restore stream pointer for event callback
-            cookie = (void *)streamHandle;
             struct detection_engine_generic_event_cfg *pEventConfig = NULL;
             pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
             // set custom config for detection event
@@ -965,45 +965,64 @@ void SessionAlsaPcm::eventWaitThreadLoop(void *context, SessionAlsaPcm *session)
 
 int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
 {
-    struct mixer_ctl *ctl;
-    char *buf = NULL;
+    struct mixer_ctl *ctl = nullptr;
+    char *buf = nullptr;
     unsigned int num_values;
-    int ret = 0;
+    int status = 0;
     struct agm_event_cb_params *params;
-    qal_stream_callback callBack;
-    Stream *s;
+    Stream *s = nullptr;
+    uint32_t event_id = 0;
+    uint32_t *event_data = nullptr;
 
+    QAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s", mixer_str);
+        status = -EINVAL;
+        goto exit;
+    }
+
     num_values = mixer_ctl_get_num_values(ctl);
     QAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
     buf = (char *)calloc(1, num_values);
+    if (!buf) {
+        QAL_ERR(LOG_TAG, "Failed to allocate buf");
+        status = -ENOMEM;
+        goto exit;
+    }
 
-    ret = mixer_ctl_get_array(ctl, buf, num_values);
-    if (ret < 0) {
+    status = mixer_ctl_get_array(ctl, buf, num_values);
+    if (status < 0) {
         QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
-        free(buf);
-        return ret;
+        goto exit;
     }
 
     params = (struct agm_event_cb_params *)buf;
-    QAL_DBG(LOG_TAG, "params.source_module_id %x", params->source_module_id);
-    QAL_DBG(LOG_TAG, "params.event_id %d", params->event_id);
-    QAL_DBG(LOG_TAG, "params.event_payload_size %x", params->event_payload_size);
+    QAL_DBG(LOG_TAG, "source module id %x, event id %d, payload size %d",
+            params->source_module_id, params->event_id,
+            params->event_payload_size);
 
-    if (!params->source_module_id) {
-        QAL_ERR(LOG_TAG, "Invalid source module id");
-        free(buf);
-        return ret;
+    if (!params->source_module_id || !params->event_payload_size) {
+        QAL_ERR(LOG_TAG, "Invalid source module id or payload size");
+        goto exit;
     }
 
-    s = (Stream *)cookie;
-    s->getCallBack(&callBack);
-    uint32_t event_id = params->event_id;
-    uint32_t *event_data = (uint32_t *)(params->event_payload);
-    qal_stream_handle_t *stream_handle = static_cast<void*>(s);
-    callBack(stream_handle, event_id, event_data, NULL);
-    free(buf);
-    return ret;
+    event_id = params->event_id;
+    event_data = (uint32_t *)(params->event_payload);
+
+    if (!sessionCb) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid session callback");
+        goto exit;
+    }
+    sessionCb(cbCookie, event_id, (void *)event_data);
+
+exit:
+    if (buf)
+        free(buf);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
@@ -1188,6 +1207,8 @@ exit:
 
 int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)
 {
+    sessionCb = cb;
+    cbCookie = cookie;
     return 0;
 }
 

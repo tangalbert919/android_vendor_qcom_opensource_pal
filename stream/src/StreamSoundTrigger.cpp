@@ -80,9 +80,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     struct qal_channel_info *ch_info = (struct qal_channel_info *)calloc
                                        (1, sizeof(struct qal_channel_info));
     if (!ch_info) {
-          QAL_ERR(LOG_TAG, "malloc for ch_info failed");
-          free(mStreamAttr);
-          throw std::runtime_error("failed to malloc for ch_info");
+        QAL_ERR(LOG_TAG, "malloc for ch_info failed");
+        free(mStreamAttr);
+        throw std::runtime_error("failed to malloc for ch_info");
     }
 
     casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes),
@@ -102,7 +102,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         throw std::runtime_error("failed to create gsl engine object");
     }
     engine_id = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
-    registerSoundTriggerEngine(engine_id, gsl_engine_);
+    RegisterSoundTriggerEngine(engine_id, gsl_engine_);
 
     QAL_VERBOSE(LOG_TAG, "gsl engine %pK created", gsl_engine_);
 
@@ -355,7 +355,7 @@ int32_t StreamSoundTrigger::stop()
     }
 
     // reset detection state
-    status = setDetectionState(ENGINE_IDLE);
+    status = SetDetectionState(ENGINE_IDLE);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to set detection state to IDLE");
         goto exit;
@@ -451,9 +451,10 @@ int32_t StreamSoundTrigger::write(struct qal_buffer* buf __unused)
 }
 
 int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb,
-                                             void * cookie __unused)
+                                             void * cookie)
 {
     callback_ = cb;
+    cookie_ = cookie;
     QAL_DBG(LOG_TAG, "callback_ = %pK", callback_);
 
     return 0;
@@ -564,7 +565,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                                      big_sm->size);
                     common_sm->data_offset = sizeof(*phrase_sm);
                     common_sm = (struct qal_st_sound_model *)&phrase_sm->common;
-                    registerSoundModelData(engine_id, sm_data);
+                    RegisterSoundModelData(engine_id, sm_data);
                     gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
                 } else {
                     sm_size = big_sm->size;
@@ -591,8 +592,8 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         status = -ENOENT;
                         goto exit;
                     }
-                    registerSoundTriggerEngine(engine_id, engine);
-                    registerSoundModelData(engine_id, sm_data);
+                    RegisterSoundTriggerEngine(engine_id, engine);
+                    RegisterSoundModelData(engine_id, sm_data);
                     engine->LoadSoundModel(this, sm_data, sm_size);
                 }
             }
@@ -611,7 +612,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
             engine_id = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
-            registerSoundModelData(engine_id, sm_data);
+            RegisterSoundModelData(engine_id, sm_data);
             gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
         }
     } else if (sound_model->type == QAL_SOUND_MODEL_TYPE_GENERIC) {
@@ -862,9 +863,6 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
                     status);
             goto exit;
         }
-
-        // register callback function in engine
-        registerCallBack(handleDetectionEvent, nullptr);
         break;
     }
     case QAL_PARAM_ID_STOP_BUFFERING:
@@ -888,7 +886,7 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
         }
 
         // reset detection state
-        status = setDetectionState(ENGINE_IDLE);
+        status = SetDetectionState(ENGINE_IDLE);
         if (status) {
             QAL_ERR(LOG_TAG, "Failed to set detection state to IDLE");
             goto exit;
@@ -908,26 +906,26 @@ exit:
     return status;
 }
 
-void StreamSoundTrigger::registerSoundTriggerEngine(
+void StreamSoundTrigger::RegisterSoundTriggerEngine(
     uint32_t id,
     SoundTriggerEngine *stEngine)
 {
     int index;
 
-    if (!getSoundTriggerEngine(&index, id)) {
+    if (!GetSoundTriggerEngine(&index, id)) {
         QAL_ERR(LOG_TAG, "Sound Model with id %u already registered", id);
         return;
     }
     active_engines_.push_back(std::make_pair(id, stEngine));
 }
 
-void StreamSoundTrigger::deregisterSoundTriggerEngine(uint32_t id)
+void StreamSoundTrigger::DeregisterSoundTriggerEngine(uint32_t id)
 {
     int index;
     SoundTriggerEngine *engine = nullptr;
     std::vector<std::pair<uint32_t, SoundTriggerEngine *>>::iterator iter;
 
-    if (getSoundTriggerEngine(&index, id)) {
+    if (GetSoundTriggerEngine(&index, id)) {
         QAL_ERR(LOG_TAG,  "No Sound trigger engine found for id %u", id);
         return;
     }
@@ -940,7 +938,7 @@ void StreamSoundTrigger::deregisterSoundTriggerEngine(uint32_t id)
     active_engines_.erase(iter);
 }
 
-int32_t StreamSoundTrigger::getSoundTriggerEngine(int *index, uint32_t sm_id)
+int32_t StreamSoundTrigger::GetSoundTriggerEngine(int *index, uint32_t sm_id)
 {
     int32_t status = -ENOENT;
 
@@ -955,24 +953,24 @@ int32_t StreamSoundTrigger::getSoundTriggerEngine(int *index, uint32_t sm_id)
     return status;
 }
 
-void StreamSoundTrigger::registerSoundModelData(uint32_t id, uint8_t *data)
+void StreamSoundTrigger::RegisterSoundModelData(uint32_t id, uint8_t *data)
 {
     int index;
 
-    if (!getSoundModelData(&index, id)) {
+    if (!GetSoundModelData(&index, id)) {
         QAL_ERR(LOG_TAG, "Sound Model data with id %u already registered", id);
         return;
     }
     active_sm_data_.push_back(std::make_pair(id, data));
 }
 
-void StreamSoundTrigger::deregisterSoundModelData(uint32_t id)
+void StreamSoundTrigger::DeregisterSoundModelData(uint32_t id)
 {
     int index = 0;
     uint8_t *data = nullptr;
     std::vector<std::pair<uint32_t, uint8_t *>>::iterator iter;
 
-    if (getSoundModelData(&index, id)) {
+    if (GetSoundModelData(&index, id)) {
         QAL_ERR(LOG_TAG,  "No Sound trigger engine found for id %u", id);
         return;
     }
@@ -985,7 +983,7 @@ void StreamSoundTrigger::deregisterSoundModelData(uint32_t id)
     active_sm_data_.erase(iter);
 }
 
-int32_t StreamSoundTrigger::getSoundModelData(int *index, uint32_t sm_id)
+int32_t StreamSoundTrigger::GetSoundModelData(int *index, uint32_t sm_id)
 {
     int32_t status = -ENOENT;
 
@@ -996,61 +994,6 @@ int32_t StreamSoundTrigger::getSoundModelData(int *index, uint32_t sm_id)
             status = 0;
             break;
         }
-    }
-
-    return status;
-}
-
-// Callback function for detection engine of first stage
-int32_t StreamSoundTrigger::handleDetectionEvent(
-    qal_stream_handle_t *stream_handle,
-    uint32_t event_id,
-    uint32_t *event_data,
-    void * cookie __unused)
-{
-    int32_t status = 0;
-    StreamSoundTrigger *s = nullptr;
-
-    QAL_DBG(LOG_TAG, "Enter. Event detected on GECKO, event id = %u", event_id);
-    if (!stream_handle || !event_data) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "No stream handle or event data provided status %d",
-                status);
-        goto exit;
-    }
-
-    s = static_cast<StreamSoundTrigger *>(stream_handle);
-    // Parse info from event_data for second stage detection
-    status = s->ParseDetectionPayload(event_id, event_data);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to parse detection payload with ret = %d",
-                status);
-        goto exit;
-    }
-
-    // Mark GMM detected here if no lab needed
-    if (!s->rec_config_->capture_requested && s->active_engines_.size() == 1)
-        s->setDetectionState(GMM_DETECTED);
-
-    // Notify Engine and client
-    status = s->SetDetected(true);
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::SetDetected(bool detected)
-{
-    int32_t status = 0;
-    SoundTriggerEngine *engine = nullptr;
-
-    for (int i = 0; i < active_engines_.size(); i++) {
-        QAL_VERBOSE(LOG_TAG, "Notify detection event %d to ST engine %d",
-                    detected, i);
-        engine = active_engines_[i].second;
-        engine->SetDetected(detected);
     }
 
     return status;
@@ -1169,15 +1112,29 @@ exit:
     return status;
 }
 
-int32_t StreamSoundTrigger::notifyClient()
+int32_t StreamSoundTrigger::NotifyClient()
 {
     int32_t status = 0;
     SoundTriggerEngine *engine = nullptr;
 
     QAL_INFO(LOG_TAG, "Notify detection event back to client");
     status = GenerateCallbackEvent(&rec_event_);
-    if (!status)
-        rec_config_->callback(rec_event_, rec_config_->cookie);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to generate callback event");
+        goto exit;
+    }
+
+    if (!callback_) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid stream callback");
+        goto exit;
+    }
+    callback_(this, 0, (uint32_t *)rec_event_, rec_config_->cookie);
+
+    if (!rec_config_->capture_requested)
+        setParameters(QAL_PARAM_ID_STOP_BUFFERING, nullptr);
+
+exit:
     // release rec_event_ after callback so that
     // rec_event_ can be used in next detection
     if (rec_event_) {
@@ -1195,19 +1152,19 @@ int32_t StreamSoundTrigger::notifyClient()
         rec_event_ = nullptr;
     }
 
-    if (!rec_config_->capture_requested)
-        setParameters(QAL_PARAM_ID_STOP_BUFFERING, nullptr);
-
-exit:
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
-int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
+int32_t StreamSoundTrigger::SetDetectionState(uint32_t state)
 {
     int32_t status = 0;
+    int32_t i = 0;
+    uint32_t engine_id = 0;
+    listen_model_indicator_enum type;
     SoundTriggerEngine *engine = nullptr;
+    uint32_t prev_state = detection_state_;
 
     QAL_DBG(LOG_TAG, "Enter");
     switch (state)
@@ -1237,9 +1194,25 @@ int32_t StreamSoundTrigger::setDetectionState(uint32_t state)
 
     QAL_INFO(LOG_TAG, "detection state = %u, notification state = %u",
              detection_state_, notification_state_);
+    if (prev_state == ENGINE_IDLE &&
+        detection_state_ == GMM_DETECTED &&
+        active_engines_.size() > 1) {
+        QAL_DBG(LOG_TAG, "First stage detected, notify second stages");
+        for (i = 0; i < active_engines_.size(); i++) {
+            engine_id = active_engines_[i].first;
+            type = static_cast<listen_model_indicator_enum>(engine_id);
+            if (type == ST_SM_ID_SVA_GMM)
+                continue;
+
+            QAL_VERBOSE(LOG_TAG, "Notify detection to ST engine %d", i);
+            engine = active_engines_[i].second;
+            engine->SetDetected(true);
+        }
+    }
+
     if (detection_state_ == notification_state_) {
         QAL_INFO(LOG_TAG, "Notify detection event back to client");
-        notifyClient();
+        NotifyClient();
     }
 
 exit:
