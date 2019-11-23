@@ -37,7 +37,6 @@
 #include "StreamSoundTrigger.h"
 #include "gsl_intf.h"
 #include "SessionGsl.h"
-#include "SessionQts.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
 #include "SpeakerMic.h"
@@ -347,9 +346,6 @@ ResourceManager::ResourceManager()
     // should we add api for client to set this value?
     bool bOverwriteFlag = true;
     // Init audio_route and audio_mixer
-
-    //Initialize QTS
-    SessionQts::init();
 
     na_props.rm_na_prop_enabled = false;
     na_props.ui_na_prop_enabled = false;
