@@ -248,21 +248,21 @@ int SessionAlsaVoice::close(Stream * s)
     if (status != 0) {
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
-
-        status = pcm_close(pcmRx);
-        if (status) {
-
-            QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
-        }
-        rm->freeFrontEndIds(pcmDevRxIds, sAttr, 0);
-        status = pcm_close(pcmTx);
-        if (status) {
-            QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
-        }
-        rm->freeFrontEndIds(pcmDevTxIds, sAttr, 1);
-        pcmRx = NULL;
-        pcmTx = NULL;
     }
+
+    status = pcm_close(pcmRx);
+    if (status) {
+        QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
+    }
+    rm->freeFrontEndIds(pcmDevRxIds, sAttr, 0);
+    status = pcm_close(pcmTx);
+    if (status) {
+        QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
+    }
+    rm->freeFrontEndIds(pcmDevTxIds, sAttr, 1);
+    pcmRx = NULL;
+    pcmTx = NULL;
+
 
     return status;
 }

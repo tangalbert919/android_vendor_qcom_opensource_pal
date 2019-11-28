@@ -1649,7 +1649,11 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
         break;
     case QAL_DEVICE_OUT_WIRED_HEADSET:
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        if ((QAL_STREAM_COMPRESSED == inStrAttr->type || QAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
+        if ((QAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
+            (activeDevAttr->config.bit_width != inDevAttr->config.bit_width) ||
+            (activeDevAttr->config.ch_info->channels != inDevAttr->config.ch_info->channels))) {
+            is_ds_required = true;
+        } else if ((QAL_STREAM_COMPRESSED == inStrAttr->type || QAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
             (QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
             (inStrAttr->out_media_config.sample_rate % SAMPLINGRATE_44K == 0)) {
@@ -1680,12 +1684,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
            struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr)
 {
     bool isDeviceSwitch = false;
+    bool isVoiceCall = false;
     int status = -EINVAL;
     std::vector <Stream *> activeStreams;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dattr;
     std::vector<Stream*>::iterator sIter;
     std::shared_ptr<Device> inDevice = nullptr;
+    qal_stream_type_t streamType;
 
     if (!inDev || !inDevAttr) {
         goto error;
@@ -1708,38 +1714,50 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
         inDev->setDeviceAttributes(*inDevAttr);
         goto error;
     }
-    /* All the activesteams using device A should use same device config so no need to run through on all activestreams for device A */
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        status = (*sIter)->getAssociatedDevices(associatedDevices);
-        if(0 != status) {
-            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
-            goto error;
-        }
 
-        for(std::vector<std::shared_ptr<Device>>::iterator diter = associatedDevices.begin();
-                 diter != associatedDevices.end(); diter++) {
-            status = (*diter)->getDeviceAtrributes(&dattr);
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        status = (*sIter)->getStreamType(&streamType);
+        if (QAL_STREAM_VOICE_CALL == streamType)
+            isVoiceCall = true;
+    }
+
+    if (!isVoiceCall) {
+        /* All the activesteams using device A should use same device config so no need to run through on all activestreams for device A */
+        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+            status = (*sIter)->getAssociatedDevices(associatedDevices);
             if(0 != status) {
                 QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
                 goto error;
             }
 
-            if (dattr.id == inDevAttr->id) {
-                isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
-                if (isDeviceSwitch) {
-                    // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
-                    // Swichdevice will device all the devices on this stream and re-enable with what we send here
-                    // TODO: add new method to disable devices only what is required
-                    inDev->setDeviceAttributes(*inDevAttr);
-                    (*sIter)->switchDevice(*sIter, 1, &dattr);
-                } else {
-                    // case 2. If incoming device config has lower priority then update incoming device config with other stream config
-                    //TODO:  No need to loop through in this case as all active streams will be using same device config
-                    QAL_ERR(LOG_TAG, "%s: Found device %d is already running with higher priority device config", __func__, dattr.id);
-                    memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
+            for(std::vector<std::shared_ptr<Device>>::iterator diter = associatedDevices.begin();
+                     diter != associatedDevices.end(); diter++) {
+                status = (*diter)->getDeviceAtrributes(&dattr);
+                if(0 != status) {
+                    QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+                    goto error;
+                }
+
+                if (dattr.id == inDevAttr->id) {
+                    isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
+                    if (isDeviceSwitch) {
+                        // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
+                        // Swichdevice will device all the devices on this stream and re-enable with what we send here
+                        // TODO: add new method to disable devices only what is required
+                        inDev->setDeviceAttributes(*inDevAttr);
+                        (*sIter)->switchDevice(*sIter, 1, &dattr);
+                    } else {
+                        // case 2. If incoming device config has lower priority then update incoming device config with other stream config
+                        //TODO:  No need to loop through in this case as all active streams will be using same device config
+                        QAL_ERR(LOG_TAG, "%s: Found device %d is already running with higher priority device config", __func__, dattr.id);
+                        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
+                    }
                 }
             }
         }
+    } else {
+        // Voice call is active - change incoming device to voice call device config
+        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
     }
 
 error:
