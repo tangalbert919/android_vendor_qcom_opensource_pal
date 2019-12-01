@@ -150,6 +150,7 @@ private:
                                         std::vector<T> sourcestreams);
     const std::vector<int> allocateVoiceFrontEndIds(std::vector<int> listAllPcmVoiceFrontEnds,
                                   const int howMany);
+    int getDeviceDefaultCapability(qal_param_device_capability_t capability);
 
     int handleScreenStatusChange(qal_param_screen_state_t screen_state);
     int handleDeviceConnectionChange(qal_param_device_connection_t connection_state);
@@ -164,6 +165,7 @@ protected:
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::shared_ptr<Device>> active_devices;
+    std::vector <std::shared_ptr<Device>> plugin_devices_;
     std::vector <qal_device_id_t> avail_devices_;
     bool bOverwriteFlag;
     bool screen_state_;
@@ -208,6 +210,10 @@ public:
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);
     int deregisterDevice(std::shared_ptr<Device> d);
+    int addPlugInDevice(std::shared_ptr<Device> d,
+                        qal_param_device_connection_t connection_state);
+    int removePlugInDevice(qal_device_id_t device_id,
+                           qal_param_device_connection_t connection_state);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct qal_device *device ,bool* bIsUpdated);
     int init_audio();
@@ -286,6 +292,7 @@ public:
     static bool isBtScoDevice(qal_device_id_t id);
     int32_t a2dpSuspend();
     int32_t a2dpResume();
+    bool isPluginDevice(qal_device_id_t id);
 };
 
 #endif

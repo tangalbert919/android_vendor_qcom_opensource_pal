@@ -1278,7 +1278,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
         }
         mixer_ctl_set_array(feMdCtrl, (void *)streamDeviceMetaData.buf, streamDeviceMetaData.size);
     }
-
 free_streamdevicemd:
     free(streamDeviceMetaData.buf);
 free_devicemd:

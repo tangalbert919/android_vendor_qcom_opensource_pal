@@ -61,6 +61,9 @@ protected:
     Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
 public:
+    virtual int init(qal_param_device_connection_t device_conn);
+    virtual int deinit(qal_param_device_connection_t device_conn);
+    virtual int getDefaultConfig(qal_param_device_capability_t capability);
     int open();
     int close();
     virtual int start();

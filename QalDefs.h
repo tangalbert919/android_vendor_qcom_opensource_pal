@@ -74,6 +74,11 @@ typedef enum {
     QAL_AUDIO_FMT_COMPRESSED_RANGE_END   = QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } qal_audio_fmt_t;
 
+#define PCM_24_BIT_PACKED (0x6u)
+#define PCM_32_BIT (0x3u)
+#define PCM_16_BIT (0x1u)
+
+#define SAMPLE_RATE_192000 192000
 struct qal_snd_dec_aac {
     uint16_t audio_obj_type;
     uint16_t pce_bits_size;
@@ -369,6 +374,13 @@ struct qal_media_config {
 //    qal_audio_fmt_cfg_t aud_fmt_cfg;     /**< audio format configuration */
 };
 
+/** Android Media configuraiton  */
+typedef struct dynamic_media_config {
+    uint32_t sample_rate;                /**< sample rate */
+    uint32_t format;                     /**< format */
+    uint32_t mask;                       /**< channel mask */
+} dynamic_media_config_t;
+
 /**  Available stream flags of an audio session*/
 typedef enum {
     QAL_STREAM_FLAG_TIMESTAMP,          /**< Enable time stamps associated to audio buffers  */
@@ -387,10 +399,16 @@ struct qal_stream_attributes {
     struct qal_media_config out_media_config;    /**<  media config of the output audio samples */
 };
 
+typedef struct device_address {
+    int card_id;
+    int device_num;
+} plugin_device_address_t;
+
 /**< QAL device */
 struct qal_device {
     qal_device_id_t id;                     /**<  device id */
     struct qal_media_config config;         /**<  media config of the device */
+    plugin_device_address_t address;
 };
 
 /**< Key value pair to identify the topology of a usecase from default  */
@@ -476,7 +494,8 @@ typedef enum {
     QAL_PARAM_ID_BT_A2DP_RECONFIG,
     QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
     QAL_PARAM_ID_BT_A2DP_SUSPENDED,
-} qal_param_id_type_t;
+    QAL_PARAM_ID_DEVICE_CAPABILITY,
+}qal_param_id_type_t;
 
 /* Payload For ID: QAL_PARAM_ID_DEVICE_CONNECTION
  * Description   : Device Connection
@@ -484,7 +503,18 @@ typedef enum {
 typedef struct qal_param_device_connection {
     qal_device_id_t   id;
     bool              connection_state;
-} qal_param_device_connection_t;
+    plugin_device_address_t device_addr;
+}qal_param_device_connection_t;
+
+/* Payload For ID: QAL_PARAM_ID_DEVICE_CAPABILITY
+ * Description   : get Device Capability
+*/
+ typedef struct qal_param_device_capability {
+  qal_device_id_t   id;
+  plugin_device_address_t addr;
+  bool              is_playback;
+  struct dynamic_media_config *config;
+}qal_param_device_capability_t;
 
 /* Payload For ID: QAL_PARAM_ID_SCREEN_STATE
  * Description   : Screen State

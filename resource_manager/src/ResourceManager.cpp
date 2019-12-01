@@ -42,6 +42,7 @@
 #include "Bluetooth.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
+#include "USBAudio.h"
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
 #include "Handset.h"
@@ -695,12 +696,43 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             QAL_DBG(LOG_TAG, "BT SCO RX device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
-        default:
+        case QAL_DEVICE_OUT_USB_DEVICE:
+        case QAL_DEVICE_OUT_USB_HEADSET:
+            {
+            deviceattr->config.sample_rate = SAMPLINGRATE_44K;//SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            // config.ch_info memory is allocated in selectBestConfig below
+            std::shared_ptr<USB> USB_out_device;
+            USB_out_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
+            if (!USB_out_device) {
+                QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
+                return -EINVAL;
+            }
+            status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
+            }
+            break;
+        case QAL_DEVICE_IN_USB_DEVICE:
+        case QAL_DEVICE_IN_USB_HEADSET:
+            {
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            std::shared_ptr<USB> USB_in_device;
+            USB_in_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
+            if (!USB_in_device) {
+                QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
+                return -EINVAL;
+            }
+            USB_in_device->selectBestConfig(deviceattr, sAttr, false);
+            }
+            break;
+         default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
             //do nothing for rest of the devices
             break;
-        }
+    }
     return status;
 }
 
@@ -1084,6 +1116,45 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
                 d->getSndDeviceId(), ret);
     }
     mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    return ret;
+}
+
+int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
+                            qal_param_device_connection_t connection_state)
+{
+    int ret = 0;
+
+    ret = d->init(connection_state);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "failed to init deivce.");
+        return ret;
+    }
+
+    plugin_devices_.push_back(d);
+    return 0;
+}
+
+int ResourceManager::removePlugInDevice(qal_device_id_t device_id,
+                            qal_param_device_connection_t connection_state)
+{
+    int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+    typename std::vector<std::shared_ptr<Device>>::iterator iter;
+
+    for (iter = plugin_devices_.begin(); iter != plugin_devices_.end(); iter++) {
+        if ((*iter)->getSndDeviceId() == device_id)
+            break;
+    }
+
+    if (iter != plugin_devices_.end()) {
+        (*iter)->deinit(connection_state);
+        plugin_devices_.erase(iter);
+    } else {
+        ret = -ENOENT;
+        QAL_ERR(LOG_TAG, "no device %d found in plugin device list ret %d",
+                device_id, ret);
+    }
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -1854,7 +1925,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     // TODO: update logic based on if voice call is active or not
     getActiveStream(inDev, activeStreams);
     if (activeStreams.size() == 0) {
-        QAL_ERR(LOG_TAG, "no other active streams found");
+        QAL_ERR(LOG_TAG, "no other active streams found so update device cfg");
         inDev->setDeviceAttributes(*inDevAttr);
         goto be_check;
     }
@@ -2369,6 +2440,18 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             }
         }
             break;
+
+        case QAL_PARAM_ID_DEVICE_CAPABILITY:
+        {
+            qal_param_device_capability_t *param_device_capability = (qal_param_device_capability_t *)(*param_payload);
+            QAL_INFO(LOG_TAG, "Device %d card = %d qalid=%x",
+                        param_device_capability->addr.device_num,
+                        param_device_capability->addr.card_id,
+                        param_device_capability->id);
+            status = getDeviceDefaultCapability(*param_device_capability);
+        }
+            break;
+
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
@@ -2528,6 +2611,33 @@ exit:
     return status;
 }
 
+#if 0
+int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
+                                  size_t *payload_size)
+{
+    int status = 0;
+
+    QAL_INFO(LOG_TAG, "ID:%d", param_id);
+    std::lock_guard<std::mutex> lock(mResourceManagerMutex);
+    switch (param_id) {
+        case QAL_PARAM_ID_DEVICE_CAPABILITY: {
+            qal_param_device_capability_t *param_device_capability = (qal_param_device_capability_t *)(*param_payload);
+            QAL_INFO(LOG_TAG, "Device %d card = %d qalid=%x",
+                        param_device_capability->addr.device_num,
+                        param_device_capability->addr.card_id,
+                        param_device_capability->id);
+            status = getDeviceDefaultCapability(*param_device_capability);
+        }
+        break;
+        default:
+            QAL_ERR(LOG_TAG,"Unsupported ParamID:%d", param_id);
+            break;
+    }
+
+    return status;
+}
+#endif
+
 int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_state)
 {
     int status = 0;
@@ -2557,18 +2667,50 @@ bool ResourceManager::getScreenState()
     return screen_state_;
 }
 
-int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t connection_state)
-{
+int ResourceManager::getDeviceDefaultCapability(qal_param_device_capability_t capability) {
+    int status = 0;
+    qal_device_id_t device_qal_id = capability.id;
+    bool device_available = isDeviceAvailable(device_qal_id);
+
+    struct qal_device conn_device;
+    std::shared_ptr<Device> dev = nullptr;
+    std::shared_ptr<Device> candidate_device;
+
+    memset(&conn_device, 0, sizeof(struct qal_device));
+    conn_device.id = device_qal_id;
+    QAL_DBG(LOG_TAG, "device qal id=%x available=%x", device_qal_id, device_available);
+    dev = Device::getInstance(&conn_device, rm);
+    if (dev)
+        status = dev->getDefaultConfig(capability);
+    else
+        QAL_ERR(LOG_TAG, "failed to get device instance.");
+
+    return status;
+}
+
+int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t connection_state) {
     int status = 0;
     qal_device_id_t device_id = connection_state.id;
     bool is_connected = connection_state.connection_state;
     bool device_available = isDeviceAvailable(device_id);
     struct qal_device dAttr;
     struct qal_stream_attributes sAttr;
+    struct qal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
 
     QAL_DBG(LOG_TAG, "%s Enter", __func__);
+    memset(&conn_device, 0, sizeof(struct qal_device));
     if (is_connected && !device_available) {
+        if (isPluginDevice(device_id)) {
+            conn_device.id = device_id;
+            dev = Device::getInstance(&conn_device, rm);
+            if (dev) {
+                addPlugInDevice(dev, connection_state);
+            } else {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                throw std::runtime_error("failed to create device object");
+            }
+        }
         QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
             dAttr.id = device_id;
@@ -2600,6 +2742,11 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
         }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
+        if (isPluginDevice(device_id)) {
+            conn_device.id = device_id;
+            removePlugInDevice(device_id, connection_state);
+        }
+
         QAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
         avail_devices_.erase(std::find(avail_devices_.begin(), avail_devices_.end(), device_id));
     } else {
@@ -2736,6 +2883,16 @@ void ResourceManager::processBTCodecInfo(const XML_Char **attr)
 
 done:
     return;
+}
+
+bool ResourceManager::isPluginDevice(qal_device_id_t id) {
+    if (id == QAL_DEVICE_OUT_USB_DEVICE ||
+        id == QAL_DEVICE_OUT_USB_HEADSET ||
+        id == QAL_DEVICE_IN_USB_DEVICE ||
+        id == QAL_DEVICE_IN_USB_HEADSET)
+        return true;
+    else
+        return false;
 }
 
 void ResourceManager::processTagInfo(const XML_Char **attr)

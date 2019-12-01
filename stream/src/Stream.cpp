@@ -77,11 +77,18 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             continue;  //  continue with other devices for combo usecase
         }
 
-        mQalDevice[count].id = dAttr[i].id;
         //TODO: shift this to rm or somewhere else where we can read the supported config from xml
+        mQalDevice[count].id = dAttr[i].id;
+        if (mQalDevice[count].id == QAL_DEVICE_OUT_USB_DEVICE ||
+            mQalDevice[count].id == QAL_DEVICE_OUT_USB_HEADSET ||
+            mQalDevice[count].id == QAL_DEVICE_IN_USB_DEVICE ||
+            mQalDevice[count].id == QAL_DEVICE_IN_USB_HEADSET) {
+            mQalDevice[count].address = dAttr[i].address;
+        }
         status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr);
         if (status) {
            QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+           goto exit;
         }
         count++;
     }
@@ -500,9 +507,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     /*TODO: handle other devices */
     for (int i = 0; i < no_of_devices; i++) {
         status = rm->getDeviceConfig((struct qal_device *)&deviceArray[i], mStreamAttr);
-        if (status)
+        if (status) {
            QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
-
+           // nullptr for ch_info would lead to crash.
+           goto error_2;
+        }
         //Check with RM if the configuration given can work or not
         //for e.g., if incoming stream needs 24 bit device thats also
         //being used by another stream, then the other stream should route
@@ -516,6 +525,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
             throw std::runtime_error("failed to create device object");
         }
         /* Check if we need to check here or above if bt_Sco is on for sco usecase */
+        dev->setDeviceAttributes(deviceArray[i]);
+
         status = dev->open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device %d open failed with status %d",

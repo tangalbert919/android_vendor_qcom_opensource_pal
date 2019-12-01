@@ -114,6 +114,11 @@ struct slimConfig {
     uint32_t sh_mapping_idx_1;
 };
 
+struct usbAudioConfig {
+    uint32_t usb_token;
+    uint32_t svc_interval;
+};
+
 class SessionGsl;
 
 class PayloadBuilder
@@ -151,6 +156,9 @@ private:
                            struct gsl_module_id_info* moduleInfo,
                            struct sessionToPayloadParam* data, std::string epName);
 public:
+    void payloadUsbAudioConfig(uint8_t** payload, size_t* size,
+                           uint32_t miid,
+                           struct usbAudioConfig *data);
     void payloadStreamConfig(uint8_t** payload, size_t* size,
                              struct gsl_module_id_info* moduleInfo,
                              int payloadTag, struct sessionToPayloadParam* data);

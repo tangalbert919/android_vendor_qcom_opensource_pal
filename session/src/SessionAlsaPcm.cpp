@@ -479,6 +479,40 @@ int SessionAlsaPcm::start(Stream * s)
                     return status;
                 }
             }
+            status = s->getAssociatedDevices(associatedDevices);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            /* Assuming only one device for recording */
+            status = associatedDevices[0]->getDeviceAttributes(&dAttr);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            QAL_ERR(LOG_TAG, "dev ID : %d \n", dAttr.id);
+            if (dAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
+                struct usbAudioConfig cfg;
+                /* send USB HW EP interface cfg */
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                               txAifBackEnds[0].second.data(),
+                                                               false, DEVICE_HW_ENDPOINT_TX, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                        pcmDevIds.at(0), txAifBackEnds[0].second.data(), dAttr.id);
+                cfg.usb_token = (1<<16)|0x1;
+                cfg.svc_interval = 0;
+                builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                             payload, payloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
+            }
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -526,6 +560,28 @@ int SessionAlsaPcm::start(Stream * s)
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
+                }
+                if (dAttr.id == QAL_DEVICE_OUT_USB_HEADSET) {
+                    struct usbAudioConfig cfg;
+                    /* send USB HW EP interface cfg */
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                   rxAifBackEnds[i].second.data(),
+                                                                   false, DEVICE_HW_ENDPOINT_RX, &miid);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                        return status;
+                    }
+                    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                            pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                    cfg.usb_token = 1<<16;
+                    cfg.svc_interval = 0;
+                    builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+                    status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                                 payload, payloadSize);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                        return status;
+                    }
                 }
             }
             //status = pcm_prepare(pcm);

@@ -13,6 +13,7 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/Bluetooth.h \
             ./plugins/codecs/bt_plugin_intf.h \
             ./device/inc/Headphone.h \
+            ./device/inc/USBAudio.h \
             ./device/inc/DeviceAlsa.h \
             ./device/inc/DeviceGsl.h \
             ./device/inc/DeviceImpl.h \
@@ -54,6 +55,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/Device.cpp \
               ./device/src/Speaker.cpp \
               ./device/src/Headphone.cpp \
+              ./device/inc/USBAudio.cpp \
               ./device/src/DeviceAlsa.cpp \
               ./device/src/SpeakerMic.cpp \
               ./device/src/Bluetooth.cpp \
@@ -87,6 +89,8 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/Headphone.h \
             ${top_srcdir}/device/inc/Bluetooth.h \
             ${top_srcdir}/plugins/codecs/bt_plugin_intf.h \
+            ${top_srcdir}/device/inc/USBAudio.h \
+            ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/DeviceAlsa.h \
             ${top_srcdir}/device/inc/DeviceGsl.h \
             ${top_srcdir}/device/inc/DeviceImpl.h \

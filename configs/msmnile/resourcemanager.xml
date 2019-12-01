@@ -32,11 +32,15 @@
         <device name="QAL_DEVICE_OUT_WIRED_HEADSET" pcm_id="0" hw_intf="slim-6-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
         <device name="QAL_DEVICE_OUT_BLUETOOTH_A2DP" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-RX-7"/>
         <device name="QAL_DEVICE_OUT_BLUETOOTH_SCO" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-RX-7"/>
+        <device name="QAL_DEVICE_OUT_USB_DEVICE" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
+        <device name="QAL_DEVICE_OUT_USB_HEADSET" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
         <device name="QAL_DEVICE_IN_HANDSET_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="handset-mic" back_end_name="SLIM-DEV1-TX-0"/>
         <device name="QAL_DEVICE_IN_SPEAKER_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="speaker-tmic" back_end_name="SLIM-DEV1-TX-0"/>
         <device name="QAL_DEVICE_IN_TRI_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="speaker-tmic" back_end_name="SLIM-DEV1-TX-0"/>
         <device name="QAL_DEVICE_IN_WIRED_HEADSET" pcm_id="1" hw_intf="slim-1-tx" snd_device_name="headset-mic" back_end_name="SLIM-DEV1-TX-0"/>
         <device name="QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-TX-7"/>
+        <device name="QAL_DEVICE_IN_USB_DEVICE" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
+	<device name="QAL_DEVICE_IN_USB_HEADSET" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
     </pcm_ids>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>

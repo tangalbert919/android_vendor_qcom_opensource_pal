@@ -37,6 +37,8 @@
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define XML_FILE "/vendor/etc/hw_ep_info.xml"
 
+#define PARAM_ID_USB_AUDIO_INTF_CFG                               0x080010D6
+
 /* ID of the Output Media Format parameters used by MODULE_ID_MFC */
 #define PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT            0x08001024
 #include "gk_begin_pack.h"
@@ -114,6 +116,11 @@ struct param_id_mfc_output_media_fmt_t
 /* Structure type def for above payload. */
 typedef struct param_id_mfc_output_media_fmt_t param_id_mfc_output_media_fmt_t;
 
+struct param_id_usb_audio_intf_cfg_t
+{
+   uint32_t usb_token;
+   uint32_t svc_interval;
+};
 
 std::vector<codecDmaConfig> PayloadBuilder::codecConf;
 std::vector<i2sConfig> PayloadBuilder::i2sConf;
@@ -632,6 +639,41 @@ void PayloadBuilder::payloadCodecDmaConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "Codec Config cdc_dma_type:%d intf_idx:%d active_channels_mask:%d",
             codecConfig->lpaif_type, codecConfig->intf_indx,codecConfig->active_channels_mask);
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo, *size);
+}
+
+void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
+    uint32_t miid, struct usbAudioConfig *data)
+{
+    struct apm_module_param_data_t* header;
+    struct param_id_usb_audio_intf_cfg_t *usbConfig;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+        sizeof(struct param_id_usb_audio_intf_cfg_t);
+
+    if (payloadSize % 8 != 0)
+        payloadSize = payloadSize + (8 - payloadSize % 8);
+
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    usbConfig = (struct param_id_usb_audio_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_USB_AUDIO_INTF_CFG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      __func__, header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    usbConfig->usb_token = data->usb_token;
+    usbConfig->svc_interval = data->svc_interval;
+    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+
+    *size = payloadSize;
+    *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadSlimConfig(uint8_t** payload, size_t* size,
@@ -2196,6 +2238,10 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
             keyVector.push_back(std::make_pair(DEVICERX,HEADPHONES));
             break;
+        case QAL_DEVICE_OUT_USB_HEADSET:
+        case QAL_DEVICE_OUT_USB_DEVICE:
+            keyVector.push_back(std::make_pair(DEVICERX, USB_RX));
+            break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
         case QAL_DEVICE_IN_TRI_MIC:
         case QAL_DEVICE_IN_QUAD_MIC:
@@ -2209,6 +2255,10 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case QAL_DEVICE_IN_WIRED_HEADSET:
            keyVector.push_back(std::make_pair(DEVICETX, HEADPHONE_MIC));
            break;
+        case QAL_DEVICE_IN_USB_DEVICE:
+        case QAL_DEVICE_IN_USB_HEADSET:
+            keyVector.push_back(std::make_pair(DEVICETX, USB_TX));
+            break;
         case QAL_DEVICE_IN_HANDSET_MIC:
            keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
            break;

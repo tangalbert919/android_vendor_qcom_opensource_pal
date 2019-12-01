@@ -56,6 +56,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     stream/src/StreamPCM.cpp\
     stream/src/StreamSoundTrigger.cpp\
     device/src/Headphone.cpp \
+    device/src/USBAudio.cpp \
     device/src/Device.cpp \
     device/src/Speaker.cpp \
     device/src/Bluetooth.cpp \

@@ -38,6 +38,7 @@
 #include "Device.h"
 #include "Speaker.h"
 #include "Headphone.h"
+#include "USBAudio.h"
 #include "SpeakerMic.h"
 #include "DeviceImpl.h"
 #include "Stream.h"
@@ -47,6 +48,7 @@
 #include "Handset.h"
 #include "Bluetooth.h"
 
+#define MAX_CHANNEL_SUPPORTED 2
 
 std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
                                                  std::shared_ptr<ResourceManager> Rm)
@@ -57,9 +59,6 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     }
 
     QAL_DBG(LOG_TAG, "Enter device id %d", device->id);
-
-
-    QAL_DBG(LOG_TAG, "Device config updated");
 
     //TBD: decide on supported devices from XML and not in code
     switch (device->id) {
@@ -73,6 +72,14 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         QAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_OUT_USB_DEVICE:
+    case QAL_DEVICE_OUT_USB_HEADSET:
+    case QAL_DEVICE_IN_USB_DEVICE:
+    case QAL_DEVICE_IN_USB_HEADSET:
+        QAL_VERBOSE(LOG_TAG, "USB device");
+        return USB::getInstance(device, Rm);
+        break;
     case QAL_DEVICE_IN_HANDSET_MIC:
         QAL_VERBOSE(LOG_TAG, "HandsetMic device");
         return HandsetMic::getInstance(device, Rm);
@@ -123,9 +130,18 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
 Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
     struct qal_channel_info *device_ch_info;
-    uint16_t channels = device->config.ch_info->channels;
-    uint16_t ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
+    uint16_t channels;
+    uint16_t ch_info_size;
     rm = Rm;
+
+    if (device->config.ch_info) {
+        channels = device->config.ch_info->channels;
+    } else {
+        channels = MAX_CHANNEL_SUPPORTED;
+    }
+    QAL_ERR(LOG_TAG, "channels %d", channels);
+
+    ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
 
     device_ch_info = (struct qal_channel_info *) calloc(1, ch_info_size);
     if (device_ch_info == NULL) {
@@ -177,12 +193,39 @@ exit:
     return status;
 }
 
+int Device::getDefaultConfig(qal_param_device_capability_t capability __unused) {
+    return 0;
+}
 
 int Device::setDeviceAttributes(struct qal_device dattr)
 {
     int status = 0;
-    QAL_ERR(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
-    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr, sizeof(struct qal_device));
+    int ch_info_size = 0;
+
+    QAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
+
+    // copy channel info
+    if (dattr.config.ch_info) {
+        ch_info_size = sizeof(struct qal_channel_info) +
+            dattr.config.ch_info->channels * sizeof(uint8_t);
+
+        if (deviceAttr.config.ch_info) {
+            free(deviceAttr.config.ch_info);
+            deviceAttr.config.ch_info =
+                (struct qal_channel_info *)calloc(1, ch_info_size);
+            if (!deviceAttr.config.ch_info) {
+                QAL_ERR(LOG_TAG, "Allocation failed for channel map");
+                return -EINVAL;
+            }
+        }
+
+        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size,
+            dattr.config.ch_info, ch_info_size);
+    }
+
+    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr,
+                     sizeof(struct qal_device));
+
     return status;
 }
 
@@ -215,6 +258,17 @@ std::string Device::getQALDeviceName()
 {
     QAL_VERBOSE(LOG_TAG, "%s: Device name %s acquired", __func__, mQALDeviceName.c_str());
     return mQALDeviceName;
+}
+
+
+int Device::init(qal_param_device_connection_t device_conn)
+{
+    return 0;
+}
+
+int Device::deinit(qal_param_device_connection_t device_conn)
+{
+    return 0;
 }
 
 int Device::open()

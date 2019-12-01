@@ -686,12 +686,28 @@ int SessionAlsaCompress::start(Stream * s)
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
                 }
-
-/*                QAL_ERR(LOG_TAG,"%s: device sample rate %d \n", __func__, dAttr.config.sample_rate);
-                getSamplerateChannelBitwidthTags(&dAttr.config,
-                    mfc_sr_tag, ch_tag, bitwidth_tag);
-
-                setConfig(s, MODULE, mfc_sr_tag, ch_tag, bitwidth_tag);*/
+                if (dAttr.id == QAL_DEVICE_OUT_USB_HEADSET) {
+                    struct usbAudioConfig cfg;
+                    /* send USB HW EP interface cfg */
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
+                                                                   rxAifBackEnds[i].second.data(),
+                                                                   true, DEVICE_HW_ENDPOINT_RX, &miid);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                        return status;
+                    }
+                    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                            compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                    cfg.usb_token = 1<<16;
+                    cfg.svc_interval = 0;
+                    builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+                    status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0), true,
+                                                                 payload, payloadSize);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"setMixerParameter for usbaudio cfg failed");
+                        return status;
+                    }
+                }
             }
             break;
         default:
