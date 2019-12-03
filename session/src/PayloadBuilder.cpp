@@ -36,6 +36,7 @@
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define XML_FILE "/vendor/etc/hw_ep_info.xml"
+#define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
 
 #define PARAM_ID_USB_AUDIO_INTF_CFG                               0x080010D6
 
@@ -45,6 +46,7 @@
 #include "gk_begin_pragma.h"
 /* Payload of the PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT parameter in the
  Media Format Converter Module. Following this will be the variable payload for channel_map. */
+
 struct param_id_mfc_output_media_fmt_t
 {
    int32_t sampling_rate;
@@ -131,6 +133,11 @@ std::vector<slimConfig> PayloadBuilder::slimConf;
 const std::map<std::string, uint32_t> slimIntfIdxLUT {
     {std::string{ "slim-0-rx" }, 1},
     {std::string{ "slim-0-tx" }, 2}
+};
+
+const std::map<std::string, uint32_t> dispPortIntfIdxLUT{
+    {std::string{ "dp-0-rx" }, 1},
+    {std::string{ "dp-0-tx" }, 2}
 };
 
 const std::map<std::string, uint32_t> i2sIntfIdxLUT {
@@ -650,7 +657,8 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
     size_t payloadSize = 0;
 
     payloadSize = sizeof(struct apm_module_param_data_t) +
-        sizeof(struct param_id_usb_audio_intf_cfg_t);
+       sizeof(struct param_id_usb_audio_intf_cfg_t);
+
 
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
@@ -659,14 +667,13 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
 
     header = (struct apm_module_param_data_t*)payloadInfo;
     usbConfig = (struct param_id_usb_audio_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
-
     header->module_instance_id = miid;
     header->param_id = PARAM_ID_USB_AUDIO_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
-                      __func__, header->module_instance_id, header->param_id,
-                      header->error_code, header->param_size);
+                     __func__, header->module_instance_id, header->param_id,
+                     header->error_code, header->param_size);
 
     usbConfig->usb_token = data->usb_token;
     usbConfig->svc_interval = data->svc_interval;
@@ -674,6 +681,44 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
 
     *size = payloadSize;
     *payload = payloadInfo;
+
+}
+
+void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
+    uint32_t miid, struct dpAudioConfig *data)
+{
+    QAL_DBG(LOG_TAG, "%s Enter:", __func__);
+    struct apm_module_param_data_t* header;
+    struct dpAudioConfig *dpConfig;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+        sizeof(struct dpAudioConfig);
+
+    if (payloadSize % 8 != 0)
+        payloadSize = payloadSize + (8 - payloadSize % 8);
+
+    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    dpConfig = (struct dpAudioConfig*)(payloadInfo + sizeof(struct apm_module_param_data_t));
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_DISPLAY_PORT_INTF_CFG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      __func__, header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    dpConfig->channel_allocation = data->channel_allocation;
+    dpConfig->mst_idx = data->mst_idx;
+    dpConfig->dptx_idx = data->dptx_idx;
+    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+
+    *size = payloadSize;
+    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "%s Exit:", __func__);
 }
 
 void PayloadBuilder::payloadSlimConfig(uint8_t** payload, size_t* size,
@@ -2234,6 +2279,10 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
             keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
             break;
+        case QAL_DEVICE_OUT_AUX_DIGITAL:
+        case QAL_DEVICE_OUT_HDMI:
+           keyVector.push_back(std::make_pair(DEVICERX, HDMI_RX));
+           break;
         case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
             keyVector.push_back(std::make_pair(DEVICERX,HEADPHONES));

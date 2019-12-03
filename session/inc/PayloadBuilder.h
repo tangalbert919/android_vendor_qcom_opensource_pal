@@ -119,6 +119,12 @@ struct usbAudioConfig {
     uint32_t svc_interval;
 };
 
+struct dpAudioConfig{
+  uint32_t channel_allocation;
+  uint32_t mst_idx;
+  uint32_t dptx_idx;
+};
+
 class SessionGsl;
 
 class PayloadBuilder
@@ -159,6 +165,9 @@ public:
     void payloadUsbAudioConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct usbAudioConfig *data);
+    void payloadDpAudioConfig(uint8_t** payload, size_t* size,
+                           uint32_t miid,
+                           struct dpAudioConfig *data);
     void payloadStreamConfig(uint8_t** payload, size_t* size,
                              struct gsl_module_id_info* moduleInfo,
                              int payloadTag, struct sessionToPayloadParam* data);

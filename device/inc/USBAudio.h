@@ -87,14 +87,14 @@ public:
 
 class USBCardConfig {
 protected:
-    plugin_device_address_t address_;
+     struct qal_usb_device_address address_;
     int endian_;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
 public:
-    USBCardConfig(plugin_device_address_t address);
-    bool isConfigCached(plugin_device_address_t addr);
+    USBCardConfig(struct qal_usb_device_address address);
+    bool isConfigCached(struct qal_usb_device_address addr);
     void setEndian(int endian);
-    int getCapability(usb_usecase_type_t type, plugin_device_address_t addr);
+    int getCapability(usb_usecase_type_t type, struct qal_usb_device_address addr);
     int getMaxBitWidth(bool is_playback);
     int getMaxChannels(bool is_playback);
     unsigned int getFormatByBitWidth(int bitwidth);

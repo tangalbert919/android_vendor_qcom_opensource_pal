@@ -576,8 +576,48 @@ int SessionAlsaPcm::start(Stream * s)
                     cfg.usb_token = 1<<16;
                     cfg.svc_interval = 0;
                     builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+                    if (payloadSize) {
+                        status = updateCustomPayload(payload, payloadSize);
+                        delete payload;
+                        if (0 != status) {
+                            QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                            return status;
+                        }
+                    }
                     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
-                                                                 payload, payloadSize);
+                                                                 customPayload, customPayloadSize);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                        return status;
+                    }
+                }
+
+                if (dAttr.id == QAL_DEVICE_OUT_AUX_DIGITAL || dAttr.id == QAL_DEVICE_OUT_HDMI ) {
+                    struct dpAudioConfig cfg;
+                    /* send Display port HW EP interface cfg */
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                   rxAifBackEnds[i].second.data(),
+                                                                   false, DEVICE_HW_ENDPOINT_RX, &miid);
+                    if (status != 0) {
+                        QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                        return status;
+                    }
+                    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                            pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                    cfg.channel_allocation = 0x0;
+                    cfg.mst_idx = 0x0;
+                    cfg.dptx_idx = 0x0;
+                    builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);
+                    if (payloadSize) {
+                        status = updateCustomPayload(payload, payloadSize);
+                        delete payload;
+                        if (0 != status) {
+                            QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                            return status;
+                        }
+                }
+                    status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                                                                 customPayload, customPayloadSize);
                     if (status != 0) {
                         QAL_ERR(LOG_TAG,"setMixerParameter failed");
                         return status;

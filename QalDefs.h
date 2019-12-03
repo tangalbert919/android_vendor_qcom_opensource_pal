@@ -46,6 +46,8 @@
 extern "C" {
 #endif
 
+#define MIXER_PATH_MAX_LENGTH 100
+
 /** Audio stream handle */
 typedef void qal_stream_handle_t;
 
@@ -399,17 +401,6 @@ struct qal_stream_attributes {
     struct qal_media_config out_media_config;    /**<  media config of the output audio samples */
 };
 
-typedef struct device_address {
-    int card_id;
-    int device_num;
-} plugin_device_address_t;
-
-/**< QAL device */
-struct qal_device {
-    qal_device_id_t id;                     /**<  device id */
-    struct qal_media_config config;         /**<  media config of the device */
-    plugin_device_address_t address;
-};
 
 /**< Key value pair to identify the topology of a usecase from default  */
 struct modifier_kv  {
@@ -497,13 +488,36 @@ typedef enum {
     QAL_PARAM_ID_DEVICE_CAPABILITY,
 }qal_param_id_type_t;
 
+/** HDMI/DP */
+// START: MST ==================================================
+#define MAX_CONTROLLERS 1
+#define MAX_STREAMS_PER_CONTROLLER 2
+// END: MST ==================================================
+
+/** Audio parameter data*/
+
+struct qal_param_disp_port_config_params {
+    int controller;
+    int stream;
+};
+
+struct qal_usb_device_address {
+    int card_id;
+    int device_num;
+};
+
+typedef union {
+    struct qal_param_disp_port_config_params dp_config;
+    struct qal_usb_device_address usb_addr;
+} qal_device_config_t;
+
 /* Payload For ID: QAL_PARAM_ID_DEVICE_CONNECTION
  * Description   : Device Connection
 */
 typedef struct qal_param_device_connection {
     qal_device_id_t   id;
     bool              connection_state;
-    plugin_device_address_t device_addr;
+    qal_device_config_t device_config;
 }qal_param_device_connection_t;
 
 /* Payload For ID: QAL_PARAM_ID_DEVICE_CAPABILITY
@@ -511,7 +525,7 @@ typedef struct qal_param_device_connection {
 */
  typedef struct qal_param_device_capability {
   qal_device_id_t   id;
-  plugin_device_address_t addr;
+  struct qal_usb_device_address addr;
   bool              is_playback;
   struct dynamic_media_config *config;
 }qal_param_device_capability_t;
@@ -540,6 +554,13 @@ typedef struct qal_param_bta2dp {
     bool     reconfigured;
     bool     a2dp_suspended;
 } qal_param_bta2dp_t;
+
+/**< QAL device */
+struct qal_device {
+    qal_device_id_t id;                     /**<  device id */
+    struct qal_media_config config;         /**<  media config of the device */
+    struct qal_usb_device_address address;
+};
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */
 #define QAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6      /* max length of locale string. e.g en_US */

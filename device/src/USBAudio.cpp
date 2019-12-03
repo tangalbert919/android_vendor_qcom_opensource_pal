@@ -121,21 +121,21 @@ int USB::init(qal_param_device_connection_t device_conn)
 
     for (iter = usb_card_config_list_.begin();
          iter != usb_card_config_list_.end(); iter++) {
-         if ((*iter)->isConfigCached(device_conn.device_addr))
+         if ((*iter)->isConfigCached(device_conn.device_config.usb_addr))
               break;
     }
 
     if (iter == usb_card_config_list_.end()) {
         std::shared_ptr<USBCardConfig> sp(
-            new USBCardConfig(device_conn.device_addr));
+            new USBCardConfig(device_conn.device_config.usb_addr));
         if (!sp) {
             QAL_ERR(LOG_TAG, "failed to create new usb_card_config object.");
             return -EINVAL;
         }
         if (isUSBOutDevice(device_conn.id))
-            sp->getCapability(USB_PLAYBACK, device_conn.device_addr);
+            sp->getCapability(USB_PLAYBACK, device_conn.device_config.usb_addr);
         else
-            sp->getCapability(USB_CAPTURE, device_conn.device_addr);
+            sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
         usb_card_config_list_.push_back(sp);
     } else {
         QAL_INFO(LOG_TAG, "usb info has been cached.");
@@ -150,7 +150,7 @@ int USB::deinit(qal_param_device_connection_t device_conn)
 
     for (iter = usb_card_config_list_.begin();
          iter != usb_card_config_list_.end(); iter++) {
-         if ((*iter)->isConfigCached(device_conn.device_addr))
+         if ((*iter)->isConfigCached(device_conn.device_config.usb_addr))
               break;
     }
 
@@ -247,7 +247,7 @@ const unsigned int USBCardConfig::in_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS] =
     {0x10, 0x80000001, 0xc, 0x80000003, 0x80000007, 0x8000000f, 0x8000001f,
     0x8000003f};
 
-bool USBCardConfig::isConfigCached(plugin_device_address_t addr) {
+bool USBCardConfig::isConfigCached(struct qal_usb_device_address addr) {
     if(address_.card_id == addr.card_id && address_.device_num == addr.device_num)
         return true;
     else
@@ -259,7 +259,7 @@ void USBCardConfig::setEndian(int endian){
 }
 
 int USBCardConfig::getCapability(usb_usecase_type_t type,
-                                        plugin_device_address_t addr) {
+                                        struct qal_usb_device_address addr) {
     int32_t size = 0;
     FILE *fd = NULL;
     int32_t channels_no;
@@ -438,7 +438,7 @@ done:
     return ret;
 }
 
-USBCardConfig::USBCardConfig(plugin_device_address_t address) {
+USBCardConfig::USBCardConfig(struct qal_usb_device_address address) {
     address_ = address;
 }
 

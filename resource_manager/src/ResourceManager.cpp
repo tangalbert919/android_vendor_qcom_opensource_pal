@@ -45,6 +45,7 @@
 #include "USBAudio.h"
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
+#include "DisplayPort.h"
 #include "Handset.h"
 #include "SoundTriggerPlatformInfo.h"
 
@@ -729,7 +730,20 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             USB_in_device->selectBestConfig(deviceattr, sAttr, false);
             }
             break;
-         default:
+        case QAL_DEVICE_OUT_AUX_DIGITAL:
+        case QAL_DEVICE_OUT_HDMI:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
+            dev_ch_info->channels = CHANNELS_2;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+
+	default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
             //do nothing for rest of the devices
@@ -2725,7 +2739,17 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
                 QAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
             }
+        } else if (isDpDevice(device_id)) {
+            conn_device.id = device_id;
+            dev = Device::getInstance(&conn_device, rm);
+            if (dev) {
+                addPlugInDevice(dev, connection_state);
+            } else {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                throw std::runtime_error("failed to create device object");
+            }
         }
+
         QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
             dAttr.id = device_id;
@@ -2758,6 +2782,9 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
         if (isPluginDevice(device_id)) {
+            conn_device.id = device_id;
+            removePlugInDevice(device_id, connection_state);
+        } else if (isDpDevice(device_id)) {
             conn_device.id = device_id;
             removePlugInDevice(device_id, connection_state);
         }
@@ -2910,6 +2937,13 @@ bool ResourceManager::isPluginDevice(qal_device_id_t id) {
         return false;
 }
 
+bool ResourceManager::isDpDevice(qal_device_id_t id) {
+    if (id == QAL_DEVICE_OUT_AUX_DIGITAL ||
+        id == QAL_DEVICE_OUT_HDMI)
+        return true;
+    else
+        return false;
+}
 void ResourceManager::processTagInfo(const XML_Char **attr)
 {
     int32_t tagId;

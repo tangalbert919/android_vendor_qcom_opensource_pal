@@ -47,6 +47,7 @@
 #include "HandsetVaMic.h"
 #include "Handset.h"
 #include "Bluetooth.h"
+#include "DisplayPort.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -103,6 +104,12 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
         QAL_VERBOSE(LOG_TAG, "BTA2DP device");
         return BtA2dp::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_OUT_AUX_DIGITAL:
+    case QAL_DEVICE_OUT_HDMI:
+        QAL_ERR(LOG_TAG, "Display Port device");
+        return DisplayPort::getInstance(device, Rm);
+        break;
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -133,21 +140,17 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     uint16_t channels;
     uint16_t ch_info_size;
     rm = Rm;
-
     if (device->config.ch_info) {
         channels = device->config.ch_info->channels;
     } else {
         channels = MAX_CHANNEL_SUPPORTED;
     }
-    QAL_ERR(LOG_TAG, "channels %d", channels);
-
+    QAL_DBG(LOG_TAG, "channels %d", channels);
     ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
-
     device_ch_info = (struct qal_channel_info *) calloc(1, ch_info_size);
     if (device_ch_info == NULL) {
         QAL_ERR(LOG_TAG, "Allocation failed for channel map");
     }
-
     memset(&deviceAttr, 0, sizeof(struct qal_device));
     casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), device,
                      sizeof(struct qal_device));

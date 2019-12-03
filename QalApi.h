@@ -444,10 +444,11 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle, qal_audio_effe
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_set_param(uint32_t param_id, void *param_payload,
-                      size_t payload_size);
+int32_t qal_set_param(uint32_t param_id, void *param_payload, size_t payload_size);
+
 /**
   * \brief Get qal parameters
+  *
   *
   * \param[in] param_id - param id whose parameters are
   *       retrieved.
@@ -457,8 +458,7 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload,
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_get_param(uint32_t param_id, void **param_payload,
-                      size_t *payload_size);
+int32_t qal_get_param(uint32_t param_id, void **param_payload, size_t *payload_size);
 
 extern void  __gcov_flush();
 

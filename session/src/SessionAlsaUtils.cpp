@@ -289,6 +289,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::shared_ptr<Device> beDevObj = nullptr;
+    long aif_media_config[3];
     struct mixer *mixerHandle;
     uint32_t i;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
@@ -1139,7 +1140,10 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
 {
     std::ostringstream cntrlName;
     std::ostringstream aifMdName;
+    std::ostringstream aifMfCtrlName;
     std::ostringstream feMdName;
+    struct mixer_ctl *connectCtrl;
+    std::ostringstream connectCtrlName;
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> emptyKV;
@@ -1149,11 +1153,16 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     struct mixer_ctl *feCtrl = nullptr;
     struct mixer_ctl *feMdCtrl = nullptr;
     struct mixer_ctl *aifMdCtrl = nullptr;
+    struct mixer_ctl *aifMfCtrl = nullptr;
+    long aif_media_config[3];
     PayloadBuilder* builder = new PayloadBuilder();
     struct mixer *mixerHandle = nullptr;
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     struct sessionToPayloadParam deviceData;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
     bool is_compress = false;
     struct qal_stream_attributes sAttr;
     int sub = 1;

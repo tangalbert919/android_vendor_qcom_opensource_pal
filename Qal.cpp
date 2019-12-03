@@ -490,8 +490,15 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     std::shared_ptr<ResourceManager> rm = NULL;
     struct qal_stream_attributes sattr;
 
-    if (!stream_handle || !devices) {
-        QAL_ERR(LOG_TAG, "%s: Invalid input parameters status %d", __func__, status);
+    if (!stream_handle ) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "%s: Invalid stream handle status %d", __func__, status);
+        return status;
+    }
+
+    if (!devices) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "%s: Invalid device status %d", __func__, status);
         return status;
     }
 
@@ -529,6 +536,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 int32_t qal_set_param(uint32_t param_id, void *param_payload,
                       size_t payload_size)
 {
+    QAL_DBG(LOG_TAG, "%s: Enter:", __func__);
     int status = 0;
     std::shared_ptr<ResourceManager> rm = NULL;
 
@@ -544,8 +552,8 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload,
         QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
         status = -EINVAL;
     }
-
-    return status;
+    QAL_DBG(LOG_TAG, "%s: Exit:", __func__);
+  return status;
 }
 
 int32_t qal_get_param(uint32_t param_id, void **param_payload,

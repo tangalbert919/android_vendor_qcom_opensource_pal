@@ -293,6 +293,7 @@ public:
     int32_t a2dpSuspend();
     int32_t a2dpResume();
     bool isPluginDevice(qal_device_id_t id);
+    bool isDpDevice(qal_device_id_t id);
 };
 
 #endif
