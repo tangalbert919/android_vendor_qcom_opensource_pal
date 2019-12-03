@@ -488,7 +488,7 @@ int SessionAlsaPcm::start(Stream * s)
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
                 }
-                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
                         pcmDevIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;

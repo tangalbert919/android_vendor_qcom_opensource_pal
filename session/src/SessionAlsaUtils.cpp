@@ -401,7 +401,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
             mixer_ctl_set_array(beMixerCtrls[BE_MEDIAFMT], &aif_media_config,
                     sizeof(aif_media_config)/sizeof(aif_media_config[0]));
-            QAL_ERR(LOG_TAG,"rate ch fmt %d %d %d", dAttr.config.sample_rate, dAttr.config.ch_info->channels,
+            QAL_DBG(LOG_TAG,"rate ch fmt %d %d %d", dAttr.config.sample_rate, dAttr.config.ch_info->channels,
                     dAttr.config.bit_width);
         }
         free(streamDeviceMetaData.buf);
@@ -494,7 +494,7 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
 
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
 
-    QAL_ERR(LOG_TAG, " - mixer -%s-\n", mixer_str);
+    QAL_DBG(LOG_TAG, " - mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
         QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
@@ -555,7 +555,7 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     if (isCompress)
         stream = "COMPRESS";
 
-    QAL_ERR(LOG_TAG, "- mixer -%s-\n", stream);
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", stream);
     ctl_len = strlen(stream) + 4 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str) {
@@ -564,7 +564,7 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     }
     snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
 
-    QAL_ERR(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
         QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
@@ -573,7 +573,7 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     }
     ret = mixer_ctl_set_array(ctl, payload, size);
 
-    QAL_ERR(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
+    QAL_DBG(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
     free(mixer_str);
     return ret;
 }

@@ -1601,7 +1601,7 @@ error:
 
 const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
 {
-    QAL_ERR(LOG_TAG, "%s: id %d", __func__, id);
+    QAL_DBG(LOG_TAG, "%s: id %d", __func__, id);
 #if 0
     android::CallStack cs;
     cs.update();
