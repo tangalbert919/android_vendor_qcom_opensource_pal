@@ -296,7 +296,7 @@ int32_t process_playback_request(uint8_t cmd,
                 memcpy(&ctxt->cur_param, param, sizeof(ctxt->cur_param));
                 no_of_kv_pairs = param->graph_key_vector.num_keys;
                 for (i = 0; i < no_of_kv_pairs; i++) {
-                    if (param->graph_key_vector.graph_key_vector[i].key == STREAM_TYPE) {
+                    if (param->graph_key_vector.graph_key_vector[i].key == STREAMRX) {
                         switch(param->graph_key_vector.graph_key_vector[i].value){
                             case PCM_LL_PLAYBACK:
                                 sattr.type = QAL_STREAM_LOW_LATENCY;
@@ -495,7 +495,7 @@ int32_t process_record_request(uint8_t cmd,
                 memcpy(&ctxt->cur_param, param, sizeof(ctxt->cur_param));
                 no_of_kv_pairs = param->graph_key_vector.num_keys;
                 for (i = 0; i < no_of_kv_pairs; i++) {
-                    if (param->graph_key_vector.graph_key_vector[i].key == STREAM_TYPE) {
+                    if (param->graph_key_vector.graph_key_vector[i].key == STREAMTX) {
                         switch(param->graph_key_vector.graph_key_vector[i].value){
                             case PCM_RECORD:
                                 sattr.type = QAL_STREAM_LOW_LATENCY;

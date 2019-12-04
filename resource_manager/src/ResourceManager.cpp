@@ -44,7 +44,10 @@
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
 #include "Handset.h"
+
+#ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
+#endif
 
 #define MIXER_FILE_DELIMITER "_"
 #define MIXER_FILE_EXT ".xml"
@@ -85,9 +88,6 @@
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 2
-#define XMLFILE "/vendor/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
-#define SNDPARSER "/vendor/etc/card-defs.xml"
 
 static struct str_parms *configParamKVPairs;
 
@@ -299,6 +299,18 @@ struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
+
+
+//TODO:Needs to define below APIs so that functionality won't break
+#ifdef FEATURE_IPQ_OPENWRT
+int str_parms_get_str(struct str_parms *str_parms, const char *key,
+                      char *out_val, int len){return 0;}
+char *str_parms_to_str(struct str_parms *str_parms){return NULL;}
+int str_parms_add_str(struct str_parms *str_parms, const char *key,
+                      const char *value){return 0;}
+struct str_parms *str_parms_create(void){return NULL;}
+void str_parms_del(struct str_parms *str_parms, const char *key){return;}
+#endif
 //std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
