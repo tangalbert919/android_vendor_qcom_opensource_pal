@@ -170,5 +170,5 @@ libqal_la_LIBADD += -lglib-2.0
 endif
 
 if COMPILE_COMPRESS
-libqal_la_CPPFLAGS += -DCOMPRESS_UAPI_DEC_HEADER
+libqal_la_CPPFLAGS += -DSND_COMPRESS_DEC_HDR
 endif
