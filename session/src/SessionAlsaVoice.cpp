@@ -585,21 +585,23 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
 
     deviceToDisconnect->getDeviceAtrributes(&dAttr);
 
-    status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
-                                                        streamType, rm,
-                                                        dAttr, pcmDevRxIds,
-                                                        rxAifBackEnds);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on RX Failed \n", __func__);
-        return status;
-    }
-
-    status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
-                                                        streamType, rm,
-                                                        dAttr, pcmDevTxIds,
-                                                        txAifBackEnds);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on TX Failed \n", __func__);
+    if (rxAifBackEnds.size() > 0) {
+        status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
+                                                            streamType, rm,
+                                                            dAttr, pcmDevRxIds,
+                                                            rxAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on RX Failed \n", __func__);
+            return status;
+        }
+    } else if (txAifBackEnds.size() > 0) {
+        status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
+                                                            streamType, rm,
+                                                            dAttr, pcmDevTxIds,
+                                                            txAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on TX Failed \n", __func__);
+        }
     }
 
     return status;
@@ -618,23 +620,25 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
     deviceToConnect->getDeviceAtrributes(&dAttr);
 
-    status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
-                                                     streamType, rm,
-                                                     dAttr, pcmDevRxIds,
-                                                     rxAifBackEnds);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: connectSessionDevice on RX Failed \n", __func__);
-        return status;
-    }
+    if (rxAifBackEnds.size() > 0) {
+        status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
+                                                         streamType, rm,
+                                                         dAttr, pcmDevRxIds,
+                                                         rxAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: connectSessionDevice on RX Failed \n", __func__);
+            return status;
+        }
+    } else if (txAifBackEnds.size() > 0) {
 
-    status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
-                                                     streamType, rm,
-                                                     dAttr, pcmDevTxIds,
-                                                     txAifBackEnds);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: connectSessionDevice on RX Failed \n", __func__);
+        status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
+                                                         streamType, rm,
+                                                         dAttr, pcmDevTxIds,
+                                                         txAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: connectSessionDevice on TX Failed \n", __func__);
+        }
     }
-
     return status;
 }
 

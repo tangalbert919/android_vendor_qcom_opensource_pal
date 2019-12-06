@@ -955,6 +955,12 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, qal_stream_t
         case QAL_STREAM_COMPRESSED:
             disconnectCtrlName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
             break;
+        case QAL_STREAM_VOICE_CALL:
+            if (dAttr.id >= QAL_DEVICE_OUT_HANDSET && dAttr.id <= QAL_DEVICE_OUT_PROXY)
+                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " disconnect";
+            else if (dAttr.id >= QAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= QAL_DEVICE_IN_PROXY)
+                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " disconnect";
+            break;
         default:
             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
             break;
@@ -1010,8 +1016,13 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
         status = 0; /**< ignore stream device KV failures */
     }
 
-    status = builder->populateStreamDeviceKV(streamHandle,
-            aifBackEndsToConnect[0].first, streamDeviceKV);
+    if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
+        status = builder->populateStreamDeviceKV(streamHandle,
+            aifBackEndsToConnect[0].first, streamDeviceKV, 0, emptyKV);
+    else
+        status = builder->populateStreamDeviceKV(streamHandle,
+            0, emptyKV, aifBackEndsToConnect[0].first, streamDeviceKV);
+
     if (status) {
         QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
         status = 0; /**< ignore stream device KV failures */
@@ -1059,6 +1070,22 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
             aifMfCtrlName << aifBackEndsToConnect[0].second.data() << " rate ch fmt";
             feMdName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " metadata";
             is_compress = true;
+            break;
+        case QAL_STREAM_VOICE_CALL:
+            if (dAttr.id >= QAL_DEVICE_OUT_HANDSET && dAttr.id <= QAL_DEVICE_OUT_PROXY) {
+                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " control";
+                aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
+                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " connect";
+                aifMfCtrlName << aifBackEndsToConnect[0].second.data() << " rate ch fmt";
+                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " metadata";
+            } else if (dAttr.id >= QAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= QAL_DEVICE_IN_PROXY) {
+                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " control";
+                aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
+                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " connect";
+                aifMfCtrlName << aifBackEndsToConnect[0].second.data() << " rate ch fmt";
+                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " metadata";
+
+            }
             break;
         default:
             cntrlName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " control";
@@ -1113,25 +1140,27 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
     mixer_ctl_set_array(aifMfCtrl, &aif_media_config,
             sizeof(aif_media_config)/sizeof(aif_media_config[0]));
 
-    /* Get PSPD MFC MIID and configure to match to device config */
-    /* This has to be done after sending all mixer controls and before connect */
-    status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
-                                                   aifBackEndsToConnect[0].second.data(),
-                                                   is_compress, TAG_DEVICE_MFC_SR, &miid);
-    if (status != 0) {
-        QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-        return status;
-    }
-    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-            pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
-    deviceData.bitWidth = dAttr.config.bit_width;
-    deviceData.sampleRate = dAttr.config.sample_rate;
-    deviceData.numChannel = dAttr.config.ch_info->channels;
-    builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
-    status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0), is_compress, payload, payloadSize);
-    if (status != 0) {
-        QAL_ERR(LOG_TAG,"setMixerParameter failed");
-        return status;
+    if (QAL_STREAM_VOICE_CALL != streamType) {
+        /* Get PSPD MFC MIID and configure to match to device config */
+        /* This has to be done after sending all mixer controls and before connect */
+        status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
+                                                       aifBackEndsToConnect[0].second.data(),
+                                                       is_compress, TAG_DEVICE_MFC_SR, &miid);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+            return status;
+        }
+        QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
+        deviceData.bitWidth = dAttr.config.bit_width;
+        deviceData.sampleRate = dAttr.config.sample_rate;
+        deviceData.numChannel = dAttr.config.ch_info->channels;
+        builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+        status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0), is_compress, payload, payloadSize);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG,"setMixerParameter failed");
+            return status;
+        }
     }
 
     connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
