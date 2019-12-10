@@ -212,11 +212,14 @@ int SessionAlsaVoice::start(Stream * s)
     status = pcm_start(pcmRx);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+        goto exit;
     }
 
     status = pcm_start(pcmTx);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+        pcm_close(pcmRx);
+        goto exit;
     }
 
 exit:
