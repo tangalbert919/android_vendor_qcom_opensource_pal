@@ -233,6 +233,9 @@ int32_t StreamCompress::stop()
             QAL_ERR(LOG_TAG, "invalid direction %d", mStreamAttr->direction);
             break;
     }
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i]);
+    }
 exit:
     mStreamMutex.unlock();
     QAL_VERBOSE(LOG_TAG,"Exit status - %d", status);
@@ -279,6 +282,9 @@ int32_t StreamCompress::start()
             break;
     }
 
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->registerDevice(mDevices[i]);
+    }
 exit:
     mStreamMutex.unlock();
     return status;

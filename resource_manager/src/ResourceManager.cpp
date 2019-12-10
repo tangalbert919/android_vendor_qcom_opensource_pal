@@ -1582,11 +1582,11 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     //and route the lower priority to new device (disable session, disable device, enable session, enable device
     //return from callback
 
-
     // TODO: update logic based on if voice call is active or not
     getActiveStream(inDev, activeStreams);
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no other active streams found");
+        inDev->setDeviceAttributes(*inDevAttr);
         goto error;
     }
     /* All the activesteams using device A should use same device config so no need to run through on all activestreams for device A */
