@@ -338,21 +338,22 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
 bool Stream::isStreamAudioOutFmtSupported(qal_audio_fmt_t format)
 {
     switch (format) {
-	case QAL_AUDIO_FMT_DEFAULT_PCM:
-	case QAL_AUDIO_FMT_MP3:
-        case QAL_AUDIO_FMT_AAC:
-        case QAL_AUDIO_FMT_AAC_ADTS:
-        case QAL_AUDIO_FMT_AAC_ADIF:
-        case QAL_AUDIO_FMT_AAC_LATM:
-        case QAL_AUDIO_FMT_WMA_STD:
-        case QAL_AUDIO_FMT_ALAC:
-        case QAL_AUDIO_FMT_APE:
-        case QAL_AUDIO_FMT_WMA_PRO:
-        case QAL_AUDIO_FMT_FLAC:
-            return true;
-	default:
-	    return false;
-	}
+    case QAL_AUDIO_FMT_DEFAULT_PCM:
+    case QAL_AUDIO_FMT_MP3:
+    case QAL_AUDIO_FMT_AAC:
+    case QAL_AUDIO_FMT_AAC_ADTS:
+    case QAL_AUDIO_FMT_AAC_ADIF:
+    case QAL_AUDIO_FMT_AAC_LATM:
+    case QAL_AUDIO_FMT_WMA_STD:
+    case QAL_AUDIO_FMT_ALAC:
+    case QAL_AUDIO_FMT_APE:
+    case QAL_AUDIO_FMT_WMA_PRO:
+    case QAL_AUDIO_FMT_FLAC:
+    case QAL_AUDIO_FMT_VORBIS:
+        return true;
+    default:
+        return false;
+    }
 }
 
 int32_t Stream::getTimestamp(struct qal_session_time *stime)

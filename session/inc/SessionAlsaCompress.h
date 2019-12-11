@@ -90,6 +90,7 @@ private:
     struct mixer_ctl *disconnectCtrl;
     void getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr);
     int getSndCodecId(qal_audio_fmt_t fmt);
+    int setCustomFormatParam(qal_audio_fmt_t audio_fmt);
     bool playback_started;
     int ioMode;
     session_callback sessionCb;

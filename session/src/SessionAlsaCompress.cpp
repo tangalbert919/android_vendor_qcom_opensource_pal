@@ -33,6 +33,7 @@
 #include "SessionAlsaUtils.h"
 #include "Stream.h"
 #include "ResourceManager.h"
+#include "media_fmt_api.h"
 #include <agm_api.h>
 #include <sstream>
 #include <mutex>
@@ -84,10 +85,66 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
        case QAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
             break;
+        case QAL_AUDIO_FMT_VORBIS:
+            id = SND_AUDIOCODEC_VORBIS;
+            break;
 #endif
     }
 
     return id;
+}
+
+int SessionAlsaCompress::setCustomFormatParam(qal_audio_fmt_t audio_fmt)
+{
+    int32_t status = 0;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
+
+    if (audio_fmt == QAL_AUDIO_FMT_VORBIS) {
+        // set config for vorbis, as it cannot be upstreamed.
+        status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                    compressDevIds.at(0), rxAifBackEnds[0].second.data(),
+                    true, STREAM_INPUT_MEDIA_FORMAT, &miid);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "getModuleInstanceId failed");
+            return status;
+        }
+        struct media_format_t *media_fmt_hdr = nullptr;
+        media_fmt_hdr = (struct media_format_t *)
+                            malloc(sizeof(struct media_format_t)
+                                + sizeof(struct qal_snd_dec_vorbis));
+        if (!media_fmt_hdr) {
+            QAL_ERR(LOG_TAG, "failed to allocate memory");
+            return -ENOMEM;
+        }
+        media_fmt_hdr->data_format = DATA_FORMAT_RAW_COMPRESSED ;
+        media_fmt_hdr->fmt_id = MEDIA_FMT_ID_VORBIS;
+        media_fmt_hdr->payload_size = sizeof(struct qal_snd_dec_vorbis);
+        casa_osal_memcpy(media_fmt_hdr->payload,
+                            sizeof(struct qal_snd_dec_vorbis),
+                            &codec.format,
+                            sizeof(struct qal_snd_dec_vorbis));
+        status = builder->payloadCustomParam(&payload, &payloadSize,
+                                        (uint32_t *)media_fmt_hdr,
+                                        sizeof(struct media_format_t) +
+                                        sizeof(struct qal_snd_dec_vorbis),
+                                        miid, PARAM_ID_MEDIA_FORMAT);
+        free(media_fmt_hdr);
+        if (status) {
+            QAL_ERR(LOG_TAG,"payloadCustomParam failed status = %d", status);
+            return status;
+        }
+        status = SessionAlsaUtils::setMixerParameter(mixer,
+                        compressDevIds.at(0), true, payload, payloadSize);
+        free(payload);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG,"setMixerParameter failed");
+            return status;
+        }
+    }
+
+    return status;
 }
 
 void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
@@ -265,7 +322,7 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_t
 
     return status;
 }
- 
+
 int SessionAlsaCompress::prepare(Stream * s)
 {
    return 0;
@@ -564,6 +621,7 @@ int SessionAlsaCompress::start(Stream * s)
 
             }
 
+            setCustomFormatParam(audio_fmt);
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
                 if(0 != status) {
@@ -752,12 +810,18 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
                                                            true, tagId, &miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
-                return status;
+                break;
             } else {
                 customPayload = (qal_effect_custom_payload_t *)effectQalPayload->payload;
-                builder->payloadCustomParam(&alsaParamData, &alsaPayloadSize,
-                            customPayload->data, effectQalPayload->payloadSize - sizeof(uint32_t),
+                status = builder->payloadCustomParam(&alsaParamData, &alsaPayloadSize,
+                            customPayload->data,
+                            effectQalPayload->payloadSize - sizeof(uint32_t),
                             miid, customPayload->paramId);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
+                                status);
+                    break;
+                }
                 status = SessionAlsaUtils::setMixerParameter(mixer,
                                                              compressDevIds.at(0),
                                                              true, alsaParamData,
@@ -884,6 +948,9 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
                     codec.options.flac_dec.max_blk_size, codec.options.flac_dec.min_frame_size, codec.options.flac_dec.max_frame_size);
             break;
 #endif
+        case QAL_AUDIO_FMT_VORBIS:
+            codec.format = param_payload->qal_snd_dec.vorbis_dec.bit_stream_fmt;
+            break;
     }
     return 0;
 }

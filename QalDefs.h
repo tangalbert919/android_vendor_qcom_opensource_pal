@@ -65,7 +65,8 @@ typedef enum {
     QAL_AUDIO_FMT_APE = 0x9,
     QAL_AUDIO_FMT_WMA_PRO = 0xA,
     QAL_AUDIO_FMT_FLAC = 0xB,
-    QAL_AUDIO_FMT_FLAC_OGG = 0xC,   
+    QAL_AUDIO_FMT_FLAC_OGG = 0xC,
+    QAL_AUDIO_FMT_VORBIS = 0xD,
     QAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
     QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
     QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
@@ -124,6 +125,10 @@ struct qal_snd_dec_flac {
     uint16_t max_frame_size;
 };
 
+struct qal_snd_dec_vorbis {
+    uint32_t bit_stream_fmt;
+};
+
 typedef struct qal_key_value_pair_s {
     uint32_t key; /**< key */
     uint32_t value; /**< value */
@@ -158,6 +163,7 @@ typedef union {
     struct qal_snd_dec_alac alac_dec;
     struct qal_snd_dec_ape ape_dec;
     struct qal_snd_dec_flac flac_dec;
+    struct qal_snd_dec_vorbis vorbis_dec;
 } qal_snd_dec_t;
 
 /** Audio parameter data*/

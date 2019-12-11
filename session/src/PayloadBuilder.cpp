@@ -1551,7 +1551,7 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
-void PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
+int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
             uint32_t *customPayload, uint32_t customPayloadSize,
             uint32_t moduleInstanceId, uint32_t paramId) {
     struct apm_module_param_data_t* header;
@@ -1563,6 +1563,11 @@ void PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     alsaPayloadSize = QAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
                                         + customPayloadSize);
     payloadInfo = (uint8_t *)malloc((size_t)alsaPayloadSize);
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return -ENOMEM;
+    }
+
     header = (struct apm_module_param_data_t*)payloadInfo;
     header->module_instance_id = moduleInstanceId;
     header->param_id = paramId;
@@ -1576,6 +1581,8 @@ void PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     *alsaPayload = payloadInfo;
 
     QAL_DBG(LOG_TAG, "ALSA payload %u size %d", *alsaPayload, *size);
+
+    return 0;
 }
 
 void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
