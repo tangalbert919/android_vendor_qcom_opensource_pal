@@ -46,7 +46,7 @@ struct param_id_mfc_output_media_fmt_t
 {
    int32_t sampling_rate;
    /**< @h2xmle_description  {Sampling rate in samples per second\n
-							  ->If the resampler type in the MFC is chosen to be IIR, 
+                              ->If the resampler type in the MFC is chosen to be IIR,
                               ONLY the following sample rates are ALLOWED:
                               PARAM_VAL_NATIVE =-1;\n
                               PARAM_VAL_UNSET = -2;\n
@@ -55,8 +55,8 @@ struct param_id_mfc_output_media_fmt_t
                               24kHz = 24000;\n
                               32kHz = 32000;\n
                               48kHz = 48000 \n
-							  -> For resampler type FIR, all values in the range
-							  below are allowed}
+                              -> For resampler type FIR, all values in the range
+                              below are allowed}
         @h2xmle_rangeList   {"PARAM_VAL_UNSET" = -2;
                              "PARAM_VAL_NATIVE" =-1;
                              "8 kHz"=8000;
@@ -79,7 +79,7 @@ struct param_id_mfc_output_media_fmt_t
    int16_t bit_width;
    /**< @h2xmle_description  {Bit width of audio samples \n
                               ->Samples with bit width of 16 (Q15 format) are stored in 16 bit words \n
-							  ->Samples with bit width 24 bits (Q27 format) or 32 bits (Q31 format) are stored in 32 bit words}
+                              ->Samples with bit width 24 bits (Q27 format) or 32 bits (Q31 format) are stored in 32 bit words}
         @h2xmle_rangeList    {"PARAM_VAL_NATIVE"=-1;
                               "PARAM_VAL_UNSET"=-2;
                               "16-bit"= 16;
@@ -101,8 +101,8 @@ struct param_id_mfc_output_media_fmt_t
                               ->Specify a channel mapping for each output channel \n
                               ->If the number of channels is not a multiple of four, zero padding must be added
                               to the channel type array to align the packet to a multiple of 32 bits. \n
-							  -> If num_channels field is set to PARAM_VAL_NATIVE (-1) or PARAM_VAL_UNSET(-2)
-							  this field will be ignored}
+                              -> If num_channels field is set to PARAM_VAL_NATIVE (-1) or PARAM_VAL_UNSET(-2)
+                              this field will be ignored}
         @h2xmle_variableArraySize {num_channels}
         @h2xmle_range        {1..63}
         @h2xmle_default      {1}    */
@@ -2082,6 +2082,9 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case QAL_DEVICE_IN_HANDSET_MIC:
            keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
            break;
+        case QAL_DEVICE_IN_HANDSET_VA_MIC:
+           keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC_VA));
+           break;
         default:
             QAL_DBG(LOG_TAG,"%s: Invalid device id %d\n", __func__,beDevId);
             break;
@@ -2091,7 +2094,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
 
 }
 
-int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId, 
+int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
         std::vector <std::pair<int,int>> &keyVectorTx)
 {

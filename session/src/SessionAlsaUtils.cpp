@@ -85,7 +85,7 @@ SessionAlsaUtils::~SessionAlsaUtils()
 
 bool SessionAlsaUtils::isRxDevice(uint32_t devId)
 {
-    if ((devId >= QAL_DEVICE_OUT_HANDSET) && (devId < QAL_DEVICE_IN_HANDSET_MIC))
+    if ((devId > QAL_DEVICE_OUT_MIN) && (devId < QAL_DEVICE_OUT_MAX))
         return true;
 
     return false;
@@ -335,7 +335,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, feName.str(), i);
         if (!feMixerCtrls[i]) {
             QAL_ERR(LOG_TAG, "invalid mixer control: %s %s", feName.str().data(),
-                   feCtrlNames[i]); 
+                   feCtrlNames[i]);
             status = -EINVAL;
             goto freeStreamMetaData;
         }
@@ -379,7 +379,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             beMixerCtrls[n] = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, n);
             if (!beMixerCtrls[n]) {
                 QAL_ERR(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
-                        beCtrlNames[n]); 
+                        beCtrlNames[n]);
                 status = -EINVAL;
                 goto freeMetaData;
             }
@@ -735,7 +735,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
-	uint32_t i, rxDevNum, txDevNum;
+    uint32_t i, rxDevNum, txDevNum;
 
 //    PayloadBuilder* builder = new PayloadBuilder();
 
@@ -802,11 +802,11 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         status = 0; /**< ignore stream device KV failures */
     }
     // get audio mixer
-    SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV, 
+    SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV,
             (struct prop_data *)streamPropId, streamRxMetaData);
     SessionAlsaUtils::getAgmMetaData(deviceRxKV, emptyKV,
             (struct prop_data *)devicePropId, deviceRxMetaData);
-    SessionAlsaUtils::getAgmMetaData(streamDeviceRxKV, emptyKV, 
+    SessionAlsaUtils::getAgmMetaData(streamDeviceRxKV, emptyKV,
             (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
     if (!streamRxMetaData.size && !deviceRxMetaData.size &&
             !streamDeviceRxMetaData.size) {
@@ -815,7 +815,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         goto freeRxMetaData;
     }
 
-    SessionAlsaUtils::getAgmMetaData(streamTxKV, streamTxCKV, 
+    SessionAlsaUtils::getAgmMetaData(streamTxKV, streamTxCKV,
             (struct prop_data *)streamPropId, streamTxMetaData);
     SessionAlsaUtils::getAgmMetaData(deviceTxKV, emptyKV,
             (struct prop_data *)devicePropId, deviceTxMetaData);

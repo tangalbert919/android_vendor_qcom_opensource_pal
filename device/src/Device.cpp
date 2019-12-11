@@ -42,6 +42,7 @@
 #include "Stream.h"
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
+#include "HandsetVaMic.h"
 #include "Handset.h"
 
 
@@ -59,7 +60,7 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     QAL_DBG(LOG_TAG, "Device config updated");
 
     //TBD: decide on supported devices from XML and not in code
-    switch(device->id) {
+    switch (device->id) {
     case QAL_DEVICE_OUT_HANDSET:
         QAL_VERBOSE(LOG_TAG, "handset device");
         return Handset::getInstance(device, Rm);
@@ -87,6 +88,10 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_IN_WIRED_HEADSET:
         QAL_VERBOSE(LOG_TAG, "HeadsetMic device");
         return HeadsetMic::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_IN_HANDSET_VA_MIC:
+        QAL_VERBOSE(LOG_TAG, "HandsetVaMic device");
+        return HandsetVaMic::getInstance(device, Rm);
         break;
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);

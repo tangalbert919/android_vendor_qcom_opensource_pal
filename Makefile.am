@@ -18,6 +18,7 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/HeadsetMic.h \
             ./device/inc/Handset.h \
             ./device/inc/HandsetMic.h \
+            ./device/inc/HandsetVaMic.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
@@ -56,6 +57,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/DeviceGsl.cpp \
               ./device/src/HeadsetMic.cpp \
               ./device/src/HandsetMic.cpp \
+              ./device/src/HandsetVaMic.cpp \
               ./device/src/Handset.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
@@ -87,6 +89,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/HeadsetMic.h \
             ${top_srcdir}/device/inc/Handset.h \
             ${top_srcdir}/device/inc/HandsetMic.h \
+            ${top_srcdir}/device/inc/HandsetVaMic.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
@@ -144,6 +147,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/HeadsetMic.cpp \
               ${top_srcdir}/device/src/Handset.cpp \
               ${top_srcdir}/device/src/HandsetMic.cpp \
+              ${top_srcdir}/device/src/HandsetVaMic.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \

@@ -375,7 +375,7 @@ int SessionAlsaPcm::start(Stream * s)
                 if (sAttr.type == QAL_STREAM_VOICE_UI) {
                     SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, customPayload, customPayloadSize);
                 }
- 
+
                 pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
                 if (!pcm) {
                     QAL_ERR(LOG_TAG, "pcm open failed");
@@ -755,7 +755,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                return -EINVAL; 
+                return -EINVAL;
             }
             mState = SESSION_STARTED;
         }
@@ -774,7 +774,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         status = pcm_start(pcm);
         if (status) {
             QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            return -EINVAL; 
+            return -EINVAL;
         }
         mState = SESSION_STARTED;
     }
@@ -1055,25 +1055,24 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     rm->getActiveDevices(activeDevices);
     for (int i = 0; i < activeDevices.size(); i++) {
         int deviceId = activeDevices[i]->getSndDeviceId();
-        if ((deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_OUT_PROXY) &&
+        if ((deviceId > QAL_DEVICE_OUT_MIN &&
+            deviceId < QAL_DEVICE_OUT_MAX) &&
             sAttr.direction == QAL_AUDIO_INPUT) {
             rxDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getSndDeviceId() >= QAL_DEVICE_IN_HANDSET_MIC &&
-                    dev->getSndDeviceId() <= QAL_DEVICE_IN_TRI_MIC)
+                if (dev->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
+                    dev->getSndDeviceId() < QAL_DEVICE_IN_MAX)
                     txDevice = dev;
             }
         }
 
-        if (deviceId >= QAL_DEVICE_IN_HANDSET_MIC &&
-            deviceId <= QAL_DEVICE_IN_TRI_MIC &&
+        if (deviceId > QAL_DEVICE_IN_MIN && deviceId < QAL_DEVICE_IN_MAX &&
             sAttr.direction == QAL_AUDIO_OUTPUT) {
             txDevice = activeDevices[i];
             for (int j = 0; j < deviceList.size(); j++) {
                 std::shared_ptr<Device> dev = deviceList[j];
-                //if ((deviceId == QAL_DEVICE_OUT_SPEAKER) || (deviceId == QAL_DEVICE_OUT_WIRED_HEADPHONE)) {
-                if (deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_OUT_PROXY) {
+                if (deviceId > QAL_DEVICE_OUT_MIN && deviceId < QAL_DEVICE_OUT_MAX) {
                     rxDevice = dev;
                     break;
                 }
@@ -1152,7 +1151,7 @@ int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void 
         if (status) /** if not found, reset miid to 0 again */
             miid = 0;
     }
-    
+
     if (!txAifBackEnds.empty()) { /** search in TX GKV */
         status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
                 false, tagId, &miid);

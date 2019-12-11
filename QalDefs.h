@@ -258,45 +258,47 @@ typedef enum {
 
 /** Audio devices available for enabling streams */
 typedef enum {
-    QAL_DEVICE_NONE = 1,                           /**< for transcode usecases*/
-
     //OUTPUT DEVICES
-    QAL_DEVICE_OUT_HANDSET,                    /**< Handset device*/
-    QAL_DEVICE_OUT_SPEAKER,                    /**< Speaker device*/
-    QAL_DEVICE_OUT_WIRED_HEADSET,              /**< Wired headset with mic*/
-    QAL_DEVICE_OUT_WIRED_HEADPHONE,            /**< Wired headphones without mic*/
-    QAL_DEVICE_OUT_LINE,                       /**< Line out*/
-    QAL_DEVICE_OUT_BLUETOOTH_SCO,              /**< Bluetooth SCO Profile*/
-    QAL_DEVICE_OUT_BLUETOOTH_A2DP,             /**< Bluetooth A2DP Profile*/
-    QAL_DEVICE_OUT_AUX_DIGITAL,                /**< AUX Digital */
-    QAL_DEVICE_OUT_HDMI,                       /**< HDMI OUT*/
-    QAL_DEVICE_OUT_USB_DEVICE,                 /**< USB Device*/
-    QAL_DEVICE_OUT_USB_HEADSET,                /**< USB Headset*/
-    QAL_DEVICE_OUT_SPDIF,                      /**< SPDIF */
-    QAL_DEVICE_OUT_FM,                         /**< FM */
-    QAL_DEVICE_OUT_AUX_LINE,                   /**< AUX LINE Out*/
-    QAL_DEVICE_OUT_PROXY,                      /**< PROXY OUT*/
-    /** Add New RX OUT Devices Here */
-
+    QAL_DEVICE_OUT_MIN = 0,
+    QAL_DEVICE_NONE = 1, /**< for transcode usecases*/
+    QAL_DEVICE_OUT_HANDSET = 2,
+    QAL_DEVICE_OUT_SPEAKER = 3,
+    QAL_DEVICE_OUT_WIRED_HEADSET = 4,
+    QAL_DEVICE_OUT_WIRED_HEADPHONE = 5, /**< Wired headphones without mic*/
+    QAL_DEVICE_OUT_LINE = 6,
+    QAL_DEVICE_OUT_BLUETOOTH_SCO = 7,
+    QAL_DEVICE_OUT_BLUETOOTH_A2DP = 8,
+    QAL_DEVICE_OUT_AUX_DIGITAL = 9,
+    QAL_DEVICE_OUT_HDMI = 10,
+    QAL_DEVICE_OUT_USB_DEVICE = 11,
+    QAL_DEVICE_OUT_USB_HEADSET = 12,
+    QAL_DEVICE_OUT_SPDIF = 13,
+    QAL_DEVICE_OUT_FM = 14,
+    QAL_DEVICE_OUT_AUX_LINE = 15,
+    QAL_DEVICE_OUT_PROXY = 16,
+    // Add new OUT devices here, increment MAX and MIN below when you do so
+    QAL_DEVICE_OUT_MAX = 17,
     //INPUT DEVICES
-    QAL_DEVICE_IN_HANDSET_MIC,                 /**< Handset MIC*/
-    QAL_DEVICE_IN_SPEAKER_MIC,                 /**< Speaker MIC*/
-    QAL_DEVICE_IN_TRI_MIC,                     /**< Tri MIC*/
-    QAL_DEVICE_IN_QUAD_MIC,                    /**< Quad MIC*/
-    QAL_DEVICE_IN_EIGHT_MIC,                   /**< Eight MIC*/
-    QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET,       /**< Bluetooth SCO Profile*/
-    QAL_DEVICE_IN_WIRED_HEADSET,               /**< Wired headset mic*/
-    QAL_DEVICE_IN_AUX_DIGITAL,                 /**< AUX Digital In*/
-    QAL_DEVICE_IN_HDMI,                        /**< HDMI IN*/
-    QAL_DEVICE_IN_USB_ACCESSORY,               /**< Speaker MIC*/
-    QAL_DEVICE_IN_USB_DEVICE,                  /**< Speaker MIC*/
-    QAL_DEVICE_IN_USB_HEADSET,                 /**< USB Headset MIC*/
-    QAL_DEVICE_IN_FM_TUNER,                    /**< FM Tuner IN*/
-    QAL_DEVICE_IN_LINE,                        /**< LINE IN*/
-    QAL_DEVICE_IN_SPDIF,                       /**< SPDIF IN*/
-    QAL_DEVICE_IN_PROXY,                       /**< PROXY IN*/
-    /** Add New TX IN Devices Here */
-
+    QAL_DEVICE_IN_MIN = 17,
+    QAL_DEVICE_IN_HANDSET_MIC = QAL_DEVICE_IN_MIN +1,
+    QAL_DEVICE_IN_SPEAKER_MIC = QAL_DEVICE_IN_MIN + 2,
+    QAL_DEVICE_IN_TRI_MIC = QAL_DEVICE_IN_MIN + 3,
+    QAL_DEVICE_IN_QUAD_MIC = QAL_DEVICE_IN_MIN + 4,
+    QAL_DEVICE_IN_EIGHT_MIC = QAL_DEVICE_IN_MIN + 5,
+    QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET = QAL_DEVICE_IN_MIN + 6,
+    QAL_DEVICE_IN_WIRED_HEADSET = QAL_DEVICE_IN_MIN + 7,
+    QAL_DEVICE_IN_AUX_DIGITAL = QAL_DEVICE_IN_MIN + 8,
+    QAL_DEVICE_IN_HDMI = QAL_DEVICE_IN_MIN + 9,
+    QAL_DEVICE_IN_USB_ACCESSORY = QAL_DEVICE_IN_MIN + 10,
+    QAL_DEVICE_IN_USB_DEVICE = QAL_DEVICE_IN_MIN + 11,
+    QAL_DEVICE_IN_USB_HEADSET = QAL_DEVICE_IN_MIN + 12,
+    QAL_DEVICE_IN_FM_TUNER = QAL_DEVICE_IN_MIN + 13,
+    QAL_DEVICE_IN_LINE = QAL_DEVICE_IN_MIN + 14,
+    QAL_DEVICE_IN_SPDIF = QAL_DEVICE_IN_MIN + 15,
+    QAL_DEVICE_IN_PROXY = QAL_DEVICE_IN_MIN + 16,
+    QAL_DEVICE_IN_HANDSET_VA_MIC = QAL_DEVICE_IN_MIN + 17,
+    // Add new IN devices here, increment MAX and MIN below when you do so
+    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 18,
 } qal_device_id_t;
 
 
