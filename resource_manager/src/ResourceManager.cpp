@@ -513,6 +513,19 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             deviceattr->id = QAL_DEVICE_IN_SPEAKER_MIC;
             break;
+        case QAL_DEVICE_IN_TRI_MIC:
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
+            dev_ch_info->channels = CHANNELS_3;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            dev_ch_info->ch_map[2] = QAL_CHMAP_CHANNEL_C;
+            deviceattr->config.ch_info = dev_ch_info;
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->id = QAL_DEVICE_IN_TRI_MIC;
+            break;
         case QAL_DEVICE_IN_HANDSET_MIC:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
             dev_ch_info->channels = CHANNELS_1;
