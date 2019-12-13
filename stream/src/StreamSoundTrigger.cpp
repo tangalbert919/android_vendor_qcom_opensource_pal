@@ -29,9 +29,9 @@
 
 #define LOG_TAG "StreamSoundTrigger"
 
-#include <unistd.h>
-
 #include "StreamSoundTrigger.h"
+
+#include <unistd.h>
 
 #include "Session.h"
 #include "SessionGsl.h"
@@ -40,25 +40,23 @@
 #include "Device.h"
 #include "kvh2xml.h"
 
+// TODO: find another way to print debug logs by default
+#define ST_DBG_LOGS
+#ifdef ST_DBG_LOGS
+#define QAL_DBG(...)  QAL_INFO(__VA_ARGS__)
+#endif
+
+#define ST_DEFERRED_STOP_DEALY_MS (1000)
+
 StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        struct qal_device *dattr,
                                        uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
-                                       std::shared_ptr<ResourceManager> rm)
-{
-    uint32_t engine_id = 0;
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    stages_ = 1;
-    session = nullptr;
+                                       std::shared_ptr<ResourceManager> rm) {
     std::shared_ptr<Device> dev = nullptr;
     reader_ = nullptr;
-    rec_event_ = nullptr;
     detection_state_ = ENGINE_IDLE;
-    notification_state_ = GMM_DETECTED;
-    gsl_engine_ = nullptr;
-    memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
     inBufCount = NO_OF_BUF;
@@ -69,20 +67,19 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     mNoOfModifiers = 0;
     mModifiers = (struct modifier_kv *) (nullptr);
 
-    mStreamAttr = (struct qal_stream_attributes *)calloc
-                  (1, sizeof(struct qal_stream_attributes));
+    mStreamAttr = (struct qal_stream_attributes *)calloc(1,
+        sizeof(struct qal_stream_attributes));
     if (!mStreamAttr) {
-        QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s",
-                strerror(errno));
-        throw std::runtime_error("failed to malloc for stream attributes");
+        QAL_ERR(LOG_TAG, "stream attributes allocation failed");
+        throw std::runtime_error("stream attributes allocation failed");
     }
 
-    struct qal_channel_info *ch_info = (struct qal_channel_info *)calloc
-                                       (1, sizeof(struct qal_channel_info));
+    struct qal_channel_info *ch_info = (struct qal_channel_info *)calloc(1,
+        sizeof(struct qal_channel_info));
     if (!ch_info) {
-        QAL_ERR(LOG_TAG, "malloc for ch_info failed");
+        QAL_ERR(LOG_TAG, "channel info allocation failed");
         free(mStreamAttr);
-        throw std::runtime_error("failed to malloc for ch_info");
+        throw std::runtime_error("channel info allocation failed");
     }
 
     casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes),
@@ -93,18 +90,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                      sattr->in_media_config.ch_info,
                      sizeof(qal_channel_info));
 
-    gsl_engine_ = SoundTriggerEngine::create(this, ST_SM_ID_SVA_GMM,
-                                             &reader_, nullptr);
-    if (!gsl_engine_ || !reader_) {
-        QAL_ERR(LOG_TAG, "gsl engine creation failed");
-        free(mStreamAttr->in_media_config.ch_info);
-        free(mStreamAttr);
-        throw std::runtime_error("failed to create gsl engine object");
-    }
-    engine_id = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
-    RegisterSoundTriggerEngine(engine_id, gsl_engine_);
-
-    QAL_VERBOSE(LOG_TAG, "gsl engine %pK created", gsl_engine_);
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d",
                 no_of_devices);
@@ -117,8 +102,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
             throw std::runtime_error("failed to create device object");
         }
         //Is this required for Voice UI?
-        QAL_ERR(LOG_TAG, "Updating device config for voice UI");
-        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        QAL_DBG(LOG_TAG, "Updating device config for voice UI");
+        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i],
+                                                            sattr);
 
         if (isDeviceConfigUpdated)
             QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
@@ -128,110 +114,67 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     }
 
     rm->registerStream(this);
+    // Create internal states
+    st_idle_ = new StIdle(*this);
+    st_loaded_ = new StLoaded(*this);
+    st_active = new StActive(*this);
+    st_detected_ = new StDetected(*this);
+    st_buffering_ = new StBuffering(*this);
+
+    AddState(st_idle_);
+    AddState(st_loaded_);
+    AddState(st_active);
+    AddState(st_detected_);
+    AddState(st_buffering_);
+
+    // Set initial state
+    cur_state_ = st_idle_;
+    prev_state_ = nullptr;
+
+    timer_thread_ = std::thread(TimerThread, std::ref(*this));
+    timer_stop_waiting_ = false;
+    exit_timer_thread_ = false;
+
     QAL_DBG(LOG_TAG, "Exit");
 }
 
-int32_t StreamSoundTrigger::open()
-{
-    int32_t status = 0;
-
+StreamSoundTrigger::~StreamSoundTrigger() {
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    QAL_DBG(LOG_TAG, "Enter, device count - %d", mDevices.size());
-    if (!gsl_engine_) {
-        QAL_ERR(LOG_TAG, "No GMM engine present, error!");
-        status = -EINVAL;
-        goto exit;
+    {
+        std::lock_guard<std::mutex> lck(timer_mutex_);
+        exit_timer_thread_ = true;
+        timer_stop_waiting_ = true;
+        timer_wait_cond_.notify_one();
+        timer_start_cond_.notify_one();
+    }
+    if (timer_thread_.joinable()) {
+        QAL_DBG(LOG_TAG, "Join timer thread");
+        timer_thread_.join();
     }
 
-    status = gsl_engine_->Open(this);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "gsl engine open failed with status %d", status);
-        goto exit;
-    }
-    QAL_VERBOSE(LOG_TAG, "gsl engine open successful");
+    st_states_.clear();
+    engines_.clear();
+    gsl_engine_.reset();
 
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        status = mDevices[i]->open();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device open failed with status %d", status);
-            goto exit;
+    rm->deregisterStream(this);
+    if (mStreamAttr) {
+        if (mStreamAttr->in_media_config.ch_info) {
+            free(mStreamAttr->in_media_config.ch_info);
         }
+        free(mStreamAttr);
     }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
+    mDevices.clear();
+    QAL_DBG(LOG_TAG, "Exit");
 }
 
-int32_t StreamSoundTrigger::close()
-{
-    // TODO: handle stop by stream states
+int32_t StreamSoundTrigger::close() {
     int32_t status = 0;
-    int32_t i = 0;
-    uint32_t id = 0;
-    uint8_t *data = nullptr;
-    SoundTriggerEngine *st_engine = nullptr;
+
+    QAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    QAL_DBG(LOG_TAG, "Enter, device count - %d", mDevices.size());
-    for (i = 0; i < mDevices.size(); i++) {
-        QAL_ERR(LOG_TAG, "device %d name %s, going to close",
-                mDevices[i]->getSndDeviceId(),
-                mDevices[i]->getQALDeviceName().c_str());
-
-        status = mDevices[i]->close();
-        rm->deregisterDevice(mDevices[i]);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device close is failed with status %d", status);
-            goto exit;
-        }
-    }
-    QAL_VERBOSE(LOG_TAG, "closed the devices successfully");
-
-    for (i = 0; i < active_engines_.size(); i++) {
-        id = active_engines_[i].first;
-        st_engine = active_engines_[i].second;
-        if (!st_engine) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid st engine");
-            goto exit;
-        }
-        status = st_engine->Close(this);
-        if (status) {
-            QAL_ERR(LOG_TAG, "st engine close failed with status %d", status);
-            goto exit;
-        }
-        delete st_engine;
-        st_engine = nullptr;
-    }
-    active_engines_.clear();
-    gsl_engine_ = nullptr;
-    QAL_DBG(LOG_TAG, "closed the engines successfully");
-
-    for (i = 0; i < active_sm_data_.size(); i++) {
-        id = active_sm_data_[i].first;
-        data = active_sm_data_[i].second;
-        if (data) {
-            free(data);
-            data = nullptr;
-        }
-    }
-    active_sm_data_.clear();
-
-exit:
-    status = rm->deregisterStream(this);
-
-    if (mStreamAttr) {
-        free(mStreamAttr->in_media_config.ch_info);
-        free(mStreamAttr);
-        mStreamAttr = (struct qal_stream_attributes *)nullptr;
-    }
-
-    if (mVolumeData) {
-        free(mVolumeData);
-        mVolumeData = (struct qal_volume_data *)nullptr;
-    }
+    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
 
     if (rec_config_) {
         free(rec_config_);
@@ -239,255 +182,410 @@ exit:
     }
 
     if (reader_) {
-        free(reader_);
+        delete reader_;
         reader_ = nullptr;
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
-
-int32_t StreamSoundTrigger::start()
-{
+int32_t StreamSoundTrigger::start() {
     int32_t status = 0;
-    uint32_t id = 0;
-    SoundTriggerEngine *st_engine = nullptr;
+
+    QAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(
+       new StStartRecognitionEventConfig(false));
+    status = cur_state_->ProcessEvent(ev_cfg);
 
-    QAL_DBG(LOG_TAG, "Enter, mStreamAttr->direction - %d",
-            mStreamAttr->direction);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
 
-    for (int i = 0; i < active_engines_.size(); i++) {
-        id = active_engines_[i].first;
-        st_engine = active_engines_[i].second;
-        if (!st_engine) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid st engine");
-            goto exit;
-        }
+int32_t StreamSoundTrigger::stop() {
+    int32_t status = 0;
 
-        QAL_VERBOSE(LOG_TAG, "start recognition: sound trigger engine %u", id);
-        status = st_engine->StartRecognition(this);
+    QAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(
+       new StStopRecognitionEventConfig(false));
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+int32_t StreamSoundTrigger::read(struct qal_buffer* buf) {
+    int32_t size = 0;
+
+    QAL_VERBOSE(LOG_TAG, "Enter");
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StReadBufferEventConfig((void *)buf));
+    size = cur_state_->ProcessEvent(ev_cfg);
+
+    QAL_VERBOSE(LOG_TAG, "Exit, read size %d", size);
+
+    return size;
+}
+
+int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
+    if (gsl_engine_) {
+        status = gsl_engine_->GetParameters(param_id, payload);
+        if (status)
+            QAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+    } else {
+        QAL_ERR(LOG_TAG, "No gsl engine present");
+        status = -EINVAL;
+    }
+    return status;
+}
+
+int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter, param id %d", param_id);
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    switch (param_id) {
+      case QAL_PARAM_ID_LOAD_SOUND_MODEL: {
+          std::shared_ptr<StEventConfig> ev_cfg(
+              new StLoadEventConfig(payload));
+          status = cur_state_->ProcessEvent(ev_cfg);
+          break;
+      }
+      case QAL_PARAM_ID_RECOGNITION_CONFIG: {
+          if (!payload) {
+              QAL_ERR(LOG_TAG, "Invalid config payload");
+              status = -EINVAL;
+              break;
+          }
+          /*
+           * Currently gecko needs graph stop and start for next detection.
+           * Handle this event similar to fresh start config.
+           */
+          std::shared_ptr<StEventConfig> ev_cfg(
+              new StRecognitionCfgEventConfig(payload));
+          status = cur_state_->ProcessEvent(ev_cfg);
+          break;
+      }
+      case QAL_PARAM_ID_STOP_BUFFERING: {
+          /*
+           * Currently gecko needs graph stop and start for next detection.
+           * Handle this event similar to STOP_RECOGNITION.
+           */
+          std::shared_ptr<StEventConfig> ev_cfg(
+              new StStopRecognitionEventConfig(false));
+          status = cur_state_->ProcessEvent(ev_cfg);
+          break;
+      }
+      default: {
+          status = -EINVAL;
+          QAL_ERR(LOG_TAG, "Unsupported param %u", param_id);
+          break;
+      }
+    }
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+// TBD: to be tested, Yidong, is this enough?
+int32_t StreamSoundTrigger::switchDevice(Stream* stream_handle,
+                                         uint32_t no_of_devices,
+                                         struct qal_device *device_array) {
+    int32_t status = -EINVAL;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<Device> dev = nullptr;
+
+    if (no_of_devices == 0 || !device_array) {
+        QAL_ERR("%s: invalid param for device switch", __func__);
+        status = -EINVAL;
+        goto error_1;
+    }
+
+    for (auto& eng: engines_) {
+        QAL_VERBOSE(LOG_TAG, "stop engine %d",
+                    eng->GetEngineId());
+        status = eng->GetEngine()->StopRecognition(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "StartRecognition failed, ST engine %u, status %d",
-                    id, status);
-            goto exit;
+            QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                    eng->GetEngineId(), status);
+            goto error_1;
         }
     }
 
-    for (int32_t i=0; i < mDevices.size(); i++) {
+    /*
+     * tell rm we are disabling existing mDevices,
+     * so that it can disable any streams running on
+     * 1. mDevices with common backend
+     * TBD: as there are no devices with common backend now.
+     * rm->disableDevice(mDevices);
+     */
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        QAL_VERBOSE(LOG_TAG, "device %d name %s, going to stop",
+            mDevices[i]->getSndDeviceId(),
+            mDevices[i]->getQALDeviceName().c_str());
+
+        gsl_engine_->DisconnectSessionDevice(stream_handle, mStreamAttr->type,
+                                             mDevices[i]);
+        status = mDevices[i]->stop();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: Rx device stop failed with status %d",
+                __func__, status);
+            goto error_1;
+        }
+
+        rm->deregisterDevice(mDevices[i]);
+
+        status = mDevices[i]->close();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+            goto error_1;
+        }
+    }
+
+    // clear existing devices and enable new devices
+    mDevices.clear();
+
+    for (int i = 0; i < no_of_devices; i++) {
+        // Check with RM if the configuration given can work or not
+        // for e.g., if incoming stream needs 24 bit device thats also
+        // being used by another stream, then the other stream should route
+        dev = Device::getInstance((struct qal_device *)&mDevices[i] , rm);
+        if (!dev) {
+            QAL_ERR(LOG_TAG, "%s: Device creation failed", __func__);
+            if (mStreamAttr) {
+                if (mStreamAttr->in_media_config.ch_info) {
+                    free(mStreamAttr->in_media_config.ch_info);
+                }
+                free(mStreamAttr);
+                mStreamAttr = nullptr;
+            }
+            // TBD::free session too
+            throw std::runtime_error("failed to create device object");
+        }
+
         QAL_ERR(LOG_TAG, "device %d name %s, going to start",
                 mDevices[i]->getSndDeviceId(),
                 mDevices[i]->getQALDeviceName().c_str());
 
         status = mDevices[i]->start();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Tx device start failed with status %d", status);
-            goto exit;
-        }
-    }
-    QAL_DBG(LOG_TAG, "Exit. mDevices started successfully status %d", status);
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->registerDevice(mDevices[i]);
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::stop()
-{
-    int32_t status = 0;
-    uint32_t id = 0;
-    SoundTriggerEngine *st_engine = nullptr;
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    QAL_DBG(LOG_TAG, "Enter, mStreamAttr->direction - %d",
-            mStreamAttr->direction);
-
-    for (int i = 0; i < active_engines_.size(); i++) {
-        id = active_engines_[i].first;
-        st_engine = active_engines_[i].second;
-        if (!st_engine) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid st engine");
-            goto exit;
+            QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
+                    mDevices[i]->getSndDeviceId(),
+                    mDevices[i]->getQALDeviceName().c_str(), status);
+            goto error_2;
         }
 
-        QAL_VERBOSE(LOG_TAG, "stop recognition: sound trigger engine %u", id);
-        status = st_engine->StopRecognition(this);
+        mDevices.push_back(dev);
+        // enable sessions
+        gsl_engine_->ConnectSessionDevice(stream_handle, mStreamAttr->type,
+                                          mDevices[i]);
+        rm->registerDevice(dev);
+        dev = nullptr;
+    }
+
+    for (auto& eng: engines_) {
+        QAL_VERBOSE(LOG_TAG, "Start engine %d",
+                    eng->GetEngineId());
+        status = eng->GetEngine()->StopRecognition(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "StopRecognition failed, ST engine %u, status %d",
-                    id, status);
-            goto exit;
+            QAL_ERR(LOG_TAG, "Start engine %d failed, status %d",
+                    eng->GetEngineId(), status);
+            goto error_2;
         }
     }
 
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
-                mDevices[i]->getSndDeviceId(),
-                mDevices[i]->getQALDeviceName().c_str());
-
-        status = mDevices[i]->stop();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Tx device stop failed with status %d", status);
-            goto exit;
-        }
-    }
-    QAL_VERBOSE(LOG_TAG, "devices stop successful");
-
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i]);
+error_2:
+    if (mStreamAttr) {
+        free(mStreamAttr->in_media_config.ch_info);
+        free(mStreamAttr);
+        mStreamAttr = nullptr;
     }
 
-    // reset ring buffer reader
-    if (reader_) {
-        reader_->reset();
-    } else {
-        status = -EINVAL;
-        goto exit;
-    }
-
-    // reset detection state
-    status = SetDetectionState(ENGINE_IDLE);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to set detection state to IDLE");
-        goto exit;
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
+error_1:
     return status;
 }
 
-int32_t StreamSoundTrigger::prepare()
-{
-    int32_t status = 0;
+int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
+    int32_t rc = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    if (!gsl_engine_) {
-        QAL_ERR(LOG_TAG, "No GMM engine present, error!");
-        status = -EINVAL;
-        goto exit;
+    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    switch (sampleRate) {
+      case SAMPLINGRATE_8K:
+      case SAMPLINGRATE_16K:
+      case SAMPLINGRATE_32K:
+      case SAMPLINGRATE_44K:
+      case SAMPLINGRATE_48K:
+      case SAMPLINGRATE_96K:
+      case SAMPLINGRATE_192K:
+      case SAMPLINGRATE_384K:
+          break;
+      default:
+          rc = -EINVAL;
+          QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+          break;
     }
 
-    status = gsl_engine_->Prepare(this);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "gsl engine prepare failed with status = %d", status);
-        goto exit;
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
+    return rc;
 }
 
-int32_t StreamSoundTrigger::setStreamAttributes(
-    struct qal_stream_attributes *sattr)
-{
-    int32_t status = 0;
+int32_t StreamSoundTrigger::isChannelSupported(uint32_t numChannels) {
+    int32_t rc = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    if (!gsl_engine_) {
-        QAL_ERR(LOG_TAG, "No GMM engine present, error!");
-        status = -EINVAL;
-        goto exit;
+    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    switch (numChannels) {
+      case CHANNELS_1:
+      case CHANNELS_2:
+      case CHANNELS_3:
+      case CHANNELS_4:
+      case CHANNELS_5:
+      case CHANNELS_5_1:
+      case CHANNELS_7:
+      case CHANNELS_8:
+          break;
+      default:
+          rc = -EINVAL;
+          QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+          break;
     }
-
-    if (!sattr) {
-        QAL_ERR(LOG_TAG, "Invalid param", session);
-        status = -EINVAL;
-        goto exit;
-    }
-
-    memset(mStreamAttr, 0, sizeof(qal_stream_attributes));
-    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr,
-                     sizeof(qal_stream_attributes));
-    status = gsl_engine_->SetConfig(this, MODULE, 0);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "gsl engine setConfig failed with status %d", status);
-        goto exit;
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
+    return rc;
 }
 
-int32_t StreamSoundTrigger::read(struct qal_buffer* buf)
-{
-    int32_t size = 0;
+int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth) {
+    int32_t rc = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    if (reader_) {
-        size = reader_->read(buf->buffer, buf->size);
-    } else {
-        QAL_ERR(LOG_TAG, "Failed to read data as no valid reader present");
-        return -EINVAL;
+    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    switch (bitWidth) {
+      case BITWIDTH_16:
+      case BITWIDTH_24:
+      case BITWIDTH_32:
+          break;
+      default:
+          rc = -EINVAL;
+          QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+          break;
     }
-    QAL_DBG(LOG_TAG, "Exit, stream read successful size - %d", size);
-
-    return size;
-}
-
-int32_t StreamSoundTrigger::write(struct qal_buffer* buf __unused)
-{
-    return 0;
+    return rc;
 }
 
 int32_t StreamSoundTrigger::registerCallBack(qal_stream_callback cb,
-                                             void * cookie)
-{
+                                             void * cookie) {
     callback_ = cb;
     cookie_ = cookie;
-    QAL_DBG(LOG_TAG, "callback_ = %pK", callback_);
+
+    QAL_VERBOSE(LOG_TAG, "callback_ = %pK", callback_);
 
     return 0;
 }
 
-int32_t StreamSoundTrigger::getCallBack(qal_stream_callback *cb)
-{
+int32_t StreamSoundTrigger::getCallBack(qal_stream_callback *cb) {
     if (!cb) {
         QAL_ERR(LOG_TAG, "Invalid cb");
         return -EINVAL;
     }
+    // Do not expect this to be called.
     *cb = callback_;
-    QAL_DBG(LOG_TAG, "callback_ = %pK", (*cb));
-
     return 0;
 }
 
+struct detection_event_info* StreamSoundTrigger::GetDetectionEventInfo() {
+    return gsl_engine_->GetDetectionEventInfo();
+}
+
+int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
+    if ((det_type < GMM_DETECTED) || (det_type > VOP_REJECTED)) {
+        QAL_ERR(LOG_TAG, "Invalid detection type %d", det_type);
+        return -EINVAL;
+    }
+
+    std::unique_lock<std::mutex> lck(mStreamMutex); //TODO-Venki
+    std::shared_ptr<StEventConfig> ev_cfg(
+       new StDetectedEventConfig(det_type));
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+void StreamSoundTrigger::InternalStopRecognition() {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (pending_stop_) {
+        std::shared_ptr<StEventConfig> ev_cfg(
+           new StStopRecognitionEventConfig(true));
+        status = cur_state_->ProcessEvent(ev_cfg);
+    }
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+}
+
+void StreamSoundTrigger::TimerThread(StreamSoundTrigger& st_stream) {
+    QAL_DBG(LOG_TAG, "Enter");
+
+    std::unique_lock<std::mutex> lck(st_stream.timer_mutex_);
+    while (!st_stream.exit_timer_thread_) {
+        st_stream.timer_start_cond_.wait(lck);
+        if (st_stream.exit_timer_thread_)
+            break;
+
+        st_stream.timer_wait_cond_.wait_for(lck,
+            std::chrono::milliseconds(ST_DEFERRED_STOP_DEALY_MS));
+
+        if (!st_stream.timer_stop_waiting_ && !st_stream.exit_timer_thread_) {
+            st_stream.timer_mutex_.unlock();
+            st_stream.InternalStopRecognition();
+            st_stream.timer_mutex_.lock();
+        }
+    }
+    QAL_DBG(LOG_TAG, "Exit");
+}
+
+void StreamSoundTrigger::PostDelayedStop() {
+    QAL_VERBOSE(LOG_TAG, "Post Delayed Stop for %p", this);
+    pending_stop_ = true;
+    std::lock_guard<std::mutex> lck(timer_mutex_);
+    timer_stop_waiting_ = false;
+    timer_start_cond_.notify_one();
+}
+
+void StreamSoundTrigger::CancelDelayedStop() {
+    QAL_VERBOSE(LOG_TAG, "Cancel Delayed stop for %p", this);
+    pending_stop_ = false;
+    std::lock_guard<std::mutex> lck(timer_mutex_);
+    timer_stop_waiting_ = true;
+    timer_wait_cond_.notify_one();
+}
+
 /* TODO:
-    - Need to track vendor UUID
-    - Need to parse BigSM for SVA 3.0
-*/
+ *   - Need to track vendor UUID
+ */
 int32_t StreamSoundTrigger::LoadSoundModel(
-    struct qal_st_sound_model *sound_model)
-{
+    struct qal_st_sound_model *sound_model) {
+
     int32_t status = 0;
     int32_t i = 0;
-    uint32_t engine_id = 0;
-    SoundTriggerEngine *engine = nullptr;
+    int32_t engine_id = 0;
+    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
     struct qal_st_phrase_sound_model *phrase_sm = nullptr;
     struct qal_st_sound_model *common_sm = nullptr;
     uint8_t *ptr = nullptr;
-    uint8_t *sm_data = nullptr;
     uint8_t *sm_payload = nullptr;
+    uint8_t *sm_data = nullptr;
     int32_t sm_size = 0;
     SML_GlobalHeaderType *global_hdr = nullptr;
     SML_HeaderTypeV3 *hdr_v3 = nullptr;
@@ -496,18 +594,11 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
     QAL_DBG(LOG_TAG, "Enter");
 
-    if (!gsl_engine_) {
-        QAL_ERR(LOG_TAG, "No GMM engine present, error!");
-        status = -EINVAL;
-        goto exit;
-    }
-
     if (!sound_model) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
         goto exit;
     }
-
     sound_model_type_ = sound_model->type;
 
     if (sound_model->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -531,14 +622,13 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             sm_version = SML_MODEL_V3;
             hdr_v3 = (SML_HeaderTypeV3 *)(sm_payload +
                                           sizeof(SML_GlobalHeaderType));
-            stages_ = hdr_v3->numModels;
-            QAL_DBG(LOG_TAG, "stages = %u", stages_);
-            for (i = 0; i < stages_; i++) {
+            QAL_DBG(LOG_TAG, "num of sound models = %u", hdr_v3->numModels);
+            for (i = 0; i < hdr_v3->numModels; i++) {
                 big_sm = (SML_BigSoundModelTypeV3 *)(
                     sm_payload + sizeof(SML_GlobalHeaderType) +
                     sizeof(SML_HeaderTypeV3) +
                     (i * sizeof(SML_BigSoundModelTypeV3)));
-                engine_id = static_cast<uint32_t>(big_sm->type);
+                engine_id = static_cast<int32_t>(big_sm->type);
 
                 QAL_INFO(LOG_TAG, "type = %u, size = %u",
                          big_sm->type, big_sm->size);
@@ -548,7 +638,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     sm_data = (uint8_t *)calloc(1, sm_size);
                     if (!sm_data) {
                         status = -ENOMEM;
-                        QAL_ERR(LOG_TAG, "sm_data malloc failed, status %d",
+                        QAL_ERR(LOG_TAG, "sm_data allocation failed, status %d",
                                 status);
                         goto exit;
                     }
@@ -558,20 +648,45 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     common_sm->data_size = big_sm->size;
                     common_sm->data_offset += sizeof(SML_GlobalHeaderType) +
                         sizeof(SML_HeaderTypeV3) +
-                        (stages_ * sizeof(SML_BigSoundModelTypeV3)) +
+                        (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
                     casa_osal_memcpy(sm_data + sizeof(*phrase_sm), big_sm->size,
                                      (char *)phrase_sm + common_sm->data_offset,
                                      big_sm->size);
                     common_sm->data_offset = sizeof(*phrase_sm);
                     common_sm = (struct qal_st_sound_model *)&phrase_sm->common;
-                    RegisterSoundModelData(engine_id, sm_data);
-                    gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
+
+                    gsl_engine_ = SoundTriggerEngine::Create(this,
+                                      ST_SM_ID_SVA_GMM, &reader_, nullptr);
+                    if (!gsl_engine_) {
+                        status = -ENOMEM;
+                        QAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
+                        goto exit;
+                    }
+                    if (!reader_) {
+                        status = -ENOMEM;
+                        QAL_ERR(LOG_TAG, "big_sm: gsl engine reader creation"
+                                "failed");
+                        goto exit;
+                    }
+
+                    status = gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
+                                "failed, status %d", status);
+                        goto exit;
+                    }
+
+                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+                    std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
+                       engine_id, gsl_engine_, (void *) sm_data, sm_size));
+
+                    AddEngine(engine_cfg);
                 } else {
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload + sizeof(SML_GlobalHeaderType) +
                         sizeof(SML_HeaderTypeV3) +
-                        (stages_ * sizeof(SML_BigSoundModelTypeV3)) +
+                        (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
                     sm_data = (uint8_t *)calloc(1, sm_size);
                     if (!sm_data) {
@@ -579,11 +694,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         QAL_ERR(LOG_TAG, "Failed to alloc memory for sm_data");
                         goto exit;
                     }
-
                     casa_osal_memcpy(sm_data, sm_size, ptr, sm_size);
 
-                    notification_state_ = notification_state_ | engine_id;
-                    engine = SoundTriggerEngine::create(this, big_sm->type,
+                    engine = SoundTriggerEngine::Create(this, big_sm->type,
                                                         &reader_,
                                                         reader_->ringBuffer_);
                     if (!engine) {
@@ -592,18 +705,31 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         status = -ENOENT;
                         goto exit;
                     }
-                    RegisterSoundTriggerEngine(engine_id, engine);
-                    RegisterSoundModelData(engine_id, sm_data);
-                    engine->LoadSoundModel(this, sm_data, sm_size);
+
+                    status = engine->LoadSoundModel(this, sm_data, sm_size);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Loading model to engine type %d"
+                                "failed, status %d", big_sm->type, status);
+                        goto exit;
+                    }
+
+                    std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
+                       engine_id,engine, (void *)sm_data, sm_size));
+
+                    AddEngine(engine_cfg);
                 }
+            }
+            if (!gsl_engine_) {
+                QAL_ERR(LOG_TAG, "First stage sound model not present!!");
+                goto exit;
             }
         } else {
             // Parse sound model 2.0
             sm_size = sizeof(*phrase_sm) + common_sm->data_size;
             sm_data = (uint8_t *)calloc(1, sm_size);
             if (!sm_data) {
-                status = -ENOMEM;
                 QAL_ERR(LOG_TAG, "Failed to allocate memory for sm_data");
+                status = -ENOMEM;
                 goto exit;
             }
             casa_osal_memcpy(sm_data, sizeof(*phrase_sm),
@@ -611,9 +737,31 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             casa_osal_memcpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
-            engine_id = static_cast<uint32_t>(ST_SM_ID_SVA_GMM);
-            RegisterSoundModelData(engine_id, sm_data);
-            gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
+            gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
+                                                &reader_, nullptr);
+            if (!gsl_engine_) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "gsl engine creation failed");
+                goto exit;
+            }
+            if (!reader_) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "gsl engine reader creation failed");
+                goto exit;
+            }
+
+            status = gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
+            if (status) {
+                QAL_ERR(LOG_TAG, "gsl engine loading model failed, status %d",
+                        status);
+                goto exit;
+            }
+
+            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+            std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(engine_id,
+                                                          gsl_engine_,
+                                                          sm_data, sm_size));
+            AddEngine(engine_cfg);
         }
     } else if (sound_model->type == QAL_SOUND_MODEL_TYPE_GENERIC) {
         if ((sound_model->data_size == 0) ||
@@ -644,46 +792,34 @@ exit:
 
 // TODO: look into how cookies are used here
 int32_t StreamSoundTrigger::SendRecognitionConfig(
-    struct qal_st_recognition_config *config)
-{
+    struct qal_st_recognition_config *config) {
+
     int32_t status = 0;
     struct st_param_header *param_hdr = NULL;
     struct st_hist_buffer_info *hist_buf = NULL;
     struct st_det_perf_mode_info *det_perf_mode = NULL;
     uint8_t *opaque_ptr = NULL;
     unsigned int opaque_size = 0, conf_levels_payload_size = 0;
-    int32_t confidence_threshold = 0;
     uint32_t hist_buffer_duration = 0;
     uint32_t pre_roll_duration = 0;
-    listen_model_indicator_enum type;
     uint32_t conf_levels_intf_version = 0;
     uint8_t *conf_levels = NULL;
     uint32_t num_conf_levels = 0;
     bool capture_requested = false;
 
     QAL_DBG(LOG_TAG, "Enter");
-    if (!gsl_engine_) {
-        QAL_ERR(LOG_TAG, "No GMM engine present, error!");
-        status = -EINVAL;
-        goto exit;
+
+    if (rec_config_) {
+        // Possible due to subsequent detections.
+        free(rec_config_);
+        rec_config_ = nullptr;
     }
 
-    if (!active_sm_data_.size()) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid sm data status %d", status);
-        goto exit;
-    }
-
-    // TODO: need logic to check for existing config
-    // free that before allocating
-
-    // Keep a copy of recognition config in StreamSoundTrigger
     rec_config_ = (struct qal_st_recognition_config *)calloc(1,
         sizeof(struct qal_st_recognition_config) + config->data_size);
     if (!rec_config_) {
-        status = -ENOMEM;
         QAL_ERR(LOG_TAG, "Failed to allocate rec_config_ status %d", status);
-        goto exit;
+        return -ENOMEM;
     }
 
     casa_osal_memcpy(rec_config_, sizeof(struct qal_st_recognition_config),
@@ -702,88 +838,86 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                         param_hdr->key_id, param_hdr->payload_size);
 
             switch (param_hdr->key_id) {
-                case ST_PARAM_KEY_CONFIDENCE_LEVELS:
-                    conf_levels_intf_version = *(uint32_t *)(
-                        opaque_ptr + sizeof(struct st_param_header));
-                    QAL_VERBOSE(LOG_TAG, "conf_levels_intf_version = %u",
-                                conf_levels_intf_version);
-                    if (conf_levels_intf_version !=
-                        CONF_LEVELS_INTF_VERSION_0002) {
-                        conf_levels_payload_size =
-                            sizeof(struct st_confidence_levels_info);
-                    } else {
-                        conf_levels_payload_size =
-                            sizeof(struct st_confidence_levels_info_v2);
-                    }
-                    if (param_hdr->payload_size != conf_levels_payload_size) {
-                        QAL_ERR(LOG_TAG, "Conf level format error, exiting");
-                        status = -EINVAL;
-                        goto exit;
-                    }
-                    status = ParseOpaqueConfLevels(opaque_ptr,
-                                                   conf_levels_intf_version,
-                                                   &conf_levels,
-                                                   &num_conf_levels);
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to parse opaque conf levels");
-                        goto exit;
-                    }
+              case ST_PARAM_KEY_CONFIDENCE_LEVELS:
+                  conf_levels_intf_version = *(uint32_t *)(
+                      opaque_ptr + sizeof(struct st_param_header));
+                  QAL_VERBOSE(LOG_TAG, "conf_levels_intf_version = %u",
+                      conf_levels_intf_version);
+                  if (conf_levels_intf_version !=
+                      CONF_LEVELS_INTF_VERSION_0002) {
+                      conf_levels_payload_size =
+                          sizeof(struct st_confidence_levels_info);
+                  } else {
+                      conf_levels_payload_size =
+                          sizeof(struct st_confidence_levels_info_v2);
+                  }
+                  if (param_hdr->payload_size != conf_levels_payload_size) {
+                      QAL_ERR(LOG_TAG, "Conf level format error, exiting");
+                      status = -EINVAL;
+                      goto exit;
+                  }
+                  status = ParseOpaqueConfLevels(opaque_ptr,
+                                                 conf_levels_intf_version,
+                                                 &conf_levels,
+                                                 &num_conf_levels);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to parse opaque conf levels");
+                    goto exit;
+                }
 
-                    opaque_size += sizeof(struct st_param_header) +
-                        conf_levels_payload_size;
-                    opaque_ptr += sizeof(struct st_param_header) +
-                        conf_levels_payload_size;
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Parse conf levels failed(status=%d)",
-                                status);
-                        status = -EINVAL;
-                        goto exit;
-                    }
-                    break;
-                case ST_PARAM_KEY_HISTORY_BUFFER_CONFIG:
-                    if (param_hdr->payload_size !=
-                        sizeof(struct st_hist_buffer_info)) {
-                        QAL_ERR(LOG_TAG, "History buffer config format error");
-                        status = -EINVAL;
-                        goto exit;
-                    }
-                    hist_buf = (struct st_hist_buffer_info *)(opaque_ptr +
-                        sizeof(struct st_param_header));
-                    hist_buffer_duration =
-                        hist_buf->hist_buffer_duration_msec;
-                    pre_roll_duration =
-                        hist_buf->pre_roll_duration_msec;
-                    QAL_DBG(LOG_TAG, "recognition config history buf len = %d, "
-                            "preroll len = %d, minor version = %d",
-                            hist_buf->hist_buffer_duration_msec,
-                            hist_buf->pre_roll_duration_msec,
-                            hist_buf->version);
-                    gsl_engine_->UpdateBufConfig(hist_buffer_duration,
-                                                 pre_roll_duration);
-                    opaque_size += sizeof(struct st_param_header) +
-                        sizeof(struct st_hist_buffer_info);
-                    opaque_ptr += sizeof(struct st_param_header) +
-                        sizeof(struct st_hist_buffer_info);
-                    break;
-                case ST_PARAM_KEY_DETECTION_PERF_MODE:
-                    if (param_hdr->payload_size !=
-                        sizeof(struct st_det_perf_mode_info)) {
-                        QAL_ERR(LOG_TAG, "Opaque data format error, exiting");
-                        status = -EINVAL;
-                        goto exit;
-                    }
-                    det_perf_mode = (struct st_det_perf_mode_info *)
-                        (opaque_ptr + sizeof(struct st_param_header));
-                    QAL_DBG(LOG_TAG, "set perf mode %d", det_perf_mode->mode);
-                    opaque_size += sizeof(struct st_param_header) +
-                        sizeof(struct st_det_perf_mode_info);
-                    opaque_ptr += sizeof(struct st_param_header) +
-                        sizeof(struct st_det_perf_mode_info);
-                    break;
-                default:
-                    QAL_ERR(LOG_TAG, "Unsupported opaque data key id, exiting");
+                opaque_size += sizeof(struct st_param_header) +
+                    conf_levels_payload_size;
+                opaque_ptr += sizeof(struct st_param_header) +
+                    conf_levels_payload_size;
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Parse conf levels failed(status=%d)",
+                            status);
                     status = -EINVAL;
                     goto exit;
+                }
+                break;
+              case ST_PARAM_KEY_HISTORY_BUFFER_CONFIG:
+                  if (param_hdr->payload_size !=
+                      sizeof(struct st_hist_buffer_info)) {
+                      QAL_ERR(LOG_TAG, "History buffer config format error");
+                      status = -EINVAL;
+                      goto exit;
+                  }
+                  hist_buf = (struct st_hist_buffer_info *)(opaque_ptr +
+                      sizeof(struct st_param_header));
+                  hist_buffer_duration = hist_buf->hist_buffer_duration_msec;
+                  pre_roll_duration = hist_buf->pre_roll_duration_msec;
+                  QAL_DBG(LOG_TAG, "recognition config history buf len = %d"
+                          "preroll len = %d, minor version = %d",
+                          hist_buf->hist_buffer_duration_msec,
+                          hist_buf->pre_roll_duration_msec,
+                          hist_buf->version);
+                  gsl_engine_->UpdateBufConfig(hist_buffer_duration,
+                                               pre_roll_duration);
+                  opaque_size += sizeof(struct st_param_header) +
+                      sizeof(struct st_hist_buffer_info);
+                  opaque_ptr += sizeof(struct st_param_header) +
+                      sizeof(struct st_hist_buffer_info);
+                  break;
+              case ST_PARAM_KEY_DETECTION_PERF_MODE:
+                  if (param_hdr->payload_size !=
+                      sizeof(struct st_det_perf_mode_info)) {
+                      QAL_ERR(LOG_TAG, "Opaque data format error, exiting");
+                      status = -EINVAL;
+                      goto exit;
+                  }
+                  det_perf_mode = (struct st_det_perf_mode_info *)
+                      (opaque_ptr + sizeof(struct st_param_header));
+                  QAL_DBG(LOG_TAG, "set perf mode %d", det_perf_mode->mode);
+                  opaque_size += sizeof(struct st_param_header) +
+                      sizeof(struct st_det_perf_mode_info);
+                  opaque_ptr += sizeof(struct st_param_header) +
+                      sizeof(struct st_det_perf_mode_info);
+                  break;
+              default:
+                  QAL_ERR(LOG_TAG, "Unsupported opaque data key id, exiting");
+                  status = -EINVAL;
+                  goto exit;
             }
         }
     } else {
@@ -798,451 +932,101 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                                   conf_levels, num_conf_levels);
 
     // Update capture requested flag to gsl engine
-    if (!rec_config_->capture_requested && active_engines_.size() == 1)
+    if (!rec_config_->capture_requested && engines_.size() == 1)
         capture_requested = false;
     else
         capture_requested = true;
     gsl_engine_->SetCaptureRequested(capture_requested);
+    return status;
 
 exit:
     if (conf_levels)
         free(conf_levels);
 
+    if (rec_config_) {
+        free(rec_config_);
+        rec_config_ = nullptr;
+    }
+
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
-int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload)
-{
-    int32_t status = 0;
+bool StreamSoundTrigger::compareRecognitionConfig(
+   const struct qal_st_recognition_config *current_config,
+   struct qal_st_recognition_config *new_config) {
+    uint32_t i = 0, j = 0;
 
-    QAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
-    if (active_engines_.size()) {
-        SoundTriggerEngine *stEngine = active_engines_[0].second;
-        status = stEngine->getParameters(param_id, payload);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to get parameters from st engine");
-        }
+    /*
+     * Sometimes if the number of user confidence levels is 0, the
+     * qal_st_confidence_level struct will be different between the two
+     * configs. So all the values must be checked instead of a memcmp of the
+     * whole configs.
+     */
+    if ((current_config->capture_handle != new_config->capture_handle) ||
+        (current_config->capture_device != new_config->capture_device) ||
+        (current_config->capture_requested != new_config->capture_requested) ||
+        (current_config->num_phrases != new_config->num_phrases) ||
+        (current_config->data_size != new_config->data_size) ||
+        (current_config->data_offset != new_config->data_offset) ||
+        std::memcmp((char *) current_config + current_config->data_offset,
+               (char *) new_config + new_config->data_offset,
+               current_config->data_size)) {
+        return false;
     } else {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "No sound trigger engine present");
-    }
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload)
-{
-    int32_t status = 0;
-    struct qal_st_sound_model *sound_model = nullptr;
-    struct qal_st_recognition_config *rc_config = nullptr;
-    SoundTriggerEngine *engine = nullptr;
-
-    QAL_DBG(LOG_TAG, "Enter, param id %d", param_id);
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    // Stream may not know about tags, so use setParameters instead of setConfig
-    switch (param_id) {
-    case QAL_PARAM_ID_LOAD_SOUND_MODEL:
-    {
-        sound_model = (struct qal_st_sound_model *)payload;
-        status = LoadSoundModel(sound_model);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to parse sound model status %d", status);
-            goto exit;
-        }
-        break;
-    }
-    case QAL_PARAM_ID_START_RECOGNITION:
-    {
-        rc_config = (struct qal_st_recognition_config *)payload;
-        status = SendRecognitionConfig(rc_config);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to parse recognition config status %d",
-                    status);
-            goto exit;
-        }
-        break;
-    }
-    case QAL_PARAM_ID_STOP_BUFFERING:
-    {
-        for (int i = 0; i < active_engines_.size(); i++) {
-            engine = active_engines_[i].second;
-            status = engine->StopBuffering(this);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to stop buffering, status = %d",
-                        status);
-                goto exit;
+        for (i = 0; i < current_config->num_phrases; i++) {
+            if ((current_config->phrases[i].id !=
+                 new_config->phrases[i].id) ||
+                (current_config->phrases[i].recognition_modes !=
+                 new_config->phrases[i].recognition_modes) ||
+                (current_config->phrases[i].confidence_level !=
+                 new_config->phrases[i].confidence_level) ||
+                (current_config->phrases[i].num_levels !=
+                 new_config->phrases[i].num_levels)) {
+                return false;
+            } else {
+                for (j = 0; j < current_config->phrases[i].num_levels; j++) {
+                    if ((current_config->phrases[i].levels[j].user_id !=
+                         new_config->phrases[i].levels[j].user_id) ||
+                        (current_config->phrases[i].levels[j].level !=
+                         new_config->phrases[i].levels[j].level))
+                        return false;
+                }
             }
         }
-
-        // reset ring buffer reader
-        if (reader_) {
-            reader_->reset();
-        } else {
-            status = -EINVAL;
-            goto exit;
-        }
-
-        // reset detection state
-        status = SetDetectionState(ENGINE_IDLE);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to set detection state to IDLE");
-            goto exit;
-        }
-
-        break;
+        return true;
     }
-    default:
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
-        goto exit;
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
 }
 
-void StreamSoundTrigger::RegisterSoundTriggerEngine(
-    uint32_t id,
-    SoundTriggerEngine *stEngine)
-{
-    int index;
-
-    if (!GetSoundTriggerEngine(&index, id)) {
-        QAL_ERR(LOG_TAG, "Sound Model with id %u already registered", id);
-        return;
-    }
-    active_engines_.push_back(std::make_pair(id, stEngine));
-}
-
-void StreamSoundTrigger::DeregisterSoundTriggerEngine(uint32_t id)
-{
-    int index;
-    SoundTriggerEngine *engine = nullptr;
-    std::vector<std::pair<uint32_t, SoundTriggerEngine *>>::iterator iter;
-
-    if (GetSoundTriggerEngine(&index, id)) {
-        QAL_ERR(LOG_TAG,  "No Sound trigger engine found for id %u", id);
-        return;
-    }
-    iter += index;
-    engine = (*iter).second;
-    if (engine) {
-        QAL_VERBOSE(LOG_TAG, "Release sound trigger engine %pK", engine);
-        delete engine;
-    }
-    active_engines_.erase(iter);
-}
-
-int32_t StreamSoundTrigger::GetSoundTriggerEngine(int *index, uint32_t sm_id)
-{
-    int32_t status = -ENOENT;
-
-    for (int i = 0; i < active_engines_.size(); i++) {
-        if (active_engines_[i].first == sm_id) {
-            QAL_VERBOSE(LOG_TAG, "Sound trigger engine found for id %u", sm_id);
-            *index = i;
-            status = 0;
-            break;
-        }
-    }
-    return status;
-}
-
-void StreamSoundTrigger::RegisterSoundModelData(uint32_t id, uint8_t *data)
-{
-    int index;
-
-    if (!GetSoundModelData(&index, id)) {
-        QAL_ERR(LOG_TAG, "Sound Model data with id %u already registered", id);
-        return;
-    }
-    active_sm_data_.push_back(std::make_pair(id, data));
-}
-
-void StreamSoundTrigger::DeregisterSoundModelData(uint32_t id)
-{
-    int index = 0;
-    uint8_t *data = nullptr;
-    std::vector<std::pair<uint32_t, uint8_t *>>::iterator iter;
-
-    if (GetSoundModelData(&index, id)) {
-        QAL_ERR(LOG_TAG,  "No Sound trigger engine found for id %u", id);
-        return;
-    }
-    iter += index;
-    data = (*iter).second;
-    if (data) {
-        QAL_VERBOSE(LOG_TAG, "Release sound model data %pK", data);
-        free(data);
-    }
-    active_sm_data_.erase(iter);
-}
-
-int32_t StreamSoundTrigger::GetSoundModelData(int *index, uint32_t sm_id)
-{
-    int32_t status = -ENOENT;
-
-    for (int i = 0; i < active_sm_data_.size(); i++) {
-        if (active_sm_data_[i].first == sm_id) {
-            QAL_VERBOSE(LOG_TAG, "Sound trigger engine found for id %u", sm_id);
-            *index = i;
-            status = 0;
-            break;
-        }
-    }
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::ParseDetectionPayload(uint32_t event_id,
-                                                  uint32_t *event_data)
-{
+int32_t StreamSoundTrigger::notifyClient() {
     int32_t status = 0;
-    int32_t i = 0;
-    uint32_t parsed_size = 0;
-    uint32_t payload_size = 0;
-    uint32_t event_size = 0;
-    uint8_t *ptr = nullptr;
-    struct event_id_detection_engine_generic_info_t *generic_info = nullptr;
-    struct detection_event_info_header_t *event_header = nullptr;
-    struct confidence_level_info_t *confidence_info = nullptr;
-    struct keyword_position_info_t *keyword_position_info = nullptr;
-    struct detection_timestamp_info_t *detection_timestamp_info = nullptr;
-    struct ftrt_data_info_t *ftrt_info = nullptr;
+    struct qal_st_recognition_event *rec_event = nullptr;
 
-    if (!event_data) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid event data status %d", status);
-        goto exit;
-    }
-
-    QAL_DBG(LOG_TAG, "Enter");
-    // parse event_id_detection_engine_generic_info
-    generic_info =
-        (struct event_id_detection_engine_generic_info_t *)event_data;
-    payload_size = sizeof(struct event_id_detection_engine_generic_info_t);
-    detection_event_info_.status = generic_info->status;
-    event_size = generic_info->payload_size;
-    ptr = (uint8_t *)event_data + payload_size;
-    QAL_INFO(LOG_TAG, "status = %u, event_size = %u",
-             detection_event_info_.status, event_size);
-    if (status || !event_size) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid detection payload");
-        goto exit;
-    }
-
-    // parse variable payload
-    while (parsed_size < event_size) {
-        QAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
-                parsed_size, event_size);
-        event_header = (struct detection_event_info_header_t *)ptr;
-        uint32_t keyId = event_header->key_id;
-        payload_size = event_header->payload_size;
-        QAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
-                keyId, payload_size);
-        ptr += sizeof(struct detection_event_info_header_t);
-        parsed_size += sizeof(struct detection_event_info_header_t);
-
-        switch (keyId) {
-        case KEY_ID_CONFIDENCE_LEVELS_INFO:
-            confidence_info = (struct confidence_level_info_t *)ptr;
-            detection_event_info_.num_confidence_levels =
-                confidence_info->number_of_confidence_values;
-            QAL_DBG(LOG_TAG, "num_confidence_levels = %u",
-                    detection_event_info_.num_confidence_levels);
-            for (i = 0; i < detection_event_info_.num_confidence_levels; i++) {
-                detection_event_info_.confidence_levels[i] =
-                    confidence_info->confidence_levels[i];
-                QAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
-                            detection_event_info_.confidence_levels[i]);
-            }
-            break;
-        case KEY_ID_KWD_POSITION_INFO:
-            keyword_position_info = (struct keyword_position_info_t *)ptr;
-            detection_event_info_.kw_start_timestamp_lsw =
-                keyword_position_info->kw_start_timestamp_lsw;
-            detection_event_info_.kw_start_timestamp_msw =
-                keyword_position_info->kw_start_timestamp_msw;
-            detection_event_info_.kw_end_timestamp_lsw =
-                keyword_position_info->kw_end_timestamp_lsw;
-            detection_event_info_.kw_end_timestamp_msw =
-                keyword_position_info->kw_end_timestamp_msw;
-            QAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
-                    "end_lsw = %u, end_msw = %u",
-                    detection_event_info_.kw_start_timestamp_lsw,
-                    detection_event_info_.kw_start_timestamp_msw,
-                    detection_event_info_.kw_end_timestamp_lsw,
-                    detection_event_info_.kw_end_timestamp_msw);
-            break;
-        case KEY_ID_TIMESTAMP_INFO:
-            detection_timestamp_info = (struct detection_timestamp_info_t *)ptr;
-            detection_event_info_.detection_timestamp_lsw =
-                detection_timestamp_info->detection_timestamp_lsw;
-            detection_event_info_.detection_timestamp_msw =
-                detection_timestamp_info->detection_timestamp_msw;
-            QAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
-                    detection_event_info_.detection_timestamp_lsw,
-                    detection_event_info_.detection_timestamp_msw);
-            break;
-        case KEY_ID_FTRT_DATA_INFO:
-            ftrt_info = (struct ftrt_data_info_t *)ptr;
-            detection_event_info_.ftrt_data_length_in_us =
-                ftrt_info->ftrt_data_length_in_us;
-            QAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
-                    detection_event_info_.ftrt_data_length_in_us);
-            break;
-        default:
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
-            goto exit;
-        }
-        ptr += payload_size;
-        parsed_size += payload_size;
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::NotifyClient()
-{
-    int32_t status = 0;
-    SoundTriggerEngine *engine = nullptr;
-
-    QAL_INFO(LOG_TAG, "Notify detection event back to client");
-    status = GenerateCallbackEvent(&rec_event_);
-    if (status) {
+    status = GenerateCallbackEvent(&rec_event);
+    if (status || !rec_event) {
         QAL_ERR(LOG_TAG, "Failed to generate callback event");
-        goto exit;
+        return status;
+    }
+    if (callback_) {
+        QAL_INFO(LOG_TAG, "Notify detection event to client");
+        mStreamMutex.unlock();
+        callback_(this, 0, (uint32_t *)rec_event, rec_config_->cookie);
+        mStreamMutex.lock();//TODO-Venki:
     }
 
-    if (!callback_) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid stream callback");
-        goto exit;
+    if (rec_event->media_config.ch_info) {
+        free(rec_event->media_config.ch_info);
     }
-    callback_(this, 0, (uint32_t *)rec_event_, rec_config_->cookie);
-
-    if (!rec_config_->capture_requested)
-        setParameters(QAL_PARAM_ID_STOP_BUFFERING, nullptr);
-
-exit:
-    // release rec_event_ after callback so that
-    // rec_event_ can be used in next detection
-    if (rec_event_) {
-        if (rec_event_->media_config.ch_info) {
-            free(rec_event_->media_config.ch_info);
-            rec_event_->media_config.ch_info = nullptr;
-        }
-        if (sound_model_type_ == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-            struct qal_st_phrase_recognition_event *phrase_event =
-                (struct qal_st_phrase_recognition_event *)rec_event_;
-            free(phrase_event);
-        } else {
-            free(rec_event_);
-        }
-        rec_event_ = nullptr;
-    }
+    free(rec_event);
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
-}
-
-int32_t StreamSoundTrigger::SetDetectionState(uint32_t state)
-{
-    int32_t status = 0;
-    int32_t i = 0;
-    uint32_t engine_id = 0;
-    listen_model_indicator_enum type;
-    SoundTriggerEngine *engine = nullptr;
-    uint32_t prev_state = detection_state_;
-
-    QAL_DBG(LOG_TAG, "Enter");
-    switch (state)
-    {
-        case ENGINE_IDLE:
-            detection_state_ = ENGINE_IDLE;
-            break;
-        case GMM_DETECTED:
-        case CNN_DETECTED:
-        case VOP_DETECTED:
-            detection_state_ = detection_state_ | state;
-            break;
-        case CNN_REJECTED:
-        case VOP_REJECTED:
-            QAL_DBG(LOG_TAG, "Second stage rejected, stop buffering");
-            status = setParameters(QAL_PARAM_ID_STOP_BUFFERING, nullptr);
-            if (status) {
-                QAL_ERR(LOG_TAG, "Failed to stop buffering");
-                goto exit;
-            }
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "Invalid state %x", state);
-            status = -EINVAL;
-            goto exit;
-    }
-
-    QAL_INFO(LOG_TAG, "detection state = %u, notification state = %u",
-             detection_state_, notification_state_);
-    if (prev_state == ENGINE_IDLE &&
-        detection_state_ == GMM_DETECTED &&
-        active_engines_.size() > 1) {
-        QAL_DBG(LOG_TAG, "First stage detected, notify second stages");
-        for (i = 0; i < active_engines_.size(); i++) {
-            engine_id = active_engines_[i].first;
-            type = static_cast<listen_model_indicator_enum>(engine_id);
-            if (type == ST_SM_ID_SVA_GMM)
-                continue;
-
-            QAL_VERBOSE(LOG_TAG, "Notify detection to ST engine %d", i);
-            engine = active_engines_[i].second;
-            engine->SetDetected(true);
-        }
-    }
-
-    if (detection_state_ == notification_state_) {
-        QAL_INFO(LOG_TAG, "Notify detection event back to client");
-        NotifyClient();
-    }
-
-exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::setVolume(struct qal_volume_data * volume __unused)
-{
-    return 0;
-}
-int32_t StreamSoundTrigger::setMute(bool state __unused)
-{
-    return 0;
-}
-
-int32_t StreamSoundTrigger::setPause()
-{
-    return 0;
-}
-
-int32_t StreamSoundTrigger::setResume()
-{
-    return 0;
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
-    struct qal_st_recognition_event **event)
-{
+    struct qal_st_recognition_event **event) {
+
     struct qal_st_phrase_recognition_event *phrase_event = nullptr;
     struct qal_channel_info *ch_info = nullptr;
     struct st_param_header *param_hdr = nullptr;
@@ -1254,7 +1038,15 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     uint8_t *opaque_data = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
+    *event = nullptr;
     if (sound_model_type_ == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+        struct detection_event_info *det_ev_info =
+            gsl_engine_->GetDetectionEventInfo();
+        if (!det_ev_info) {
+            QAL_ERR(LOG_TAG, "detection info not available");
+            return -EINVAL;
+        }
+
         opaque_size = (3 * sizeof(struct st_param_header)) +
             sizeof(struct st_timestamp_info) +
             sizeof(struct st_keyword_indices_info) +
@@ -1266,7 +1058,15 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                        calloc(1, event_size);
         if (!phrase_event) {
             QAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            return ENOMEM;
+            return -ENOMEM;
+        }
+
+        ch_info = (struct qal_channel_info *)
+                  calloc(1, sizeof(struct qal_channel_info));
+        if (!ch_info) {
+            QAL_ERR(LOG_TAG, "Failed to alloc memory for channel info");
+            free(phrase_event);
+            return -ENOMEM;
         }
 
         phrase_event->num_phrases = rec_config_->num_phrases;
@@ -1288,12 +1088,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         (*event)->data_size = opaque_size;
         (*event)->data_offset = sizeof(struct qal_st_phrase_recognition_event);
 
-        ch_info = (struct qal_channel_info *)
-                  calloc(1, sizeof(struct qal_channel_info));
-        if (!ch_info) {
-            QAL_ERR(LOG_TAG, "Failed to alloc memory for channel info");
-            return ENOMEM;
-        }
         (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
         (*event)->media_config.bit_width = BITWIDTH_16;
         (*event)->media_config.ch_info = ch_info;
@@ -1311,13 +1105,13 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         opaque_data += sizeof(struct st_param_header);
         conf_levels = (struct st_confidence_levels_info *)opaque_data;
         conf_levels->version = 0x1;
-        conf_levels->num_sound_models = stages_;
+        conf_levels->num_sound_models = engines_.size();
         // TODO: update user conf levels
         for (int i = 0; i < conf_levels->num_sound_models; i++) {
             conf_levels->conf_levels[i].sm_id = ST_SM_ID_SVA_GMM;
             conf_levels->conf_levels[i].num_kw_levels = 1;
             conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                detection_event_info_.confidence_levels[i];
+                det_ev_info->confidence_levels[i];
             conf_levels->conf_levels[i].kw_levels[0].num_user_levels = 0;
         }
         opaque_data += param_hdr->payload_size;
@@ -1332,8 +1126,10 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         reader_->getIndices(&kw_indices->start_index, &kw_indices->end_index);
         opaque_data += sizeof(struct st_keyword_indices_info);
 
-        /* Pack the opaque data detection time structure
-           TODO: add support for 2nd stage detection timestamp */
+        /*
+         * Pack the opaque data detection time structure
+         * TODO: add support for 2nd stage detection timestamp
+         */
         param_hdr = (struct st_param_header *)opaque_data;
         param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
         param_hdr->payload_size = sizeof(struct st_timestamp_info);
@@ -1341,8 +1137,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         timestamps = (struct st_timestamp_info *)opaque_data;
         timestamps->version = 0x1;
         timestamps->first_stage_det_event_time = 1000 *
-            ((uint64_t)detection_event_info_.detection_timestamp_lsw +
-            ((uint64_t)detection_event_info_.detection_timestamp_msw << 32));
+            ((uint64_t)det_ev_info->detection_timestamp_lsw +
+            ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
     }
     // TODO: handle for generic sound model
     QAL_DBG(LOG_TAG, "Exit");
@@ -1350,214 +1146,12 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     return 0;
 }
 
-int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate)
-{
-    int32_t rc = 0;
-
-    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
-    switch (sampleRate) {
-        case SAMPLINGRATE_8K:
-        case SAMPLINGRATE_16K:
-        case SAMPLINGRATE_32K:
-        case SAMPLINGRATE_44K:
-        case SAMPLINGRATE_48K:
-        case SAMPLINGRATE_96K:
-        case SAMPLINGRATE_192K:
-        case SAMPLINGRATE_384K:
-            break;
-        default:
-            rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
-            break;
-    }
-
-    return rc;
-}
-
-int32_t StreamSoundTrigger::isChannelSupported(uint32_t numChannels)
-{
-    int32_t rc = 0;
-
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
-    switch (numChannels) {
-        case CHANNELS_1:
-        case CHANNELS_2:
-        case CHANNELS_3:
-        case CHANNELS_4:
-        case CHANNELS_5:
-        case CHANNELS_5_1:
-        case CHANNELS_7:
-        case CHANNELS_8:
-            break;
-        default:
-            rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
-            break;
-    }
-
-    return rc;
-}
-
-int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth)
-{
-    int32_t rc = 0;
-
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
-    switch (bitWidth) {
-        case BITWIDTH_16:
-        case BITWIDTH_24:
-        case BITWIDTH_32:
-            break;
-        default:
-            rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
-            break;
-    }
-
-    return rc;
-}
-
-int32_t StreamSoundTrigger::addRemoveEffect(qal_audio_effect_t effect,
-                                            bool enable)
-{
-    QAL_ERR(LOG_TAG, "Function not supported");
-
-    return -ENOSYS;
-}
-
-// TBD: to be tested, Yidong, is this enough?
-int32_t StreamSoundTrigger::switchDevice(Stream* stream_handle,
-                                         uint32_t no_of_devices,
-                                         struct qal_device *device_array)
-{
-    int32_t status = -EINVAL;
-    SoundTriggerEngine *engine = nullptr;
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    std::shared_ptr<Device> dev = nullptr;
-    if (no_of_devices == 0 || !device_array) {
-        QAL_ERR("%s: invalid param for device switch", __func__);
-        status = -EINVAL;
-        goto error_1;
-    }
-
-    for (int i = 0; i < active_engines_.size(); i++) {
-        uint32_t id = active_engines_[i].first;
-        engine = active_engines_[i].second;
-        QAL_VERBOSE(LOG_TAG, "stop recognition for sound trigger engine %u",
-                    id);
-        status = engine->StopRecognition(this);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "StopRecognition failed for sound trigger "
-                    "engine %u with status %d", id, status);
-            goto error_1;
-        }
-    }
-
-    /*
-     * tell rm we are disabling existing mDevices,
-     * so that it can disable any streams running on
-     * 1. mDevices with common backend
-     * TBD: as there are no devices with common backend now.
-     * rm->disableDevice(mDevices);
-     */
-
-    for (int i = 0; i < mDevices.size(); i++) {
-        QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
-            mDevices[i]->getSndDeviceId(),
-            mDevices[i]->getQALDeviceName().c_str());
-
-        gsl_engine_->DisconnectSessionDevice(stream_handle, mStreamAttr->type,
-                                             mDevices[i]);
-        status = mDevices[i]->stop();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "%s: Rx device stop failed with status %d",
-                __func__, status);
-            goto error_1;
-        }
-
-        rm->deregisterDevice(mDevices[i]);
-
-        status = mDevices[i]->close();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-            goto error_1;
-        }
-    }
-
-    // clear existing devices and enable new devices
-    mDevices.clear();
-
-    for (int i = 0; i < no_of_devices; i++) {
-
-        //Check with RM if the configuration given can work or not
-        //for e.g., if incoming stream needs 24 bit device thats also
-        //being used by another stream, then the other stream should route
-
-        dev = Device::getInstance((struct qal_device *)&mDevices[i] , rm);
-
-        if (!dev) {
-            QAL_ERR(LOG_TAG, "%s: Device creation failed", __func__);
-            if (mStreamAttr) {
-                free(mStreamAttr->in_media_config.ch_info);
-                free(mStreamAttr);
-                mStreamAttr = nullptr;
-            }
-            // TBD::free session too
-            throw std::runtime_error("failed to create device object");
-        }
-
-        QAL_ERR(LOG_TAG, "device %d name %s, going to start",
-                mDevices[i]->getSndDeviceId(),
-                mDevices[i]->getQALDeviceName().c_str());
-
-        status = mDevices[i]->start();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
-                    mDevices[i]->getSndDeviceId(),
-                    mDevices[i]->getQALDeviceName().c_str(), status);
-            goto error_2;
-        }
-
-        mDevices.push_back(dev);
-        // enable sessions
-        gsl_engine_->ConnectSessionDevice(stream_handle, mStreamAttr->type,
-                                          mDevices[i]);
-        rm->registerDevice(dev);
-        dev = nullptr;
-    }
-
-    for (int i = 0; i < active_engines_.size(); i++) {
-        uint32_t id = active_engines_[i].first;
-        engine = active_engines_[i].second;
-        QAL_VERBOSE(LOG_TAG, "start recognition for sound trigger engine %u",
-                    id);
-        status = engine->StartRecognition(this);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "StartRecognition failed for sound trigger "
-                    "engine %u with status %d", id, status);
-            goto error_2;
-        }
-    }
-
-error_2:
-    if (mStreamAttr) {
-        free(mStreamAttr->in_media_config.ch_info);
-        free(mStreamAttr);
-        mStreamAttr = nullptr;
-    }
-
-error_1:
-
-    return status;
-}
-
 int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
     void *opaque_conf_levels,
     uint32_t version,
     uint8_t **out_conf_levels,
-    uint32_t *out_num_conf_levels)
-{
+    uint32_t *out_num_conf_levels) {
+
     int32_t status = 0;
     struct st_confidence_levels_info *conf_levels = nullptr;
     struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
@@ -1566,9 +1160,6 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
     uint8_t confidence_level = 0;
     uint8_t confidence_level_v2 = 0;
     bool gmm_conf_found = false;
-    listen_model_indicator_enum type;
-    SoundTriggerEngine *engine = nullptr;
-    uint32_t engine_id;
 
     QAL_DBG(LOG_TAG, "Enter");
     if (version != CONF_LEVELS_INTF_VERSION_0002) {
@@ -1587,13 +1178,10 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     sm_levels->kw_levels[0].kw_level:
                     sm_levels->kw_levels[0].user_levels[0].level;
                 QAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
-                for (int j = 0; j < active_engines_.size(); j++) {
-                    engine_id = active_engines_[i].first;
-                    type = static_cast<listen_model_indicator_enum>(engine_id);
-                    if (type == sm_levels->sm_id) {
-                        engine = active_engines_[i].second;
-                        engine->UpdateConfLevels(this, rec_config_,
-                                                 &confidence_level, 1);
+                for (auto& eng: engines_) {
+                    if (sm_levels->sm_id == eng->GetEngineId()) {
+                        eng->GetEngine()->UpdateConfLevels(this, rec_config_,
+                            &confidence_level, 1);
                     }
                 }
             }
@@ -1614,13 +1202,12 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     sm_levels_v2->kw_levels[0].kw_level:
                     sm_levels_v2->kw_levels[0].user_levels[0].level;
                 QAL_DBG(LOG_TAG, "confidence level = %d", confidence_level_v2);
-                for (int j = 0; j < active_engines_.size(); j++) {
-                    engine_id = active_engines_[i].first;
-                    type = static_cast<listen_model_indicator_enum>(engine_id);
-                    if (type == sm_levels_v2->sm_id) {
-                        engine = active_engines_[i].second;
-                        engine->UpdateConfLevels(this, rec_config_,
-                                                 &confidence_level_v2, 1);
+                for (auto& eng: engines_) {
+                    QAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
+                        sm_levels_v2->sm_id , eng->GetEngineId());
+                    if (sm_levels_v2->sm_id == eng->GetEngineId()) {
+                        eng->GetEngine()->UpdateConfLevels(this, rec_config_,
+                            &confidence_level_v2, 1);
                     }
                 }
             }
@@ -1642,40 +1229,29 @@ exit:
 int32_t StreamSoundTrigger::FillConfLevels(
     struct qal_st_recognition_config *config,
     uint8_t **out_conf_levels,
-    uint32_t *out_num_conf_levels)
-{
+    uint32_t *out_num_conf_levels) {
+
     int32_t status = 0;
-    uint32_t engine_id = 0;
-    uint8_t *sm_data = nullptr;
     uint32_t num_conf_levels = 0;
     unsigned int user_level, user_id;
     unsigned int i = 0, j = 0;
     uint8_t *conf_levels = nullptr;
     unsigned char *user_id_tracker = nullptr;
     struct qal_st_phrase_sound_model *phrase_sm = nullptr;
-    listen_model_indicator_enum type = ST_SM_ID_SVA_NONE;
-
-    for (i = 0; i < active_sm_data_.size(); i++) {
-        engine_id = active_sm_data_[i].first;
-        type = static_cast<listen_model_indicator_enum>(engine_id);
-        if (type == ST_SM_ID_SVA_GMM) {
-            sm_data = active_sm_data_[i].second;
-        }
-    }
-
-    if (!sm_data) {
-        QAL_ERR(LOG_TAG, "No GMM sound model found");
-        status = -EINVAL;
-        goto exit;
-    }
-    phrase_sm = (struct qal_st_phrase_sound_model *)sm_data;
 
     QAL_DBG(LOG_TAG, "Enter");
 
-    if (!phrase_sm || !config) {
+    if (!config) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "invalid input status %d", status);
         goto exit;
+    }
+
+    for (auto& eng: engines_) {
+        if (eng->GetEngineId() == ST_SM_ID_SVA_GMM) {
+            phrase_sm = (struct qal_st_phrase_sound_model *)eng->sm_data_;
+            break;
+        }
     }
 
     if ((config->num_phrases == 0) ||
@@ -1700,6 +1276,7 @@ int32_t StreamSoundTrigger::FillConfLevels(
 
     user_id_tracker = (unsigned char *)calloc(1, num_conf_levels);
     if (!user_id_tracker) {
+        free(conf_levels);
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d",
                 status);
@@ -1773,8 +1350,8 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
     const void *sm_levels_generic,
     uint8_t **out_payload,
     uint32_t *out_payload_size,
-    uint32_t version)
-{
+    uint32_t version) {
+
     int status = 0;
     unsigned int num_conf_levels = 0;
     unsigned int user_level = 0, user_id = 0;
@@ -1965,7 +1542,618 @@ exit:
     if (user_id_tracker)
         free(user_id_tracker);
 
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
 
+void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
+    for (auto& eng: engines_) {
+        if (eng->GetEngineId() != ST_SM_ID_SVA_GMM) {
+            QAL_VERBOSE(LOG_TAG, "Notify detection event %d to engine %d",
+                    detected, eng->GetEngineId());
+            eng->GetEngine()->SetDetected(detected);
+        }
+    }
+}
+
+
+void StreamSoundTrigger::AddEngine(std::shared_ptr<EngineCfg> engine_cfg) {
+    for (int32_t i = 0; i < engines_.size(); i++) {
+        if (engines_[i] == engine_cfg) {
+            QAL_VERBOSE(LOG_TAG, "engine type %d already exists",
+                        engine_cfg->id_);
+            return;
+        }
+    }
+    QAL_VERBOSE(LOG_TAG, "Add engine %d, gsl_engine %p", engine_cfg->id_,
+                gsl_engine_.get());
+    engines_.push_back(engine_cfg);
+}
+
+void StreamSoundTrigger::AddState(StState* state) {
+   st_states_.insert(std::make_pair(state->GetStateId(), state));
+}
+
+int32_t StreamSoundTrigger::GetCurrentStateId() {
+    if (cur_state_)
+        return cur_state_->GetStateId();
+
+    return ST_STATE_NONE;
+}
+
+int32_t StreamSoundTrigger::GetPreviousStateId() {
+    if (prev_state_)
+        return prev_state_->GetStateId();
+
+    return ST_STATE_NONE;
+}
+
+void StreamSoundTrigger::TransitTo(int32_t state_id) {
+    auto it = st_states_.find(state_id);
+    if (it == st_states_.end()) {
+        QAL_ERR(LOG_TAG, "Unknown transit state %d ", state_id);
+        return;
+    }
+    prev_state_ = cur_state_;
+    cur_state_ = it->second;
+    QAL_DBG(LOG_TAG, "state transitioned from %d to %d",
+            prev_state_->GetStateId(), it->first);
+}
+
+int32_t StreamSoundTrigger::ProcessInternalEvent(
+    std::shared_ptr<StEventConfig> ev_cfg) {
+    return cur_state_->ProcessEvent(ev_cfg);
+}
+
+int32_t StreamSoundTrigger::StIdle::ProcessEvent(
+    std::shared_ptr<StEventConfig> ev_cfg) {
+
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "StIdle: handle event %d", ev_cfg->id_);
+
+    switch (ev_cfg->id_) {
+      case ST_EV_LOAD_SOUND_MODEL: {
+          StLoadEventConfigData *data =
+              (StLoadEventConfigData *)ev_cfg->data_.get();
+          std::vector<std::shared_ptr<Device>> tmp_devices;
+          for (auto& dev: st_stream_.mDevices) {
+              status = dev->open();
+              if (0 != status) {
+                  QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                  goto err_exit;
+              }
+              tmp_devices.push_back(dev);
+          }
+          status = st_stream_.LoadSoundModel(
+              (struct qal_st_sound_model *)data->data_);
+
+          if (0 != status) {
+              QAL_ERR(LOG_TAG, "Failed to load sound model, status %d", status);
+              goto err_exit;
+          } else {
+              QAL_VERBOSE(LOG_TAG, "Opened the engine and device successfully");
+              TransitTo(ST_STATE_LOADED);
+              break;
+          }
+      err_exit:
+          for (auto& tmp_dev: tmp_devices)
+              tmp_dev->close();
+          break;
+      }
+      case ST_EV_READ_BUFFER: {
+          status = -EIO;
+          break;
+      }
+      default: {
+          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+          break;
+      }
+    }
+
+    return status;
+}
+
+int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
+    std::shared_ptr<StEventConfig> ev_cfg) {
+
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "StLoaded: handle event %d", ev_cfg->id_);
+
+    switch (ev_cfg->id_) {
+    case ST_EV_UNLOAD_SOUND_MODEL: {
+        int ret = 0;
+        for (auto& dev: st_stream_.mDevices) {
+            QAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
+                    dev->getQALDeviceName().c_str());
+            ret = dev->close();
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                status = ret;
+            }
+        }
+
+        for (auto& eng: st_stream_.engines_) {
+            QAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+            status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                        eng->GetEngineId(), status);
+                status = ret;
+            }
+            free(eng->sm_data_);
+        }
+        if (st_stream_.reader_) {
+            delete st_stream_.reader_;
+            st_stream_.reader_ = nullptr;
+        }
+        st_stream_.engines_.clear();
+
+        TransitTo(ST_STATE_IDLE);
+        break;
+    }
+    case ST_EV_RECOGNITION_CONFIG: {
+        StRecognitionCfgEventConfigData *data =
+            (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+        status = st_stream_.SendRecognitionConfig(
+           (struct qal_st_recognition_config *)data->data_);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                    status);
+        }
+        break;
+    }
+    case ST_EV_START_RECOGNITION: {
+        StStartRecognitionEventConfigData *data =
+            (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+        if (!st_stream_.rec_config_) {
+            QAL_ERR(LOG_TAG, "Recognition config not set", data->restart_);
+            status = -EINVAL;
+            break;
+        }
+
+        std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
+        std::vector<std::shared_ptr<Device>> tmp_devices;
+
+        for (auto& eng: st_stream_.engines_) {
+            QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
+            status = eng->GetEngine()->StartRecognition(&st_stream_);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Start st engine %d failed, status %d",
+                        eng->GetEngineId(), status);
+                goto err_exit;
+            } else {
+                tmp_engines.push_back(eng->GetEngine());
+            }
+        }
+
+        if (st_stream_.reader_)
+            st_stream_.reader_->reset();
+
+        for (auto& dev: st_stream_.mDevices){
+            QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
+                    dev->getQALDeviceName().c_str());
+
+            status = dev->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
+                goto err_exit;
+            } else {
+                st_stream_.rm->registerDevice(dev);
+                tmp_devices.push_back(dev);
+            }
+        }
+
+        TransitTo(ST_STATE_ACTIVE);
+        break;
+
+    err_exit:
+        for (auto& eng: tmp_engines)
+            eng->StopRecognition(&st_stream_);
+
+        for (auto& dev: tmp_devices) {
+            dev->stop();
+            st_stream_.rm->deregisterDevice(dev);
+        }
+        break;
+    }
+    case ST_EV_READ_BUFFER: {
+        status = -EIO;
+        break;
+    }
+    default: {
+        QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+        break;
+    }
+    }
+    return status;
+}
+
+int32_t StreamSoundTrigger::StActive::ProcessEvent(
+    std::shared_ptr<StEventConfig> ev_cfg) {
+
+    int32_t status = 0;
+
+    switch (ev_cfg->id_) {
+      case ST_EV_DETECTED: {
+          StDetectedEventConfigData *data =
+              (StDetectedEventConfigData *) ev_cfg->data_.get();
+          if (data->det_type_ != GMM_DETECTED)
+              break;
+          if (!st_stream_.rec_config_->capture_requested &&
+              st_stream_.engines_.size() == 1) {
+              TransitTo(ST_STATE_DETECTED);
+              if (st_stream_.GetCurrentStateId() == ST_STATE_DETECTED) {
+                  st_stream_.PostDelayedStop();
+              }
+          } else {
+              TransitTo(ST_STATE_BUFFERING);
+              st_stream_.SetDetectedToEngines(true);
+          }
+          if (st_stream_.engines_.size() == 1) {
+              st_stream_.notifyClient();
+          }
+          break;
+      }
+      case ST_EV_STOP_RECOGNITION: {
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->StopRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          for (auto& dev: st_stream_.mDevices) {
+              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                      dev->getQALDeviceName().c_str());
+              status = dev->stop();
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+              }
+              st_stream_.rm->deregisterDevice(dev);
+          }
+          if (st_stream_.rec_config_) {
+              free(st_stream_.rec_config_);
+              st_stream_.rec_config_ = nullptr;
+          }
+          TransitTo(ST_STATE_LOADED);
+          break;
+      }
+      case ST_EV_READ_BUFFER: {
+          status = -EIO;
+          break;
+      }
+      default: {
+          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+          break;
+      }
+    }
+    return status;
+}
+
+int32_t StreamSoundTrigger::StDetected::ProcessEvent(
+    std::shared_ptr<StEventConfig> ev_cfg) {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "StDetected: handle event %d", ev_cfg->id_);
+
+    switch (ev_cfg->id_) {
+      case ST_EV_START_RECOGNITION: {
+          // Client restarts next recognition without config changed.
+          st_stream_.CancelDelayedStop();
+
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->RestartRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          if (st_stream_.reader_)
+              st_stream_.reader_->reset();
+          if (!status) {
+              TransitTo(ST_STATE_ACTIVE);
+          } else {
+              TransitTo(ST_STATE_LOADED);
+          }
+          break;
+      }
+      case ST_EV_STOP_RECOGNITION: {
+          // gets dispatched after internal delayed stop timer times out.
+          StStopRecognitionEventConfigData *data =
+              (StStopRecognitionEventConfigData *)ev_cfg->data_.get();
+          if (!data->deferred_) {
+              QAL_ERR(LOG_TAG, "Not a deferred stop");
+              status = -EINVAL;
+              break;
+          }
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->StopRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          for (auto& dev: st_stream_.mDevices){
+              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                      dev->getQALDeviceName().c_str());
+              status = dev->stop();
+              if (status)
+                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+              st_stream_.rm->deregisterDevice(dev);
+          }
+          TransitTo(ST_STATE_LOADED);
+          break;
+      }
+      case ST_EV_RECOGNITION_CONFIG: {
+          /*
+           * Client can update config for next recognition.
+           * Get to loaded state as START event will start recognition.
+           */
+          st_stream_.CancelDelayedStop();
+
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->StopRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          for (auto& dev: st_stream_.mDevices) {
+              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                      dev->getQALDeviceName().c_str());
+              status = dev->stop();
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+              }
+              st_stream_.rm->deregisterDevice(dev);
+          }
+          TransitTo(ST_STATE_LOADED);
+          status = st_stream_.ProcessInternalEvent(ev_cfg);
+          if (status) {
+              QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
+                      status);
+          }
+          // START event will be handled in loaded state.
+          break;
+      }
+      default: {
+          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+          break;
+      }
+    }
+    return status;
+}
+
+int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
+   std::shared_ptr<StEventConfig> ev_cfg) {
+    int32_t status = 0;
+
+    QAL_VERBOSE(LOG_TAG, "StBuffering: handle event %d", ev_cfg->id_);
+
+    switch (ev_cfg->id_) {
+      case ST_EV_READ_BUFFER: {
+          StReadBufferEventConfigData *data =
+              (StReadBufferEventConfigData *)ev_cfg->data_.get();
+          struct qal_buffer *buf = (struct qal_buffer *)data->data_;
+
+          if (!st_stream_.reader_) {
+              QAL_ERR(LOG_TAG, "no reader exists");
+              status = -EINVAL;
+              break;
+          }
+          status = st_stream_.reader_->read(buf->buffer, buf->size);
+          break;
+      }
+      case ST_EV_STOP_BUFFERING: {
+          QAL_DBG(LOG_TAG, "StBuffering: stop buffering");
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                          eng->GetEngineId());
+              status = eng->GetEngine()->StopBuffering(&st_stream_);
+              if (status){
+                  QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          if (st_stream_.reader_) {
+              st_stream_.reader_->reset();
+          }
+          st_stream_.PostDelayedStop();
+          break;
+      }
+      case ST_EV_START_RECOGNITION: {
+        /*
+         * Can happen if client requests next recognition without any config
+         * change with/without reading buffers after sending detection event.
+         */
+        StStartRecognitionEventConfigData *data =
+            (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+        QAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
+                data->restart_);
+        st_stream_.CancelDelayedStop();
+
+        for (auto& eng: st_stream_.engines_) {
+            QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                        eng->GetEngineId());
+            status = eng->GetEngine()->StopBuffering(&st_stream_);
+            if (status)
+                QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                        eng->GetEngineId(), status);
+        }
+        if (st_stream_.reader_)
+            st_stream_.reader_->reset();
+
+        for (auto& eng: st_stream_.engines_) {
+            QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+            status = eng->GetEngine()->RestartRecognition(&st_stream_);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Restart engine %d buffering failed, status %d",
+                        eng->GetEngineId(), status);
+                break;
+            }
+        }
+        if (!status) {
+            TransitTo(ST_STATE_ACTIVE);
+        } else {
+            TransitTo(ST_STATE_LOADED);
+        }
+        break;
+      }
+      case ST_EV_RECOGNITION_CONFIG: {
+          /*
+           * Can happen if client doesn't read buffers after sending detection
+           * event, but requests next recognition with config change.
+           * Get to loaded state as START event will start the recognition.
+           */
+          st_stream_.CancelDelayedStop();
+
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                          eng->GetEngineId());
+              status = eng->GetEngine()->StopBuffering(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+                  // continue stopping recognition
+              }
+          }
+          if (st_stream_.reader_) {
+            st_stream_.reader_->reset();
+          }
+
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->StopRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          for (auto& dev: st_stream_.mDevices) {
+              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                      dev->getQALDeviceName().c_str());
+              status = dev->stop();
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+              }
+              st_stream_.rm->deregisterDevice(dev);
+          }
+          TransitTo(ST_STATE_LOADED);
+          status = st_stream_.ProcessInternalEvent(ev_cfg);
+          if (status) {
+              QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
+                      status);
+          }
+          // START event will be handled in loaded state.
+          break;
+      }
+      case ST_EV_STOP_RECOGNITION:  {
+          // Possible with deffered stop if client doesn't start next recognition.
+          st_stream_.CancelDelayedStop();
+
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->StopRecognition(&st_stream_);
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          for (auto& dev: st_stream_.mDevices) {
+              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                      dev->getQALDeviceName().c_str());
+              status = dev->stop();
+              if (status) {
+                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+              }
+              st_stream_.rm->deregisterDevice(dev);
+          }
+          if (st_stream_.rec_config_) {
+              free(st_stream_.rec_config_);
+              st_stream_.rec_config_ = nullptr;
+          }
+          TransitTo(ST_STATE_LOADED);
+          break;
+      }
+      case ST_EV_DETECTED: {
+          // Second stage detections fall here.
+          StDetectedEventConfigData *data =
+              (StDetectedEventConfigData *)ev_cfg->data_.get();
+          if (data->det_type_ == GMM_DETECTED) {
+              break;
+          }
+          // If second stage has rejected, stop buffering and restart recognition
+          if (data->det_type_ == CNN_REJECTED ||
+              data->det_type_ == VOP_REJECTED) {
+              QAL_DBG(LOG_TAG, "Second stage rejected, type %d",
+                      data->det_type_);
+              st_stream_.detection_state_ = ENGINE_IDLE;
+              for (auto& eng: st_stream_.engines_) {
+                  QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                              eng->GetEngineId());
+                  status = eng->GetEngine()->StopBuffering(&st_stream_);
+                  if (status) {
+                      QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
+                                       "status %d", eng->GetEngineId(), status);
+                      // Continue to restart
+                  }
+              }
+              if (st_stream_.reader_) {
+                  st_stream_.reader_->reset();
+              }
+              for (auto& eng: st_stream_.engines_) {
+                  QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+                  status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                  if (status) {
+                      QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                              eng->GetEngineId(), status);
+                      break;
+                  }
+              }
+              if (!status) {
+                  TransitTo(ST_STATE_ACTIVE);
+              } else {
+                  TransitTo(ST_STATE_LOADED);
+              }
+              break;
+          }
+          st_stream_.detection_state_ |=  data->det_type_;
+          if (st_stream_.detection_state_ & (CNN_DETECTED | VOP_DETECTED)) {
+              QAL_DBG(LOG_TAG, "Second stage detected");
+              st_stream_.detection_state_ = ENGINE_IDLE;
+              if (!st_stream_.rec_config_->capture_requested) {
+                  for (auto& eng: st_stream_.engines_) {
+                      QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                                  eng->GetEngineId());
+                      status = eng->GetEngine()->StopBuffering(&st_stream_);
+                      if (status) {
+                          QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
+                                  "status %d", eng->GetEngineId(), status);
+                      }
+                  }
+                  if (st_stream_.reader_) {
+                      st_stream_.reader_->reset();
+                  }
+                  TransitTo(ST_STATE_DETECTED);
+              }
+              st_stream_.notifyClient();
+              if (!st_stream_.rec_config_->capture_requested &&
+                  (st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING ||
+                   st_stream_.GetCurrentStateId() == ST_STATE_DETECTED)) {
+                  st_stream_.PostDelayedStop();
+              }
+          }
+          break;
+      }
+      default: {
+          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+          break;
+      }
+    }
     return status;
 }

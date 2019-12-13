@@ -34,46 +34,52 @@
 #include "SoundTriggerEngineGsl.h"
 #include "SoundTriggerEngineCapiCnn.h"
 #include "SoundTriggerEngineCapiVop.h"
-#include "Session.h"
 #include "Stream.h"
 
-SoundTriggerEngine* SoundTriggerEngine::create(
+std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
     listen_model_indicator_enum type,
     QalRingBufferReader **reader,
-    std::shared_ptr<QalRingBuffer> buffer)
+    QalRingBuffer *buffer)
 {
-    SoundTriggerEngine *stEngine = nullptr;
-    uint32_t id;
+    QAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
 
     if (!s) {
         QAL_ERR(LOG_TAG, "Invalid stream handle");
-        goto exit;
+        return nullptr;
     }
 
-    id = static_cast<uint32_t>(type);
+    uint32_t id = static_cast<uint32_t>(type);
+    std::shared_ptr<SoundTriggerEngine> st_engine(nullptr);
+
     switch (type) {
-        case ST_SM_ID_SVA_GMM:
-            stEngine = new SoundTriggerEngineGsl(s, id, id, reader, buffer);
-            break;
-        case ST_SM_ID_SVA_CNN:
-            stEngine = new SoundTriggerEngineCapiCnn(s, id, id, reader, buffer);
-            break;
-        case ST_SM_ID_SVA_VOP:
-            stEngine = new SoundTriggerEngineCapiVop(s, id, id, reader, buffer);
-            break;
-        default:
-            QAL_ERR(LOG_TAG, "Invalid model type: %u", id);
-            goto exit;
+    case ST_SM_ID_SVA_GMM:
+        st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, id,
+                                                            reader, buffer);
+        if (!st_engine)
+            QAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
+        break;
+
+    case ST_SM_ID_SVA_CNN:
+        st_engine = std::make_shared<SoundTriggerEngineCapiCnn>(s, id, id,
+                                                                reader, buffer);
+        if (!st_engine)
+            QAL_ERR(LOG_TAG, "SoundTriggerEngine CNN creation failed");
+        break;
+
+    case ST_SM_ID_SVA_VOP:
+        st_engine = std::make_shared<SoundTriggerEngineCapiVop>(s, id, id,
+                                                                reader, buffer);
+        if (!st_engine)
+            QAL_ERR(LOG_TAG, "SoundTriggerEngine VOP creation failed");
+        break;
+
+    default:
+        QAL_ERR(LOG_TAG, "Invalid model type: %u", id);
+        break;
     }
 
-    // TODO: register engine to RM if it is newly created
-exit:
-    if (!stEngine) {
-        QAL_ERR(LOG_TAG, "SoundTriggerEngine creation failed");
-    } else {
-        QAL_VERBOSE(LOG_TAG, "SoundTriggerEngine creation success");
-    }
+    QAL_VERBOSE(LOG_TAG, "Exit, engine %p", st_engine.get());
 
-    return stEngine;
+    return st_engine;
 }

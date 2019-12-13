@@ -255,9 +255,9 @@ int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_
 {
     Stream *s = NULL;
     int status;
-    if (!stream_handle || !param_payload) {
+    if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,  "Invalid input parameters status %d", status);
+        QAL_ERR(LOG_TAG,  "Invalid stream handle, status %d", status);
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);

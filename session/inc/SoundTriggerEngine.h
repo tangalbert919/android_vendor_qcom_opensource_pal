@@ -260,19 +260,34 @@ struct __attribute__((__packed__)) st_det_perf_mode_info
     uint8_t mode; /* 0 -Low Power, 1 -High performance */
 };
 
-class SoundTriggerEngine
+struct detection_event_info
 {
- public:
-    static SoundTriggerEngine* create(Stream *s,
-                                      listen_model_indicator_enum type,
-                                      QalRingBufferReader **reader,
-                                      std::shared_ptr<QalRingBuffer> buffer);
+    uint16_t status;
+    uint16_t num_confidence_levels;
+    uint8_t confidence_levels[20];
+    uint32_t kw_start_timestamp_lsw;
+    uint32_t kw_start_timestamp_msw;
+    uint32_t kw_end_timestamp_lsw;
+    uint32_t kw_end_timestamp_msw;
+    uint32_t detection_timestamp_lsw;
+    uint32_t detection_timestamp_msw;
+    uint32_t ftrt_data_length_in_us;
+};
+
+class SoundTriggerEngine {
+public:
+    static std::shared_ptr<SoundTriggerEngine> Create(Stream *s,
+        listen_model_indicator_enum type,
+        QalRingBufferReader **reader,
+        QalRingBuffer *buffer);
+
     virtual ~SoundTriggerEngine() {}
 
     virtual int32_t LoadSoundModel(Stream *s, uint8_t *data,
                                    uint32_t data_size) = 0;
     virtual int32_t UnloadSoundModel(Stream *s) = 0;
     virtual int32_t StartRecognition(Stream *s) = 0;
+    virtual int32_t RestartRecognition(Stream *s) = 0;
     virtual int32_t StopBuffering(Stream *s) = 0;
     virtual int32_t StopRecognition(Stream *s) = 0;
     virtual int32_t UpdateConfLevels(
@@ -283,11 +298,7 @@ class SoundTriggerEngine
     virtual int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
                                     uint32_t pre_roll_duration) = 0;
     virtual void SetDetected(bool detected) = 0;
-    virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
-    virtual int32_t Open(Stream *s) = 0;
-    virtual int32_t Close(Stream *s) = 0;
-    virtual int32_t Prepare(Stream *s) = 0;
-    virtual int32_t SetConfig(Stream * s, configType type, int tag) = 0;
+    virtual int32_t GetParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t ConnectSessionDevice(
         Stream* stream_handle,
         qal_stream_type_t stream_type,
@@ -297,8 +308,9 @@ class SoundTriggerEngine
         qal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
+    virtual struct detection_event_info* GetDetectionEventInfo() = 0;
 
- protected:
+protected:
     uint32_t engine_id_;
     uint8_t *sm_data_;
     uint32_t sm_data_size_;

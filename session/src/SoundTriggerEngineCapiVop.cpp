@@ -80,9 +80,9 @@ void SoundTriggerEngineCapiVop::BufferThreadLoop(
 
             status = vop_engine->StartDetection();
             if (status || !vop_engine->keyword_detected_)
-                s->SetDetectionState(CNN_REJECTED);
+                s->SetEngineDetectionState(VOP_REJECTED);
             else
-                s->SetDetectionState(CNN_DETECTED);
+                s->SetEngineDetectionState(VOP_DETECTED);
 
             vop_engine->keyword_detected_ = false;
             vop_engine->processing_started_ = false;
@@ -107,7 +107,6 @@ int32_t SoundTriggerEngineCapiVop::StartDetection()
     capi_v2_buf_t capi_uv_ptr;
     voiceprint2_result_t *result_cfg_ptr = nullptr;
     voiceprint2_sva_uv_score_t *uv_cfg_ptr = nullptr;
-    unsigned int det_status = 0;
     int32_t read_size = 0;
     capi_v2_buf_t capi_result;
 
@@ -268,11 +267,10 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     uint32_t id,
     uint32_t stage_id,
     QalRingBufferReader **reader,
-    std::shared_ptr<QalRingBuffer> buffer)
+    QalRingBuffer *buffer)
 {
     int32_t status = 0;
     const char *lib = "libcapiv2vop.so";
-
     engine_id_ = id;
     stage_id_ = stage_id;
     processing_started_ = false;
@@ -280,9 +278,10 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     sm_data_ = nullptr;
     exit_thread_ = false;
     exit_buffering_ = false;
+    uint32_t bufferSize = DEFAULT_QAL_RING_BUFFER_SIZE;
+    struct qal_stream_attributes sAttr;
 
     buffer_size_ = CNN_BUFFER_SIZE;  // 480ms of 16k 16bit mono worth;
-
     kw_start_timestamp_ = 0;
     kw_end_timestamp_ = CNN_DURATION_US;
     buffer_start_ = 0;
@@ -319,7 +318,15 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
 
     stream_handle_ = s;
     if (!buffer) {
-        buffer_ = new QalRingBuffer(DEFAULT_QAL_RING_BUFFER_SIZE);
+        QAL_INFO(LOG_TAG, "creating new ring buffer");
+        s->getStreamAttributes(&sAttr);
+        if (sAttr.direction == QAL_AUDIO_INPUT) {
+            bufferSize = sAttr.in_media_config.sample_rate *
+                sAttr.in_media_config.bit_width *
+                sAttr.in_media_config.ch_info->channels *
+                RING_BUFFER_DURATION / BITS_PER_BYTE;
+        }
+        buffer_ = new QalRingBuffer(bufferSize);
         reader_ = nullptr;
         *reader = buffer_->newReader();
     } else {
@@ -333,11 +340,18 @@ err_exit:
 
 SoundTriggerEngineCapiVop::~SoundTriggerEngineCapiVop()
 {
+    QAL_DBG(LOG_TAG, "TODO-STDBG: deleting buffer_ ");
+    if (buffer_) {
+        delete buffer_;
+    }
+    QAL_DBG(LOG_TAG, "TODO-STDBG: deleting reader_ ");
+    if (reader_) {
+        delete reader_;
+    }
     if (capi_lib_handle_) {
         dlclose(capi_lib_handle_);
         capi_lib_handle_ = nullptr;
     }
-
     if (capi_handle_) {
         capi_handle_->vtbl_ptr = nullptr;
         free(capi_handle_);
@@ -411,7 +425,6 @@ exit:
 int32_t SoundTriggerEngineCapiVop::StopSoundEngine()
 {
     int32_t status = 0;
-    capi_v2_err_t rc = CAPI_V2_EOK;
 
     QAL_VERBOSE(LOG_TAG, "%s: Issuing capi_end", __func__);
     status = capi_handle_->vtbl_ptr->end(capi_handle_);
@@ -428,22 +441,20 @@ int32_t SoundTriggerEngineCapiVop::StopSoundEngine()
 
         cv_.notify_one();
     }
-    buffer_thread_handler_.join();
+    if (buffer_thread_handler_.joinable()) {
+        buffer_thread_handler_.join();
+    }
 
     return status;
 }
 
-int32_t SoundTriggerEngineCapiVop::LoadSoundModel(Stream *s, uint8_t *data,
-                                                  uint32_t data_size)
+int32_t SoundTriggerEngineCapiVop::LoadSoundModel(Stream *s __unused,
+    uint8_t *data, uint32_t data_size)
 {
     int32_t status = 0;
-    struct qal_st_phrase_sound_model *phrase_sm = nullptr;
-    struct qal_st_sound_model *common_sm = nullptr;
-    uint8_t *sm_payload = nullptr;
-    SML_BigSoundModelTypeV3 *big_sm = nullptr;
+    capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_proplist_t init_set_proplist;
     capi_v2_prop_t sm_prop_ptr;
-    capi_v2_err_t rc = CAPI_V2_EOK;
 
     QAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
@@ -490,12 +501,12 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiVop::UnloadSoundModel(Stream *s)
+int32_t SoundTriggerEngineCapiVop::UnloadSoundModel(Stream *s __unused)
 {
     return 0;
 }
 
-int32_t SoundTriggerEngineCapiVop::StartRecognition(Stream *s)
+int32_t SoundTriggerEngineCapiVop::StartRecognition(Stream *s __unused)
 {
     int32_t status = 0;
 
@@ -513,7 +524,7 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiVop::StopBuffering(Stream *s)
+int32_t SoundTriggerEngineCapiVop::StopBuffering(Stream *s __unused)
 {
     int32_t status = 0;
 
@@ -534,7 +545,7 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapiVop::StopRecognition(Stream *s)
+int32_t SoundTriggerEngineCapiVop::StopRecognition(Stream *s __unused)
 {
     int32_t status = 0;
 
@@ -560,8 +571,8 @@ exit:
 }
 
 int32_t SoundTriggerEngineCapiVop::UpdateConfLevels(
-    Stream *s,
-    struct qal_st_recognition_config *config,
+    Stream *s __unused,
+    struct qal_st_recognition_config *config __unused,
     uint8_t *conf_levels,
     uint32_t num_conf_levels)
 {
@@ -591,7 +602,7 @@ void SoundTriggerEngineCapiVop::SetDetected(bool detected)
         // check if we can get detection info if detected = true
         if (detected) {
             str = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-            info = str->getDetectionEventInfo();
+            info = str->GetDetectionEventInfo();
             if (!info) {
                 QAL_ERR(LOG_TAG, "Failed to get detection event info");
                 return;

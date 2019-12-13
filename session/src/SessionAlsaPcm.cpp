@@ -565,7 +565,9 @@ int SessionAlsaPcm::stop(Stream * s)
     mState = SESSION_STOPPED;
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        threadHandler.join();
+        if (threadHandler.joinable()) {
+            threadHandler.join();
+        }
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
                 false, DEVICE_SVA, false);
@@ -972,8 +974,6 @@ int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
     int status = 0;
     struct agm_event_cb_params *params;
     Stream *s = nullptr;
-    uint32_t event_id = 0;
-    uint32_t *event_data = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -1008,15 +1008,12 @@ int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
         goto exit;
     }
 
-    event_id = params->event_id;
-    event_data = (uint32_t *)(params->event_payload);
-
     if (!sessionCb) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid session callback");
         goto exit;
     }
-    sessionCb(cbCookie, event_id, (void *)event_data);
+    sessionCb(cbCookie, params->event_id, (void *)params->event_payload);
 
 exit:
     if (buf)

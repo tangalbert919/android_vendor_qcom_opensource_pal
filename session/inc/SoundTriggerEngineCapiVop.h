@@ -39,17 +39,17 @@
 
 class Stream;
 
-class SoundTriggerEngineCapiVop : public SoundTriggerEngine
-{
+class SoundTriggerEngineCapiVop : public SoundTriggerEngine {
  public:
     SoundTriggerEngineCapiVop(Stream *s, uint32_t id, uint32_t stage_id,
                               QalRingBufferReader **reader,
-                              std::shared_ptr<QalRingBuffer> buffer);
+                              QalRingBuffer *buffer);
     ~SoundTriggerEngineCapiVop();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
     int32_t StartRecognition(Stream *s) override;
+    int32_t RestartRecognition(Stream *s __unused) { return 0; }
     int32_t StopBuffering(Stream *s) override;
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
@@ -59,26 +59,23 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine
         uint32_t num_conf_levels) override;
     void SetDetected(bool detected) override;
 
-    // Functions with no-op
-    int32_t Open(Stream *s) {return 0;}
-    int32_t Close(Stream *s) {return 0;}
-    int32_t Prepare(Stream *s) {return 0;}
-    int32_t SetConfig(Stream * s, configType type, int tag) {return 0;}
-    int32_t getParameters(uint32_t param_id, void **payload) {return 0;}
+    int32_t GetParameters(uint32_t param_id __unused, void **payload __unused) {
+        return 0;
+    }
     int32_t ConnectSessionDevice(
-        Stream* stream_handle,
-        qal_stream_type_t stream_type,
-        std::shared_ptr<Device> device_to_connect) {return 0;}
+        Stream* stream_handle __unused,
+        qal_stream_type_t stream_type __unused,
+        std::shared_ptr<Device> device_to_connect __unused) { return 0; }
     int32_t DisconnectSessionDevice(
-        Stream* stream_handle,
-        qal_stream_type_t stream_type,
-        std::shared_ptr<Device> device_to_disconnect) {return 0;}
-    int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
-                            uint32_t pre_roll_duration) {return 0;}
-    void SetCaptureRequested(bool is_requested) {}
+        Stream* stream_handle __unused,
+        qal_stream_type_t stream_type __unused,
+        std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
+    int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
+                            uint32_t pre_roll_duration __unused) { return 0; }
+    void SetCaptureRequested(bool is_requested __unused) {}
+    struct detection_event_info* GetDetectionEventInfo() { return nullptr; }
 
- protected:
-    int32_t PrepareSoundEngine() {return 0;}
+ private:
     int32_t StartSoundEngine();
     int32_t StopSoundEngine();
     int32_t StartDetection();
@@ -101,9 +98,6 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine
     uint64_t kw_start_timestamp_;  // input from 1st stage
     uint64_t kw_end_timestamp_;
     uint32_t bytes_processed_;
-    uint32_t kw_start_idx_;
-    uint32_t kw_end_idx_;
     uint32_t confidence_score_;
 };
-
 #endif  // SOUNDTRIGGERENGINECAPIVOP_H

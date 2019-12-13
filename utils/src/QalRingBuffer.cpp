@@ -234,7 +234,7 @@ void QalRingBufferReader::reset()
 QalRingBufferReader* QalRingBuffer::newReader()
 {
     QalRingBufferReader* readOffset =
-                  new QalRingBufferReader((std::shared_ptr<QalRingBuffer>)this);
+                  new QalRingBufferReader(this);
     readOffsets_.push_back(readOffset);
     return readOffset;
 }

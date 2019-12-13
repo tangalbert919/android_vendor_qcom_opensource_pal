@@ -48,42 +48,43 @@ typedef enum {
 
 class QalRingBuffer;
 
-class QalRingBufferReader
-{
-protected:
-    std::shared_ptr <QalRingBuffer> ringBuffer_;
-    size_t unreadSize_;
-    size_t readOffset_;
-    qal_ring_buffer_reader_state state_;
-public:
+class QalRingBufferReader {
+ public:
+     QalRingBufferReader(QalRingBuffer *buffer)
+         : ringBuffer_(buffer),
+           unreadSize_(0),
+           readOffset_(0),
+           state_(READER_ENABLED) {}
+
+    ~QalRingBufferReader() {};
+
     size_t advanceReadOffset(size_t advanceSize);
     size_t read(void* readBuffer, size_t readSize);
     void updateState(qal_ring_buffer_reader_state state);
     void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
     void reset();
-    QalRingBufferReader(std::shared_ptr<QalRingBuffer>buffer) :
-        readOffset_(0),
-        unreadSize_(0),
-        state_(READER_ENABLED),
-        ringBuffer_((std::shared_ptr<QalRingBuffer>)buffer)
-    {/* empty constructor */}
 
-    ~QalRingBufferReader();
     friend class QalRingBuffer;
     friend class StreamSoundTrigger;
+
+ protected:
+    QalRingBuffer *ringBuffer_;
+    size_t unreadSize_;
+    size_t readOffset_;
+    qal_ring_buffer_reader_state state_;
 };
 
-class QalRingBuffer
-{
-public:
-    explicit QalRingBuffer(size_t bufferSize) :
-        buffer_((char*)(new char[bufferSize])),
-        writeOffset_(0),
-        startIndex(0),
-        endIndex(0),
-        bufferEnd_(bufferSize)
-    { /* empty constructor */}
+class QalRingBuffer {
+ public:
+    explicit QalRingBuffer(size_t bufferSize)
+        : buffer_((char*)(new char[bufferSize])),
+          startIndex(0),
+          endIndex(0),
+          writeOffset_(0),
+          bufferEnd_(bufferSize) {}
+
+    ~QalRingBuffer() {}
 
     QalRingBufferReader* newReader();
 
@@ -94,14 +95,15 @@ public:
     size_t getFreeSize();
     void updateIndices(uint32_t startIndice, uint32_t endIndice);
     void reset();
-protected:
+
+ protected:
     std::mutex mutex_;
-    const size_t bufferEnd_;
+    char* buffer_;
     uint32_t startIndex;
     uint32_t endIndex;
     size_t writeOffset_;
+    const size_t bufferEnd_;
     std::vector<QalRingBufferReader*> readOffsets_;
-    char* buffer_;
     void updateUnReadSize(size_t writtenSize);
     friend class QalRingBufferReader;
 };
