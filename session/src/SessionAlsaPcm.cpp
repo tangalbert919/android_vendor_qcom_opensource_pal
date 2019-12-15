@@ -119,7 +119,7 @@ int SessionAlsaPcm::open(Stream * s)
                 break;
             }
             status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                    rxAifBackEnds[0].second.data(), false, STREAM_SPR, &spr_miid);
+                     rxAifBackEnds[0].second.data() , false, STREAM_SPR, &spr_miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
                 status = 0; //TODO: add this to some policy in qal
@@ -439,7 +439,6 @@ int SessionAlsaPcm::start(Stream * s)
 
     checkAndConfigConcurrency(s);
 
-
     switch(sAttr.direction) {
         case QAL_AUDIO_INPUT:
             if (sAttr.type != QAL_STREAM_VOICE_UI) {
@@ -473,15 +472,16 @@ int SessionAlsaPcm::start(Stream * s)
         case QAL_AUDIO_OUTPUT:
             status = s->getAssociatedDevices(associatedDevices);
             if(0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
                 return status;
             }
             for (int i = 0; i < associatedDevices.size();i++) {
-                status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                status = associatedDevices[i]->getDeviceAttributes(&dAttr);
                 if(0 != status) {
-                    QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                    QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
                     return status;
                 }
+
                 /* Get PSPD MFC MIID and configure to match to device config */
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
@@ -496,9 +496,18 @@ int SessionAlsaPcm::start(Stream * s)
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info->channels;
-                builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+                builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
+                if (payloadSize) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    delete payload;
+                    if(0 != status) {
+                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        return status;
+                    }
+                }
+
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
-                                                             payload, payloadSize);
+                                                             customPayload, customPayloadSize);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
@@ -641,7 +650,7 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToDisconnect,
             txAifBackEndsToDisconnect);
-    deviceToDisconnect->getDeviceAtrributes(&dAttr);
+    deviceToDisconnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToDisconnect.empty())
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
@@ -650,6 +659,31 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     if (!txAifBackEndsToDisconnect.empty())
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, pcmDevIds, txAifBackEndsToDisconnect);
+
+    return status;
+}
+
+int SessionAlsaPcm::setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    struct qal_device dAttr;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToConnect;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEndsToConnect;
+    int32_t status = 0;
+
+    deviceList.push_back(deviceToConnect);
+    rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
+            txAifBackEndsToConnect);
+    deviceToConnect->getDeviceAttributes(&dAttr);
+
+    if (!rxAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
+            dAttr, pcmDevIds, rxAifBackEndsToConnect);
+
+    if (!txAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
+            dAttr, pcmDevIds, txAifBackEndsToConnect);
 
     return status;
 }
@@ -666,7 +700,7 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
             txAifBackEndsToConnect);
-    deviceToConnect->getDeviceAtrributes(&dAttr);
+    deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty())
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,

@@ -71,6 +71,9 @@ protected:
     std::mutex mutex;
     Session();
     std::shared_ptr<ResourceManager> rm;
+    void *customPayload;
+    size_t customPayloadSize;
+    int updateCustomPayload(void *payload, size_t size);
 public:
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr);
@@ -96,6 +99,8 @@ public:
     virtual int flush() {return 0;};
     virtual int getTimestamp(struct qal_session_time *stime) {return 0;};
     /*TODO need to implement connect/disconnect in basecase*/
+    virtual int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToCconnect) = 0;
     virtual int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToCconnect) = 0;
     virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,

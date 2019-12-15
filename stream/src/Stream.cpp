@@ -417,7 +417,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     mDevices.clear();
 
     QAL_ERR(LOG_TAG, "Incoming device count %d, first id %d, stream_type = %d", no_of_devices, deviceArray[0].id, mStreamAttr->type);
-            
+
     /* overwrite device config with default one for speaker and stream rate for headset */
     /*TODO: handle other devices */
     for (int i = 0; i < no_of_devices; i++) {
@@ -448,21 +448,34 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
         QAL_ERR(LOG_TAG, "device %d name %s, going to start",
             dev->getSndDeviceId(), dev->getQALDeviceName().c_str());
 
+        mDevices.push_back(dev);
+        status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
+                    dev->getSndDeviceId(), status);
+            mDevices.pop_back();
+            dev->close();
+            goto error_2;
+        }
+
+        rm->registerDevice(dev);
+
         status = dev->start();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
                 dev->getSndDeviceId(), dev->getQALDeviceName().c_str(), status);
-            goto error_2;
+            goto error_3;
         }
-
-        mDevices.push_back(dev);
         session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
-        rm->registerDevice(dev);
         dev = nullptr;
     }
 
     goto error_1;
 
+error_3:
+    mDevices.pop_back();
+    rm->deregisterDevice(dev);
+    dev->close();
 error_2:
     if (mStreamAttr) {
         free(mStreamAttr->out_media_config.ch_info);

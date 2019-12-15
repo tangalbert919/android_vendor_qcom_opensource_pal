@@ -235,6 +235,7 @@ public:
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
+    int getBackendName(int deviceId, std::string &backendName);
     int getStreamTag(std::vector <int> &tag);
     int getDeviceTag(std::vector <int> &tag);
     int getMixerTag(std::vector <int> &tag);

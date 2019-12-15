@@ -55,6 +55,8 @@ protected:
     char mSndDeviceName[128] = {0};
     void *deviceHandle;
     bool initialized = false;
+    void *customPayload;
+    size_t customPayloadSize;
 
     Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
@@ -69,7 +71,8 @@ public:
     int getSndDeviceId();
     std::string getQALDeviceName();
     int setDeviceAttributes (struct qal_device dattr);
-    int getDeviceAtrributes (struct qal_device *dattr);
+    int getDeviceAttributes (struct qal_device *dattr);
+    int updateCustomPayload(void *payload, size_t size);
     ~Device();
 };
 

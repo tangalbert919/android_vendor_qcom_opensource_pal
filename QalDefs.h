@@ -55,7 +55,8 @@ typedef void qal_st_handle_t;
 /** QAL Audio format enumeration */
 typedef enum {
     QAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
-    QAL_AUDIO_FMT_MP3 = 0x2,
+    QAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,            /**< Default Compressed*/
+    QAL_AUDIO_FMT_MP3 = QAL_AUDIO_FMT_DEFAULT_COMPRESSED,
     QAL_AUDIO_FMT_AAC = 0x3,
     QAL_AUDIO_FMT_AAC_ADTS = 0x4,
     QAL_AUDIO_FMT_AAC_ADIF = 0x5,

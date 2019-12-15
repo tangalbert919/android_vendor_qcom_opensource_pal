@@ -211,6 +211,8 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     codec.sample_rate = 48000;
     codec.bit_rate = 16;
 
+    customPayload = NULL;
+    customPayloadSize = 0;
     compress = NULL;
     sessionCb = NULL;
     this->cbCookie = NULL;
@@ -285,7 +287,7 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, qal_strea
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToDisconnect,
             txAifBackEndsToDisconnect);
-    deviceToDisconnect->getDeviceAtrributes(&dAttr);
+    deviceToDisconnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToDisconnect.empty())
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
@@ -294,6 +296,31 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, qal_strea
     if (!txAifBackEndsToDisconnect.empty())
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToDisconnect);
+
+    return status;
+}
+
+int SessionAlsaCompress::setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    struct qal_device dAttr;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToConnect;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEndsToConnect;
+    int32_t status = 0;
+
+    deviceList.push_back(deviceToConnect);
+    rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
+            txAifBackEndsToConnect);
+    deviceToConnect->getDeviceAttributes(&dAttr);
+
+    if (!rxAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, rxAifBackEndsToConnect);
+
+    if (!txAifBackEndsToConnect.empty())
+        status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
+            dAttr, compressDevIds, txAifBackEndsToConnect);
 
     return status;
 }
@@ -310,7 +337,7 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_t
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
             txAifBackEndsToConnect);
-    deviceToConnect->getDeviceAtrributes(&dAttr);
+    deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty())
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
@@ -623,11 +650,12 @@ int SessionAlsaCompress::start(Stream * s)
 
             setCustomFormatParam(audio_fmt);
             for (int i = 0; i < associatedDevices.size();i++) {
-                status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                status = associatedDevices[i]->getDeviceAttributes(&dAttr);
                 if(0 != status) {
                     QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
                     return status;
                 }
+
                 /* Get PSPD MFC MIID and configure to match to device config */
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
@@ -642,9 +670,17 @@ int SessionAlsaCompress::start(Stream * s)
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info->channels;
-                builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+                builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &deviceData);
+                if (payloadSize) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    delete payload;
+                    if(0 != status) {
+                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        return status;
+                    }
+                }
                 status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0), true,
-                                                             payload, payloadSize);
+                                                             customPayload, customPayloadSize);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
@@ -708,6 +744,11 @@ int SessionAlsaCompress::close(Stream * s)
     while(!msg_queue_.empty())
         msg_queue_.pop();
     rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+    if (customPayload) {
+        free(customPayload);
+        customPayload = NULL;
+        customPayloadSize = 0;
+    }
     return 0;
 }
 

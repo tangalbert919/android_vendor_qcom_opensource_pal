@@ -67,6 +67,7 @@ enum FeCtrlsIndex {
 enum BeCtrlsIndex {
     BE_METADATA,
     BE_MEDIAFMT,
+    BE_SETPARAM,
     BE_MAX_NUM_MIXER_CONTROLS,
 };
 
@@ -77,7 +78,7 @@ private:
     SessionAlsaUtils() {};
     static bool isRxDevice(uint32_t devId);
     static void getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
-                        const std::vector <std::pair<int, int>> &ckv, 
+                        const std::vector <std::pair<int, int>> &ckv,
                         struct prop_data *propData,
                         struct agmMetaData &md);
     static struct mixer_ctl *getFeMixerControl(struct mixer *am, std::string feName,
@@ -113,8 +114,16 @@ public:
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
+    static int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+        const std::vector<int> &pcmDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
     static std::shared_ptr<Device> getDeviceObj(int32_t beDevId,
         std::vector<std::shared_ptr<Device>> &associatedDevices);
+    static int setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHandle,
+                            std::string backEndName, struct qal_device *dAttr);
+    static int setDeviceCustomPayload(std::shared_ptr<ResourceManager> rmHandle,
+                           std::string backEndName, void *payload, size_t size);
 };
 
 #endif //SESSION_ALSA_UTILS

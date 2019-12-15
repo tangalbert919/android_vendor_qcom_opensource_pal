@@ -591,7 +591,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds,txAifBackEnds);
 
-    deviceToDisconnect->getDeviceAtrributes(&dAttr);
+    deviceToDisconnect->getDeviceAttributes(&dAttr);
 
     if (rxAifBackEnds.size() > 0) {
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
@@ -615,6 +615,39 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
     return status;
 }
 
+int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
+                                 qal_stream_type_t streamType,
+                                 std::shared_ptr<Device> deviceToConnect)
+{
+    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector<std::string> aifBackEndsToConnect;
+    struct qal_device dAttr;
+    int status = 0;
+
+    deviceList.push_back(deviceToConnect);
+    rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
+    deviceToConnect->getDeviceAttributes(&dAttr);
+
+    if (rxAifBackEnds.size() > 0) {
+        status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
+                                                       rm, dAttr, pcmDevRxIds,
+                                                       rxAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: setupSessionDevice on RX Failed \n", __func__);
+            return status;
+        }
+    } else if (txAifBackEnds.size() > 0) {
+
+        status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
+                                                       rm, dAttr, pcmDevTxIds,
+                                                       txAifBackEnds);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: setupSessionDevice on TX Failed \n", __func__);
+        }
+    }
+    return status;
+}
+
 int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
                                            qal_stream_type_t streamType,
                                            std::shared_ptr<Device> deviceToConnect)
@@ -626,7 +659,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
 
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
-    deviceToConnect->getDeviceAtrributes(&dAttr);
+    deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (rxAifBackEnds.size() > 0) {
         status =  SessionAlsaUtils::connectSessionDevice(this, streamHandle,

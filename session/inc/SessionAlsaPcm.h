@@ -46,8 +46,6 @@ class SessionAlsaPcm : public Session
 {
 private:
     void * graphHandle;
-    void * customPayload;
-    size_t customPayloadSize;
     size_t size = 0;
     uint32_t spr_miid = 0;
     PayloadBuilder* builder;
@@ -99,6 +97,8 @@ public:
     int registerCallBack(session_callback cb, void *cookie) override;
     int drain(qal_drain_type_t type) override;
     int flush();
+    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect) override;
     int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,

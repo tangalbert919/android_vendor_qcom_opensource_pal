@@ -668,7 +668,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     bool result = false;
     uint16_t channels, dev_channels;
     uint32_t samplerate, bitwidth;
-    uint32_t dev_samplerate, dev_bitwidth, rc;
+    uint32_t rc;
     size_t cur_sessions = 0;
     size_t max_sessions = 0;
     qal_audio_fmt_t format, dev_format;
@@ -1733,7 +1733,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             (inStrAttr->out_media_config.sample_rate % SAMPLINGRATE_44K == 0)) {
 
             //Native Audio usecase
-            if (activeDevAttr->config.sample_rate |= inStrAttr->out_media_config.sample_rate) {
+            if (activeDevAttr->config.sample_rate != inStrAttr->out_media_config.sample_rate) {
                 inDevAttr->config.sample_rate = inStrAttr->out_media_config.sample_rate;
                 is_ds_required = true;
             }
@@ -1806,7 +1806,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
             for(std::vector<std::shared_ptr<Device>>::iterator diter = associatedDevices.begin();
                      diter != associatedDevices.end(); diter++) {
-                status = (*diter)->getDeviceAtrributes(&dattr);
+                status = (*diter)->getDeviceAttributes(&dattr);
                 if(0 != status) {
                     QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
                     goto error;
@@ -1847,6 +1847,17 @@ const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) co
     cs.dump(1);
 #endif
     return deviceNameLUT.at(id);
+}
+
+int ResourceManager::getBackendName(int deviceId, std::string &backendName)
+{
+    if (deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_IN_PROXY) {
+        backendName.assign(listAllBackEndIds[deviceId].second);
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        return -EINVAL;
+    }
+    return 0;
 }
 
 bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const

@@ -34,6 +34,7 @@
 #include "DeviceAlsa.h"
 #include "DeviceGsl.h"
 #include "ResourceManager.h"
+#include "SessionAlsaUtils.h"
 #include "Device.h"
 #include "Speaker.h"
 #include "Headphone.h"
@@ -120,7 +121,8 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
                      ch_info_size);
     mQALDeviceName.clear();
-
+    customPayload = NULL;
+    customPayloadSize = 0;
 }
 
 Device::Device()
@@ -131,11 +133,15 @@ Device::Device()
 
 Device::~Device()
 {
+    if (customPayload)
+        free(customPayload);
+
+    customPayloadSize = 0;
     if (deviceAttr.config.ch_info)
         free(deviceAttr.config.ch_info);
 }
 
-int Device::getDeviceAtrributes(struct qal_device *dattr)
+int Device::getDeviceAttributes(struct qal_device *dattr)
 {
     int status = 0;
     if (!dattr) {
@@ -157,6 +163,24 @@ int Device::setDeviceAttributes(struct qal_device dattr)
     return status;
 }
 
+int Device::updateCustomPayload(void *payload, size_t size)
+{
+    if (!customPayloadSize) {
+        customPayload = calloc(1, size);
+    } else {
+        customPayload = realloc(customPayload, customPayloadSize + size);
+    }
+
+    if (!customPayload) {
+        QAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+        return -ENOMEM;
+    }
+
+    memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
+    customPayloadSize += size;
+    QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+    return 0;
+}
 
 int Device::getSndDeviceId()
 {
@@ -281,6 +305,8 @@ exit :
 int Device::start()
 {
     int status = 0;
+    std::string backEndName;
+
     mDeviceMutex.lock();
 
     QAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
@@ -300,26 +326,49 @@ int Device::start()
 
         enableDevice(audioRoute, mSndDeviceName);
 
+        rm->getBackendName(deviceAttr.id, backEndName);
+        if (!strlen(backEndName.c_str())) {
+            QAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
+            status = -EINVAL;
+            goto disable_dev;
+        }
+
+        SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &deviceAttr);
+
+        if (customPayloadSize) {
+            status = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
+                                        customPayload, customPayloadSize);
+            if (status) {
+                 QAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
+                                   deviceAttr.id);
+                 goto disable_dev;
+            }
+        }
+
         DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
         if (!dev) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
-            goto exit;
+            goto disable_dev;
         }
         status = dev->prepare();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to prepare the device status %d", status);
-            goto exit;
+            goto disable_dev;
         }
         status = dev->start();
         if(0 != status)
         {
             QAL_ERR(LOG_TAG,"%s: Failed to start the device", __func__);
-            goto exit;
+            goto disable_dev;
         }
     }
     deviceCount += 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    goto exit;
+
+disable_dev:
+    disableDevice(audioRoute, mSndDeviceName);
 exit :
     mDeviceMutex.unlock();
     return status;

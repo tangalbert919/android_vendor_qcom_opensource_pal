@@ -72,7 +72,9 @@ public:
     int setConfig(Stream * s, configType type, int tag = 0, int dir = 0) override;
     int start(Stream * s) override;
     int stop(Stream * s) override;
-    int close(Stream * s) override;;
+    int close(Stream * s) override;
+    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream *streamHandle,
                                 qal_stream_type_t streamType,
                                 std::shared_ptr<Device> deviceToDisconnect);

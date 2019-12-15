@@ -169,6 +169,25 @@ void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
     }
 }
 
+int Session::updateCustomPayload(void *payload, size_t size)
+{
+    if (!customPayloadSize) {
+        customPayload = calloc(1, size);
+    } else {
+        customPayload = realloc(customPayload, customPayloadSize + size);
+    }
+
+    if (!customPayload) {
+        QAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+        return -ENOMEM;
+    }
+
+    memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
+    customPayloadSize += size;
+    QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+    return 0;
+}
+
 #if 0
 int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)

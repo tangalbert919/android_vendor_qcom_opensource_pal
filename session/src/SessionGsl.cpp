@@ -385,7 +385,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             QAL_ERR(LOG_TAG"%s: getAssociatedDevices Failed \n", __func__);
             return status;
         }
-        associatedRecordDevices[0]->getDeviceAtrributes(&devAttr);
+        associatedRecordDevices[0]->getDeviceAttributes(&devAttr);
         if (devAttr.config.ch_info->channels == sessionData->numChannel) {
             sessionData->native = 1;
         } else {
@@ -456,7 +456,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
                         rm->getDeviceEpName(dev_id, epname);
-                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        associatedDevices[i]->getDeviceAttributes(&dAttr);
                         deviceData->bitWidth = dAttr.config.bit_width;
                         deviceData->sampleRate = dAttr.config.sample_rate;
                         deviceData->numChannel = dAttr.config.ch_info->channels;
@@ -472,7 +472,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
                         rm->getDeviceEpName(dev_id, epname);
-                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        associatedDevices[i]->getDeviceAttributes(&dAttr);
                         deviceData->bitWidth = dAttr.config.bit_width;
                         deviceData->sampleRate = dAttr.config.sample_rate;
                         deviceData->numChannel = dAttr.config.ch_info->channels;
@@ -546,7 +546,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
                     dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
-                        associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                        associatedDevices[i]->getDeviceAttributes(&dAttr);
                         deviceData->bitWidth = dAttr.config.bit_width;
                         deviceData->sampleRate = dAttr.config.sample_rate;
                         deviceData->numChannel = dAttr.config.ch_info->channels;
@@ -561,7 +561,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                 for (int32_t i=0; i<(associatedDevices.size()); i++) {
                     dev_id = associatedDevices[i]->getSndDeviceId();
                     if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
-                       associatedDevices[i]->getDeviceAtrributes(&dAttr);
+                       associatedDevices[i]->getDeviceAttributes(&dAttr);
                        deviceData->bitWidth = dAttr.config.bit_width;
                        deviceData->sampleRate = dAttr.config.sample_rate;
                        deviceData->numChannel = dAttr.config.ch_info->channels;
@@ -1370,6 +1370,12 @@ int SessionGsl::registerCallBack(session_callback /*cb*/, void* /*cookie*/)
 }
 
 int SessionGsl::drain(qal_drain_type_t /*type*/)
+{
+    return 0;
+}
+
+int SessionGsl::setupSessionDevice(Stream* /*streamHandle*/, qal_stream_type_t /*streamType*/,
+        std::shared_ptr<Device> /*deviceToConnect*/)
 {
     return 0;
 }

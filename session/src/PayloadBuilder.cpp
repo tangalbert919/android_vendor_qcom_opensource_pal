@@ -2137,7 +2137,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
        return status;
     }
     for (int i = 0; i < associatedDevices.size();i++) {
-       status = associatedDevices[i]->getDeviceAtrributes(&dAttr);
+       status = associatedDevices[i]->getDeviceAttributes(&dAttr);
        if(0 != status) {
           QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
           return status;
