@@ -70,6 +70,7 @@ private:
     sessionState mState;
     session_callback sessionCb;
     void *cbCookie;
+    bool isECRefSet;
 
 public:
 

@@ -51,6 +51,7 @@ SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
    pcmRx = NULL;
    pcmTx = NULL;
    mState = SESSION_IDLE;
+   isECRefSet = false;
 }
 
 SessionAlsaPcm::~SessionAlsaPcm()
@@ -1084,6 +1085,11 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
     }
 
     if (!rxDevice || !txDevice) {
+        if (isECRefSet && sAttr.type == QAL_STREAM_VOICE_UI) {
+            status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, "ZERO");
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to disable EC ref path, status %d", status);
+        }
         QAL_ERR(LOG_TAG, "No need to handle for concurrency");
         return;
     }
@@ -1111,8 +1117,11 @@ void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
         rxDeviceList.push_back(rxDevice);
         backendNames = rm->getBackEndNames(rxDeviceList);
         status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, backendNames[0].c_str());
-        if (status)
-            QAL_ERR(LOG_TAG, "Failed to set EC ref path");
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to set EC ref path, status %d", status);
+        } else {
+            isECRefSet = true;
+        }
     }
 }
 
