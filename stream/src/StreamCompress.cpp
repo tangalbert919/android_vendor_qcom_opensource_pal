@@ -306,6 +306,36 @@ int32_t StreamCompress::prepare()
    return status;
 }
 
+int32_t StreamCompress::pause()
+{
+    int32_t status = 0;
+
+    QAL_VERBOSE(LOG_TAG, "%s: Enter, session handle - %p", __func__,  session);
+    mStreamMutex.lock();
+    status = session->pause(this);
+    if (status)
+       QAL_ERR(LOG_TAG,"session pause failed with status = %d", status);
+
+    mStreamMutex.unlock();
+    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    return status;
+}
+
+int32_t StreamCompress::resume()
+{
+    int32_t status = 0;
+
+    QAL_VERBOSE(LOG_TAG, "%s: Enter, session handle - %p", __func__, session);
+    mStreamMutex.lock();
+    status = session->resume(this);
+    if (status)
+       QAL_ERR(LOG_TAG,"session resume failed with status = %d", status);
+
+    mStreamMutex.unlock();
+    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    return status;
+}
+
 int32_t StreamCompress::setStreamAttributes(struct qal_stream_attributes *sattr)
 {
     int32_t status = 0;

@@ -217,6 +217,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     sessionCb = NULL;
     this->cbCookie = NULL;
     playback_started = false;
+    playback_paused = false;
 }
 
 SessionAlsaCompress::~SessionAlsaCompress()
@@ -699,6 +700,30 @@ int SessionAlsaCompress::start(Stream * s)
 
 free_feIds:
    return 0;
+}
+
+int SessionAlsaCompress::pause(Stream * s)
+{
+    int32_t status = 0;
+
+    if (compress && playback_started) {
+        status = compress_pause(compress);
+        if (status == 0)
+            playback_paused = true;
+    }
+   return status;
+}
+
+int SessionAlsaCompress::resume(Stream * s)
+{
+    int32_t status = 0;
+
+    if (compress && playback_paused) {
+        status = compress_resume(compress);
+        if (status == 0)
+            playback_paused = false;
+    }
+   return status;
 }
 
 int SessionAlsaCompress::stop(Stream * s)

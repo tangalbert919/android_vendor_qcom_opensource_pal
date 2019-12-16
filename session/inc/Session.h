@@ -86,6 +86,8 @@ public:
     virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) {return 0;};
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
+    virtual int pause(Stream * s);
+    virtual int resume(Stream * s);
     virtual int stop(Stream * s) = 0;
     virtual int close(Stream * s) = 0;
     virtual int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) {return 0;};

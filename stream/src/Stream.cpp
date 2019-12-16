@@ -48,6 +48,9 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     std::lock_guard<std::mutex> lock(mBaseStreamMutex);
     Stream* stream = NULL;
     int status = 0;
+    uint32_t count = 0;
+    bool isStandby = false;
+
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
@@ -62,20 +65,31 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         }
     }
     QAL_VERBOSE(LOG_TAG, "get RM instance success and noOfDevices %d \n", noOfDevices);
+
     mQalDevice = new qal_device [noOfDevices];
     if (!mQalDevice) {
         QAL_ERR(LOG_TAG, "mQalDevice not created");
         goto exit;
     }
     for (int i = 0; i < noOfDevices; i++) {
+        if (!rm->isDeviceReady(dAttr[i].id)) {
+            QAL_ERR(LOG_TAG, "Device %d is not ready\n", dAttr[i].id);
+            continue;  //  continue with other devices for combo usecase
+        }
+
+        mQalDevice[count].id = dAttr[i].id;
         //TODO: shift this to rm or somewhere else where we can read the supported config from xml
-        mQalDevice[i].id = dAttr[i].id;
-        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[i], sAttr);
+        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr);
         if (status) {
            QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
         }
+        count++;
     }
-    if (rm->isStreamSupported(sAttr, mQalDevice, noOfDevices)) {
+
+    if (!count)
+        goto exit;
+
+    if (rm->isStreamSupported(sAttr, mQalDevice, count)) {
         switch (sAttr->type) {
             case QAL_STREAM_LOW_LATENCY:
             case QAL_STREAM_DEEP_BUFFER:
@@ -85,15 +99,16 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             case QAL_STREAM_PCM_OFFLOAD:
             case QAL_STREAM_VOICE_CALL:
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
-                stream = new StreamPCM(sAttr, mQalDevice, noOfDevices, modifiers,
+                stream = new StreamPCM(sAttr, mQalDevice, count, modifiers,
                                    noOfModifiers, rm);
+                stream->setStandby(isStandby);
                 break;
             case QAL_STREAM_COMPRESSED:
-                stream = new StreamCompress(sAttr, mQalDevice, noOfDevices, modifiers,
+                stream = new StreamCompress(sAttr, mQalDevice, count, modifiers,
                                         noOfModifiers, rm);
                 break;
             case QAL_STREAM_VOICE_UI:
-                stream = new StreamSoundTrigger(sAttr, mQalDevice, noOfDevices, modifiers,
+                stream = new StreamSoundTrigger(sAttr, mQalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:
@@ -108,8 +123,11 @@ exit:
     if (stream) {
         QAL_DBG(LOG_TAG, "Exit. stream creation success");
     } else {
+        if (mQalDevice)
+            delete mQalDevice;
         QAL_ERR(LOG_TAG, "stream creation failed");
     }
+
     return stream;
 }
 
@@ -232,7 +250,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         QAL_ERR(LOG_TAG, "stream attribute malloc failed %s, status %d", strerror(errno), status);
         goto exit;
     }
-    
+
     if (!in_buf_size)
         QAL_DBG(LOG_TAG, "%s: In Buffer size %d, In Buffer count %d",
             __func__, *in_buf_size, in_buf_count);
@@ -375,8 +393,13 @@ exit:
 int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray)
 {
     int32_t status = -EINVAL;
-    mStreamMutex.lock();
+    struct qal_device* newDevices = nullptr;
+    int32_t count = 0;
     std::shared_ptr<Device> dev = nullptr;
+    bool isNewDeviceA2dp = false;
+    bool isCurrentDeviceA2dp = false;
+
+    mStreamMutex.lock();
 
     if ((no_of_devices == 0) || (!deviceArray)) {
         QAL_ERR(LOG_TAG, "invalid param for device switch");
@@ -384,6 +407,55 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
         goto error_1;
     }
 
+    newDevices = new qal_device [no_of_devices];
+    if (!newDevices) {
+        QAL_ERR(LOG_TAG, "mQalDevice not created");
+        goto error_1;
+    }
+
+    for (int i = 0; i < no_of_devices; i++) {
+        if (deviceArray[i].id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            isNewDeviceA2dp = true;
+            break;
+        }
+    }
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getSndDeviceId() == QAL_DEVICE_OUT_BLUETOOTH_A2DP)
+            isCurrentDeviceA2dp = true;
+    }
+
+    for (int i = 0; i < no_of_devices; i++) {
+/*
+      * When A2DP is disconnected the
+      * music playback is paused and the policy manager sends routing=0
+      * But the audioflinger continues to write data until standby time
+      * (3sec). As BT is turned off, the write gets blocked.
+      * Avoid this by routing audio to speaker until standby.
+*/
+        if ((deviceArray[i].id == QAL_DEVICE_NONE) &&   /* This assumes that QAL_DEVICE_NODE comes as single device */
+            (isCurrentDeviceA2dp == true) && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP))
+            deviceArray[i].id = QAL_DEVICE_OUT_SPEAKER;
+
+        if (deviceArray[i].id == QAL_DEVICE_NONE)
+            return 0;
+
+        if (!rm->isDeviceReady(deviceArray[i].id)) {
+            QAL_ERR(LOG_TAG, "Device %d is not ready\n", deviceArray[i].id);
+        } else {
+            newDevices[count].id  = deviceArray[i].id;
+            count++;
+        }
+    }
+
+    if (count == 0) /*  No device switch is new device is not ready */
+        return 0;
+
+    if (a2dp_compress_mute && mStreamAttr->type == QAL_STREAM_COMPRESSED &&
+        !isNewDeviceA2dp) {
+        setMute(false);
+        a2dp_compress_mute = false;
+    }
     //tell rm we are disabling existing mDevices, so that it can disable any streams running on
     // 1. mDevices with common backend
     //TBD: as there are no devices with common backend now.
@@ -437,7 +509,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
-
+        /* Check if we need to check here or above if bt_Sco is on for sco usecase */
         status = dev->open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "device %d open failed with status %d",
@@ -488,4 +560,19 @@ error_1:
 
 }
 
+void Stream::setStandby(bool isStandby)
+{
+    mStreamMutex.lock();
+    standBy = isStandby;
+    mStreamMutex.unlock();
+}
 
+bool Stream::getStandby()
+{
+    bool isStandby;
+
+    mStreamMutex.lock();
+    isStandby = standBy;
+    mStreamMutex.unlock();
+    return isStandby;
+}

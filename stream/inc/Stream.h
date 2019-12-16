@@ -101,17 +101,22 @@ protected:
     size_t outBufSize;
     size_t inBufCount;
     size_t outBufCount;
+    bool standBy = false;
 
 public:
     virtual ~Stream() {};
     qal_stream_callback streamCb;
     void *cookie;
     bool isPaused = false;
+    bool a2dp_compress_mute = false;  /* TODO : Check if this can be removed */
+    qal_device_id_t suspendedDevId = QAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
     virtual int32_t stop() = 0;
     virtual int32_t prepare() = 0;
+    virtual int32_t pause() {return 0;}
+    virtual int32_t resume() {return 0;}
     virtual int32_t drain(qal_drain_type_t type) {return 0;}
     virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
     virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
@@ -145,6 +150,8 @@ public:
     bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
     int32_t getTimestamp(struct qal_session_time *stime);
     int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
+    void setStandby(bool standby);
+    bool getStandby();
 };
 
 #endif//STREAM_H_

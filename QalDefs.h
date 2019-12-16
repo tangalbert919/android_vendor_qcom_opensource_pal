@@ -470,7 +470,12 @@ typedef enum {
     QAL_PARAM_ID_DEVICE_CONNECTION,
     QAL_PARAM_ID_SCREEN_STATE,
     QAL_PARAM_ID_CHARGING_STATE,
-    QAL_PARAM_ID_DEVICE_ROTATION
+    QAL_PARAM_ID_DEVICE_ROTATION,
+    QAL_PARAM_ID_BT_SCO,
+    QAL_PARAM_ID_BT_SCO_WB,
+    QAL_PARAM_ID_BT_A2DP_RECONFIG,
+    QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
+    QAL_PARAM_ID_BT_A2DP_SUSPENDED,
 } qal_param_id_type_t;
 
 /* Payload For ID: QAL_PARAM_ID_DEVICE_CONNECTION
@@ -487,6 +492,24 @@ typedef struct qal_param_device_connection {
 typedef struct qal_param_screen_state {
     bool              screen_state;
 } qal_param_screen_state_t;
+
+
+/* Payload For ID: QAL_PARAM_ID_BT_SCO*
+ * Description   : BT SCO related device parameters
+*/
+typedef struct qal_param_btsco {
+    bool     bt_sco_on;
+    bool     bt_wb_speech_enabled;
+} qal_param_btsco_t;
+
+/* Payload For ID: QAL_PARAM_ID_BT_A2DP*
+ * Description   : A2DP related device setParameters
+*/
+typedef struct qal_param_bta2dp {
+    int32_t  reconfig_supported;
+    bool     reconfigured;
+    bool     a2dp_suspended;
+} qal_param_bta2dp_t;
 
 #define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */
 #define QAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6      /* max length of locale string. e.g en_US */

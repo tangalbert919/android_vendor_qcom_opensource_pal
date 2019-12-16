@@ -188,6 +188,15 @@ int Session::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
+int Session::pause(Stream * s)
+{
+    return 0;
+}
+
+int Session::resume(Stream * s)
+{
+     return 0;
+}
 #if 0
 int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)

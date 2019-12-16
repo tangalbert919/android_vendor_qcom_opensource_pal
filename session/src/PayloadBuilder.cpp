@@ -2136,6 +2136,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
             keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
             break;
         case QAL_DEVICE_OUT_WIRED_HEADSET:
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
@@ -2149,6 +2150,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             break;
         case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
             keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
+            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
             break;
         case QAL_DEVICE_IN_WIRED_HEADSET:
            keyVector.push_back(std::make_pair(DEVICETX, HEADPHONE_MIC));

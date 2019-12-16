@@ -91,7 +91,7 @@ protected:
     static std::shared_ptr<Device> obj;
     BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     virtual int close_audio_source();
-
+    qal_param_bta2dp_t param_bt_a2dp;
 private:
     /* BT IPC related members */
     static void                                 *bt_lib_source_handle;
@@ -121,7 +121,6 @@ private:
 
     enum A2DP_STATE bt_state_source;
     bool            a2dp_source_started;
-    bool            a2dp_source_suspended;
     int             a2dp_source_total_active_session_requests;
     bool            is_a2dp_offload_supported;
     bool            is_handoff_in_progress;
@@ -134,7 +133,6 @@ private:
     int       startCapture();
     int       stopCapture();
     uint32_t  getEncLatency();
-    bool      isSourceReady();
     bool      isSinkReady();
     uint64_t  getDecLatency();
 
@@ -153,6 +151,9 @@ public:
     int stop();
 
     int getDeviceAttributes (struct qal_device *dattr) override;
+    bool      isDeviceReady() override;
+    int32_t setDeviceParameter(uint32_t param_id, void *param) override;
+    int32_t getDeviceParameter(uint32_t param_id, void **param) override;
 
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
@@ -163,12 +164,17 @@ public:
 class BtSco : public Bluetooth
 {
 protected:
-    static std::shared_ptr<Device> obj;
+    static std::shared_ptr<Device> objRx;
+    static std::shared_ptr<Device> objTx;
     BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    bool bt_sco_on;
+    bool bt_wb_speech_enabled;
 
 public:
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
+    bool isDeviceReady() override;
+    int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     virtual ~BtSco();
     DISALLOW_COPY_AND_ASSIGN(BtSco);
 };

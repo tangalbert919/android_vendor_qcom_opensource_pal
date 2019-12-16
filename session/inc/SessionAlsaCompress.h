@@ -92,6 +92,7 @@ private:
     int getSndCodecId(qal_audio_fmt_t fmt);
     int setCustomFormatParam(qal_audio_fmt_t audio_fmt);
     bool playback_started;
+    bool playback_paused;
     int ioMode;
     session_callback sessionCb;
     void *cbCookie;
@@ -113,6 +114,8 @@ public:
     int start(Stream * s) override;
     int stop(Stream * s) override;
     int close(Stream * s) override;
+    int pause(Stream * s) override;
+    int resume(Stream * s) override;
     int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload);

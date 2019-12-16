@@ -505,7 +505,7 @@ int ResourceManager::init_audio()
         }
     }
 
-    if (snd_card >= MAX_SND_CARD) {
+    if (snd_card >= MAX_SND_CARD || !audio_mixer) {
         QAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
     }
@@ -564,6 +564,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
 {
     int32_t status = 0;
     struct qal_channel_info *dev_ch_info = NULL;
+
     QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
@@ -677,6 +678,22 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
+            break;
+        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t) + sizeof(uint8_t)*1);
+            if (!dev_ch_info) {
+                QAL_ERR(LOG_TAG, "out of memory");
+                status = -EINVAL;
+                break;
+            }
+            dev_ch_info->channels = CHANNELS_1;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            QAL_DBG(LOG_TAG, "BT SCO RX device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
         default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
@@ -1768,6 +1785,9 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             is_ds_required = true;
         }
         break;
+    default:
+        is_ds_required = false;
+        break;
     }
 
     return is_ds_required;
@@ -1861,6 +1881,35 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
 error:
     return isDeviceSwitch;
+}
+
+int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
+                                              struct qal_device *newDevAttr)
+{
+    int status = -EINVAL;
+    std::vector <Stream *> activeStreams;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*>::iterator sIter;
+    std::shared_ptr<Device> inDevice = nullptr;
+
+    if (!inDev || !newDevAttr) {
+        return -EINVAL;
+    }
+
+    //get the active streams on the device
+    getActiveStream(inDev, activeStreams);
+
+    if (activeStreams.size() == 0) {
+        QAL_ERR(LOG_TAG, "no other active streams found");
+        return -EINVAL;
+    }
+
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    // This currently handles disabling all active devices and force switch one new device
+        (*sIter)->switchDevice(*sIter, 1, newDevAttr);
+    }
+
+    return 0;
 }
 
 const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
@@ -2139,13 +2188,158 @@ void ResourceManager::updateDeviceTag(int32_t tagId)
     deviceTag.push_back(tagId);
 }
 
+int32_t ResourceManager::a2dpSuspend()
+{
+    std::shared_ptr<Device> dev = nullptr;
+    struct qal_device dattr;
+    int status = 0;
+    std::vector <Stream *> activeStreams;
+    std::vector<Stream*>::iterator sIter;
+
+    dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+    dev = Device::getInstance(&dattr , rm);
+
+    getActiveStream(dev, activeStreams);
+
+    if (activeStreams.size() == 0) {
+        QAL_ERR(LOG_TAG, "no active streams found");
+        goto exit;
+    }
+
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        int ret = 0;
+        qal_stream_type_t type;
+
+        ret = (*sIter)->getStreamType(&type);
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+            goto exit;
+        }
+        if (type == QAL_STREAM_COMPRESSED) {
+            if (!((*sIter)->a2dp_compress_mute)) {
+                struct qal_stream_attributes sAttr;
+                struct qal_device speakerDattr;
+
+                QAL_DBG(LOG_TAG, "%s: selecting speaker and muting stream", __func__);
+                (*sIter)->pause(); // compress_pause
+                (*sIter)->setMute(true); // mute the stream, unmute during a2dp_resume
+                (*sIter)->a2dp_compress_mute = true;
+                // force switch to speaker
+                speakerDattr.id = QAL_DEVICE_OUT_SPEAKER;
+                getDeviceConfig(&speakerDattr, &sAttr);
+                mResourceManagerMutex.unlock();
+                rm->forceDeviceSwitch(dev, &speakerDattr);
+                mResourceManagerMutex.lock();
+                (*sIter)->resume(); //compress_resume
+                /* backup actual device name in stream class */
+                (*sIter)->suspendedDevId = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            }
+        } else {
+            // put to standby for non offload usecase
+            (*sIter)->setStandby(true);
+        }
+    }
+
+exit:
+    return status;
+}
+
+int32_t ResourceManager::a2dpResume()
+{
+    std::shared_ptr<Device> dev = nullptr;
+    struct qal_device dattr;
+    int status = 0;
+    std::vector <Stream *> activeStreams;
+    std::vector<Stream*>::iterator sIter;
+
+    dattr.id = QAL_DEVICE_OUT_SPEAKER;
+    dev = Device::getInstance(&dattr , rm);
+
+    getActiveStream(dev, activeStreams);
+
+    if (activeStreams.size() == 0) {
+        QAL_ERR(LOG_TAG, "no active streams found");
+        goto exit;
+    }
+
+// check all active stream associated with speaker
+// if the stream actual device is a2dp, then switch back to a2dp
+// unmute the stream
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        int ret = 0;
+        qal_stream_type_t type;
+
+        ret = (*sIter)->getStreamType(&type);
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+            goto exit;
+        }
+        if (type == QAL_STREAM_COMPRESSED &&
+            ((*sIter)->suspendedDevId == QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+            struct qal_device a2dpDattr;
+
+            a2dpDattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            QAL_DBG(LOG_TAG, "%s: restoring A2dp and unmuting stream", __func__);
+            getDeviceConfig(&a2dpDattr, NULL);
+            mResourceManagerMutex.unlock();
+            rm->forceDeviceSwitch(dev, &a2dpDattr);
+            mResourceManagerMutex.lock();
+            (*sIter)->suspendedDevId = QAL_DEVICE_NONE;
+            if ((*sIter)->a2dp_compress_mute) {
+                (*sIter)->setMute(false);
+                (*sIter)->a2dp_compress_mute = false;
+            }
+        }
+    }
+exit:
+    return status;
+}
+
+int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
+                     size_t *payload_size)
+{
+    int status = 0;
+
+    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    mResourceManagerMutex.lock();
+    switch (param_id) {
+        case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct qal_device dattr;
+            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+
+            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr , rm);
+                status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                    goto exit;
+                }
+                *param_payload = param_bt_a2dp;
+                *payload_size = sizeof(qal_param_bta2dp_t);
+            }
+        }
+            break;
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+exit:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
 int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   size_t payload_size)
 {
     int status = 0;
 
     QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
-    std::lock_guard<std::mutex> lock(mResourceManagerMutex);
+
+    mResourceManagerMutex.lock();
     switch (param_id) {
         case QAL_PARAM_ID_SCREEN_STATE:
         {
@@ -2175,10 +2369,115 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
+        case QAL_PARAM_ID_BT_SCO_WB:
+        case QAL_PARAM_ID_BT_SCO:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct qal_device dattr;
+
+            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_SCO;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr , rm);
+                status = dev->setDeviceParameter(param_id, param_payload);
+            }
+
+            dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr , rm);
+                status = dev->setDeviceParameter(param_id, param_payload);
+            }
+        }
+        break;
+        case QAL_PARAM_ID_BT_A2DP_RECONFIG:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct qal_device dattr;
+            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+
+            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr , rm);
+                status = dev->setDeviceParameter(param_id, param_payload);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                    goto exit;
+                }
+                status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                    goto exit;
+                }
+                if (param_bt_a2dp->reconfigured == true) {
+                    QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
+                    getDeviceConfig(&dattr, NULL);
+                    mResourceManagerMutex.unlock();
+                    rm->forceDeviceSwitch(dev, &dattr);
+                    mResourceManagerMutex.lock();
+                    param_bt_a2dp->reconfigured = false;
+                    dev->setDeviceParameter(param_id, param_bt_a2dp);
+                }
+            }
+        }
+        break;
+        case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
+        {
+            std::shared_ptr<Device> a2dp_dev = nullptr;
+            struct qal_device a2dp_dattr;
+            qal_param_bta2dp_t *current_param_bt_a2dp = nullptr;
+            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+
+            a2dp_dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (!isDeviceAvailable(a2dp_dattr.id)) {
+                QAL_ERR(LOG_TAG, "%s device %d is inactive, set param %d failed\n",
+                                  __func__, a2dp_dattr.id,  param_id);
+                status = -EIO;
+                goto exit;
+            }
+
+            param_bt_a2dp = (qal_param_bta2dp_t *)param_payload;
+            a2dp_dev = Device::getInstance(&a2dp_dattr , rm);
+            status = a2dp_dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
+            if (current_param_bt_a2dp->a2dp_suspended == param_bt_a2dp->a2dp_suspended) {
+                QAL_INFO(LOG_TAG, "A2DP already in requested state, ignoring\n");
+                goto exit;
+            }
+
+            if (param_bt_a2dp->a2dp_suspended == false) {
+            /* Handle bt sco mic running usecase */
+                struct qal_device sco_tx_dattr;
+
+                sco_tx_dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
+                QAL_DBG(LOG_TAG, "a2dp resumed, switch bt sco mic to handset mic");
+                if (isDeviceAvailable(sco_tx_dattr.id)) {
+                    struct qal_device handset_tx_dattr;
+                    std::shared_ptr<Device> sco_tx_dev = nullptr;
+
+                    handset_tx_dattr.id = QAL_DEVICE_IN_HANDSET_MIC;
+                    sco_tx_dev = Device::getInstance(&sco_tx_dattr , rm);
+                    getDeviceConfig(&handset_tx_dattr, NULL);
+                    mResourceManagerMutex.unlock();
+                    rm->forceDeviceSwitch(sco_tx_dev, &handset_tx_dattr);
+                    mResourceManagerMutex.lock();
+                }
+                /* TODO : Handle other things in BT class */
+            }
+
+            mResourceManagerMutex.unlock();
+            status = a2dp_dev->setDeviceParameter(param_id, param_payload);
+            mResourceManagerMutex.lock();
+            if (status) {
+                QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                goto exit;
+            }
+        }
+        break;
         default:
             QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
+
+exit:
+    mResourceManagerMutex.unlock();
     return status;
 }
 
@@ -2236,6 +2535,21 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
                 QAL_ERR(LOG_TAG, "Device creation failed");
                 return -EINVAL;
             }
+        } else if (isBtScoDevice(device_id)) {
+            dAttr.id = device_id;
+            status = getDeviceConfig(&dAttr, &sAttr);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+                return status;
+            }
+            dev = Device::getInstance(&dAttr, rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                throw std::runtime_error("failed to create device object");
+                return -EIO;
+            }
+            if (dAttr.config.ch_info)
+                free(dAttr.config.ch_info);
         }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
@@ -2263,6 +2577,46 @@ bool ResourceManager::isDeviceAvailable(qal_device_id_t id)
     QAL_DBG(LOG_TAG, "Device %d, is_available = %d", id, is_available);
 
     return is_available;
+}
+
+bool ResourceManager::isDeviceReady(qal_device_id_t id)
+{
+    struct qal_device dAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    bool is_ready = false;
+
+    switch (id) {
+        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        {
+            if (!isDeviceAvailable(id))
+                return is_ready;
+
+            dAttr.id = id;
+            dev = Device::getInstance((struct qal_device *)&dAttr , rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device getInstance failed");
+                return false;
+            }
+            is_ready = dev->isDeviceReady();
+        }
+            break;
+        default:
+            is_ready = true;
+            break;
+    }
+
+    return is_ready;
+}
+
+bool ResourceManager::isBtScoDevice(qal_device_id_t id)
+{
+    if (id == QAL_DEVICE_OUT_BLUETOOTH_SCO ||
+        id == QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+        return true;
+    else
+        return false;
 }
 
 void ResourceManager::updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value)

@@ -47,6 +47,8 @@ public:
     int32_t start() override;
     int32_t stop() override;
     int32_t prepare() override;
+    int32_t pause() override;
+    int32_t resume() override;
     int32_t drain(qal_drain_type_t type);
     int32_t flush();
     int32_t setStreamAttributes(struct qal_stream_attributes *sattr) override;

@@ -227,9 +227,8 @@ public:
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size);
 
-    int getParameter(uint32_t param_id __unused,
-                     void **param_payload __unused,
-                     size_t *payload_size __unused) { return 0; }
+    int getParameter(uint32_t param_id, void **param_payload,
+                     size_t *payload_size);
 
     int getSndCard();
     int getPcmDeviceId(int deviceId);
@@ -257,6 +256,7 @@ public:
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
     bool updateDeviceConfig(std::shared_ptr<Device> inDev,
              struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
+    int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct qal_device *newDevAttr);
     const std::string getQALDeviceName(const qal_device_id_t id) const;
     bool isNonALSACodec(const struct qal_device *device) const;
     bool IsVoiceUILPISupported();
@@ -281,6 +281,10 @@ public:
     static void processConfigParams(const XML_Char **attr);
     bool getScreenState();
     bool isDeviceAvailable(qal_device_id_t id);
+    bool isDeviceReady(qal_device_id_t id);
+    static bool isBtScoDevice(qal_device_id_t id);
+    int32_t a2dpSuspend();
+    int32_t a2dpResume();
 };
 
 #endif

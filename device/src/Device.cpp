@@ -120,8 +120,11 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
                      sizeof(struct qal_device));
     // copy channel info
     deviceAttr.config.ch_info = device_ch_info;
-    casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
-                     ch_info_size);
+    if (device->config.ch_info)
+        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
+                         ch_info_size);
+    else
+        QAL_ERR(LOG_TAG, "Channel Map info in NULL");
     mQALDeviceName.clear();
     customPayload = NULL;
     customPayloadSize = 0;
@@ -138,6 +141,7 @@ Device::~Device()
     if (customPayload)
         free(customPayload);
 
+    customPayload = NULL;
     customPayloadSize = 0;
     if (deviceAttr.config.ch_info)
         free(deviceAttr.config.ch_info);
@@ -400,4 +404,14 @@ int Device::stop()
 exit :
     mDeviceMutex.unlock();
     return status;
+}
+
+int32_t Device::setDeviceParameter(uint32_t param_id, void *param)
+{
+    return 0;
+}
+
+int32_t Device::getDeviceParameter(uint32_t param_id, void **param)
+{
+    return 0;
 }

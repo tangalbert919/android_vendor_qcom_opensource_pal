@@ -117,6 +117,7 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
     status = s->open();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_open failed with status %d", status);
+        delete s;
         return status;
     }
     if (cb)
@@ -528,10 +529,24 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload,
     return status;
 }
 
-int32_t qal_get_param(uint32_t param_id __unused, void **param_payload __unused,
-                      size_t *payload_size __unused)
+int32_t qal_get_param(uint32_t param_id, void **param_payload,
+                      size_t *payload_size)
 {
     int status = 0;
-    /* to be implemented later */
+    std::shared_ptr<ResourceManager> rm = NULL;
+
+    rm = ResourceManager::getInstance();
+
+    if (rm) {
+        status = rm->getParameter(param_id, param_payload, payload_size);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
+                    param_id, status);
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        status = -EINVAL;
+    }
+
     return status;
 }

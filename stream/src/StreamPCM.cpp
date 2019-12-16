@@ -581,6 +581,31 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mStreamMutex.lock();
+    if (standBy) {
+        /* calculate sleep time based on buf->size, sleep and return buf->size */
+        uint32_t stream_size;
+        uint32_t byte_width = mStreamAttr->out_media_config.bit_width / 8;;
+        uint32_t srate = mStreamAttr->out_media_config.sample_rate;
+        struct qal_channel_info *ch_info = mStreamAttr->out_media_config.ch_info;
+
+        if(!ch_info) {
+            QAL_ERR(LOG_TAG, "%s: channle info is null", __func__);
+            mStreamMutex.unlock();
+            return -EINVAL;
+        }
+
+        stream_size = byte_width * ch_info->channels;
+        if ((stream_size == 0) || (srate == 0)) {
+            QAL_ERR(LOG_TAG, "%s: stream_size= %d, srate = %d", __func__, stream_size, srate);
+            mStreamMutex.unlock();
+            return -EINVAL;
+        }
+        size = buf->size;
+        usleep((uint64_t)size * 1000000 / stream_size / srate);
+        QAL_DBG(LOG_TAG, "in standby, dropped buffer size - %d", size);
+        mStreamMutex.unlock();
+        return size;
+    }
     status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
     mStreamMutex.unlock();
     if (0 != status) {

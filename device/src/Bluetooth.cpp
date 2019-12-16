@@ -37,6 +37,7 @@
 #include "kvh2xml.h"
 #include <dlfcn.h>
 #include <unistd.h>
+#include <cutils/properties.h>
 
 #define BT_IPC_SOURCE_LIB "btaudio_offload_if.so"
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
@@ -171,7 +172,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
             status = -ENOMEM;
             goto error;
         }
-        updateCustomPayload(paramData, paramSize);
+        dev->updateCustomPayload(paramData, paramSize);
         free(paramData);
         paramData = NULL;
         paramSize = 0;
@@ -179,7 +180,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
 
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &encoderConfig);
     if (paramSize) {
-        updateCustomPayload(paramData, paramSize);
+        dev->updateCustomPayload(paramData, paramSize);
         free(paramData);
         paramData = NULL;
         paramSize = 0;
@@ -233,7 +234,6 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
       : Bluetooth(device, Rm),
         bt_state_source(A2DP_STATE_DISCONNECTED),
         a2dp_source_started(false),
-        a2dp_source_suspended(false),
         a2dp_source_total_active_session_requests(0),
         is_a2dp_offload_supported(false),
         is_handoff_in_progress(false),
@@ -247,6 +247,15 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     init();
     sleep(1); //TODO: to add interval properly
     open_a2dp_source();
+    param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.a2dp_suspended = false;
+    is_a2dp_offload_supported =
+            property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
+            !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
+
+    QAL_DBG(LOG_TAG, "%s: A2DP offload supported = %d", __func__,
+            is_a2dp_offload_supported);
+    param_bt_a2dp.reconfig_supported = is_a2dp_offload_supported;
     is_configured = false;
 }
 
@@ -293,7 +302,8 @@ int BtA2dp::close_audio_source()
     }
     a2dp_source_started = false;
     a2dp_source_total_active_session_requests = 0;
-    a2dp_source_suspended = false;
+    param_bt_a2dp.a2dp_suspended = false;
+    param_bt_a2dp.reconfigured = false;
     bt_state_source = A2DP_STATE_DISCONNECTED;
 
     return 0;
@@ -406,10 +416,17 @@ int BtA2dp::start()
     customPayload = NULL;
     customPayloadSize = 0;
 
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
+
     status = (a2dp_role == SOURCE) ? startPlayback() : startCapture();
     if (status != 0)
         return status;
 
+    bt_state_source = A2DP_STATE_STARTED;
     status = Device::start();
 
     return status;
@@ -418,15 +435,12 @@ int BtA2dp::start()
 int BtA2dp::stop()
 {
     int status = 0;
+
     status = Device::stop();
     if (status != 0)
         return status;
 
     status = (a2dp_role == SOURCE) ? stopPlayback() : stopCapture();
-    if (customPayload)
-        free(customPayload);
-    customPayloadSize = 0;
-    is_configured = false;
 
     return status;
 }
@@ -446,7 +460,7 @@ int BtA2dp::startPlayback()
         return -ENOSYS;
     }
 
-    if (a2dp_source_suspended) {
+    if (param_bt_a2dp.a2dp_suspended) {
         //session will be restarted after suspend completion
         QAL_DBG(LOG_TAG, "a2dp start requested during suspend state");
         return -ENOSYS;
@@ -510,6 +524,8 @@ int BtA2dp::stopPlayback()
             QAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
         }
         a2dp_source_started = false;
+        is_configured = false;
+        bt_state_source = A2DP_STATE_STOPPED;
     }
 
     QAL_DBG(LOG_TAG, "Stop A2DP playback, total active sessions :%d",
@@ -517,11 +533,11 @@ int BtA2dp::stopPlayback()
     return 0;
 }
 
-bool BtA2dp::isSourceReady()
+bool BtA2dp::isDeviceReady()
 {
     bool ret = false;
 
-    if (a2dp_source_suspended)
+    if (param_bt_a2dp.a2dp_suspended)
         return ret;
 
     if ((bt_state_source != A2DP_STATE_DISCONNECTED) &&
@@ -633,6 +649,7 @@ int BtA2dp::stopCapture()
 
     if (a2dp_sink_started && !a2dp_sink_total_active_session_requests) {
         QAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
+        is_configured = false;
         ret = audio_sink_stop();
         if (ret < 0) {
             QAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
@@ -675,6 +692,81 @@ uint64_t BtA2dp::getDecLatency()
     return (uint64_t)latency;
 }
 
+int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
+{
+    int32_t status = 0, ret = 0;
+    qal_param_bta2dp_t* param_a2dp = (qal_param_bta2dp_t *)param;
+
+    if (is_a2dp_offload_supported == false) {
+       QAL_VERBOSE(LOG_TAG, "no supported encoders identified,ignoring a2dp setparam");
+       status = -EINVAL;
+       goto exit;
+    }
+
+    switch(param_id) {
+    case QAL_PARAM_ID_BT_A2DP_RECONFIG:
+        if (bt_state_source == A2DP_STATE_STARTED) {
+            param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
+            is_handoff_in_progress = param_a2dp->reconfigured;
+        }
+        break;
+    case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
+    {
+        if (bt_lib_source_handle == nullptr)
+            goto exit;
+
+        if (param_bt_a2dp.a2dp_suspended == param_a2dp->a2dp_suspended)
+            goto exit;
+
+        if (param_a2dp->a2dp_suspended == true) {
+            param_bt_a2dp.a2dp_suspended = true;
+            if (bt_state_source == A2DP_STATE_DISCONNECTED)
+                goto exit;
+
+            rm->a2dpSuspend();
+            if (audio_source_suspend)
+                audio_source_suspend();
+        } else {
+            if (clear_source_a2dpsuspend_flag)
+                clear_source_a2dpsuspend_flag();
+
+            param_bt_a2dp.a2dp_suspended = false;
+
+            if (a2dp_source_total_active_session_requests > 0) {
+                if (audio_source_start) {
+                    ret = audio_source_start();
+                    if (ret != 0) {
+                        QAL_ERR(LOG_TAG, "BT controller start failed");
+                        a2dp_source_started = false;
+                    }
+                }
+            }
+            rm->a2dpResume();
+        }
+        break;
+    }
+    default:
+        return -EINVAL;
+    }
+
+exit:
+    return status;
+}
+
+int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
+{
+    switch(param_id) {
+    case QAL_PARAM_ID_BT_A2DP_RECONFIG:
+    case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
+    case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
+        *param = &param_bt_a2dp;
+        break;
+    default:
+        return -EINVAL;
+    }
+    return 0;
+}
+
 std::shared_ptr<Device>
 BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
@@ -685,24 +777,62 @@ BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> 
     return obj;
 }
 
-/* Scope of BtSco class */
-std::shared_ptr<Device> BtSco::obj = nullptr;
+/* Scope of BtScoRX/Tx class */
+
+std::shared_ptr<Device> BtSco::objRx = nullptr;
+std::shared_ptr<Device> BtSco::objTx = nullptr;
 
 BtSco::BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Bluetooth(device, Rm)
 {
+    bt_sco_on = false;
+    bt_wb_speech_enabled = false;
 }
 
 BtSco::~BtSco()
 {
 }
 
-std::shared_ptr<Device>
-BtSco::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+bool BtSco::isDeviceReady()
 {
-    if (!obj) {
-        std::shared_ptr<Device> sp(new BtSco(device, Rm));
-        obj = sp;
-    }
-    return obj;
+    return bt_sco_on;
 }
+
+int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
+{
+    qal_param_btsco_t* param_bt_sco = (qal_param_btsco_t *)param;
+
+    switch(param_id) {
+    case QAL_PARAM_ID_BT_SCO:
+        bt_sco_on = param_bt_sco->bt_sco_on;
+        break;
+    case QAL_PARAM_ID_BT_SCO_WB:
+        bt_wb_speech_enabled = param_bt_sco->bt_wb_speech_enabled;
+        deviceAttr.config.sample_rate = bt_wb_speech_enabled ? SAMPLINGRATE_16K : SAMPLINGRATE_8K;
+        break;
+    default:
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+std::shared_ptr<Device> BtSco::getInstance(struct qal_device *device,
+                                           std::shared_ptr<ResourceManager> Rm)
+{
+    if (device->id == QAL_DEVICE_OUT_BLUETOOTH_SCO) {
+        if (!objRx) {
+            std::shared_ptr<Device> sp(new BtSco(device, Rm));
+            objRx = sp;
+        }
+        return objRx;
+    } else {
+        if (!objTx) {
+            QAL_ERR( LOG_TAG, "rohit %s creating instance for  %d\n", __func__, device->id);
+            std::shared_ptr<Device> sp(new BtSco(device, Rm));
+            objTx = sp;
+        }
+        return objTx;
+    }
+}
+/*BtSco class end */

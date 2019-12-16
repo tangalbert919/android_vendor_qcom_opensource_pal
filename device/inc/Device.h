@@ -73,6 +73,9 @@ public:
     int setDeviceAttributes (struct qal_device dattr);
     virtual int getDeviceAttributes (struct qal_device *dattr);
     int updateCustomPayload(void *payload, size_t size);
+    virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
+    virtual int32_t getDeviceParameter(uint32_t param_id, void **param);
+    virtual bool isDeviceReady() { return true;}
     virtual ~Device();
 };
 
