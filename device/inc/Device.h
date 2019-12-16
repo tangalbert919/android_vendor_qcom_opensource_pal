@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -63,17 +63,17 @@ protected:
 public:
     int open();
     int close();
-    int start();
-    int stop();
+    virtual int start();
+    virtual int stop();
     int prepare();
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     int getSndDeviceId();
     std::string getQALDeviceName();
     int setDeviceAttributes (struct qal_device dattr);
-    int getDeviceAttributes (struct qal_device *dattr);
+    virtual int getDeviceAttributes (struct qal_device *dattr);
     int updateCustomPayload(void *payload, size_t size);
-    ~Device();
+    virtual ~Device();
 };
 
 

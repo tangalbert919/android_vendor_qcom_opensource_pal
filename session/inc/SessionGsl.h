@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -43,6 +43,7 @@
 #include "module_cmn_api.h"
 #include "i2s_api.h"
 #include "slimbus_api.h"
+#include "rate_adapted_timer_api.h"
 #include "pcm_tdm_api.h"
 #include "audio_dam_buffer_api.h"
 #include "codec_dma_api.h"
@@ -179,7 +180,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
-
+    int32_t getMIID(const char *backendName, int32_t tagId, uint32_t *miid) {return 0;};
 };
 
 #endif //SESSION_GSL_H

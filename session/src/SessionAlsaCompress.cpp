@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -232,7 +232,7 @@ int SessionAlsaCompress::open(Stream * s)
     std::vector<std::pair<int32_t, std::string>> emptyBackEnds;
 
     status = s->getStreamAttributes(&sAttr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
@@ -243,7 +243,7 @@ int SessionAlsaCompress::open(Stream * s)
         return -EINVAL;
     }
     status = s->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         return status;
     }
@@ -382,7 +382,7 @@ int SessionAlsaCompress::setTKV(Stream * s, configType type, effect_qal_payload_
             tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
 
-            if(!tagConfig) {
+            if (!tagConfig) {
                 status = -ENOMEM;
                 goto exit;
             }
@@ -456,7 +456,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
-            if(!tagConfig) {
+            if (!tagConfig) {
                 status = -ENOMEM;
                 goto exit;
             }
@@ -520,7 +520,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
 
-            if(!tagConfig) {
+            if (!tagConfig) {
                 status = -ENOMEM;
                 goto exit;
             }
@@ -560,7 +560,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
 
             calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
-            if(!calConfig) {
+            if (!calConfig) {
                 status = -EINVAL;
                 goto exit;
             }
@@ -634,10 +634,10 @@ int SessionAlsaCompress::start(Stream * s)
     /** set non blocking mode for writes */
     compress_nonblock(compress, !!ioMode);
 
-    switch(sAttr.direction) {
+    switch (sAttr.direction) {
         case QAL_AUDIO_OUTPUT:
             status = s->getAssociatedDevices(associatedDevices);
-            if(0 != status) {
+            if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
                 return status;
             }
@@ -741,7 +741,7 @@ int SessionAlsaCompress::close(Stream * s)
     worker_thread.reset(NULL);
 
     /* empty the pending messages in queue */
-    while(!msg_queue_.empty())
+    while (!msg_queue_.empty())
         msg_queue_.pop();
     rm->freeFrontEndIds(compressDevIds, sAttr, 0);
     if (customPayload) {
@@ -779,7 +779,7 @@ int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int *
     int bytes_written = 0;
     int status;
     bool non_blocking = (!!ioMode);
-    if (!buf || !(buf->buffer) || !(buf->size)){
+    if (!buf || !(buf->buffer) || !(buf->size)) {
         QAL_VERBOSE(LOG_TAG, "%s: buf: %pK, size: %d",
             __func__, buf, (buf ? buf->size : 0));
         return -EINVAL;
@@ -826,6 +826,20 @@ int SessionAlsaCompress::readBufferInit(Stream *s, size_t noOfBuf, size_t bufSiz
 int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag)
 {
     return 0;
+}
+
+int32_t SessionAlsaCompress::getMIID(const char *backendName, int32_t tagId, uint32_t *miid)
+{
+    int status = 0;
+    int device = compressDevIds.at(0);
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                   backendName,
+                                                   true, tagId, miid);
+    if (0 != status)
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+
+    return status;
 }
 
 int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
@@ -1034,7 +1048,7 @@ int SessionAlsaCompress::drain(qal_drain_type_t type)
 
     QAL_VERBOSE(LOG_TAG, "drain type = %d", type);
 
-    switch(type) {
+    switch (type) {
     case QAL_DRAIN:
     {
         msg = std::make_shared<offload_msg>(OFFLOAD_CMD_DRAIN);

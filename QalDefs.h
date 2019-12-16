@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -280,7 +280,7 @@ typedef enum {
     // Add new OUT devices here, increment MAX and MIN below when you do so
     QAL_DEVICE_OUT_MAX = 17,
     //INPUT DEVICES
-    QAL_DEVICE_IN_MIN = 17,
+    QAL_DEVICE_IN_MIN = QAL_DEVICE_OUT_MAX,
     QAL_DEVICE_IN_HANDSET_MIC = QAL_DEVICE_IN_MIN +1,
     QAL_DEVICE_IN_SPEAKER_MIC = QAL_DEVICE_IN_MIN + 2,
     QAL_DEVICE_IN_TRI_MIC = QAL_DEVICE_IN_MIN + 3,
@@ -298,8 +298,9 @@ typedef enum {
     QAL_DEVICE_IN_SPDIF = QAL_DEVICE_IN_MIN + 15,
     QAL_DEVICE_IN_PROXY = QAL_DEVICE_IN_MIN + 16,
     QAL_DEVICE_IN_HANDSET_VA_MIC = QAL_DEVICE_IN_MIN + 17,
+    QAL_DEVICE_IN_BLUETOOTH_A2DP = QAL_DEVICE_IN_MIN + 18,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 18,
+    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 19,
 } qal_device_id_t;
 
 

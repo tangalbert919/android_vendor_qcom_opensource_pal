@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -108,6 +108,7 @@ public:
     void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
 
+    virtual int32_t getMIID(const char *backendName, int32_t tagId, uint32_t *miid) { return -EINVAL; }
 };
 
 #endif //SESSION_H

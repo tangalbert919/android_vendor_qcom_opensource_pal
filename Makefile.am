@@ -10,6 +10,8 @@ h_sources = ./stream/inc/Stream.h \
             ./stream/inc/StreamSoundTrigger.h \
             ./device/inc/Device.h \
             ./device/inc/Speaker.h \
+            ./device/inc/Bluetooth.h \
+            ./plugins/codecs/bt_plugin_intf.h \
             ./device/inc/Headphone.h \
             ./device/inc/DeviceAlsa.h \
             ./device/inc/DeviceGsl.h \
@@ -54,6 +56,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/Headphone.cpp \
               ./device/src/DeviceAlsa.cpp \
               ./device/src/SpeakerMic.cpp \
+              ./device/src/Bluetooth.cpp \
               ./device/src/DeviceGsl.cpp \
               ./device/src/HeadsetMic.cpp \
               ./device/src/HandsetMic.cpp \
@@ -82,6 +85,8 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/Speaker.h \
             ${top_srcdir}/device/inc/Headphone.h \
+            ${top_srcdir}/device/inc/Bluetooth.h \
+            ${top_srcdir}/plugins/codecs/bt_plugin_intf.h \
             ${top_srcdir}/device/inc/DeviceAlsa.h \
             ${top_srcdir}/device/inc/DeviceGsl.h \
             ${top_srcdir}/device/inc/DeviceImpl.h \
@@ -143,6 +148,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/Headphone.cpp \
               ${top_srcdir}/device/src/DeviceAlsa.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
+              ${top_srcdir}/device/src/Bluetooth.cpp \
               ${top_srcdir}/device/src/DeviceGsl.cpp \
               ${top_srcdir}/device/src/HeadsetMic.cpp \
               ${top_srcdir}/device/src/Handset.cpp \

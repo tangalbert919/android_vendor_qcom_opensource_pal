@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -39,6 +39,7 @@
 #include "SessionGsl.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
+#include "Bluetooth.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
 #include "HeadsetMic.h"
@@ -323,6 +324,22 @@ void str_parms_del(struct str_parms *str_parms, const char *key){return;}
 #endif
 //std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
 
+std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
+
+#define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
+std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_AAC),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_SBC),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_HD),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_DUAL_MONO),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_LDAC),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM)
+};
+
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
     {QAL_DEVICE_NONE,                     {std::string{ "" }}},
     {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
@@ -377,6 +394,7 @@ ResourceManager::ResourceManager()
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
+    btCodecMap.clear();
     ret = ResourceManager::XmlParser(GECKOXMLFILE);
     if (ret) {
         QAL_ERR(LOG_TAG, "error in gecko xml parsing ret %d", ret);
@@ -426,7 +444,7 @@ ResourceManager::ResourceManager()
             } else if (devInfo[i].type == COMPRESS) {
                 if (devInfo[i].playback == 1) {
                     listAllCompressPlaybackFrontEnds.push_back(devInfo[i].deviceId);
-                } else if (devInfo[i].record == 1){
+                } else if (devInfo[i].record == 1) {
                     listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
                 }
             } else if (devInfo[i].type == VOICE1) {
@@ -547,7 +565,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
     int32_t status = 0;
     struct qal_channel_info *dev_ch_info = NULL;
     QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
-    switch(deviceattr->id) {
+    switch (deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
             dev_ch_info->channels = CHANNELS_3;
@@ -561,7 +579,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            deviceattr->id = QAL_DEVICE_IN_SPEAKER_MIC;
             break;
         case QAL_DEVICE_IN_TRI_MIC:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
@@ -622,7 +639,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            deviceattr->id = QAL_DEVICE_OUT_SPEAKER;
             break;
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         case QAL_DEVICE_OUT_WIRED_HEADSET:
@@ -652,6 +668,15 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+        case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+            dev_ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t) + sizeof(uint8_t));
+            dev_ch_info->channels = CHANNELS_1;
+            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = SAMPLINGRATE_44K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
             break;
         default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
@@ -1171,7 +1196,7 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* blsUpdated)
 {
     int ret = -EINVAL;
-    if (!device || !blsUpdated){
+    if (!device || !blsUpdated) {
         QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", ret);
         return ret;
     }
@@ -1504,7 +1529,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                   QAL_ERR(LOG_TAG,"direction unsupported voice must be RX and TX");
                   break;
             }
-
+            break;
         default:
             break;
     }
@@ -2192,10 +2217,26 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     qal_device_id_t device_id = connection_state.id;
     bool is_connected = connection_state.connection_state;
     bool device_available = isDeviceAvailable(device_id);
+    struct qal_device dAttr;
+    struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
 
     QAL_DBG(LOG_TAG, "%s Enter", __func__);
     if (is_connected && !device_available) {
         QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+        if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            dAttr.id = device_id;
+            status = getDeviceConfig(&dAttr, &sAttr);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+                return status;
+            }
+            dev = Device::getInstance(&dAttr, rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                return -EINVAL;
+            }
+        }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
         QAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
@@ -2224,6 +2265,78 @@ bool ResourceManager::isDeviceAvailable(qal_device_id_t id)
     return is_available;
 }
 
+void ResourceManager::updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value)
+{
+    btCodecMap.insert(std::make_pair(key, value));
+}
+
+std::string ResourceManager::getBtCodecLib(uint32_t codecFormat, std::string codecType)
+{
+    std::map<std::pair<uint32_t, std::string>, std::string>::iterator iter;
+
+    iter = btCodecMap.find(std::make_pair(codecFormat, codecType));
+    if (iter != btCodecMap.end()) {
+        return iter->second;
+    }
+
+    return std::string();
+}
+
+void ResourceManager::processBTCodecInfo(const XML_Char **attr)
+{
+    char *saveptr = NULL;
+    char *token = NULL;
+    std::vector<std::string> codec_formats, codec_types;
+    std::vector<std::string>::iterator iter1, iter2;
+    std::map<std::string, uint32_t>::iterator iter;
+
+    if (strcmp(attr[0], "codec_format") != 0) {
+        QAL_ERR(LOG_TAG,"'codec_format' not found");
+        goto done;
+    }
+
+    if (strcmp(attr[2], "codec_type") != 0) {
+        QAL_ERR(LOG_TAG,"'codec_type' not found");
+        goto done;
+    }
+
+    if (strcmp(attr[4], "codec_library") != 0) {
+        QAL_ERR(LOG_TAG,"'codec_library' not found");
+        goto done;
+    }
+
+    token = strtok_r((char *)attr[1], "|", &saveptr);
+    while (token != NULL) {
+        if (strlen(token) != 0) {
+            codec_formats.push_back(std::string(token));
+        }
+        token = strtok_r(NULL, "|", &saveptr);
+    }
+
+    token = strtok_r((char *)attr[3], "|", &saveptr);
+    while (token != NULL) {
+        if (strlen(token) != 0) {
+            codec_types.push_back(std::string(token));
+        }
+        token = strtok_r(NULL, "|", &saveptr);
+    }
+
+    for (iter1 = codec_formats.begin(); iter1 != codec_formats.end(); ++iter1) {
+        for (iter2 = codec_types.begin(); iter2 != codec_types.end(); ++iter2) {
+            QAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s, %s=%s",
+                    attr[0], (*iter1).c_str(), attr[2], (*iter2).c_str(), attr[4], attr[5]);
+
+            iter = btFmtTable.find(*iter1);
+            if (iter != btFmtTable.end()) {
+                updateBtCodecMap(std::make_pair(btFmtTable[*iter1], *iter2),  std::string(attr[5]));
+            }
+        }
+    }
+
+done:
+    return;
+}
+
 void ResourceManager::processTagInfo(const XML_Char **attr)
 {
     int32_t tagId;
@@ -2244,7 +2357,7 @@ void ResourceManager::processTagInfo(const XML_Char **attr)
     std::string name(attr[3]);
     std::string String("stream");
     found = name.find(String);
-    if (found != std::string::npos){
+    if (found != std::string::npos) {
         updateStreamTag(tagId);
         QAL_ERR(LOG_TAG,"%s:%d    %x", __func__, __LINE__, tagId);
     }
@@ -2343,9 +2456,9 @@ void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_C
         devInfo.push_back(dev);
     } else if (!strcmp(tag_name, "name")) {
         size = devInfo.size() - 1;
-        if(strstr(data->data_buf,"PCM")){
+        if(strstr(data->data_buf,"PCM")) {
             devInfo[size].type = PCM;
-        } else if (strstr(data->data_buf,"COMP")){
+        } else if (strstr(data->data_buf,"COMP")) {
             devInfo[size].type = COMPRESS;
         } else if (strstr(data->data_buf,"VOICEMMODE1")){
             devInfo[size].type = VOICE1;
@@ -2395,7 +2508,7 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
     if (data->current_tag == TAG_ROOT)
         return;
 
-    if (data->current_tag == TAG_CARD){
+    if (data->current_tag == TAG_CARD) {
         processCardInfo(data, tag_name);
     }
     else if (data->current_tag == TAG_PLUGIN) {
@@ -2440,6 +2553,8 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     } else if(strcmp(tag_name, "param") == 0) {
         processConfigParams(attr);
+    } else if (strcmp(tag_name, "codec") == 0) {
+        processBTCodecInfo(attr);
         return;
     }
 
@@ -2548,7 +2663,7 @@ int ResourceManager::XmlParser(std::string xmlFile)
     XML_SetElementHandler(parser, startTag, endTag);
     XML_SetCharacterDataHandler(parser, snd_data_handler);
     configParamKVPairs = str_parms_create();
-    while(1) {
+    while (1) {
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {
             ret = -EINVAL;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -194,6 +194,8 @@ protected:
     static std::vector<std::pair<int32_t, std::string>> listAllBackEndIds;
     static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
     static std::vector<deviceCap> devInfo;
+    static std::map<std::pair<uint32_t, std::string>, std::string> btCodecMap;
+    static std::map<std::string, uint32_t> btFmtTable;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -219,6 +221,8 @@ public:
     static void updateBackEndName(int32_t deviceId, std::string backEndName);
     static void updateStreamTag(int32_t tagId);
     static void updateDeviceTag(int32_t tagId);
+    static void updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value);
+    static std::string getBtCodecLib(uint32_t codecFormat, std::string codecType);
 
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size);
@@ -264,6 +268,7 @@ public:
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
     static void processDeviceInfo(const XML_Char **attr);
     static void processTagInfo(const XML_Char **attr);
+    static void processBTCodecInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);
     static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);

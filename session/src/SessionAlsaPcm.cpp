@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,8 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
- #define LOG_TAG "SessionAlsaPcm"
+#define LOG_TAG "SessionAlsaPcm"
 
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaUtils.h"
@@ -73,13 +72,13 @@ int SessionAlsaPcm::open(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
     status = s->getStreamAttributes(&sAttr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         return status;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
         return status;
     }
@@ -90,7 +89,7 @@ int SessionAlsaPcm::open(Stream * s)
         return status;
 
     }
-    if(sAttr.direction == QAL_AUDIO_INPUT) {
+    if (sAttr.direction == QAL_AUDIO_INPUT) {
         pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
@@ -103,7 +102,7 @@ int SessionAlsaPcm::open(Stream * s)
         QAL_ERR(LOG_TAG,"mixer error");
         return status;
     }
-    switch(sAttr.direction) {
+    switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
             status = SessionAlsaUtils::open(s, rm, pcmDevIds, txAifBackEnds);
             if (status) {
@@ -174,7 +173,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
             }
             tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
-            if(!tagConfig) {
+            if (!tagConfig) {
                 status = -ENOMEM;
                 goto exit;
             }
@@ -204,6 +203,21 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
     }
 
 exit:
+    return status;
+}
+
+int32_t SessionAlsaPcm::getMIID(const char *backendName, int32_t tagId, uint32_t *miid)
+{
+    int status = 0;
+    int device = pcmDevIds.at(0);
+
+/* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                   backendName,
+                                                   false, tagId, miid);
+    if (0 != status)
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+
     return status;
 }
 
@@ -239,7 +253,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
 
-            if(!tagConfig) {
+            if (!tagConfig) {
                 status = -EINVAL;
                 goto exit;
             }
@@ -282,7 +296,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
 
-            if(!calConfig) {
+            if (!calConfig) {
                 status = -EINVAL;
                 goto exit;
             }
@@ -439,7 +453,7 @@ int SessionAlsaPcm::start(Stream * s)
 
     checkAndConfigConcurrency(s);
 
-    switch(sAttr.direction) {
+    switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
             if (sAttr.type != QAL_STREAM_VOICE_UI) {
                 /* Get MFC MIID and configure to match to stream config */
@@ -459,6 +473,7 @@ int SessionAlsaPcm::start(Stream * s)
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
                                                              payload, payloadSize);
+                delete payload;
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
@@ -471,13 +486,13 @@ int SessionAlsaPcm::start(Stream * s)
             break;
         case QAL_AUDIO_OUTPUT:
             status = s->getAssociatedDevices(associatedDevices);
-            if(0 != status) {
+            if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
                 return status;
             }
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-                if(0 != status) {
+                if (0 != status) {
                     QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
                     return status;
                 }
@@ -500,7 +515,7 @@ int SessionAlsaPcm::start(Stream * s)
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
                     delete payload;
-                    if(0 != status) {
+                    if (0 != status) {
                         QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
                         return status;
                     }
@@ -546,7 +561,7 @@ int SessionAlsaPcm::stop(Stream * s)
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
-    switch(sAttr.direction) {
+    switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
         case QAL_AUDIO_OUTPUT:
             if (pcm && isActive()) {
@@ -600,7 +615,7 @@ int SessionAlsaPcm::close(Stream * s)
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
-    switch(sAttr.direction) {
+    switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
         case QAL_AUDIO_OUTPUT:
             if (pcm)
@@ -792,7 +807,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if(pcm && !isActive()) {
+        if (pcm && !isActive()) {
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -811,7 +826,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if(pcm && !isActive()) {
+    if (pcm && !isActive()) {
         status = pcm_start(pcm);
         if (status) {
             QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -1245,7 +1260,7 @@ int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void 
 
 
 exit:
-    if(payloadData)
+    if (payloadData)
         free(payloadData);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;

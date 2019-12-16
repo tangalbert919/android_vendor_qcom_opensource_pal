@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,6 +45,7 @@
 #include "HandsetMic.h"
 #include "HandsetVaMic.h"
 #include "Handset.h"
+#include "Bluetooth.h"
 
 
 std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
@@ -65,35 +66,36 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_HANDSET:
         QAL_VERBOSE(LOG_TAG, "handset device");
         return Handset::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_OUT_WIRED_HEADSET:
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         QAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_IN_HANDSET_MIC:
         QAL_VERBOSE(LOG_TAG, "HandsetMic device");
         return HandsetMic::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_IN_SPEAKER_MIC:
     case QAL_DEVICE_IN_TRI_MIC:
     case QAL_DEVICE_IN_QUAD_MIC:
     case QAL_DEVICE_IN_EIGHT_MIC:
         QAL_VERBOSE(LOG_TAG, "speakerMic device");
         return SpeakerMic::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_IN_WIRED_HEADSET:
         QAL_VERBOSE(LOG_TAG, "HeadsetMic device");
         return HeadsetMic::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_IN_HANDSET_VA_MIC:
         QAL_VERBOSE(LOG_TAG, "HandsetVaMic device");
         return HandsetVaMic::getInstance(device, Rm);
-        break;
+    case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+    case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+        QAL_VERBOSE(LOG_TAG, "BTSCO device");
+        return BtSco::getInstance(device, Rm);
+    case QAL_DEVICE_IN_BLUETOOTH_A2DP:
+    case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        QAL_VERBOSE(LOG_TAG, "BTA2DP device");
+        return BtA2dp::getInstance(device, Rm);
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -204,7 +206,7 @@ int Device::open()
     std::vector<Stream*> activestreams;
     DeviceImpl *devImpl;
 
-    if(!initialized) {
+    if (!initialized) {
         const qal_alsa_or_gsl alsaConf = rm->getQALConfigALSAOrGSL();
         if (ALSA == alsaConf) {
             devImpl = new DeviceAlsa();
@@ -217,7 +219,7 @@ int Device::open()
             goto exit;
         }
         status = devImpl->open(&(this->deviceAttr), rm);
-        if(0!= status) {
+        if (0!= status) {
             status = -EINVAL;
             QAL_ERR(LOG_TAG,"Failed to open the device");
             delete devImpl;
@@ -357,7 +359,7 @@ int Device::start()
             goto disable_dev;
         }
         status = dev->start();
-        if(0 != status)
+        if (0 != status)
         {
             QAL_ERR(LOG_TAG,"%s: Failed to start the device", __func__);
             goto disable_dev;
@@ -379,7 +381,7 @@ int Device::stop()
     int status = 0;
     mDeviceMutex.lock();
     QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
-    if(deviceCount == 1 && initialized) {
+    if (deviceCount == 1 && initialized) {
         disableDevice(audioRoute, mSndDeviceName);
         DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
         if (!dev) {

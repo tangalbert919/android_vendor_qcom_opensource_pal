@@ -27,26 +27,17 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef HEADSETMIC_H
-#define HEADSETMIC_H
 
-#include "Device.h"
+#ifndef _BT_BASE_H_
+#define _BT_BASE_H_
 
-class HeadsetMic : public Device
-{
-protected:
-    static std::shared_ptr<Device> obj;
-    HeadsetMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
-                                               std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    static int32_t checkAndUpdateBitWidth(uint32_t *bitWidth);
-    static int32_t checkAndUpdateSampleRate(uint32_t *sampleRate);
-    virtual ~HeadsetMic();
-};
+#include "bt_intf.h"
 
+int bt_base_populate_real_module_id(custom_block_t *blk, int32_t real_module_id);
 
-#endif //HEADSETMIC_H
+int bt_base_populate_enc_bitrate(custom_block_t *blk, int32_t bit_rate);
+
+int bt_base_populate_enc_output_cfg(custom_block_t *blk, uint32_t fmt_id,
+                                    void *payload, size_t size);
+
+#endif /* _BT_BASE_H_ */

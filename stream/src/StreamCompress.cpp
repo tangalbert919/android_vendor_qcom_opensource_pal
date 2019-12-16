@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -256,7 +256,9 @@ int32_t StreamCompress::start()
                 QAL_ERR(LOG_TAG, "device %d name %s, going to start",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
+                mStreamMutex.unlock();
                 status = mDevices[i]->start();
+                mStreamMutex.lock();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG,"Rx device start failed with status %d", status);
                     goto exit;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -46,7 +46,7 @@ public:
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static int32_t checkAndUpdateBitWidth(uint32_t *bitWidth);
     static int32_t checkAndUpdateSampleRate(uint32_t *sampleRate);
-    ~Headphone();
+    virtual ~Headphone();
 };
 
 

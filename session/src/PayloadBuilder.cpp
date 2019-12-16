@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -31,6 +31,7 @@
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
 #include "spr_api.h"
+#include <bt_intf.h>
 
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
@@ -254,6 +255,56 @@ const std::map<uint32_t, uint32_t> VSIDtoKV {
     { VOICELBMMODE2, VSID_DEFAULT},
 };
 
+/* This can only be used for channel map having size 16 bits for each index */
+void PayloadBuilder::populateChannelMap(uint16_t* pcmChannel, uint8_t numChannel)
+{
+    if (numChannel == 1) {
+        pcmChannel[0] = PCM_CHANNEL_C;
+    } else if (numChannel == 2) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+    } else if (numChannel == 3) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+    } else if (numChannel == 4) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_LB;
+        pcmChannel[3] = PCM_CHANNEL_RB;
+    } else if (numChannel == 5) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LB;
+        pcmChannel[4] = PCM_CHANNEL_RB;
+    } else if (numChannel == 6) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LFE;
+        pcmChannel[4] = PCM_CHANNEL_LB;
+        pcmChannel[5] = PCM_CHANNEL_RB;
+    } else if (numChannel == 7) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_LB;
+        pcmChannel[6] = PCM_CHANNEL_RB;
+    } else if (numChannel == 8) {
+        pcmChannel[0] = PCM_CHANNEL_L;
+        pcmChannel[1] = PCM_CHANNEL_R;
+        pcmChannel[2] = PCM_CHANNEL_C;
+        pcmChannel[3] = PCM_CHANNEL_LS;
+        pcmChannel[4] = PCM_CHANNEL_RS;
+        pcmChannel[5] = PCM_CHANNEL_CS;
+        pcmChannel[6] = PCM_CHANNEL_LB;
+        pcmChannel[7] = PCM_CHANNEL_RB;
+    }
+}
+
 void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
         struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data)
 {
@@ -312,7 +363,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
     /* TODO: Remove hardcoding */
     mediaFmtPayload->endianness = PCM_LITTLE_ENDIAN;
     mediaFmtPayload->alignment = 1;
-    if(data->native == 1){
+    if (data->native == 1) {
         mediaFmtPayload->num_channels = PARAM_VAL_NATIVE;
     } else {
         mediaFmtPayload->num_channels = data->numChannel;
@@ -440,7 +491,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
                   mediaFmtHdr->payload_size, numChannels);
     mediaFmtPayload->endianness = PCM_LITTLE_ENDIAN;
     mediaFmtPayload->alignment = 1;
-    if(data->native == 1){
+    if (data->native == 1) {
         mediaFmtPayload->num_channels = PARAM_VAL_NATIVE;
     } else {
         mediaFmtPayload->num_channels = data->numChannel;
@@ -929,51 +980,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     mfcConf->sampling_rate = data->sampleRate;
     mfcConf->bit_width = data->bitWidth;
     mfcConf->num_channels = data->numChannel;
-    if (data->numChannel == 1) {
-        pcmChannel[0] = PCM_CHANNEL_C;
-    } else if (data->numChannel == 2) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-    } else if (data->numChannel == 3) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-    } else if (data->numChannel == 4) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_LB;
-        pcmChannel[3] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 5) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LB;
-        pcmChannel[4] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 6) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LFE;
-        pcmChannel[4] = PCM_CHANNEL_LB;
-        pcmChannel[5] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 7) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_LB;
-        pcmChannel[6] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 8) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_CS;
-        pcmChannel[6] = PCM_CHANNEL_LB;
-        pcmChannel[7] = PCM_CHANNEL_RB;
-    }
+    populateChannelMap(pcmChannel, data->numChannel);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",
@@ -998,7 +1005,7 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
         struct sessionToPayloadParam* data)
 {
     unsigned int uPayloadTag = (unsigned int)payloadTag;
-    switch(uPayloadTag) {
+    switch (uPayloadTag) {
         case IN_MEDIA:
             payloadInMediaConfig(payload, size, moduleInfo, data);
             break;
@@ -1065,21 +1072,21 @@ void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size,
 void PayloadBuilder::processCodecInfo(const XML_Char **attr)
 {
     struct codecDmaConfig cdc;
-    if(strcmp(attr[0], "name" ) !=0 ) {
+    if (strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'name' not found");
         return;
     }
     std::string linkName(attr[1]);
     cdc.intfLinkIdx = intfLinkIdxLUT.at(linkName);
 
-    if(strcmp(attr[2],"lpaif_type") !=0 ) {
+    if (strcmp(attr[2],"lpaif_type") !=0 ) {
         QAL_ERR(LOG_TAG, "'lpaif_type' not found %s is the tag", attr[2]);
         return;
     }
     std::string cdcType(attr[3]);
     cdc.lpaifType = lpaifIdxLUT.at(cdcType);
 
-    if(strcmp(attr[4],"intf_idx") !=0 ) {
+    if (strcmp(attr[4],"intf_idx") !=0 ) {
         QAL_ERR(LOG_TAG, "'intf_idx' not found");
         return;
     }
@@ -1111,7 +1118,7 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr)
     i2sCnf.intfIdx =  i2sIntfIdxLUT.at(linkName);
     i2sCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
 
-    if(strcmp(attr[2],"line_mask") !=0 ) {
+    if (strcmp(attr[2],"line_mask") !=0 ) {
         QAL_ERR(LOG_TAG, "line_mask' not found %s is the tag", attr[2]);
         return;
     }
@@ -1178,13 +1185,13 @@ void PayloadBuilder::processI2sInfo(const XML_Char **attr)
         return;
     }
 
-    if(strcmp(attr[4],"ws_src") !=0 ) {
+    if (strcmp(attr[4],"ws_src") !=0 ) {
         QAL_ERR(LOG_TAG, "'line_mask' not found %s is the tag", attr[4]);
         return;
     }
     std::string src(attr[5]);
     i2sCnf.wsSrc = i2sWsSrcLUT.at(src);
-    if(strcmp(attr[6],"lpaif_type") !=0 ) {
+    if (strcmp(attr[6],"lpaif_type") !=0 ) {
         QAL_ERR(LOG_TAG, "'lpaif_type' not found %s is the tag", attr[7]);
         return;
     }
@@ -1197,28 +1204,28 @@ void PayloadBuilder::processSlimInfo(const XML_Char **attr) {
     struct slimConfig slimCnf;
 
     // read interface name
-    if(strcmp(attr[0], "name" ) !=0 ) {
+    if (strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'name' not found",__func__);
         return;
     }
     std::string linkName(attr[1]);
     slimCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
     // parse slimbus device id
-    if(strcmp(attr[2], "slim_dev_id" ) !=0 ) {
+    if (strcmp(attr[2], "slim_dev_id" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'slim_dev_id' not found",__func__);
         return;
     }
     std::string slimDevIdName(attr[3]);
     slimCnf.dev_id = slimDevId.at(slimDevIdName);
     //parse index_0
-    if(strcmp(attr[4], "index_0" ) !=0 ) {
+    if (strcmp(attr[4], "index_0" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'index_0' not found",__func__);
         return;
     }
     std::string slimIdx0(attr[5]);
     slimCnf.sh_mapping_idx_0 = slimSharedChannels.at(slimIdx0);
     //parse index_1
-    if(strcmp(attr[6], "index_1" ) !=0 ) {
+    if (strcmp(attr[6], "index_1" ) !=0 ) {
         QAL_ERR(LOG_TAG,"%s: 'index_1' not found",__func__);
         return;
     }
@@ -1230,20 +1237,20 @@ void PayloadBuilder::processSlimInfo(const XML_Char **attr) {
 void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     struct tdmConfig tdmCnf;
 
-    if(strcmp(attr[0], "name" ) !=0 ) {
+    if (strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG, "name' not found");
         return;
     }
     std::string linkName(attr[1]);
     tdmCnf.intfIdx =  tdmIntfIdxLUT.at(linkName);
     tdmCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
-    if(strcmp(attr[2], "lpaif_type" ) !=0 ) {
+    if (strcmp(attr[2], "lpaif_type" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'lpaif_type' not found");
         return;
     }
     std::string lpaifName(attr[3]);
     tdmCnf.lpaifType = lpaifIdxLUT.at(lpaifName);
-    if(strcmp(attr[4], "sync_src" ) !=0 ) {
+    if (strcmp(attr[4], "sync_src" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'sync_src' not found");
         return;
     }
@@ -1251,7 +1258,7 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     std::string syncSrc(attr[5]);
     tdmCnf.syncSrc = tdmSyncSrc.at(syncSrc);
 
-    if(strcmp(attr[6], "ctrl_data" ) !=0 ) {
+    if (strcmp(attr[6], "ctrl_data" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'ctrl_data' not found");
         return;
     }
@@ -1259,7 +1266,7 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     std::string ctrlData(attr[7]);
     tdmCnf.ctrlDataOutEnable = tdmCtrlDataEnable.at(ctrlData);
 
-    if(strcmp(attr[8], "sync_mode" ) !=0 ) {
+    if (strcmp(attr[8], "sync_mode" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'sync_mode' not found");
         return;
     }
@@ -1267,7 +1274,7 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     std::string syncmode(attr[9]);
     tdmCnf.syncMode = tdmSyncMode.at(syncmode);
 
-    if(strcmp(attr[10], "ctrl_invert_sync_pulse" ) !=0 ) {
+    if (strcmp(attr[10], "ctrl_invert_sync_pulse" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'ctrl_invert_sync_pulse' not found");
         return;
     }
@@ -1275,7 +1282,7 @@ void PayloadBuilder::processTdmInfo(const XML_Char **attr) {
     std::string ctrlInvert(attr[11]);
     tdmCnf.ctrlInvertSyncPulse = tdmCtrlInvertPulse.at(ctrlInvert);
 
-    if(strcmp(attr[12], "ctrl_sync_data_delay" ) !=0 ) {
+    if (strcmp(attr[12], "ctrl_sync_data_delay" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'ctrl_sync_data_delay' not found");
         return;
     }
@@ -1289,20 +1296,20 @@ void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr)
 {
     struct auxpcmConfig auxpcmCnf = {};
 
-    if(strcmp(attr[0], "name" ) !=0 ) {
+    if (strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'name' not found");
         return;
     }
     std::string linkName(attr[1]);
     auxpcmCnf.intfIdx =  auxpcmIntfIdxLUT.at(linkName);
     auxpcmCnf.intfLinkIdx = intfLinkIdxLUT.at(linkName);
-    if(strcmp(attr[2], "lpaif_type" ) !=0 ) {
+    if (strcmp(attr[2], "lpaif_type" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'lpaif_type' not found");
         return;
     }
     std::string lpaifName(attr[3]);
     auxpcmCnf.lpaifType = lpaifIdxLUT.at(lpaifName);
-    if(strcmp(attr[4], "sync_src" ) !=0 ) {
+    if (strcmp(attr[4], "sync_src" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'sync_src' not found");
         return;
     }
@@ -1310,7 +1317,7 @@ void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr)
     std::string syncSrc(attr[5]);
     auxpcmCnf.syncSrc = auxpcmSyncSource.at(syncSrc);
 
-    if(strcmp(attr[6], "ctrl_data" ) !=0 ) {
+    if (strcmp(attr[6], "ctrl_data" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'ctrl_data' not found");
         return;
     }
@@ -1319,7 +1326,7 @@ void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr)
     auxpcmCnf.ctrlDataOutEnable = auxpcmctrlDataOutEnable.at(ctrlData);
 
 
-    if(strcmp(attr[8], "frame_setting" ) !=0 ) {
+    if (strcmp(attr[8], "frame_setting" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'frame_setting' not found");
         return;
     }
@@ -1328,7 +1335,7 @@ void PayloadBuilder::processAuxpcmInfo(const XML_Char **attr)
     auxpcmCnf.frameSetting = auxpcmFrameSetting.at(frameSetting);
 
 
-    if(strcmp(attr[10], "aux_mode" ) !=0 ) {
+    if (strcmp(attr[10], "aux_mode" ) !=0 ) {
         QAL_ERR(LOG_TAG, "'aux_mode' not found");
         return;
     }
@@ -1369,7 +1376,7 @@ int PayloadBuilder::init()
 
     QAL_DBG(LOG_TAG, "Enter.");
     file = fopen(XML_FILE, "r");
-    if(!file) {
+    if (!file) {
         QAL_ERR(LOG_TAG, "Failed to open xml");
         ret = -EINVAL;
         goto done;
@@ -1383,22 +1390,22 @@ int PayloadBuilder::init()
 
     XML_SetElementHandler(parser, startTag, endTag);
 
-    while(1) {
+    while (1) {
         buf = XML_GetBuffer(parser, 1024);
-        if(buf == NULL) {
+        if (buf == NULL) {
             QAL_ERR(LOG_TAG, "XML_Getbuffer failed");
             ret = -EINVAL;
             goto freeParser;
         }
 
         bytes_read = fread(buf, 1, 1024, file);
-        if(bytes_read < 0) {
+        if (bytes_read < 0) {
             QAL_ERR(LOG_TAG, "fread failed");
             ret = -EINVAL;
             goto freeParser;
         }
 
-        if(XML_ParseBuffer(parser, bytes_read, bytes_read == 0) == XML_STATUS_ERROR) {
+        if (XML_ParseBuffer(parser, bytes_read, bytes_read == 0) == XML_STATUS_ERROR) {
             QAL_ERR(LOG_TAG, "XML ParseBuffer failed ");
             ret = -EINVAL;
             goto freeParser;
@@ -1562,7 +1569,7 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
 
     alsaPayloadSize = QAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
                                         + customPayloadSize);
-    payloadInfo = (uint8_t *)malloc((size_t)alsaPayloadSize);
+    payloadInfo = (uint8_t *)calloc(1, (size_t)alsaPayloadSize);
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "failed to allocate memory.");
         return -ENOMEM;
@@ -1844,6 +1851,68 @@ void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t mo
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
+void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, struct qal_media_config *data)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_rat_mf_t *ratConf;
+    int numChannel;
+    uint32_t bitWidth;
+    uint16_t* pcmChannel = NULL;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    if (!data) {
+        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    numChannel = data->ch_info->channels;
+    bitWidth = data->bit_width;
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_rat_mf_t) +
+                  sizeof(uint16_t)*numChannel;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    ratConf = (struct param_id_rat_mf_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
+    pcmChannel = (uint16_t*)(payloadInfo + sizeof(struct apm_module_param_data_t) +
+                                       sizeof(struct param_id_rat_mf_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_RAT_MEDIA_FORMAT;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    ratConf->sample_rate = data->sample_rate;
+    if (bitWidth == 16 || bitWidth == 32) {
+        ratConf->bits_per_sample = bitWidth;
+        ratConf->q_factor =  bitWidth - 1;
+    } else if (bitWidth == 24) {
+        ratConf->bits_per_sample = 32;
+        ratConf->q_factor = 27;
+    }
+    ratConf->data_format = DATA_FORMAT_FIXED_POINT;
+    ratConf->num_channels = numChannel;
+    populateChannelMap(pcmChannel, numChannel);
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "sample_rate:%d bits_per_sample:%d q_factor:%d data_format:%d num_channels:%d",
+                      ratConf->sample_rate, ratConf->bits_per_sample, ratConf->q_factor,
+                      ratConf->data_format, ratConf->num_channels);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+                *size);
+}
+
 /** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx)
@@ -1858,7 +1927,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         return -ENOMEM;
     }
     status = s->getStreamAttributes(sattr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
         goto free_sattr;
     }
@@ -1906,7 +1975,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
         return -ENOMEM;
     }
     status = s->getStreamAttributes(sattr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
         goto free_sattr;
     }
@@ -1941,7 +2010,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     memset (sattr, 0, sizeof(struct qal_stream_attributes));
 
     status = s->getStreamAttributes(sattr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
         goto free_sattr;
     }
@@ -2053,12 +2122,17 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
     //from there create a map and retrieve the right keys
 
 //TODO change this mapping to xml
-    switch(beDevId) {
+    switch (beDevId) {
         case QAL_DEVICE_OUT_SPEAKER :
             keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
             break;
         case QAL_DEVICE_OUT_HANDSET :
             keyVector.push_back(std::make_pair(DEVICERX, HANDSET));
+            break;
+        case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+            keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
             keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
@@ -2127,18 +2201,18 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
     memset (sattr, 0, sizeof(struct qal_stream_attributes));
 
     status = s->getStreamAttributes(sattr);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
         goto free_sattr;
     }
     status = s->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
+    if (0 != status) {
        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
        return status;
     }
     for (int i = 0; i < associatedDevices.size();i++) {
        status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-       if(0 != status) {
+       if (0 != status) {
           QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
           return status;
        }
@@ -2160,7 +2234,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                          keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_SMECNS));
                     } else if (dAttr.config.ch_info->channels == 2) {
                         keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE));
-                    } else if(dAttr.config.ch_info->channels >= 3){
+                    } else if (dAttr.config.ch_info->channels >= 3){
                         keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_PRO));
                     }
                 }
@@ -2295,7 +2369,7 @@ int PayloadBuilder::populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, 
                       (sizeof(struct qal_channel_vol_kv) * (0xFFFF)));
 
     status = s->getVolumeData(voldata);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
         goto free_voldata;
     }
@@ -2398,7 +2472,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     }
 
     status = s->getVolumeData(voldata);
-    if(0 != status) {
+    if (0 != status) {
         QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
         goto error_1;
     }
@@ -2408,7 +2482,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
 
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
-       if(voldB == 0.0f) {
+       if (voldB == 0.0f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
        }
        else if (voldB < 0.002172f) {
@@ -2477,7 +2551,7 @@ int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, 
     std::vector <std::pair<int,int>> keyVector;
 
     QAL_DBG(LOG_TAG,"%s: enter", __func__);
-    switch (tag){
+    switch (tag) {
     case MUTE_TAG:
        keyVector.push_back(std::make_pair(MUTE,ON));
        *gsltag = TAG_MUTE;
@@ -2554,7 +2628,7 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
         return status;
     }
 
-    switch (tag){
+    switch (tag) {
     case MUTE_TAG:
        tkv.push_back(std::make_pair(MUTE,ON));
        *gsltag = TAG_MUTE;
@@ -2700,4 +2774,3 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
     return status;
 }
-
