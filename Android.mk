@@ -68,6 +68,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/Handset.cpp \
     device/src/HandsetVaMic.cpp \
     device/src/DisplayPort.cpp \
+    device/src/HeadsetVaMic.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionGsl.cpp \

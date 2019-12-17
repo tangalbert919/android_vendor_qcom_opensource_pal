@@ -256,7 +256,7 @@ struct mixer_ctl *SessionAlsaUtils::getFeMixerControl(struct mixer *am, std::str
     std::ostringstream cntrlName;
 
     cntrlName << feName << feCtrlNames[idx];
-    QAL_DBG(LOG_TAG,"mixer control %s", cntrlName.str().data());
+    QAL_ERR(LOG_TAG,"mixer control %s", cntrlName.str().data());
     return mixer_get_ctl_by_name(am, cntrlName.str().data());
 }
 

@@ -136,7 +136,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}}
+    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
 };
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
@@ -173,6 +174,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_IN_SPDIF,                 0},
     {QAL_DEVICE_IN_PROXY,                 0},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        0},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        0},
 };
 
 // To be defined in detail
@@ -211,7 +213,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}}
+    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
 };
 
 const std::map<std::string, uint32_t> deviceIdLUT {
@@ -247,7 +250,8 @@ const std::map<std::string, uint32_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_IN_LINE" },                  QAL_DEVICE_IN_LINE},
     {std::string{ "QAL_DEVICE_IN_SPDIF" },                 QAL_DEVICE_IN_SPDIF},
     {std::string{ "QAL_DEVICE_IN_PROXY" },                 QAL_DEVICE_IN_PROXY},
-    {std::string{ "QAL_DEVICE_IN_HANDSET_VA_MIC" },        QAL_DEVICE_IN_HANDSET_VA_MIC}
+    {std::string{ "QAL_DEVICE_IN_HANDSET_VA_MIC" },        QAL_DEVICE_IN_HANDSET_VA_MIC},
+    {std::string{ "QAL_DEVICE_IN_HEADSET_VA_MIC" },        QAL_DEVICE_IN_HEADSET_VA_MIC}
 };
 
 //reverse mapping
@@ -284,7 +288,8 @@ const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_IN_LINE,                  std::string{"_DEVICE_IN_LINE"}},
     {QAL_DEVICE_IN_SPDIF,                 std::string{"_DEVICE_IN_SPDIF"}},
     {QAL_DEVICE_IN_PROXY,                 std::string{"_DEVICE_IN_PROXY"}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"_DEVICE_IN_HANDSET_VA_MIC"}}
+    {QAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"_DEVICE_IN_HANDSET_VA_MIC"}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"_DEVICE_IN_HEADSET_VA_MIC"}}
 };
 
 
@@ -376,7 +381,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}}
+    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}}
 };
 
 ResourceManager::ResourceManager()
@@ -662,6 +668,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
         case QAL_DEVICE_IN_HANDSET_VA_MIC:
+        case QAL_DEVICE_IN_HEADSET_VA_MIC:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
             dev_ch_info->channels = CHANNELS_2;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;

@@ -45,6 +45,7 @@
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
 #include "HandsetVaMic.h"
+#include "HeadsetVaMic.h"
 #include "Handset.h"
 #include "Bluetooth.h"
 #include "DisplayPort.h"
@@ -106,6 +107,11 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_HDMI:
         QAL_ERR(LOG_TAG, "Display Port device");
         return DisplayPort::getInstance(device, Rm);
+        break;
+    case QAL_DEVICE_IN_HEADSET_VA_MIC:
+        QAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
+        return HeadsetVaMic::getInstance(device, Rm);
+        break;
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;

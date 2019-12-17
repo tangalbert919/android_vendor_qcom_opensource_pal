@@ -306,8 +306,9 @@ typedef enum {
     QAL_DEVICE_IN_PROXY = QAL_DEVICE_IN_MIN + 16,
     QAL_DEVICE_IN_HANDSET_VA_MIC = QAL_DEVICE_IN_MIN + 17,
     QAL_DEVICE_IN_BLUETOOTH_A2DP = QAL_DEVICE_IN_MIN + 18,
+    QAL_DEVICE_IN_HEADSET_VA_MIC = QAL_DEVICE_IN_MIN + 19,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 19,
+    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 20,
 } qal_device_id_t;
 
 
