@@ -63,7 +63,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     outBufCount = NO_OF_BUF;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
-
+    struct qal_ec_info ecinfo = {};
+    int status = 0;
     QAL_DBG(LOG_TAG, "Enter");
     // TODO: handle modifiers later
     mNoOfModifiers = 0;
@@ -102,7 +103,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
             dattr[i].id = dev_id;
             if (dattr[i].config.ch_info)
                 free(dattr[i].config.ch_info);
-            if (rm->getDeviceConfig((struct qal_device *)&dattr[i], sattr)) {
+            status = rm->getDeviceInfo(dattr[i].id, mStreamAttr->type, &ecinfo);
+            if(status) {
+               QAL_ERR(LOG_TAG, "get ec info failed");
+            }
+            if (rm->getDeviceConfig((struct qal_device *)&dattr[i], sattr, ecinfo.channels)) {
                 QAL_ERR(LOG_TAG, "Failed to get config for dev %d", dev_id);
                 throw std::runtime_error("failed to get device config");
             }

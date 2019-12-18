@@ -41,6 +41,7 @@
 #include "QalCommon.h"
 #include <map>
 #include <expat.h>
+#include <stdio.h>
 #include "QalDefs.h"
 #define RXLOOPBACK 0
 #define TXLOOPBACK 1
@@ -65,6 +66,19 @@ typedef enum {
 } snd_card_defs_xml_tags_t;
 
 typedef enum {
+    TAG_RESOURCE_ROOT,
+    TAG_RESOURCE_MANAGER_INFO,
+    TAG_IN_DEVICE_PROFILE,
+    TAG_IN_DEVICE,
+    TAG_USECASE,
+    TAG_DEVICEPP,
+    TAG_KVPAIR,
+    TAG_CONFIG_VOICE,
+    TAG_CONFIG_MODE_MAP,
+    TAG_CONFIG_MODE_PAIR,
+} resource_xml_tags_t;
+
+typedef enum {
     PCM,
     COMPRESS,
     VOICE1,
@@ -78,8 +92,11 @@ struct xml_userdata {
     unsigned int card;
     bool card_found;
     bool card_parsed;
+    bool resourcexml_parsed;
+    bool voice_info_parsed;
     snd_card_defs_xml_tags_t current_tag;
     bool is_parsing_sound_trigger;
+    resource_xml_tags_t tag;
 };
 
 struct deviceCap {
@@ -88,6 +105,38 @@ struct deviceCap {
     int playback;
     int record;
     int loopback;
+};
+
+struct kvpair_info {
+    unsigned int key;
+    unsigned int value;
+};
+
+struct usecase_info {
+    int type;
+    int channel;
+    std::vector<kvpair_info> kvpair;
+};
+
+struct deviceIn {
+    int deviceId;
+    int max_channel;
+    std::vector<usecase_info> usecase;
+};
+
+struct qal_ec_info {
+     int channels;
+     std::vector<kvpair_info> kvpair;
+};
+
+struct vsid_modepair {
+    unsigned int key;
+    unsigned int value;
+};
+
+struct vsid_info {
+     int vsid;
+     std::vector<vsid_modepair> modepair;
 };
 
 enum {
@@ -198,6 +247,8 @@ protected:
     static std::vector<deviceCap> devInfo;
     static std::map<std::pair<uint32_t, std::string>, std::string> btCodecMap;
     static std::map<std::string, uint32_t> btFmtTable;
+    static std::vector<deviceIn> deviceInfo;
+    static struct vsid_info vsidInfo;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -205,7 +256,12 @@ public:
     bool isStreamSupported(struct qal_stream_attributes *attributes,
                            struct qal_device *devices, int no_of_devices);
     int32_t getDeviceConfig(struct qal_device *deviceattr,
-                            struct qal_stream_attributes *attributes);
+                            struct qal_stream_attributes *attributes, int32_t channel);
+    /*getDeviceInfo - updates channels,fluence info and snd name of the device*/
+    int32_t getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
+                       struct qal_ec_info *ecinfo);
+    int32_t getVsidInfo(struct vsid_info  *info);
+    void getChannelMap(uint8_t *channel_map, int channels);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);
@@ -275,6 +331,11 @@ public:
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);
     static void snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
+    static void update_snd_name(int channel);
+    static void process_kvinfo(const XML_Char **attr);
+    static void process_voicemode_info(const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
     static void processDeviceInfo(const XML_Char **attr);
     static void processTagInfo(const XML_Char **attr);

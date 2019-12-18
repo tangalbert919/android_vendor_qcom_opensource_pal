@@ -84,9 +84,6 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
         QAL_VERBOSE(LOG_TAG, "HandsetMic device");
         return HandsetMic::getInstance(device, Rm);
     case QAL_DEVICE_IN_SPEAKER_MIC:
-    case QAL_DEVICE_IN_TRI_MIC:
-    case QAL_DEVICE_IN_QUAD_MIC:
-    case QAL_DEVICE_IN_EIGHT_MIC:
         QAL_VERBOSE(LOG_TAG, "speakerMic device");
         return SpeakerMic::getInstance(device, Rm);
     case QAL_DEVICE_IN_WIRED_HEADSET:

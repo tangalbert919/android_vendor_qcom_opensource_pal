@@ -50,6 +50,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     int status = 0;
     uint32_t count = 0;
     bool isStandby = false;
+    struct qal_ec_info ecinfo = {};
 
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
@@ -85,7 +86,11 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             mQalDevice[count].id == QAL_DEVICE_IN_USB_HEADSET) {
             mQalDevice[count].address = dAttr[i].address;
         }
-        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr);
+        status = rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &ecinfo);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get ec info failed");
+        }
+        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr, ecinfo.channels);
         if (status) {
            QAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
            goto exit;
@@ -506,6 +511,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     int32_t status = -EINVAL;
     struct qal_device* newDevices = nullptr;
     int32_t count = 0;
+    struct qal_ec_info ecinfo = {};
     std::shared_ptr<Device> dev = nullptr;
     bool isNewDeviceA2dp = false;
     bool isCurrentDeviceA2dp = false;

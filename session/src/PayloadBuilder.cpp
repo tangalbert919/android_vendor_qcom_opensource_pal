@@ -28,6 +28,7 @@
  */
 
 #define LOG_TAG "PayloadBuilder"
+#include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
 #include "spr_api.h"
@@ -261,12 +262,12 @@ const std::map<std::string, uint32_t> lpaifIdxLUT {
     {std::string{ "LPAIF_AXI"},  4},
 };
 
-const std::map<uint32_t, uint32_t> VSIDtoKV {
+std::vector<std::pair<uint32_t, uint32_t>> VSIDtoKV {
     /*for now map everything to default */
-    { VOICEMMODE1,  VSID_DEFAULT},
-    { VOICEMMODE2,  VSID_DEFAULT},
-    { VOICELBMMODE1, VSID_DEFAULT},
-    { VOICELBMMODE2, VSID_DEFAULT},
+    { VOICEMMODE1,   0},
+    { VOICEMMODE2,   0},
+    { VOICELBMMODE1, 0},
+    { VOICELBMMODE2, 0},
 };
 
 /* This can only be used for channel map having size 16 bits for each index */
@@ -2056,7 +2057,7 @@ void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
 
 /** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
-        std::vector <std::pair<int,int>> &keyVectorTx)
+        std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
@@ -2087,10 +2088,21 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
     case QAL_STREAM_VOICE_CALL:
             /*need to update*/
+            for (int size= 0; size < vsidinfo.modepair.size(); size++) {
+                for (int count1 = 0; count1 < VSIDtoKV.size(); count1++) {
+                    if (vsidinfo.modepair[size].key == VSIDtoKV[count1].first)
+                        VSIDtoKV[count1].second = vsidinfo.modepair[size].value;
+                }
+            }
+
             keyVectorRx.push_back(std::make_pair(STREAMRX,VOICE_CALL_RX));
-            keyVectorRx.push_back(std::make_pair(VSID,VSIDtoKV.at(sattr->info.voice_call_info.VSID)));
             keyVectorTx.push_back(std::make_pair(STREAMTX,VOICE_CALL_TX));
-            keyVectorTx.push_back(std::make_pair(VSID,VSIDtoKV.at(sattr->info.voice_call_info.VSID)));
+            for (int index = 0; index < VSIDtoKV.size(); index++) {
+                if (sattr->info.voice_call_info.VSID == VSIDtoKV[index].first) {
+                    keyVectorRx.push_back(std::make_pair(vsidinfo.vsid,VSIDtoKV[index].second));
+                    keyVectorTx.push_back(std::make_pair(vsidinfo.vsid,VSIDtoKV[index].second));
+                }
+            }
             break;
         default:
             status = -EINVAL;
@@ -2236,12 +2248,12 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t beDevId,
 
 int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx)
+        std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
 {
     int status = 0;
 
     QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
-    status = populateStreamKV(s, keyVectorRx, keyVectorTx);
+    status = populateStreamKV(s, keyVectorRx, keyVectorTx, vsidinfo);
     if (status)
         goto exit;
 
@@ -2292,9 +2304,6 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             keyVector.push_back(std::make_pair(DEVICERX, USB_RX));
             break;
         case QAL_DEVICE_IN_SPEAKER_MIC:
-        case QAL_DEVICE_IN_TRI_MIC:
-        case QAL_DEVICE_IN_QUAD_MIC:
-        case QAL_DEVICE_IN_EIGHT_MIC:
             keyVector.push_back(std::make_pair(DEVICETX, SPEAKER_MIC));
             break;
         case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
@@ -2340,7 +2349,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, bool is_lpi)
+        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair, bool is_lpi)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
@@ -2386,12 +2395,9 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOICE_DEFAULT));
                 }
                 if (dAttr.id == txBeDevId){
-                    if (dAttr.config.ch_info->channels == 1) {
-                         keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_SMECNS));
-                    } else if (dAttr.config.ch_info->channels == 2) {
-                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_ENDFIRE));
-                    } else if (dAttr.config.ch_info->channels >= 3){
-                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_VOICE_FLUENCE_PRO));
+                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
+                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
+                                               kvpair[kvsize].value));
                     }
                 }
                 break;
@@ -2401,14 +2407,12 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
             case QAL_STREAM_PCM_OFFLOAD:
                 if (sattr->direction == QAL_AUDIO_OUTPUT) {
                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
-                } else if (sattr->direction == QAL_AUDIO_INPUT &&
-                        (dAttr.config.ch_info->channels >= 3)) {
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_AUDIO_FLUENCE_PRO));
-                } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 1)) {
-                    QAL_ERR(LOG_TAG, "sattr channels %d", sattr->in_media_config.ch_info->channels);
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_SMECNS));
-                } else if (sattr->direction == QAL_AUDIO_INPUT && (dAttr.config.ch_info->channels == 2)) {
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_ENDFIRE));
+                }
+                else if (sattr->direction == QAL_AUDIO_INPUT) {
+                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
+                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
+                                               kvpair[kvsize].value));
+                    }
                 }
                 break;
             case QAL_STREAM_VOIP_RX:
@@ -2419,18 +2423,19 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_HFPSINK));
                 break;
             case QAL_STREAM_VOIP_TX:
-                if (dAttr.config.ch_info->channels >= 3) {
-                   keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_PRO));
-                }
-                if (dAttr.config.ch_info->channels == 1) {
-                   keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_SMECNS));
+                for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
+                     keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
+                                           kvpair[kvsize].value));
                 }
                 break;
             case QAL_STREAM_VOICE_UI:
                 if (is_lpi) {
                     keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS));
                 } else {
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
+                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
+                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
+                                               kvpair[kvsize].value));
+                    }
                 }
                 break;
             default:
@@ -2440,7 +2445,6 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
     }
     populateDeviceKV(s, rxBeDevId, keyVectorRx);
     populateDeviceKV(s, txBeDevId, keyVectorTx);
-
 free_sattr:
     delete sattr;
 exit:

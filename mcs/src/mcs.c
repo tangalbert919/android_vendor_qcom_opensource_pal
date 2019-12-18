@@ -539,13 +539,9 @@ int32_t process_record_request(uint8_t cmd,
                                         dattr[j].id = QAL_DEVICE_IN_HANDSET_MIC;
                                         break;
                                     case 2:
-                                        dattr[j].id = QAL_DEVICE_IN_SPEAKER_MIC;
-                                        break;
                                     case 3:
-                                        dattr[j].id = QAL_DEVICE_IN_TRI_MIC;
-                                        break;
                                     case 4:
-                                        dattr[j].id = QAL_DEVICE_IN_QUAD_MIC;
+                                        dattr[j].id = QAL_DEVICE_IN_SPEAKER_MIC;
                                         break;
                                     default:
                                         CASA_LOG_ERR(LOG_TAG,"unsupported mic");

@@ -30,6 +30,7 @@
 #ifndef SESSION_ALSAPCM_H
 #define SESSION_ALSAPCM_H
 
+#include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Session.h"
 #include "QalAudioRoute.h"

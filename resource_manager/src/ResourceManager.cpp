@@ -122,9 +122,6 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
-    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "tdm-pri" }}},
-    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -159,9 +156,6 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_OUT_PROXY,                0},
     {QAL_DEVICE_IN_HANDSET_MIC,           0},
     {QAL_DEVICE_IN_SPEAKER_MIC,           0},
-    {QAL_DEVICE_IN_TRI_MIC,               0},
-    {QAL_DEVICE_IN_QUAD_MIC,              0},
-    {QAL_DEVICE_IN_EIGHT_MIC,             0},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
     {QAL_DEVICE_IN_WIRED_HEADSET,         0},
     {QAL_DEVICE_IN_AUX_DIGITAL,           0},
@@ -199,9 +193,6 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "" }}},
-    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -215,6 +206,26 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
+};
+
+const std::map<std::string, uint32_t> usecaseIdLUT {
+    {std::string{ "QAL_STREAM_LOW_LATENCY" },              QAL_STREAM_LOW_LATENCY},
+    {std::string{ "QAL_STREAM_DEEP_BUFFER" },              QAL_STREAM_DEEP_BUFFER},
+    {std::string{ "QAL_STREAM_COMPRESSED" },               QAL_STREAM_COMPRESSED},
+    {std::string{ "QAL_STREAM_VOIP" },                     QAL_STREAM_VOIP},
+    {std::string{ "QAL_STREAM_VOIP_RX" },                  QAL_STREAM_VOIP_RX},
+    {std::string{ "QAL_STREAM_VOIP_TX" },                  QAL_STREAM_VOIP_TX},
+    {std::string{ "QAL_STREAM_VOICE_CALL_MUSIC" },         QAL_STREAM_VOICE_CALL_MUSIC},
+    {std::string{ "QAL_STREAM_GENERIC" },                  QAL_STREAM_GENERIC},
+    {std::string{ "QAL_STREAM_RAW" },                      QAL_STREAM_RAW},
+    {std::string{ "QAL_STREAM_VOICE_ACTIVATION" },         QAL_STREAM_VOICE_ACTIVATION},
+    {std::string{ "QAL_STREAM_VOICE_CALL_RX" },            QAL_STREAM_VOICE_CALL_RX},
+    {std::string{ "QAL_STREAM_VOICE_CALL_TX" },            QAL_STREAM_VOICE_CALL_TX},
+    {std::string{ "QAL_STREAM_VOICE_CALL_RX_TX" },         QAL_STREAM_VOICE_CALL_RX_TX},
+    {std::string{ "QAL_STREAM_VOICE_CALL" },               QAL_STREAM_VOICE_CALL},
+    {std::string{ "QAL_STREAM_LOOPBACK" },                 QAL_STREAM_LOOPBACK},
+    {std::string{ "QAL_STREAM_TRANSCODE" },                QAL_STREAM_TRANSCODE},
+    {std::string{ "QAL_STREAM_VOICE_UI" },                 QAL_STREAM_VOICE_UI},
 };
 
 std::shared_ptr<ResourceManager> ResourceManager::rm = nullptr;
@@ -242,7 +253,6 @@ int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 
-
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
 int str_parms_get_str(struct str_parms *str_parms, const char *key,
@@ -253,6 +263,10 @@ int str_parms_add_str(struct str_parms *str_parms, const char *key,
 struct str_parms *str_parms_create(void){return NULL;}
 void str_parms_del(struct str_parms *str_parms, const char *key){return;}
 #endif
+
+std::vector<deviceIn> ResourceManager::deviceInfo;
+struct vsid_info ResourceManager::vsidInfo;
+
 //std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
 
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
@@ -291,9 +305,6 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "none" }}},
-    {QAL_DEVICE_IN_TRI_MIC,               {std::string{ "none" }}},
-    {QAL_DEVICE_IN_QUAD_MIC,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_EIGHT_MIC,             {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
     {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
     {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
@@ -491,8 +502,107 @@ int ResourceManager::init()
     return 0;
 }
 
+int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
+                                         struct qal_ec_info *ecinfo)
+{
+    int32_t status = 0;
+    struct kvpair_info kv = {};
+
+    for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
+        if (deviceId == deviceInfo[size1].deviceId) {
+            for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
+                if (type == deviceInfo[size1].usecase[size2].type) {
+                    ecinfo->channels = deviceInfo[size1].usecase[size2].channel;
+                    for (int32_t kvsize = 0;
+                    kvsize < deviceInfo[size1].usecase[size2].kvpair.size(); kvsize++) {
+                       kv.key =  deviceInfo[size1].usecase[size2].kvpair[kvsize].key;
+                       kv.value =  deviceInfo[size1].usecase[size2].kvpair[kvsize].value;
+                       ecinfo->kvpair.push_back(kv);
+                    }
+                    update_snd_name(ecinfo->channels);
+                    return status;
+               }
+            }
+        }
+     }
+     status = -EINVAL;
+     return status;
+}
+
+int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
+    int status = 0;
+    struct vsid_modepair modePair = {};
+
+    info->vsid = vsidInfo.vsid;
+    for (int size = 0; size < vsidInfo.modepair.size(); size++) {
+        modePair.key = vsidInfo.modepair[size].key;
+        modePair.value = vsidInfo.modepair[size].value;
+        info->modepair.push_back(modePair);
+    }
+    return status;
+
+}
+
+void ResourceManager::getChannelMap(uint8_t *channel_map, int channels)
+{
+    switch (channels) {
+    case CHANNELS_1:
+       channel_map[0] = QAL_CHMAP_CHANNEL_C;
+       break;
+    case CHANNELS_2:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       break;
+    case CHANNELS_3:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       break;
+    case CHANNELS_4:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_LB;
+       channel_map[3] = QAL_CHMAP_CHANNEL_RB;
+       break;
+    case CHANNELS_5:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       channel_map[3] = QAL_CHMAP_CHANNEL_LB;
+       channel_map[4] = QAL_CHMAP_CHANNEL_RB;
+       break;
+    case CHANNELS_6:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
+       break;
+    case CHANNELS_7:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
+       channel_map[6] = QAL_CHMAP_CHANNEL_RC;
+       break;
+    case CHANNELS_8:
+       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
+       channel_map[6] = QAL_CHMAP_CHANNEL_LS;
+       channel_map[7] = QAL_CHMAP_CHANNEL_RS;
+       break;
+   }
+}
+
 int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
-                                         struct qal_stream_attributes *sAttr)
+                                         struct qal_stream_attributes *sAttr, int32_t channel)
 {
     int32_t status = 0;
     struct qal_channel_info *dev_ch_info = NULL;
@@ -500,36 +610,21 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
     QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
-            dev_ch_info->channels = CHANNELS_3;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
-            dev_ch_info->ch_map[2] = QAL_CHMAP_CHANNEL_C;
-            //dev_ch_info->ch_map[3] = QAL_CHMAP_CHANNEL_LS;
-            //dev_ch_info->ch_map[4] = QAL_CHMAP_CHANNEL_RS;
+            dev_ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                           + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            break;
-        case QAL_DEVICE_IN_TRI_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*3);
-            dev_ch_info->channels = CHANNELS_3;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
-            dev_ch_info->ch_map[2] = QAL_CHMAP_CHANNEL_C;
-            deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
-            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            deviceattr->id = QAL_DEVICE_IN_TRI_MIC;
             break;
         case QAL_DEVICE_IN_HANDSET_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
-            dev_ch_info->channels = CHANNELS_1;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
@@ -537,9 +632,10 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_IN_WIRED_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
-            dev_ch_info->channels = CHANNELS_1;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
@@ -554,7 +650,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
         case QAL_DEVICE_OUT_HANDSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*1);
             dev_ch_info->channels = CHANNELS_1;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             deviceattr->config.ch_info = dev_ch_info;
@@ -564,7 +661,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_OUT_SPEAKER:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*2);
             dev_ch_info->channels = CHANNELS_2;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
@@ -575,7 +673,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         case QAL_DEVICE_OUT_WIRED_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*2);
             dev_ch_info->channels = CHANNELS_2;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
@@ -593,10 +692,10 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_IN_HANDSET_VA_MIC:
         case QAL_DEVICE_IN_HEADSET_VA_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*1);
-            dev_ch_info->channels = CHANNELS_2;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
@@ -604,7 +703,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
-            dev_ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t) + sizeof(uint8_t));
+            dev_ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t)
+                           + sizeof(uint8_t));
             dev_ch_info->channels = CHANNELS_1;
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             deviceattr->config.ch_info = dev_ch_info;
@@ -613,8 +713,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
-        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t) + sizeof(uint8_t)*1);
+            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t)
+                          + sizeof(uint8_t)*1);
             if (!dev_ch_info) {
                 QAL_ERR(LOG_TAG, "out of memory");
                 status = -EINVAL;
@@ -673,7 +773,22 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            if (!dev_ch_info) {
+                QAL_ERR(LOG_TAG, "out of memory");
+                status = -EINVAL;
+                break;
+            }
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            QAL_DBG(LOG_TAG, "BT SCO RX device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            break;
 	default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
@@ -2342,7 +2457,7 @@ int32_t ResourceManager::a2dpSuspend()
                 (*sIter)->a2dp_compress_mute = true;
                 // force switch to speaker
                 speakerDattr.id = QAL_DEVICE_OUT_SPEAKER;
-                getDeviceConfig(&speakerDattr, &sAttr);
+                getDeviceConfig(&speakerDattr, &sAttr, 0);
                 mResourceManagerMutex.unlock();
                 rm->forceDeviceSwitch(dev, &speakerDattr);
                 mResourceManagerMutex.lock();
@@ -2396,7 +2511,7 @@ int32_t ResourceManager::a2dpResume()
 
             a2dpDattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
             QAL_DBG(LOG_TAG, "%s: restoring A2dp and unmuting stream", __func__);
-            getDeviceConfig(&a2dpDattr, NULL);
+            getDeviceConfig(&a2dpDattr, NULL, 0);
             mResourceManagerMutex.unlock();
             rm->forceDeviceSwitch(dev, &a2dpDattr);
             mResourceManagerMutex.lock();
@@ -2537,7 +2652,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 }
                 if (param_bt_a2dp->reconfigured == true) {
                     QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
-                    getDeviceConfig(&dattr, NULL);
+                    getDeviceConfig(&dattr, NULL, 0);
                     mResourceManagerMutex.unlock();
                     rm->forceDeviceSwitch(dev, &dattr);
                     mResourceManagerMutex.lock();
@@ -2582,7 +2697,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
                     handset_tx_dattr.id = QAL_DEVICE_IN_HANDSET_MIC;
                     sco_tx_dev = Device::getInstance(&sco_tx_dattr , rm);
-                    getDeviceConfig(&handset_tx_dattr, NULL);
+                    getDeviceConfig(&handset_tx_dattr, NULL, 0);
                     mResourceManagerMutex.unlock();
                     rm->forceDeviceSwitch(sco_tx_dev, &handset_tx_dattr);
                     mResourceManagerMutex.lock();
@@ -2695,6 +2810,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     struct qal_stream_attributes sAttr;
     struct qal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
+    struct qal_ec_info ecinfo = {};
 
     QAL_DBG(LOG_TAG, "%s Enter", __func__);
     memset(&conn_device, 0, sizeof(struct qal_device));
@@ -2722,7 +2838,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
         QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
             dAttr.id = device_id;
-            status = getDeviceConfig(&dAttr, &sAttr);
+            status = getDeviceConfig(&dAttr, &sAttr, 0);
             if (status) {
                 QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
@@ -2734,7 +2850,11 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             }
         } else if (isBtScoDevice(device_id)) {
             dAttr.id = device_id;
-            status = getDeviceConfig(&dAttr, &sAttr);
+            status = rm->getDeviceInfo(dAttr.id, sAttr.type, &ecinfo);
+            if (status) {
+               QAL_ERR(LOG_TAG, "get ec info failed");
+            }
+            status = getDeviceConfig(&dAttr, &sAttr, ecinfo.channels);
             if (status) {
                 QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
@@ -2949,7 +3069,8 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr)
 {
     int32_t deviceId;
     int32_t pcmId;
-    if(strcmp(attr[0], "name" ) !=0 ) {
+
+    if (strcmp(attr[0], "name" ) !=0 ) {
         QAL_ERR(LOG_TAG, " 'name' not found");
         return;
     }
@@ -2963,14 +3084,14 @@ void ResourceManager::processDeviceInfo(const XML_Char **attr)
     }
     pcmId = atoi(attr[3]);
     updatePcmId(deviceId, pcmId);
-    if(strcmp(attr[4],"hw_intf") !=0 ) {
+    if (strcmp(attr[4],"hw_intf") !=0 ) {
         QAL_ERR(LOG_TAG, " 'hw_intf' not found");
         return;
     }
     std::string linkName(attr[5]);
     updateLinkName(deviceId, linkName);
 
-    if(strcmp(attr[6], "snd_device_name") != 0) {
+    if (strcmp(attr[6], "snd_device_name") != 0) {
         QAL_ERR(LOG_TAG, " 'snd_device_name' not found");
         return;
     }
@@ -3050,16 +3171,16 @@ void ResourceManager::processDeviceCapability(struct xml_userdata *data, const X
     int val = -1;
     if (!strlen(data->data_buf) || !strlen(tag_name))
         return;
-    if (strcmp(tag_name,"props") == 0)
+    if (strcmp(tag_name, "props") == 0)
         return;
     size = devInfo.size() - 1;
-    if(strcmp(tag_name,"playback") == 0) {
+    if (strcmp(tag_name, "playback") == 0) {
         val = atoi(data->data_buf);
         devInfo[size].playback = val;
-    } else if (strcmp(tag_name,"capture") == 0) {
+    } else if (strcmp(tag_name, "capture") == 0) {
         val = atoi(data->data_buf);
         devInfo[size].record = val;
-    } else if (strcmp(tag_name,"hostless") == 0) {
+    } else if (strcmp(tag_name, "hostless") == 0) {
         val = atoi(data->data_buf);
         devInfo[size].loopback = val;
     }
@@ -3069,6 +3190,197 @@ void ResourceManager::snd_reset_data_buf(struct xml_userdata *data)
 {
     data->offs = 0;
     data->data_buf[data->offs] = '\0';
+}
+
+void ResourceManager::update_snd_name(int channel)
+{
+    for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
+        for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
+            switch (deviceInfo[size1].deviceId) {
+                case QAL_DEVICE_IN_HANDSET_MIC:
+                    if (channel == 1) {
+                         std::string sndName("handset-mic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 2) {
+                         std::string sndName("handset-dmic-endfire");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                case QAL_DEVICE_IN_SPEAKER_MIC:
+                    if (channel == 1) {
+                         std::string sndName("speaker-mic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 2) {
+                         std::string sndName("speaker-dmic-endfire");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 3) {
+                         std::string sndName("speaker-tmic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 4) {
+                         std::string sndName("speaker-qmic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel > 4) {
+                         char snd_Name[20];
+                         snprintf (snd_Name, sizeof(snd_Name), "speaker-%dmic", channel);
+                         std::string sndName(snd_Name);
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                case QAL_DEVICE_IN_WIRED_HEADSET:
+                    {
+                        std::string sndName("headset-mic");
+                        updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+                    {
+                        std::string sndName("bt-a2dp");
+                        updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                case QAL_DEVICE_IN_HANDSET_VA_MIC:
+                    {
+                        std::string sndName("va-mic");
+                        updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                case QAL_DEVICE_IN_HEADSET_VA_MIC:
+                    {
+                        std::string sndName("headset-va-mic");
+                        updateSndName(deviceInfo[size1].deviceId , sndName);
+                    }
+                    break;
+                default:
+                   QAL_ERR(LOG_TAG, "device id not found to update snd name");
+                   break;
+
+            }
+        }
+     }
+}
+void ResourceManager::process_voicemode_info(const XML_Char **attr)
+{
+    int size = 0;
+    std::string tagkey(attr[1]);
+    std::string tagvalue(attr[3]);
+    struct vsid_modepair modepair = {};
+
+    if (strcmp(attr[0], "key") !=0) {
+        QAL_ERR(LOG_TAG, "key not found");
+        return;
+    }
+    modepair.key = convertCharToHex(tagkey);
+
+    if (strcmp(attr[2], "value") !=0) {
+        QAL_ERR(LOG_TAG, "value not found");
+        return;
+    }
+    modepair.value = convertCharToHex(tagvalue);
+    QAL_INFO(LOG_TAG, "key  %x value  %x", modepair.key, modepair.value);
+    vsidInfo.modepair.push_back(modepair);
+}
+
+void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    if(data->voice_info_parsed)
+        return;
+
+    if (data->offs <= 0)
+        return;
+    data->data_buf[data->offs] = '\0';
+    if (data->tag == TAG_CONFIG_VOICE) {
+        if (strcmp(tag_name, "vsid") == 0) {
+            std::string vsidvalue(data->data_buf);
+            vsidInfo.vsid = convertCharToHex(vsidvalue);
+        }
+    }
+    if (!strcmp(tag_name, "modepair")) {
+        data->tag = TAG_CONFIG_MODE_MAP;
+    } else if (!strcmp(tag_name, "mode_map")) {
+        data->tag = TAG_CONFIG_VOICE;
+    } else if (!strcmp(tag_name, "config_voice")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+        data->voice_info_parsed = true;
+    }
+}
+
+void ResourceManager::process_kvinfo(const XML_Char **attr)
+{
+    struct kvpair_info kv;
+    int size = 0, sizeusecase = 0;
+    std::string tagkey(attr[1]);
+    std::string tagvalue(attr[3]);
+
+    if (strcmp(attr[0], "key") !=0) {
+        QAL_ERR(LOG_TAG, "key not found");
+        return;
+    }
+    kv.key = convertCharToHex(tagkey);
+    if (strcmp(attr[2], "value") !=0) {
+        QAL_ERR(LOG_TAG, "value not found");
+        return;
+    }
+    kv.value = convertCharToHex(tagvalue);
+
+    size = deviceInfo.size() - 1;
+    sizeusecase = deviceInfo[size].usecase.size() - 1;
+    deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
+    QAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
+}
+
+void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
+{
+
+    struct deviceIn dev = {};
+    struct usecase_info usecase_data = {};
+    int size = -1 , sizeusecase = -1;
+
+    if (data->offs <= 0)
+        return;
+    data->data_buf[data->offs] = '\0';
+
+    if (data->resourcexml_parsed)
+      return;
+
+    if (data->tag == TAG_IN_DEVICE) {
+        if (!strcmp(tag_name, "id")) {
+            std::string deviceName(data->data_buf);
+            dev.deviceId  = deviceIdLUT.at(deviceName);
+            deviceInfo.push_back(dev);
+        } else if (!strcmp(tag_name, "back_end_name")) {
+            std::string backendname(data->data_buf);
+            size = deviceInfo.size() - 1;
+            updateBackEndName(deviceInfo[size].deviceId, backendname);
+        } else if (!strcmp(tag_name, "max_channels")) {
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].max_channel = atoi(data->data_buf);
+        }
+    } else if (data->tag == TAG_USECASE) {
+        if (!strcmp(tag_name, "name")) {
+            std::string userIdname(data->data_buf);
+            usecase_data.type  = usecaseIdLUT.at(userIdname);
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].usecase.push_back(usecase_data);
+        } else if (!strcmp(tag_name, "channels")) {
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].channel = atoi(data->data_buf);
+        }
+    }
+    if (!strcmp(tag_name, "kvpair")) {
+        data->tag = TAG_DEVICEPP;
+    } else if (!strcmp(tag_name, "devicePP-metadata")) {
+        data->tag = TAG_USECASE;
+    } else if (!strcmp(tag_name, "usecase")) {
+        data->tag = TAG_IN_DEVICE;
+    } else if (!strcmp(tag_name, "in-device")) {
+        data->tag = TAG_IN_DEVICE_PROFILE;
+    } else if (!strcmp(tag_name, "device_profile")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+    } else if (!strcmp(tag_name, "resource_manager_info")) {
+        data->tag = TAG_RESOURCE_ROOT;
+        data->resourcexml_parsed = true;
+    }
 }
 
 void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name)
@@ -3086,15 +3398,12 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
 
     if (data->current_tag == TAG_CARD) {
         processCardInfo(data, tag_name);
-    }
-    else if (data->current_tag == TAG_PLUGIN) {
+    } else if (data->current_tag == TAG_PLUGIN) {
         //snd_parse_plugin_properties(data, tag_name);
-    }
-    else if (data->current_tag == TAG_DEVICE) {
+    } else if (data->current_tag == TAG_DEVICE) {
         //QAL_ERR(LOG_TAG,"tag %s", (char*)tag_name);
         processDeviceIdProp(data, tag_name);
-    }
-    else if (data->current_tag == TAG_DEV_PROPS) {
+    } else if (data->current_tag == TAG_DEV_PROPS) {
         processDeviceCapability(data, tag_name);
     }
 }
@@ -3139,6 +3448,28 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
 
     snd_reset_data_buf(data);
 
+    if (!strcmp(tag_name, "resource_manager_info")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+    } else if (!strcmp(tag_name, "config_voice")) {
+        data->tag = TAG_CONFIG_VOICE;
+    } else if (!strcmp(tag_name, "mode_map")) {
+        data->tag = TAG_CONFIG_MODE_MAP;
+    } else if (!strcmp(tag_name, "modepair")) {
+        data->tag = TAG_CONFIG_MODE_PAIR;
+        process_voicemode_info(attr);
+    } else if (!strcmp(tag_name, "device_profile")) {
+        data->tag = TAG_IN_DEVICE_PROFILE;
+    } else if (!strcmp(tag_name, "in-device")) {
+        data->tag = TAG_IN_DEVICE;
+    } else if (!strcmp(tag_name, "usecase")) {
+        data->tag = TAG_USECASE;
+    } else if (!strcmp(tag_name, "devicePP-metadata")) {
+        data->tag = TAG_DEVICEPP;
+    } else if (!strcmp(tag_name, "kvpair")) {
+        process_kvinfo(attr);
+        data->tag = TAG_KVPAIR;
+    }
+
     if (!strcmp(tag_name, "card"))
         data->current_tag = TAG_CARD;
     if (strcmp(tag_name, "pcm-device") == 0) {
@@ -3173,6 +3504,9 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
         st_info->HandleEndTag((const char *)tag_name);
         return;
     }
+
+   process_config_voice(data,tag_name);
+   process_device_info(data,tag_name);
 
     if (data->card_parsed)
         return;

@@ -489,6 +489,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     Stream *s = NULL;
     std::shared_ptr<ResourceManager> rm = NULL;
     struct qal_stream_attributes sattr;
+    struct qal_ec_info ecinfo = {};
 
     if (!stream_handle ) {
         status = -EINVAL;
@@ -514,7 +515,11 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     s->getStreamAttributes(&sattr);
 
     for (int i = 0; i < no_of_devices; i++) {
-        status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr);
+        status = rm->getDeviceInfo(devices[i].id, sattr.type, &ecinfo);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get ec info failed");
+        }
+        status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr, ecinfo.channels);
         if (status) {
            QAL_ERR(LOG_TAG, "Failed to get Device config, err: %d", status);
            return status;
