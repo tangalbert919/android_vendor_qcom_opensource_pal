@@ -79,6 +79,7 @@ public:
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
     virtual int setConfig(Stream * s, configType type, uint32_t tag1,
             uint32_t tag2, uint32_t tag3) {return 0;};
+    virtual int setConfig(Stream * s, configType type, int tag, int dir) {return 0;};
     virtual int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) {return 0;};
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;

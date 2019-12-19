@@ -109,7 +109,7 @@ public:
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect);
-    static int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    static int connectSessionDevice(Session* sess, Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);

@@ -313,11 +313,11 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_t
     deviceToConnect->getDeviceAtrributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty())
-        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToConnect);
 
     if (!txAifBackEndsToConnect.empty())
-        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToConnect);
 
     return status;

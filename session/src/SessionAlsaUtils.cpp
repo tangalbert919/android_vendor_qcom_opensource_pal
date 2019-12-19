@@ -36,6 +36,7 @@
 //#include "SessionAlsa.h"
 //#include "SessionAlsaPcm.h"
 //#include "SessionAlsaCompress.h"
+#include "SessionAlsaVoice.h"
 #include "ResourceManager.h"
 #include <agm_api.h>
 #include "detection_cmn_api.h"
@@ -977,7 +978,7 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, qal_stream_t
     return status;
 }
 
-int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rmHandle, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect)
@@ -1160,6 +1161,17 @@ int SessionAlsaUtils::connectSessionDevice(Stream* streamHandle, qal_stream_type
         if (status != 0) {
             QAL_ERR(LOG_TAG,"setMixerParameter failed");
             return status;
+        }
+    } else {
+        if (sess) {
+            if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
+                sess->setConfig(streamHandle, MODULE, VSID, 0);
+            else
+                sess->setConfig(streamHandle, MODULE, VSID, 1);
+        } else {
+            QAL_ERR(LOG_TAG, "invalid session voice object");
+            status = -EINVAL;
+            goto free_streamdevicemd;
         }
     }
 

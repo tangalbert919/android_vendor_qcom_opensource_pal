@@ -189,7 +189,7 @@ int SessionAlsaVoice::start(Stream * s)
         return -EINVAL;
     }
 
-    SessionAlsaVoice::setConfig(s, MODULE, VSID);
+    SessionAlsaVoice::setConfig(s, MODULE, VSID, RXDIR);
     /*if no volume is set set a default volume*/
     struct qal_volume_data *volume;
     if ((s->getVolumeData(volume))) {
@@ -324,6 +324,11 @@ exit:
 
 int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
 {
+    return 0;
+}
+
+int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
+{
     int status = 0;
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
@@ -337,7 +342,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
-                                                              RXDIR);
+                                                              dir);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -354,7 +359,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
-                                                              RXDIR);
+                                                              dir);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -624,7 +629,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
     deviceToConnect->getDeviceAtrributes(&dAttr);
 
     if (rxAifBackEnds.size() > 0) {
-        status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
+        status =  SessionAlsaUtils::connectSessionDevice(this, streamHandle,
                                                          streamType, rm,
                                                          dAttr, pcmDevRxIds,
                                                          rxAifBackEnds);
@@ -634,7 +639,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
         }
     } else if (txAifBackEnds.size() > 0) {
 
-        status =  SessionAlsaUtils::connectSessionDevice(streamHandle,
+        status =  SessionAlsaUtils::connectSessionDevice(this, streamHandle,
                                                          streamType, rm,
                                                          dAttr, pcmDevTxIds,
                                                          txAifBackEnds);

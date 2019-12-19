@@ -660,11 +660,11 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
     deviceToConnect->getDeviceAtrributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty())
-        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, pcmDevIds, rxAifBackEndsToConnect);
 
     if (!txAifBackEndsToConnect.empty())
-        status = SessionAlsaUtils::connectSessionDevice(streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, pcmDevIds, txAifBackEndsToConnect);
 
     return status;
