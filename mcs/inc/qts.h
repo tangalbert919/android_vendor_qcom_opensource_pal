@@ -199,7 +199,7 @@ break; \
 
     @sa TODO
 */
-#define QTS_CMD_RT_GET_VERSION QTS_RT_CMD_ID(1)
+#define QTS_CMD_RT_GET_VERSION QTS_RTC_CMD_ID(1)
 /**< The response structure for QTS_CMD_RT_GET_VERSION. Holds the version information for the Real Time Tuning service*/
 typedef struct _qts_version_t QtsVersion;
 #include "acdb_begin_pack.h"
@@ -213,36 +213,6 @@ struct _qts_version_t
 #include "acdb_end_pack.h"
 ;
 
-/* ---------------------------------------------------------------------------
-* QTS_CMD_RT_GET_VERSION Declarations and Documentation
-*-------------------------------------------------------------------------- */
-
-/** @addtogroup QTS_CMD_RT_GET_VERSION
-@{ */
-
-/**
-    Queries for the QTS Real Time Calibration service version.
-
-    @param[in] cmd_id
-        Command ID is QTS_CMD_RT_GET_VERSION.
-    @param[in] cmd
-        There is no input structure; set this to NULL.
-    @param[in] cmd_size
-        There is no input structure; set this to 0.
-    @param[out] rsp
-        Pointer to QtsVersion
-    @param[in] rsp_size
-        Size of QtsVersion
-
-    @return
-        - CASA_EOK -- Command executed successfully.
-        - CASA_EBADPARAM -- Invalid input parameters were provided.
-        - CASA_EFAILED -- Command execution failed.
-
-    @sa TODO
-*/
-#define QTS_CMD_RT_GET_VERSION QTS_RTC_CMD_ID(1)
-/** @} */ /* end_addtogroup QTS_CMD_RT_GET_VERSION */
 
 /* ---------------------------------------------------------------------------
 * QTS_CMD_RT_GET_ACTIVE_INFO Declarations and Documentation

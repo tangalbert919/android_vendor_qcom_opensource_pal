@@ -45,7 +45,7 @@ void execute_playback()
     char *filename = "/data/pcmreco2.dat";
     uint8_t *cmd_buf;
     AcdbKeyValuePair gkvpair[2];
-    gkvpair[0].key = STREAM_TYPE;
+    gkvpair[0].key = STREAMRX;
     gkvpair[0].value = PCM_LL_PLAYBACK;
     gkvpair[1].key = DEVICERX;
     gkvpair[1].value = SPEAKER;
@@ -82,7 +82,7 @@ void execute_record()
     char *filename = "/data/pcmrecord.dat";
     uint8_t *cmd_buf;
     AcdbKeyValuePair gkvpair[2];
-    gkvpair[0].key = STREAM_TYPE;
+    gkvpair[0].key = STREAMTX;
     gkvpair[0].value = PCM_RECORD;
     gkvpair[1].key = DEVICETX;
     gkvpair[1].value = HANDSETMIC;
