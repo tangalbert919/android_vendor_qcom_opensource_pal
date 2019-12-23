@@ -906,6 +906,17 @@ int ResourceManager::registerStream(Stream *s)
 
 
     mResourceManagerMutex.unlock();
+
+    // Currently inform Rx stream types to soundtrigger streams.
+    qal_stream_attributes st_attr;
+    s->getStreamAttributes(&st_attr);
+    if (st_attr.direction != QAL_AUDIO_INPUT &&
+        type != QAL_STREAM_LOW_LATENCY) {
+        for (auto& st_stream: active_streams_st) {
+            st_stream->ConcurrentStreamStatus(type, true);
+        }
+    }
+
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -991,6 +1002,17 @@ int ResourceManager::deregisterStream(Stream *s)
 
     deregisterstream(s, mActiveStreams);
     mResourceManagerMutex.unlock();
+
+    // Currently inform Rx stream types to soundtrigger streams.
+    qal_stream_attributes st_attr;
+    s->getStreamAttributes(&st_attr);
+    if (st_attr.direction != QAL_AUDIO_INPUT &&
+        type != QAL_STREAM_LOW_LATENCY) {
+        for (auto& st_stream: active_streams_st) {
+            st_stream->ConcurrentStreamStatus(type, false);
+        }
+    }
+
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -1056,6 +1078,31 @@ int ResourceManager::getAudioMixer(struct audio_mixer ** am)
     QAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
     return 0;
 }
+
+bool ResourceManager::IsVoiceUILPISupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetLpiEnable();
+    } else {
+        return false;
+    }
+}
+
+bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
+    qal_stream_attributes st_attr;
+
+    for (auto& s: mActiveStreams) {
+        s->getStreamAttributes(&st_attr);
+        if (st_attr.direction != QAL_AUDIO_INPUT &&
+            st_attr.type != QAL_STREAM_LOW_LATENCY) {
+                return true;
+        }
+    }
+    return false;
+}
+
 //TBD: test this piece later, for concurrency
 #if 1
 template <class T>

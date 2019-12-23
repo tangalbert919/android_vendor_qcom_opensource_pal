@@ -127,7 +127,7 @@ public:
     virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
-
+    virtual void ConcurrentStreamStatus(int stream_type, bool is_active) {}
 
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);

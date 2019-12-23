@@ -195,7 +195,7 @@ public:
     int populateDeviceKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx);
     int populateDevicePPKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
-                           int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx);
+                           int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, bool is_lpi);
     int populateGkv(Stream *s, struct gsl_key_vector *gkv);
     int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, struct qal_volume_data **);
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);

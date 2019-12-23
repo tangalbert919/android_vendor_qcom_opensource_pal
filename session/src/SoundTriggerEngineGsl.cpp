@@ -431,6 +431,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
         session_->close(s);
+        return status;
     }
     sm_data_ = data;
     sm_data_size_ = data_size;
@@ -442,6 +443,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     if (!buffer_thread_handler_.joinable()) {
         QAL_ERR(LOG_TAG, "failed to create even processing thread, status = %d",
                 status);
+        session_->close(s);
         status = -EINVAL;
     }
     QAL_DBG(LOG_TAG, "Exit, status = %d", status);

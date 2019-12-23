@@ -78,6 +78,7 @@ enum {
     ST_EV_STOP_DEVICE_DISCONNECTED,
     ST_EV_STOP_SSR_OFFLINE,
     ST_EV_STOP_SSR_ONLINE,
+    ST_EV_CONCURRENT_STREAM
 };
 
 class ResourceManager;
@@ -135,7 +136,7 @@ class StreamSoundTrigger : public Stream {
 
     int switchDevice(Stream* stream_handle, uint32_t no_of_devices,
                      struct qal_device *device_array);
-
+    void ConcurrentStreamStatus(int stream_type, bool is_active) override;
     void TransitTo(int32_t state_id);
 
     friend class QalRingBufferReader;
@@ -288,6 +289,25 @@ class StreamSoundTrigger : public Stream {
         ~StStopBufferingEventConfig () {}
     };
 
+    class StConcurrentStreamEventConfigData : public StEventConfigData {
+     public:
+        StConcurrentStreamEventConfigData(int32_t type, bool active)
+            : stream_type_(type), is_active_(active) {}
+        ~StConcurrentStreamEventConfigData() {}
+
+        int32_t stream_type_;
+        bool is_active_;
+    };
+    class StConcurrentStreamEventConfig : public StEventConfig {
+     public:
+        StConcurrentStreamEventConfig (int32_t type, bool active)
+            : StEventConfig(ST_EV_CONCURRENT_STREAM) {
+            data_ = std::make_shared<StConcurrentStreamEventConfigData>(type,
+                                                                        active);
+        }
+        ~StConcurrentStreamEventConfig () {}
+    };
+
     class StState {
      public:
         StState(StreamSoundTrigger& st_stream, int32_t state_id)
@@ -393,7 +413,7 @@ class StreamSoundTrigger : public Stream {
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
 
     qal_st_sound_model_type_t sound_model_type_;
-    uint32_t recognition_mode_;
+    struct qal_st_phrase_sound_model *sm_config_;
     struct qal_st_recognition_config *rec_config_;
     uint32_t detection_state_;
     uint32_t notification_state_;

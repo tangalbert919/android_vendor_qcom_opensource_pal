@@ -254,6 +254,8 @@ public:
              struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
     const std::string getQALDeviceName(const qal_device_id_t id) const;
     bool isNonALSACodec(const struct qal_device *device) const;
+    bool IsVoiceUILPISupported();
+    bool CheckForActiveConcurrentNonLPIStream();
 
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);

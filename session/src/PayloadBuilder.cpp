@@ -2110,7 +2110,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx)
+        std::vector <std::pair<int,int>> &keyVectorTx, bool is_lpi)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
@@ -2197,7 +2197,11 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 }
                 break;
             case QAL_STREAM_VOICE_UI:
-                keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
+                if (is_lpi) {
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS));
+                } else {
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS));
+                }
                 break;
             default:
                 QAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
