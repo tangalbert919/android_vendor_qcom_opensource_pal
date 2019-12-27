@@ -58,7 +58,7 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
         case QAL_AUDIO_FMT_MP3:
             id = SND_AUDIOCODEC_MP3;
             break;
-#ifdef COMPRESS_UAPI_DEC_HEADER
+#ifdef SND_COMPRESS_DEC_HDR
         case QAL_AUDIO_FMT_AAC:
         case QAL_AUDIO_FMT_AAC_ADTS:
         case QAL_AUDIO_FMT_AAC_ADIF:
@@ -776,7 +776,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
     switch (audio_fmt) {
         case QAL_AUDIO_FMT_MP3:
             break;
-#ifdef COMPRESS_UAPI_DEC_HEADER
+#ifdef SND_COMPRESS_DEC_HDR
         case QAL_AUDIO_FMT_AAC:
             codec.format = SND_AUDIOSTREAMFORMAT_RAW;
             codec.options.aac_dec.audio_obj_type = param_payload->qal_snd_dec.aac_dec.audio_obj_type;
