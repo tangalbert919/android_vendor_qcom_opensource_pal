@@ -105,7 +105,10 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
     session = Session::makeSession(rm, sattr);
     if (!session) {
         QAL_ERR(LOG_TAG, "%s: session creation failed", __func__);
-        free(mStreamAttr->out_media_config.ch_info);
+        if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
+            free(mStreamAttr->out_media_config.ch_info);
+        if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
+            free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
@@ -120,7 +123,11 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation failed");
-            free(mStreamAttr->out_media_config.ch_info);
+            if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
+                free(mStreamAttr->out_media_config.ch_info);
+            if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
+                free(mStreamAttr->in_media_config.ch_info);
+
             free(mStreamAttr);
 
             //TBD::free session too
@@ -205,7 +212,10 @@ exit:
     mStreamMutex.unlock();
     status = rm->deregisterStream(this);
     if (mStreamAttr) {
-        free(mStreamAttr->out_media_config.ch_info);
+        if ((mStreamAttr->direction == QAL_AUDIO_OUTPUT) || (mStreamAttr->direction == QAL_AUDIO_INPUT_OUTPUT))
+            free(mStreamAttr->out_media_config.ch_info);
+        if ((mStreamAttr->direction == QAL_AUDIO_INPUT) || (mStreamAttr->direction == QAL_AUDIO_INPUT_OUTPUT))
+            free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
     }
@@ -355,9 +365,6 @@ exit:
 int32_t StreamPCM::stop()
 {
     int32_t status = 0;
-
-
-                
 
     mStreamMutex.lock();
 

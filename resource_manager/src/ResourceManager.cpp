@@ -554,8 +554,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
-            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
-            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             status = (HeadsetMic::checkAndUpdateBitWidth(&deviceattr->config.bit_width) |
                 HeadsetMic::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
@@ -1153,9 +1153,12 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 
 void ResourceManager::deinit()
 {
+    const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
     rm = nullptr;
-    mixer_close(rm->audio_mixer);
-    SessionGsl::deinit();
+    mixer_close(audio_mixer);
+    if (ag == GSL) {
+        SessionGsl::deinit();
+    }
 }
 
 int ResourceManager::getStreamTag(std::vector <int> &tag)

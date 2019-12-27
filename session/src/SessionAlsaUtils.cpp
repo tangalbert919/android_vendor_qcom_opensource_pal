@@ -404,6 +404,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             QAL_DBG(LOG_TAG,"rate ch fmt %d %d %d", dAttr.config.sample_rate, dAttr.config.ch_info->channels,
                     dAttr.config.bit_width);
         }
+        deviceKV.clear();
+        streamDeviceKV.clear();
         free(streamDeviceMetaData.buf);
         free(deviceMetaData.buf);
         streamDeviceMetaData.buf = nullptr;

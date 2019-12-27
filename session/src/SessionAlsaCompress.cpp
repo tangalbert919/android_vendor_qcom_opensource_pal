@@ -573,14 +573,14 @@ int SessionAlsaCompress::start(Stream * s)
                 /* Get PSPD MFC MIID and configure to match to device config */
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
-                                                               rxAifBackEnds[0].second.data(),
+                                                               rxAifBackEnds[i].second.data(),
                                                                true, TAG_DEVICE_MFC_SR, &miid);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
                 }
-                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                        compressDevIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
+                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                        compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info->channels;
