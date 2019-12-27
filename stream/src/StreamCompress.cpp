@@ -599,3 +599,11 @@ int32_t StreamCompress::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*en
     QAL_ERR(LOG_TAG, " Function not supported");
     return -ENOSYS;
 }
+
+int32_t StreamCompress::setECRef(std::shared_ptr<Device> dev, bool is_enable)
+{
+    if (!session)
+        return -EINVAL;
+
+    return session->setECRef(this, dev, is_enable);
+}

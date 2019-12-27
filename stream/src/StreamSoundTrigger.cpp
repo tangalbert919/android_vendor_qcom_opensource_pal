@@ -380,6 +380,28 @@ void StreamSoundTrigger::ConcurrentStreamStatus(qal_stream_type_t type,
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 }
 
+int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
+    if (!dev) {
+        QAL_ERR(LOG_TAG, "Invalid device");
+        return -EINVAL;
+    }
+
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StECRefEventConfig(dev, is_enable));
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to handle ec ref event");
+    }
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
+}
+
 // TBD: to be tested, Yidong, is this enough?
 int32_t StreamSoundTrigger::switchDevice(Stream* stream_handle,
                                          uint32_t no_of_devices,
@@ -2043,6 +2065,17 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
           status = st_stream_.ProcessInternalEvent(ev_cfg4);
           if (status) {
               QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+          }
+          break;
+      }
+      case ST_EV_EC_REF: {
+          StECRefEventConfigData *data =
+              (StECRefEventConfigData *)ev_cfg->data_.get();
+          Stream *s = dynamic_cast<Stream *>(&st_stream_);
+          status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+              data->is_enable_);
+          if (status) {
+              QAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
           }
           break;
       }

@@ -746,5 +746,8 @@ char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
     return stream;
 }
 
-
+int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+{
+    return 0;
+}
 

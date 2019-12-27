@@ -122,6 +122,7 @@ public:
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload);
     int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
     int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
+    int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
     static void offloadThreadLoop(SessionAlsaCompress *ob);
     int registerCallBack(session_callback cb, void *cookie);
     int drain(qal_drain_type_t type);

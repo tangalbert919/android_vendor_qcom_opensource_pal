@@ -84,6 +84,7 @@ public:
     int connectSessionDevice(Stream* streamHandle,
                              qal_stream_type_t streamType,
                              std::shared_ptr<Device> deviceToConnect);
+    int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
 private:
     int payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t *size);
     int payloadTaged(Stream * s, configType type, int tag, int device, int dir);

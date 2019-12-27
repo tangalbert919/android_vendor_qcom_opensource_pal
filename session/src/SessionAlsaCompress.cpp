@@ -1113,4 +1113,8 @@ int SessionAlsaCompress::getTimestamp(struct qal_session_time *stime)
     return status;
 }
 
+int SessionAlsaCompress::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+{
+    return 0;
+}
 

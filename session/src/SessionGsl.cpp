@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1392,3 +1392,7 @@ int SessionGsl::disconnectSessionDevice(Stream* /*streamHandle*/, qal_stream_typ
     return 0;
 }
 
+int SessionGsl::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+{
+    return 0;
+}

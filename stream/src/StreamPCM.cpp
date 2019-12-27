@@ -876,3 +876,11 @@ exit:
     mStreamMutex.unlock();
     return status;
 }
+
+int32_t StreamPCM::setECRef(std::shared_ptr<Device> dev, bool is_enable)
+{
+    if (!session)
+        return -EINVAL;
+
+    return session->setECRef(this, dev, is_enable);
+}

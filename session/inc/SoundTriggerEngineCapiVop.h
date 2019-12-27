@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -74,6 +74,10 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine {
                             uint32_t pre_roll_duration __unused) { return 0; }
     void SetCaptureRequested(bool is_requested __unused) {}
     struct detection_event_info* GetDetectionEventInfo() { return nullptr; }
+    int32_t setECRef(
+        Stream *s __unused,
+        std::shared_ptr<Device> dev __unused,
+        bool is_enable __unused) { return 0; }
 
  private:
     int32_t StartSoundEngine();

@@ -183,6 +183,7 @@ public:
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     int32_t getMIID(const char *backendName, int32_t tagId, uint32_t *miid) {return 0;};
+    int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
 };
 
 #endif //SESSION_GSL_H

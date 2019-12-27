@@ -1190,9 +1190,9 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d)
     QAL_DBG(LOG_TAG, "Enter.");
     typename std::vector<std::shared_ptr<Device>>::iterator iter =
         std::find(active_devices.begin(), active_devices.end(), d);
-    if (iter != active_devices.end())
+    if (iter != active_devices.end()) {
         active_devices.erase(iter);
-    else {
+    } else {
         ret = -ENOENT;
         QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
                 d->getSndDeviceId(), ret);
@@ -1209,6 +1209,31 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
     deregisterDevice_l(d);
     mResourceManagerMutex.unlock();
     return ret;
+}
+
+bool ResourceManager::isDeviceActive(std::shared_ptr<Device> d)
+{
+    bool is_active = false;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    is_active = isDeviceActive_l(d);
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
+    return is_active;
+}
+
+bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d)
+{
+    bool is_active = false;
+    int deviceId = d->getSndDeviceId();
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    if (d->getDeviceCount() > 0)
+        is_active = true;
+
+    QAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
+    return is_active;
 }
 
 int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
@@ -1360,6 +1385,162 @@ bool ResourceManager::IsVoipAndVoiceUIConcurrencySupported() {
         return st_info->GetConcurrentVoipCallEnable();
     }
     return false;
+}
+
+std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
+    Stream *tx_str)
+{
+    int status = 0;
+    int deviceId = 0;
+    Stream *rx_str = nullptr;
+    std::shared_ptr<Device> rx_device = nullptr;
+    std::shared_ptr<Device> tx_device = nullptr;
+    struct qal_stream_attributes tx_attr;
+    struct qal_stream_attributes rx_attr;
+    std::vector <std::shared_ptr<Device>> tx_device_list;
+    std::vector <std::shared_ptr<Device>> rx_device_list;
+
+    mResourceManagerMutex.lock();
+    // check stream direction
+    status = tx_str->getStreamAttributes(&tx_attr);
+    if (status) {
+        QAL_ERR(LOG_TAG, "stream get attributes failed");
+        goto exit;
+    }
+    if (tx_attr.direction != QAL_AUDIO_INPUT) {
+        QAL_ERR(LOG_TAG, "invalid stream direction %d", tx_attr.direction);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    // get associated device list
+    status = tx_str->getAssociatedDevices(tx_device_list);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
+        goto exit;
+    }
+
+    for (auto& rx_str: mActiveStreams) {
+        rx_str->getStreamAttributes(&rx_attr);
+        rx_device_list.clear();
+        if (rx_attr.direction != QAL_AUDIO_INPUT &&
+            rx_attr.type != QAL_STREAM_LOW_LATENCY) {
+            rx_str->getAssociatedDevices(rx_device_list);
+            for (int i = 0; i < rx_device_list.size(); i++) {
+                if (!isDeviceActive_l(rx_device_list[i]))
+                    continue;
+                deviceId = rx_device_list[i]->getSndDeviceId();
+                if (deviceId > QAL_DEVICE_OUT_MIN &&
+                    deviceId < QAL_DEVICE_OUT_MAX)
+                    rx_device = rx_device_list[i];
+                else
+                    rx_device = nullptr;
+                for (int j = 0; j < tx_device_list.size(); j++) {
+                    tx_device = tx_device_list[j];
+                    if (checkECRef(rx_device, tx_device))
+                        goto exit;
+                }
+            }
+            rx_device = nullptr;
+        } else {
+            continue;
+        }
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return rx_device;
+}
+
+std::vector<Stream*> ResourceManager::getConcurrentTxStream(
+    Stream *rx_str,
+    std::shared_ptr<Device> rx_device)
+{
+    int deviceId = 0;
+    int status = 0;
+    Stream *tx_str = nullptr;
+    std::vector<Stream*> tx_stream_list;
+    struct qal_stream_attributes tx_attr;
+    struct qal_stream_attributes rx_attr;
+    std::shared_ptr<Device> tx_device = nullptr;
+    std::vector <std::shared_ptr<Device>> tx_device_list;
+
+    mResourceManagerMutex.lock();
+    // check stream direction
+    status = rx_str->getStreamAttributes(&rx_attr);
+    if (status) {
+        QAL_ERR(LOG_TAG, "stream get attributes failed");
+        goto exit;
+    }
+    if (rx_attr.direction != QAL_AUDIO_OUTPUT) {
+        QAL_ERR(LOG_TAG, "Invalid stream direction %d", rx_attr.direction);
+        status = -EINVAL;
+        goto exit;
+    }
+    if (rx_attr.type == QAL_STREAM_LOW_LATENCY) {
+        QAL_DBG(LOG_TAG, "No need to set EC ref of tx stream for ll streams");
+        goto exit;
+    }
+
+    for (auto& tx_str: mActiveStreams) {
+        tx_device_list.clear();
+        tx_str->getStreamAttributes(&tx_attr);
+        if (tx_attr.direction == QAL_AUDIO_INPUT) {
+            tx_str->getAssociatedDevices(tx_device_list);
+            for (int i = 0; i < tx_device_list.size(); i++) {
+                if (!isDeviceActive_l(tx_device_list[i]))
+                    continue;
+                deviceId = tx_device_list[i]->getSndDeviceId();
+                if (deviceId > QAL_DEVICE_IN_MIN &&
+                    deviceId < QAL_DEVICE_IN_MAX)
+                    tx_device = tx_device_list[i];
+                else
+                    tx_device = nullptr;
+
+                if (checkECRef(rx_device, tx_device)) {
+                    tx_stream_list.push_back(tx_str);
+                    break;
+                }
+            }
+        }
+    }
+exit:
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return tx_stream_list;
+}
+
+bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
+                                 std::shared_ptr<Device> tx_dev)
+{
+    bool result = false;
+    int rx_dev_id = 0;
+    int tx_dev_id = 0;
+
+    if (!rx_dev || !tx_dev)
+        return result;
+
+    rx_dev_id = rx_dev->getSndDeviceId();
+    tx_dev_id = tx_dev->getSndDeviceId();
+    // TODO: address all possible combinations
+    if ((rx_dev_id == QAL_DEVICE_OUT_SPEAKER) ||
+        (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
+         tx_dev_id == QAL_DEVICE_IN_HANDSET_MIC) ||
+        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
+         tx_dev_id == QAL_DEVICE_IN_WIRED_HEADSET) ||
+        (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
+         tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC) ||
+        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
+         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC))
+        result = true;
+
+    QAL_DBG(LOG_TAG, "EC Ref: %d, rx dev: %d, tx dev: %d",
+        result, rx_dev_id, tx_dev_id);
+
+    return result;
 }
 
 //TBD: test this piece later, for concurrency

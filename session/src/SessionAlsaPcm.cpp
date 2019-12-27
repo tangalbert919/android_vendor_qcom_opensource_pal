@@ -50,7 +50,7 @@ SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
    pcmRx = NULL;
    pcmTx = NULL;
    mState = SESSION_IDLE;
-   isECRefSet = false;
+   ecRefDevId = QAL_DEVICE_OUT_MIN;
 }
 
 SessionAlsaPcm::~SessionAlsaPcm()
@@ -411,7 +411,10 @@ int SessionAlsaPcm::start(Stream * s)
     struct pcm_config config;
     struct qal_stream_attributes sAttr;
     int32_t status = 0;
+    std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+    Stream *str = nullptr;
     struct qal_device dAttr;
     uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
     struct sessionToPayloadParam deviceData;
@@ -530,9 +533,37 @@ int SessionAlsaPcm::start(Stream * s)
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
                 txAifBackEnds[0].second.data(), false, DEVICE_SVA, true);
-    }
+        dev = rm->getActiveEchoReferenceRxDevices(s);
+        if (dev && !ecRefDevId) {
+            status = setECRef(s, dev, true);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+            }
+        }
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT){
+        associatedDevices.clear();
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
 
-    checkAndConfigConcurrency(s);
+        /*
+         * Get concurrent tx stream from resourcemanager
+         * and set ec ref. NOTE: setECRef lock stream event
+         * lock instead of stream lock to avoid deadlock
+         */
+        for (auto dev: associatedDevices) {
+            str_list = rm->getConcurrentTxStream(s, dev);
+            for (auto str: str_list) {
+                status = str->setECRef(dev, true);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                }
+            }
+        }
+        associatedDevices.clear();
+    }
 
     switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
@@ -637,6 +668,7 @@ int SessionAlsaPcm::start(Stream * s)
             status = -EINVAL;
         }
     }
+
     return status;
 }
 
@@ -644,6 +676,11 @@ int SessionAlsaPcm::stop(Stream * s)
 {
     int status = 0;
     struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+    Stream *str = nullptr;
+
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         QAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -677,18 +714,40 @@ int SessionAlsaPcm::stop(Stream * s)
     mState = SESSION_STOPPED;
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        if (ecRefDevId) {
+            status = setECRef(s, nullptr, false);
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+        }
         if (threadHandler.joinable()) {
             threadHandler.join();
         }
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
                 false, DEVICE_SVA, false);
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
 
-        if (isECRefSet) {
-            status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, "ZERO");
-            if (status)
-                QAL_ERR(LOG_TAG, "Failed to disable EC ref path, status %d", status);
-            isECRefSet = false;
+        for (auto dev: associatedDevices) {
+            str_list = rm->getConcurrentTxStream(s, dev);
+            for (auto str: str_list) {
+                /*
+                 * NOTE: this check works based on sequence that
+                 * Rx stream stops device after stopping session
+                 */
+                if (dev->getDeviceCount() != 1) {
+                    QAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
+                } else {
+                    status = str->setECRef(dev, false);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    }
+                }
+            }
         }
     }
     return status;
@@ -1199,102 +1258,68 @@ exit:
     return status;
 }
 
-void SessionAlsaPcm::checkAndConfigConcurrency(Stream *s)
+int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
 {
-    int32_t status = 0;
-    std::shared_ptr<Device> rxDevice = nullptr;
-    std::shared_ptr<Device> txDevice = nullptr;
+    int status = 0;
     struct qal_stream_attributes sAttr;
-    std::vector <Stream *> activeStreams;
-    qal_stream_type_t txStreamType;
-    std::vector <std::shared_ptr<Device>> activeDevices;
-    std::vector <std::shared_ptr<Device>> deviceList;
     std::vector <std::shared_ptr<Device>> rxDeviceList;
     std::vector <std::string> backendNames;
 
-    // get stream attributes
+    QAL_DBG(LOG_TAG, "Enter");
+    if (!s) {
+        QAL_ERR(LOG_TAG, "Invalid stream or rx device");
+        return -EINVAL;
+    }
+
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
-        return;
+        QAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
     }
 
-    // get associated device list
-    status = s->getAssociatedDevices(deviceList);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
-        return;
+    // TODO: apply for input case other than voice ui
+    if (sAttr.direction != QAL_AUDIO_INPUT ||
+        sAttr.type != QAL_STREAM_VOICE_UI) {
+        QAL_ERR(LOG_TAG, "EC Ref cannot be set to output stream");
+        return -EINVAL;
     }
 
-    // get all active devices from rm and
-    // determine Rx and Tx for concurrency usecase
-    rm->getActiveDevices(activeDevices);
-    for (int i = 0; i < activeDevices.size(); i++) {
-        int deviceId = activeDevices[i]->getSndDeviceId();
-        if ((deviceId > QAL_DEVICE_OUT_MIN &&
-            deviceId < QAL_DEVICE_OUT_MAX) &&
-            sAttr.direction == QAL_AUDIO_INPUT) {
-            rxDevice = activeDevices[i];
-            for (int j = 0; j < deviceList.size(); j++) {
-                std::shared_ptr<Device> dev = deviceList[j];
-                if (dev->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
-                    dev->getSndDeviceId() < QAL_DEVICE_IN_MAX)
-                    txDevice = dev;
-            }
+    if (!is_enable) {
+        if (rx_dev && ecRefDevId != rx_dev->getSndDeviceId()) {
+            QAL_ERR(LOG_TAG, "Invalid rx dev %d for disabling EC ref, "
+                "rx dev %d already enabled", rx_dev->getSndDeviceId(), ecRefDevId);
+            return -EINVAL;
         }
-
-        if (deviceId > QAL_DEVICE_IN_MIN && deviceId < QAL_DEVICE_IN_MAX &&
-            sAttr.direction == QAL_AUDIO_OUTPUT) {
-            txDevice = activeDevices[i];
-            for (int j = 0; j < deviceList.size(); j++) {
-                std::shared_ptr<Device> dev = deviceList[j];
-                if (deviceId > QAL_DEVICE_OUT_MIN && deviceId < QAL_DEVICE_OUT_MAX) {
-                    rxDevice = dev;
-                    break;
-                }
-            }
+        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
+            false, "ZERO");
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+            return status;
         }
-    }
-
-    if (!rxDevice || !txDevice) {
-        if (isECRefSet && sAttr.type == QAL_STREAM_VOICE_UI) {
-            status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, "ZERO");
-            if (status)
-                QAL_ERR(LOG_TAG, "Failed to disable EC ref path, status %d", status);
+        ecRefDevId = QAL_DEVICE_OUT_MIN;
+    } else if (is_enable && rx_dev) {
+        if (rx_dev && ecRefDevId == rx_dev->getSndDeviceId()) {
+            QAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
+            return 0;
         }
-        QAL_ERR(LOG_TAG, "No need to handle for concurrency");
-        return;
-    }
-
-    QAL_DBG(LOG_TAG, "rx device %d, tx device %d", rxDevice->getSndDeviceId(), txDevice->getSndDeviceId());
-    // determine concurrency usecase
-    for (int i = 0; i < deviceList.size(); i++) {
-        std::shared_ptr<Device> dev = deviceList[i];
-        if (dev == rxDevice) {
-            rm->getActiveStream(txDevice, activeStreams);
-            for (int j = 0; j < activeStreams.size(); j++) {
-                activeStreams[j]->getStreamType(&txStreamType);
-            }
-        }
-        else if (dev == txDevice)
-            s->getStreamType(&txStreamType);
-        else {
-            QAL_ERR(LOG_TAG, "Concurrency usecase exists, not related to current stream");
-            return;
-        }
-    }
-    QAL_DBG(LOG_TAG, "tx stream type = %d", txStreamType);
-    // TODO: use table to map types/devices to key values
-    if (txStreamType == QAL_STREAM_VOICE_UI) {
-        rxDeviceList.push_back(rxDevice);
+        // TODO: handle EC Ref switch case also
+        rxDeviceList.push_back(rx_dev);
         backendNames = rm->getBackEndNames(rxDeviceList);
-        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, backendNames[0].c_str());
+        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false,
+            backendNames[0].c_str());
         if (status) {
             QAL_ERR(LOG_TAG, "Failed to set EC ref path, status %d", status);
-        } else {
-            isECRefSet = true;
+            return status;
         }
+        ecRefDevId = static_cast<qal_device_id_t>(rx_dev->getSndDeviceId());
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid operation");
+        return -EINVAL;
     }
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)

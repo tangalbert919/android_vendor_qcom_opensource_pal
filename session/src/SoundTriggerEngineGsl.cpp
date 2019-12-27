@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -760,4 +760,13 @@ void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
 
 struct detection_event_info* SoundTriggerEngineGsl::GetDetectionEventInfo() {
     return &detection_event_info_;
+}
+
+int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) {
+    if (!session_) {
+        QAL_ERR(LOG_TAG, "Invalid session");
+        return -EINVAL;
+    }
+
+    return session_->setECRef(s, dev, is_enable);
 }

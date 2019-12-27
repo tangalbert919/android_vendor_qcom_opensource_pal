@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -309,6 +309,7 @@ public:
         std::shared_ptr<Device> device_to_disconnect) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual struct detection_event_info* GetDetectionEventInfo() = 0;
+    virtual int32_t setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) = 0;
 
 protected:
     uint32_t engine_id_;

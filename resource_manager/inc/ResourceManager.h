@@ -269,6 +269,8 @@ public:
     int deregisterDevice(std::shared_ptr<Device> d);
     int registerDevice_l(std::shared_ptr<Device> d);
     int deregisterDevice_l(std::shared_ptr<Device> d);
+    bool isDeviceActive(std::shared_ptr<Device> d);
+    bool isDeviceActive_l(std::shared_ptr<Device> d);
     int addPlugInDevice(std::shared_ptr<Device> d,
                         qal_param_device_connection_t connection_state);
     int removePlugInDevice(qal_device_id_t device_id,
@@ -333,6 +335,11 @@ public:
     bool CheckForActiveConcurrentNonLPIStream();
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
     void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
+    std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
+    std::vector<Stream*> getConcurrentTxStream(
+        Stream *rx_str, std::shared_ptr<Device> rx_device);
+    bool checkECRef(std::shared_ptr<Device> rx_dev,
+                    std::shared_ptr<Device> tx_dev);
 
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);

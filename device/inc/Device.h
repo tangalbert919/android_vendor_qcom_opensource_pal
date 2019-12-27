@@ -72,6 +72,7 @@ public:
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     int getSndDeviceId();
+    int getDeviceCount() { return deviceCount; }
     std::string getQALDeviceName();
     int setDeviceAttributes (struct qal_device dattr);
     virtual int getDeviceAttributes (struct qal_device *dattr);

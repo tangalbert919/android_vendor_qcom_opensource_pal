@@ -106,7 +106,8 @@ public:
     virtual int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToCconnect) = 0;
     virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
-        std::shared_ptr<Device> deviceToDisconnect)= 0;
+        std::shared_ptr<Device> deviceToDisconnect) = 0;
+    virtual int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) = 0;
     void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
 

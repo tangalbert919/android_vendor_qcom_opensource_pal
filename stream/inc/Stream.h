@@ -135,6 +135,7 @@ public:
     virtual void ConcurrentStreamStatus(qal_stream_type_t type __unused,
                                 qal_stream_direction_t dir __unused,
                                 bool active __unused) {}
+    virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
 
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);

@@ -76,11 +76,12 @@ enum {
     ST_EV_STOP_BUFFERING,
     ST_EV_PAUSE,
     ST_EV_RESUME,
-    ST_EV_STOP_DEVICE_CONNECTED,
-    ST_EV_STOP_DEVICE_DISCONNECTED,
-    ST_EV_STOP_SSR_OFFLINE,
-    ST_EV_STOP_SSR_ONLINE,
+    ST_EV_DEVICE_CONNECTED,
+    ST_EV_DEVICE_DISCONNECTED,
+    ST_EV_SSR_OFFLINE,
+    ST_EV_SSR_ONLINE,
     ST_EV_CONCURRENT_STREAM,
+    ST_EV_EC_REF
 };
 
 class ResourceManager;
@@ -141,6 +142,7 @@ class StreamSoundTrigger : public Stream {
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
                                 qal_stream_direction_t dir,
                                 bool active) override;
+    int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
     void TransitTo(int32_t state_id);
 
     friend class QalRingBufferReader;
@@ -325,6 +327,23 @@ class StreamSoundTrigger : public Stream {
         ~StConcurrentStreamEventConfig () {}
     };
 
+    class StECRefEventConfigData : public StEventConfigData {
+     public:
+        StECRefEventConfigData(std::shared_ptr<Device> dev, bool is_enable)
+            : dev_(dev), is_enable_(is_enable) {}
+        ~StECRefEventConfigData() {}
+
+        std::shared_ptr<Device> dev_;
+        bool is_enable_;
+    };
+    class StECRefEventConfig : public StEventConfig {
+     public:
+        StECRefEventConfig(std::shared_ptr<Device> dev, bool is_enable)
+            : StEventConfig(ST_EV_EC_REF) {
+            data_ = std::make_shared<StECRefEventConfigData>(dev, is_enable);
+        }
+        ~StECRefEventConfig() {}
+    };
     class StState {
      public:
         StState(StreamSoundTrigger& st_stream, int32_t state_id)
