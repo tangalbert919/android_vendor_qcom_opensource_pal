@@ -123,7 +123,7 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
        s->registerCallBack(cb, cookie);
     stream = static_cast<void *>(s);
     *stream_handle = stream;
-    QAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
+    QAL_DBG(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
 }
 
@@ -158,14 +158,14 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
     status = s->start();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -415,14 +415,14 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle,
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
     status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 

@@ -914,7 +914,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    QAL_ERR(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
                       header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
 
@@ -968,10 +968,10 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     }
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_ERR(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",
+    QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
                       mfcConf->num_channels);
-    QAL_ERR(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
                 *size);
 }
 

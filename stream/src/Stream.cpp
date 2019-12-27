@@ -283,7 +283,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         outBufSize = *out_buf_size;
         nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
                       (sattr->out_media_config.ch_info->channels);
-        QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
+        QAL_DBG(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.

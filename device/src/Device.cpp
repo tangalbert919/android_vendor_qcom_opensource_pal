@@ -53,10 +53,10 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
         return NULL;
     }
 
-    QAL_ERR(LOG_TAG, "Enter device id %d", device->id);
+    QAL_DBG(LOG_TAG, "Enter device id %d", device->id);
 
 
-    QAL_ERR(LOG_TAG, "Device config updated");
+    QAL_DBG(LOG_TAG, "Device config updated");
 
     //TBD: decide on supported devices from XML and not in code
     switch(device->id) {
@@ -169,7 +169,7 @@ int Device::open()
 {
     int status = 0;
     mDeviceMutex.lock();
-    QAL_ERR(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
+    QAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
         deviceCount, this->deviceAttr.id, initialized);
     void *stream;
     std::vector<Stream*> activestreams;
@@ -198,7 +198,7 @@ int Device::open()
         deviceHandle = static_cast<void *>(devImpl);
         mQALDeviceName = rm->getQALDeviceName(this->deviceAttr.id);
         initialized = true;
-        QAL_ERR(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
+        QAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
     }
 
     devObj = Device::getInstance(&deviceAttr, rm);
@@ -278,7 +278,7 @@ int Device::start()
     int status = 0;
     mDeviceMutex.lock();
 
-    QAL_ERR(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
+    QAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
     if (deviceCount == 0 && initialized) {
         status = rm->getAudioRoute(&audioRoute);
         if (0 != status) {
