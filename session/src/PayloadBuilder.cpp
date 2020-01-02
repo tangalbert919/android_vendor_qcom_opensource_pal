@@ -1913,6 +1913,59 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
                 *size);
 }
 
+void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, struct qal_media_config *data)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_cop_pack_output_media_fmt_t *copPack  = NULL;
+    int numChannel;
+    uint16_t* pcmChannel = NULL;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    if (!data) {
+        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    numChannel = data->ch_info->channels;
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                  sizeof(uint16_t)*numChannel;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo alloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    copPack = (struct param_id_cop_pack_output_media_fmt_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
+    pcmChannel = (uint16_t*)(payloadInfo +
+                          sizeof(struct apm_module_param_data_t) +
+                          sizeof(struct param_id_cop_pack_output_media_fmt_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_COP_PACKETIZER_OUTPUT_MEDIA_FORMAT;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    copPack->sampling_rate = data->sample_rate;
+    copPack->bits_per_sample = data->bit_width;
+    copPack->num_channels = numChannel;
+    populateChannelMap(pcmChannel, numChannel);
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    QAL_DBG(LOG_TAG, "sample_rate:%d bits_per_sample:%d num_channels:%d",
+                      copPack->sampling_rate, copPack->bits_per_sample, copPack->num_channels);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+                *size);
+}
+
 /** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx)

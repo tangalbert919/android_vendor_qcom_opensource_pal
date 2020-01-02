@@ -44,6 +44,7 @@
 #include "i2s_api.h"
 #include "slimbus_api.h"
 #include "rate_adapted_timer_api.h"
+#include "cop_packetizer_cmn_api.h"
 #include "pcm_tdm_api.h"
 #include "audio_dam_buffer_api.h"
 #include "codec_dma_api.h"

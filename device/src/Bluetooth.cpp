@@ -91,7 +91,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
     std::string backEndName;
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
-    uint32_t miid = 0, ratMiid = 0;
+    uint32_t miid = 0, ratMiid = 0, copMiid = 0;
     std::shared_ptr<Device> dev = nullptr;
     uint32_t num_payloads;
 
@@ -162,6 +162,13 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
         goto error;
     }
 
+    status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d\n",
+                                             COP_PACKETIZER_V0, status);
+        goto error;
+    }
+
     num_payloads = out_buf->num_blks;
     for (i = 0; i < num_payloads; i++) {
         custom_block_t *blk = out_buf->blocks[i];
@@ -192,6 +199,18 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
 
 /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes(codec_format, type);
+
+    builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
+    if (paramSize) {
+        dev->updateCustomPayload(paramData, paramSize);
+        free(paramData);
+        paramData = NULL;
+        paramSize = 0;
+    } else {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "%s: Invalid RAT module param size", __func__);
+        goto error;
+    }
 
     is_configured = true;
 
