@@ -571,6 +571,13 @@ int SessionAlsaPcm::stop(Stream * s)
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
                 false, DEVICE_SVA, false);
+
+        if (isECRefSet) {
+            status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false, "ZERO");
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to disable EC ref path, status %d", status);
+            isECRefSet = false;
+        }
     }
     return status;
 }
