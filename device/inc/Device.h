@@ -72,6 +72,7 @@ public:
     std::string getQALDeviceName();
     int setDeviceAttributes (struct qal_device dattr);
     virtual int getDeviceAttributes (struct qal_device *dattr);
+    static std::shared_ptr<Device> getObject(qal_device_id_t dev_id);
     int updateCustomPayload(void *payload, size_t size);
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
     virtual int32_t getDeviceParameter(uint32_t param_id, void **param);

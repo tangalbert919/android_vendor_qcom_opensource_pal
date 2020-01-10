@@ -251,6 +251,7 @@ public:
                           const struct qal_stream_attributes,
                           int lDirection);
     const std::vector<std::string> getBackEndNames(const std::vector<std::shared_ptr<Device>> &deviceList) const;
+    void getSharedBEDevices(std::vector<std::shared_ptr<Device>> &deviceList, std::shared_ptr<Device> inDevice) const;
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;

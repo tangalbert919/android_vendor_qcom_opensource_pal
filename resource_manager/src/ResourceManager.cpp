@@ -1665,6 +1665,29 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
     return;
 }
 
+void ResourceManager::getSharedBEDevices(std::vector<std::shared_ptr<Device>> &deviceList,
+        std::shared_ptr<Device> inDevice) const
+{
+    int dev_id;
+    std::string backEndName;
+    std::shared_ptr<Device> dev;
+
+    deviceList.clear();
+    dev_id = inDevice->getSndDeviceId();
+    if (dev_id >= QAL_DEVICE_OUT_HANDSET && dev_id <= QAL_DEVICE_IN_PROXY)
+        backEndName = listAllBackEndIds[dev_id].second;
+
+    for (int i = QAL_DEVICE_OUT_HANDSET; i <= QAL_DEVICE_IN_PROXY; i++) {
+        if ((i != dev_id) && (backEndName == listAllBackEndIds[i].second)) {
+            dev = Device::getObject((qal_device_id_t) i);
+            if(dev)
+                deviceList.push_back(dev);
+        }
+    }
+
+    return;
+}
+
 const std::vector<std::string> ResourceManager::getBackEndNames(
         const std::vector<std::shared_ptr<Device>> &deviceList) const
 {
@@ -1809,8 +1832,10 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dattr;
     std::vector<Stream*>::iterator sIter;
+    std::vector<std::shared_ptr<Device>>::iterator dIter;
     std::shared_ptr<Device> inDevice = nullptr;
     qal_stream_type_t streamType;
+    std::vector<std::shared_ptr<Device>> deviceList;
 
     if (!inDev || !inDevAttr) {
         goto error;
@@ -1831,7 +1856,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no other active streams found");
         inDev->setDeviceAttributes(*inDevAttr);
-        goto error;
+        goto be_check;
     }
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
@@ -1846,14 +1871,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
             status = (*sIter)->getAssociatedDevices(associatedDevices);
             if(0 != status) {
                 QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
-                goto error;
+                goto be_check;
             }
 
-            for(std::vector<std::shared_ptr<Device>>::iterator diter = associatedDevices.begin();
-                     diter != associatedDevices.end(); diter++) {
-                status = (*diter)->getDeviceAttributes(&dattr);
+            for(dIter = associatedDevices.begin();
+                     dIter != associatedDevices.end(); dIter++) {
+                status = (*dIter)->getDeviceAttributes(&dattr);
                 if(0 != status) {
-                    QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+                    QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
                     goto error;
                 }
 
@@ -1877,6 +1902,28 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     } else {
         // Voice call is active - change incoming device to voice call device config
         memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
+    }
+
+be_check:
+    getSharedBEDevices(deviceList, inDev);
+    if (deviceList.size() <= 0)
+        goto error;
+
+    status = inDev->getDeviceAttributes(&dattr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+        goto error;
+    }
+
+    for(dIter = deviceList.begin(); dIter != deviceList.end(); dIter++) {
+
+
+        getActiveStream(*dIter, activeStreams);
+        if (activeStreams.size() <= 0)
+            continue;
+        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+            (*sIter)->switchDevice(*sIter, 1, &dattr);
+        }
     }
 
 error:

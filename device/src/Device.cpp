@@ -102,6 +102,23 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     }
 }
 
+std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
+{
+
+    switch(dev_id) {
+    case QAL_DEVICE_OUT_HANDSET:
+        QAL_VERBOSE(LOG_TAG, "handset device");
+        return Handset::getObject();
+        break;
+    case QAL_DEVICE_OUT_SPEAKER:
+        QAL_VERBOSE(LOG_TAG, "speaker device");
+        return Speaker::getObject();
+        break;
+    default:
+        QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
+        return nullptr;
+    }
+}
 
 Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,6 +34,12 @@
 #include "kvh2xml.h"
 
 std::shared_ptr<Device> Speaker::obj = nullptr;
+
+std::shared_ptr<Device> Speaker::getObject()
+{
+    return obj;
+}
+
 
 std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)

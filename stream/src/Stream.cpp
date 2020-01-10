@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -460,6 +460,12 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     // 1. mDevices with common backend
     //TBD: as there are no devices with common backend now.
     //rm->disableDevice(mDevices);
+
+    //TODO: This check needs to be done before calling switchDevice
+    // if (mDevices[0]->getSndDeviceId() == deviceArray[0].id) {
+        // QAL_ERR(LOG_TAG, "same device, no need to switch %d", mDevices[0]->getSndDeviceId());
+        // goto error_1;
+    // }
 
     QAL_ERR(LOG_TAG, "device %d name %s, going to stop %d devices",
         mDevices[0]->getSndDeviceId(), mDevices[0]->getQALDeviceName().c_str(), mDevices.size());
