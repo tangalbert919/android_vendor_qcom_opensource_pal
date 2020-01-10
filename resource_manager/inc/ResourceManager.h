@@ -79,6 +79,7 @@ struct xml_userdata {
     bool card_found;
     bool card_parsed;
     snd_card_defs_xml_tags_t current_tag;
+    bool is_parsing_sound_trigger;
 };
 
 struct deviceCap {
@@ -134,7 +135,6 @@ private:
      * const bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
      * const qal_stream_attributes* sIncomingAttr) const
      */
-
 
     bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
          const qal_stream_attributes* sIncomingAttr) const;

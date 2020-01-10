@@ -75,6 +75,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     session/src/SoundTriggerEngineCapiVop.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
     resource_manager/src/ResourceManager.cpp \
+    utils/src/SoundTriggerPlatformInfo.cpp \
     utils/src/QalRingBuffer.cpp
 
 LOCAL_MODULE               := libqal

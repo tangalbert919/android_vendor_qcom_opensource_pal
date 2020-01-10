@@ -44,6 +44,7 @@
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
 #include "Handset.h"
+#include "SoundTriggerPlatformInfo.h"
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -60,6 +61,7 @@
 #define XMLFILE "/etc/resourcemanager.xml"
 #define GECKOXMLFILE "/etc/kvh2xml.xml"
 #define SNDPARSER "/etc/card-defs.xml"
+#define STXMLFILE "/etc/sound_trigger_platform_info.xml"
 #else
 #define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
@@ -67,6 +69,7 @@
 #define XMLFILE "/vendor/etc/resourcemanager.xml"
 #define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
+#define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
 #endif
 
 #define MAX_SND_CARD 110
@@ -382,6 +385,15 @@ ResourceManager::ResourceManager()
     if (ret) {
         QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
+    ret = ResourceManager::XmlParser(STXMLFILE);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in sound trigger xml parsing ret %d", ret);
+        /*
+         * clear ret as we want to allow the case where ST xml file is not
+         * present
+         */
+        ret = 0;
+    }
     if (ag == ALSA) {
         listAllFrontEndIds.clear();
         listFreeFrontEndIds.clear();
@@ -646,7 +658,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             status = -EINVAL;
             //do nothing for rest of the devices
             break;
-	}
+        }
     return status;
 }
 
@@ -2340,11 +2352,25 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
     }
 }
 
-void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name,
+void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     const XML_Char **attr)
 {
     snd_card_defs_xml_tags_t tagId;
     stream_supported_type type;
+    struct xml_userdata *data = (struct xml_userdata *)userdata;
+    static std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
+
+    if (data->is_parsing_sound_trigger) {
+        st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
+        return;
+    }
+
+    if (!strcmp(tag_name, "sound_trigger_platform_info")) {
+        data->is_parsing_sound_trigger = true;
+        st_info = SoundTriggerPlatformInfo::GetInstance();
+        return;
+    }
+
     if (strcmp(tag_name, "device") == 0) {
         processDeviceInfo(attr);
         return;
@@ -2358,7 +2384,7 @@ void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name
         processConfigParams(attr);
         return;
     }
-    struct xml_userdata *data = (struct xml_userdata *)userdata;
+
     if (data->card_parsed)
         return;
 
@@ -2383,9 +2409,21 @@ void ResourceManager::startTag(void *userdata __unused, const XML_Char *tag_name
         return;
 }
 
-void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name)
+void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
 {
     struct xml_userdata *data = (struct xml_userdata *)userdata;
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (!strcmp(tag_name, "sound_trigger_platform_info")) {
+        data->is_parsing_sound_trigger = false;
+        return;
+    }
+
+    if (data->is_parsing_sound_trigger) {
+        st_info->HandleEndTag((const char *)tag_name);
+        return;
+    }
 
     if (data->card_parsed)
         return;
@@ -2407,6 +2445,12 @@ void ResourceManager::endTag(void *userdata __unused, const XML_Char *tag_name)
 void ResourceManager::snd_data_handler(void *userdata, const XML_Char *s, int len)
 {
    struct xml_userdata *data = (struct xml_userdata *)userdata;
+
+    if (data->is_parsing_sound_trigger) {
+        SoundTriggerPlatformInfo::GetInstance()->HandleCharData(
+            (const char *)s);
+        return;
+    }
 
    if (len + data->offs >= sizeof(data->data_buf) ) {
        data->offs += len;
