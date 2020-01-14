@@ -81,6 +81,7 @@ protected:
     bool configureA2dpEncoderDecoder(codec_format_t codec_format, void *codec_info, codec_type type);
     void updateDeviceAttributes(codec_format_t codec_format, codec_type type);
     bool is_configured;
+    bool is_handoff_in_progress;
 public:
     virtual ~Bluetooth();
 };
@@ -123,7 +124,6 @@ private:
     bool            a2dp_source_started;
     int             a2dp_source_total_active_session_requests;
     bool            is_a2dp_offload_supported;
-    bool            is_handoff_in_progress;
     enum A2DP_STATE bt_state_sink;
     codec_format_t    bt_decoder_format;
     bool            a2dp_sink_started;

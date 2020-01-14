@@ -41,6 +41,7 @@
 
 #define BT_IPC_SOURCE_LIB "btaudio_offload_if.so"
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
+#define PARAM_ID_RESET_PLACEHOLDER_MODULE          0x08001173
 
 Bluetooth::Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Device(device, Rm)
@@ -169,6 +170,21 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
         goto error;
     }
 
+    if (is_handoff_in_progress) {
+        QAL_ERR(LOG_TAG, "rohit resetting placeholder module\n");
+        builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
+                                    miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
+        if (!paramData) {
+            QAL_ERR(LOG_TAG, "Failed to populateAPMHeader\n");
+            status = -ENOMEM;
+            goto error;
+        }
+        dev->updateCustomPayload(paramData, paramSize);
+        free(paramData);
+        paramData = NULL;
+        paramSize = 0;
+    }
+
     num_payloads = out_buf->num_blks;
     for (i = 0; i < num_payloads; i++) {
         custom_block_t *blk = out_buf->blocks[i];
@@ -255,7 +271,6 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
         a2dp_source_started(false),
         a2dp_source_total_active_session_requests(0),
         is_a2dp_offload_supported(false),
-        is_handoff_in_progress(false),
         bt_state_sink(A2DP_STATE_DISCONNECTED),
         bt_decoder_format(CODEC_TYPE_INVALID),
         a2dp_sink_started(false),
@@ -268,6 +283,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     open_a2dp_source();
     param_bt_a2dp.reconfigured = false;
     param_bt_a2dp.a2dp_suspended = false;
+    is_handoff_in_progress = false;
     is_a2dp_offload_supported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);

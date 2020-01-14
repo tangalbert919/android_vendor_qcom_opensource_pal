@@ -1580,10 +1580,11 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     header->param_id = paramId;
     header->error_code = 0x0;
     header->param_size = customPayloadSize;
-    casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
-                        customPayloadSize,
-                        customPayload,
-                        customPayloadSize);
+    if (customPayloadSize)
+        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                         customPayloadSize,
+                         customPayload,
+                         customPayloadSize);
     *size = alsaPayloadSize;
     *alsaPayload = payloadInfo;
 
