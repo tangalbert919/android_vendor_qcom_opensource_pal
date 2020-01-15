@@ -988,16 +988,28 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, qal_stream_t
     int status = 0;
     struct mixer *mixerHandle = nullptr;
     struct mixer_ctl *disconnectCtrl = nullptr;
+    struct qal_stream_attributes sAttr;
+    int sub = 1;
 
     switch (streamType) {
         case QAL_STREAM_COMPRESSED:
             disconnectCtrlName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
             break;
         case QAL_STREAM_VOICE_CALL:
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (status) {
+                QAL_ERR(LOG_TAG, "could not get stream attributes\n");
+                return status;
+            }
+            if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                sAttr.info.voice_call_info.VSID == VOICELBMMODE1)
+                sub = 1;
+            else
+                sub = 2;
             if (dAttr.id >= QAL_DEVICE_OUT_HANDSET && dAttr.id <= QAL_DEVICE_OUT_PROXY)
-                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " disconnect";
+                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " disconnect";
             else if (dAttr.id >= QAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= QAL_DEVICE_IN_PROXY)
-                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " disconnect";
+                disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " disconnect";
             break;
         default:
             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
@@ -1031,6 +1043,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     std::ostringstream connectCtrlName;
     struct sessionToPayloadParam deviceData;
     PayloadBuilder* builder = new PayloadBuilder();
+    struct qal_stream_attributes sAttr;
+    int sub = 1;
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
@@ -1044,10 +1058,21 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             is_compress = true;
             break;
         case QAL_STREAM_VOICE_CALL:
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (status) {
+                QAL_ERR(LOG_TAG, "could not get stream attributes\n");
+                return status;
+            }
+            if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                sAttr.info.voice_call_info.VSID == VOICELBMMODE1)
+                sub = 1;
+            else
+                sub = 2;
+
             if (dAttr.id >= QAL_DEVICE_OUT_HANDSET && dAttr.id <= QAL_DEVICE_OUT_PROXY) {
-                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " connect";
+                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " connect";
             } else if (dAttr.id >= QAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= QAL_DEVICE_IN_PROXY) {
-                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " connect";
+                connectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " connect";
             }
             break;
         default:
@@ -1088,9 +1113,9 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     } else {
         if (sess) {
             if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
-                sess->setConfig(streamHandle, MODULE, VSID, 0);
+                sess->setConfig(streamHandle, MODULE, VSID, RXDIR);
             else
-                sess->setConfig(streamHandle, MODULE, VSID, 1);
+                sess->setConfig(streamHandle, MODULE, VSID, TXDIR);
         } else {
             QAL_ERR(LOG_TAG, "invalid session voice object");
             return -EINVAL;
@@ -1130,6 +1155,8 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     struct sessionToPayloadParam deviceData;
     bool is_compress = false;
+    struct qal_stream_attributes sAttr;
+    int sub = 1;
 
 
     status = rmHandle->getAudioMixer(&mixerHandle);
@@ -1192,14 +1219,25 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
             is_compress = true;
             break;
         case QAL_STREAM_VOICE_CALL:
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (status) {
+                QAL_ERR(LOG_TAG, "could not get stream attributes\n");
+                return status;
+            }
+            if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+                sAttr.info.voice_call_info.VSID == VOICELBMMODE1)
+                sub = 1;
+            else
+                sub = 2;
+
             if (dAttr.id >= QAL_DEVICE_OUT_HANDSET && dAttr.id <= QAL_DEVICE_OUT_PROXY) {
-                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " control";
+                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
-                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "p" << " metadata";
+                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " metadata";
             } else if (dAttr.id >= QAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= QAL_DEVICE_IN_PROXY) {
-                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " control";
+                cntrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " control";
                 aifMdName << aifBackEndsToConnect[0].second.data() << " metadata";
-                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << 1 << "c" << " metadata";
+                feMdName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " metadata";
 
             }
             break;

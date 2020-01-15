@@ -37,6 +37,9 @@
 #include <tinyalsa/asoundlib.h>
 #include <thread>
 
+#define RXDIR 0
+#define TXDIR 1
+
 class Stream;
 class Session;
 

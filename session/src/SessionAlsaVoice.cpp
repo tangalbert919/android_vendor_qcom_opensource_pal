@@ -38,8 +38,7 @@
 #include <sstream>
 #include <string>
 #include <agm_api.h>
-#define RXDIR 0
-#define TXDIR 1
+
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define MAX_VOL_INDEX 5
 #define MIN_VOL_INDEX 0

@@ -28,6 +28,8 @@
  */
 
 #define LOG_TAG "StreamPCM"
+#define RXDIR 0
+#define TXDIR 1
 
 #include "StreamPCM.h"
 #include "Session.h"
@@ -678,9 +680,9 @@ int32_t  StreamPCM::setMute( bool state)
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
     mStreamMutex.lock();
     if (state)
-        status = session->setConfig(this, MODULE, MUTE_TAG);
+        status = session->setConfig(this, MODULE, MUTE_TAG, TXDIR);
     else
-        status = session->setConfig(this, MODULE, UNMUTE_TAG);
+        status = session->setConfig(this, MODULE, UNMUTE_TAG, TXDIR);
 
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
