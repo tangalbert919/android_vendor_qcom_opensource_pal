@@ -699,17 +699,19 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         case QAL_DEVICE_OUT_USB_DEVICE:
         case QAL_DEVICE_OUT_USB_HEADSET:
             {
-            deviceattr->config.sample_rate = SAMPLINGRATE_44K;//SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            // config.ch_info memory is allocated in selectBestConfig below
-            std::shared_ptr<USB> USB_out_device;
-            USB_out_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
-            if (!USB_out_device) {
-                QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
-                return -EINVAL;
-            }
-            status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
+                deviceattr->config.sample_rate = SAMPLINGRATE_44K;//SAMPLINGRATE_48K;
+                deviceattr->config.bit_width = BITWIDTH_16;
+                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+                // config.ch_info memory is allocated in selectBestConfig below
+                std::shared_ptr<USB> USB_out_device;
+                USB_out_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
+                if (!USB_out_device) {
+                    QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
+                    return -EINVAL;
+                }
+                status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
+                QAL_ERR(LOG_TAG, "device samplerate %d, bitwidth %d, ch %d", deviceattr->config.sample_rate, deviceattr->config.bit_width,
+                        deviceattr->config.ch_info->channels);
             }
             break;
         case QAL_DEVICE_IN_USB_DEVICE:
@@ -1857,6 +1859,19 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
     case QAL_DEVICE_OUT_SPEAKER:
         is_ds_required = false;
         break;
+    case QAL_DEVICE_OUT_USB_HEADSET:
+    case QAL_DEVICE_OUT_USB_DEVICE:
+        if ((QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+            (inDevAttr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
+            //Native Audio usecase
+            QAL_ERR(LOG_TAG, "1 inDevAttr->config.sample_rate = %d  ", inDevAttr->config.sample_rate);
+            is_ds_required = true;
+        } else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
+            (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
+            (activeDevAttr->config.ch_info->channels < inDevAttr->config.ch_info->channels)) {
+            is_ds_required = true;
+        }
+        break;
     case QAL_DEVICE_OUT_WIRED_HEADSET:
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         if ((QAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
@@ -1957,10 +1972,10 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
                     isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
                     if (isDeviceSwitch) {
                         // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
-                        // Swichdevice will device all the devices on this stream and re-enable with what we send here
+                        // Swichdevice will disable all the devices on this stream and re-enable with what we send here
                         // TODO: add new method to disable devices only what is required
                         inDev->setDeviceAttributes(*inDevAttr);
-                        (*sIter)->switchDevice(*sIter, 1, &dattr);
+                        (*sIter)->switchDevice(*sIter, 1, inDevAttr);
                     } else {
                         // case 2. If incoming device config has lower priority then update incoming device config with other stream config
                         //TODO:  No need to loop through in this case as all active streams will be using same device config

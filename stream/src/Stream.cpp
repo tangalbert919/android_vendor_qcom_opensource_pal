@@ -506,15 +506,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     /* overwrite device config with default one for speaker and stream rate for headset */
     /*TODO: handle other devices */
     for (int i = 0; i < no_of_devices; i++) {
-        status = rm->getDeviceConfig((struct qal_device *)&deviceArray[i], mStreamAttr);
-        if (status) {
-           QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
-           // nullptr for ch_info would lead to crash.
-           goto error_2;
-        }
-        //Check with RM if the configuration given can work or not
-        //for e.g., if incoming stream needs 24 bit device thats also
-        //being used by another stream, then the other stream should route
+        QAL_ERR(LOG_TAG, "Incoming device sample rate = %d %d", deviceArray[i].config.sample_rate, deviceArray[i].config.ch_info->channels);
 
         dev = Device::getInstance((struct qal_device *)&deviceArray[i], rm);
         if (!dev) {
@@ -525,6 +517,10 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
             throw std::runtime_error("failed to create device object");
         }
         /* Check if we need to check here or above if bt_Sco is on for sco usecase */
+        /* 
+         *  Device::getInstance will not set device attributes if the device instance created previously
+         *  So set device config explictly.
+         */
         dev->setDeviceAttributes(deviceArray[i]);
 
         status = dev->open();

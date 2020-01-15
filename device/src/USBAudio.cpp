@@ -570,14 +570,15 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
             bitwidth = (*iter)->getBitWidth();
             if (bitwidth == media_config.bit_width) {
                 config->bit_width = bitwidth;
-                QAL_INFO(LOG_TAG, "xsang found matching bit width=%d", config->bit_width);
+                QAL_INFO(LOG_TAG, "found matching bit width=%d", config->bit_width);
                 // 2. sample rate
                 ret = (*iter)->getBestRate(media_config.sample_rate,
                                     &config->sample_rate);
-                QAL_INFO(LOG_TAG, "xsang found matching bit width=%d", config->sample_rate);
+                QAL_INFO(LOG_TAG, "found matching bit width=%d", config->sample_rate);
                 // 3. get channel
                 ret = (*iter)->getBestChInfo(media_config.ch_info,
                                     &config->ch_info);
+                QAL_INFO(LOG_TAG, "found matching ch=%d", config->ch_info->channels);
                 break;
             } else {
                 // if bit width does not match, use highest width.

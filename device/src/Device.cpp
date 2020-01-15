@@ -183,12 +183,14 @@ Device::~Device()
 int Device::getDeviceAttributes(struct qal_device *dattr)
 {
     int status = 0;
+
     if (!dattr) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
         goto exit;
     }
     casa_osal_memcpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+
 exit:
     return status;
 }
@@ -201,30 +203,33 @@ int Device::setDeviceAttributes(struct qal_device dattr)
 {
     int status = 0;
     int ch_info_size = 0;
+    struct qal_channel_info *device_ch_info = NULL;
 
     QAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
 
-    // copy channel info
     if (dattr.config.ch_info) {
         ch_info_size = sizeof(struct qal_channel_info) +
             dattr.config.ch_info->channels * sizeof(uint8_t);
 
-        if (deviceAttr.config.ch_info) {
-            free(deviceAttr.config.ch_info);
-            deviceAttr.config.ch_info =
-                (struct qal_channel_info *)calloc(1, ch_info_size);
-            if (!deviceAttr.config.ch_info) {
-                QAL_ERR(LOG_TAG, "Allocation failed for channel map");
-                return -EINVAL;
-            }
+        device_ch_info =
+            (struct qal_channel_info *)calloc(1, ch_info_size);
+        if (!device_ch_info) {
+            QAL_ERR(LOG_TAG, "Allocation failed for channel map");
+            return -EINVAL;
         }
 
-        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size,
-            dattr.config.ch_info, ch_info_size);
+        if (deviceAttr.config.ch_info)
+            free(deviceAttr.config.ch_info);
     }
 
     casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr,
                      sizeof(struct qal_device));
+
+    // copy channel info
+    deviceAttr.config.ch_info = device_ch_info;
+    if (dattr.config.ch_info)
+        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size,
+                         dattr.config.ch_info, ch_info_size);
 
     return status;
 }
