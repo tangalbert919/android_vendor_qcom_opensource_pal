@@ -1877,7 +1877,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+            QAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
     }
 free_sattr:
     delete sattr;
@@ -1911,7 +1911,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
             keyVectorRx.push_back(std::make_pair(STREAMPP_RX, STREAMPP_RX_DEFAULT));
             break;
         default:
-            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+            QAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
     }
 free_sattr:
     delete sattr;
@@ -1997,7 +1997,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG,"unsupported stream type %s", sattr->type);
+            QAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
             goto free_sattr;
         }
 
