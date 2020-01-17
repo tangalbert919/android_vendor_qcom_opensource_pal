@@ -368,6 +368,7 @@ class StreamSoundTrigger : public Stream {
         int32_t ProcessEvent(std::shared_ptr<StEventConfig> ev_cfg) override;
     };
 
+    qal_device_id_t GetAvailCaptureDevice();
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);
     int32_t SendRecognitionConfig(struct qal_st_recognition_config *config);

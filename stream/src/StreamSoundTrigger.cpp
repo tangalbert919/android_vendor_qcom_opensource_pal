@@ -95,6 +95,19 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d",
                 no_of_devices);
     for (int i = 0; i < no_of_devices; i++) {
+        // update best device
+        qal_device_id_t dev_id = GetAvailCaptureDevice();
+        if (dattr[i].id != dev_id) {
+            QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+            dattr[i].id = dev_id;
+            if (dattr[i].config.ch_info)
+                free(dattr[i].config.ch_info);
+            if (rm->getDeviceConfig((struct qal_device *)&dattr[i], sattr)) {
+                QAL_ERR(LOG_TAG, "Failed to get config for dev %d", dev_id);
+                throw std::runtime_error("failed to get device config");
+            }
+        }
+
         dev = Device::getInstance(&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
@@ -1618,6 +1631,13 @@ void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
     }
 }
 
+qal_device_id_t StreamSoundTrigger::GetAvailCaptureDevice()
+{
+    if (rm->isDeviceAvailable(QAL_DEVICE_IN_WIRED_HEADSET))
+        return QAL_DEVICE_IN_WIRED_HEADSET;
+    else
+        return QAL_DEVICE_IN_HANDSET_VA_MIC;
+}
 
 void StreamSoundTrigger::AddEngine(std::shared_ptr<EngineCfg> engine_cfg) {
     for (int32_t i = 0; i < engines_.size(); i++) {
