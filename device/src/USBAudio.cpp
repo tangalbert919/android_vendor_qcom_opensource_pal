@@ -31,8 +31,9 @@
 #include "USBAudio.h"
 
 #include <cstdio>
-
+#include "USBAudio.h"
 #include "ResourceManager.h"
+#include "PayloadBuilder.h"
 #include "Device.h"
 #include "kvh2xml.h"
 
@@ -74,6 +75,113 @@ Device(device, Rm)
 USB::~USB()
 {
     QAL_INFO(LOG_TAG, "dtor called");
+}
+
+int USB::start()
+{
+    int status = 0;
+    Stream *stream = NULL;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<Stream*> activestreams;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dAttr;
+
+    dev = Device::getInstance(&deviceAttr, rm);
+    status = rm->getActiveStream(dev, activestreams);
+    if ((0 != status) || (activestreams.size() == 0)) {
+        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        return -EINVAL;
+    }
+    stream = static_cast<Stream *>(activestreams[0]);
+    status = stream->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+            /* Assuming only one device for recording */
+    status = associatedDevices[0]->getDeviceAttributes(&dAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+    if (dAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
+        status = configureInUsb(stream);
+    } else{
+        status = configureOutUsb(stream);
+    }
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"Endpoint Configuration Failed");
+        return status;
+    }
+    status = Device::start();
+    return status;
+
+}
+
+int USB::configureInUsb(Stream *s)
+{
+    int status = 0;
+    std::string backEndName;
+    PayloadBuilder* builder = new PayloadBuilder();
+    struct usbAudioConfig cfg;
+    uint8_t* payload = NULL;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid = 0;
+    stream = s;
+    rm->getBackendName(deviceAttr.id, backEndName);
+    stream->getAssociatedSession(&session);
+    status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_TX, &miid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_TX, status);
+        return status;
+    }
+    cfg.usb_token = (1<<16)|0x1;
+    cfg.svc_interval = 0;
+    builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+    if (payloadSize) {
+        status = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+        return status;
+        }
+    }
+    return status;
+}
+
+int USB::configureOutUsb(Stream *s)
+{
+    int status = 0;
+    std::string backEndName;
+    PayloadBuilder* builder = new PayloadBuilder();
+    struct usbAudioConfig cfg;
+    uint8_t* payload = NULL;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid = 0;
+    stream = s;
+    rm->getBackendName(deviceAttr.id, backEndName);
+    stream->getAssociatedSession(&session);
+    status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_RX, &miid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
+        return status;
+    }
+    cfg.usb_token = 1<<16;
+    cfg.svc_interval = 0;
+    builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
+    if (payloadSize) {
+        status = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+        return status;
+        }
+    }
+    return status;
 }
 
 int32_t USB::isSampleRateSupported(unsigned int sampleRate)

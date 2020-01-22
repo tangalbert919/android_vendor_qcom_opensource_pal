@@ -126,10 +126,13 @@ typedef struct edidAudioInfo {
 class DisplayPort : public Device
 {
     struct mixer *mixer;
+    std::vector<int> pcmDevIds;
 protected:
     static std::shared_ptr<Device> obj;
     DisplayPort(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
+    int start();
+    int configureDpEndpoint();
     int init(qal_param_device_connection_t device_conn);
     int deinit(qal_param_device_connection_t device_conn);
     static std::shared_ptr<Device> getInstance(struct qal_device *device,

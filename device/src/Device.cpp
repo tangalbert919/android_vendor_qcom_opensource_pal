@@ -73,14 +73,12 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         QAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_OUT_USB_DEVICE:
     case QAL_DEVICE_OUT_USB_HEADSET:
     case QAL_DEVICE_IN_USB_DEVICE:
     case QAL_DEVICE_IN_USB_HEADSET:
         QAL_VERBOSE(LOG_TAG, "USB device");
         return USB::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_IN_HANDSET_MIC:
         QAL_VERBOSE(LOG_TAG, "HandsetMic device");
         return HandsetMic::getInstance(device, Rm);
@@ -104,12 +102,10 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
         QAL_VERBOSE(LOG_TAG, "BTA2DP device");
         return BtA2dp::getInstance(device, Rm);
-        break;
     case QAL_DEVICE_OUT_AUX_DIGITAL:
     case QAL_DEVICE_OUT_HDMI:
         QAL_ERR(LOG_TAG, "Display Port device");
         return DisplayPort::getInstance(device, Rm);
-        break;
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -391,7 +387,6 @@ int Device::start()
 {
     int status = 0;
     std::string backEndName;
-
     mDeviceMutex.lock();
 
     QAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);

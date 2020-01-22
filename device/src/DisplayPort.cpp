@@ -29,7 +29,9 @@
 
 #define LOG_TAG "DisplayPort"
 #include "DisplayPort.h"
+#include "SessionAlsaUtils.h"
 #include "ResourceManager.h"
+#include "PayloadBuilder.h"
 #include "Device.h"
 #include "kvh2xml.h"
 
@@ -97,6 +99,60 @@ bool DisplayPort1::isDisplayPortEnabled () {
     return DisplayPort::isDisplayPortEnabled ();
 
 }*/
+int DisplayPort::start()
+{
+    int status = 0;
+    status = configureDpEndpoint();
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"Endpoint Configuration Failed");
+        return status;
+    }
+    status = Device::start();
+    return status;
+
+}
+
+int DisplayPort::configureDpEndpoint()
+{
+    int status = 0;
+    std::string backEndName;
+    PayloadBuilder* builder = new PayloadBuilder();
+    struct dpAudioConfig cfg;
+    uint8_t* payload = NULL;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    size_t payloadSize = 0;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<Stream*> activestreams;
+    uint32_t miid = 0;
+    rm->getBackendName(deviceAttr.id, backEndName);
+    dev = Device::getInstance(&deviceAttr, rm);
+    status = rm->getActiveStream(dev, activestreams);
+    if ((0 != status) || (activestreams.size() == 0)) {
+        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        return -EINVAL;
+    }
+    stream = static_cast<Stream *>(activestreams[0]);
+    stream->getAssociatedSession(&session);
+    status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_RX, &miid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
+        return status;
+    }
+    cfg.channel_allocation = 0x0;
+    cfg.mst_idx = 0x0;
+    cfg.dptx_idx = 0x0;
+    builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);
+    if (payloadSize) {
+        status = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+        return status;
+        }
+    }
+    return status;
+}
 
 int DisplayPort::init(qal_param_device_connection_t device_conn)
 {
