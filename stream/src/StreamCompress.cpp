@@ -544,30 +544,9 @@ int32_t StreamCompress::flush()
 
 int32_t StreamCompress::isSampleRateSupported(uint32_t sampleRate)
 {
-    int32_t rc = 0;
     QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
-    switch(sampleRate) {
-        case SAMPLINGRATE_8K:
-        case 11025:
-        case 12000:
-        case SAMPLINGRATE_16K:
-        case SAMPLINGRATE_22K:
-        case SAMPLINGRATE_24K:
-        case SAMPLINGRATE_32K:
-        case SAMPLINGRATE_44K:
-        case SAMPLINGRATE_48K:
-        case 88200:
-        case 176400:
-        case SAMPLINGRATE_96K:
-        case SAMPLINGRATE_192K:
-        case SAMPLINGRATE_384K:
-            break;
-       default:
-            rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported %d rc %d", sampleRate, rc);
-            break;
-    }
-    return rc;
+    // Allow all samplerates for compress streams
+    return 0;
 }
 
 int32_t StreamCompress::isChannelSupported(uint32_t numChannels)
