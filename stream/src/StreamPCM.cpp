@@ -324,6 +324,19 @@ int32_t StreamPCM::start()
         }
         QAL_VERBOSE(LOG_TAG, "output devices started successfully");
 
+        // start input device
+        for (int32_t i=0; i < mDevices.size(); i++) {
+            int32_t dev_id = mDevices[i]->getSndDeviceId();
+            if (dev_id <= QAL_DEVICE_IN_MIN || dev_id >= QAL_DEVICE_IN_MAX)
+                continue;
+            status = mDevices[i]->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
+                goto exit;
+            }
+        }
+        QAL_VERBOSE(LOG_TAG, "input devices started successfully");
+
         status = session->prepare(this);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session prepare is failed with status %d", status);
@@ -338,18 +351,6 @@ int32_t StreamPCM::start()
         }
         QAL_VERBOSE(LOG_TAG, "session start successful");
 
-        // start input device
-        for (int32_t i=0; i < mDevices.size(); i++) {
-            int32_t dev_id = mDevices[i]->getSndDeviceId();
-            if (dev_id <= QAL_DEVICE_IN_MIN || dev_id >= QAL_DEVICE_IN_MAX)
-                continue;
-            status = mDevices[i]->start();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx device start is failed with status %d", status);
-                goto exit;
-            }
-        }
-        QAL_VERBOSE(LOG_TAG, "output devices started successfully");
         break;
     default:
         status = -EINVAL;
