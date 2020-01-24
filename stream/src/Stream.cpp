@@ -87,7 +87,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         }
         status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr);
         if (status) {
-           QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+           QAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
            goto exit;
         }
         count++;
@@ -135,6 +135,7 @@ exit:
         QAL_ERR(LOG_TAG, "stream creation failed");
     }
 
+    QAL_ERR(LOG_TAG, "stream %pK created", stream);
     return stream;
 }
 
@@ -193,7 +194,7 @@ int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDe
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "no. of devices %d", mDevices.size());
+    QAL_ERR(LOG_TAG, "no. of devices %d", mDevices.size());
     for (int32_t i=0; i < mDevices.size(); i++) {
         aDevices.push_back(mDevices[i]);
     }
@@ -397,6 +398,107 @@ exit:
     return status;
 }
 
+int32_t Stream::disconnectStreamDevice(Stream* streamHandle, qal_device_id_t dev_id)
+{
+    int32_t status = -EINVAL;
+    std::shared_ptr<Device> dev = nullptr;
+
+    // Stream does not know if the same device is being used by other streams or not
+    // So if any other streams are using the same device that has to be handled outside of stream
+    // resouce manager ??
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        if (dev_id == mDevices[i]->getSndDeviceId()) {
+            QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
+                mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+
+            session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+
+            status = mDevices[i]->stop();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                goto error_1;
+            }
+            rm->deregisterDevice(mDevices[i]);
+
+            status = mDevices[i]->close();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                goto error_1;
+            }
+            mDevices.erase(mDevices.begin() + i);
+            break;
+        }
+    }
+
+error_1:
+    return status;
+}
+
+int32_t Stream::connectStreamDevice(Stream* streamHandle, struct qal_device *dattr)
+{
+    int32_t status = -EINVAL;
+    std::shared_ptr<Device> dev = nullptr;
+
+    if (!dattr) {
+        QAL_ERR(LOG_TAG, "invalid params");
+        status = -EINVAL;
+        goto error_1;
+    }
+
+    dev = Device::getInstance(dattr, rm);
+    if (!dev) {
+        QAL_ERR(LOG_TAG, "Device creation failed");
+        mStreamMutex.unlock();
+        throw std::runtime_error("failed to create device object");
+    }
+
+    /* Check if we need to check here or above if bt_Sco is on for sco usecase
+     * Device::getInstance will not set device attributes if the device instance
+     * created previously so set device config explictly.
+     */
+    dev->setDeviceAttributes(*dattr);
+
+    QAL_ERR(LOG_TAG, "device %d name %s, going to start",
+        dev->getSndDeviceId(), dev->getQALDeviceName().c_str());
+
+    status = dev->open();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "device %d open failed with status %d",
+            dev->getSndDeviceId(), status);
+        goto error_1;
+    }
+
+    mDevices.push_back(dev);
+    status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
+                dev->getSndDeviceId(), status);
+        mDevices.pop_back();
+        dev->close();
+        goto error_1;
+    }
+
+    rm->registerDevice(dev);
+
+    status = dev->start();
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
+            dev->getSndDeviceId(), dev->getQALDeviceName().c_str(), status);
+        goto error_2;
+    }
+    session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
+
+    goto error_1;
+
+error_2:
+    mDevices.pop_back();
+    rm->deregisterDevice(dev);
+    dev->close();
+error_1:
+    return status;
+}
+
 int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray)
 {
     int32_t status = -EINVAL;
@@ -405,19 +507,20 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     std::shared_ptr<Device> dev = nullptr;
     bool isNewDeviceA2dp = false;
     bool isCurrentDeviceA2dp = false;
+    uint32_t no_curr_devices = 0;
+    uint32_t curr_device_ids[QAL_DEVICE_IN_MAX];
 
     mStreamMutex.lock();
 
     if ((no_of_devices == 0) || (!deviceArray)) {
         QAL_ERR(LOG_TAG, "invalid param for device switch");
-        status = -EINVAL;
-        goto error_1;
+        goto done;
     }
 
     newDevices = new qal_device [no_of_devices];
     if (!newDevices) {
         QAL_ERR(LOG_TAG, "mQalDevice not created");
-        goto error_1;
+        goto done;
     }
 
     for (int i = 0; i < no_of_devices; i++) {
@@ -445,7 +548,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
             deviceArray[i].id = QAL_DEVICE_OUT_SPEAKER;
 
         if (deviceArray[i].id == QAL_DEVICE_NONE)
-            return 0;
+            goto done;
 
         if (!rm->isDeviceReady(deviceArray[i].id)) {
             QAL_ERR(LOG_TAG, "Device %d is not ready\n", deviceArray[i].id);
@@ -456,121 +559,47 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     }
 
     if (count == 0) /*  No device switch is new device is not ready */
-        return 0;
+        goto done;
 
     if (a2dp_compress_mute && mStreamAttr->type == QAL_STREAM_COMPRESSED &&
         !isNewDeviceA2dp) {
         setMute(false);
         a2dp_compress_mute = false;
     }
-    //tell rm we are disabling existing mDevices, so that it can disable any streams running on
-    // 1. mDevices with common backend
-    //TBD: as there are no devices with common backend now.
-    //rm->disableDevice(mDevices);
-
     //TODO: This check needs to be done before calling switchDevice
     // if (mDevices[0]->getSndDeviceId() == deviceArray[0].id) {
         // QAL_ERR(LOG_TAG, "same device, no need to switch %d", mDevices[0]->getSndDeviceId());
         // goto error_1;
     // }
 
-    QAL_ERR(LOG_TAG, "device %d name %s, going to stop %d devices",
-        mDevices[0]->getSndDeviceId(), mDevices[0]->getQALDeviceName().c_str(), mDevices.size());
-
-    for (int i = 0; i < mDevices.size(); i++) {
-        session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
-        QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
-            mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
-
-        status = mDevices[i]->stop();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Rx device stop failed with status %d", status);
-            goto error_1;
-        }
-
-        rm->deregisterDevice(mDevices[i]);
-
-        status = mDevices[i]->close();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-            goto error_1;
-        }
-
+    no_curr_devices = mDevices.size();
+    QAL_ERR(LOG_TAG, "number of active devices %d, new devices %d", no_curr_devices, no_of_devices);
+    for (int i = 0; i < no_curr_devices; i++) {
+        QAL_ERR(LOG_TAG, " Active device id %d name %s",
+                mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
+        curr_device_ids[i] = mDevices[i]->getSndDeviceId();
     }
 
-    //clear existing devices and enable new devices
-    mDevices.clear();
-
-    QAL_ERR(LOG_TAG, "Incoming device count %d, first id %d, stream_type = %d", no_of_devices, deviceArray[0].id, mStreamAttr->type);
-
-    /* overwrite device config with default one for speaker and stream rate for headset */
-    /*TODO: handle other devices */
+    // Disconnnect Current active Device
+    for (int i = 0; i < no_curr_devices; i++) {
+        status = disconnectStreamDevice(streamHandle, (qal_device_id_t)curr_device_ids[i]);
+        if (status) {
+            QAL_ERR(LOG_TAG, "failed to do disconnectStreamDevice() %d", status);
+            goto done;
+        }
+    }
+    
+    // Connect New device to the stream
     for (int i = 0; i < no_of_devices; i++) {
-        QAL_ERR(LOG_TAG, "Incoming device sample rate = %d %d", deviceArray[i].config.sample_rate, deviceArray[i].config.ch_info->channels);
-
-        dev = Device::getInstance((struct qal_device *)&deviceArray[i], rm);
-        if (!dev) {
-            QAL_ERR(LOG_TAG, "Device creation failed");
-            free(mStreamAttr);
-            //TBD::free session too
-            mStreamMutex.unlock();
-            throw std::runtime_error("failed to create device object");
+        status = connectStreamDevice(streamHandle, &deviceArray[i]);
+        if (status) {
+            QAL_ERR(LOG_TAG, "failed to do connectStreamDevice() %d", status);
+            goto done;
         }
-        /* Check if we need to check here or above if bt_Sco is on for sco usecase */
-        /* 
-         *  Device::getInstance will not set device attributes if the device instance created previously
-         *  So set device config explictly.
-         */
-        dev->setDeviceAttributes(deviceArray[i]);
-
-        status = dev->open();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                dev->getSndDeviceId(), status);
-            goto error_2;
-        }
-
-        QAL_ERR(LOG_TAG, "device %d name %s, going to start",
-            dev->getSndDeviceId(), dev->getQALDeviceName().c_str());
-
-        mDevices.push_back(dev);
-        status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
-                    dev->getSndDeviceId(), status);
-            mDevices.pop_back();
-            dev->close();
-            goto error_2;
-        }
-
-        rm->registerDevice(dev);
-
-        status = dev->start();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
-                dev->getSndDeviceId(), dev->getQALDeviceName().c_str(), status);
-            goto error_3;
-        }
-        session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
-        dev = nullptr;
     }
-
-    goto error_1;
-
-error_3:
-    mDevices.pop_back();
-    rm->deregisterDevice(dev);
-    dev->close();
-error_2:
-    if (mStreamAttr) {
-        free(mStreamAttr->out_media_config.ch_info);
-        free(mStreamAttr);
-        mStreamAttr = NULL;
-    }
-error_1:
+done:
     mStreamMutex.unlock();
     return status;
-
 }
 
 void Stream::setStandby(bool isStandby)

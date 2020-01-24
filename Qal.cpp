@@ -512,6 +512,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     /* TODO: Decide whether to update device config or not based on flag */
     s =  static_cast<Stream *>(stream_handle);
     s->getStreamAttributes(&sattr);
+
     for (int i = 0; i < no_of_devices; i++) {
         status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr);
         if (status) {
@@ -521,7 +522,9 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     }
     // TODO: Check with RM if the same device is being used by other stream with different
     // configuration then update corresponding stream device configuration also based on priority.
-    QAL_ERR(LOG_TAG, "%s: Enter. Stream handle :%pK no_of_devices %d first_device id %d", __func__, stream_handle, no_of_devices, devices[0].id);
+    QAL_ERR(LOG_TAG, "%s: Stream handle :%pK no_of_devices %d first_device id %d", __func__,
+            stream_handle, no_of_devices, devices[0].id);
+
     status = s->switchDevice(s, no_of_devices, devices);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "%s: failed with status %d", __func__, status);

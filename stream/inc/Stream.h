@@ -149,6 +149,8 @@ public:
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
     bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
     int32_t getTimestamp(struct qal_session_time *stime);
+    int disconnectStreamDevice(Stream* streamHandle,  qal_device_id_t dev_id);
+    int connectStreamDevice(Stream* streamHandle, struct qal_device *dattr);
     int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
     void setStandby(bool standby);
     bool getStandby();

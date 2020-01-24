@@ -157,9 +157,12 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
                          ch_info_size);
     else
         QAL_ERR(LOG_TAG, "Channel Map info in NULL");
+
     mQALDeviceName.clear();
     customPayload = NULL;
     customPayloadSize = 0;
+    QAL_ERR(LOG_TAG,"device instance for id %d created", device->id);
+
 }
 
 Device::Device()
@@ -175,6 +178,7 @@ Device::~Device()
 
     customPayload = NULL;
     customPayloadSize = 0;
+    QAL_ERR(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
     if (deviceAttr.config.ch_info)
         free(deviceAttr.config.ch_info);
 }

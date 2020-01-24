@@ -1984,20 +1984,27 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
                 if (dattr.id == inDevAttr->id) {
                     isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
-                    if (isDeviceSwitch) {
-                        // case 1. if incoming device config has more priority then do device switch all the existing streams with incoming device config
-                        // Swichdevice will disable all the devices on this stream and re-enable with what we send here
-                        // TODO: add new method to disable devices only what is required
-                        inDev->setDeviceAttributes(*inDevAttr);
-                        (*sIter)->switchDevice(*sIter, 1, inDevAttr);
-                    } else {
-                        // case 2. If incoming device config has lower priority then update incoming device config with other stream config
-                        //TODO:  No need to loop through in this case as all active streams will be using same device config
-                        QAL_ERR(LOG_TAG, "%s: Found device %d is already running with higher priority device config", __func__, dattr.id);
-                        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
-                    }
+                    // No need to loop through once device found
+                    goto check_ds;
                 }
             }
+        }
+check_ds:
+        if (isDeviceSwitch) {
+            // case 1. if incoming device config has more priority then do device switch
+            // stop all the streams connected to the device
+            for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+                (*sIter)->disconnectStreamDevice(*sIter, inDevAttr->id);
+
+            // start all the streams with new device config.
+            for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+                (*sIter)->connectStreamDevice(*sIter, inDevAttr);
+        } else {
+            // case 2. If incoming device config has lower priority then update incoming
+            //  device config with currently running device config
+            QAL_ERR(LOG_TAG, "%s: device %d is already running with higher priority device config",
+                    __func__, inDevAttr->id);
+            memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
         }
     } else {
         // Voice call is active - change incoming device to voice call device config
@@ -2152,7 +2159,7 @@ int ResourceManager::getNativeAudioSupport()
         na_props.ui_na_prop_enabled) {
         ret = na_props.na_mode;
     }
-    QAL_VERBOSE(LOG_TAG,"napb: ui Prop enabled(%d) mode(%d)",
+    QAL_ERR(LOG_TAG,"napb: ui Prop enabled(%d) mode(%d)",
            na_props.ui_na_prop_enabled, na_props.na_mode);
     return ret;
 }
@@ -2164,7 +2171,7 @@ int ResourceManager::setNativeAudioSupport(int na_mode)
         || NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == na_mode) {
         na_props.rm_na_prop_enabled = na_props.ui_na_prop_enabled = true;
         na_props.na_mode = na_mode;
-        QAL_VERBOSE(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
+        QAL_ERR(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
               ((na_mode == NATIVE_AUDIO_MODE_SRC)?"SRC":
                (na_mode == NATIVE_AUDIO_MODE_TRUE_44_1)?"True":
                (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC)?"Multiple_Mix_Codec":"Multiple_Mix_DSP"));
