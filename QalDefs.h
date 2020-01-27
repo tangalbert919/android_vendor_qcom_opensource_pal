@@ -41,6 +41,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <map>
+#include <string>
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,6 +83,25 @@ typedef enum {
 #define PCM_16_BIT (0x1u)
 
 #define SAMPLE_RATE_192000 192000
+
+static const std::map<std::string, qal_audio_fmt_t> QalAudioFormatMap
+{
+    { "PCM",  QAL_AUDIO_FMT_DEFAULT_PCM},
+    { "MP3",  QAL_AUDIO_FMT_MP3},
+    { "AAC",  QAL_AUDIO_FMT_AAC},
+    { "AAC_ADTS",  QAL_AUDIO_FMT_AAC_ADTS},
+    { "AAC_ADIF",  QAL_AUDIO_FMT_AAC_ADIF},
+    { "AAC_LATM",  QAL_AUDIO_FMT_AAC_LATM},
+    { "WMA_STD",  QAL_AUDIO_FMT_WMA_STD},
+    { "ALAC", QAL_AUDIO_FMT_ALAC},
+    { "APE", QAL_AUDIO_FMT_APE},
+    { "WMA_PRO", QAL_AUDIO_FMT_WMA_PRO},
+    { "FLAC", QAL_AUDIO_FMT_FLAC},
+    { "FLAC_OGG", QAL_AUDIO_FMT_FLAC_OGG},
+    { "VORBIS", QAL_AUDIO_FMT_VORBIS}
+
+};
+
 struct qal_snd_dec_aac {
     uint16_t audio_obj_type;
     uint16_t pce_bits_size;
@@ -310,6 +331,84 @@ typedef enum {
     // Add new IN devices here, increment MAX and MIN below when you do so
     QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 20,
 } qal_device_id_t;
+
+static const std::map<std::string, qal_device_id_t> deviceIdLUT {
+    {std::string{ "QAL_DEVICE_NONE" },                     QAL_DEVICE_NONE},
+    {std::string{ "QAL_DEVICE_OUT_HANDSET" },             QAL_DEVICE_OUT_HANDSET},
+    {std::string{ "QAL_DEVICE_OUT_SPEAKER" },              QAL_DEVICE_OUT_SPEAKER},
+    {std::string{ "QAL_DEVICE_OUT_WIRED_HEADSET" },        QAL_DEVICE_OUT_WIRED_HEADSET},
+    {std::string{ "QAL_DEVICE_OUT_WIRED_HEADPHONE" },      QAL_DEVICE_OUT_WIRED_HEADPHONE},
+    {std::string{ "QAL_DEVICE_OUT_LINE" },                 QAL_DEVICE_OUT_LINE},
+    {std::string{ "QAL_DEVICE_OUT_BLUETOOTH_SCO" },        QAL_DEVICE_OUT_BLUETOOTH_SCO},
+    {std::string{ "QAL_DEVICE_OUT_BLUETOOTH_A2DP" },       QAL_DEVICE_OUT_BLUETOOTH_A2DP},
+    {std::string{ "QAL_DEVICE_OUT_AUX_DIGITAL" },          QAL_DEVICE_OUT_AUX_DIGITAL},
+    {std::string{ "QAL_DEVICE_OUT_HDMI" },                 QAL_DEVICE_OUT_HDMI},
+    {std::string{ "QAL_DEVICE_OUT_USB_DEVICE" },           QAL_DEVICE_OUT_USB_DEVICE},
+    {std::string{ "QAL_DEVICE_OUT_USB_HEADSET" },          QAL_DEVICE_OUT_USB_HEADSET},
+    {std::string{ "QAL_DEVICE_OUT_SPDIF" },                QAL_DEVICE_OUT_SPDIF},
+    {std::string{ "QAL_DEVICE_OUT_FM" },                   QAL_DEVICE_OUT_FM},
+    {std::string{ "QAL_DEVICE_OUT_AUX_LINE" },             QAL_DEVICE_OUT_AUX_LINE},
+    {std::string{ "QAL_DEVICE_OUT_PROXY" },                QAL_DEVICE_OUT_PROXY},
+    {std::string{ "QAL_DEVICE_IN_HANDSET_MIC" },           QAL_DEVICE_IN_HANDSET_MIC},
+    {std::string{ "QAL_DEVICE_IN_SPEAKER_MIC" },           QAL_DEVICE_IN_SPEAKER_MIC},
+    {std::string{ "QAL_DEVICE_IN_TRI_MIC" },               QAL_DEVICE_IN_TRI_MIC},
+    {std::string{ "QAL_DEVICE_IN_QUAD_MIC" },              QAL_DEVICE_IN_QUAD_MIC},
+    {std::string{ "QAL_DEVICE_IN_EIGHT_MIC" },             QAL_DEVICE_IN_EIGHT_MIC},
+    {std::string{ "QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" }, QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET},
+    {std::string{ "QAL_DEVICE_IN_WIRED_HEADSET" },         QAL_DEVICE_IN_WIRED_HEADSET},
+    {std::string{ "QAL_DEVICE_IN_AUX_DIGITAL" },           QAL_DEVICE_IN_AUX_DIGITAL},
+    {std::string{ "QAL_DEVICE_IN_HDMI" },                  QAL_DEVICE_IN_HDMI},
+    {std::string{ "QAL_DEVICE_IN_USB_ACCESSORY" },         QAL_DEVICE_IN_USB_ACCESSORY},
+    {std::string{ "QAL_DEVICE_IN_USB_DEVICE" },            QAL_DEVICE_IN_USB_DEVICE},
+    {std::string{ "QAL_DEVICE_IN_USB_HEADSET" },           QAL_DEVICE_IN_USB_HEADSET},
+    {std::string{ "QAL_DEVICE_IN_FM_TUNER" },              QAL_DEVICE_IN_FM_TUNER},
+    {std::string{ "QAL_DEVICE_IN_LINE" },                  QAL_DEVICE_IN_LINE},
+    {std::string{ "QAL_DEVICE_IN_SPDIF" },                 QAL_DEVICE_IN_SPDIF},
+    {std::string{ "QAL_DEVICE_IN_PROXY" },                 QAL_DEVICE_IN_PROXY},
+    {std::string{ "QAL_DEVICE_IN_HANDSET_VA_MIC" },        QAL_DEVICE_IN_HANDSET_VA_MIC},
+    {std::string{ "QAL_DEVICE_IN_BLUETOOTH_A2DP" },        QAL_DEVICE_IN_BLUETOOTH_A2DP},
+    {std::string{ "QAL_DEVICE_IN_HEADSET_VA_MIC" },        QAL_DEVICE_IN_HEADSET_VA_MIC}
+};
+
+//reverse mapping
+static const std::map<uint32_t, std::string> deviceNameLUT {
+    {QAL_DEVICE_NONE,                     std::string{"QAL_DEVICE_NONE"}},
+    {QAL_DEVICE_OUT_HANDSET,              std::string{"QAL_DEVICE_OUT_HANDSET"}},
+    {QAL_DEVICE_OUT_SPEAKER,              std::string{"QAL_DEVICE_OUT_SPEAKER"}},
+    {QAL_DEVICE_OUT_WIRED_HEADSET,        std::string{"QAL_DEVICE_OUT_WIRED_HEADSET"}},
+    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      std::string{"QAL_DEVICE_OUT_WIRED_HEADPHONE"}},
+    {QAL_DEVICE_OUT_LINE,                 std::string{"QAL_DEVICE_OUT_LINE"}},
+    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        std::string{"QAL_DEVICE_OUT_BLUETOOTH_SCO"}},
+    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       std::string{"_DEVICE_OUT_BLUETOOTH_A2DP"}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL,          std::string{"_DEVICE_OUT_AUX_DIGITAL"}},
+    {QAL_DEVICE_OUT_HDMI,                 std::string{"_DEVICE_OUT_HDMI"}},
+    {QAL_DEVICE_OUT_USB_DEVICE,           std::string{"_DEVICE_OUT_USB_DEVICE"}},
+    {QAL_DEVICE_OUT_USB_HEADSET,          std::string{"_DEVICE_OUT_USB_HEADSET"}},
+    {QAL_DEVICE_OUT_SPDIF,                std::string{"_DEVICE_OUT_SPDIF"}},
+    {QAL_DEVICE_OUT_FM,                   std::string{"_DEVICE_OUT_FM"}},
+    {QAL_DEVICE_OUT_AUX_LINE,             std::string{"_DEVICE_OUT_AUX_LINE"}},
+    {QAL_DEVICE_OUT_PROXY,                std::string{"_DEVICE_OUT_PROXY"}},
+    {QAL_DEVICE_IN_HANDSET_MIC,           std::string{"_DEVICE_IN_HANDSET_MIC"}},
+    {QAL_DEVICE_IN_SPEAKER_MIC,           std::string{"_DEVICE_IN_SPEAKER_MIC"}},
+    {QAL_DEVICE_IN_TRI_MIC,               std::string{"_DEVICE_IN_TRI_MIC"}},
+    {QAL_DEVICE_IN_QUAD_MIC,              std::string{"_DEVICE_IN_QUAD_MIC"}},
+    {QAL_DEVICE_IN_EIGHT_MIC,             std::string{"_DEVICE_IN_EIGHT_MIC"}},
+    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, std::string{"_DEVICE_IN_BLUETOOTH_SCO_HEADSET"}},
+    {QAL_DEVICE_IN_WIRED_HEADSET,         std::string{"_DEVICE_IN_WIRED_HEADSET"}},
+    {QAL_DEVICE_IN_AUX_DIGITAL,           std::string{"_DEVICE_IN_AUX_DIGITAL"}},
+    {QAL_DEVICE_IN_HDMI,                  std::string{"_DEVICE_IN_HDMI"}},
+    {QAL_DEVICE_IN_USB_ACCESSORY,         std::string{"_DEVICE_IN_USB_ACCESSORY"}},
+    {QAL_DEVICE_IN_USB_DEVICE,            std::string{"_DEVICE_IN_USB_DEVICE"}},
+    {QAL_DEVICE_IN_USB_HEADSET,           std::string{"_DEVICE_IN_USB_HEADSET"}},
+    {QAL_DEVICE_IN_FM_TUNER,              std::string{"_DEVICE_IN_FM_TUNER"}},
+    {QAL_DEVICE_IN_LINE,                  std::string{"_DEVICE_IN_LINE"}},
+    {QAL_DEVICE_IN_SPDIF,                 std::string{"_DEVICE_IN_SPDIF"}},
+    {QAL_DEVICE_IN_PROXY,                 std::string{"_DEVICE_IN_PROXY"}},
+    {QAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"_DEVICE_IN_HANDSET_VA_MIC"}},
+    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"_QAL_DEVICE_IN_BLUETOOTH_A2DP"}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"QAL_DEVICE_IN_HEADSET_VA_MIC"}}
+};
+
 
 
 /* type of asynchronous write callback events. Mutually exclusive */
