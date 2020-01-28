@@ -335,8 +335,9 @@ typedef enum {
 
 #ifdef __cplusplus
 static const std::map<std::string, qal_device_id_t> deviceIdLUT {
+    {std::string{ "QAL_DEVICE_OUT_MIN" },                  QAL_DEVICE_OUT_MIN},
     {std::string{ "QAL_DEVICE_NONE" },                     QAL_DEVICE_NONE},
-    {std::string{ "QAL_DEVICE_OUT_HANDSET" },             QAL_DEVICE_OUT_HANDSET},
+    {std::string{ "QAL_DEVICE_OUT_HANDSET" },              QAL_DEVICE_OUT_HANDSET},
     {std::string{ "QAL_DEVICE_OUT_SPEAKER" },              QAL_DEVICE_OUT_SPEAKER},
     {std::string{ "QAL_DEVICE_OUT_WIRED_HEADSET" },        QAL_DEVICE_OUT_WIRED_HEADSET},
     {std::string{ "QAL_DEVICE_OUT_WIRED_HEADPHONE" },      QAL_DEVICE_OUT_WIRED_HEADPHONE},
@@ -351,6 +352,7 @@ static const std::map<std::string, qal_device_id_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_OUT_FM" },                   QAL_DEVICE_OUT_FM},
     {std::string{ "QAL_DEVICE_OUT_AUX_LINE" },             QAL_DEVICE_OUT_AUX_LINE},
     {std::string{ "QAL_DEVICE_OUT_PROXY" },                QAL_DEVICE_OUT_PROXY},
+    {std::string{ "QAL_DEVICE_OUT_MAX" },                  QAL_DEVICE_OUT_MAX},
     {std::string{ "QAL_DEVICE_IN_HANDSET_MIC" },           QAL_DEVICE_IN_HANDSET_MIC},
     {std::string{ "QAL_DEVICE_IN_SPEAKER_MIC" },           QAL_DEVICE_IN_SPEAKER_MIC},
     {std::string{ "QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" }, QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET},
@@ -371,6 +373,7 @@ static const std::map<std::string, qal_device_id_t> deviceIdLUT {
 
 //reverse mapping
 static const std::map<uint32_t, std::string> deviceNameLUT {
+    {QAL_DEVICE_OUT_MIN,                  std::string{"QAL_DEVICE_OUT_MIN"}},
     {QAL_DEVICE_NONE,                     std::string{"QAL_DEVICE_NONE"}},
     {QAL_DEVICE_OUT_HANDSET,              std::string{"QAL_DEVICE_OUT_HANDSET"}},
     {QAL_DEVICE_OUT_SPEAKER,              std::string{"QAL_DEVICE_OUT_SPEAKER"}},
@@ -387,6 +390,7 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_OUT_FM,                   std::string{"_DEVICE_OUT_FM"}},
     {QAL_DEVICE_OUT_AUX_LINE,             std::string{"_DEVICE_OUT_AUX_LINE"}},
     {QAL_DEVICE_OUT_PROXY,                std::string{"_DEVICE_OUT_PROXY"}},
+    {QAL_DEVICE_OUT_MAX,                  std::string{"QAL_DEVICE_OUT_MAX"}},
     {QAL_DEVICE_IN_HANDSET_MIC,           std::string{"_DEVICE_IN_HANDSET_MIC"}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           std::string{"_DEVICE_IN_SPEAKER_MIC"}},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, std::string{"_DEVICE_IN_BLUETOOTH_SCO_HEADSET"}},

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -117,6 +117,9 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
     status = s->open();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_open failed with status %d", status);
+        if (s->close() != 0) {
+            QAL_ERR(LOG_TAG, "stream closed failed.");
+        }
         delete s;
         return status;
     }

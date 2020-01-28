@@ -103,8 +103,9 @@ else using legacy design for alsa
 // Will update actual value when numbers got for VT
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
+    {QAL_DEVICE_OUT_MIN,                  {std::string{ "none" }}},
     {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -119,6 +120,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
@@ -134,10 +136,12 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
+    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
 };
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
+    {QAL_DEVICE_OUT_MIN,                  0},
     {QAL_DEVICE_NONE,                     0},
     {QAL_DEVICE_OUT_HANDSET,              1},
     {QAL_DEVICE_OUT_SPEAKER,              1},
@@ -154,6 +158,8 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_OUT_FM,                   0},
     {QAL_DEVICE_OUT_AUX_LINE,             0},
     {QAL_DEVICE_OUT_PROXY,                0},
+    {QAL_DEVICE_OUT_MAX,                  0},
+
     {QAL_DEVICE_IN_HANDSET_MIC,           0},
     {QAL_DEVICE_IN_SPEAKER_MIC,           0},
     {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
@@ -168,14 +174,15 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_IN_SPDIF,                 0},
     {QAL_DEVICE_IN_PROXY,                 0},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        0},
+    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        0},
 };
 
 // To be defined in detail
-
 std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
+    {QAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
     {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -190,6 +197,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
@@ -205,6 +213,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
 };
 
@@ -267,8 +276,6 @@ void str_parms_del(struct str_parms *str_parms, const char *key){return;}
 std::vector<deviceIn> ResourceManager::deviceInfo;
 struct vsid_info ResourceManager::vsidInfo;
 
-//std::multimap <int, std::string> ResourceManager::listAllBackEndIds;
-
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 
 #define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
@@ -286,8 +293,9 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
 };
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
+    {QAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
     {QAL_DEVICE_NONE,                     {std::string{ "" }}},
-    {QAL_DEVICE_OUT_HANDSET,             {std::string{ "" }}},
+    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
     {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "none" }}},
     {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
@@ -302,6 +310,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "none" }}},
@@ -317,7 +326,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}}
+    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
 };
 
 ResourceManager::ResourceManager()
@@ -1429,7 +1439,7 @@ int ResourceManager::getSndCard()
 
 int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
-    if (deviceId > QAL_DEVICE_OUT_MIN && deviceId < QAL_DEVICE_IN_MAX) {
+    if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
@@ -1441,7 +1451,7 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 
 int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
 {
-    if (deviceId > QAL_DEVICE_OUT_MIN && deviceId < QAL_DEVICE_IN_MAX) {
+    if (isValidDevId(deviceId)) {
         epName.assign(deviceLinkName[deviceId].second);
     } else {
         QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
@@ -1449,12 +1459,13 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
     }
     return 0;
 }
+
 // TODO: Should pcm device be related to usecases used(ll/db/comp/ulla)?
 // Use Low Latency as default by now
 int ResourceManager::getPcmDeviceId(int deviceId)
 {
     int pcm_device_id = -1;
-    if (deviceId <= QAL_DEVICE_OUT_MIN || deviceId >= QAL_DEVICE_IN_MAX) {
+    if (!isValidDevId(deviceId)) {
         QAL_ERR(LOG_TAG, " Invalid device id %d", deviceId);
         return -EINVAL;
     }
@@ -1831,13 +1842,14 @@ void ResourceManager::getSharedBEDevices(std::vector<std::shared_ptr<Device>> &d
 
     deviceList.clear();
     dev_id = inDevice->getSndDeviceId();
-    if (dev_id >= QAL_DEVICE_OUT_HANDSET && dev_id <= QAL_DEVICE_IN_PROXY)
+    if (isValidDevId(dev_id) && (dev_id != QAL_DEVICE_NONE))
         backEndName = listAllBackEndIds[dev_id].second;
 
-    for (int i = QAL_DEVICE_OUT_HANDSET; i <= QAL_DEVICE_IN_PROXY; i++) {
-        if ((i != dev_id) && (backEndName == listAllBackEndIds[i].second)) {
+    for (int i = QAL_DEVICE_OUT_HANDSET; i < QAL_DEVICE_IN_MAX; i++) {
+        if ((i != dev_id) && (i != QAL_DEVICE_OUT_MAX)
+                && (backEndName == listAllBackEndIds[i].second)) {
             dev = Device::getObject((qal_device_id_t) i);
-            if(dev)
+            if (dev)
                 deviceList.push_back(dev);
         }
     }
@@ -1857,7 +1869,7 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
         QAL_ERR(LOG_TAG, "device id %d", dev_id);
-        if (dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_IN_MAX) {
+        if (isValidDevId(dev_id)) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
         } else {
@@ -2146,23 +2158,32 @@ done:
 const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
 {
     QAL_DBG(LOG_TAG, "%s: id %d", __func__, id);
-#if 0
-    android::CallStack cs;
-    cs.update();
-    cs.dump(1);
-#endif
-    return deviceNameLUT.at(id);
+    if (isValidDevId(id)) {
+        return deviceNameLUT.at(id);
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", id);
+        return std::string("");
+    }
 }
 
 int ResourceManager::getBackendName(int deviceId, std::string &backendName)
 {
-    if (deviceId > QAL_DEVICE_NONE && deviceId < QAL_DEVICE_IN_MAX) {
+    if (isValidDevId(deviceId) && (deviceId != QAL_DEVICE_NONE)) {
         backendName.assign(listAllBackEndIds[deviceId].second);
     } else {
         QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;
+}
+
+bool ResourceManager::isValidDevId(int deviceId)
+{
+    if (((deviceId >= QAL_DEVICE_NONE) && (deviceId < QAL_DEVICE_OUT_MAX))
+        || ((deviceId > QAL_DEVICE_IN_MIN) && (deviceId < QAL_DEVICE_IN_MAX)))
+        return true;
+
+    return false;
 }
 
 bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const
@@ -2370,22 +2391,38 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
 }
 void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId)
 {
-    devicePcmId[deviceId].second = pcmId;
+    if (isValidDevId(deviceId)) {
+        devicePcmId[deviceId].second = pcmId;
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+    }
 }
 
 void ResourceManager::updateLinkName(int32_t deviceId, std::string linkName)
 {
-    deviceLinkName[deviceId].second = linkName;
+    if (isValidDevId(deviceId)) {
+        deviceLinkName[deviceId].second = linkName;
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+    }
 }
 
 void ResourceManager::updateSndName(int32_t deviceId, std::string sndName)
 {
-    sndDeviceNameLUT[deviceId].second = sndName;
+    if (isValidDevId(deviceId)) {
+        sndDeviceNameLUT[deviceId].second = sndName;
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+    }
 }
 
 void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndName)
 {
-    listAllBackEndIds[deviceId].second = backEndName;
+    if (isValidDevId(deviceId)) {
+        listAllBackEndIds[deviceId].second = backEndName;
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+    }
 }
 
 int convertCharToHex(std::string num)

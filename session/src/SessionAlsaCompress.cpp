@@ -249,9 +249,13 @@ int SessionAlsaCompress::open(Stream * s)
     }
 
     compressDevIds = rm->allocateFrontEndIds(sAttr, 0);
+    if (compressDevIds.size() == 0) {
+        QAL_ERR(LOG_TAG, "no more FE vailable");
+        return -EINVAL;
+    }
     for (int i = 0; i < compressDevIds.size(); i++) {
-       //compressDevIds[i] = 5;
-    QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
+        //compressDevIds[i] = 5;
+        QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, emptyBackEnds);
     status = rm->getAudioMixer(&mixer);
@@ -745,8 +749,15 @@ int SessionAlsaCompress::close(Stream * s)
     /** Disconnect FE to BE */
     mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
     compress_close(compress);
-
     QAL_DBG(LOG_TAG, "out of compress close");
+
+    rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+    if (customPayload) {
+        free(customPayload);
+        customPayload = NULL;
+        customPayloadSize = 0;
+    }
+
     {
     std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
     std::lock_guard<std::mutex> lock(cv_mutex_);
@@ -761,12 +772,6 @@ int SessionAlsaCompress::close(Stream * s)
     /* empty the pending messages in queue */
     while (!msg_queue_.empty())
         msg_queue_.pop();
-    rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-    if (customPayload) {
-        free(customPayload);
-        customPayload = NULL;
-        customPayloadSize = 0;
-    }
     return 0;
 }
 
