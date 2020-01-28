@@ -544,13 +544,13 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     }
 
     for (int i = 0; i < no_of_devices; i++) {
-/*
-      * When A2DP is disconnected the
-      * music playback is paused and the policy manager sends routing=0
-      * But the audioflinger continues to write data until standby time
-      * (3sec). As BT is turned off, the write gets blocked.
-      * Avoid this by routing audio to speaker until standby.
-*/
+        /*
+         * When A2DP is disconnected the
+         * music playback is paused and the policy manager sends routing=0
+         * But the audioflinger continues to write data until standby time
+         * (3sec). As BT is turned off, the write gets blocked.
+         * Avoid this by routing audio to speaker until standby.
+         */
         if ((deviceArray[i].id == QAL_DEVICE_NONE) &&   /* This assumes that QAL_DEVICE_NODE comes as single device */
             (isCurrentDeviceA2dp == true) && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP))
             deviceArray[i].id = QAL_DEVICE_OUT_SPEAKER;
@@ -566,7 +566,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
         }
     }
 
-    if (count == 0) /*  No device switch is new device is not ready */
+    /*  No device switch is new device is not ready */
+    if (count == 0)
         goto done;
 
     if (a2dp_compress_mute && mStreamAttr->type == QAL_STREAM_COMPRESSED &&

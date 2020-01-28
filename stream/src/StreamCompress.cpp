@@ -171,7 +171,9 @@ int32_t StreamCompress::close()
         }
     }
     QAL_VERBOSE(LOG_TAG,"closed the devices successfully");
+    rm->lockGraph();
     status = session->close(this);
+    rm->unlockGraph();
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session close failed with status %d",status);
        goto exit;
@@ -249,6 +251,7 @@ int32_t StreamCompress::start()
     QAL_VERBOSE(LOG_TAG,"start, session handle - %p mStreamAttr->direction - %d", session, mStreamAttr->direction);
     switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
+            rm->lockGraph();
             QAL_VERBOSE(LOG_TAG,"Inside QAL_AUDIO_OUTPUT device count - %d", mDevices.size());
             for (int32_t i=0; i < mDevices.size(); i++) {
 
@@ -260,6 +263,7 @@ int32_t StreamCompress::start()
                 mStreamMutex.lock();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG,"Rx device start failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
@@ -267,15 +271,18 @@ int32_t StreamCompress::start()
             status = session->prepare(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session prepare is failed with status %d",status);
+                rm->unlockGraph();
                 goto exit;
             }
             QAL_VERBOSE(LOG_TAG,"session prepare successful");
             status = session->start(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session start is failed with status %d",status);
+                rm->unlockGraph();
                 goto exit;
             }
             QAL_VERBOSE(LOG_TAG,"session start successful");
+            rm->unlockGraph();
             break;
         default:
             status = -EINVAL;
@@ -300,9 +307,9 @@ int32_t StreamCompress::prepare()
     if (status)
        QAL_ERR(LOG_TAG,"session prepare failed with status = %d", status);
 
-   mStreamMutex.lock();
-   QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
-   return status;
+    mStreamMutex.unlock();
+    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    return status;
 }
 
 int32_t StreamCompress::pause()

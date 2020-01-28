@@ -219,6 +219,7 @@ protected:
     bool bOverwriteFlag;
     bool screen_state_;
     static std::mutex mResourceManagerMutex;
+    static std::mutex mGraphMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -359,6 +360,8 @@ public:
     int32_t a2dpResume();
     bool isPluginDevice(qal_device_id_t id);
     bool isDpDevice(qal_device_id_t id);
+    void lockGraph() { mGraphMutex.lock(); };
+    void unlockGraph() { mGraphMutex.unlock(); };
 };
 
 #endif

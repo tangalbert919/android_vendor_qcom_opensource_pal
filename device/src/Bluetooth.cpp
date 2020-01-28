@@ -171,7 +171,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
     }
 
     if (is_handoff_in_progress) {
-        QAL_ERR(LOG_TAG, "rohit resetting placeholder module\n");
+        QAL_ERR(LOG_TAG, "resetting placeholder module\n");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
         if (!paramData) {
@@ -213,7 +213,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
         goto error;
     }
 
-/* Update Device sampleRate based on encoder config */
+    /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes(codec_format, type);
 
     builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
@@ -279,7 +279,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     a2dp_role = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
 
     init();
-    sleep(1); //TODO: to add interval properly
+    usleep(20 * 1000); //TODO: to add interval properly
     open_a2dp_source();
     param_bt_a2dp.reconfigured = false;
     param_bt_a2dp.a2dp_suspended = false;
@@ -297,6 +297,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 BtA2dp::~BtA2dp()
 {
     is_handoff_in_progress = false;
+    close_audio_source();
 }
 
 void BtA2dp::open_a2dp_source()
@@ -739,12 +740,28 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     }
 
     switch(param_id) {
+    case QAL_PARAM_ID_DEVICE_CONNECTION:
+    {
+        qal_param_device_connection_t *device_connection =
+            (qal_param_device_connection_t *)param;
+        if (device_connection->connection_state == true) {
+            if (a2dp_role == SOURCE)
+                open_a2dp_source();
+        } else {
+            if (a2dp_role == SOURCE) {
+                status = close_audio_source();
+            }
+        }
+        break;
+    }
     case QAL_PARAM_ID_BT_A2DP_RECONFIG:
+    {
         if (bt_state_source == A2DP_STATE_STARTED) {
             param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
             is_handoff_in_progress = param_a2dp->reconfigured;
         }
         break;
+    }
     case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
     {
         if (bt_lib_source_handle == nullptr)
@@ -863,7 +880,7 @@ std::shared_ptr<Device> BtSco::getInstance(struct qal_device *device,
         return objRx;
     } else {
         if (!objTx) {
-            QAL_ERR( LOG_TAG, "rohit %s creating instance for  %d\n", __func__, device->id);
+            QAL_ERR( LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
             std::shared_ptr<Device> sp(new BtSco(device, Rm));
             objTx = sp;
         }

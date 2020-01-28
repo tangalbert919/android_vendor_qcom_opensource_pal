@@ -201,7 +201,9 @@ int32_t  StreamPCM::close()
     }
     QAL_VERBOSE(LOG_TAG, "closed the devices successfully");
 
+    rm->lockGraph();
     status = session->close(this);
+    rm->unlockGraph();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session close failed with status %d", status);
         goto exit;
@@ -241,6 +243,7 @@ int32_t StreamPCM::start()
 
     switch (mStreamAttr->direction) {
     case QAL_AUDIO_OUTPUT:
+        rm->lockGraph();
         QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
                         mDevices.size());
         for (int32_t i=0; i < mDevices.size(); i++) {
@@ -250,6 +253,7 @@ int32_t StreamPCM::start()
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
                         status);
+                rm->unlockGraph();
                 goto exit;
             }
         }
@@ -259,6 +263,7 @@ int32_t StreamPCM::start()
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
                     status);
+            rm->unlockGraph();
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session prepare successful");
@@ -267,9 +272,11 @@ int32_t StreamPCM::start()
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
                     status);
+            rm->unlockGraph();
             goto exit;
         }
         QAL_VERBOSE(LOG_TAG, "session start successful");
+        rm->unlockGraph();
         break;
 
     case QAL_AUDIO_INPUT:

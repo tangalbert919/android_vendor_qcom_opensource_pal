@@ -244,6 +244,7 @@ std::vector <int> ResourceManager::mixerTag = {0};
 std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mResourceManagerMutex;
+std::mutex ResourceManager::mGraphMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -2456,6 +2457,7 @@ void ResourceManager::updateDeviceTag(int32_t tagId)
     deviceTag.push_back(tagId);
 }
 
+// must be called with mResourceManagerMutex held
 int32_t ResourceManager::a2dpSuspend()
 {
     std::shared_ptr<Device> dev = nullptr;
@@ -2467,7 +2469,7 @@ int32_t ResourceManager::a2dpSuspend()
     dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
     dev = Device::getInstance(&dattr , rm);
 
-    getActiveStream(dev, activeStreams);
+    getActiveStream_l(dev, activeStreams);
 
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no active streams found");
@@ -2512,6 +2514,7 @@ exit:
     return status;
 }
 
+// must be called with mResourceManagerMutex held
 int32_t ResourceManager::a2dpResume()
 {
     std::shared_ptr<Device> dev = nullptr;
@@ -2523,16 +2526,16 @@ int32_t ResourceManager::a2dpResume()
     dattr.id = QAL_DEVICE_OUT_SPEAKER;
     dev = Device::getInstance(&dattr , rm);
 
-    getActiveStream(dev, activeStreams);
+    getActiveStream_l(dev, activeStreams);
 
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no active streams found");
         goto exit;
     }
 
-// check all active stream associated with speaker
-// if the stream actual device is a2dp, then switch back to a2dp
-// unmute the stream
+    // check all active stream associated with speaker
+    // if the stream actual device is a2dp, then switch back to a2dp
+    // unmute the stream
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         int ret = 0;
         qal_stream_type_t type;
@@ -2636,12 +2639,21 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         break;
         case QAL_PARAM_ID_DEVICE_CONNECTION:
         {
-            qal_param_device_connection_t *param_device_connection = (qal_param_device_connection_t *)param_payload;
+            qal_param_device_connection_t *device_connection =
+                (qal_param_device_connection_t *)param_payload;
+            std::shared_ptr<Device> dev = nullptr;
+            struct qal_device dattr;
+
             QAL_INFO(LOG_TAG, "Device %d connected = %d",
-                        param_device_connection->id,
-                        param_device_connection->connection_state);
+                        device_connection->id,
+                        device_connection->connection_state);
             if (payload_size == sizeof(qal_param_device_connection_t)) {
-                status = handleDeviceConnectionChange(*param_device_connection);
+                status = handleDeviceConnectionChange(*device_connection);
+                if (!status && (device_connection->id == QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                    dattr.id = device_connection->id;
+                    dev = Device::getInstance(&dattr, rm);
+                    status = dev->setDeviceParameter(param_id, param_payload);
+                }
             } else {
                 QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
                       sizeof(qal_param_device_connection_t), payload_size);
@@ -2723,7 +2735,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
 
             if (param_bt_a2dp->a2dp_suspended == false) {
-            /* Handle bt sco mic running usecase */
+                /* Handle bt sco mic running usecase */
                 struct qal_device sco_tx_dattr;
 
                 sco_tx_dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
@@ -2742,9 +2754,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 /* TODO : Handle other things in BT class */
             }
 
-            mResourceManagerMutex.unlock();
             status = a2dp_dev->setDeviceParameter(param_id, param_payload);
-            mResourceManagerMutex.lock();
             if (status) {
                 QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                 goto exit;
