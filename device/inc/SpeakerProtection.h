@@ -130,7 +130,7 @@ public:
     int speakerProtectionDynamicCal();
     void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
-    static void mixer_ctl_callback (void *hdl, uint32_t event_id, void *event_data,
+    static void mixer_ctl_callback (uint64_t hdl, uint32_t event_id, void *event_data,
                              uint32_t event_size);
     void updateCpsCustomPayload(int miid);
     int getCpsDevNumber(std::string mixer);

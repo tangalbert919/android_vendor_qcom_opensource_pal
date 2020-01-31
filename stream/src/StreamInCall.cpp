@@ -637,7 +637,7 @@ exit :
     return status;
 }
 
-int32_t  StreamInCall::registerCallBack(pal_stream_callback /*cb*/, void */*cookie*/)
+int32_t  StreamInCall::registerCallBack(pal_stream_callback /*cb*/, uint64_t /*cookie*/)
 {
     return 0;
 }

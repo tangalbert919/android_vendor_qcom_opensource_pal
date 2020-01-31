@@ -39,12 +39,12 @@
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 
-static void handleSessionCallBack(void *hdl, uint32_t event_id, void *data,
+static void handleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
                                   uint32_t event_size)
 {
     Stream *s = NULL;
     pal_stream_callback cb;
-    s = static_cast<Stream *>(hdl);
+    s = reinterpret_cast<Stream *>(hdl);
     if (s->getCallBack(&cb) == 0)
        cb(reinterpret_cast<pal_stream_handle_t *>(s), event_id, (uint32_t *)data,
           event_size, s->cookie);
@@ -105,7 +105,7 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
        throw std::runtime_error("failed to create session object");
     }
 
-    session->registerCallBack(handleSessionCallBack, (void *)this);
+    session->registerCallBack(handleSessionCallBack, (uint64_t)this);
     PAL_VERBOSE(LOG_TAG,"Create new Devices with no_of_devices - %d", no_of_devices);
     for (uint32_t i = 0; i < no_of_devices; i++) {
         dev = Device::getInstance((struct pal_device *)&dattr[i] , rm);
@@ -456,7 +456,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
     return size;
 }
 
-int32_t StreamCompress::registerCallBack(pal_stream_callback cb, void *cookie)
+int32_t StreamCompress::registerCallBack(pal_stream_callback cb, uint64_t cookie)
 {
     streamCb = cb;
     this->cookie = cookie;

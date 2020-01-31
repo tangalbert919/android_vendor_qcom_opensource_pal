@@ -102,7 +102,7 @@ public:
     virtual int write(Stream *s __unused, int tag __unused, struct pal_buffer *buf __unused, int * size __unused, int flag __unused) {return 0;};
     virtual int getParameters(Stream *s __unused, int tagId __unused, uint32_t param_id __unused, void **payload __unused) {return 0;};
     virtual int setParameters(Stream *s __unused, int tagId __unused, uint32_t param_id __unused, void *payload __unused) {return 0;};
-    virtual int registerCallBack(session_callback cb __unused, void *cookie __unused) {return 0;};
+    virtual int registerCallBack(session_callback cb __unused, uint64_t cookie __unused) {return 0;};
     virtual int drain(pal_drain_type_t type __unused) {return 0;};
     virtual int flush() {return 0;};
     virtual int getTimestamp(struct pal_session_time *stime __unused) {return 0;};

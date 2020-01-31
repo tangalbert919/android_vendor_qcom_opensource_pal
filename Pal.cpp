@@ -114,7 +114,7 @@ void pal_deinit(void)
 int32_t pal_stream_open(struct pal_stream_attributes *attributes,
                         uint32_t no_of_devices, struct pal_device *devices,
                         uint32_t no_of_modifiers, struct modifier_kv *modifiers,
-                        pal_stream_callback cb, void *cookie,
+                        pal_stream_callback cb, uint64_t cookie,
                         pal_stream_handle_t **stream_handle)
 {
     uint64_t *stream = NULL;
@@ -458,8 +458,8 @@ int32_t pal_stream_flush(pal_stream_handle_t *stream_handle)
 }
 
 int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
-                                    size_t *in_buf_size, const size_t in_buf_count,
-                                    size_t *out_buf_size, const size_t out_buf_count)
+                                    pal_buffer_config *in_buffer_cfg,
+                                    pal_buffer_config *out_buffer_cfg)
 {
    Stream *s = NULL;
    int status;
@@ -470,7 +470,7 @@ int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
+    status = s->setBufInfo(in_buffer_cfg, out_buffer_cfg);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
         return status;
@@ -595,6 +595,12 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     return status;
 }
 
+int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle __unused,
+                           size_t *size __unused, uint8_t *payload __unused)
+{
+    return 0;
+}
+
 int32_t pal_set_param(uint32_t param_id, void *param_payload,
                       size_t payload_size)
 {
@@ -684,11 +690,11 @@ int32_t pal_stream_create_mmap_buffer(pal_stream_handle_t *stream_handle,
     return status;
 }
 
-int32_t pal_register_global_callback(pal_global_callback cb, void *cookie)
+int32_t pal_register_global_callback(pal_global_callback cb, uint64_t cookie)
 {
     std::shared_ptr<ResourceManager> rm = NULL;
 
-    PAL_DBG(LOG_TAG, "Enter. global callback %pK, cookie %pK", cb, cookie);
+    PAL_DBG(LOG_TAG, "Enter. global callback %pK", cb);
     rm = ResourceManager::getInstance();
 
     if (cb != NULL) {

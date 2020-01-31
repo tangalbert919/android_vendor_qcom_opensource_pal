@@ -99,7 +99,7 @@ void pal_deinit();
 int32_t pal_stream_open(struct pal_stream_attributes *attributes,
                         uint32_t no_of_devices, struct pal_device *devices,
                         uint32_t no_of_modifiers, struct modifier_kv *modifiers,
-                        pal_stream_callback cb, void *cookie,
+                        pal_stream_callback cb, uint64_t cookie,
                         pal_stream_handle_t **stream_handle);
 
 /**
@@ -209,11 +209,28 @@ int32_t pal_stream_drain(pal_stream_handle_t *stream_handle, pal_drain_type_t ty
   *       PAL_AUDIO_INPUT direction.
   * \param[out] out_buffer - filled if stream was opened with
   *       PAL_AUDIO_OUTPUT direction.
+  * \param[out] in buffer and out_buffer - filled if stream was
+  *       opened with PAL_AUDIO_OUTPUT|PAL_AUDIO_INPUT direction.
   *
   * \return - 0 on success, error code otherwise.
   */
 int32_t pal_stream_get_buffer_size(pal_stream_handle_t *stream_handle,
                                    size_t *in_buffer, size_t *out_buffer);
+
+/**
+  * Gets all the tags and associated module iid and module_id
+  * mapping associated with a Pal session handle
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from pal_stream_open.
+  * \param[in/out] size - size of the memory passed by the client. If it is not
+                          enough to copy the tag_module_info a error is returned with
+                          the size set to the expected size of the memory to be passed.
+  * \param[out] payload - It is in the form of struct pal_tag_module_info
+  *
+  * \return - 0 on success, error code otherwise.
+  */
+int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
+                                   size_t *size ,uint8_t *payload);
 
 /**
   * Set audio buffer size based on the direction of the stream.
@@ -222,20 +239,16 @@ int32_t pal_stream_get_buffer_size(pal_stream_handle_t *stream_handle,
   *
   * \param[in] stream_handle - Valid stream handle obtained
   *       from pal_stream_open.
-  * \param[in] in_buf_size - input buffer size when stream is
-  *       opened with PAL_AUDIO_INPUT direction.
-  * \param[in] in_buf_count - input buffer count when stream is
-  *       opened with PAL_AUDIO_INPUT direction.
-  * \param[in] out_buf_size - output buffer size when stream is
-  *       opened with PAL_AUDIO_OUTPUT direction..
-  * \param[in] out_buf_count - output buffer count when stream is
-  *       opened with PAL_AUDIO_OUTPUT direction..
+  * \param[in] in_buff_cfg  - input buffers configuratoin when stream is
+  *       opened with PAL_AUDIO_INPUT or PAL_AUDIO_INPUT_OUTPUT direction.
+  * \param[in] output_buff_count - output buffers configuratoin when stream is
+  *       opened with PAL_AUDIO_OUTPUT or PAL_AUDIO_INPUT_OUTPUT direction.
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle, size_t *in_buf_size,
-                                    const size_t in_buf_count, size_t *out_buf_size,
-                                    const size_t out_buf_count);
+int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
+                                    pal_buffer_config_t *in_buff_cfg,
+                                    pal_buffer_config_t *out_buff_cfg);
 
 /**
   * Read audio buffer captured from in the audio stream.
@@ -499,7 +512,7 @@ int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
   *
   * \return 0 on success, error code otherwise
   */
-int32_t pal_register_global_callback(pal_global_callback cb, void *cookie);
+int32_t pal_register_global_callback(pal_global_callback cb, uint64_t cookie);
 
 /**
   * \brief Set and get pal parameters for generic effect framework

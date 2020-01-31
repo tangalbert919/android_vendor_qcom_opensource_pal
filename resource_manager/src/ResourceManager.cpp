@@ -2308,10 +2308,10 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfile() {
  */
 int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
                                                 session_callback callback,
-                                                void *cookie,
+                                                uint64_t cookie,
                                                 bool is_register) {
     int status = 0;
-    std::map<int, std::pair<session_callback, void *>>::iterator it;
+    std::map<int, std::pair<session_callback, uint64_t>>::iterator it;
 
     if (!callback || DevIds.size() <= 0) {
         PAL_ERR(LOG_TAG, "Invalid callback or pcm ids");
@@ -2405,7 +2405,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
 int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     int status = 0;
     int pcm_id = 0;
-    void *cookie = nullptr;
+    uint64_t cookie = 0;
     session_callback session_cb = nullptr;
     std::string event_str(mixer_str);
     // TODO: hard code in common defs
@@ -2419,7 +2419,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     char *buf = nullptr;
     unsigned int num_values;
     struct agm_event_cb_params *params = nullptr;
-    std::map<int, std::pair<session_callback, void *>>::iterator it;
+    std::map<int, std::pair<session_callback, uint64_t>>::iterator it;
 
     PAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);

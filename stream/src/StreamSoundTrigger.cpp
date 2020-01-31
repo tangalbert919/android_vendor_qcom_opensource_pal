@@ -678,7 +678,7 @@ int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth) {
 }
 
 int32_t StreamSoundTrigger::registerCallBack(pal_stream_callback cb,
-                                             void * cookie) {
+                                             uint64_t cookie) {
     callback_ = cb;
     cookie_ = cookie;
 
@@ -1532,7 +1532,7 @@ int32_t StreamSoundTrigger::notifyClient() {
         PAL_INFO(LOG_TAG, "Notify detection event to client");
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
-                  event_size, rec_config_->cookie);
+                  event_size, (uint64_t)rec_config_->cookie);
         mStreamMutex.lock();
     }
 

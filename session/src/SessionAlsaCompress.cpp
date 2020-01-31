@@ -59,6 +59,14 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_MP3:
             id = SND_AUDIOCODEC_MP3;
             break;
+        case PAL_AUDIO_FMT_AMR_NB:
+        case PAL_AUDIO_FMT_AMR_WB:
+        case PAL_AUDIO_FMT_AMR_WB_PLUS:
+        case PAL_AUDIO_FMT_QCELP:
+        case PAL_AUDIO_FMT_EVRC:
+        case PAL_AUDIO_FMT_G711:
+             id = -1;
+            break;
 #ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
@@ -301,7 +309,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     customPayloadSize = 0;
     compress = NULL;
     sessionCb = NULL;
-    this->cbCookie = NULL;
+    this->cbCookie = 0;
     playback_started = false;
     playback_paused = false;
 }
@@ -1006,7 +1014,7 @@ int SessionAlsaCompress::fileWrite(Stream *s __unused, int tag __unused, struct 
 
     fs.open ("/data/testcompr.wav", std::fstream::binary | std::fstream::out | std::fstream::app);
     PAL_ERR(LOG_TAG, "file open success");
-    char * buff=static_cast<char *>(buf->buffer);
+    char *buff= reinterpret_cast<char *>(buf->buffer);
     fs.write (buff,buf->size);
     PAL_ERR(LOG_TAG, "file write success");
     fs.close();
@@ -1179,6 +1187,12 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             switch (audio_fmt) {
                 case PAL_AUDIO_FMT_MP3:
                 case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
+                case PAL_AUDIO_FMT_AMR_NB:
+                case PAL_AUDIO_FMT_AMR_WB:
+                case PAL_AUDIO_FMT_AMR_WB_PLUS:
+                case PAL_AUDIO_FMT_QCELP:
+                case PAL_AUDIO_FMT_EVRC:
+                case PAL_AUDIO_FMT_G711:
                       break;
                 case PAL_AUDIO_FMT_DEFAULT_PCM:
                      break;
@@ -1440,7 +1454,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     return 0;
 }
 
-int SessionAlsaCompress::registerCallBack(session_callback cb, void *cookie)
+int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)
 {
     sessionCb = cb;
     cbCookie = cookie;

@@ -64,7 +64,7 @@ private:
     std::thread threadHandler;
     sessionState mState;
     session_callback sessionCb;
-    void *cbCookie;
+    uint64_t cbCookie;
     pal_device_id_t ecRefDevId;
 public:
 
@@ -88,7 +88,7 @@ public:
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
     int getTimestamp(struct pal_session_time *stime) override;
-    int registerCallBack(session_callback cb, void *cookie) override;
+    int registerCallBack(session_callback cb, uint64_t cookie) override;
     int drain(pal_drain_type_t type) override;
     int flush();
     int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
