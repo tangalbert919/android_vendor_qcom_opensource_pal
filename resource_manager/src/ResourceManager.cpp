@@ -2079,7 +2079,7 @@ const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) co
 
 int ResourceManager::getBackendName(int deviceId, std::string &backendName)
 {
-    if (deviceId >= QAL_DEVICE_OUT_HANDSET && deviceId <= QAL_DEVICE_IN_PROXY) {
+    if (deviceId > QAL_DEVICE_NONE && deviceId < QAL_DEVICE_IN_MAX) {
         backendName.assign(listAllBackEndIds[deviceId].second);
     } else {
         QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
