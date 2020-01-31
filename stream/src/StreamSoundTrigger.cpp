@@ -1798,6 +1798,20 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
         std::vector<std::shared_ptr<Device>> tmp_devices;
 
+        for (auto& dev: st_stream_.mDevices){
+            QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
+                    dev->getQALDeviceName().c_str());
+
+            status = dev->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
+                goto err_exit;
+            } else {
+                st_stream_.rm->registerDevice(dev);
+                tmp_devices.push_back(dev);
+            }
+        }
+
         for (auto& eng: st_stream_.engines_) {
             QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
             status = eng->GetEngine()->StartRecognition(&st_stream_);
@@ -1812,20 +1826,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
         if (st_stream_.reader_)
             st_stream_.reader_->reset();
-
-        for (auto& dev: st_stream_.mDevices){
-            QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
-                    dev->getQALDeviceName().c_str());
-
-            status = dev->start();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
-                goto err_exit;
-            } else {
-                st_stream_.rm->registerDevice(dev);
-                tmp_devices.push_back(dev);
-            }
-        }
 
         TransitTo(ST_STATE_ACTIVE);
         break;
