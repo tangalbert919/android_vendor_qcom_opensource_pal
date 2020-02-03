@@ -33,6 +33,7 @@
 #include "PayloadBuilder.h"
 #include "Stream.h"
 #include "Session.h"
+#include "SessionAlsaUtils.h"
 #include "Device.h"
 #include "kvh2xml.h"
 #include <dlfcn.h>
@@ -50,6 +51,46 @@ Bluetooth::Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager>
 
 Bluetooth::~Bluetooth()
 {
+}
+
+int Bluetooth::updateDeviceMetadata()
+{
+    int ret = 0;
+    std::string backEndName;
+    std::vector <std::pair<int, int>> keyVector;
+
+    switch(deviceAttr.id) {
+    case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+        keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+
+        switch (codecFormat) {
+        case CODEC_TYPE_LDAC:
+            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = LDAC");
+            keyVector.push_back(std::make_pair(BT_FORMAT, LDAC));
+            break;
+        case CODEC_TYPE_APTX_AD:
+            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = APTX_ADAPTIVE");
+            keyVector.push_back(std::make_pair(BT_FORMAT, APTX_ADAPTIVE));
+            break;
+        case CODEC_TYPE_AAC:
+        case CODEC_TYPE_SBC:
+        case CODEC_TYPE_CELT:
+        case CODEC_TYPE_APTX:
+        case CODEC_TYPE_APTX_HD:
+        case CODEC_TYPE_APTX_DUAL_MONO:
+        default:
+            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = GENERIC, codecFormat = %d", codecFormat);
+            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
+            break;
+        }
+        break;
+    default:
+        return -EINVAL;
+    }
+    rm->getBackendName(deviceAttr.id, backEndName);
+    ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
+    return ret;
 }
 
 void Bluetooth::updateDeviceAttributes()
@@ -73,6 +114,17 @@ void Bluetooth::updateDeviceAttributes()
         break;
     default:
         break;
+    }
+}
+
+bool Bluetooth::isPlaceholderEncoder()
+{
+    switch (codecFormat) {
+        case CODEC_TYPE_LDAC:
+        case CODEC_TYPE_APTX_AD:
+            return false;
+        default:
+            return true;
     }
 }
 
@@ -100,14 +152,14 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     rm->getBackendName(deviceAttr.id, backEndName);
 
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream(dev, activestreams);
+    status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
-    QAL_DBG(LOG_TAG, "%s: choose BT codec format %d", __func__, codecFormat);
+    QAL_INFO(LOG_TAG, "%s: choose BT codec format %d", __func__, codecFormat);
 
 
     /* Retrieve plugin library from resource manager.
@@ -164,7 +216,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         goto error;
     }
 
-    if (is_handoff_in_progress) {
+    if (is_handoff_in_progress && isPlaceholderEncoder()) {
         QAL_ERR(LOG_TAG, "Resetting placeholder module\n");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
@@ -470,7 +522,6 @@ int BtA2dp::startPlayback()
 
     QAL_DBG(LOG_TAG, "a2dp_start_playback start");
 
-    codecFormat = CODEC_TYPE_INVALID;
     if (!(bt_lib_source_handle && audio_source_start
                 && audio_get_enc_config)) {
         QAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start playback request");
@@ -484,6 +535,7 @@ int BtA2dp::startPlayback()
     }
 
     if (bt_state != A2DP_STATE_STARTED && !total_active_session_requests) {
+        codecFormat = CODEC_TYPE_INVALID;
         QAL_DBG(LOG_TAG, "calling BT module stream start");
         /* This call indicates BT IPC lib to start playback */
         ret =  audio_source_start();
@@ -501,6 +553,8 @@ int BtA2dp::startPlayback()
             return -EINVAL;
         }
 
+        /* Update Device GKV based on Encoder type */
+        updateDeviceMetadata();
         ret = configureA2dpEncoderDecoder(codec_info);
         if (ret) {
             QAL_ERR(LOG_TAG, "unable to configure DSP encoder");
@@ -508,6 +562,10 @@ int BtA2dp::startPlayback()
             return ret;
         }
         bt_state = A2DP_STATE_STARTED;
+    } else {
+        /* Update Device GKV based on Already received encoder. */
+        /* This is required for getting tagged module info in session class. */
+        updateDeviceMetadata();
     }
 
     total_active_session_requests++;

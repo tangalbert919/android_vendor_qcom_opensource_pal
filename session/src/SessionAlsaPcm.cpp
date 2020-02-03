@@ -115,13 +115,6 @@ int SessionAlsaPcm::open(Stream * s)
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
-                break;
-            }
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                     rxAifBackEnds[0].second.data() , false, STREAM_SPR, &spr_miid);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-                status = 0; //TODO: add this to some policy in qal
             }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
@@ -470,6 +463,14 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 break;
             case QAL_AUDIO_OUTPUT:
+                status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                             pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
+                             false, STREAM_SPR, &spr_miid);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                    status = 0; //TODO: add this to some policy in qal
+                }
+
                 pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 if (!pcm) {
                     QAL_ERR(LOG_TAG, "pcm open failed");

@@ -2285,7 +2285,6 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
             keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
             keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
-            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
             keyVector.push_back(std::make_pair(DEVICERX, BT_RX));

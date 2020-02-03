@@ -120,6 +120,9 @@ public:
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
     static std::shared_ptr<Device> getDeviceObj(int32_t beDevId,
         std::vector<std::shared_ptr<Device>> &associatedDevices);
+    static int setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandle,
+                                std::string backEndName,
+                                std::vector <std::pair<int, int>> &deviceKV);
     static int setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHandle,
                             std::string backEndName, struct qal_device *dAttr);
     static int setDeviceCustomPayload(std::shared_ptr<ResourceManager> rmHandle,

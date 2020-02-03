@@ -270,12 +270,6 @@ int SessionAlsaCompress::open(Stream * s)
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
 
-    status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
-            rxAifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-        return status;
-    }
     return status;
 }
 
@@ -650,6 +644,13 @@ int SessionAlsaCompress::start(Stream * s)
                 QAL_ERR(LOG_TAG, "no backend specified for this stream");
                 return status;
 
+            }
+
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
+                     rxAifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                status = 0;
             }
 
             setCustomFormatParam(audio_fmt);

@@ -451,6 +451,47 @@ int SessionAlsaUtils::setDeviceCustomPayload(std::shared_ptr<ResourceManager> rm
     return mixer_ctl_set_array(ctl, payload, size);
 }
 
+int SessionAlsaUtils::setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandle,
+                                           std::string backEndName,
+                                           std::vector <std::pair<int, int>> &deviceKV)
+{
+    std::vector <std::pair<int, int>> emptyKV;
+    int status = 0;
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    struct mixer *mixerHandle = NULL;
+    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    if (status) {
+        QAL_ERR(LOG_TAG, "failed to get mixer handle\n");
+        return status;
+    }
+
+    beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle,
+                                                     backEndName, BE_METADATA);
+    if (!beMetaDataMixerCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control: %s %s", backEndName.c_str(),
+                          beCtrlNames[BE_METADATA]);
+        return -EINVAL;
+    }
+
+    getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+                deviceMetaData);
+    if (!deviceMetaData.size || !deviceMetaData.buf) {
+        QAL_ERR(LOG_TAG, "get device meta data failed %d", status);
+        return -EINVAL;
+    }
+
+    status = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                    deviceMetaData.size);
+
+    free(deviceMetaData.buf);
+    deviceMetaData.buf = nullptr;
+
+    return status;
+}
+
 int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHandle,
                                            std::string backEndName, struct qal_device *dAttr)
 {

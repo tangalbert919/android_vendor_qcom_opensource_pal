@@ -83,7 +83,9 @@ protected:
     bool                    is_handoff_in_progress;
 
     int configureA2dpEncoderDecoder(void *codec_info);
+    int updateDeviceMetadata(void);
     void updateDeviceAttributes(void);
+    bool isPlaceholderEncoder(void);
 public:
     virtual ~Bluetooth();
 };
