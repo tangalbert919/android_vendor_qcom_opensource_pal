@@ -74,16 +74,15 @@ typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
 class Bluetooth : public Device
 {
 protected:
-    static std::shared_ptr<Device> obj;
     Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
 
-    struct qal_media_config encoderConfig;
+    struct qal_media_config codecConfig;
     codec_format_t          codecFormat;
     codec_type              type;
     bool                    is_configured;
     bool                    is_handoff_in_progress;
 
-    bool configureA2dpEncoderDecoder(void *codec_info);
+    int configureA2dpEncoderDecoder(void *codec_info);
     void updateDeviceAttributes(void);
 public:
     virtual ~Bluetooth();
@@ -92,7 +91,8 @@ public:
 class BtA2dp : public Bluetooth
 {
 protected:
-    static std::shared_ptr<Device> obj;
+    static std::shared_ptr<Device> objRx;
+    static std::shared_ptr<Device> objTx;
     BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     virtual int close_audio_source();
     qal_param_bta2dp_t param_bt_a2dp;
@@ -123,29 +123,19 @@ private:
     /* member variables */
     uint8_t         a2dp_role;  // source or sink
 
-    enum A2DP_STATE bt_state_source;
-    bool            a2dp_source_started;
-    int             a2dp_source_total_active_session_requests;
+    enum A2DP_STATE bt_state;
     bool            is_a2dp_offload_supported;
-    enum A2DP_STATE bt_state_sink;
-    codec_format_t    bt_decoder_format;
-    bool            a2dp_sink_started;
-    int             a2dp_sink_total_active_session_requests;
+    int             total_active_session_requests;
     int       startPlayback();
     int       stopPlayback();
     int       startCapture();
     int       stopCapture();
-    uint32_t  getEncLatency();
-    bool      isSinkReady();
-    uint64_t  getDecLatency();
 
     /* common member funtions */
     void init_a2dp_source();
     void open_a2dp_source();
-    void audio_a2dp_update_tws_channel_mode();
 
     void init_a2dp_sink();
-    int  close_a2dp_input();
     bool a2dp_send_sink_setup_complete(void);
     void init();
 

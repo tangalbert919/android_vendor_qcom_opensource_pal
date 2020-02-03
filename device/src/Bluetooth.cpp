@@ -54,36 +54,35 @@ Bluetooth::~Bluetooth()
 
 void Bluetooth::updateDeviceAttributes()
 {
-    deviceAttr.config.sample_rate = encoderConfig.sample_rate;
+    deviceAttr.config.sample_rate = codecConfig.sample_rate;
 
     switch (codecFormat) {
     case CODEC_TYPE_AAC:
     case CODEC_TYPE_SBC:
         if (type == DEC &&
-            (encoderConfig.sample_rate == 44100 ||
-             encoderConfig.sample_rate == 48000))
-            deviceAttr.config.sample_rate = encoderConfig.sample_rate * 2;
+            (codecConfig.sample_rate == 44100 ||
+             codecConfig.sample_rate == 48000))
+            deviceAttr.config.sample_rate = codecConfig.sample_rate * 2;
         break;
     case CODEC_TYPE_LDAC:
     case CODEC_TYPE_APTX_AD:
         if (type == ENC &&
-            (encoderConfig.sample_rate == 44100 ||
-             encoderConfig.sample_rate == 48000))
-        deviceAttr.config.sample_rate = encoderConfig.sample_rate * 2;
+            (codecConfig.sample_rate == 44100 ||
+             codecConfig.sample_rate == 48000))
+        deviceAttr.config.sample_rate = codecConfig.sample_rate * 2;
         break;
     default:
         break;
     }
 }
 
-bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
+int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
 {
     void *handle = NULL;
     int status = 0, i;
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activestreams;
-    const char *err = NULL;
     open_fn_t plugin_open_fn = NULL;
     bt_codec_t *codec = NULL;
     bt_enc_payload_t *out_buf = NULL;
@@ -92,6 +91,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     std::string backEndName;
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
+    uint32_t codecTagId = 0;
     uint32_t miid = 0, ratMiid = 0, copMiid = 0;
     std::shared_ptr<Device> dev = nullptr;
     uint32_t num_payloads;
@@ -103,7 +103,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     status = rm->getActiveStream(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
-        return false;
+        return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
@@ -116,12 +116,12 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     lib_path = rm->getBtCodecLib(codecFormat, (type == ENC ? "enc" : "dec"));
     if (lib_path.empty()) {
         QAL_ERR(LOG_TAG, "%s: fail to get BT codec library", __func__);
-        return false;
+        return -ENOSYS;
     }
     handle = dlopen(lib_path.c_str(), RTLD_NOW);
     if (handle == NULL) {
         QAL_ERR(LOG_TAG, "%s: failed to dlopen lib %s", __func__, lib_path.c_str());
-        return false;
+        return -EINVAL;
     }
 
     dlerror();
@@ -129,6 +129,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     if (!plugin_open_fn) {
         QAL_ERR(LOG_TAG, "%s: dlsym to open fn failed, err = '%s'\n",
                 __func__, dlerror());
+        status = -EINVAL;
         goto error;
     }
 
@@ -144,16 +145,16 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         goto error;
     }
 
-    encoderConfig.sample_rate = out_buf->sample_rate;
-    encoderConfig.bit_width = out_buf->bit_format;
-    encoderConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
+    codecConfig.sample_rate = out_buf->sample_rate;
+    codecConfig.bit_width = out_buf->bit_format;
+    codecConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
                                    (sizeof(uint8_t) * out_buf->channel_count));
-    encoderConfig.ch_info->channels = out_buf->channel_count;
+    codecConfig.ch_info->channels = out_buf->channel_count;
 
-    // Get BT placeholder encoder MIID
-    status = session->getMIID(backEndName.c_str(), BT_PLACEHOLDER_ENCODER, &miid);
+    codecTagId = (type == ENC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
+    status = session->getMIID(backEndName.c_str(), codecTagId, &miid);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", BT_PLACEHOLDER_ENCODER, status);
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", codecTagId, status);
         goto error;
     }
 
@@ -163,15 +164,8 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         goto error;
     }
 
-    status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d\n",
-                                             COP_PACKETIZER_V0, status);
-        goto error;
-    }
-
     if (is_handoff_in_progress) {
-        QAL_ERR(LOG_TAG, "resetting placeholder module\n");
+        QAL_ERR(LOG_TAG, "Resetting placeholder module\n");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
         if (!paramData) {
@@ -201,7 +195,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     }
 
-    builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &encoderConfig);
+    builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
         free(paramData);
@@ -216,6 +210,18 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes();
 
+    /* COP PACKETIZER Module Configuration is only needed for RX path */
+    if (type == DEC)
+        goto done;
+
+    status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d\n",
+                                             COP_PACKETIZER_V0, status);
+        goto error;
+    }
+
+    /* COP packetizer needs to be configured same as Device attributes */
     builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
@@ -224,10 +230,11 @@ bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid RAT module param size", __func__);
+        QAL_ERR(LOG_TAG, "%s: Invalid COP module param size", __func__);
         goto error;
     }
-
+    /* End COP Packetizer configuration */
+done:
     is_configured = true;
 
 error:
@@ -237,12 +244,13 @@ error:
     if (handle)
         dlclose(handle);
 
-    return is_configured;
+    return status;
 }
 
 /* Scope of BtA2dp class */
 // definition of static BtA2dp member variables
-std::shared_ptr<Device> BtA2dp::obj = nullptr;
+std::shared_ptr<Device> BtA2dp::objRx = nullptr;
+std::shared_ptr<Device> BtA2dp::objTx = nullptr;
 void *BtA2dp::bt_lib_source_handle = nullptr;
 void *BtA2dp::bt_lib_sink_handle = nullptr;
 bt_audio_pre_init_t BtA2dp::bt_audio_pre_init = nullptr;
@@ -267,22 +275,14 @@ audio_sink_check_a2dp_ready_t BtA2dp::audio_sink_check_a2dp_ready = nullptr;
 
 BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
       : Bluetooth(device, Rm),
-        bt_state_source(A2DP_STATE_DISCONNECTED),
-        a2dp_source_started(false),
-        a2dp_source_total_active_session_requests(0),
-        is_a2dp_offload_supported(false),
-        bt_state_sink(A2DP_STATE_DISCONNECTED),
-        bt_decoder_format(CODEC_TYPE_INVALID),
-        a2dp_sink_started(false),
-        a2dp_sink_total_active_session_requests(0)
+        bt_state(A2DP_STATE_DISCONNECTED),
+        total_active_session_requests(0)
 {
     a2dp_role = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
     type = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
     codecFormat = CODEC_TYPE_INVALID;
 
     init();
-    usleep(20 * 1000); //TODO: to add interval properly
-    open_a2dp_source();
     param_bt_a2dp.reconfigured = false;
     param_bt_a2dp.a2dp_suspended = false;
     is_handoff_in_progress = false;
@@ -299,7 +299,6 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 BtA2dp::~BtA2dp()
 {
     is_handoff_in_progress = false;
-    close_audio_source();
 }
 
 void BtA2dp::open_a2dp_source()
@@ -308,19 +307,16 @@ void BtA2dp::open_a2dp_source()
 
     QAL_DBG(LOG_TAG, "Open A2DP source start");
     if (bt_lib_source_handle && audio_source_open) {
-        if (bt_state_source == A2DP_STATE_DISCONNECTED) {
+        if (bt_state == A2DP_STATE_DISCONNECTED) {
             QAL_DBG(LOG_TAG, "calling BT stream open");
             ret = audio_source_open();
             if (ret != 0) {
                 QAL_ERR(LOG_TAG, "Failed to open source stream for a2dp: status %d", ret);
             }
-            bt_state_source = A2DP_STATE_CONNECTED;
+            bt_state = A2DP_STATE_CONNECTED;
         } else {
-            QAL_DBG(LOG_TAG, "Called a2dp open with improper state %d", bt_state_source);
+            QAL_DBG(LOG_TAG, "Called a2dp open with improper state %d", bt_state);
         }
-    } else {
-        QAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring open request");
-        bt_state_source = A2DP_STATE_DISCONNECTED;
     }
 }
 
@@ -333,16 +329,15 @@ int BtA2dp::close_audio_source()
         return -ENOSYS;
     }
 
-    if (bt_state_source != A2DP_STATE_DISCONNECTED) {
+    if (bt_state != A2DP_STATE_DISCONNECTED) {
         QAL_DBG(LOG_TAG, "calling BT source stream close");
         if (audio_source_close() == false)
             QAL_ERR(LOG_TAG, "failed close a2dp source control path from BT library");
     }
-    a2dp_source_started = false;
-    a2dp_source_total_active_session_requests = 0;
+    total_active_session_requests = 0;
     param_bt_a2dp.a2dp_suspended = false;
     param_bt_a2dp.reconfigured = false;
-    bt_state_source = A2DP_STATE_DISCONNECTED;
+    bt_state = A2DP_STATE_DISCONNECTED;
 
     return 0;
 }
@@ -389,11 +384,8 @@ void BtA2dp::init_a2dp_source()
         QAL_DBG(LOG_TAG, "calling BT module preinit");
         bt_audio_pre_init();
     }
-}
-
-//TODO
-void BtA2dp::audio_a2dp_update_tws_channel_mode()
-{
+    usleep(20 * 1000); //TODO: to add interval properly
+    open_a2dp_source();
 }
 
 void BtA2dp::init_a2dp_sink()
@@ -420,18 +412,13 @@ void BtA2dp::init_a2dp_sink()
     }
 }
 
-//TODO: reserved for BT sink
-int  BtA2dp::close_a2dp_input()
-{
-    return 0;
-}
-
 bool BtA2dp::a2dp_send_sink_setup_complete()
 {
     uint64_t system_latency = 0;
     bool is_complete = false;
 
-    system_latency = getDecLatency();
+    /* TODO : Replace this with call to plugin */
+    system_latency = 200;
 
     if (audio_sink_session_setup_complete(system_latency) == 0) {
         is_complete = true;
@@ -454,17 +441,11 @@ int BtA2dp::start()
     customPayload = NULL;
     customPayloadSize = 0;
 
-    if (customPayload)
-        free(customPayload);
-
-    customPayload = NULL;
-    customPayloadSize = 0;
-
     status = (a2dp_role == SOURCE) ? startPlayback() : startCapture();
     if (status != 0)
         return status;
 
-    bt_state_source = A2DP_STATE_STARTED;
+
     status = Device::start();
 
     return status;
@@ -474,9 +455,7 @@ int BtA2dp::stop()
 {
     int status = 0;
 
-    status = Device::stop();
-    if (status != 0)
-        return status;
+    Device::stop();
 
     status = (a2dp_role == SOURCE) ? stopPlayback() : stopCapture();
 
@@ -504,7 +483,7 @@ int BtA2dp::startPlayback()
         return -ENOSYS;
     }
 
-    if (!a2dp_source_started && !a2dp_source_total_active_session_requests) {
+    if (bt_state != A2DP_STATE_STARTED && !total_active_session_requests) {
         QAL_DBG(LOG_TAG, "calling BT module stream start");
         /* This call indicates BT IPC lib to start playback */
         ret =  audio_source_start();
@@ -522,19 +501,18 @@ int BtA2dp::startPlayback()
             return -EINVAL;
         }
 
-        if (configureA2dpEncoderDecoder(codec_info) == true) {
-            QAL_DBG(LOG_TAG, "Start playback successful to BT library");
-        } else {
+        ret = configureA2dpEncoderDecoder(codec_info);
+        if (ret) {
             QAL_ERR(LOG_TAG, "unable to configure DSP encoder");
             audio_source_stop();
-            return -ETIMEDOUT;
+            return ret;
         }
+        bt_state = A2DP_STATE_STARTED;
     }
-    a2dp_source_started = true;
 
-    a2dp_source_total_active_session_requests++;
+    total_active_session_requests++;
     QAL_DBG(LOG_TAG, "start A2DP playback total active sessions :%d",
-            a2dp_source_total_active_session_requests);
+            total_active_session_requests);
     return ret;
 }
 
@@ -548,12 +526,12 @@ int BtA2dp::stopPlayback()
         return -ENOSYS;
     }
 
-    if (a2dp_source_total_active_session_requests > 0)
-        a2dp_source_total_active_session_requests--;
+    if (total_active_session_requests > 0)
+        total_active_session_requests--;
     else
         QAL_ERR(LOG_TAG, "%s: No active playback session requests on A2DP", __func__);
 
-    if (a2dp_source_started && !a2dp_source_total_active_session_requests) {
+    if (bt_state == A2DP_STATE_STARTED && !total_active_session_requests) {
         QAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
         ret = audio_source_stop();
         if (ret < 0) {
@@ -561,13 +539,12 @@ int BtA2dp::stopPlayback()
         } else {
             QAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
         }
-        a2dp_source_started = false;
         is_configured = false;
-        bt_state_source = A2DP_STATE_STOPPED;
+        bt_state = A2DP_STATE_STOPPED;
     }
 
     QAL_DBG(LOG_TAG, "Stop A2DP playback, total active sessions :%d",
-            a2dp_source_total_active_session_requests);
+            total_active_session_requests);
     return 0;
 }
 
@@ -578,17 +555,17 @@ bool BtA2dp::isDeviceReady()
     if (param_bt_a2dp.a2dp_suspended)
         return ret;
 
-    if ((bt_state_source != A2DP_STATE_DISCONNECTED) &&
-        (is_a2dp_offload_supported) &&
-        (audio_source_check_a2dp_ready))
-           ret = audio_source_check_a2dp_ready();
+    if ((bt_state != A2DP_STATE_DISCONNECTED) &&
+        (is_a2dp_offload_supported)) {
+        if (a2dp_role == SOURCE) {
+            if (audio_source_check_a2dp_ready)
+               ret = audio_source_check_a2dp_ready();
+        } else {
+            if (audio_sink_check_a2dp_ready)
+                ret = audio_sink_check_a2dp_ready();
+        }
+    }
     return ret;
-}
-
-uint32_t BtA2dp::getEncLatency()
-{
-    //TODO
-    return 0;
 }
 
 int BtA2dp::getDeviceAttributes(struct qal_device *dattr)
@@ -603,7 +580,7 @@ int BtA2dp::getDeviceAttributes(struct qal_device *dattr)
 
     if (is_configured) {
         dattr->id = deviceAttr.id;
-        casa_osal_memcpy(&dattr->config, sizeof(struct qal_media_config), &encoderConfig, sizeof(struct qal_media_config));
+        casa_osal_memcpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
     } else {
         casa_osal_memcpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
     }
@@ -626,14 +603,13 @@ int BtA2dp::startCapture()
         return -ENOSYS;
     }
 
-    if (!a2dp_sink_started && !a2dp_sink_total_active_session_requests) {
+    if (bt_state != A2DP_STATE_STARTED  && !total_active_session_requests) {
         QAL_DBG(LOG_TAG, "calling BT module stream start");
         /* This call indicates BT IPC lib to start capture */
         ret =  audio_sink_start();
         QAL_ERR(LOG_TAG, "BT controller start capture return = %d",ret);
         if (ret != 0 ) {
            QAL_ERR(LOG_TAG, "BT controller start capture failed");
-           a2dp_sink_started = false;
            return ret;
         }
 
@@ -643,32 +619,22 @@ int BtA2dp::startCapture()
             return -EINVAL;
         }
 
-        if (!isSinkReady()) {
-            QAL_DBG(LOG_TAG, "Wait for capture ready not successful");
-            ret = -ETIMEDOUT;
-        }
-
-        if (configureA2dpEncoderDecoder(codec_info) == true) {
-            a2dp_sink_started = true;
-            ret = 0;
-            QAL_DBG(LOG_TAG, "Start capture successful to BT library");
-        } else {
+        ret = configureA2dpEncoderDecoder(codec_info);
+        if (ret) {
             QAL_DBG(LOG_TAG, "unable to configure DSP decoder");
-            a2dp_sink_started = false;
-            ret = -ETIMEDOUT;
+            return ret;
         }
 
         if (!a2dp_send_sink_setup_complete()) {
            QAL_DBG(LOG_TAG, "sink_setup_complete not successful");
            ret = -ETIMEDOUT;
         }
+        total_active_session_requests++;
+        bt_state = A2DP_STATE_STARTED;
     }
 
-    if (a2dp_sink_started) {
-        a2dp_sink_total_active_session_requests++;
-    }
     QAL_DBG(LOG_TAG, "start A2DP sink total active sessions :%d",
-          a2dp_sink_total_active_session_requests);
+                      total_active_session_requests);
     return ret;
 }
 
@@ -682,10 +648,10 @@ int BtA2dp::stopCapture()
         return -ENOSYS;
     }
 
-    if (a2dp_sink_total_active_session_requests > 0)
-        a2dp_sink_total_active_session_requests--;
+    if (total_active_session_requests > 0)
+        total_active_session_requests--;
 
-    if (a2dp_sink_started && !a2dp_sink_total_active_session_requests) {
+    if (bt_state == A2DP_STATE_STARTED && !total_active_session_requests) {
         QAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
         is_configured = false;
         ret = audio_sink_stop();
@@ -694,45 +660,16 @@ int BtA2dp::stopCapture()
         } else {
             QAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
         }
+        bt_state = A2DP_STATE_STOPPED;
     }
     QAL_DBG(LOG_TAG, "Stop A2DP capture, total active sessions :%d",
-            a2dp_sink_total_active_session_requests);
+            total_active_session_requests);
     return 0;
-}
-
-bool BtA2dp::isSinkReady()
-{
-    bool ret = false;
-
-    if ((bt_state_sink != A2DP_STATE_DISCONNECTED) &&
-        (is_a2dp_offload_supported) &&
-        (audio_sink_check_a2dp_ready))
-           ret = audio_sink_check_a2dp_ready();
-    return ret;
-}
-
-uint64_t BtA2dp::getDecLatency()
-{
-    uint32_t latency = 0;
-
-    switch (bt_decoder_format) {
-        case CODEC_TYPE_SBC:
-            latency = 140;
-            break;
-        case CODEC_TYPE_AAC:
-            latency = 180;
-            break;
-        default:
-            latency = 200;
-            QAL_DBG(LOG_TAG, "No valid decoder defined, setting latency to %dms", latency);
-            break;
-    }
-    return (uint64_t)latency;
 }
 
 int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
 {
-    int32_t status = 0, ret = 0;
+    int32_t status = 0;
     qal_param_bta2dp_t* param_a2dp = (qal_param_bta2dp_t *)param;
 
     if (is_a2dp_offload_supported == false) {
@@ -758,7 +695,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     }
     case QAL_PARAM_ID_BT_A2DP_RECONFIG:
     {
-        if (bt_state_source == A2DP_STATE_STARTED) {
+        if (bt_state == A2DP_STATE_STARTED) {
             param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
             is_handoff_in_progress = param_a2dp->reconfigured;
         }
@@ -774,7 +711,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
 
         if (param_a2dp->a2dp_suspended == true) {
             param_bt_a2dp.a2dp_suspended = true;
-            if (bt_state_source == A2DP_STATE_DISCONNECTED)
+            if (bt_state == A2DP_STATE_DISCONNECTED)
                 goto exit;
 
             rm->a2dpSuspend();
@@ -786,12 +723,12 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
 
             param_bt_a2dp.a2dp_suspended = false;
 
-            if (a2dp_source_total_active_session_requests > 0) {
+            if (total_active_session_requests > 0) {
                 if (audio_source_start) {
-                    ret = audio_source_start();
-                    if (ret != 0) {
+                    status = audio_source_start();
+                    if (status) {
                         QAL_ERR(LOG_TAG, "BT controller start failed");
-                        a2dp_source_started = false;
+                        goto exit;
                     }
                 }
             }
@@ -824,11 +761,21 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
 std::shared_ptr<Device>
 BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
-    if (!obj) {
-        std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
-        obj = sp;
+    if (device->id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        if (!objRx) {
+            QAL_INFO(LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
+            std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
+            objRx = sp;
+        }
+        return objRx;
+    } else {
+        if (!objTx) {
+            QAL_INFO(LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
+            std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
+            objTx = sp;
+        }
+        return objTx;
     }
-    return obj;
 }
 
 /* Scope of BtScoRX/Tx class */

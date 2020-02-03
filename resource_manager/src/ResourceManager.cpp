@@ -714,6 +714,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case QAL_DEVICE_IN_BLUETOOTH_A2DP:
             dev_ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t)
                            + sizeof(uint8_t));
             dev_ch_info->channels = CHANNELS_1;
@@ -2961,6 +2962,7 @@ bool ResourceManager::isDeviceReady(qal_device_id_t id)
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
         case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case QAL_DEVICE_IN_BLUETOOTH_A2DP:
         {
             if (!isDeviceAvailable(id))
                 return is_ready;
