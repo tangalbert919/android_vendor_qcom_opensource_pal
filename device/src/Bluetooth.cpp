@@ -52,11 +52,11 @@ Bluetooth::~Bluetooth()
 {
 }
 
-void Bluetooth::updateDeviceAttributes(codec_format_t codec_format, codec_type type)
+void Bluetooth::updateDeviceAttributes()
 {
     deviceAttr.config.sample_rate = encoderConfig.sample_rate;
 
-    switch (codec_format) {
+    switch (codecFormat) {
     case CODEC_TYPE_AAC:
     case CODEC_TYPE_SBC:
         if (type == DEC &&
@@ -76,7 +76,7 @@ void Bluetooth::updateDeviceAttributes(codec_format_t codec_format, codec_type t
     }
 }
 
-bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *codec_info, codec_type type)
+bool Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
 {
     void *handle = NULL;
     int status = 0, i;
@@ -107,13 +107,13 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
-    QAL_DBG(LOG_TAG, "%s: choose BT codec format %d", __func__, codec_format);
+    QAL_DBG(LOG_TAG, "%s: choose BT codec format %d", __func__, codecFormat);
 
 
     /* Retrieve plugin library from resource manager.
      * Map to interested symbols.
      */
-    lib_path = rm->getBtCodecLib(codec_format, (type == ENC ? "enc" : "dec"));
+    lib_path = rm->getBtCodecLib(codecFormat, (type == ENC ? "enc" : "dec"));
     if (lib_path.empty()) {
         QAL_ERR(LOG_TAG, "%s: fail to get BT codec library", __func__);
         return false;
@@ -132,7 +132,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
         goto error;
     }
 
-    status = plugin_open_fn(&codec, codec_format, type);
+    status = plugin_open_fn(&codec, codecFormat, type);
     if (status) {
         QAL_ERR(LOG_TAG, "%s: failed to open plugin %d", __func__, status);
         goto error;
@@ -214,7 +214,7 @@ bool Bluetooth::configureA2dpEncoderDecoder(codec_format_t codec_format, void *c
     }
 
     /* Update Device sampleRate based on encoder config */
-    updateDeviceAttributes(codec_format, type);
+    updateDeviceAttributes();
 
     builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
     if (paramSize) {
@@ -277,6 +277,8 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
         a2dp_sink_total_active_session_requests(0)
 {
     a2dp_role = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
+    type = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
+    codecFormat = CODEC_TYPE_INVALID;
 
     init();
     usleep(20 * 1000); //TODO: to add interval properly
@@ -484,12 +486,12 @@ int BtA2dp::stop()
 int BtA2dp::startPlayback()
 {
     int ret = 0;
-    codec_format_t format = CODEC_TYPE_INVALID;
     void *codec_info = nullptr;
     uint8_t multi_cast = 0, num_dev = 1;
 
     QAL_DBG(LOG_TAG, "a2dp_start_playback start");
 
+    codecFormat = CODEC_TYPE_INVALID;
     if (!(bt_lib_source_handle && audio_source_start
                 && audio_get_enc_config)) {
         QAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start playback request");
@@ -513,14 +515,14 @@ int BtA2dp::startPlayback()
         }
 
         QAL_DBG(LOG_TAG, "configure_a2dp_encoder_format start");
-        codec_info = audio_get_enc_config(&multi_cast, &num_dev, &format);
-        if (codec_info == NULL || format == CODEC_TYPE_INVALID) {
+        codec_info = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
+        if (codec_info == NULL || codecFormat == CODEC_TYPE_INVALID) {
             QAL_ERR(LOG_TAG, "%s: invalid encoder config", __func__);
             audio_source_stop();
             return -EINVAL;
         }
 
-        if (configureA2dpEncoderDecoder(format, codec_info, ENC) == true) {
+        if (configureA2dpEncoderDecoder(codec_info) == true) {
             QAL_DBG(LOG_TAG, "Start playback successful to BT library");
         } else {
             QAL_ERR(LOG_TAG, "unable to configure DSP encoder");
@@ -613,11 +615,11 @@ exit:
 int BtA2dp::startCapture()
 {
     int ret = 0;
-    codec_format_t format = CODEC_TYPE_INVALID;
     void *codec_info = nullptr;
 
     QAL_DBG(LOG_TAG, "a2dp_start_capture start");
 
+    codecFormat = CODEC_TYPE_INVALID;
     if (!(bt_lib_sink_handle && audio_sink_start
        && audio_get_dec_config)) {
         QAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
@@ -635,8 +637,8 @@ int BtA2dp::startCapture()
            return ret;
         }
 
-        codec_info = audio_get_dec_config(&format);
-        if (codec_info == NULL || format == CODEC_TYPE_INVALID) {
+        codec_info = audio_get_dec_config(&codecFormat);
+        if (codec_info == NULL || codecFormat == CODEC_TYPE_INVALID) {
             QAL_ERR(LOG_TAG, "%s: invalid encoder config", __func__);
             return -EINVAL;
         }
@@ -646,7 +648,7 @@ int BtA2dp::startCapture()
             ret = -ETIMEDOUT;
         }
 
-        if (configureA2dpEncoderDecoder(format, codec_info, DEC) == true) {
+        if (configureA2dpEncoderDecoder(codec_info) == true) {
             a2dp_sink_started = true;
             ret = 0;
             QAL_DBG(LOG_TAG, "Start capture successful to BT library");

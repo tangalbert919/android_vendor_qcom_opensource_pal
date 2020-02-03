@@ -78,10 +78,13 @@ protected:
     Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
 
     struct qal_media_config encoderConfig;
-    bool configureA2dpEncoderDecoder(codec_format_t codec_format, void *codec_info, codec_type type);
-    void updateDeviceAttributes(codec_format_t codec_format, codec_type type);
-    bool is_configured;
-    bool is_handoff_in_progress;
+    codec_format_t          codecFormat;
+    codec_type              type;
+    bool                    is_configured;
+    bool                    is_handoff_in_progress;
+
+    bool configureA2dpEncoderDecoder(void *codec_info);
+    void updateDeviceAttributes(void);
 public:
     virtual ~Bluetooth();
 };
