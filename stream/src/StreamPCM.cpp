@@ -151,7 +151,6 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
 
 
     mStreamMutex.unlock();
-    rm->registerStream(this);
     QAL_DBG(LOG_TAG, "Exit.");
     return;
 }
@@ -177,7 +176,7 @@ int32_t  StreamPCM::open()
             goto exit;
         }
     }
-
+    rm->registerStream(this);
     QAL_DBG(LOG_TAG, "Exit. streamLL opened");
 exit:
     mStreamMutex.unlock();

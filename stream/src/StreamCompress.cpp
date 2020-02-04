@@ -119,7 +119,6 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
         dev = nullptr;
     }
     mStreamMutex.unlock();
-    rm->registerStream(this);
     QAL_VERBOSE(LOG_TAG,"exit");
 }
 
@@ -145,6 +144,7 @@ int32_t StreamCompress::open()
             goto exit;
          }
     }
+    rm->registerStream(this);
     QAL_VERBOSE(LOG_TAG,"device open successful");
     QAL_VERBOSE(LOG_TAG,"exit stream compress opened");
 exit:
@@ -180,8 +180,7 @@ int32_t StreamCompress::close()
 exit:
     mStreamMutex.unlock();
     status = rm->deregisterStream(this);
-    
-    
+
     if (mStreamAttr) {
         free(mStreamAttr->out_media_config.ch_info);
         free(mStreamAttr);
@@ -192,7 +191,7 @@ exit:
         free(mVolumeData);
         mVolumeData = (struct qal_volume_data *)NULL;
     }
-    
+
     delete session;
     session = nullptr;
     QAL_VERBOSE(LOG_TAG,"%d status - %d",__LINE__,status);
