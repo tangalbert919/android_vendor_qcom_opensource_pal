@@ -766,7 +766,7 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     }
     *best_rate = rates_[0];
 
-    return -EINVAL;
+    return 0;
 }
 
 // return 0 if match, else return -EINVAL with default sample rate
@@ -784,12 +784,10 @@ int USBDeviceConfig::getBestChInfo(struct qal_channel_info *requested_ch_info,
 
     *best_ch_info = usb_ch_info;
 
-    if (channels_ == requested_ch_info->channels)
-        return 0;
-    else {
+    if (channels_ != requested_ch_info->channels)
         QAL_ERR(LOG_TAG, "channel num mismatch. use USB's");
-        return -EINVAL;
-    }
+
+    return 0;
 }
 
 int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
