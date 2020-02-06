@@ -292,7 +292,6 @@ int Device::open()
     QAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
         deviceCount, this->deviceAttr.id, initialized);
     void *stream;
-    std::vector<Stream*> activestreams;
     DeviceImpl *devImpl;
 
     if (!initialized) {
@@ -322,19 +321,7 @@ int Device::open()
     }
 
     devObj = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream(devObj, activestreams);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "getActiveStream failed status %d, need not be fatal", status);
-        status = 0;
-        //free(deviceHandle);
-        goto exit;
-    }
 
-    //TBD:: why is this required?
-    for (int i = 0; i < activestreams.size(); i++) {
-        stream = static_cast<void *>(activestreams[i]);
-        QAL_VERBOSE(LOG_TAG, "Stream handle :%pK", activestreams[i]);
-    }
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
 exit:
     mDeviceMutex.unlock();

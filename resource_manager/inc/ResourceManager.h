@@ -210,6 +210,8 @@ public:
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d);
     int deregisterDevice(std::shared_ptr<Device> d);
+    int registerDevice_l(std::shared_ptr<Device> d);
+    int deregisterDevice_l(std::shared_ptr<Device> d);
     int addPlugInDevice(std::shared_ptr<Device> d,
                         qal_param_device_connection_t connection_state);
     int removePlugInDevice(qal_device_id_t device_id,
@@ -241,6 +243,7 @@ public:
     int getAudioRoute(struct audio_route** ar);
     int getAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
+    int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);

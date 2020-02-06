@@ -1038,21 +1038,27 @@ int ResourceManager::deregisterStream(Stream *s)
     return ret;
 }
 
-int ResourceManager::registerDevice(std::shared_ptr<Device> d)
+int ResourceManager::registerDevice_l(std::shared_ptr<Device> d)
 {
     QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
     active_devices.push_back(d);
-    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit.");
     return 0;
 }
 
-int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
+int ResourceManager::registerDevice(std::shared_ptr<Device> d)
+{
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    registerDevice_l(d);
+    mResourceManagerMutex.unlock();
+    return 0;
+}
+
+int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d)
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
     typename std::vector<std::shared_ptr<Device>>::iterator iter =
         std::find(active_devices.begin(), active_devices.end(), d);
     if (iter != active_devices.end())
@@ -1062,8 +1068,17 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
         QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
                 d->getSndDeviceId(), ret);
     }
-    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    return ret;
+}
+
+int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
+{
+    int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    deregisterDevice_l(d);
+    mResourceManagerMutex.unlock();
     return ret;
 }
 
@@ -1204,12 +1219,10 @@ void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestr
     }
 }
 
-int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
+int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
                                      std::vector<Stream*> &activestreams)
 {
     int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
     // merge all types of active streams into activestreams
     getActiveStreams(d, activestreams, active_streams_ll);
     getActiveStreams(d, activestreams, active_streams_ulla);
@@ -1222,6 +1235,17 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
         ret = -ENOENT;
         QAL_ERR(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
     }
+
+    return ret;
+}
+
+int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
+                                     std::vector<Stream*> &activestreams)
+{
+    int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    ret = getActiveStream_l(d, activestreams);
     mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
@@ -1882,8 +1906,9 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     //and route the lower priority to new device (disable session, disable device, enable session, enable device
     //return from callback
 
-    // TODO: update logic based on if voice call is active or not
-    getActiveStream(inDev, activeStreams);
+    mResourceManagerMutex.lock();
+
+    getActiveStream_l(inDev, activeStreams);
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no other active streams found so update device cfg");
         inDev->setDeviceAttributes(*inDevAttr);
@@ -1897,7 +1922,8 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     }
 
     if (!isVoiceCall) {
-        /* All the activesteams using device A should use same device config so no need to run through on all activestreams for device A */
+        // All the activesteams using device A should use same device config so no need
+        // to run through on all activestreams for device A
         for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
             status = (*sIter)->getAssociatedDevices(associatedDevices);
             if(0 != status) {
@@ -1915,7 +1941,6 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
                 if (dattr.id == inDevAttr->id) {
                     isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
-                    // No need to loop through once device found
                     goto check_ds;
                 }
             }
@@ -1954,17 +1979,20 @@ be_check:
     }
 
     for(dIter = deviceList.begin(); dIter != deviceList.end(); dIter++) {
-
-
         getActiveStream(*dIter, activeStreams);
         if (activeStreams.size() <= 0)
             continue;
-        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-            (*sIter)->switchDevice(*sIter, 1, &dattr);
-        }
+        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+            (*sIter)->disconnectStreamDevice(*sIter, inDevAttr->id);
+
+        // start all the streams with new device config.
+        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+            (*sIter)->connectStreamDevice(*sIter, inDevAttr);
     }
 
 error:
+    mResourceManagerMutex.unlock();
+
     return isDeviceSwitch;
 }
 
@@ -1980,20 +2008,23 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     if (!inDev || !newDevAttr) {
         return -EINVAL;
     }
+    mResourceManagerMutex.lock();
 
     //get the active streams on the device
-    getActiveStream(inDev, activeStreams);
-
+    getActiveStream_l(inDev, activeStreams);
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no other active streams found");
-        return -EINVAL;
+        goto done;
     }
 
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-    // This currently handles disabling all active devices and force switch one new device
-        (*sIter)->switchDevice(*sIter, 1, newDevAttr);
-    }
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+        (*sIter)->disconnectStreamDevice(*sIter, newDevAttr->id);
 
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
+        (*sIter)->connectStreamDevice(*sIter, newDevAttr);
+
+done:
+    mResourceManagerMutex.unlock();
     return 0;
 }
 

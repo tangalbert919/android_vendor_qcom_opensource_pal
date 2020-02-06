@@ -419,7 +419,9 @@ int32_t Stream::disconnectStreamDevice(Stream* streamHandle, qal_device_id_t dev
                 QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
                 goto error_1;
             }
-            rm->deregisterDevice(mDevices[i]);
+            // Call unblocked version of deregiser as this function is called
+            // with resoucemanager lock
+            rm->deregisterDevice_l(mDevices[i]);
 
             status = mDevices[i]->close();
             if (0 != status) {
@@ -479,7 +481,7 @@ int32_t Stream::connectStreamDevice(Stream* streamHandle, struct qal_device *dat
         goto error_1;
     }
 
-    rm->registerDevice(dev);
+    rm->registerDevice_l(dev);
 
     status = dev->start();
     if (0 != status) {
