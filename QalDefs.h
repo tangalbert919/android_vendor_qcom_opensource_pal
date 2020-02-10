@@ -205,6 +205,7 @@ typedef struct qal_param_payload_s {
     bool has_effect;
     qal_snd_dec_t qal_snd_dec;
     uint32_t *effect_payload;
+    uint32_t tty_mode;            /*TODO need to change whole structure to void pointer or union */
 } qal_param_payload;
 
 /** Audio channel map enumeration*/
@@ -459,9 +460,9 @@ typedef enum {
 
 typedef enum {
     QAL_TTY_OFF = 0,
-    QAL_TTY_FULL = 1,
+    QAL_TTY_HCO = 1,
     QAL_TTY_VCO = 2,
-    QAL_TTY_HCO = 3,
+    QAL_TTY_FULL = 3,
 }qal_tty_t;
 
 typedef union {
@@ -590,6 +591,7 @@ typedef enum {
     QAL_PARAM_ID_BT_A2DP_SUSPENDED,
     QAL_PARAM_ID_DEVICE_CAPABILITY,
     QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES,
+    QAL_PARAM_ID_TTY_MODE,
 }qal_param_id_type_t;
 
 /** HDMI/DP */

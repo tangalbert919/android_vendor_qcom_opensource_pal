@@ -692,6 +692,28 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
             break;
         }
 
+        case QAL_PARAM_ID_TTY_MODE:
+        {
+            param_payload = (qal_param_payload *)payload;
+            switch (param_payload->tty_mode) {
+              case QAL_TTY_OFF:
+                  status = session->setConfig(this, MODULE, TTY_MODE_OFF, RXDIR);
+                  break;
+              case QAL_TTY_HCO:
+                  status = session->setConfig(this, MODULE, TTY_MODE_HCO, RXDIR);
+                  break;
+              case QAL_TTY_VCO:
+                  status = session->setConfig(this, MODULE, TTY_MODE_VCO, RXDIR);
+                  break;
+              case QAL_TTY_FULL:
+                  status = session->setConfig(this, MODULE, TTY_MODE_FULL, RXDIR);
+                  break;
+            }
+            if (status)
+               QAL_ERR(LOG_TAG, "setConfig for tty mode %d failed with %d",
+                       param_payload->tty_mode, status);
+            break;
+        }
         default:
             QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;

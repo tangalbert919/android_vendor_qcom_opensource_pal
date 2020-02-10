@@ -64,6 +64,7 @@ private:
     std::thread threadHandler;
     uint32_t vsid = 0x11C0500; /*defualt*/
     float default_volume = 0.5;
+    uint32_t ttyMode = QAL_TTY_OFF;
 
 public:
 
@@ -89,6 +90,7 @@ private:
     int payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t *size);
     int payloadTaged(Stream * s, configType type, int tag, int device, int dir);
     int payloadSetVSID(uint8_t **payload, size_t *size);
+    int payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t tag);
     int setVoiceMixerParameter(Stream * s, struct mixer *mixer, void *payload,
                           int size, int dir);
     char* getMixerVoiceStream(Stream *s, int dir);

@@ -45,6 +45,25 @@
 #define percent_to_index(val, min, max) \
             ((val) * ((max) - (min)) * 0.01 + (min) + .5)
 
+static const std::map<uint32_t, uint32_t> ttyTagtoMode
+{
+    { TTY_MODE_OFF,  VOICE_TTY_MODE_OFF},
+    { TTY_MODE_HCO,  VOICE_TTY_MODE_HCO},
+    { TTY_MODE_VCO,  VOICE_TTY_MODE_VCO},
+    { TTY_MODE_FULL, VOICE_TTY_MODE_FULL}
+
+};
+
+static const std::map<uint32_t, uint32_t> ttyModetoTag
+{
+    {QAL_TTY_OFF, TTY_MODE_OFF },
+    {QAL_TTY_HCO, TTY_MODE_HCO },
+    {QAL_TTY_VCO, TTY_MODE_VCO },
+    {QAL_TTY_FULL, TTY_MODE_FULL }
+
+};
+
+
 SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
 {
    rm = Rm;
@@ -93,6 +112,7 @@ int SessionAlsaVoice::open(Stream * s)
     pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TXDIR);
 
     vsid = sAttr.info.voice_call_info.VSID;
+    ttyMode = sAttr.info.voice_call_info.tty_mode;
 
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
 
@@ -207,6 +227,11 @@ int SessionAlsaVoice::start(Stream * s)
         s->setVolume(volume);
         free(volume);
     };
+
+    /*set tty mode*/
+    if (ttyMode) {
+        SessionAlsaVoice::setConfig(s, MODULE, ttyModetoTag.at(ttyMode), RXDIR);
+    }
 
     status = pcm_start(pcmRx);
     if (status) {
@@ -399,6 +424,33 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
                 goto exit;
             }
 
+            break;
+        case TTY_MODE_OFF:
+        case TTY_MODE_HCO:
+        case TTY_MODE_VCO:
+        case TTY_MODE_FULL:
+            device = pcmDevRxIds.at(0);
+            status = payloadSetTTYMode(&paramData, &paramSize, tag);
+            status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
+                                                              paramData,
+                                                              paramSize,
+                                                              dir);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
+                        status);
+                break;
+            }
+
+            if (!paramData) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
+                goto exit;
+            }
+            break;
+        case MUTE_TAG:
+        case UNMUTE_TAG:
+            device = pcmDevTxIds.at(0);
+            status = payloadTaged(s, type, tag, device, TXDIR);
             break;
 
         default:
@@ -598,6 +650,42 @@ exit:
     if (voldata) {
         free(voldata);
     }
+    return status;
+}
+
+int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t tag){
+    int status = 0;
+    apm_module_param_data_t* header;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    uint8_t *phrase_pl;
+    vcpm_param_id_tty_mode_t tty_payload;
+
+    payloadSize = sizeof(struct apm_module_param_data_t)+
+                  sizeof(tty_payload);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return -EINVAL;
+    }
+    header = (apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
+    header->param_id = VCPM_PARAM_ID_TTY_MODE;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+
+    tty_payload.vsid = vsid;
+    tty_payload.mode = ttyTagtoMode.at(tag);
+    phrase_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
+    casa_osal_memcpy(phrase_pl,  sizeof(vcpm_param_id_tty_mode_t),
+                     &tty_payload,  sizeof(vcpm_param_id_tty_mode_t));
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+
+
     return status;
 }
 
