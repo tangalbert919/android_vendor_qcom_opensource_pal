@@ -301,9 +301,7 @@ exit:
 SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     Stream *s,
     uint32_t id,
-    uint32_t stage_id,
-    QalRingBufferReader **reader,
-    QalRingBuffer *buffer) {
+    uint32_t stage_id) {
 
     struct qal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
@@ -321,6 +319,8 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     stream_handle_ = s;
     sm_data_ = nullptr;
     dam_setup_duration_ = nullptr;
+    reader_ = nullptr;
+    buffer_ = nullptr;
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
@@ -365,29 +365,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
         dam_setup_duration_->port_cfgs[i].output_port_id = 1;
         dam_setup_duration_->port_cfgs[i].dwnstrm_setup_duration_ms =
             DWNSTRM_SETUP_DURATION_MS;
-    }
-
-    // Create ring buffer when reader passed is not specified
-    if (!buffer) {
-        QAL_INFO(LOG_TAG, "creating new ring buffer");
-        struct qal_stream_attributes sAttr;
-        s->getStreamAttributes(&sAttr);
-        if (sAttr.direction == QAL_AUDIO_INPUT) {
-            sampleRate = sAttr.in_media_config.sample_rate;
-            bitWidth = sAttr.in_media_config.bit_width;
-            channels = sAttr.in_media_config.ch_info->channels;
-            // ring buffer size equals to 3s' audio data
-            // as second stage may need 2-2.5s data to detect
-            bufferSize = sampleRate * bitWidth * channels *
-                         RING_BUFFER_DURATION / BITS_PER_BYTE;
-        }
-        buffer_ = new QalRingBuffer(bufferSize);
-        reader_ = nullptr;
-        *reader = buffer_->newReader();
-    } else {
-        // Avoid this engine write data to existing ring buffer
-        buffer_ = nullptr;
-        reader_ = buffer->newReader();
     }
 
     QAL_DBG(LOG_TAG, "Exit");
@@ -651,8 +628,10 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::UpdateBufConfig(uint32_t hist_buffer_duration,
-                                               uint32_t pre_roll_duration) {
+int32_t SoundTriggerEngineGsl::UpdateBufConfig(
+    uint32_t hist_buffer_duration,
+    uint32_t pre_roll_duration) {
+
     int32_t status = 0;
 
     buffer_config_.hist_buffer_duration_in_ms = hist_buffer_duration;
@@ -661,8 +640,8 @@ int32_t SoundTriggerEngineGsl::UpdateBufConfig(uint32_t hist_buffer_duration,
     return status;
 }
 
-void SoundTriggerEngineGsl::HandleSessionEvent( uint32_t event_id __unused,
-                                                void *data) {
+void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
+                                               void *data) {
     int32_t status = 0;
     StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
 

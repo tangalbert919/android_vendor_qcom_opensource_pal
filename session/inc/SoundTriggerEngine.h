@@ -277,9 +277,7 @@ struct detection_event_info
 class SoundTriggerEngine {
 public:
     static std::shared_ptr<SoundTriggerEngine> Create(Stream *s,
-        listen_model_indicator_enum type,
-        QalRingBufferReader **reader,
-        QalRingBuffer *buffer);
+        listen_model_indicator_enum type);
 
     virtual ~SoundTriggerEngine() {}
 
@@ -310,6 +308,10 @@ public:
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual struct detection_event_info* GetDetectionEventInfo() = 0;
     virtual int32_t setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) = 0;
+
+    int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
+        std::vector<QalRingBufferReader *> &reader_list);
+    int32_t SetBufferReader(QalRingBufferReader *reader);
 
 protected:
     uint32_t engine_id_;

@@ -37,6 +37,7 @@
 #include "Stream.h"
 #include "SoundTriggerEngine.h"
 #include "QalRingBuffer.h"
+#include "SoundTriggerPlatformInfo.h"
 
 /* Event Mode
  * Indicating info GECKO will notify to client
@@ -448,6 +449,8 @@ class StreamSoundTrigger : public Stream {
     int32_t GetPreviousStateId();
     int32_t ProcessInternalEvent(std::shared_ptr<StEventConfig> ev_cfg);
 
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
+    std::shared_ptr<SoundModelConfig> sm_info_;
     std::vector<std::shared_ptr<EngineCfg>> engines_;
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
 

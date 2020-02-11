@@ -31,6 +31,7 @@
 #define SOUND_TRIGGER_PLATFORM_INFO_H
 
 #include <stdint.h>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -100,6 +101,8 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t GetSampleRate() const { return sample_rate_; }
     uint32_t GetBitWidth() const { return bit_width_; }
     uint32_t GetOutChannels() const { return out_channels_; }
+    uint32_t GetKwDuration() const { return capture_keyword_; }
+    uint32_t GetCaptureReadDelay() const { return client_capture_read_delay_; }
     std::shared_ptr<SecondStageCfg> GetArmSsUsecase(uint32_t sm_id) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
@@ -146,6 +149,8 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
         override;
     void HandleEndTag(const char *tag) override;
     void HandleCharData(const char *data) override;
+
+    static int StringToUUID(const char* str, SoundTriggerUUID& UUID);
 
  private:
     SoundTriggerPlatformInfo();

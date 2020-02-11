@@ -26,39 +26,17 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include "SoundTriggerPlatformInfo.h"
-#include "QalCommon.h"
-#include <string>
-#include <map>
+
 #include <errno.h>
 
+#include <string>
+#include <map>
+
+#include "QalCommon.h"
+
 #define LOG_TAG "qal:SoundTriggerPlatformInf"
-
-static int string_to_uuid(const char* str, SoundTriggerUUID& UUID) {
-    int tmp[10];
-
-    if (str == NULL) {
-        return -EINVAL;
-    }
-
-    if (sscanf(str, "%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
-               tmp, tmp + 1, tmp + 2, tmp + 3, tmp + 4, tmp + 5, tmp + 6,
-               tmp + 7, tmp + 8, tmp + 9) < 10) {
-        return -EINVAL;
-    }
-    UUID.timeLow = (uint32_t)tmp[0];
-    UUID.timeMid = (uint16_t)tmp[1];
-    UUID.timeHiAndVersion = (uint16_t)tmp[2];
-    UUID.clockSeq = (uint16_t)tmp[3];
-    UUID.node[0] = (uint8_t)tmp[4];
-    UUID.node[1] = (uint8_t)tmp[5];
-    UUID.node[2] = (uint8_t)tmp[6];
-    UUID.node[3] = (uint8_t)tmp[7];
-    UUID.node[4] = (uint8_t)tmp[8];
-    UUID.node[5] = (uint8_t)tmp[9];
-
-    return 0;
-}
 
 SoundTriggerUUID::SoundTriggerUUID() :
     timeLow(0),
@@ -200,7 +178,8 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
         uint32_t i = 0;
         while (attribs[i]) {
             if (!strcmp(attribs[i], "vendor_uuid")) {
-                string_to_uuid(attribs[++i], vendor_uuid_);
+                SoundTriggerPlatformInfo::StringToUUID(attribs[++i],
+                    vendor_uuid_);
             } else if (!strcmp(attribs[i], "merge_first_stage_sound_models")) {
                 merge_first_stage_sound_models_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
@@ -367,3 +346,29 @@ void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
 void SoundTriggerPlatformInfo::HandleCharData(const char* data) {
 }
 
+int SoundTriggerPlatformInfo::StringToUUID(const char* str,
+                                           SoundTriggerUUID& UUID) {
+    int tmp[10];
+
+    if (str == NULL) {
+        return -EINVAL;
+    }
+
+    if (sscanf(str, "%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
+               tmp, tmp + 1, tmp + 2, tmp + 3, tmp + 4, tmp + 5, tmp + 6,
+               tmp + 7, tmp + 8, tmp + 9) < 10) {
+        return -EINVAL;
+    }
+    UUID.timeLow = (uint32_t)tmp[0];
+    UUID.timeMid = (uint16_t)tmp[1];
+    UUID.timeHiAndVersion = (uint16_t)tmp[2];
+    UUID.clockSeq = (uint16_t)tmp[3];
+    UUID.node[0] = (uint8_t)tmp[4];
+    UUID.node[1] = (uint8_t)tmp[5];
+    UUID.node[2] = (uint8_t)tmp[6];
+    UUID.node[3] = (uint8_t)tmp[7];
+    UUID.node[4] = (uint8_t)tmp[8];
+    UUID.node[5] = (uint8_t)tmp[9];
+
+    return 0;
+}

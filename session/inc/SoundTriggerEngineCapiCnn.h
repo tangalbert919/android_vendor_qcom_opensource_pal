@@ -41,9 +41,7 @@ class Stream;
 
 class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id,
-                              QalRingBufferReader **reader,
-                              QalRingBuffer *buffer);
+    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id);
     ~SoundTriggerEngineCapiCnn();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -71,7 +69,9 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
         qal_stream_type_t stream_type __unused,
         std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
-                            uint32_t pre_roll_duration __unused) { return 0; }
+                            uint32_t pre_roll_duration __unused) {
+        return 0;
+    }
     void SetCaptureRequested(bool is_requested __unused) {}
     struct detection_event_info* GetDetectionEventInfo() { return nullptr; }
     int32_t setECRef(

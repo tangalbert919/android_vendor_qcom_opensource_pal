@@ -265,9 +265,7 @@ exit:
 SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     Stream *s,
     uint32_t id,
-    uint32_t stage_id,
-    QalRingBufferReader **reader,
-    QalRingBuffer *buffer)
+    uint32_t stage_id)
 {
     int32_t status = 0;
     const char *lib = "libcapiv2vop.so";
@@ -287,6 +285,8 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     buffer_start_ = 0;
     buffer_end_ = 0;
     bytes_processed_ = 0;
+    reader_ = nullptr;
+    buffer_ = nullptr;
 
     capi_handle_ =
         (capi_v2_t *)calloc(1, sizeof(capi_v2_t) + (3 * sizeof(char *)));
@@ -317,22 +317,7 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     }
 
     stream_handle_ = s;
-    if (!buffer) {
-        QAL_INFO(LOG_TAG, "creating new ring buffer");
-        s->getStreamAttributes(&sAttr);
-        if (sAttr.direction == QAL_AUDIO_INPUT) {
-            bufferSize = sAttr.in_media_config.sample_rate *
-                sAttr.in_media_config.bit_width *
-                sAttr.in_media_config.ch_info->channels *
-                RING_BUFFER_DURATION / BITS_PER_BYTE;
-        }
-        buffer_ = new QalRingBuffer(bufferSize);
-        reader_ = nullptr;
-        *reader = buffer_->newReader();
-    } else {
-        buffer_ = nullptr;
-        reader_ = buffer->newReader();
-    }
+
     return;
 err_exit:
     QAL_ERR(LOG_TAG, "constructor exit status = %d", status);

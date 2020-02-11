@@ -39,9 +39,7 @@ class Stream;
 
 class SoundTriggerEngineGsl : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id,
-                          QalRingBufferReader **reader,
-                          QalRingBuffer *buffer);
+    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id);
     ~SoundTriggerEngineGsl();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;

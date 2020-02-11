@@ -48,6 +48,9 @@
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 
+/* Qualcomm Technologies Inc. vendorUuid */
+const char *qcva_uuid = "68ab2d40-e860-11e3-95ef-0002a5d5c51b";
+
 StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        struct qal_device *dattr,
                                        uint32_t no_of_devices,
@@ -57,7 +60,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     std::shared_ptr<Device> dev = nullptr;
     struct qal_ec_info ecinfo = {};
     int status = 0;
-
+    class SoundTriggerUUID uuid;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     inBufSize = BUF_SIZE_CAPTURE;
@@ -74,6 +77,22 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     // TODO: handle modifiers later
     mNoOfModifiers = 0;
     mModifiers = (struct modifier_kv *) (nullptr);
+
+    // get sound trigger platform info
+    st_info_ = SoundTriggerPlatformInfo::GetInstance();
+    if (!st_info_) {
+        QAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
+        throw std::runtime_error("Failed to get sound trigger platform info");
+    }
+    if (SoundTriggerPlatformInfo::StringToUUID(qcva_uuid, uuid)) {
+        QAL_ERR(LOG_TAG, "Failed to construct uuid for sound model");
+        throw std::runtime_error("Failed to construct uuid for sound model");
+    }
+    sm_info_ = st_info_->GetSmConfig(uuid);
+    if (!sm_info_) {
+        QAL_ERR(LOG_TAG, "Failed to get sound model platform info");
+        throw std::runtime_error("Failed to get sound model platform info");
+    }
 
     mStreamAttr = (struct qal_stream_attributes *)calloc(1,
         sizeof(struct qal_stream_attributes));
@@ -807,16 +826,10 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     common_sm = (struct qal_st_sound_model *)&phrase_sm->common;
 
                     gsl_engine_ = SoundTriggerEngine::Create(this,
-                                      ST_SM_ID_SVA_GMM, &reader_, nullptr);
+                                                             ST_SM_ID_SVA_GMM);
                     if (!gsl_engine_) {
                         status = -ENOMEM;
                         QAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-                        goto error_exit;
-                    }
-                    if (!reader_) {
-                        status = -ENOMEM;
-                        QAL_ERR(LOG_TAG, "big_sm: gsl engine reader creation"
-                                "failed");
                         goto error_exit;
                     }
 
@@ -846,9 +859,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     }
                     casa_osal_memcpy(sm_data, sm_size, ptr, sm_size);
 
-                    engine = SoundTriggerEngine::Create(this, big_sm->type,
-                                                        &reader_,
-                                                        reader_->ringBuffer_);
+                    engine = SoundTriggerEngine::Create(this, big_sm->type);
                     if (!engine) {
                         QAL_ERR(LOG_TAG, "Failed to create engine for type %d",
                                 big_sm->type);
@@ -887,15 +898,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             casa_osal_memcpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
-            gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
-                                                &reader_, nullptr);
+            gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM);
             if (!gsl_engine_) {
                 QAL_ERR(LOG_TAG, "gsl engine creation failed");
-                status = -ENOMEM;
-                goto error_exit;
-            }
-            if (!reader_) {
-                QAL_ERR(LOG_TAG, "gsl engine reader creation failed");
                 status = -ENOMEM;
                 goto error_exit;
             }
@@ -942,6 +947,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     struct qal_st_recognition_config *config) {
 
     int32_t status = 0;
+    int32_t i = 0;
     struct st_param_header *param_hdr = NULL;
     struct st_hist_buffer_info *hist_buf = NULL;
     struct st_det_perf_mode_info *det_perf_mode = NULL;
@@ -949,10 +955,14 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     unsigned int opaque_size = 0, conf_levels_payload_size = 0;
     uint32_t hist_buffer_duration = 0;
     uint32_t pre_roll_duration = 0;
+    uint32_t client_capture_read_delay = 0;
     uint32_t conf_levels_intf_version = 0;
     uint8_t *conf_levels = NULL;
     uint32_t num_conf_levels = 0;
+    uint32_t ring_buffer_len = 0;
+    uint32_t ring_buffer_size = 0;
     bool capture_requested = false;
+    std::vector<QalRingBufferReader *> reader_list;
 
     QAL_DBG(LOG_TAG, "Enter");
     if (!config) {
@@ -1036,13 +1046,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                       sizeof(struct st_param_header));
                   hist_buffer_duration = hist_buf->hist_buffer_duration_msec;
                   pre_roll_duration = hist_buf->pre_roll_duration_msec;
-                  QAL_DBG(LOG_TAG, "recognition config history buf len = %d"
-                          "preroll len = %d, minor version = %d",
-                          hist_buf->hist_buffer_duration_msec,
-                          hist_buf->pre_roll_duration_msec,
-                          hist_buf->version);
-                  gsl_engine_->UpdateBufConfig(hist_buffer_duration,
-                                               pre_roll_duration);
+
                   opaque_size += sizeof(struct st_param_header) +
                       sizeof(struct st_hist_buffer_info);
                   opaque_ptr += sizeof(struct st_param_header) +
@@ -1070,9 +1074,48 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
             }
         }
     } else {
+        // get history buffer duration from sound trigger platform xml
+        hist_buffer_duration = sm_info_->GetKwDuration();
+        pre_roll_duration = 0;
+
         status = FillConfLevels(config, &conf_levels, &num_conf_levels);
         if (status) {
             QAL_ERR(LOG_TAG, "Failed to parse conf levels from rc config");
+            goto error_exit;
+        }
+    }
+
+    client_capture_read_delay = sm_info_->GetCaptureReadDelay();
+    QAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
+        hist_buffer_duration, pre_roll_duration, client_capture_read_delay);
+
+    status = gsl_engine_->UpdateBufConfig(hist_buffer_duration,
+                                          pre_roll_duration);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to update buf config, status %d", status);
+        goto error_exit;
+    }
+
+    // create ring buffer for lab transfer in gsl_engine
+    ring_buffer_len = hist_buffer_duration + pre_roll_duration +
+        client_capture_read_delay;
+    ring_buffer_size = (ring_buffer_len / 1000) * sm_info_->GetSampleRate() *
+                       sm_info_->GetBitWidth() * sm_info_->GetOutChannels() / 8;
+    status = gsl_engine_->CreateBuffer(ring_buffer_size,
+                                       engines_.size(), reader_list);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get ring buffer reader, status %d", status);
+        goto error_exit;
+    }
+
+    // NOTE: First stage engine is the writer to the buffer
+    // QAL client reader should be first in the reader list.
+    // The remaining readers are for seconds stage engines.
+    reader_ = reader_list[0];
+    for (i = 1; i < engines_.size(); i++) {
+        status = engines_[i]->GetEngine()->SetBufferReader(reader_list[i]);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
             goto error_exit;
         }
     }
@@ -1706,7 +1749,8 @@ void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
 
 qal_device_id_t StreamSoundTrigger::GetAvailCaptureDevice()
 {
-    if (rm->isDeviceAvailable(QAL_DEVICE_IN_WIRED_HEADSET))
+    if (st_info_->GetSupportDevSwitch() &&
+        rm->isDeviceAvailable(QAL_DEVICE_IN_WIRED_HEADSET))
         return QAL_DEVICE_IN_HEADSET_VA_MIC;
     else
         return QAL_DEVICE_IN_HANDSET_VA_MIC;
