@@ -32,7 +32,9 @@
 
 #include "Device.h"
 #include <system/audio-base.h>
+#include <tinyalsa/asoundlib.h>
 #include <bt_intf.h>
+#include <vector>
 
 #define DISALLOW_COPY_AND_ASSIGN(name) \
     name(const name &); \
@@ -86,6 +88,11 @@ protected:
     int updateDeviceMetadata(void);
     void updateDeviceAttributes(void);
     bool isPlaceholderEncoder(void);
+    bool isAbrEnabled;
+    struct pcm *fbPcm;
+    std::vector<int> fbpcmDevIds;
+    void startAbr();
+    void stopAbr();
 public:
     virtual ~Bluetooth();
 };

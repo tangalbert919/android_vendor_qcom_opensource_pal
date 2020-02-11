@@ -650,7 +650,7 @@ int SessionAlsaCompress::start(Stream * s)
                      rxAifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-                status = 0;
+                return status;
             }
 
             setCustomFormatParam(audio_fmt);

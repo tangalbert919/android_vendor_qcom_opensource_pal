@@ -1779,7 +1779,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                         }
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
-                            listAllPcmLoopbackRxFrontEnds.push_back(frontend.at(i));
+                            listAllPcmLoopbackTxFrontEnds.push_back(frontend.at(i));
                         }
                     }
                     break;

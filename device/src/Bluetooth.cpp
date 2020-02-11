@@ -39,14 +39,18 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cutils/properties.h>
+#include <sstream>
+#include <string>
 
 #define BT_IPC_SOURCE_LIB "btaudio_offload_if.so"
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
 #define PARAM_ID_RESET_PLACEHOLDER_MODULE          0x08001173
+#define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
 
 Bluetooth::Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Device(device, Rm)
 {
+    isAbrEnabled = false;
 }
 
 Bluetooth::~Bluetooth()
@@ -202,6 +206,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     codecConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
                                    (sizeof(uint8_t) * out_buf->channel_count));
     codecConfig.ch_info->channels = out_buf->channel_count;
+    isAbrEnabled = out_buf->is_abr_enabled;
 
     codecTagId = (type == ENC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
     status = session->getMIID(backEndName.c_str(), codecTagId, &miid);
@@ -298,6 +303,184 @@ error:
 
     return status;
 }
+
+void Bluetooth::startAbr()
+{
+    int ret = 0, dir;
+    struct qal_device fbDevice;
+    struct qal_channel_info *ch_info = NULL;
+    struct qal_stream_attributes sAttr;
+    std::string backEndName;
+    std::vector <std::pair<int, int>> keyVector;
+    struct pcm_config config;
+    struct mixer_ctl *connectCtrl = NULL;
+    struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
+    struct mixer *mixerHandle = NULL;
+    std::ostringstream connectCtrlName;
+    unsigned int flags;
+
+    memset(&fbDevice, 0, sizeof(fbDevice));
+    memset(&sAttr, 0, sizeof(sAttr));
+    memset(&config, 0, sizeof(config));
+
+    /* Configure device attributes */
+    ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t) + sizeof(uint8_t));
+    ch_info->channels = CHANNELS_1;
+    ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+
+    fbDevice.config.ch_info = ch_info;
+    fbDevice.config.sample_rate = SAMPLINGRATE_8K;
+    fbDevice.config.bit_width = BITWIDTH_16;
+    fbDevice.config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
+
+    if (type == DEC) { /* Usecase is TX, feedback device will be RX */
+        fbDevice.id = QAL_DEVICE_OUT_BLUETOOTH_SCO;
+        dir = RXLOOPBACK;
+        flags = PCM_OUT;
+        keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+    } else {
+        fbDevice.id = ((deviceAttr.id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) ?
+                       QAL_DEVICE_IN_BLUETOOTH_A2DP :
+                       QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
+        dir = TXLOOPBACK;
+        flags = PCM_IN;
+        keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
+    }
+
+    /* Configure Device Metadata */
+    rm->getBackendName(fbDevice.id, backEndName);
+    ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "setDeviceMetadata for feedback device failed");
+        goto done;
+    }
+    ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &fbDevice);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
+        goto done;
+    }
+
+    /* Retrieve Hostless PCM device id */
+    sAttr.type = QAL_STREAM_LOW_LATENCY;
+    sAttr.direction = QAL_AUDIO_INPUT_OUTPUT;
+    fbpcmDevIds = rm->allocateFrontEndIds(sAttr, dir);
+    if (fbpcmDevIds.size() == 0) {
+        QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+        ret = -ENOSYS;
+        goto done;
+    }
+    ret = rm->getAudioMixer(&mixerHandle);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "get mixer handle failed %d", ret);
+        goto free_fe;
+    }
+
+    connectCtrlName << "PCM" << fbpcmDevIds.at(0) << " connect";
+    connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
+    if (!connectCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
+        goto free_fe;
+    }
+
+    ret = mixer_ctl_set_enum_by_string(connectCtrl, backEndName.c_str());
+    if (ret) {
+        QAL_ERR(LOG_TAG, "Mixer control %s set with %s failed: %d",
+                connectCtrlName.str().data(), backEndName.c_str(), ret);
+        goto free_fe;
+    }
+
+    // Notify ABR usecase information to BT driver to distinguish
+    // between SCO and feedback usecase
+    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(mixerHandle,
+                                        MIXER_SET_FEEDBACK_CHANNEL);
+    if (!btSetFeedbackChannelCtrl) {
+        QAL_ERR(LOG_TAG, "ERROR %s mixer control not identified",
+                MIXER_SET_FEEDBACK_CHANNEL);
+        goto free_fe;
+    }
+
+    if (mixer_ctl_set_value(btSetFeedbackChannelCtrl, 0, 1) != 0) {
+        QAL_ERR(LOG_TAG, "Failed to set BT usecase");
+        goto free_fe;
+    }
+    config.rate = SAMPLINGRATE_8K;
+    config.format = PCM_FORMAT_S16_LE;
+    config.channels = CHANNELS_1;
+    config.period_size = 240;
+    config.period_count = 2;
+    config.start_threshold = 0;
+    config.stop_threshold = 0;
+    config.silence_threshold = 0;
+
+    fbPcm = pcm_open(rm->getSndCard(), fbpcmDevIds.at(0), flags, &config);
+    if (!fbPcm) {
+        QAL_ERR(LOG_TAG, "pcm open failed");
+        goto free_fe;
+    }
+
+    if (!pcm_is_ready(fbPcm)) {
+        QAL_ERR(LOG_TAG, "pcm open not ready");
+        goto err_pcm_open;
+    }
+
+    ret = pcm_start(fbPcm);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "pcm_start rx failed %d", ret);
+        goto err_pcm_open;
+    }
+
+    QAL_INFO(LOG_TAG, "Feedback Device started successfully");
+    goto done;
+err_pcm_open:
+    pcm_close(fbPcm);
+free_fe:
+    rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
+    fbpcmDevIds.clear();
+done:
+    free(ch_info);
+    return;
+}
+
+void Bluetooth::stopAbr()
+{
+    struct qal_stream_attributes sAttr;
+    struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
+    struct mixer *mixerHandle = NULL;
+    int dir, ret = 0;
+
+    if (!fbPcm)
+        return;
+
+    memset(&sAttr, 0, sizeof(sAttr));
+    sAttr.type = QAL_STREAM_LOW_LATENCY;
+    sAttr.direction = QAL_AUDIO_INPUT_OUTPUT;
+
+    pcm_stop(fbPcm);
+    pcm_close(fbPcm);
+
+    ret = rm->getAudioMixer(&mixerHandle);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "get mixer handle failed %d", ret);
+        goto free_fe;
+    }
+    // Reset BT driver mixer control for ABR usecase
+    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(mixerHandle,
+                                        MIXER_SET_FEEDBACK_CHANNEL);
+    if (!btSetFeedbackChannelCtrl) {
+        QAL_ERR(LOG_TAG, "%s mixer control not identified",
+                MIXER_SET_FEEDBACK_CHANNEL);
+    } else if (mixer_ctl_set_value(btSetFeedbackChannelCtrl, 0, 0) != 0) {
+        QAL_ERR(LOG_TAG, "Failed to reset BT usecase");
+    }
+
+free_fe:
+    dir = ((type == DEC) ? RXLOOPBACK : TXLOOPBACK);
+    if (fbpcmDevIds.size()) {
+        rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
+        fbpcmDevIds.clear();
+    }
+}
+
 
 /* Scope of BtA2dp class */
 // definition of static BtA2dp member variables
@@ -497,8 +680,10 @@ int BtA2dp::start()
     if (status != 0)
         return status;
 
-
     status = Device::start();
+    if (!status)
+        if (isAbrEnabled)
+            startAbr();
 
     return status;
 }
@@ -506,6 +691,9 @@ int BtA2dp::start()
 int BtA2dp::stop()
 {
     int status = 0;
+
+    if (isAbrEnabled)
+        stopAbr();
 
     Device::stop();
 

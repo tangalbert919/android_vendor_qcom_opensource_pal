@@ -72,6 +72,7 @@ typedef struct bt_enc_payload {
     uint32_t channel_count;
     uint32_t bit_format;
     uint32_t sample_rate;
+    bool is_abr_enabled;
     uint32_t  num_blks;
     custom_block_t *blocks[];
 } bt_enc_payload_t;

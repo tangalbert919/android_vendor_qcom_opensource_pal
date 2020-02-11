@@ -91,11 +91,23 @@ int SessionAlsaPcm::open(Stream * s)
     }
     if (sAttr.direction == QAL_AUDIO_INPUT) {
         pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
+        if (pcmDevIds.size() == 0) {
+            QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+            return -EINVAL;
+        }
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
+        if (pcmDevIds.size() == 0) {
+            QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+            return -EINVAL;
+        }
     } else {
         pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RXLOOPBACK);
         pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TXLOOPBACK);
+        if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
+            QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+            return -EINVAL;
+        }
     }
     status = rm->getAudioMixer(&mixer);
     if (status) {
