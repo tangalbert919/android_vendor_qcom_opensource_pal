@@ -92,3 +92,17 @@ int bt_base_populate_enc_output_cfg(custom_block_t *blk, uint32_t fmt_id,
     return 0;
 }
 
+int bt_base_populate_enc_cmn_param(custom_block_t *blk, uint32_t param_id,
+                                 void *payload, size_t size)
+{
+    blk->param_id = param_id;
+    blk->payload_sz = size;
+    blk->payload = (uint8_t *)calloc(1, blk->payload_sz);
+    if (!blk->payload) {
+        blk->payload_sz = 0;
+        return -ENOMEM;
+    }
+    memcpy(blk->payload, payload, size);
+
+    return 0;
+}
