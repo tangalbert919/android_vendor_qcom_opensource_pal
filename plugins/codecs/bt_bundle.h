@@ -32,17 +32,23 @@
 
 #include "bt_intf.h"
 
-#define ENCODER_LATENCY_SBC        10
-#define ENCODER_LATENCY_AAC        70
-#define DEFAULT_SINK_LATENCY_SBC   140
-#define DEFAULT_SINK_LATENCY_AAC   180
-#define MODULE_ID_AAC_ENC          0x0700101E
-#define MODULE_ID_AAC_DEC          0x0700101F
-#define MODULE_ID_SBC_DEC          0x07001039
-#define MODULE_ID_SBC_ENC          0x0700103A
-#define NUM_CODEC                  4
+#define ENCODER_LATENCY_SBC             10
+#define ENCODER_LATENCY_AAC             70
+#define ENCODER_LATENCY_CELT            40
+#define ENCODER_LATENCY_LDAC            40
+#define DEFAULT_SINK_LATENCY_SBC        140
+#define DEFAULT_SINK_LATENCY_AAC        180
+#define DEFAULT_SINK_LATENCY_CELT       180
+#define DEFAULT_SINK_LATENCY_LDAC       180
+#define MODULE_ID_AAC_ENC               0x0700101E
+#define MODULE_ID_AAC_DEC               0x0700101F
+#define MODULE_ID_SBC_DEC               0x07001039
+#define MODULE_ID_SBC_ENC               0x0700103A
+#define MODULE_ID_LDAC_ENC              0x0700107A
+#define MODULE_ID_CELT_ENC              0x07001090
+#define NUM_CODEC                       4
 
-/* Information about BT SBC encoder configuration
+/* Information about BT AAC encoder configuration
  * This data is used between audio HAL module and
  * BT IPC library to configure DSP encoder
  */
@@ -67,6 +73,10 @@ typedef struct audio_aac_encoder_config_s {
     struct aac_frame_size_control_t frame_ctl;
 } audio_aac_encoder_config_t;
 
+/* Information about BT SBC encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
 typedef struct audio_sbc_encoder_config_s {
     uint32_t subband;        /* 4, 8 */
     uint32_t blk_len;        /* 4, 8, 12, 16 */
@@ -78,5 +88,45 @@ typedef struct audio_sbc_encoder_config_s {
     uint32_t bitrate;        /* 320kbps to 512kbps */
     uint32_t bits_per_sample;
 } audio_sbc_encoder_config_t;
+
+/* Information about BT CELT encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
+typedef struct audio_celt_encoder_config_s {
+    uint32_t sampling_rate;   /* 32000 - 48000, 48000 */
+    uint16_t channels;        /* 1-Mono, 2-Stereo, 2 */
+    uint16_t frame_size;      /* 64-128-256-512, 512 */
+    uint16_t complexity;      /* 0-10, 1 */
+    uint16_t prediction_mode; /* 0-1-2, 0 */
+    uint16_t vbr_flag;        /* 0-1, 0 */
+    uint32_t bitrate;         /* 32000 - 1536000, 139500 */
+    uint32_t bits_per_sample;
+} audio_celt_encoder_config_t;
+
+/* Information about BT LDAC encoder configuration
+ * This data is used between audio HAL module and
+ * BT IPC library to configure DSP encoder
+ */
+#define MAX_ABR_QUALITY_LEVELS 5
+typedef struct bit_rate_level_map_s {
+    uint32_t link_quality_level;
+    uint32_t bitrate;
+} bit_rate_level_map_t;
+
+struct quality_level_to_bitrate_info {
+    uint32_t num_levels;
+    bit_rate_level_map_t bit_rate_level_map[MAX_ABR_QUALITY_LEVELS];
+};
+
+typedef struct audio_ldac_encoder_config_s {
+    uint32_t sampling_rate;  /* 44100,48000,88200,96000 */
+    uint32_t bit_rate;       /* 303000,606000,909000(in bits per second) */
+    uint16_t channel_mode;   /* 0, 4, 2, 1 */
+    uint16_t mtu;            /* 679 */
+    uint32_t bits_per_sample;
+    bool     is_abr_enabled;
+    struct quality_level_to_bitrate_info level_to_bitrate_map;
+} audio_ldac_encoder_config_t;
 
 #endif /* _BT_PLUGIN_BUNDLE_H_ */

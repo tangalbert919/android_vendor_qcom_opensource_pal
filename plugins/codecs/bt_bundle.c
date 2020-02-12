@@ -38,6 +38,7 @@
 #include "bt_base.h"
 #include <common_enc_dec_api.h>
 #include <media_fmt_api.h>
+#include <ldac_encoder_api.h>
 
 static int bt_aac_populate_enc_frame_size_ctrl(custom_block_t *blk, uint32_t ctl_type,
                                         uint32_t ctl_value)
@@ -82,13 +83,13 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format = aac_bt_cfg->bits_per_sample;
-    enc_payload->sample_rate = aac_bt_cfg->sampling_rate;
+    enc_payload->bit_format    = aac_bt_cfg->bits_per_sample;
+    enc_payload->sample_rate   = aac_bt_cfg->sampling_rate;
     enc_payload->channel_count = aac_bt_cfg->channels;
-    enc_payload->num_blks = num_blks;
+    enc_payload->num_blks      = num_blks;
 
     for (i = 0; i < num_blks; i++) {
-        blk[i] = (custom_block_t *) calloc(1, sizeof(custom_block_t));
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
         if (!blk[i]) {
             ret = -ENOMEM;
             goto free_payload;
@@ -188,12 +189,12 @@ static int sbc_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format                 = sbc_bt_cfg->bits_per_sample;
-    enc_payload->sample_rate                = sbc_bt_cfg->sampling_rate;
-    enc_payload->num_blks = num_blks;
+    enc_payload->bit_format  = sbc_bt_cfg->bits_per_sample;
+    enc_payload->sample_rate = sbc_bt_cfg->sampling_rate;
+    enc_payload->num_blks    = num_blks;
 
     for (i = 0; i < num_blks; i++) {
-        blk[i] = (custom_block_t *) calloc(1, sizeof(custom_block_t));
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
         if (!blk[i]) {
             ret = -ENOMEM;
             goto free_payload;
@@ -270,29 +271,229 @@ free_payload:
     return ret;
 }
 
-static int sbc_pack_dec_config(bt_codec_t *codec,void *src __unused, void **dst __unused)
+static int sbc_pack_dec_config(bt_codec_t *codec, void *src __unused, void **dst __unused)
 {
     return 0;
 }
 
+static int celt_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
+{
+    audio_celt_encoder_config_t *celt_bt_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    struct celt_enc_cfg_t *celt_enc_cfg = NULL;
+    int ret = 0, num_blks = 3, i = 0;
+    custom_block_t *blk[3] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    celt_bt_cfg = (audio_celt_encoder_config_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format    = celt_bt_cfg->bits_per_sample;
+    enc_payload->sample_rate   = celt_bt_cfg->sampling_rate;
+    enc_payload->channel_count = celt_bt_cfg->channels;
+    enc_payload->num_blks      = num_blks;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_REAL_MODULE_ID */
+    ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_CELT_ENC);
+    if (ret)
+        goto free_payload;
+
+    /* populate payload for PARAM_ID_ENC_BITRATE */
+    ret = bt_base_populate_enc_bitrate(blk[1], celt_bt_cfg->bitrate);
+    if (ret)
+        goto free_payload;
+
+    /* populate payload for PARAM_ID_ENCODER_OUTPUT_CONFIG */
+    celt_enc_cfg = (struct celt_enc_cfg_t *)calloc(1, sizeof(struct celt_enc_cfg_t));
+    if (celt_enc_cfg == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+
+    celt_enc_cfg->frame_size = celt_bt_cfg->frame_size;
+    celt_enc_cfg->complexity = celt_bt_cfg->complexity;
+    celt_enc_cfg->prediction_mode = celt_bt_cfg->prediction_mode;
+    celt_enc_cfg->vbr_flag = celt_bt_cfg->vbr_flag;
+    ret = bt_base_populate_enc_output_cfg(blk[2], MEDIA_FMT_ID_CELT,
+                              celt_enc_cfg, sizeof(struct celt_enc_cfg_t));
+    free(celt_enc_cfg);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    enc_payload->blocks[1] = blk[1];
+    enc_payload->blocks[2] = blk[2];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+    return ret;
+}
+
+static int bt_ldac_populate_bitrate_level_map(custom_block_t *blk,
+        struct quality_level_to_bitrate_info *level_map)
+{
+    struct param_id_ldac_bitrate_level_map_payload_t *param = NULL;
+    uint32_t tbl_size = level_map->num_levels * sizeof(struct bitrate_level_map_t);
+
+    blk->param_id = PARAM_ID_LDAC_BIT_RATE_LEVEL_MAP;
+    blk->payload_sz = sizeof(struct param_id_ldac_bitrate_level_map_payload_t);
+    blk->payload_sz += tbl_size;
+    blk->payload = calloc(1, blk->payload_sz);
+    if (!blk->payload) {
+        blk->payload_sz = 0;
+        return -ENOMEM;
+    }
+
+    if (sizeof(bitrate_level_map_t) != sizeof(bit_rate_level_map_t)) {
+        ALOGE("%s: level map size mismatches", __func__);
+        return -EINVAL;
+    }
+
+    param = (struct param_id_ldac_bitrate_level_map_payload_t *)blk->payload;
+    param->num_levels = level_map->num_levels;
+    bitrate_level_map_t *tbl_ptr = (bitrate_level_map_t *)((int8_t *)blk->payload +
+        sizeof(struct param_id_ldac_bitrate_level_map_payload_t));
+
+    memcpy(tbl_ptr, &(level_map->bit_rate_level_map[0]), tbl_size);
+    return 0;
+}
+
+static int ldac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
+{
+    audio_ldac_encoder_config_t *ldac_bt_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    int ret = 0, num_blks = 2, i = 0;
+    custom_block_t *blk[2] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    ldac_bt_cfg = (audio_ldac_encoder_config_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format     = ldac_bt_cfg->bits_per_sample;
+    enc_payload->sample_rate    = ldac_bt_cfg->sampling_rate;
+    enc_payload->is_abr_enabled = ldac_bt_cfg->is_abr_enabled;
+    enc_payload->num_blks       = num_blks;
+
+    switch (ldac_bt_cfg->channel_mode) {
+        case 4:
+            enc_payload->channel_count = 1;
+            break;
+        case 2:
+        case 1:
+        default:
+            enc_payload->channel_count = 2;
+            break;
+    }
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_ENC_BITRATE */
+    ret = bt_base_populate_enc_bitrate(blk[0], ldac_bt_cfg->bit_rate);
+    if (ret)
+        goto free_payload;
+
+    /* populate payload for PARAM_ID_LDAC_BIT_RATE_LEVEL_MAP */
+    ret = bt_ldac_populate_bitrate_level_map(blk[1], &(ldac_bt_cfg->level_to_bitrate_map));
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    enc_payload->blocks[1] = blk[1];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+    return ret;
+}
+
 static int bt_bundle_populate_payload(bt_codec_t *codec, void *src, void **dst)
 {
-    config_fn_t config_fn;
+    config_fn_t config_fn = NULL;
 
     if (codec->payload)
         free(codec->payload);
 
     switch (codec->codecFmt) {
-        case (CODEC_TYPE_AAC):
-            config_fn = ((codec->direction == ENC) ? &aac_pack_enc_config: &aac_pack_dec_config);
-            return config_fn(codec, src, dst);
-        case (CODEC_TYPE_SBC):
-            config_fn = ((codec->direction == ENC) ? &sbc_pack_enc_config: &sbc_pack_dec_config);
-            return config_fn(codec, src, dst);
+        case CODEC_TYPE_AAC:
+            config_fn = ((codec->direction == ENC) ? &aac_pack_enc_config :
+                                                     &aac_pack_dec_config);
+            break;
+        case CODEC_TYPE_SBC:
+            config_fn = ((codec->direction == ENC) ? &sbc_pack_enc_config :
+                                                     &sbc_pack_dec_config);
+            break;
+        case CODEC_TYPE_CELT:
+            config_fn = ((codec->direction == ENC) ? &celt_pack_enc_config :
+                                                     NULL);
+            break;
+        case CODEC_TYPE_LDAC:
+            config_fn = ((codec->direction == ENC) ? &ldac_pack_enc_config :
+                                                     NULL);
+            break;
         default:
-            ALOGE("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
-            return -EINVAL;
+            ALOGD("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
     }
+
+    if (config_fn != NULL) {
+        return config_fn(codec, src, dst);
+    }
+
     return -EINVAL;
 }
 
@@ -323,16 +524,20 @@ static uint64_t bt_bundle_get_encoder_latency(bt_codec_t *codec,
 
     switch (codec->codecFmt) {
         case CODEC_TYPE_AAC:
-            if (codec->direction == ENC) {
-                latency = ENCODER_LATENCY_AAC;
-                latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_AAC : slatency;
-            }
+            latency = ENCODER_LATENCY_AAC;
+            latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_AAC : slatency;
             break;
         case CODEC_TYPE_SBC:
-            if (codec->direction == ENC) {
-                latency = ENCODER_LATENCY_SBC;
-                latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_SBC : slatency;
-            }
+            latency = ENCODER_LATENCY_SBC;
+            latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_SBC : slatency;
+            break;
+        case CODEC_TYPE_CELT:
+            latency = ENCODER_LATENCY_CELT;
+            latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_CELT : slatency;
+            break;
+        case CODEC_TYPE_LDAC:
+            latency = ENCODER_LATENCY_LDAC;
+            latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_LDAC : slatency;
             break;
         default:
             latency = 200;
