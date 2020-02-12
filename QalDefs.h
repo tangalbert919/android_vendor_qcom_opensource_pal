@@ -41,10 +41,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
+#ifdef __cplusplus
+
 #include <map>
 #include <string>
 
-#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -84,6 +86,7 @@ typedef enum {
 
 #define SAMPLE_RATE_192000 192000
 
+#ifdef __cplusplus
 static const std::map<std::string, qal_audio_fmt_t> QalAudioFormatMap
 {
     { "PCM",  QAL_AUDIO_FMT_DEFAULT_PCM},
@@ -101,6 +104,7 @@ static const std::map<std::string, qal_audio_fmt_t> QalAudioFormatMap
     { "VORBIS", QAL_AUDIO_FMT_VORBIS}
 
 };
+#endif
 
 struct qal_snd_dec_aac {
     uint16_t audio_obj_type;
@@ -332,6 +336,7 @@ typedef enum {
     QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 20,
 } qal_device_id_t;
 
+#ifdef __cplusplus
 static const std::map<std::string, qal_device_id_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_NONE" },                     QAL_DEVICE_NONE},
     {std::string{ "QAL_DEVICE_OUT_HANDSET" },             QAL_DEVICE_OUT_HANDSET},
@@ -408,7 +413,7 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"_QAL_DEVICE_IN_BLUETOOTH_A2DP"}},
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"QAL_DEVICE_IN_HEADSET_VA_MIC"}}
 };
-
+#endif
 
 
 /* type of asynchronous write callback events. Mutually exclusive */
