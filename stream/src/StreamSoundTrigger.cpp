@@ -1634,7 +1634,7 @@ void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
 qal_device_id_t StreamSoundTrigger::GetAvailCaptureDevice()
 {
     if (rm->isDeviceAvailable(QAL_DEVICE_IN_WIRED_HEADSET))
-        return QAL_DEVICE_IN_WIRED_HEADSET;
+        return QAL_DEVICE_IN_HEADSET_VA_MIC;
     else
         return QAL_DEVICE_IN_HANDSET_VA_MIC;
 }
