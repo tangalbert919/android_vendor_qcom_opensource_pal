@@ -638,6 +638,8 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     int32_t status = 0;
     bool fluence_flag;
     qal_param_payload *param_payload = NULL;
+    effect_qal_payload_t *effectQalPayload = nullptr;
+
     if (!payload)
     {
         status = -EINVAL;
@@ -662,6 +664,26 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
                        (fluence_flag ? "ON" : "OFF"), status);
             break;
         }
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            param_payload = (qal_param_payload *)payload;
+            if (!param_payload->has_effect) {
+                QAL_ERR(LOG_TAG, "This is not effect param");
+                status = -EINVAL;
+                goto error;
+            }
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            if (effectQalPayload->isTKV) {
+                status = session->setTKV(this, MODULE, effectQalPayload);
+            } else {
+                status = session->setParameters(this, effectQalPayload->tag, param_id, payload);
+            }
+            if (status) {
+               QAL_ERR(LOG_TAG, "setParameters %d failed with %d", param_id, status);
+            }
+            break;
+        }
+
         default:
             QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;

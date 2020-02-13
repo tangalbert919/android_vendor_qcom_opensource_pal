@@ -868,8 +868,6 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
     uint32_t miid = 0;
-    uint32_t isPayloadTKV = PARAM_NONTKV;
-    uint32_t payloadSize = 0;
     effect_qal_payload_t *effectQalPayload = nullptr;
 
     switch (param_id) {

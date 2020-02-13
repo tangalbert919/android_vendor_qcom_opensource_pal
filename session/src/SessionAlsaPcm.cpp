@@ -140,11 +140,6 @@ int SessionAlsaPcm::open(Stream * s)
     return status;
 }
 
-int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_qal_payload_t *payload)
-{
-    return 0;
-}
-
 int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)
 {
@@ -332,6 +327,80 @@ int SessionAlsaPcm::getConfig(Stream * s)
    return 0;
 }
 */
+
+int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_qal_payload_t *effectPayload)
+{
+    int status = 0;
+    uint32_t tagsent;
+    struct agm_tag_config* tagConfig = nullptr;
+    const char *setParamTagControl = "setParamTag";
+    const char *stream = "PCM";
+    struct mixer_ctl *ctl;
+    std::ostringstream tagCntrlName;
+    int tkv_size = 0;
+
+    switch (type) {
+        case MODULE:
+        {
+            qal_key_vector_t *qal_kvpair = (qal_key_vector_t *)effectPayload->payload;
+            for (int i = 0; i < qal_kvpair->num_tkvs; i++) {
+                tkv.push_back(std::make_pair(qal_kvpair->kvp[i].key, qal_kvpair->kvp[i].value));
+            }
+
+            if (tkv.size() == 0) {
+                status = -EINVAL;
+                goto exit;
+            }
+
+            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+                            (tkv.size() * sizeof(agm_key_value)));
+
+            if(!tagConfig) {
+                status = -ENOMEM;
+                goto exit;
+            }
+
+            tagsent = effectPayload->tag;
+            status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
+            if (0 != status) {
+                goto exit;
+            }
+            tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+            ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
+            if (!ctl) {
+                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                status = -ENOENT;
+                goto exit;
+            }
+            QAL_VERBOSE(LOG_TAG, "mixer control: %s\n", tagCntrlName.str().data());
+
+            tkv_size = tkv.size()*sizeof(struct agm_key_value);
+            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                goto exit;
+            }
+            ctl = NULL;
+            tkv.clear();
+
+            break;
+        }
+        default:
+            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            status = -EINVAL;
+            goto exit;
+    }
+
+exit:
+    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    if (tagConfig) {
+        free(tagConfig);
+        tagConfig = nullptr;
+    }
+
+    return status;
+}
+
 int SessionAlsaPcm::start(Stream * s)
 {
     struct pcm_config config;
@@ -862,13 +931,14 @@ int SessionAlsaPcm::writeBufferInit(Stream * /*streamHandle*/, size_t /*noOfBuf*
     return 0;
 }
 
-int SessionAlsaPcm::setParameters(Stream *streamHandle, int /*tagId*/, uint32_t param_id, void *payload)
+int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t param_id, void *payload)
 {
     int status = 0;
     int device = pcmDevIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t miid = 0;
+    effect_qal_payload_t *effectQalPayload = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter.");
     switch (param_id) {
@@ -954,6 +1024,36 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int /*tagId*/, uint32_t 
             }
             break;
         }
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            qal_effect_custom_payload_t *customPayload;
+            qal_param_payload *param_payload = (qal_param_payload *)payload;
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                           rxAifBackEnds[0].second.data(),
+                                                           false, tagId, &miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                break;
+            } else {
+                customPayload = (qal_effect_custom_payload_t *)effectQalPayload->payload;
+                status = builder->payloadCustomParam(&paramData, &paramSize,
+                            customPayload->data,
+                            effectQalPayload->payloadSize - sizeof(uint32_t),
+                            miid, customPayload->paramId);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG, "payloadCustomParam failed. status = %d",
+                                status);
+                    break;
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer,
+                                                             pcmDevIds.at(0),
+                                                             false, paramData,
+                                                             paramSize);
+                QAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
+            }
+            break;
+        }
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
@@ -968,7 +1068,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int /*tagId*/, uint32_t 
 
     QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
 
-    if (param_id != PARAM_ID_DETECTION_ENGINE_RESET) {
+    if (param_id != PARAM_ID_DETECTION_ENGINE_RESET &&
+        param_id != QAL_PARAM_ID_UIEFFECT) {
         if (!customPayloadSize) {
             customPayload = (uint8_t *)calloc(1, paramSize);
         } else {
