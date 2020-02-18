@@ -101,6 +101,7 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
         QAL_VERBOSE(LOG_TAG, "BTA2DP device");
         return BtA2dp::getInstance(device, Rm);
     case QAL_DEVICE_OUT_AUX_DIGITAL:
+    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
     case QAL_DEVICE_OUT_HDMI:
         QAL_ERR(LOG_TAG, "Display Port device");
         return DisplayPort::getInstance(device, Rm);

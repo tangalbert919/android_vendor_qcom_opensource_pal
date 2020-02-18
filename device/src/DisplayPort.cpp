@@ -62,12 +62,12 @@ static struct extDispState {
 std::shared_ptr<Device> DisplayPort::getInstance(struct qal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
-    QAL_DBG(LOG_TAG, "%s :Enter:",__func__);
+    QAL_DBG(LOG_TAG, "Enter");
     if (!obj) {
         std::shared_ptr<Device> sp(new DisplayPort(device, Rm));
         obj = sp;
     }
-    QAL_DBG(LOG_TAG, "%s :Exit:",__func__);
+    QAL_DBG(LOG_TAG, "Exit");
     return obj;
 }
 
@@ -80,25 +80,9 @@ Device(device, Rm)
 
 DisplayPort::~DisplayPort()
 {
-    QAL_ERR(LOG_TAG, "dtor called");
+    QAL_DBG(LOG_TAG, "dtor called");
 }
 
-/*DisplayPort1::DisplayPort1(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
-DisplayPort(device, Rm)
-{
-
-}
-
-DisplayPort1::~DisplayPort1()
-{
-    QAL_ERR(LOG_TAG, "dtor called");
-}
-
-bool DisplayPort1::isDisplayPortEnabled () {
-
-    return DisplayPort::isDisplayPortEnabled ();
-
-}*/
 int DisplayPort::start()
 {
     int status = 0;
@@ -127,9 +111,9 @@ int DisplayPort::configureDpEndpoint()
     uint32_t miid = 0;
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream(dev, activestreams);
+    status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        QAL_ERR(LOG_TAG, " no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
@@ -140,32 +124,178 @@ int DisplayPort::configureDpEndpoint()
         return status;
     }
     cfg.channel_allocation = 0x0;
-    cfg.mst_idx = 0x0;
-    cfg.dptx_idx = 0x0;
+    cfg.mst_idx = dp_stream;
+    cfg.dptx_idx = dp_controller;
     builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);
         delete payload;
         if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+        QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         return status;
         }
     }
     return status;
 }
 
+ssize_t DisplayPort::updateSysfsNode(const char *path, const char *data, size_t len)
+{
+    size_t err = 0;
+    FILE *fd = NULL;
+
+    fd = fopen(path, "w");
+    fwrite(data, sizeof(char), len, fd);
+    fclose(fd);
+    return err;
+}
+
+int DisplayPort::getExtDispSysfsNodeIndex(int ext_disp_type)
+{
+    int node_index = -1;
+    char fbvalue[80] = {0};
+    char fbpath[80] = {0};
+    int i = 0;
+    FILE *ext_disp_fd = NULL;
+
+    while (1) {
+        snprintf(fbpath, sizeof(fbpath),
+                  "/sys/class/graphics/fb%d/msm_fb_type", i);
+        ext_disp_fd = fopen(fbpath, "r");
+        if (ext_disp_fd) {
+            if (fread(fbvalue, sizeof(char), 80, ext_disp_fd)) {
+                if(((strncmp(fbvalue, "dtv panel", strlen("dtv panel")) == 0) &&
+                    (ext_disp_type == EXT_DISPLAY_TYPE_HDMI)) ||
+                   ((strncmp(fbvalue, "dp panel", strlen("dp panel")) == 0) &&
+                    (ext_disp_type == EXT_DISPLAY_TYPE_DP))) {
+                    node_index = i;
+                    QAL_DBG(LOG_TAG, " Ext Disp:%d is at fb%d", ext_disp_type, i);
+                    fclose(ext_disp_fd);
+                    return node_index;
+                }
+            }
+            fclose(ext_disp_fd);
+            i++;
+        } else {
+            QAL_ERR(LOG_TAG, " Scanned till end of fbs or Failed to open fb node %d", i);
+            break;
+        }
+    }
+
+    return -1;
+}
+
+int DisplayPort::updateExtDispSysfsNode(int node_value, int controller, int stream)
+{
+    char ext_disp_ack_path[80] = {0};
+    char ext_disp_ack_value[3] = {0};
+    int index, ret = -1;
+    struct mixer *mixer;
+    int ext_disp_type = -EINVAL;
+    int status = 0;
+
+    status = rm->getAudioMixer(&mixer);
+    if (status) {
+         QAL_ERR(LOG_TAG," mixer error");
+         return status;
+    }
+
+    ext_disp_type = getExtDispType(mixer, controller, stream);
+    if (ext_disp_type < 0) {
+        QAL_ERR(LOG_TAG, " Unable to get the external display type, err:%d", ext_disp_type);
+        return -EINVAL;
+    }
+
+    index = getExtDispSysfsNodeIndex(ext_disp_type);
+    if (index >= 0) {
+        snprintf(ext_disp_ack_value, sizeof(ext_disp_ack_value), "%d", node_value);
+        snprintf(ext_disp_ack_path, sizeof(ext_disp_ack_path),
+                  "/sys/class/graphics/fb%d/hdmi_audio_cb", index);
+
+        ret = updateSysfsNode(ext_disp_ack_path, ext_disp_ack_value,
+                sizeof(ext_disp_ack_value));
+
+        QAL_DBG(LOG_TAG, "update hdmi_audio_cb at fb[%d] to:[%d] %s",
+            index, node_value, (ret >= 0) ? "success":"fail");
+    }
+
+    return ret;
+}
+
+int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
+{
+    int ret = 0;
+    int ctl_index = 0;
+    struct mixer_ctl *ctl = NULL;
+    const char *ctl_prefix = "External Display";
+    const char *ctl_suffix = "Audio Ack";
+    char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
+    struct mixer *mixer;
+
+    ret = rm->getAudioMixer(&mixer);
+    if (ret) {
+         QAL_ERR(LOG_TAG," mixer error");
+         return ret;
+    }
+
+    ctl_index = getDisplayPortCtlIndex(controller, stream);
+    if (-EINVAL == ctl_index) {
+        QAL_ERR(LOG_TAG, " Unknown controller/stream %d/%d",
+                controller, stream);
+        return -EINVAL;
+    }
+
+    if (0 == ctl_index)
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s %s", ctl_prefix, ctl_suffix);
+    else
+        snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
+                 "%s%d %s", ctl_prefix, ctl_index, ctl_suffix);
+
+    QAL_DBG(LOG_TAG, " mixer ctl name: %s", mixer_ctl_name);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
+    /* If no mixer command support, fall back to sysfs node approach */
+    if (!ctl) {
+        QAL_DBG(LOG_TAG, " could not get ctl for mixer cmd(%s), use sysfs node instead\n",
+              mixer_ctl_name);
+        ret = updateExtDispSysfsNode(node_value, controller, stream);
+    } else {
+        char *ack_str = NULL;
+
+        if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE)
+            ack_str = "Ack_Enable";
+        else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT)
+            ack_str = "Connect";
+        else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT)
+            ack_str = "Disconnect";
+        else {
+            QAL_ERR(LOG_TAG, " Invalid input parameter - 0x%x\n", node_value);
+            return -EINVAL;
+        }
+
+        ret = mixer_ctl_set_enum_by_string(ctl, ack_str);
+        if (ret)
+            QAL_ERR(LOG_TAG, " Could not set ctl for mixer cmd - %s ret %d\n",
+                   mixer_ctl_name, ret);
+    }
+    return ret;
+}
+
 int DisplayPort::init(qal_param_device_connection_t device_conn)
 {
-    QAL_DBG(LOG_TAG," %s:Enter", __func__);
+    QAL_DBG(LOG_TAG," Enter");
     int status = 0;
+    static bool is_hdmi_sysfs_node_init = false;
     struct mixer *mixer;
     status = rm->getAudioMixer(&mixer);
     if (status) {
-        QAL_ERR(LOG_TAG,"%s :mixer error",__func__);
+        QAL_ERR(LOG_TAG," mixer error");
         return status;
     }
-    QAL_ERR(LOG_TAG,"%s : get mixer success");
+    QAL_DBG(LOG_TAG," get mixer success");
     qal_param_disp_port_config_params* dp_config = (qal_param_disp_port_config_params*) &device_conn.device_config.dp_config;
+    dp_controller = dp_config->controller;
+    dp_stream = dp_config->stream;
+    QAL_DBG(LOG_TAG," DP contr: %d  stream: %d", dp_controller, dp_stream);
     setExtDisplayDevice(mixer, dp_config->controller, dp_config->stream);
     status = getExtDispType(mixer, dp_config->controller, dp_config->stream);
     if (status < 0) {
@@ -173,13 +303,20 @@ int DisplayPort::init(qal_param_device_connection_t device_conn)
     } else {
         cacheEdid(mixer, dp_config->controller, dp_config->stream);
     }
-    QAL_DBG(LOG_TAG," %s:Exit", __func__);
+    if (is_hdmi_sysfs_node_init == false) {
+        is_hdmi_sysfs_node_init = true;
+        updateAudioAckState(EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE, dp_controller, dp_stream);
+    }
+    updateAudioAckState(EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT, dp_controller, dp_stream);
+
+    QAL_DBG(LOG_TAG," Exit");
     return 0;
 }
 
 int DisplayPort::deinit(qal_param_device_connection_t device_conn)
 {
-
+    updateAudioAckState(EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT, dp_controller, dp_stream);
+    //To-Do : Have to invalidate the cahed EDID
     return 0;
 }
 
@@ -252,7 +389,7 @@ int32_t DisplayPort::setExtDisplayDevice(struct audio_mixer *mixer, int controll
         return -EINVAL;
     }
 
-    QAL_ERR(LOG_TAG," ctlIndex: %d controller: %d stream: %d", ctlIndex, controller, stream);
+    QAL_DBG(LOG_TAG," ctlIndex: %d controller: %d stream: %d", ctlIndex, controller, stream);
 
     if (0 == ctlIndex)
         snprintf(mixerCtlName, sizeof(mixerCtlName),
@@ -264,7 +401,7 @@ int32_t DisplayPort::setExtDisplayDevice(struct audio_mixer *mixer, int controll
     deviceValues[0] = controller;
     deviceValues[1] = stream;
 
-    QAL_ERR(LOG_TAG," mixer: %pK mixer ctl name: %s", mixer, mixerCtlName);
+    QAL_DBG(LOG_TAG," mixer: %pK mixer ctl name: %s", mixer, mixerCtlName);
 
     ctl = mixer_get_ctl_by_name(mixer, mixerCtlName);
     if (!ctl) {
@@ -272,7 +409,7 @@ int32_t DisplayPort::setExtDisplayDevice(struct audio_mixer *mixer, int controll
         return -EINVAL;
     }
 
-    QAL_ERR(LOG_TAG,"controller/stream: %d/%d", deviceValues[0], deviceValues[1]);
+    QAL_DBG(LOG_TAG,"controller/stream: %d/%d", deviceValues[0], deviceValues[1]);
 
     return mixer_ctl_set_array(ctl, deviceValues, ARRAY_SIZE(deviceValues));
 }
@@ -508,10 +645,7 @@ int32_t DisplayPort::checkAndUpdateSampleRate(uint32_t *sampleRate)
 {
     int32_t rc = 0;
 
-    if ((*sampleRate % SAMPLINGRATE_44K == 0) &&
-        (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == ResourceManager::getNativeAudioSupport())) {
-        QAL_DBG(LOG_TAG, "napb: setting sampling rate to %d", *sampleRate);
-    } else if (*sampleRate <= SAMPLINGRATE_48K)
+    if (*sampleRate <= SAMPLINGRATE_48K)
         *sampleRate = SAMPLINGRATE_48K;
     else if (*sampleRate > SAMPLINGRATE_48K && *sampleRate <= SAMPLINGRATE_96K)
         *sampleRate = SAMPLINGRATE_96K;
@@ -587,7 +721,7 @@ bool DisplayPort::isSampleRateSupported(unsigned char srByte, int samplingRate)
 {
     int result = 0;
 
-    QAL_VERBOSE(LOG_TAG,"%s: srByte: %d, samplingRate: %d",__func__, srByte, samplingRate);
+    QAL_VERBOSE(LOG_TAG," srByte: %d, samplingRate: %d", srByte, samplingRate);
     switch (samplingRate) {
     case 192000:
         result = (srByte & BIT(6));
@@ -624,7 +758,7 @@ unsigned char DisplayPort::getEdidBpsByte(unsigned char byte,
                         unsigned char format)
 {
     if (format == 0) {
-        QAL_VERBOSE(LOG_TAG,"%s: not lpcm format, return 0",__func__);
+        QAL_VERBOSE(LOG_TAG," not lpcm format, return 0");
         return 0;
     }
     return byte;
@@ -871,7 +1005,7 @@ void DisplayPort::updateChannelAllocation(edidAudioInfo* info)
     case BIT(0)|BIT(1)|BIT(2)|BIT(3)|BIT(7):               ca = 0x31; break;
     default:                                               ca = 0x0;  break;
     }
-    QAL_DBG(LOG_TAG,"%s channel allocation: %x", __func__, ca);
+    QAL_DBG(LOG_TAG," channel allocation: %x", ca);
     info->channelAllocation = ca;
 }
 
@@ -1137,10 +1271,10 @@ void DisplayPort::updateChannelMapLpass(edidAudioInfo* info)
     default:
         break;
     }
-    QAL_DBG(LOG_TAG,"%s channel map updated to [%d %d %d %d %d %d %d %d ]", __func__
-        , info->channelMap[0], info->channelMap[1], info->channelMap[2]
-        , info->channelMap[3], info->channelMap[4], info->channelMap[5]
-        , info->channelMap[6], info->channelMap[7]);
+    QAL_DBG(LOG_TAG," channel map updated to [%d %d %d %d %d %d %d %d ]",
+          info->channelMap[0], info->channelMap[1], info->channelMap[2],
+          info->channelMap[3], info->channelMap[4], info->channelMap[5],
+          info->channelMap[6], info->channelMap[7]);
 }
 
 
@@ -1314,7 +1448,7 @@ void DisplayPort::updateChannelMask(edidAudioInfo* info)
     default:
         break;
     }
-    QAL_DBG(LOG_TAG,"%s channel mask updated to %d", __func__, info->channelMask);
+    QAL_DBG(LOG_TAG," channel mask updated to %d", info->channelMask);
 }
 
 void DisplayPort::dumpEdidData(edidAudioInfo *info)
@@ -1322,23 +1456,23 @@ void DisplayPort::dumpEdidData(edidAudioInfo *info)
 
     int i;
     for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
-        QAL_VERBOSE(LOG_TAG,"%s:FormatId:%d rate:%d bps:%d channels:%d", __func__,
+        QAL_VERBOSE(LOG_TAG,"FormatId:%d rate:%d bps:%d channels:%d",
               info->audioBlocksArray[i].formatId,
               info->audioBlocksArray[i].samplingFreqBitmask,
               info->audioBlocksArray[i].bitsPerSampleBitmask,
               info->audioBlocksArray[i].channels);
     }
-    QAL_VERBOSE(LOG_TAG,"%s:no of audio blocks:%d", __func__, info->audioBlocks);
-    QAL_VERBOSE(LOG_TAG,"%s:speaker allocation:[%x %x %x]", __func__,
+    QAL_VERBOSE(LOG_TAG,"no of audio blocks:%d", info->audioBlocks);
+    QAL_VERBOSE(LOG_TAG,"speaker allocation:[%x %x %x]",
            info->speakerAllocation[0], info->speakerAllocation[1],
            info->speakerAllocation[2]);
-    QAL_VERBOSE(LOG_TAG,"%s:channel map:[%x %x %x %x %x %x %x %x]", __func__,
+    QAL_VERBOSE(LOG_TAG,"channel map:[%x %x %x %x %x %x %x %x]",
            info->channelMap[0], info->channelMap[1],
            info->channelMap[2], info->channelMap[3],
            info->channelMap[4], info->channelMap[5],
            info->channelMap[6], info->channelMap[7]);
-    QAL_VERBOSE(LOG_TAG,"%s:channel allocation:%d", __func__, info->channelAllocation);
-    QAL_VERBOSE(LOG_TAG,"%s:[%d %d %d %d %d %d %d %d ]", __func__,
+    QAL_VERBOSE(LOG_TAG,"channel allocation:%d", info->channelAllocation);
+    QAL_VERBOSE(LOG_TAG,"[%d %d %d %d %d %d %d %d ]",
            info->channelMap[0], info->channelMap[1],
            info->channelMap[2], info->channelMap[3],
            info->channelMap[4], info->channelMap[5],
@@ -1428,14 +1562,12 @@ bool DisplayPort::isSupportedSR(edidAudioInfo* info, int sr)
     if (info != NULL && sr != 0) {
         for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
         if (isSampleRateSupported(info->audioBlocksArray[i].samplingFreqBitmask , sr)) {
-                QAL_VERBOSE(LOG_TAG,"%s: returns true for sample rate [%d]",
-                      __func__, sr);
+                QAL_VERBOSE(LOG_TAG," returns true for sample rate [%d]", sr);
                 return true;
             }
         }
     }
-    QAL_VERBOSE(LOG_TAG,"%s: returns false for sample rate [%d]",
-           __func__, sr);
+    QAL_VERBOSE(LOG_TAG," returns false for sample rate [%d]", sr);
     return false;
 }
 
@@ -1452,14 +1584,12 @@ bool DisplayPort::isSupportedBps(edidAudioInfo* info, int bps)
     if (info != NULL && bps != 0) {
         for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
             if (isSupportedBps(info->audioBlocksArray[i].bitsPerSampleBitmask, bps)) {
-                QAL_VERBOSE(LOG_TAG,"%s: returns true for bit width [%d]",
-                      __func__, bps);
+                QAL_VERBOSE(LOG_TAG," returns true for bit width [%d]", bps);
                 return true;
             }
         }
     }
-    QAL_VERBOSE(LOG_TAG,"%s: returns false for bit width [%d]",
-           __func__, bps);
+    QAL_VERBOSE(LOG_TAG," returns false for bit width [%d]", bps);
     return false;
 }
 
@@ -1476,10 +1606,10 @@ int DisplayPort::getHighestSupportedSR(edidAudioInfo* info)
             highestSR = sr;
         }
     }
-    else
+    else {
         QAL_ERR(LOG_TAG," info is NULL");
+    }
 
-    QAL_VERBOSE(LOG_TAG,"%s: returns [%d] for highest supported sr",
-        __func__, highestSR);
+    QAL_VERBOSE(LOG_TAG," returns [%d] for highest supported sr", highestSR);
     return highestSR;
 }

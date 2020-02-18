@@ -90,6 +90,10 @@
 
 #define MAX_HDMI_CHANNEL_CNT 8
 
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE      0x30
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT     0x01
+#define EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT  0x00
+
 typedef enum edidAudioFormatId {
     LPCM = 1,
     AC3,
@@ -127,6 +131,8 @@ class DisplayPort : public Device
 {
     struct mixer *mixer;
     std::vector<int> pcmDevIds;
+    uint32_t dp_controller;
+    uint32_t dp_stream;
 protected:
     static std::shared_ptr<Device> obj;
     DisplayPort(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
@@ -164,6 +170,10 @@ public:
     bool isSupportedSR(edidAudioInfo* info, int sr);
     bool isSupportedBps(edidAudioInfo* info, int bps);
     int getHighestSupportedSR(edidAudioInfo* info);
+    ssize_t updateSysfsNode(const char *path, const char *data, size_t len);
+    int getExtDispSysfsNodeIndex(int ext_disp_type);
+    int updateExtDispSysfsNode(int node_value, int controller, int stream);
+    int updateAudioAckState(int node_value, int controller, int stream);
     ~DisplayPort();
 };
 

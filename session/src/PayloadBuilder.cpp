@@ -2291,6 +2291,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
             break;
         case QAL_DEVICE_OUT_AUX_DIGITAL:
+        case QAL_DEVICE_OUT_AUX_DIGITAL_1:
         case QAL_DEVICE_OUT_HDMI:
            keyVector.push_back(std::make_pair(DEVICERX, HDMI_RX));
            break;

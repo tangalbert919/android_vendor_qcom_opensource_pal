@@ -309,8 +309,9 @@ typedef enum {
     QAL_DEVICE_OUT_FM = 14,
     QAL_DEVICE_OUT_AUX_LINE = 15,
     QAL_DEVICE_OUT_PROXY = 16,
+    QAL_DEVICE_OUT_AUX_DIGITAL_1 = 17,
     // Add new OUT devices here, increment MAX and MIN below when you do so
-    QAL_DEVICE_OUT_MAX = 17,
+    QAL_DEVICE_OUT_MAX = 18,
     //INPUT DEVICES
     QAL_DEVICE_IN_MIN = QAL_DEVICE_OUT_MAX,
     QAL_DEVICE_IN_HANDSET_MIC = QAL_DEVICE_IN_MIN +1,
@@ -352,6 +353,7 @@ static const std::map<std::string, qal_device_id_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_OUT_FM" },                   QAL_DEVICE_OUT_FM},
     {std::string{ "QAL_DEVICE_OUT_AUX_LINE" },             QAL_DEVICE_OUT_AUX_LINE},
     {std::string{ "QAL_DEVICE_OUT_PROXY" },                QAL_DEVICE_OUT_PROXY},
+    {std::string{ "QAL_DEVICE_OUT_AUX_DIGITAL_1" },        QAL_DEVICE_OUT_AUX_DIGITAL_1},
     {std::string{ "QAL_DEVICE_OUT_MAX" },                  QAL_DEVICE_OUT_MAX},
     {std::string{ "QAL_DEVICE_IN_HANDSET_MIC" },           QAL_DEVICE_IN_HANDSET_MIC},
     {std::string{ "QAL_DEVICE_IN_SPEAKER_MIC" },           QAL_DEVICE_IN_SPEAKER_MIC},
@@ -390,6 +392,7 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_OUT_FM,                   std::string{"_DEVICE_OUT_FM"}},
     {QAL_DEVICE_OUT_AUX_LINE,             std::string{"_DEVICE_OUT_AUX_LINE"}},
     {QAL_DEVICE_OUT_PROXY,                std::string{"_DEVICE_OUT_PROXY"}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        std::string{"_DEVICE_OUT_AUX_DIGITAL_1"}},
     {QAL_DEVICE_OUT_MAX,                  std::string{"QAL_DEVICE_OUT_MAX"}},
     {QAL_DEVICE_IN_HANDSET_MIC,           std::string{"_DEVICE_IN_HANDSET_MIC"}},
     {QAL_DEVICE_IN_SPEAKER_MIC,           std::string{"_DEVICE_IN_SPEAKER_MIC"}},

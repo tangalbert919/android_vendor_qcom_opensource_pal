@@ -120,6 +120,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
@@ -158,6 +159,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {QAL_DEVICE_OUT_FM,                   0},
     {QAL_DEVICE_OUT_AUX_LINE,             0},
     {QAL_DEVICE_OUT_PROXY,                0},
+    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
     {QAL_DEVICE_OUT_MAX,                  0},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           0},
@@ -197,6 +199,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
@@ -311,6 +314,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
     {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
@@ -791,6 +795,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             }
             break;
         case QAL_DEVICE_OUT_AUX_DIGITAL:
+        case QAL_DEVICE_OUT_AUX_DIGITAL_1:
         case QAL_DEVICE_OUT_HDMI:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
             dev_ch_info->channels = CHANNELS_2;
@@ -3077,7 +3082,7 @@ bool ResourceManager::isPluginDevice(qal_device_id_t id) {
 }
 
 bool ResourceManager::isDpDevice(qal_device_id_t id) {
-    if (id == QAL_DEVICE_OUT_AUX_DIGITAL ||
+    if (id == QAL_DEVICE_OUT_AUX_DIGITAL || id == QAL_DEVICE_OUT_AUX_DIGITAL_1 ||
         id == QAL_DEVICE_OUT_HDMI)
         return true;
     else
