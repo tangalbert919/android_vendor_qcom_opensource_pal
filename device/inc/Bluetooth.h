@@ -177,6 +177,7 @@ public:
                                                std::shared_ptr<ResourceManager> Rm);
     bool isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
+    void updateSampleRate(uint32_t *sampleRate);
     virtual ~BtSco();
     DISALLOW_COPY_AND_ASSIGN(BtSco);
 };

@@ -1045,6 +1045,10 @@ bool BtSco::isDeviceReady()
     return bt_sco_on;
 }
 
+void BtSco::updateSampleRate(uint32_t *sampleRate)
+{
+    *sampleRate = deviceAttr.config.sample_rate;
+}
 int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
 {
     qal_param_btsco_t* param_bt_sco = (qal_param_btsco_t *)param;
@@ -1056,6 +1060,7 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
     case QAL_PARAM_ID_BT_SCO_WB:
         bt_wb_speech_enabled = param_bt_sco->bt_wb_speech_enabled;
         deviceAttr.config.sample_rate = bt_wb_speech_enabled ? SAMPLINGRATE_16K : SAMPLINGRATE_8K;
+        QAL_ERR(LOG_TAG, "received wbs = %d, updated sr = %d\n", bt_wb_speech_enabled, deviceAttr.config.sample_rate);
         break;
     default:
         return -EINVAL;

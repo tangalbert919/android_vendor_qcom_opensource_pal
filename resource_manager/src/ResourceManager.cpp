@@ -725,6 +725,14 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        {
+            std::shared_ptr<BtSco> scoDev;
+            int num_ch = 1;
+
+            if (deviceattr->id == QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+                num_ch = channel;
+
             dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t)
                           + sizeof(uint8_t)*1);
             if (!dev_ch_info) {
@@ -732,13 +740,22 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                 status = -EINVAL;
                 break;
             }
-            dev_ch_info->channels = CHANNELS_1;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info->channels = num_ch;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            QAL_DBG(LOG_TAG, "BT SCO RX device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            scoDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(deviceattr, rm));
+            if (!scoDev) {
+                QAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
+                free(dev_ch_info);
+                return -EINVAL;
+            }
+            scoDev->updateSampleRate(&deviceattr->config.sample_rate);
+            QAL_DBG(LOG_TAG, "BT SCO device samplerate %d, bitwidth %d",
+                  deviceattr->config.sample_rate, deviceattr->config.bit_width);
+        }
             break;
         case QAL_DEVICE_OUT_USB_DEVICE:
         case QAL_DEVICE_OUT_USB_HEADSET:
@@ -784,22 +801,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            break;
-        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            if (!dev_ch_info) {
-                QAL_ERR(LOG_TAG, "out of memory");
-                status = -EINVAL;
-                break;
-            }
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
-            deviceattr->config.ch_info = dev_ch_info;
-            deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
-            deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-            QAL_DBG(LOG_TAG, "BT SCO RX device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
 	default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
