@@ -80,12 +80,32 @@ USB::~USB()
 int USB::start()
 {
     int status = 0;
+
+    status = configureUsb();
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"USB Endpoint Configuration Failed");
+        return status;
+    }
+    status = Device::start();
+    return status;
+}
+
+int USB::configureUsb()
+{
+    int status = 0;
+    std::string backEndName;
     Stream *stream = NULL;
     std::shared_ptr<Device> dev = nullptr;
+    PayloadBuilder* builder = new PayloadBuilder();
+    struct usbAudioConfig cfg;
+    uint8_t* payload = NULL;
     std::vector<Stream*> activestreams;
-    std::vector<std::shared_ptr<Device>> associatedDevices;
-    struct qal_device dAttr;
+    Session *session = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid = 0;
+    int32_t tagId;
 
+    rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
@@ -93,85 +113,21 @@ int USB::start()
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
-    status = stream->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
-    }
-            /* Assuming only one device for recording */
-    status = associatedDevices[0]->getDeviceAttributes(&dAttr);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
-    }
-    if (dAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
-        status = configureInUsb(stream);
+    stream->getAssociatedSession(&session);
+    if (deviceAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
+        tagId = DEVICE_HW_ENDPOINT_TX;
+        cfg.usb_token = (1<<16)|0x1;
+        cfg.svc_interval = 0;
     } else{
-        status = configureOutUsb(stream);
+        tagId = DEVICE_HW_ENDPOINT_RX;
+        cfg.usb_token = 1<<16;
+        cfg.svc_interval = 0;
     }
-    if (status != 0) {
-        QAL_ERR(LOG_TAG,"Endpoint Configuration Failed");
-        return status;
-    }
-    status = Device::start();
-    return status;
-
-}
-
-int USB::configureInUsb(Stream *s)
-{
-    int status = 0;
-    std::string backEndName;
-    PayloadBuilder* builder = new PayloadBuilder();
-    struct usbAudioConfig cfg;
-    uint8_t* payload = NULL;
-    Stream *stream = NULL;
-    Session *session = NULL;
-    size_t payloadSize = 0;
-    uint32_t miid = 0;
-    stream = s;
-    rm->getBackendName(deviceAttr.id, backEndName);
-    stream->getAssociatedSession(&session);
-    status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_TX, &miid);
+    status = session->getMIID(backEndName.c_str(), tagId, &miid);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_TX, status);
+        QAL_ERR(LOG_TAG, "Failed to get tag info %d, status = %d", tagId, status);
         return status;
     }
-    cfg.usb_token = (1<<16)|0x1;
-    cfg.svc_interval = 0;
-    builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
-    if (payloadSize) {
-        status = updateCustomPayload(payload, payloadSize);
-        delete payload;
-        if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
-        return status;
-        }
-    }
-    return status;
-}
-
-int USB::configureOutUsb(Stream *s)
-{
-    int status = 0;
-    std::string backEndName;
-    PayloadBuilder* builder = new PayloadBuilder();
-    struct usbAudioConfig cfg;
-    uint8_t* payload = NULL;
-    Stream *stream = NULL;
-    Session *session = NULL;
-    size_t payloadSize = 0;
-    uint32_t miid = 0;
-    stream = s;
-    rm->getBackendName(deviceAttr.id, backEndName);
-    stream->getAssociatedSession(&session);
-    status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_RX, &miid);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
-        return status;
-    }
-    cfg.usb_token = 1<<16;
-    cfg.svc_interval = 0;
     builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);

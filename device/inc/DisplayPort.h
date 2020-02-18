@@ -129,16 +129,14 @@ typedef struct edidAudioInfo {
 
 class DisplayPort : public Device
 {
-    struct mixer *mixer;
-    std::vector<int> pcmDevIds;
     uint32_t dp_controller;
     uint32_t dp_stream;
 protected:
     static std::shared_ptr<Device> obj;
+    int configureDpEndpoint();
     DisplayPort(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     int start();
-    int configureDpEndpoint();
     int init(qal_param_device_connection_t device_conn);
     int deinit(qal_param_device_connection_t device_conn);
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
@@ -176,44 +174,6 @@ public:
     int updateAudioAckState(int node_value, int controller, int stream);
     ~DisplayPort();
 };
-
-/*class DisplayPort1 : public DisplayPort
-{
-
-public:
-    static std::shared_ptr<Device> obj;
-    DisplayPort1(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
-                                               std::shared_ptr<ResourceManager> Rm);
-    static int32_t isSampleRateSupported(uint32_t sampleRate);
-    static int32_t isChannelSupported(uint32_t numChannels);
-    static int32_t isBitWidthSupported(uint32_t bitWidth);
-    static int32_t checkAndUpdateBitWidth(uint32_t *bitWidth);
-    static int32_t checkAndUpdateSampleRate(uint32_t *sampleRate);
-    static bool isDisplayPortEnabled ();
-    void resetEdidInfo();
-    static int32_t getDisplayPortCtlIndex(int controller, int stream);
-    static int32_t setExtDisplayDevice(struct audio_mixer *mixer, int controller, int stream);
-    static int32_t getExtDispType(struct audio_mixer *mixer, int controller, int stream);
-    static int getEdidInfo(struct audio_mixer *mixer, int controller, int stream);
-    static void cacheEdid(struct audio_mixer *mixer, int controller, int stream);
-    static const char * edidFormatToStr(unsigned char format);
-    static bool isSampleRateSupported(unsigned char srByte, int samplingRate);
-    static unsigned char getEdidBpsByte(unsigned char byte, unsigned char format);
-    static bool isSupportedBps(unsigned char bpsByte, int bps);
-    static int getHighestEdidSF(unsigned char byte);
-    static void updateChannelMap(edidAudioInfo* info);
-    static void dumpSpeakerAllocation(edidAudioInfo* info);
-    static void updateChannelAllocation(edidAudioInfo* info);
-    static void updateChannelMapLpass(edidAudioInfo* info);
-    static void updateChannelMask(edidAudioInfo* info);
-    static void dumpEdidData(edidAudioInfo *info);
-    static bool getSinkCaps(edidAudioInfo* info, char *edidData);
-    bool isSupportedSR(edidAudioInfo* info, int sr);
-    bool isSupportedBps(edidAudioInfo* info, int bps);
-    int getHighestSupportedSR(edidAudioInfo* info);
-    ~DisplayPort1();
-};*/
 
 
 #endif //DISPLAYPORT_H

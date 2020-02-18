@@ -86,6 +86,7 @@ DisplayPort::~DisplayPort()
 int DisplayPort::start()
 {
     int status = 0;
+
     status = configureDpEndpoint();
     if (status != 0) {
         QAL_ERR(LOG_TAG,"Endpoint Configuration Failed");
@@ -109,6 +110,7 @@ int DisplayPort::configureDpEndpoint()
     std::shared_ptr<Device> dev = nullptr;
     std::vector<Stream*> activestreams;
     uint32_t miid = 0;
+
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);

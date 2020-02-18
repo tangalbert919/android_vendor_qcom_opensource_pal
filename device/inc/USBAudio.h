@@ -60,7 +60,6 @@ typedef enum usb_usecase_type{
 
 // one card supports multiple devices
 class USBDeviceConfig {
-    std::vector<int> pcmDevIds;
 protected:
     unsigned int bit_width_;
     unsigned int channels_;
@@ -119,11 +118,10 @@ protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
     std::vector <std::shared_ptr<USBCardConfig>> usb_card_config_list_;
+    int configureUsb();
     USB(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     int start();
-    int configureInUsb(Stream * S);
-    int configureOutUsb(Stream * S);
     int init(qal_param_device_connection_t device_conn);
     int deinit(qal_param_device_connection_t device_conn);
     int getDefaultConfig(qal_param_device_capability_t capability);
