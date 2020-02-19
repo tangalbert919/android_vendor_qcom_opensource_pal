@@ -1979,7 +1979,7 @@ be_check:
     }
 
     for(dIter = deviceList.begin(); dIter != deviceList.end(); dIter++) {
-        getActiveStream(*dIter, activeStreams);
+        getActiveStream_l(*dIter, activeStreams);
         if (activeStreams.size() <= 0)
             continue;
         for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
