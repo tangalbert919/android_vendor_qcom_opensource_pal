@@ -38,6 +38,11 @@
 
 std::shared_ptr<Device> HandsetMic::obj = nullptr;
 
+std::shared_ptr<Device> HandsetMic::getObject()
+{
+    return obj;
+}
+
 std::shared_ptr<Device> HandsetMic::getInstance(struct qal_device *device,
                                                 std::shared_ptr<ResourceManager> Rm)
 {

@@ -42,6 +42,8 @@ std::shared_ptr<ResourceManager> Stream::rm = nullptr;
 std::mutex Stream::mBaseStreamMutex;
 struct qal_device* Stream::mQalDevice = nullptr;
 
+#define IS_RX_DEVICE(x) (x > QAL_DEVICE_OUT_MIN && x < QAL_DEVICE_OUT_MAX) ? 1: 0
+
 Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *dAttr,
     uint32_t noOfDevices, struct modifier_kv *modifiers, uint32_t noOfModifiers)
 {
@@ -530,6 +532,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     bool isCurrentDeviceA2dp = false;
     uint32_t no_curr_devices = 0;
     uint32_t curr_device_ids[QAL_DEVICE_IN_MAX];
+    std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator disIter;
+    std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
+    uint32_t id1, id2, dif;
+
 
     mStreamMutex.lock();
 
@@ -594,31 +601,49 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
         // goto error_1;
     // }
 
+    streamDevDisconnect.clear();
     no_curr_devices = mDevices.size();
     QAL_ERR(LOG_TAG, "number of active devices %d, new devices %d", no_curr_devices, no_of_devices);
     for (int i = 0; i < no_curr_devices; i++) {
         QAL_ERR(LOG_TAG, " Active device id %d name %s",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
         curr_device_ids[i] = mDevices[i]->getSndDeviceId();
+        sharedBEStreamDev.clear();
+        rm->getSharedBEActiveStreamDevs(sharedBEStreamDev,deviceArray[i].id);
+        if (sharedBEStreamDev.size() <= 0){
+            QAL_DBG(LOG_TAG, "no shared BE push stream");
+            //check to make sure device direction is the same
+             id1 = IS_RX_DEVICE(mDevices[i]->getSndDeviceId());
+             id2 = IS_RX_DEVICE(deviceArray[i].id);
+             dif = (id1 ^ id2);
+             if (!dif)
+                 streamDevDisconnect.push_back({streamHandle,mDevices[i]->getSndDeviceId()});
+        } else {
+            for (int j =0; j < sharedBEStreamDev.size(); j++){
+                    streamDevDisconnect.push_back(sharedBEStreamDev[j]);
+            }
+        }
+    }
+    // created stream connect list
+    StreamDevConnect.clear();
+    for (int i = 0; i < no_of_devices; i++) {
+         for(disIter = streamDevDisconnect.begin(); disIter != streamDevDisconnect.end(); disIter++){
+             //check to make sure device direction is the same
+             id1 = IS_RX_DEVICE(deviceArray[i].id);
+             id2 = IS_RX_DEVICE(std::get<1>(*disIter));
+             dif = (id1 ^ id2);
+             if (!dif){
+                 QAL_DBG(LOG_TAG, "dir the same push dev to connect %d", deviceArray[i].id);
+                 StreamDevConnect.push_back({std::get<0>(*disIter), &deviceArray[i]});
+             }
+         }
+    }
+    QAL_DBG(LOG_TAG, "connectList size is %d",StreamDevConnect.size());
+    status = rm->streamDevSwitch(streamDevDisconnect,StreamDevConnect);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Device switch failed");
     }
 
-    // Disconnnect Current active Device
-    for (int i = 0; i < no_curr_devices; i++) {
-        status = disconnectStreamDevice(streamHandle, (qal_device_id_t)curr_device_ids[i]);
-        if (status) {
-            QAL_ERR(LOG_TAG, "failed to do disconnectStreamDevice() %d", status);
-            goto done;
-        }
-    }
-    
-    // Connect New device to the stream
-    for (int i = 0; i < no_of_devices; i++) {
-        status = connectStreamDevice(streamHandle, &deviceArray[i]);
-        if (status) {
-            QAL_ERR(LOG_TAG, "failed to do connectStreamDevice() %d", status);
-            goto done;
-        }
-    }
 done:
     mStreamMutex.unlock();
     return status;

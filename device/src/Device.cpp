@@ -124,6 +124,15 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getObject();
+    case QAL_DEVICE_IN_HANDSET_MIC:
+        QAL_VERBOSE(LOG_TAG, "handset mic device");
+        return HandsetMic::getObject();
+    case QAL_DEVICE_IN_SPEAKER_MIC:
+        QAL_VERBOSE(LOG_TAG, "speaker mic device");
+        return SpeakerMic::getObject();
+    case QAL_DEVICE_IN_WIRED_HEADSET:
+        QAL_VERBOSE(LOG_TAG, "headset mic device");
+        return HeadsetMic::getObject();
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;

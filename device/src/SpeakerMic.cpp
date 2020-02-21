@@ -38,6 +38,11 @@
 
 std::shared_ptr<Device> SpeakerMic::obj = nullptr;
 
+std::shared_ptr<Device> SpeakerMic::getObject()
+{
+    return obj;
+}
+
 std::shared_ptr<Device> SpeakerMic::getInstance(struct qal_device *device,
                                                 std::shared_ptr<ResourceManager> Rm)
 {

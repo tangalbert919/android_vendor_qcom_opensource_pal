@@ -1188,11 +1188,11 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d)
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    typename std::vector<std::shared_ptr<Device>>::iterator iter =
-        std::find(active_devices.begin(), active_devices.end(), d);
-    if (iter != active_devices.end()) {
+
+    auto iter = std::find(active_devices.begin(), active_devices.end(), d);
+    if (iter != active_devices.end())
         active_devices.erase(iter);
-    } else {
+    else {
         ret = -ENOENT;
         QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
                 d->getSndDeviceId(), ret);
@@ -2076,28 +2076,28 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
     return;
 }
 
-void ResourceManager::getSharedBEDevices(std::vector<std::shared_ptr<Device>> &deviceList,
-        std::shared_ptr<Device> inDevice) const
+void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamsDevices,
+                                                  int dev_id)
 {
-    int dev_id;
     std::string backEndName;
     std::shared_ptr<Device> dev;
+    std::vector <Stream *> activeStreams;
 
-    deviceList.clear();
-    dev_id = inDevice->getSndDeviceId();
-    if (isValidDevId(dev_id) && (dev_id != QAL_DEVICE_NONE))
+    if (dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_IN_MAX)
         backEndName = listAllBackEndIds[dev_id].second;
-
-    for (int i = QAL_DEVICE_OUT_HANDSET; i < QAL_DEVICE_IN_MAX; i++) {
-        if ((i != dev_id) && (i != QAL_DEVICE_OUT_MAX)
-                && (backEndName == listAllBackEndIds[i].second)) {
+    for (int i = QAL_DEVICE_OUT_MIN; i < QAL_DEVICE_IN_MAX; i++) {
+        if ((i != dev_id) && (backEndName == listAllBackEndIds[i].second)) {
             dev = Device::getObject((qal_device_id_t) i);
-            if (dev)
-                deviceList.push_back(dev);
+            if(dev){
+                getActiveStream_l(dev, activeStreams);
+                QAL_DBG(LOG_TAG, "got dev %d active streams on dev is %d", i, activeStreams.size() );
+                for (int j=0; j < activeStreams.size(); j++) {
+                    activeStreamsDevices.push_back({activeStreams[j], i});
+                    QAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
+                }
+            }
         }
     }
-
-    return;
 }
 
 const std::vector<std::string> ResourceManager::getBackEndNames(
@@ -2245,6 +2245,66 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
     return is_ds_required;
 }
 
+int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList){
+    int status = -EINVAL;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
+
+    /*disconnect active list from the current devices they are attached to*/
+    for(sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++){
+        status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
+        if (status) {
+            QAL_ERR(LOG_TAG,"failed to disconnect stream %pK from device %d",
+                    std::get<0>(*sIter), std::get<1>(*sIter));
+            goto error;
+        } else {
+            QAL_ERR(LOG_TAG,"disconnect stream %pK from device %d",
+                        std::get<0>(*sIter), std::get<1>(*sIter));
+        }
+    }
+error:
+    return status;
+}
+
+int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList){
+    int status = -EINVAL;
+    std::vector <std::tuple<Stream *, struct qal_device *>>::iterator sIter;
+
+    /*disconnect active list from the current devices they are attached to*/
+    for(sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++){
+        status = std::get<0>(*sIter)->connectStreamDevice(std::get<0>(*sIter), std::get<1>(*sIter));
+        if (status) {
+            QAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
+                    std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+            goto error;
+        } else {
+            QAL_ERR(LOG_TAG,"connected stream %pK from device %d",
+                    std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+        }
+    }
+error:
+    return status;
+}
+
+
+int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
+                                         std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList)
+{
+    mResourceManagerMutex.lock();
+    int status = -EINVAL;
+    status = streamDevDisconnect(streamDevDisconnectList);
+    if (status) {
+        QAL_ERR(LOG_TAG,"disconnect failed");
+        goto error;
+    }
+    status = streamDevConnect(streamDevConnectList);
+    if (status) {
+        QAL_ERR(LOG_TAG,"Connect failed");
+    }
+error:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
 //when returning from this function, the device config will be updated with
 //the device config of the highest priority stream
 
@@ -2264,7 +2324,9 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     std::vector<std::shared_ptr<Device>>::iterator dIter;
     std::shared_ptr<Device> inDevice = nullptr;
     qal_stream_type_t streamType;
-    std::vector<std::shared_ptr<Device>> deviceList;
+    std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
+    std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator disIter;
 
     if (!inDev || !inDevAttr) {
         goto error;
@@ -2280,93 +2342,75 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     //and route the lower priority to new device (disable session, disable device, enable session, enable device
     //return from callback
 
-    mResourceManagerMutex.lock();
+    //check if there are shared backends
+    // if yes add them to streams to device switch
+    getSharedBEActiveStreamDevs(streamDevDisconnect, inDevAttr->id);
+    if (streamDevDisconnect.size() > 0) {
+        //add the shared backends to the connect list
+        for(disIter = streamDevDisconnect.begin(); disIter != streamDevDisconnect.end(); disIter++)
+            StreamDevConnect.push_back({std::get<0>(*disIter),inDevAttr});
+        QAL_ERR(LOG_TAG, "shared BE found device switch will be needed");
+    }
 
     getActiveStream_l(inDev, activeStreams);
     if (activeStreams.size() == 0) {
         QAL_ERR(LOG_TAG, "no other active streams found so update device cfg");
         inDev->setDeviceAttributes(*inDevAttr);
-        goto be_check;
+        goto error;
     }
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         status = (*sIter)->getStreamType(&streamType);
-        if (QAL_STREAM_VOICE_CALL == streamType)
-            isVoiceCall = true;
+        if (QAL_STREAM_VOICE_CALL == streamType){
+            /*overwrite in attr with current device config of voice call*/
+            status = inDev->getDeviceAttributes(inDevAttr);
+            QAL_DBG(LOG_TAG,"voice active updating attributes to voice");
+            goto error;
+        }
     }
 
-    if (!isVoiceCall) {
-        // All the activesteams using device A should use same device config so no need
-        // to run through on all activestreams for device A
-        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-            status = (*sIter)->getAssociatedDevices(associatedDevices);
+
+    // All the activesteams using device A should use same device config so no need
+    // to run through on all activestreams for device A
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        status = (*sIter)->getAssociatedDevices(associatedDevices);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+            goto error;
+        }
+
+        for(dIter = associatedDevices.begin();
+            dIter != associatedDevices.end(); dIter++) {
+            status = (*dIter)->getDeviceAttributes(&dattr);
             if(0 != status) {
-                QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
-                goto be_check;
+                QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+                goto error;
             }
 
-            for(dIter = associatedDevices.begin();
-                     dIter != associatedDevices.end(); dIter++) {
-                status = (*dIter)->getDeviceAttributes(&dattr);
-                if(0 != status) {
-                    QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
-                    goto error;
-                }
-
-                if (dattr.id == inDevAttr->id) {
-                    isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
-                    goto check_ds;
+            if (dattr.id == inDevAttr->id) {
+                isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
+                if (isDeviceSwitch){
+                    streamDevDisconnect.push_back({*sIter,inDevAttr->id});
+                    StreamDevConnect.push_back({*sIter,inDevAttr});
+                } else {
+                        // case 2. If incoming device config has lower priority then update incoming
+                        //  device config with currently running device config
+                        QAL_ERR(LOG_TAG, "%s: device %d is already running with higher priority device config",
+                                __func__, inDevAttr->id);
+                        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
                 }
             }
         }
-check_ds:
-        if (isDeviceSwitch) {
-            // case 1. if incoming device config has more priority then do device switch
-            // stop all the streams connected to the device
-            for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-                (*sIter)->disconnectStreamDevice(*sIter, inDevAttr->id);
-
-            // start all the streams with new device config.
-            for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-                (*sIter)->connectStreamDevice(*sIter, inDevAttr);
-        } else {
-            // case 2. If incoming device config has lower priority then update incoming
-            //  device config with currently running device config
-            QAL_ERR(LOG_TAG, "%s: device %d is already running with higher priority device config",
-                    __func__, inDevAttr->id);
-            memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
-        }
-    } else {
-        // Voice call is active - change incoming device to voice call device config
-        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
-    }
-
-be_check:
-    getSharedBEDevices(deviceList, inDev);
-    if (deviceList.size() <= 0)
-        goto error;
-
-    status = inDev->getDeviceAttributes(&dattr);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
-        goto error;
-    }
-
-    for(dIter = deviceList.begin(); dIter != deviceList.end(); dIter++) {
-        getActiveStream_l(*dIter, activeStreams);
-        if (activeStreams.size() <= 0)
-            continue;
-        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-            (*sIter)->disconnectStreamDevice(*sIter, inDevAttr->id);
-
-        // start all the streams with new device config.
-        for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-            (*sIter)->connectStreamDevice(*sIter, inDevAttr);
     }
 
 error:
-    mResourceManagerMutex.unlock();
-
+    //if device switch is need perform it
+    if (streamDevDisconnect.size()){
+            status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+            if (status) {
+                 QAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
+            }
+    }
     return isDeviceSwitch;
 }
 
@@ -2375,14 +2419,13 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
 {
     int status = -EINVAL;
     std::vector <Stream *> activeStreams;
-    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
+    std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
     std::vector<Stream*>::iterator sIter;
-    std::shared_ptr<Device> inDevice = nullptr;
 
     if (!inDev || !newDevAttr) {
         return -EINVAL;
     }
-    mResourceManagerMutex.lock();
 
     //get the active streams on the device
     getActiveStream_l(inDev, activeStreams);
@@ -2390,15 +2433,18 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
         QAL_ERR(LOG_TAG, "no other active streams found");
         goto done;
     }
+    //created dev switch vectors
 
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-        (*sIter)->disconnectStreamDevice(*sIter, (qal_device_id_t)inDev->getSndDeviceId());
-
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-        (*sIter)->connectStreamDevice(*sIter, newDevAttr);
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++){
+        streamDevDisconnect.push_back({(*sIter),inDev->getSndDeviceId()});
+        StreamDevConnect.push_back({(*sIter),newDevAttr});
+    }
+    status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+    if (status) {
+         QAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
+    }
 
 done:
-    mResourceManagerMutex.unlock();
     return 0;
 }
 

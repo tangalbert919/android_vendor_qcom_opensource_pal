@@ -45,6 +45,7 @@ public:
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static int32_t checkAndUpdateBitWidth(uint32_t *bitWidth);
     static int32_t checkAndUpdateSampleRate(uint32_t *sampleRate);
+    static std::shared_ptr<Device> getObject();
     virtual ~HeadsetMic();
 };
 

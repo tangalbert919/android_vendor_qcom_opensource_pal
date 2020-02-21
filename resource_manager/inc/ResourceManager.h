@@ -203,6 +203,8 @@ private:
 
     int handleScreenStatusChange(qal_param_screen_state_t screen_state);
     int handleDeviceConnectionChange(qal_param_device_connection_t connection_state);
+    int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
+    int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
 
 protected:
     std::vector <Stream*> mActiveStreams;
@@ -374,6 +376,10 @@ public:
     bool isDpDevice(qal_device_id_t id);
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };
+    void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
+                                     int dev_id);
+    int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
+                            std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
 };
 
 #endif
