@@ -495,7 +495,7 @@ int32_t Stream::connectStreamDevice(Stream* streamHandle, struct qal_device *dat
 
 error_2:
     mDevices.pop_back();
-    rm->deregisterDevice(dev);
+    rm->deregisterDevice_l(dev);
     dev->close();
 error_1:
     return status;
