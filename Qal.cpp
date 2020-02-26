@@ -49,6 +49,30 @@ class Stream;
     __gcov_flush();
 }*/
 
+static void notify_concurrent_stream(Stream *s, bool active)
+{
+    qal_stream_type_t type;
+    qal_stream_direction_t dir;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    if (!rm) {
+        QAL_ERR(LOG_TAG, "%s: Resource manager unavailable", __func__);
+        return;
+    }
+
+    s->getStreamType(&type);
+    s->getStreamDirection(&dir);
+
+    // Currently inform only to Voice UI streams.
+    if (type != QAL_STREAM_VOICE_UI) {
+        std::vector<Stream*> vui_streams;
+        rm->GetVoiceUIStreams(vui_streams);
+        for (auto& vs: vui_streams) {
+            vs->ConcurrentStreamStatus(type, dir, active);
+        }
+    }
+}
+
 /*
  * qal_init - Initialize QAL
  *
@@ -164,9 +188,13 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
+
+    notify_concurrent_stream(s, true);
+
     status = s->start();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+        notify_concurrent_stream(s, false);
         return status;
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -187,8 +215,11 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
     status = s->stop();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
+        notify_concurrent_stream(s, false);
         return status;
     }
+    notify_concurrent_stream(s, false);
+
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
@@ -578,7 +609,7 @@ int32_t qal_get_param(uint32_t param_id, void **param_payload,
     if (rm) {
         status = rm->getParameter(param_id, param_payload, payload_size);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
+            QAL_ERR(LOG_TAG, "Failed to get global parameter %u, status %d",
                     param_id, status);
         }
     } else {

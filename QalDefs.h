@@ -589,6 +589,7 @@ typedef enum {
     QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
     QAL_PARAM_ID_BT_A2DP_SUSPENDED,
     QAL_PARAM_ID_DEVICE_CAPABILITY,
+    QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES,
 }qal_param_id_type_t;
 
 /** HDMI/DP */
@@ -665,10 +666,22 @@ struct qal_device {
     struct qal_usb_device_address address;
 };
 
-#define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64     /* max length of strings in properties or descriptor structs */
-#define QAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6      /* max length of locale string. e.g en_US */
+#define QAL_SOUND_TRIGGER_MAX_STRING_LEN 64 /* max length of strings in properties or descriptor structs */
+#define QAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6  /* max length of locale string. e.g en_US */
 #define QAL_SOUND_TRIGGER_MAX_USERS 10      /* max number of concurrent users */
 #define QAL_SOUND_TRIGGER_MAX_PHRASES 10    /* max number of concurrent phrases */
+
+#define QAL_RECOGNITION_MODE_VOICE_TRIGGER 0x1       /* simple voice trigger */
+#define QAL_RECOGNITION_MODE_USER_IDENTIFICATION 0x2 /* trigger only if one user in model identified */
+#define QAL_RECOGNITION_MODE_USER_AUTHENTICATION 0x4 /* trigger only if one user in mode authenticated */
+#define QAL_RECOGNITION_MODE_GENERIC_TRIGGER 0x8     /* generic sound trigger */
+
+#define QAL_RECOGNITION_STATUS_SUCCESS 0
+#define QAL_RECOGNITION_STATUS_ABORT 1
+#define QAL_RECOGNITION_STATUS_FAILURE 2
+#define QAL_RECOGNITION_STATUS_GET_STATE_RESPONSE 3  /* Indicates that the recognition event is in
+                                                        response to a state request and was not
+                                                        triggered by a real DSP recognition */
 
 /** used to identify the sound model type for the session */
 typedef enum {
@@ -677,7 +690,7 @@ typedef enum {
     QAL_SOUND_MODEL_TYPE_GENERIC = 1          /* use for all models other than keyphrase */
 } qal_st_sound_model_type_t;
 
-struct st_uuid_t {
+struct st_uuid {
     uint32_t timeLow;
     uint16_t timeMid;
     uint16_t timeHiAndVersion;
@@ -685,11 +698,38 @@ struct st_uuid_t {
     uint8_t node[6];
 };
 
+/**
+ * sound trigger implementation descriptor read by the framework via get_properties().
+ * Used by SoundTrigger service to report to applications and manage concurrency and policy.
+ */
+struct qal_st_properties {
+    int8_t           implementor[QAL_SOUND_TRIGGER_MAX_STRING_LEN]; /* implementor name */
+    int8_t           description[QAL_SOUND_TRIGGER_MAX_STRING_LEN]; /* implementation description */
+    uint32_t         version;               /* implementation version */
+    struct st_uuid   uuid;                             /* unique implementation ID.
+                                                   Must change with version each version */
+    uint32_t         max_sound_models;      /* maximum number of concurrent sound models
+                                                   loaded */
+    uint32_t         max_key_phrases;       /* maximum number of key phrases */
+    uint32_t         max_users;             /* maximum number of concurrent users detected */
+    uint32_t         recognition_modes;     /* all supported modes.
+                                                   e.g QAL_RECOGNITION_MODE_VOICE_TRIGGER */
+    bool             capture_transition;    /* supports seamless transition from detection
+                                                   to capture */
+    uint32_t         max_buffer_ms;         /* maximum buffering capacity in ms if
+                                                   capture_transition is true*/
+    bool             concurrent_capture;    /* supports capture by other use cases while
+                                                   detection is active */
+    bool             trigger_in_event;      /* returns the trigger capture in event */
+    uint32_t         power_consumption_mw;  /* Rated power consumption when detection is active
+                                                   with TDB silence/sound/speech ratio */
+};
+
 /** sound model structure passed in by ST Client during qal_st_load_sound_model() */
 struct qal_st_sound_model {
     qal_st_sound_model_type_t type;           /* model type. e.g. QAL_SOUND_MODEL_TYPE_KEYPHRASE */
-    struct st_uuid_t          uuid;           /* unique sound model ID. */
-    struct st_uuid_t          vendor_uuid;    /* unique vendor ID. Identifies the engine the
+    struct st_uuid            uuid;           /* unique sound model ID. */
+    struct st_uuid            vendor_uuid;    /* unique vendor ID. Identifies the engine the
                                                   sound model was build for */
     uint32_t                  data_size;      /* size of opaque model data */
     uint32_t                  data_offset;    /* offset of opaque data start from head of struct
@@ -785,7 +825,7 @@ struct qal_st_recognition_config {
 
 struct qal_st_phrase_recognition_event {
     struct qal_st_recognition_event common;
-    unsigned int                           num_phrases;
+    uint32_t                        num_phrases;
     struct qal_st_phrase_recognition_extra phrase_extras[QAL_SOUND_TRIGGER_MAX_PHRASES];
 };
 

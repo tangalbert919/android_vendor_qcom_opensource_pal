@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -74,11 +74,13 @@ enum {
     ST_EV_DETECTED,
     ST_EV_READ_BUFFER,
     ST_EV_STOP_BUFFERING,
+    ST_EV_PAUSE,
+    ST_EV_RESUME,
     ST_EV_STOP_DEVICE_CONNECTED,
     ST_EV_STOP_DEVICE_DISCONNECTED,
     ST_EV_STOP_SSR_OFFLINE,
     ST_EV_STOP_SSR_ONLINE,
-    ST_EV_CONCURRENT_STREAM
+    ST_EV_CONCURRENT_STREAM,
 };
 
 class ResourceManager;
@@ -136,7 +138,9 @@ class StreamSoundTrigger : public Stream {
 
     int switchDevice(Stream* stream_handle, uint32_t no_of_devices,
                      struct qal_device *device_array);
-    void ConcurrentStreamStatus(int stream_type, bool is_active) override;
+    void ConcurrentStreamStatus(qal_stream_type_t stream_type,
+                                qal_stream_direction_t dir,
+                                bool active) override;
     void TransitTo(int32_t state_id);
 
     friend class QalRingBufferReader;
@@ -298,6 +302,19 @@ class StreamSoundTrigger : public Stream {
         int32_t stream_type_;
         bool is_active_;
     };
+
+    class StPauseEventConfig : public StEventConfig {
+     public:
+        StPauseEventConfig() : StEventConfig(ST_EV_PAUSE) { }
+        ~StPauseEventConfig() {}
+    };
+
+    class StResumeEventConfig : public StEventConfig {
+     public:
+        StResumeEventConfig() : StEventConfig(ST_EV_RESUME) { }
+        ~StResumeEventConfig() {}
+    };
+
     class StConcurrentStreamEventConfig : public StEventConfig {
      public:
         StConcurrentStreamEventConfig (int32_t type, bool active)
@@ -404,6 +421,8 @@ class StreamSoundTrigger : public Stream {
     bool timer_stop_waiting_;
     bool exit_timer_thread_;
     bool pending_stop_;
+    bool paused_;
+    int32_t conc_tx_cnt_;
 
     void AddState(StState* state);
     int32_t GetCurrentStateId();

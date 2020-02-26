@@ -253,6 +253,9 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     lpi_enable_(true),
     enable_debug_dumps_(false),
     non_lpi_without_ec_(false),
+    concurrent_capture_(false),
+    concurrent_voice_call_(false),
+    concurrent_voip_call_(false),
     curr_child_(nullptr)
 {
 }
@@ -320,6 +323,17 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "non_lpi_without_ec")) {
                 non_lpi_without_ec_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "concurrent_capture")) {
+                concurrent_capture_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "concurrent_voice_call") &&
+                       concurrent_capture_) {
+                concurrent_voice_call_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "concurrent_voip_call") &&
+                       concurrent_capture_) {
+                concurrent_voip_call_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else {
                 QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);

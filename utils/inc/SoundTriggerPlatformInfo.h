@@ -137,6 +137,9 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool GetLpiEnable() const { return lpi_enable_; }
     bool GetEnableDebugDumps() const { return enable_debug_dumps_; }
     bool GetNonLpiWithoutEc() const { return non_lpi_without_ec_; }
+    bool GetConcurrentCaptureEnable() const { return concurrent_capture_; }
+    bool GetConcurrentVoiceCallEnable() const { return concurrent_voice_call_; }
+    bool GetConcurrentVoipCallEnable() const { return concurrent_voip_call_; }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
@@ -156,6 +159,9 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool lpi_enable_;
     bool enable_debug_dumps_;
     bool non_lpi_without_ec_;
+    bool concurrent_capture_;
+    bool concurrent_voice_call_;
+    bool concurrent_voip_call_;
     std::map<UUID, std::shared_ptr<SoundModelConfig>> sound_model_cfg_list_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
 };

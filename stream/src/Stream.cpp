@@ -195,6 +195,20 @@ exit:
     return status;
 }
 
+int32_t Stream::getStreamDirection(qal_stream_direction_t *dir)
+{
+    int32_t status = 0;
+
+    if (!dir || !mStreamAttr) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid inputs, status %d", status);
+    } else {
+        *dir = mStreamAttr->direction;
+        QAL_DBG(LOG_TAG, "stream direction - %d", *dir);
+    }
+    return status;
+}
+
 int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;

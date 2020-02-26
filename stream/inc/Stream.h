@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -132,11 +132,14 @@ public:
     virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
-    virtual void ConcurrentStreamStatus(int stream_type, bool is_active) {}
+    virtual void ConcurrentStreamStatus(qal_stream_type_t type __unused,
+                                qal_stream_direction_t dir __unused,
+                                bool active __unused) {}
 
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     int32_t getStreamType(qal_stream_type_t* streamType);
+    int32_t getStreamDirection(qal_stream_direction_t *dir);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,

@@ -95,6 +95,25 @@
 
 static struct str_parms *configParamKVPairs;
 
+// default properties which will be updated based on platform configuration
+static struct qal_st_properties qst_properties = {
+        "QUALCOMM Technologies, Inc",  // implementor
+        "Sound Trigger HAL",  // description
+        1,  // version
+        { 0x68ab2d40, 0xe860, 0x11e3, 0x95ef,
+         { 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b } },  // uuid
+        8,  // max_sound_models
+        10,  // max_key_phrases
+        10,  // max_users
+        QAL_RECOGNITION_MODE_VOICE_TRIGGER |
+        QAL_RECOGNITION_MODE_GENERIC_TRIGGER,  // recognition_modes
+        true,  // capture_transition
+        0,  // max_capture_ms
+        false,  // concurrent_capture
+        false,  // trigger_in_event
+        0  // power_consumption_mw
+};
+
 /*
 To be defined in detail, if GSL is defined,
 pcm device id is directly related to device,
@@ -1058,19 +1077,7 @@ int ResourceManager::registerStream(Stream *s)
     mAllActiveStreams.push_back(s);
 #endif
 
-
     mResourceManagerMutex.unlock();
-
-    // Currently inform Rx stream types to soundtrigger streams.
-    qal_stream_attributes st_attr;
-    s->getStreamAttributes(&st_attr);
-    if (st_attr.direction != QAL_AUDIO_INPUT &&
-        type != QAL_STREAM_LOW_LATENCY) {
-        for (auto& st_stream: active_streams_st) {
-            st_stream->ConcurrentStreamStatus(type, true);
-        }
-    }
-
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -1156,17 +1163,6 @@ int ResourceManager::deregisterStream(Stream *s)
 
     deregisterstream(s, mActiveStreams);
     mResourceManagerMutex.unlock();
-
-    // Currently inform Rx stream types to soundtrigger streams.
-    qal_stream_attributes st_attr;
-    s->getStreamAttributes(&st_attr);
-    if (st_attr.direction != QAL_AUDIO_INPUT &&
-        type != QAL_STREAM_LOW_LATENCY) {
-        for (auto& st_stream: active_streams_st) {
-            st_stream->ConcurrentStreamStatus(type, false);
-        }
-    }
-
     QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -1287,6 +1283,31 @@ int ResourceManager::getAudioMixer(struct audio_mixer ** am)
     return 0;
 }
 
+void ResourceManager::GetVoiceUIProperties(struct qal_st_properties *qstp)
+{
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (!qstp) {
+        return;
+    }
+
+    memcpy(qstp, &qst_properties, sizeof(struct qal_st_properties));
+
+    if (st_info) {
+        qstp->concurrent_capture = st_info->GetConcurrentCaptureEnable();
+    }
+}
+
+void ResourceManager::GetVoiceUIStreams(std::vector<Stream*> &vui_streams) {
+
+    mResourceManagerMutex.lock();
+    for (auto& st: active_streams_st) {
+        vui_streams.push_back(st);
+    }
+    mResourceManagerMutex.unlock();
+}
+
 bool ResourceManager::IsVoiceUILPISupported() {
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
@@ -1307,6 +1328,36 @@ bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
             st_attr.type != QAL_STREAM_LOW_LATENCY) {
                 return true;
         }
+    }
+    return false;
+}
+
+bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetConcurrentCaptureEnable();
+    }
+    return false;
+}
+
+bool ResourceManager::IsVoiceCallAndVoiceUIConcurrencySupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetConcurrentVoiceCallEnable();
+    }
+    return false;
+}
+
+bool ResourceManager::IsVoipAndVoiceUIConcurrencySupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetConcurrentVoipCallEnable();
     }
     return false;
 }
@@ -2611,7 +2662,18 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             status = getDeviceDefaultCapability(*param_device_capability);
         }
             break;
+        case QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES:
+        {
+            QAL_INFO(LOG_TAG, "get sound trigge properties, status %d", status);
+            struct qal_st_properties *qstp =
+                (struct qal_st_properties *)calloc(1, sizeof(struct qal_st_properties));
 
+            GetVoiceUIProperties(qstp);
+
+            *param_payload = qstp;
+            *payload_size = sizeof(qal_st_properties);
+        }
+            break;
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -55,6 +55,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm) {
     std::shared_ptr<Device> dev = nullptr;
+    struct qal_ec_info ecinfo = {};
+    int status = 0;
+
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     inBufSize = BUF_SIZE_CAPTURE;
@@ -63,8 +66,10 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     outBufCount = NO_OF_BUF;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
-    struct qal_ec_info ecinfo = {};
-    int status = 0;
+    paused_ = false;
+    pending_stop_ = false;
+    conc_tx_cnt_ = 0;
+
     QAL_DBG(LOG_TAG, "Enter");
     // TODO: handle modifiers later
     mNoOfModifiers = 0;
@@ -321,15 +326,56 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     return status;
 }
 
-void StreamSoundTrigger::ConcurrentStreamStatus(int32_t stream_type __unused,
-                                                      bool is_active __unused) {
+void StreamSoundTrigger::ConcurrentStreamStatus(qal_stream_type_t type,
+                                                qal_stream_direction_t dir,
+                                                bool active) {
     int32_t status = 0;
+    bool conc_en = true;
 
-    QAL_DBG(LOG_TAG, "Enter");
-    if (rm->IsVoiceUILPISupported()) {
-        std::shared_ptr<StEventConfig> ev_cfg(
-            new StConcurrentStreamEventConfig(stream_type, is_active));
-        status = cur_state_->ProcessEvent(ev_cfg);
+    QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+    if (dir == QAL_AUDIO_OUTPUT && type != QAL_STREAM_LOW_LATENCY) {
+        if (rm->IsVoiceUILPISupported()) {
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StConcurrentStreamEventConfig(type, active));
+            status = cur_state_->ProcessEvent(ev_cfg);
+        }
+    } else if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
+        if (rm->IsAudioCaptureAndVoiceUIConcurrencySupported()) {
+            if ((!rm->IsVoiceCallAndVoiceUIConcurrencySupported() &&
+                 (type == QAL_STREAM_VOICE_CALL_TX ||
+                  type == QAL_STREAM_VOICE_CALL_RX_TX ||
+                  type == QAL_STREAM_VOICE_CALL)) ||
+                (!rm->IsVoipAndVoiceUIConcurrencySupported() &&
+                 type == QAL_STREAM_VOIP_TX)) {
+                QAL_DBG(LOG_TAG, "pause on voip/voice concurrency");
+                conc_en = false;
+            }
+        } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
+                   type == QAL_STREAM_RAW || // regular audio record
+                   type == QAL_STREAM_VOICE_CALL_TX ||
+                   type == QAL_STREAM_VOICE_CALL_RX_TX ||
+                   type == QAL_STREAM_VOICE_CALL ||
+                   type == QAL_STREAM_VOIP_TX) {
+            conc_en = false;
+        }
+        if (!conc_en) {
+            std::lock_guard<std::mutex> lck(mStreamMutex);
+            if (active) {
+                ++conc_tx_cnt_;
+                if (conc_tx_cnt_ == 1) {
+                    std::shared_ptr<StEventConfig> ev_cfg(
+                       new StPauseEventConfig());
+                    status = cur_state_->ProcessEvent(ev_cfg);
+                }
+            } else {
+                --conc_tx_cnt_;
+                if (conc_tx_cnt_ == 0) {
+                    std::shared_ptr<StEventConfig> ev_cfg(
+                        new StResumeEventConfig());
+                    status = cur_state_->ProcessEvent(ev_cfg);
+                }
+            }
+        }
     }
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 }
@@ -1157,7 +1203,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
 
         *event = &(phrase_event->common);
         (*event)->media_config.ch_info = nullptr;
-        (*event)->status = 0;
+        (*event)->status = QAL_RECOGNITION_STATUS_SUCCESS;
         (*event)->type = sound_model_type_;
         (*event)->st_handle = (qal_st_handle_t *)this;
         (*event)->capture_available = rec_config_->capture_requested;
@@ -1728,6 +1774,14 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
               tmp_dev->close();
           break;
       }
+      case ST_EV_PAUSE: {
+          st_stream_.paused_ = true;
+          break;
+      }
+      case ST_EV_RESUME: {
+          st_stream_.paused_ = false;
+         break;
+      }
       case ST_EV_READ_BUFFER: {
           status = -EIO;
           break;
@@ -1791,7 +1845,20 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         }
         break;
     }
+    case ST_EV_RESUME: {
+        if (!st_stream_.paused_) {
+            // Possible if App has stopped recognition during active
+            // concurrency.
+            break;
+        }
+        st_stream_.paused_ = false;
+        // fall through to start
+        [[fallthrough]];
+    }
     case ST_EV_START_RECOGNITION: {
+        if (st_stream_.paused_) {
+           break; // Concurrency is active, start later.
+        }
         StStartRecognitionEventConfigData *data =
             (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
         if (!st_stream_.rec_config_) {
@@ -1852,6 +1919,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
             break;
         }
+        std::shared_ptr<StEventConfig> ev_cfg2(
+            new StLoadEventConfig(st_stream_.sm_config_));
+        status = st_stream_.ProcessInternalEvent(ev_cfg2);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
+            break;
+        }
         if (st_stream_.rec_config_) {
             status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
             if (0 != status) {
@@ -1860,12 +1934,16 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 break;
             }
         }
-        std::shared_ptr<StEventConfig> ev_cfg2(
-            new StLoadEventConfig(st_stream_.sm_config_));
-        status = st_stream_.ProcessInternalEvent(ev_cfg2);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
-        }
+        break;
+    }
+    case ST_EV_PAUSE: {
+        st_stream_.paused_ = true;
+        break;
+    }
+    case ST_EV_STOP_RECOGNITION: {
+        // Possible if client is stopping during active concurrency.
+        // Reset puase flag to avoid restarting when concurrency inactive.
+        st_stream_.paused_ = false;
         break;
     }
     case ST_EV_READ_BUFFER: {
@@ -1905,6 +1983,11 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
               st_stream_.notifyClient();
           }
           break;
+      }
+      case ST_EV_PAUSE: {
+          st_stream_.paused_ = true;
+          // fall through to stop
+          [[fallthrough]];
       }
       case ST_EV_STOP_RECOGNITION: {
           for (auto& eng: st_stream_.engines_) {
@@ -2003,6 +2086,12 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
           }
           break;
       }
+      case ST_EV_PAUSE: {
+          st_stream_.CancelDelayedStop();
+          st_stream_.paused_ = true;
+          // fall through to stop
+          [[fallthrough]];
+      }
       case ST_EV_STOP_RECOGNITION: {
           // gets dispatched after internal delayed stop timer times out.
           StStopRecognitionEventConfigData *data =
@@ -2075,6 +2164,11 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
           }
           break;
       }
+      case ST_EV_RESUME: {
+          st_stream_.paused_ = false;
+          break;
+      }
+
       default: {
           QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
           break;
@@ -2205,6 +2299,24 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
           }
           // START event will be handled in loaded state.
           break;
+      }
+      case ST_EV_PAUSE: {
+          st_stream_.paused_ = true;
+          QAL_DBG(LOG_TAG, "StBuffering: Pause");
+          for (auto& eng: st_stream_.engines_) {
+              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                          eng->GetEngineId());
+              status = eng->GetEngine()->StopBuffering(&st_stream_);
+              if (status){
+                  QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                          eng->GetEngineId(), status);
+              }
+          }
+          if (st_stream_.reader_) {
+              st_stream_.reader_->reset();
+          }
+          // fall through to stop
+          [[fallthrough]];
       }
       case ST_EV_STOP_RECOGNITION:  {
           // Possible with deffered stop if client doesn't start next recognition.
