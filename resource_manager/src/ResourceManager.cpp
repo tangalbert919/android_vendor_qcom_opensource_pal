@@ -2197,7 +2197,11 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
         break;
     case QAL_DEVICE_OUT_USB_HEADSET:
     case QAL_DEVICE_OUT_USB_DEVICE:
-        if ((QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+        if ((activeDevAttr->config.sample_rate == SAMPLINGRATE_44K) &&
+            (inStrAttr->type == QAL_STREAM_LOW_LATENCY) ) {
+            QAL_INFO(LOG_TAG, "active stream is at 44.1kHz.");
+            is_ds_required = false;
+        } else if ((QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
             (inDevAttr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
             //Native Audio usecase
             QAL_ERR(LOG_TAG, "1 inDevAttr->config.sample_rate = %d  ", inDevAttr->config.sample_rate);
