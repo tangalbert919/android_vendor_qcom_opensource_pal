@@ -197,7 +197,6 @@ StreamSoundTrigger::~StreamSoundTrigger() {
 
     st_states_.clear();
     engines_.clear();
-    gsl_engine_.reset();
 
     rm->deregisterStream(this);
     if (mStreamAttr) {
@@ -2170,14 +2169,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
           [[fallthrough]];
       }
       case ST_EV_STOP_RECOGNITION: {
-          // gets dispatched after internal delayed stop timer times out.
-          StStopRecognitionEventConfigData *data =
-              (StStopRecognitionEventConfigData *)ev_cfg->data_.get();
-          if (!data->deferred_) {
-              QAL_ERR(LOG_TAG, "Not a deferred stop");
-              status = -EINVAL;
-              break;
-          }
+          st_stream_.CancelDelayedStop();
           for (auto& eng: st_stream_.engines_) {
               QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
               status = eng->GetEngine()->StopRecognition(&st_stream_);
