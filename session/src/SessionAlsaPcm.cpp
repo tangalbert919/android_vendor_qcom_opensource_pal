@@ -969,7 +969,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         data = buf->buffer;
         data = static_cast<char *>(data) + offset;
         sizeWritten = out_buf_size;  //initialize 0
-        if (pcm && !isActive()) {
+        if (pcm && (mState == SESSION_FLUSHED)) {
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -988,7 +988,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
     data = buf->buffer;
-    if (pcm && !isActive()) {
+    if (pcm && (mState == SESSION_FLUSHED)) {
         status = pcm_start(pcm);
         if (status) {
             QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -1460,7 +1460,7 @@ int SessionAlsaPcm::flush()
         status = pcm_stop(pcm);
 
         if (!status)
-            mState = SESSION_STOPPED;
+            mState = SESSION_FLUSHED;
     }
 
     QAL_VERBOSE(LOG_TAG,"status %d\n", status);

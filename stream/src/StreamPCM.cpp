@@ -615,8 +615,9 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
         mStreamMutex.unlock();
         return size;
     }
-    status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
     mStreamMutex.unlock();
+
+    status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session write is failed with status %d", status);
         return -status;
@@ -749,7 +750,7 @@ int32_t  StreamPCM::setResume()
     mStreamMutex.lock();
     status = session->setConfig(this, MODULE, RESUME_TAG);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+        QAL_ERR(LOG_TAG, "session setConfig for resume failed with status %d",
                 status);
         goto exit;
     }

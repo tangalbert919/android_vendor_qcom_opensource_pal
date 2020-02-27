@@ -57,6 +57,7 @@ typedef enum {
     SESSION_IDLE,
     SESSION_OPENED,
     SESSION_STARTED,
+    SESSION_FLUSHED,
     SESSION_STOPPED,
 }sessionState;
 

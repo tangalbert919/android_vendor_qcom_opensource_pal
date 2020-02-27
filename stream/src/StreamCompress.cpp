@@ -371,9 +371,7 @@ int32_t StreamCompress::write(struct qal_buffer *buf)
     int32_t size;
     QAL_DBG(LOG_TAG, "Enter. session handle - %p", session);
 
-    mStreamMutex.lock();
     status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
-    mStreamMutex.unlock();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session write failed with status %d", status);
         return -status;

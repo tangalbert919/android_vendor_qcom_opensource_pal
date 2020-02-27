@@ -470,8 +470,7 @@ int32_t Stream::connectStreamDevice(Stream* streamHandle, struct qal_device *dat
     dev = Device::getInstance(dattr, rm);
     if (!dev) {
         QAL_ERR(LOG_TAG, "Device creation failed");
-        mStreamMutex.unlock();
-        throw std::runtime_error("failed to create device object");
+        goto error_1;
     }
 
     /* Check if we need to check here or above if bt_Sco is on for sco usecase
