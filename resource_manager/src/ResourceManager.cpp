@@ -2999,6 +2999,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         }
         break;
         case QAL_PARAM_ID_BT_SCO_WB:
+        case QAL_PARAM_ID_BT_SCO_SWB:
         case QAL_PARAM_ID_BT_SCO:
         {
             std::shared_ptr<Device> dev = nullptr;
@@ -3006,13 +3007,13 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
             dattr.id = QAL_DEVICE_OUT_BLUETOOTH_SCO;
             if (isDeviceAvailable(dattr.id)) {
-                dev = Device::getInstance(&dattr , rm);
+                dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
             }
 
             dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
             if (isDeviceAvailable(dattr.id)) {
-                dev = Device::getInstance(&dattr , rm);
+                dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
             }
         }

@@ -47,6 +47,8 @@ enum A2DP_STATE {
     A2DP_STATE_DISCONNECTED,
 };
 
+#define SPEECH_MODE_INVALID 0xFFFF
+
 enum a2dp_role {
     SOURCE = 0,
     SINK,
@@ -172,10 +174,13 @@ protected:
     BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     bool bt_sco_on;
     bool bt_wb_speech_enabled;
-
+    int bt_swb_speech_mode;
+    int startSwb();
 public:
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
+    int start();
+    int stop();
     bool isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     void updateSampleRate(uint32_t *sampleRate);

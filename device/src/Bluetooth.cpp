@@ -89,6 +89,23 @@ int Bluetooth::updateDeviceMetadata()
             break;
         }
         break;
+    case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+    case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        if (deviceAttr.id == QAL_DEVICE_OUT_BLUETOOTH_SCO)
+            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+        else
+            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
+
+        keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
+        switch (codecFormat) {
+        case CODEC_TYPE_APTX_AD_SPEECH:
+            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = SWB");
+            keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
+            break;
+        default:
+            break;
+        }
+        break;
     default:
         return -EINVAL;
     }
@@ -116,6 +133,8 @@ void Bluetooth::updateDeviceAttributes()
              codecConfig.sample_rate == 48000))
         deviceAttr.config.sample_rate = codecConfig.sample_rate * 2;
         break;
+    case CODEC_TYPE_APTX_AD_SPEECH:
+        deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
     default:
         break;
     }
@@ -341,7 +360,11 @@ void Bluetooth::startAbr()
     ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
 
     fbDevice.config.ch_info = ch_info;
-    fbDevice.config.sample_rate = SAMPLINGRATE_8K;
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+    else
+        fbDevice.config.sample_rate = SAMPLINGRATE_8K;
+
     fbDevice.config.bit_width = BITWIDTH_16;
     fbDevice.config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
@@ -1075,6 +1098,7 @@ BtSco::BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
     bt_sco_on = false;
     bt_wb_speech_enabled = false;
+    type = (device->id == QAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
 }
 
 BtSco::~BtSco()
@@ -1088,8 +1112,12 @@ bool BtSco::isDeviceReady()
 
 void BtSco::updateSampleRate(uint32_t *sampleRate)
 {
-    *sampleRate = deviceAttr.config.sample_rate;
+    if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
+        *sampleRate = SAMPLINGRATE_32K;
+    else
+        *sampleRate = deviceAttr.config.sample_rate;
 }
+
 int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
 {
     qal_param_btsco_t* param_bt_sco = (qal_param_btsco_t *)param;
@@ -1097,17 +1125,59 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
     switch(param_id) {
     case QAL_PARAM_ID_BT_SCO:
         bt_sco_on = param_bt_sco->bt_sco_on;
+        isAbrEnabled = false;
         break;
     case QAL_PARAM_ID_BT_SCO_WB:
         bt_wb_speech_enabled = param_bt_sco->bt_wb_speech_enabled;
         deviceAttr.config.sample_rate = bt_wb_speech_enabled ? SAMPLINGRATE_16K : SAMPLINGRATE_8K;
         QAL_ERR(LOG_TAG, "received wbs = %d, updated sr = %d\n", bt_wb_speech_enabled, deviceAttr.config.sample_rate);
+        isAbrEnabled = false;
+        break;
+    case QAL_PARAM_ID_BT_SCO_SWB:
+        bt_swb_speech_mode = param_bt_sco->bt_swb_speech_mode;
+        if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
+            isAbrEnabled = true;
         break;
     default:
         return -EINVAL;
     }
 
     return 0;
+}
+
+int BtSco::startSwb()
+{
+    /* All modules present in SWB graph is configured from acdb file.
+       Update Device Metadata to select appropriate graph in case of swb. */
+    codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
+    return  updateDeviceMetadata();
+}
+
+int BtSco::start()
+{
+    int status = 0;
+
+    if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
+        startSwb();
+
+    status = Device::start();
+    if (!status) {
+        if (isAbrEnabled)
+            startAbr();
+    }
+
+    return status;
+}
+
+int BtSco::stop()
+{
+    int status = 0;
+
+    if (isAbrEnabled)
+        stopAbr();
+
+    Device::stop();
+    return status;
 }
 
 std::shared_ptr<Device> BtSco::getInstance(struct qal_device *device,

@@ -586,6 +586,7 @@ typedef enum {
     QAL_PARAM_ID_DEVICE_ROTATION,
     QAL_PARAM_ID_BT_SCO,
     QAL_PARAM_ID_BT_SCO_WB,
+    QAL_PARAM_ID_BT_SCO_SWB,
     QAL_PARAM_ID_BT_A2DP_RECONFIG,
     QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
     QAL_PARAM_ID_BT_A2DP_SUSPENDED,
@@ -651,6 +652,7 @@ typedef struct qal_param_screen_state {
 typedef struct qal_param_btsco {
     bool     bt_sco_on;
     bool     bt_wb_speech_enabled;
+    int      bt_swb_speech_mode;
 } qal_param_btsco_t;
 
 /* Payload For ID: QAL_PARAM_ID_BT_A2DP*
