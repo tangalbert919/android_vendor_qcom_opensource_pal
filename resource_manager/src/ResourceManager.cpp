@@ -2389,7 +2389,7 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
-        (*sIter)->disconnectStreamDevice(*sIter, newDevAttr->id);
+        (*sIter)->disconnectStreamDevice(*sIter, (qal_device_id_t)inDev->getSndDeviceId());
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++)
         (*sIter)->connectStreamDevice(*sIter, newDevAttr);
