@@ -163,7 +163,6 @@ int32_t StreamCompress::close()
             mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
         status = mDevices[i]->close();
-        rm->deregisterDevice(mDevices[i]);
         QAL_ERR(LOG_TAG,"deregister\n");
         if (0 != status) {
             QAL_ERR(LOG_TAG,"device close failed with status %d", status);
