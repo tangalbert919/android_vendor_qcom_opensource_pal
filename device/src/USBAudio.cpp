@@ -87,7 +87,7 @@ int USB::start()
     struct qal_device dAttr;
 
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream(dev, activestreams);
+    status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
         return -EINVAL;
