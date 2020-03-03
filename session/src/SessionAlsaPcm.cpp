@@ -540,6 +540,14 @@ int SessionAlsaPcm::start(Stream * s)
                 QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
             }
         }
+    } else if (sAttr.direction == QAL_AUDIO_INPUT) {
+        QAL_ERR(LOG_TAG, "Enter enable EC Ref");
+        dev = rm->getActiveEchoReferenceRxDevices(s);
+        if (dev && !ecRefDevId) {
+            status = setECRef(s, dev, true);
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+        }
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT){
         associatedDevices.clear();
         status = s->getAssociatedDevices(associatedDevices);
@@ -556,6 +564,7 @@ int SessionAlsaPcm::start(Stream * s)
         for (auto dev: associatedDevices) {
             str_list = rm->getConcurrentTxStream(s, dev);
             for (auto str: str_list) {
+                QAL_ERR(LOG_TAG, "Enter enable EC Ref 2");
                 status = str->setECRef(dev, true);
                 if (status) {
                     QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
@@ -725,6 +734,12 @@ int SessionAlsaPcm::stop(Stream * s)
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
                 false, DEVICE_SVA, false);
+    } else if (sAttr.type == QAL_AUDIO_INPUT) {
+        if (ecRefDevId) {
+            status = setECRef(s, nullptr, false);
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+        }
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
@@ -1278,8 +1293,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
     }
 
     // TODO: apply for input case other than voice ui
-    if (sAttr.direction != QAL_AUDIO_INPUT ||
-        sAttr.type != QAL_STREAM_VOICE_UI) {
+    if (sAttr.direction != QAL_AUDIO_INPUT) {
         QAL_ERR(LOG_TAG, "EC Ref cannot be set to output stream");
         return -EINVAL;
     }
