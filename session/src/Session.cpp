@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Session"
+#define LOG_TAG "QAL: Session"
 
 #include "Session.h"
 #include "Stream.h"

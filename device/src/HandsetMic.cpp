@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "HandsetMic"
+#define LOG_TAG "QAL: HandsetMic"
 
 #include "HandsetMic.h"
 #include <tinyalsa/asoundlib.h>

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "StreamSoundTrigger"
+#define LOG_TAG "QAL: StreamSoundTrigger"
 
 #include "StreamSoundTrigger.h"
 

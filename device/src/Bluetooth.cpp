@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Bluetooth"
+#define LOG_TAG "QAL: Bluetooth"
 #include "Bluetooth.h"
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "qal"
+#define LOG_TAG "QAL:"
 
 #include <unistd.h>
 #include <stdlib.h>

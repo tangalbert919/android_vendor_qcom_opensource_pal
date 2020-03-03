@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "StreamCompress"
+#define LOG_TAG "QAL: StreamCompress"
 #include "StreamCompress.h"
 #include "Session.h"
 #include "SessionGsl.h"

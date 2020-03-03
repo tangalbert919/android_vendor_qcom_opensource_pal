@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Speaker"
+#define LOG_TAG "QAL: Speaker"
 #include "Speaker.h"
 #include "ResourceManager.h"
 #include "Device.h"

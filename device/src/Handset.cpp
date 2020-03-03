@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Handset"
+#define LOG_TAG "QAL: Handset"
 #include "Handset.h"
 #include "ResourceManager.h"
 #include "Device.h"

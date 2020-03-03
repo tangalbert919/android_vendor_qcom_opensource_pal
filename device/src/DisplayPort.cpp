@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "DisplayPort"
+#define LOG_TAG "QAL: DisplayPort"
 #include "DisplayPort.h"
 #include "SessionAlsaUtils.h"
 #include "ResourceManager.h"

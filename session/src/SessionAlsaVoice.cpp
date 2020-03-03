@@ -28,7 +28,7 @@
  */
 
 
-#define LOG_TAG "SessionAlsaVoice"
+#define LOG_TAG "QAL: SessionAlsaVoice"
 
 #include "SessionAlsaVoice.h"
 #include "SessionAlsaUtils.h"

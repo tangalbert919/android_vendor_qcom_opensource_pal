@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "DeviceGsl"
+#define LOG_TAG "QAL: DeviceGsl"
 #include "Device.h"
 #include "DeviceGsl.h"
 #include "ResourceManager.h"

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "USB"
+#define LOG_TAG "QAL: USB"
 #include "USBAudio.h"
 
 #include <cstdio>

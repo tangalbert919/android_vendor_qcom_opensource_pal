@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Device"
+#define LOG_TAG "QAL: Device"
 
 #include "Device.h"
 #include <tinyalsa/asoundlib.h>

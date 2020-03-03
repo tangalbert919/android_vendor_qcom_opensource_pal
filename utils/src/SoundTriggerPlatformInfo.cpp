@@ -36,7 +36,7 @@
 
 #include "QalCommon.h"
 
-#define LOG_TAG "qal:SoundTriggerPlatformInf"
+#define LOG_TAG "QAL: SoundTriggerPlatformInf"
 
 SoundTriggerUUID::SoundTriggerUUID() :
     timeLow(0),

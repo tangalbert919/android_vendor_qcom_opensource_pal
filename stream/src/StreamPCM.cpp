@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "StreamPCM"
+#define LOG_TAG "QAL: StreamPCM"
 #define RXDIR 0
 #define TXDIR 1
 

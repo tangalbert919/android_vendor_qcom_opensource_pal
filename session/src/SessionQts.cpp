@@ -31,7 +31,7 @@
 #include "SessionQts.h"
 #include <errno.h>
 #define QTS_LIB  "libqts.so"
-#define LOG_TAG "SessionQts"
+#define LOG_TAG "QAL: SessionQts"
 
 void *SessionQts::qtsLibHandle = NULL;
 

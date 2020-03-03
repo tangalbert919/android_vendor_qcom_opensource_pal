@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Stream"
+#define LOG_TAG "QAL: Stream"
 #include "Stream.h"
 #include "StreamPCM.h"
 #include "StreamCompress.h"

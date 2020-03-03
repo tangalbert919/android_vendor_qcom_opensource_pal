@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "SessionAlsaCompress"
+#define LOG_TAG "QAL: SessionAlsaCompress"
 
 #include "SessionAlsaCompress.h"
 #include "SessionAlsaUtils.h"

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "Headphone"
+#define LOG_TAG "QAL: Headphone"
 #include "Headphone.h"
 #include "ResourceManager.h"
 #include "Device.h"

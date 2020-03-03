@@ -30,7 +30,7 @@
 
 #include "QalRingBuffer.h"
 #include "QalCommon.h"
-#define LOG_TAG "QalRingBuffer"
+#define LOG_TAG "QAL: QalRingBuffer"
 
 int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader)
 {

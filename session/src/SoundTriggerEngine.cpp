@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "SoundTriggerEngine"
+#define LOG_TAG "QAL: SoundTriggerEngine"
 
 #include "SoundTriggerEngine.h"
 

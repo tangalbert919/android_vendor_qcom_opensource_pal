@@ -27,7 +27,7 @@
 * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#define LOG_TAG "SessionAlsaUtils"
+#define LOG_TAG "QAL: SessionAlsaUtils"
 
 #include "SessionAlsaUtils.h"
 

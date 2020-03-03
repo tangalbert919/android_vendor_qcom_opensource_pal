@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "SpeakerMic"
+#define LOG_TAG "QAL: SpeakerMic"
 
 #include "SpeakerMic.h"
 #include <tinyalsa/asoundlib.h>

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "SessionAlsaPcm"
+#define LOG_TAG "QAL: SessionAlsaPcm"
 
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaUtils.h"

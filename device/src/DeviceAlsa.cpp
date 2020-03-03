@@ -27,6 +27,8 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define LOG_TAG "QAL: DeviceAlsa"
+
 #include "DeviceAlsa.h"
 
 DeviceAlsa::DeviceAlsa()

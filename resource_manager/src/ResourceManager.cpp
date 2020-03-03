@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "ResourceManager"
+#define LOG_TAG "QAL: ResourceManager"
 #include "ResourceManager.h"
 #include "Session.h"
 #include "Device.h"
