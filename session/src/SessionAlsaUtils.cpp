@@ -1109,18 +1109,17 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         QAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
         return status;
     }
-
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if (status) {
+        QAL_ERR(LOG_TAG, "could not get stream attributes\n");
+        return status;
+    }
     switch (streamType) {
         case QAL_STREAM_COMPRESSED:
             connectCtrlName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " connect";
             is_compress = true;
             break;
         case QAL_STREAM_VOICE_CALL:
-            status = streamHandle->getStreamAttributes(&sAttr);
-            if (status) {
-                QAL_ERR(LOG_TAG, "could not get stream attributes\n");
-                return status;
-            }
             if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
                 sAttr.info.voice_call_info.VSID == VOICELBMMODE1)
                 sub = 1;
@@ -1142,6 +1141,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (QAL_STREAM_VOICE_CALL != streamType) {
+       if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                    aifBackEndsToConnect[0].second.data(),
                                                    is_compress, TAG_DEVICE_MFC_SR, &miid);
@@ -1168,6 +1168,9 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             QAL_ERR(LOG_TAG,"setMixerParameter failed");
             return status;
         }
+    } else {
+           QAL_ERR(LOG_TAG, "No need to configure mfc for input");
+       }
     } else {
         if (sess) {
             if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
