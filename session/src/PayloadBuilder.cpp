@@ -2647,49 +2647,49 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
        else if (voldB < 0.002172f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
        }
-       else if ((0.002171f < voldB) && (voldB < 0.004660f)) {
+       else if (voldB < 0.004660f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
        }
-       else if ((0.004659f < voldB) && (voldB < 0.01f)) {
+       else if (voldB < 0.01f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
        }
-       else if ((0.099999f < voldB) && (voldB < 0.014877f)) {
+       else if (voldB < 0.014877f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
        }
-       else if ((0.014876f < voldB) && (voldB < 0.023646f)) {
+       else if (voldB < 0.023646f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
        }
-       else if ((0.023645f < voldB) && (voldB < 0.037584f)) {
+       else if (voldB < 0.037584f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
        }
-       else if ((0.037583f < voldB) && (voldB < 0.055912f)) {
+       else if (voldB < 0.055912f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
        }
-       else if ((0.055911f < voldB) && (voldB < 0.088869f)) {
+       else if (voldB < 0.088869f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
        }
-       else if ((0.088868f < voldB) && (voldB < 0.141254f)) {
+       else if (voldB < 0.141254f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
        }
-       else if ((0.141253f < voldB) && (voldB < 0.189453f)) {
+       else if (voldB < 0.189453f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
        }
-       else if ((0.189452f < voldB) && (voldB < 0.266840f)) {
+       else if (voldB < 0.266840f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
        }
-       else if ((0.266839f < voldB) && (voldB < 0.375838f)) {
+       else if (voldB < 0.375838f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
        }
-       else if ((0.375837f < voldB) && (voldB < 0.504081f)) {
+       else if (voldB < 0.504081f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
        }
-       else if ((0.504080f < voldB) && (voldB < 0.709987f)) {
+       else if (voldB < 0.709987f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
        }
-       else if ((0.709988f < voldB) && (voldB < 0.9f)) {
+       else if (voldB < 0.9f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
        }
-       else if (voldB == 1.0f) {
+       else if (voldB <= 1.0f) {
           ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
        }
        break;
