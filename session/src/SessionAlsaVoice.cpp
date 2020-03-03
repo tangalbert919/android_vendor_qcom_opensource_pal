@@ -323,16 +323,10 @@ exit:
 
 int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
 {
-    return 0;
-}
-
-int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
-{
     int status = 0;
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
-    struct mixer_ctl *ctl;
 
     switch (static_cast<uint32_t>(tag)) {
         case TAG_STREAM_VOLUME:
@@ -341,7 +335,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
-                                                              dir);
+                                                              RXDIR);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -352,6 +346,40 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
                 goto exit;
             }
             break;
+        case MUTE_TAG:
+        case UNMUTE_TAG:
+            device = pcmDevTxIds.at(0);
+            status = payloadTaged(s, type, tag, device, TXDIR);
+            break;
+
+        default:
+            QAL_ERR(LOG_TAG,"%s: Failed unsupported tag type %d \n", __func__, static_cast<uint32_t>(tag));
+            status = -EINVAL;
+            break;
+    }
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
+        goto exit;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+
+exit:
+if (paramData) {
+    free(paramData);
+}
+    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    return status;
+}
+
+int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
+{
+    int status = 0;
+    int device = pcmDevRxIds.at(0);
+    uint8_t* paramData = NULL;
+    size_t paramSize = 0;
+
+    switch (static_cast<uint32_t>(tag)) {
         case VSID:
             device = pcmDevRxIds.at(0);
             status = payloadSetVSID(&paramData, &paramSize);
@@ -371,11 +399,6 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
                 goto exit;
             }
 
-            break;
-        case MUTE_TAG:
-        case UNMUTE_TAG:
-            device = pcmDevTxIds.at(0);
-            status = payloadTaged(s, type, tag, device, TXDIR);
             break;
 
         default:
@@ -468,7 +491,7 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
     apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0, padBytes = 0;
-    uint8_t *phrase_pl;
+    uint8_t *vsid_pl;
     vcpm_param_vsid_payload_t vsid_payload;
 
     payloadSize = sizeof(struct apm_module_param_data_t)+
@@ -487,8 +510,8 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     vsid_payload.vsid = vsid;
-    phrase_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
-    casa_osal_memcpy(phrase_pl,  sizeof(vcpm_param_vsid_payload_t),
+    vsid_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
+    casa_osal_memcpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
 
     *size = payloadSize + padBytes;
@@ -504,7 +527,7 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
     apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0, padBytes = 0;
-    uint8_t *phrase_pl;
+    uint8_t *vol_pl;
     vcpm_param_cal_keys_payload_t cal_keys;
     vcpm_ckv_pair_t cal_key_pair;
     float volume = 0.0;
@@ -558,12 +581,12 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
     vol = 100 - vol;
     cal_key_pair.value = percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX);
 
-    phrase_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
-    casa_osal_memcpy(phrase_pl, sizeof(vcpm_param_cal_keys_payload_t),
+    vol_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
+    casa_osal_memcpy(vol_pl, sizeof(vcpm_param_cal_keys_payload_t),
                      &cal_keys, sizeof(vcpm_param_cal_keys_payload_t));
 
-    phrase_pl += sizeof(vcpm_param_cal_keys_payload_t);
-    casa_osal_memcpy(phrase_pl, sizeof(vcpm_ckv_pair_t),
+    vol_pl += sizeof(vcpm_param_cal_keys_payload_t);
+    casa_osal_memcpy(vol_pl, sizeof(vcpm_ckv_pair_t),
                      &cal_key_pair, sizeof(vcpm_ckv_pair_t));
 
 

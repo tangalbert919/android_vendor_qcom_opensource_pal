@@ -709,9 +709,9 @@ int32_t  StreamPCM::setMute( bool state)
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
     mStreamMutex.lock();
     if (state)
-        status = session->setConfig(this, MODULE, MUTE_TAG, TXDIR);
+        status = session->setConfig(this, MODULE, MUTE_TAG);
     else
-        status = session->setConfig(this, MODULE, UNMUTE_TAG, TXDIR);
+        status = session->setConfig(this, MODULE, UNMUTE_TAG);
 
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
