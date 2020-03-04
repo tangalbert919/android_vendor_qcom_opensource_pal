@@ -98,6 +98,7 @@
 #define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 2
 #define MAX_SESSIONS_PROXY 8
+#define DEFAULT_MAX_SESSIONS 8
 
 static struct str_parms *configParamKVPairs;
 
@@ -300,6 +301,7 @@ int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 SndCardMonitor* ResourceManager::sndmon = NULL;
+static int max_session_num;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -388,6 +390,7 @@ ResourceManager::ResourceManager()
     na_props.ui_na_prop_enabled = false;
     na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
 
+    max_session_num = DEFAULT_MAX_SESSIONS;
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
@@ -452,7 +455,11 @@ ResourceManager::ResourceManager()
                 }
             }
         }
+    }
 
+    // Initialize all SVA session instances and mark as unused
+    for (int i = 1; i <= max_session_num; i++) {
+        STInstancesList.push_back(std::make_pair(i, false));
     }
 
     ret = ResourceManager::init_audio();
@@ -2934,13 +2941,22 @@ done:
 
 
 int ResourceManager::setNativeAudioParams(struct str_parms *parms,
-                                             char *value, int len)
+                                          char *value, int len)
 {
     int ret = -EINVAL;
     int mode = NATIVE_AUDIO_MODE_INVALID;
 
     if (!value || !parms)
         return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_MAX_SESSIONS,
+                                value, len);
+    if (ret >= 0) {
+        max_session_num = std::stoi(value);
+        QAL_INFO(LOG_TAG, "Max sessions supported for each stream type are %d",
+                 max_session_num);
+
+    }
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE,
                              value, len);
@@ -3713,6 +3729,69 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     }
 
     QAL_DBG(LOG_TAG, "%s Exit, status %d", __func__, status);
+    return status;
+}
+
+int ResourceManager::resetStreamInstanceID(qal_stream_attributes *sAttr, uint32_t sInstanceID)
+{
+    int status = 0;
+    int i;
+
+    if (sAttr == NULL) {
+        status = -EINVAL;
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+
+    switch (sAttr->type) {
+        case QAL_STREAM_VOICE_UI:
+            for (i = 0; i < max_session_num; i++) {
+                if (STInstancesList[i].first == sInstanceID)
+                    STInstancesList[i].second = false;
+            }
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+                    sAttr->type);
+            break;
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+int ResourceManager::getStreamInstanceID(qal_stream_attributes* sAttr)
+{
+    int status = 0;
+    int i;
+
+    if (sAttr == NULL) {
+        status = -EINVAL;
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+
+    switch (sAttr->type) {
+        case QAL_STREAM_VOICE_UI:
+            for (i = 0; i < max_session_num; i++) {
+                if (!STInstancesList[i].second) {
+                    STInstancesList[i].second = true;
+                    status = STInstancesList[i].first;
+                    break;
+                }
+            }
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+                    sAttr->type);
+            break;
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
     return status;
 }
 

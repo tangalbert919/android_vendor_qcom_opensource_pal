@@ -50,6 +50,7 @@
 
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
+#define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define MAX_PCM_NAME_SIZE 50
 
 enum qal_alsa_or_gsl {
@@ -281,6 +282,7 @@ protected:
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
     static SndCardMonitor *sndmon;
+    std::vector<std::pair<int32_t, bool>> STInstancesList;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -428,6 +430,8 @@ public:
     int ssrHandler(card_status_t state);
     int32_t getSidetoneMode(qal_device_id_t deviceId, qal_stream_type_t type,
                             sidetone_mode_t *mode);
+    int getStreamInstanceID(qal_stream_attributes* StrAttr);
+    int resetStreamInstanceID(qal_stream_attributes* StrAttr, uint32_t sInstanceID);
 };
 
 #endif

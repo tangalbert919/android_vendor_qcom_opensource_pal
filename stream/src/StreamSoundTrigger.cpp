@@ -2061,6 +2061,9 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             StLoadEventConfigData *data =
                 (StLoadEventConfigData *)ev_cfg->data_.get();
 
+            st_stream_.mInstanceID = st_stream_.rm->getStreamInstanceID(
+                st_stream_.mStreamAttr);
+
             if (st_stream_.mDevices.size() > 0) {
                 status = st_stream_.mDevices[0]->open();
                 if (0 != status) {
@@ -2213,6 +2216,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             }
             st_stream_.engines_.clear();
 
+            st_stream_.rm->resetStreamInstanceID(st_stream_.mStreamAttr,
+                st_stream_.mInstanceID);
             TransitTo(ST_STATE_IDLE);
             break;
         }

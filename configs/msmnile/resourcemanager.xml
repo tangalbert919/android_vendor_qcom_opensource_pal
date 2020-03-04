@@ -47,6 +47,7 @@
     </pcm_ids>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
+        <param key="max_sessions" value="128"/>
     </config_params>
     <bt_codecs>
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />

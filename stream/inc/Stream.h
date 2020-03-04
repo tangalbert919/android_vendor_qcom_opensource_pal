@@ -127,7 +127,7 @@ protected:
     stream_state_t cachedState;
     uint32_t cachedNumDev;
     struct qal_device* cachedDev;
-
+    uint32_t mInstanceID = 0; // used for Voice UI only now
 public:
     virtual ~Stream() {};
     qal_stream_callback streamCb;
@@ -192,6 +192,7 @@ public:
     int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
     bool isGKVMatch(qal_key_vector_t* gkv);
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
+    uint32_t getInstanceId() { return mInstanceID; }
 };
 
 #endif//STREAM_H_

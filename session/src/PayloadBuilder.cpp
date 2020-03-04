@@ -2236,9 +2236,11 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector)
+int PayloadBuilder::populateStreamKV(Stream* s,
+        std::vector <std::pair<int,int>> &keyVector)
 {
     int status = -EINVAL;
+    uint32_t instance_id = 0;
     struct qal_stream_attributes *sattr = NULL;
 
     QAL_DBG(LOG_TAG,"%s: enter", __func__);
@@ -2264,7 +2266,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_STREAM_LOW_LATENCY:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
             } else if (sattr->direction == QAL_AUDIO_INPUT) {
                 keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
             } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
@@ -2311,7 +2313,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_STREAM_PCM_OFFLOAD:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_OFFLOAD_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
             } else {
                 status = -EINVAL;
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
@@ -2324,17 +2326,30 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
            if (sattr->direction == QAL_AUDIO_OUTPUT) {
                QAL_VERBOSE(LOG_TAG,"%s: Stream compressed \n", __func__);
                keyVector.push_back(std::make_pair(STREAMRX, COMPRESSED_OFFLOAD_PLAYBACK));
-               keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+               keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
            }
             break;
         case QAL_STREAM_VOIP_TX:
-            keyVector.push_back(std::make_pair(STREAMTX,VOIP_TX_RECORD));
+            keyVector.push_back(std::make_pair(STREAMTX, VOIP_TX_RECORD));
             break;
         case QAL_STREAM_VOIP_RX:
-            keyVector.push_back(std::make_pair(STREAMRX,VOIP_RX_PLAYBACK));
+            keyVector.push_back(std::make_pair(STREAMRX, VOIP_RX_PLAYBACK));
             break;
         case QAL_STREAM_VOICE_UI:
-            keyVector.push_back(std::make_pair(STREAMTX,VOICE_UI));
+            if (!s) {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid stream");
+                goto free_sattr;
+            }
+            instance_id = s->getInstanceId();
+            if (instance_id < INSTANCE_1) {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid instance id %d for Voice UI stream",
+                    instance_id);
+                goto free_sattr;
+            }
+            keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
+            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             break;
         default:
             status = -EINVAL;
@@ -2603,7 +2618,7 @@ int PayloadBuilder::populateGkv(Stream *s, struct gsl_key_vector *gkv) {
     std::vector <std::pair<int,int>> keyVector;
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
-    if (0!= populateStreamKV(s, keyVector)) {
+    if (0 != populateStreamKV(s, keyVector)) {
         QAL_ERR(LOG_TAG, "%s: Error in populating stream KV");
         status = -EINVAL;
         goto error_1;
