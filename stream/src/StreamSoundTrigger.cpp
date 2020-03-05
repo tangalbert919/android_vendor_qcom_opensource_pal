@@ -353,6 +353,7 @@ void StreamSoundTrigger::ConcurrentStreamStatus(qal_stream_type_t type,
     QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
     if (dir == QAL_AUDIO_OUTPUT && type != QAL_STREAM_LOW_LATENCY) {
         if (rm->IsVoiceUILPISupported()) {
+            std::lock_guard<std::mutex> lck(mStreamMutex);
             std::shared_ptr<StEventConfig> ev_cfg(
                 new StConcurrentStreamEventConfig(type, active));
             status = cur_state_->ProcessEvent(ev_cfg);
