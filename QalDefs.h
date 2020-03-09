@@ -651,6 +651,25 @@ typedef struct qal_param_screen_state {
     bool              screen_state;
 } qal_param_screen_state_t;
 
+/*
+ * Used to identify the swapping type
+ */
+typedef enum {
+    QAL_SPEAKER_ROTATION_LR,  /* Default position. It will be set when device
+                               * is at angle 0, 90 or 180 degree.
+                               */
+
+    QAL_SPEAKER_ROTATION_RL   /* This will be set if device is rotated by 270
+                               * degree
+                               */
+} qal_speaker_rotation_type;
+
+/* Payload For ID: QAL_PARAM_ID_DEVICE_ROTATION
+ * Description   : Device Rotation
+ */
+typedef struct qal_param_device_rotation {
+    qal_speaker_rotation_type    rotation_type;
+} qal_param_device_rotation_t;
 
 /* Payload For ID: QAL_PARAM_ID_BT_SCO*
  * Description   : BT SCO related device parameters

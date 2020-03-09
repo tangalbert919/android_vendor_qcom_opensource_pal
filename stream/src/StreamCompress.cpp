@@ -426,6 +426,19 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             }
             break;
         }
+        case QAL_PARAM_ID_DEVICE_ROTATION:
+        {
+            // Call Session for Setting the parameter.
+            if (NULL != session) {
+                status = session->setParameters(this, 0,
+                                                QAL_PARAM_ID_DEVICE_ROTATION,
+                                                payload);
+            } else {
+                QAL_ERR(LOG_TAG, "Session is null");
+                status = -EINVAL;
+            }
+        }
+        break;
         default:
             status = session->setParameters(this, 0, param_id, payload);
             break;

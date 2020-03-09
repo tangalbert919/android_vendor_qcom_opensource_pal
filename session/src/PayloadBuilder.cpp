@@ -1070,6 +1070,14 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     mfcConf->bit_width = data->bitWidth;
     mfcConf->num_channels = data->numChannel;
     populateChannelMap(pcmChannel, data->numChannel);
+
+    if ((2 == data->numChannel) && (QAL_SPEAKER_ROTATION_RL == data->rotation_type))
+    {
+        // Swapping the channel
+        pcmChannel[0] = PCM_CHANNEL_R;
+        pcmChannel[1] = PCM_CHANNEL_L;
+    }
+
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",

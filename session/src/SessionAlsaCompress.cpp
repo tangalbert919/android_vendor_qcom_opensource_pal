@@ -675,6 +675,16 @@ int SessionAlsaCompress::start(Stream * s)
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info->channels;
+                deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+                if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
+                    (2 == dAttr.config.ch_info->channels)) {
+                    // Stereo Speakers. Check for the rotation type
+                    if (QAL_SPEAKER_ROTATION_RL ==
+                                                rm->getCurrentRotationType()) {
+                        // Rotation is of RL, so need to swap the channels
+                        deviceData.rotation_type = QAL_SPEAKER_ROTATION_RL;
+                    }
+                }
                 builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &deviceData);
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
@@ -893,6 +903,14 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
     effect_qal_payload_t *effectQalPayload = nullptr;
 
     switch (param_id) {
+        case QAL_PARAM_ID_DEVICE_ROTATION:
+        {
+            qal_param_device_rotation_t *rotation =
+                                     (qal_param_device_rotation_t *)payload;
+            status = handleDeviceRotation(s, rotation->rotation_type, device, mixer,
+                                          builder, rxAifBackEnds);
+        }
+        break;
         case QAL_PARAM_ID_UIEFFECT:
         {
             qal_effect_custom_payload_t *customPayload;

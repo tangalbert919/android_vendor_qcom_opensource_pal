@@ -36,6 +36,7 @@
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaCompress.h"
+#include "SessionAlsaUtils.h"
 #include "SessionAlsaVoice.h"
 #include "SessionAlsaUtils.h"
 
@@ -277,6 +278,87 @@ int Session::resume(Stream * s)
 {
      return 0;
 }
+
+int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_type,
+        int device, struct mixer *mixer, PayloadBuilder* builder,
+        std::vector<std::pair<int32_t, std::string>> rxAifBackEnds)
+{
+    int status = 0;
+    struct qal_stream_attributes sAttr;
+    struct qal_device dAttr;
+    struct sessionToPayloadParam deviceData;
+    uint32_t miid = 0;
+    uint8_t* alsaParamData = NULL;
+    size_t alsaPayloadSize = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
+
+    if (QAL_AUDIO_OUTPUT== sAttr.direction) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
+
+        for (int i = 0; i < associatedDevices.size(); i++) {
+             status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+             if (0 != status) {
+                 QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
+                 return status;
+             }
+
+             if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
+                  (2 == dAttr.config.ch_info->channels)) {
+                 /* Get PSPD MFC MIID and configure to match to device config */
+                 /* This has to be done after sending all mixer controls and
+                  * before connect
+                  */
+                status =
+                        SessionAlsaUtils::getModuleInstanceId(mixer,
+                                                              device,
+                                                              rxAifBackEnds[i].second.data(),
+                                                              TAG_DEVICE_MFC_SR,
+                                                              &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                    device, rxAifBackEnds[i].second.data(), dAttr.id);
+
+                deviceData.bitWidth = dAttr.config.bit_width;
+                deviceData.sampleRate = dAttr.config.sample_rate;
+                deviceData.numChannel = dAttr.config.ch_info->channels;
+                deviceData.rotation_type = rotation_type;
+                builder->payloadMFCConfig((uint8_t **)&alsaParamData,
+                                           &alsaPayloadSize, miid, &deviceData);
+
+                if (alsaPayloadSize) {
+                    status = updateCustomPayload(alsaParamData, alsaPayloadSize);
+                    delete alsaParamData;
+                    if (0 != status) {
+                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        return status;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer,
+                                                             device,
+                                                             customPayload,
+                                                             customPayloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
+            }
+        }
+    }
+    return status;
+}
+
 #if 0
 int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)

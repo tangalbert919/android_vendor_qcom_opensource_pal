@@ -69,6 +69,7 @@ struct sessionToPayloadParam {
     struct qal_channel_info *ch_info;    /**< channel info */
     int direction;
     int native;
+    int rotation_type;
     void *metadata;
 };
 

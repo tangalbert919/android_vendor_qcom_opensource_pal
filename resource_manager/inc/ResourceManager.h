@@ -204,6 +204,7 @@ private:
     int getDeviceDefaultCapability(qal_param_device_capability_t capability);
 
     int handleScreenStatusChange(qal_param_screen_state_t screen_state);
+    int handleDeviceRotationChange(qal_param_device_rotation_t rotation_type);
     int handleDeviceConnectionChange(qal_param_device_connection_t connection_state);
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
@@ -222,6 +223,7 @@ protected:
     std::vector <qal_device_id_t> avail_devices_;
     bool bOverwriteFlag;
     bool screen_state_;
+    qal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
     static int snd_card;
@@ -387,6 +389,7 @@ public:
                             std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
     char* getDeviceNameFromID(uint32_t id);
     int getQalValueFromGKV(qal_key_vector_t *gkv, int key);
+    qal_speaker_rotation_type getCurrentRotationType();
 };
 
 #endif

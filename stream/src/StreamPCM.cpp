@@ -735,7 +735,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
             }
             break;
         }
-
         case QAL_PARAM_ID_TTY_MODE:
         {
             param_payload = (qal_param_payload *)payload;
@@ -758,6 +757,19 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
                        param_payload->tty_mode, status);
             break;
         }
+        case QAL_PARAM_ID_DEVICE_ROTATION:
+        {
+            // Call Session for Setting the parameter.
+            if (NULL != session) {
+                status = session->setParameters(this, 0,
+                                                QAL_PARAM_ID_DEVICE_ROTATION,
+                                                payload);
+            } else {
+                QAL_ERR(LOG_TAG, "Session is null");
+                status = -EINVAL;
+            }
+        }
+        break;
         default:
             QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;

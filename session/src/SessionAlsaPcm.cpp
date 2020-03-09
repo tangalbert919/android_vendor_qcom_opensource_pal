@@ -618,6 +618,7 @@ int SessionAlsaPcm::start(Stream * s)
                 streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info->channels;
+                streamData.rotation_type = QAL_SPEAKER_ROTATION_LR;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
@@ -666,6 +667,17 @@ int SessionAlsaPcm::start(Stream * s)
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info->channels;
+                deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+
+                if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
+                    (2 == dAttr.config.ch_info->channels)) {
+                    // Stereo Speakers. Check for the rotation type
+                    if (QAL_SPEAKER_ROTATION_RL ==
+                                                rm->getCurrentRotationType()) {
+                        // Rotation is of RL, so need to swap the channels
+                        deviceData.rotation_type = QAL_SPEAKER_ROTATION_RL;
+                    }
+                }
                 builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
@@ -1127,6 +1139,14 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
 
     QAL_DBG(LOG_TAG, "Enter.");
     switch (param_id) {
+        case QAL_PARAM_ID_DEVICE_ROTATION:
+        {
+            qal_param_device_rotation_t *rotation =
+                                         (qal_param_device_rotation_t *)payload;
+            status = handleDeviceRotation(streamHandle, rotation->rotation_type,
+                                          device, mixer, builder, rxAifBackEnds);
+            goto exit;
+        }
         case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
         {
             struct qal_st_sound_model *pSoundModel = NULL;

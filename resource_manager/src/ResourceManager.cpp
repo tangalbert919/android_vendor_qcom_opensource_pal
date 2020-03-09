@@ -364,6 +364,9 @@ ResourceManager::ResourceManager()
     // TODO: set bOverwriteFlag to true by default
     // should we add api for client to set this value?
     bool bOverwriteFlag = true;
+
+    // Initialize the default rotation
+    rotation_type_ = QAL_SPEAKER_ROTATION_LR;
     // Init audio_route and audio_mixer
 
     na_props.rm_na_prop_enabled = false;
@@ -3020,6 +3023,21 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
+        case QAL_PARAM_ID_DEVICE_ROTATION:
+        {
+            qal_param_device_rotation_t* param_device_rot =
+                                   (qal_param_device_rotation_t*) param_payload;
+            QAL_INFO(LOG_TAG, "Device Rotation :%d", param_device_rot->rotation_type);
+            if (payload_size == sizeof(qal_param_device_rotation_t)) {
+                status = handleDeviceRotationChange(*param_device_rot);
+            } else {
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                        sizeof(qal_param_device_rotation_t), payload_size);
+                status = -EINVAL;
+            }
+
+        }
+        break;
         case QAL_PARAM_ID_DEVICE_CONNECTION:
         {
             qal_param_device_connection_t *device_connection =
@@ -3250,9 +3268,76 @@ int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_st
     return status;
 }
 
+int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
+                                                         rotation_type) {
+    std::vector<Stream*>::iterator sIter;
+    qal_stream_type_t streamType;
+    struct qal_device dattr;
+    int status = 0;
+    QAL_INFO(LOG_TAG, "Device Rotation Changed %d", rotation_type.rotation_type);
+    rotation_type_ = rotation_type.rotation_type;
+
+    /**Get the active device list and check if speaker is present.
+     */
+    for (int i = 0; i < active_devices.size(); i++) {
+        int deviceId = active_devices[i]->getSndDeviceId();
+        status = active_devices[i]->getDeviceAttributes(&dattr);
+        if(0 != status) {
+           QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+           goto error;
+        }
+        QAL_INFO(LOG_TAG, "Device Got %d with channel %d",deviceId,
+                                                 dattr.config.ch_info->channels);
+        if ((QAL_DEVICE_OUT_SPEAKER == deviceId) &&
+            (2 == dattr.config.ch_info->channels)) {
+
+            QAL_INFO(LOG_TAG, "Device is Stereo Speaker");
+            std::vector <Stream *> activeStreams;
+            getActiveStream_l(active_devices[i], activeStreams);
+            for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+                status = (*sIter)->getStreamType(&streamType);
+                if(0 != status) {
+                   QAL_ERR(LOG_TAG,"setParameters Failed");
+                   goto error;
+                }
+                /** Check for the Streams which can require Stereo speaker functionality.
+                 * Mainly these will need :
+                 * 1. Deep Buffer
+                 * 2. PCM offload
+                 * 3. Compressed
+                 */
+                if ((QAL_STREAM_DEEP_BUFFER == streamType) ||
+                    (QAL_STREAM_COMPRESSED == streamType) ||
+                    (QAL_STREAM_PCM_OFFLOAD == streamType)) {
+
+                    QAL_INFO(LOG_TAG, "Rotation for stream %d", streamType);
+                    // Need to set the rotation now.
+                    status = (*sIter)->setParameters(QAL_PARAM_ID_DEVICE_ROTATION,
+                                                     (void*)&rotation_type);
+                    if(0 != status) {
+                       QAL_ERR(LOG_TAG,"setParameters Failed");
+                       goto error;
+                    }
+                }
+            }
+            //As we got the speaker and it is reversed. No need to further
+            // iterate the list.
+            break;
+        }
+    }
+error :
+    QAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange");
+    return status;
+}
+
 bool ResourceManager::getScreenState()
 {
     return screen_state_;
+}
+
+qal_speaker_rotation_type ResourceManager::getCurrentRotationType()
+{
+    return rotation_type_;
 }
 
 int ResourceManager::getDeviceDefaultCapability(qal_param_device_capability_t capability) {

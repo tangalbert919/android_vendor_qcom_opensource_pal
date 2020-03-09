@@ -30,6 +30,7 @@
 #ifndef SESSION_H
 #define SESSION_H
 
+#include "PayloadBuilder.h"
 #include "QalDefs.h"
 #include <mutex>
 #include <algorithm>
@@ -81,6 +82,9 @@ protected:
 public:
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr);
+    int handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_type,
+        int device, struct mixer *mixer, PayloadBuilder* builder,
+        std::vector<std::pair<int32_t, std::string>> rxAifBackEnds);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
