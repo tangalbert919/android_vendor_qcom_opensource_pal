@@ -232,8 +232,15 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
     struct agm_cal_config *calConfig;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
+    qal_stream_attributes sAttr;
     int tkv_size = 0;
     int ckv_size = 0;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
 
     switch (type) {
         case MODULE:
@@ -285,12 +292,10 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
 
-
             if (ckv.size() == 0) {
                 status = -EINVAL;
                 goto exit;
             }
-
 
             calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
@@ -301,7 +306,12 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             }
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
-            calCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setCalibrationControl;
+            if (QAL_STREAM_LOOPBACK == sAttr.type) {
+                calCntrlName<<stream<<pcmDevRxIds.at(0)<<" "<<setCalibrationControl;
+            } else {
+                calCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setCalibrationControl;
+            }
+
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());

@@ -2079,11 +2079,11 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
         case QAL_STREAM_LOOPBACK:
             if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_RX) {
                 keyVectorRx.push_back(std::make_pair(STREAMRX, HFP_RX_PLAYBACK));
-                keyVectorTx.push_back(std::make_pair(STREAMRX, HFP_RX_CAPTURE));
+                keyVectorTx.push_back(std::make_pair(STREAMTX, HFP_RX_CAPTURE));
             } else if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_TX) {
                 /** no StreamKV for HFP TX */
             } else /** pcm loopback*/ {
-                keyVectorRx.push_back(std::make_pair(STREAMTX, PCM_RX_LOOPBACK));
+                keyVectorRx.push_back(std::make_pair(STREAMRX, PCM_RX_LOOPBACK));
             }
             break;
     case QAL_STREAM_VOICE_CALL:
@@ -2419,8 +2419,15 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOIP_MBDRC));
                 break;
             case QAL_STREAM_LOOPBACK:
-                if (sattr->info.opt_stream_info.loopback_type == QAL_STREAM_LOOPBACK_HFP_RX)
-                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_HFPSINK));
+                if (sattr->info.opt_stream_info.loopback_type ==
+                                                    QAL_STREAM_LOOPBACK_HFP_RX) {
+                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX,
+                                                         DEVICEPP_RX_HFPSINK));
+                } else if(sattr->info.opt_stream_info.loopback_type ==
+                                                    QAL_STREAM_LOOPBACK_HFP_TX) {
+                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,
+                                                         DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
+                }
                 break;
             case QAL_STREAM_VOIP_TX:
                 for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {

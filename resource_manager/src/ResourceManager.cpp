@@ -914,6 +914,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOIP_RX:
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_PCM_OFFLOAD:
+        case QAL_STREAM_LOOPBACK:
             if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info->channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -1028,6 +1029,7 @@ int ResourceManager::registerStream(Stream *s)
             break;
         }
         case QAL_STREAM_PCM_OFFLOAD:
+        case QAL_STREAM_LOOPBACK:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sPCM, active_streams_po);
@@ -1126,6 +1128,7 @@ int ResourceManager::deregisterStream(Stream *s)
             break;
         }
         case QAL_STREAM_PCM_OFFLOAD:
+        case QAL_STREAM_LOOPBACK:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sPCM, active_streams_po);
@@ -1816,6 +1819,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_VOICE_UI:
         case QAL_STREAM_PCM_OFFLOAD:
+        case QAL_STREAM_LOOPBACK:
             switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {

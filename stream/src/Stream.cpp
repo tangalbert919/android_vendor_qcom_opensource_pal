@@ -112,6 +112,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             case QAL_STREAM_VOIP_RX:
             case QAL_STREAM_PCM_OFFLOAD:
             case QAL_STREAM_VOICE_CALL:
+            case QAL_STREAM_LOOPBACK:
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, mQalDevice, count, modifiers,
                                    noOfModifiers, rm);
