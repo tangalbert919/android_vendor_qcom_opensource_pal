@@ -1915,6 +1915,33 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
 }
 
+
+void PayloadBuilder::payloadQuery(uint8_t **payload, size_t *size,
+                    uint32_t moduleId, uint32_t paramId, uint32_t querySize)
+{
+    struct apm_module_param_data_t* header;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) + querySize;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = moduleId;
+    header->param_id = paramId;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+}
+
 void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId)
 {
     struct apm_module_param_data_t* header;

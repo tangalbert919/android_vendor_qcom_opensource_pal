@@ -854,7 +854,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-	default:
+        default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
             //do nothing for rest of the devices
@@ -2893,13 +2893,33 @@ exit:
 }
 
 int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
-                     size_t *payload_size)
+                     size_t *payload_size, void *query)
 {
     int status = 0;
 
     QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            gef_payload_t *gef_payload = (gef_payload_t *)query;
+            int index = 0;
+            int qal_device_id = 0;
+            int stream_type = 0;
+            bool match = false;
+            std::vector<Stream*>::iterator sIter;
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
+                match = (*sIter)->isGKVMatch(gef_payload->graph);
+                if (match) {
+                    qal_param_payload qal_payload;
+                    qal_payload.has_effect = 1;
+                    qal_payload.effect_payload = (uint32_t *)&gef_payload->data;
+                    status = (*sIter)->getEffectParameters((void *)&qal_payload, payload_size);
+                    break;
+                }
+            }
+        }
+            break;
         case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
         {
             std::shared_ptr<Device> dev = nullptr;
@@ -3111,6 +3131,25 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (status) {
                     QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                     goto exit;
+                }
+            }
+        }
+        break;
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            gef_payload_t *gef_payload = (gef_payload_t*)param_payload;
+            int index = 0;
+            int qal_device_id = 0;
+            int stream_type = 0;
+            bool match = false;
+            std::vector<Stream*>::iterator sIter;
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
+                match = (*sIter)->isGKVMatch(gef_payload->graph);
+                if (match) {
+                    qal_param_payload qal_payload;
+                    qal_payload.has_effect = 1;
+                    qal_payload.effect_payload = (uint32_t *)&gef_payload->data;
+                    status = (*sIter)->setParameters(param_id, (void *)&qal_payload);
                 }
             }
         }

@@ -72,11 +72,8 @@ private:
     uint32_t spr_miid = 0;
     PayloadBuilder* builder;
     struct snd_codec codec;
-    struct mixer *mixer;
     //  unsigned int compressDevId;
     std::vector<int> compressDevIds;
-    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
-    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     std::unique_ptr<std::thread> worker_thread;
     std::queue<std::shared_ptr<offload_msg>> msg_queue_;
 
@@ -135,6 +132,7 @@ public:
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
+    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,11 +33,14 @@
 #include "Stream.h"
 #include "ResourceManager.h"
 
-
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaCompress.h"
 #include "SessionAlsaVoice.h"
+#include "SessionAlsaUtils.h"
+
+#include <sstream>
+
 
 Session::Session()
 {
@@ -167,6 +170,83 @@ void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
             bitwidth_tag = BW_16;
             break;
     }
+}
+
+int Session::getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload)
+{
+    int status = 0;
+    uint8_t *ptr = NULL;
+    uint8_t *config = NULL;
+    uint8_t *payloadData = NULL;
+    size_t payloadSize = 0;
+    int device = 0;
+    uint32_t miid = 0;
+    const char *control = "getParam";
+    struct mixer_ctl *ctl;
+    qal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    std::ostringstream CntrlName;
+    PayloadBuilder builder;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    ctl = getFEMixerCtl(control, &device);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        status = -ENOENT;
+        goto exit;
+    }
+
+    if (!rxAifBackEnds.empty()) { /** search in RX GKV */
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, rxAifBackEnds[0].second.data(),
+                effectPayload->tag, &miid);
+        if (status) /** if not found, reset miid to 0 again */
+            miid = 0;
+    }
+
+    if (!txAifBackEnds.empty()) { /** search in TX GKV */
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
+                effectPayload->tag, &miid);
+        if (status)
+            miid = 0;
+    }
+
+    if (miid == 0) {
+        QAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
+                    effectPayload->tag);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    effectCustomPayload = (qal_effect_custom_payload_t *)(effectPayload->payload);
+    if (effectPayload->payloadSize < sizeof(qal_effect_custom_payload_t)) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "memory for retrieved data is too small");
+        goto exit;
+    }
+
+    builder.payloadQuery(&payloadData, &payloadSize,
+                            miid, effectCustomPayload->paramId,
+                            effectPayload->payloadSize - sizeof(uint32_t));
+    status = mixer_ctl_set_array(ctl, payloadData, payloadSize);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Set custom config failed, status = %d", status);
+        goto exit;
+    }
+
+    status = mixer_ctl_get_array(ctl, payloadData, payloadSize);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Get custom config failed, status = %d", status);
+        goto exit;
+    }
+
+    ptr = (uint8_t *)payloadData + sizeof(struct apm_module_param_data_t);
+    casa_mem_cpy(effectCustomPayload->data, effectPayload->payloadSize,
+                        ptr, effectPayload->payloadSize);
+
+exit:
+    if (payloadData)
+        free(payloadData);
+    QAL_ERR(LOG_TAG, "Exit. status %d", status);
+    return status;
 }
 
 int Session::updateCustomPayload(void *payload, size_t size)

@@ -207,6 +207,22 @@ exit:
     return status;
 }
 
+struct mixer_ctl* SessionAlsaPcm::getFEMixerCtl(const char *controlName, int *device)
+{
+    *device = pcmDevIds.at(0);
+    std::ostringstream CntrlName;
+    struct mixer_ctl *ctl;
+
+    CntrlName << "PCM" <<pcmDevIds.at(0) << " " << controlName;
+    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        return nullptr;
+    }
+
+    return ctl;
+}
+
 uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;

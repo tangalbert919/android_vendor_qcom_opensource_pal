@@ -299,7 +299,7 @@ public:
                      size_t payload_size);
 
     int getParameter(uint32_t param_id, void **param_payload,
-                     size_t *payload_size);
+                     size_t *payload_size, void *query = nullptr);
 
     int getSndCard();
     int getPcmDeviceId(int deviceId);
@@ -383,6 +383,7 @@ public:
     int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                             std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
     char* getDeviceNameFromID(uint32_t id);
+    int getQalValueFromGKV(qal_key_vector_t *gkv, int key);
 };
 
 #endif

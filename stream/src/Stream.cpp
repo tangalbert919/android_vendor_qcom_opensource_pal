@@ -183,7 +183,31 @@ exit:
     return status;
 }
 
-int32_t  Stream::getStreamType (qal_stream_type_t* streamType)
+int32_t Stream::getEffectParameters(void *effect_query, size_t *payload_size)
+{
+    int32_t status = 0;
+
+    if (!effect_query) {
+        QAL_ERR(LOG_TAG, "invalid query");
+        return -EINVAL;
+    }
+
+    qal_param_payload *qal_param = (qal_param_payload *)effect_query;
+    effect_qal_payload_t *effectPayload = (effect_qal_payload_t *)qal_param->effect_payload;
+    qal_effect_custom_payload_t *customPayload =
+        (qal_effect_custom_payload_t *)effectPayload->payload;
+    status = session->getEffectParameters(this, effectPayload);
+    if (status) {
+       QAL_ERR(LOG_TAG, "getParameters %d failed with %d", customPayload->paramId, status);
+    }
+
+    // minus size of (param id)
+    *payload_size = effectPayload->payloadSize - sizeof(uint32_t);
+
+    return status;
+}
+
+int32_t Stream::getStreamType (qal_stream_type_t* streamType)
 {
     int32_t status = 0;
 
@@ -672,5 +696,57 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
 done:
     mStreamMutex.unlock();
     return status;
+}
+
+bool Stream::isGKVMatch(qal_key_vector_t* gkv)
+{
+    int i = 0;
+    uint32_t key = 0;
+    uint32_t value = 0;
+    int status = 0;
+    PayloadBuilder* builder = new PayloadBuilder();
+    bool match = false;
+
+    if (!gkv) {
+        QAL_ERR(LOG_TAG, "GKV is empty");
+        return false;
+    }
+
+    for (i = 0; i < gkv->num_tkvs; i++) {
+        if (gkv->kvp[i].key == STREAMRX || gkv->kvp[i].key == STREAMTX) {
+            std::vector <std::pair<int, int>> kvpair_stream;
+
+            status = builder->populateStreamKV(this, kvpair_stream);
+            if (status) {
+                QAL_ERR(LOG_TAG, "failed to populate streamkv");
+                goto err;
+            } else {
+                if (gkv->kvp[i].value == kvpair_stream[0].second)
+                    match = true;
+                else
+                    match = false;
+            }
+        } else if (gkv->kvp[i].key == DEVICERX || gkv->kvp[i].key == DEVICETX) {
+            for (int k = 0; k < mDevices.size(); k++) {
+                std::vector <std::pair<int, int>> kvpair_device;
+                status = builder->populateDeviceKV(this,
+                            mDevices[k]->getSndDeviceId(), kvpair_device);
+                if (status) {
+                    goto err;
+                } else {
+                    if (gkv->kvp[i].value == kvpair_device[0].second) {
+                        match = true;
+                        break;
+                    }
+                    else
+                        match = false;
+                }
+            }
+        }
+    }
+
+err:
+    delete builder;
+    return match;
 }
 

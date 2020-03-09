@@ -163,6 +163,8 @@ public:
     int connectStreamDevice(Stream* streamHandle, struct qal_device *dattr);
     int connectStreamDevice_l(Stream* streamHandle, struct qal_device *dattr);
     int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
+    bool isGKVMatch(qal_key_vector_t* gkv);
+    int32_t getEffectParameters(void *effect_query, size_t *payload_size);
 };
 
 #endif//STREAM_H_

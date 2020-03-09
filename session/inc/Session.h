@@ -72,6 +72,9 @@ protected:
     std::mutex mutex;
     Session();
     std::shared_ptr<ResourceManager> rm;
+    struct mixer *mixer;
+    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
+    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     void *customPayload;
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
@@ -111,8 +114,9 @@ public:
     virtual int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) = 0;
     void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
-
     virtual uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) { return -EINVAL; }
+    int getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload);
+    virtual struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) {return nullptr;}
 };
 
 #endif //SESSION_H

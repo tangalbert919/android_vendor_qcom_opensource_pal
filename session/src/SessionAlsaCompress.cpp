@@ -852,6 +852,22 @@ int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSi
     return 0;
 }
 
+struct mixer_ctl* SessionAlsaCompress::getFEMixerCtl(const char *controlName, int *device)
+{
+    *device = compressDevIds.at(0);
+    std::ostringstream CntrlName;
+    struct mixer_ctl *ctl;
+
+    CntrlName << "COMPRESS" << compressDevIds.at(0) << " " << controlName;
+    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        return nullptr;
+    }
+
+    return ctl;
+}
+
 uint32_t SessionAlsaCompress::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;

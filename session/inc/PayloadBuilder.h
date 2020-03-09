@@ -201,6 +201,8 @@ public:
                        struct detection_engine_generic_event_cfg *pEventConfig);
     void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadQuery(uint8_t **payload, size_t *size, uint32_t moduleId,
+                            uint32_t paramId, uint32_t querySize);
     void populateChannelMap(uint16_t* pcmChannel, uint8_t num_ch);
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct qal_media_config *data);

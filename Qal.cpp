@@ -601,7 +601,7 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload,
 }
 
 int32_t qal_get_param(uint32_t param_id, void **param_payload,
-                      size_t *payload_size)
+                      size_t *payload_size, void *query)
 {
     int status = 0;
     std::shared_ptr<ResourceManager> rm = NULL;
@@ -609,7 +609,7 @@ int32_t qal_get_param(uint32_t param_id, void **param_payload,
     rm = ResourceManager::getInstance();
 
     if (rm) {
-        status = rm->getParameter(param_id, param_payload, payload_size);
+        status = rm->getParameter(param_id, param_payload, payload_size, query);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to get global parameter %u, status %d",
                     param_id, status);

@@ -52,12 +52,9 @@ private:
     PayloadBuilder* builder;
     struct pcm *pcmRx;
     struct pcm *pcmTx;
-    struct mixer *mixer;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
-    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
-    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;

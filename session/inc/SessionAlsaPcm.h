@@ -54,13 +54,10 @@ private:
     struct pcm *pcmRx;
     struct pcm *pcmTx;
     std::shared_ptr<ResourceManager> rm;
-    struct mixer *mixer;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevIds;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
-    std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
-    std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
     std::vector<std::pair<std::string, int>> freeDeviceMetadata;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
@@ -107,6 +104,7 @@ public:
         std::shared_ptr<Device> deviceToDisconnect) override;
     bool isActive();
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
+    struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
 };
 
 #endif //SESSION_ALSAPCM_H

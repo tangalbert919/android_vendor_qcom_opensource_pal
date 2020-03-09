@@ -208,6 +208,12 @@ typedef struct qal_param_payload_s {
     uint32_t tty_mode;            /*TODO need to change whole structure to void pointer or union */
 } qal_param_payload;
 
+typedef struct gef_payload_s {
+    qal_key_vector_t *graph;
+    effect_qal_payload_t data;
+    bool persist;
+} gef_payload_t;
+
 /** Audio channel map enumeration*/
 typedef enum {
     QAL_CHMAP_CHANNEL_FL = 1,               /**< Front right channel. */
