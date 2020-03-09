@@ -734,7 +734,7 @@ int SessionAlsaPcm::stop(Stream * s)
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
                 false, DEVICE_SVA, false);
-    } else if (sAttr.type == QAL_AUDIO_INPUT) {
+    } else if (sAttr.direction == QAL_AUDIO_INPUT) {
         if (ecRefDevId) {
             status = setECRef(s, nullptr, false);
             if (status)
@@ -759,7 +759,7 @@ int SessionAlsaPcm::stop(Stream * s)
                 } else {
                     status = str->setECRef(dev, false);
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
                     }
                 }
             }
@@ -1292,7 +1292,6 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         return status;
     }
 
-    // TODO: apply for input case other than voice ui
     if (sAttr.direction != QAL_AUDIO_INPUT) {
         QAL_ERR(LOG_TAG, "EC Ref cannot be set to output stream");
         return -EINVAL;
@@ -1300,9 +1299,9 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
 
     if (!is_enable) {
         if (rx_dev && ecRefDevId != rx_dev->getSndDeviceId()) {
-            QAL_ERR(LOG_TAG, "Invalid rx dev %d for disabling EC ref, "
+            QAL_DBG(LOG_TAG, "Invalid rx dev %d for disabling EC ref, "
                 "rx dev %d already enabled", rx_dev->getSndDeviceId(), ecRefDevId);
-            return -EINVAL;
+            return 0;
         }
         status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
             false, "ZERO");

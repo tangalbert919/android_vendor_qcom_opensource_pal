@@ -1229,8 +1229,11 @@ bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d)
     int deviceId = d->getSndDeviceId();
 
     QAL_DBG(LOG_TAG, "Enter.");
-    if (d->getDeviceCount() > 0)
+    typename std::vector<std::shared_ptr<Device>>::iterator iter =
+        std::find(active_devices.begin(), active_devices.end(), d);
+    if (iter != active_devices.end()) {
         is_active = true;
+    }
 
     QAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
     return is_active;
