@@ -444,6 +444,11 @@ int32_t Stream::getTimestamp(struct qal_session_time *stime)
         QAL_ERR(LOG_TAG, "Invalid session time pointer, status %d", status);
         goto exit;
     }
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Sound card offline, status %d", status);
+        goto exit;
+    }
     status = session->getTimestamp(stime);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to get session timestamp status %d", status);
@@ -593,6 +598,12 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         goto done;
     }
 
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        QAL_ERR(LOG_TAG, "Sound card offline, cache data");
+        cachedNumDev = numDev;
+        cachedDev = newDevices;
+        goto done;
+    }
     ret = mDevices[0]->getDeviceAttributes(&dAttr);
 
     if (ret) {

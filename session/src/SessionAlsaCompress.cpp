@@ -169,25 +169,42 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
 
             if (msg->cmd == OFFLOAD_CMD_WAIT_FOR_BUFFER) {
                 QAL_VERBOSE(LOG_TAG, "calling compress_wait");
-                compress_wait(compressObj->compress, -1);
-                QAL_VERBOSE(LOG_TAG, "out of compress_wait");
+                ret = compress_wait(compressObj->compress, -1);
+                QAL_VERBOSE(LOG_TAG, "out of compress_wait, ret %d", ret);
                 event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called && compressObj->playback_started) {
-                   QAL_ERR(LOG_TAG, "calling compress_drain");
-                   ret = compress_drain(compressObj->compress);
-                   is_drain_called = false;
-                   QAL_ERR(LOG_TAG, "out of compress_drain");
+                    QAL_ERR(LOG_TAG, "calling compress_drain");
+                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                         ret = compress_drain(compressObj->compress);
+                         QAL_ERR(LOG_TAG, "out of compress_drain, ret %d", ret);
+                    }
+                    if (ret == -ENETRESET ||
+                        compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
+                        QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
+                        break;
+                    }
+                    is_drain_called = false;
+                    event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
                 }
-                /*TODO: check for ret code and handle SSR */
-                event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
                 QAL_ERR(LOG_TAG, "calling partial compress_drain");
                 //return compress_partial_drain(compressObj->compress);
-                ret = compress_drain(compressObj->compress);
+                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                    ret = compress_drain(compressObj->compress);
+                    QAL_ERR(LOG_TAG, "out of partial compress_drain, ret %d", ret);
+                }
+                if (ret < -ENETRESET ||
+                    compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
+                    lock.lock();
+                    continue;
+                }
                 is_drain_called = true;
-                QAL_ERR(LOG_TAG, "out of partial compress_drain");
                 event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
+            }  else if (msg->cmd == OFFLOAD_CMD_ERROR) {
+                QAL_ERR(LOG_TAG, "Sending error to QAL client");
+                event_id = QAL_STREAM_CBK_EVENT_ERROR;
             }
             if (compressObj->sessionCb)
                 compressObj->sessionCb(compressObj->cbCookie, event_id, NULL);
@@ -769,12 +786,17 @@ int SessionAlsaCompress::close(Stream * s)
         customPayloadSize = 0;
     }
 
-    {
-    std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
-    std::lock_guard<std::mutex> lock(cv_mutex_);
-    msg_queue_.push(msg);
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
+        std::lock_guard<std::mutex> lock(cv_mutex_);
+        msg_queue_.push(msg);
+        cv_.notify_all();
+    } else {
+        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
+        std::lock_guard<std::mutex> lock(cv_mutex_);
+        msg_queue_.push(msg);
+        cv_.notify_all();
     }
-    cv_.notify_all();
 
     /* wait for handler to exit */
     worker_thread->join();
@@ -783,6 +805,7 @@ int SessionAlsaCompress::close(Stream * s)
     /* empty the pending messages in queue */
     while (!msg_queue_.empty())
         msg_queue_.pop();
+
     return 0;
 }
 

@@ -105,6 +105,8 @@ class StreamSoundTrigger : public Stream {
 
     int32_t prepare() override { return 0; }
 
+    int32_t ssrDownHandler() override;
+    int32_t ssrUpHandler() override;
     int32_t setStreamAttributes(struct qal_stream_attributes *sattr __unused) {
         return 0;
     }

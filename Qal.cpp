@@ -88,6 +88,11 @@ int32_t qal_init(void)
         QAL_ERR(LOG_TAG, "qal init failed: %s", e.what());
         return -EINVAL;
     }
+    ret = ri->initSndMonitor();
+    if (ret != 0) {
+        QAL_ERR(LOG_TAG, "snd monitor init failed");
+        return ret;
+    }
     QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }

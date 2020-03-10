@@ -67,6 +67,8 @@ public:
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) override;
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
+    int32_t ssrDownHandler() override;
+    int32_t ssrUpHandler() override;
 };
 
 #endif//STREAMCOMPRESS_H_

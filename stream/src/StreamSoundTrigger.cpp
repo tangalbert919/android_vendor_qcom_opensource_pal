@@ -3123,3 +3123,11 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
     }
     return status;
 }
+
+int32_t StreamSoundTrigger::ssrDownHandler() {
+     return 0;
+}
+
+int32_t StreamSoundTrigger::ssrUpHandler() {
+     return 0;
+}

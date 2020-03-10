@@ -48,6 +48,7 @@
 #include "DisplayPort.h"
 #include "Handset.h"
 #include "SoundTriggerPlatformInfo.h"
+#include "SndCardMonitor.h"
 #include <unistd.h>
 
 #ifndef FEATURE_IPQ_OPENWRT
@@ -269,6 +270,7 @@ std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mResourceManagerMutex;
 std::mutex ResourceManager::mGraphMutex;
+std::mutex ResourceManager::ssrMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -286,6 +288,7 @@ struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
+SndCardMonitor* ResourceManager::sndmon = NULL;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -454,7 +457,83 @@ ResourceManager::ResourceManager()
 
 ResourceManager::~ResourceManager()
 {
+}
 
+int ResourceManager::initSndMonitor()
+{
+    int ret = 0;
+    sndmon = new SndCardMonitor(snd_card);
+    if (!sndmon) {
+        ret = -EINVAL;
+        QAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
+        return ret;
+    } else {
+        cardState = CARD_STATUS_ONLINE;
+        QAL_INFO(LOG_TAG, "Sound monitor initialized");
+        return ret;
+    }
+}
+
+int ResourceManager::ssrHandler(card_status_t state)
+{
+    int ret = 0;
+
+    QAL_DBG(LOG_TAG, "Enter. %d ssrStarted %d size %d rm %p",
+            state, ssrStarted, mActiveStreams.size(), this);
+
+    cardState = state;
+    mResourceManagerMutex.lock();
+    if (rm->mActiveStreams.empty()) {
+        QAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
+        goto exit;
+    }
+
+    if (state == CARD_STATUS_OFFLINE) {
+        std::lock_guard<std::mutex> lock(ResourceManager::ssrMutex);
+        if (!ssrStarted) {
+            ssrStarted = true;
+            for (auto& str: mActiveStreams) {
+                mResourceManagerMutex.unlock();
+                ret = str->ssrDownHandler();
+                if (0 != ret) {
+                    QAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
+                            str, ret);
+                }
+                mResourceManagerMutex.lock();
+            }
+            ssrStarted = false;
+            /* Returning 0 even if we fail to close some streams
+             * as sound card monitor will not be handling the
+             * failures.
+             */
+            ret = 0;
+            goto exit;
+        } else {
+            QAL_INFO(LOG_TAG, "SSR down handling already started");
+            goto exit;
+        }
+    } else if (state == CARD_STATUS_ONLINE) {
+        std::lock_guard<std::mutex> lock(ResourceManager::ssrMutex);
+        for (auto& str: mActiveStreams) {
+            mResourceManagerMutex.unlock();
+            ret = str->ssrUpHandler();
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
+                        str, ret);
+            }
+            mResourceManagerMutex.lock();
+        }
+        ret = 0;
+        goto exit;
+    } else {
+        ret = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid state. state %d", state);
+        goto exit;
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+    return ret;
 }
 
 char* ResourceManager::getDeviceNameFromID(uint32_t id)
@@ -1768,6 +1847,8 @@ void ResourceManager::deinit()
     if (ag == GSL) {
         SessionGsl::deinit();
     }
+    if (sndmon)
+        delete sndmon;
 }
 
 int ResourceManager::getStreamTag(std::vector <int> &tag)
@@ -2693,8 +2774,6 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setNativeAudioParams(parms, value, len);
 done:
     QAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
-    if(kv_pairs != NULL)
-        free(kv_pairs);
     if(value != NULL)
         free(value);
     return ret;
@@ -3615,6 +3694,7 @@ bool ResourceManager::isDpDevice(qal_device_id_t id) {
     else
         return false;
 }
+
 void ResourceManager::processTagInfo(const XML_Char **attr)
 {
     int32_t tagId;

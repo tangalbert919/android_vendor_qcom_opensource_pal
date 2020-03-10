@@ -43,6 +43,7 @@
 #include <expat.h>
 #include <stdio.h>
 #include "QalDefs.h"
+#include "SndCardMonitor.h"
 #define RXLOOPBACK 0
 #define TXLOOPBACK 1
 #define audio_mixer mixer
@@ -162,6 +163,7 @@ class StreamPCM;
 class StreamCompress;
 class StreamSoundTrigger;
 class SoundTriggerEngine;
+class SndCardMonitor;
 
 class ResourceManager
 {
@@ -228,6 +230,7 @@ protected:
     qal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
+    static std::mutex ssrMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -258,9 +261,13 @@ protected:
     static std::map<std::string, uint32_t> btFmtTable;
     static std::vector<deviceIn> deviceInfo;
     static struct vsid_info vsidInfo;
+    static SndCardMonitor *sndmon;
     ResourceManager();
 public:
     ~ResourceManager();
+    enum card_status_t cardState;
+    bool ssrStarted = false;
+    int initSndMonitor();
     /* checks config for both stream and device */
     bool isStreamSupported(struct qal_stream_attributes *attributes,
                            struct qal_device *devices, int no_of_devices);
@@ -394,6 +401,7 @@ public:
     char* getDeviceNameFromID(uint32_t id);
     int getQalValueFromGKV(qal_key_vector_t *gkv, int key);
     qal_speaker_rotation_type getCurrentRotationType();
+    int ssrHandler(card_status_t state);
 };
 
 #endif
