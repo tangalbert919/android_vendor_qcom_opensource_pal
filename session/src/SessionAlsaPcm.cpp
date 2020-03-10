@@ -67,7 +67,7 @@ int SessionAlsaPcm::prepare(Stream * s)
 
 int SessionAlsaPcm::open(Stream * s)
 {
-    int status = -EINVAL;
+    int status = 0;
     struct qal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
@@ -85,6 +85,7 @@ int SessionAlsaPcm::open(Stream * s)
 
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
     if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+        status = -EINVAL;
         QAL_ERR(LOG_TAG, "no backend specified for this stream");
         return status;
 

@@ -533,7 +533,6 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 
 BtA2dp::~BtA2dp()
 {
-    is_handoff_in_progress = false;
 }
 
 void BtA2dp::open_a2dp_source()
@@ -718,8 +717,8 @@ int BtA2dp::startPlayback()
 
     if (param_bt_a2dp.a2dp_suspended) {
         //session will be restarted after suspend completion
-        QAL_DBG(LOG_TAG, "a2dp start requested during suspend state");
-        return -ENOSYS;
+        QAL_INFO(LOG_TAG, "a2dp start requested during suspend state");
+        return 0;
     }
 
     if (bt_state != A2DP_STATE_STARTED && !total_active_session_requests) {

@@ -472,8 +472,8 @@ int32_t StreamPCM::stop()
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
 
 exit:
-   mStreamMutex.unlock();
-   return status;
+    mStreamMutex.unlock();
+    return status;
 }
 
 //TBD: move this to Stream, why duplicate code?
@@ -582,38 +582,67 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
     return size;
 }
 
-int32_t  StreamPCM::write(struct qal_buffer* buf)
+int32_t StreamPCM::write(struct qal_buffer* buf)
 {
     int32_t status = 0;
-    int32_t size;
-
+    int32_t size = 0;
+    bool isA2dp = false;
+    bool isSpkr = false;
+    uint32_t frameSize = 0;
+    uint32_t byteWidth = 0;
+    uint32_t sampleRate = 0;
+    uint32_t channelCount = 0;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mStreamMutex.lock();
-    if (standBy) {
-        /* calculate sleep time based on buf->size, sleep and return buf->size */
-        uint32_t stream_size;
-        uint32_t byte_width = mStreamAttr->out_media_config.bit_width / 8;;
-        uint32_t srate = mStreamAttr->out_media_config.sample_rate;
-        struct qal_channel_info *ch_info = mStreamAttr->out_media_config.ch_info;
+    for (int i = 0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getSndDeviceId() == QAL_DEVICE_OUT_BLUETOOTH_A2DP)
+            isA2dp = true;
+        if (mDevices[i]->getSndDeviceId() == QAL_DEVICE_OUT_SPEAKER)
+            isSpkr = true;
+    }
+    if (isA2dp && !isSpkr && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP)
+            || (mDevices.size() == 0)) {
+        byteWidth = mStreamAttr->out_media_config.bit_width / 8;
+        sampleRate = mStreamAttr->out_media_config.sample_rate;
+        if (mStreamAttr->out_media_config.ch_info)
+            channelCount = mStreamAttr->out_media_config.ch_info->channels;
 
-        if(!ch_info) {
-            QAL_ERR(LOG_TAG, "%s: channle info is null", __func__);
-            mStreamMutex.unlock();
-            return -EINVAL;
-        }
-
-        stream_size = byte_width * ch_info->channels;
-        if ((stream_size == 0) || (srate == 0)) {
-            QAL_ERR(LOG_TAG, "%s: stream_size= %d, srate = %d", __func__, stream_size, srate);
+        frameSize = byteWidth * channelCount;
+        if ((frameSize == 0) || (sampleRate == 0)) {
+            QAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
             return -EINVAL;
         }
         size = buf->size;
-        usleep((uint64_t)size * 1000000 / stream_size / srate);
+        usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
         QAL_DBG(LOG_TAG, "in standby, dropped buffer size - %d", size);
         mStreamMutex.unlock();
         return size;
+    }
+
+    if (standBy) {
+        rm->lockGraph();
+        status = session->open(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "session open failed with status %d", status);
+            goto error;
+        }
+
+        status = session->prepare(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "session prepare is failed with status %d",
+                    status);
+            goto error;
+        }
+        status = session->start(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "session start is failed with status %d",
+                    status);
+            goto error;
+        }
+        standBy = false;
+        rm->unlockGraph();
     }
     mStreamMutex.unlock();
 
@@ -624,6 +653,14 @@ int32_t  StreamPCM::write(struct qal_buffer* buf)
     }
     QAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
     return size;
+
+error:
+    if (session->close(this) != 0) {
+        QAL_ERR(LOG_TAG, "session close failed");
+    }
+    rm->unlockGraph();
+    mStreamMutex.unlock();
+    return status;
 }
 
 int32_t  StreamPCM::registerCallBack(qal_stream_callback /*cb*/, void */*cookie*/)
@@ -780,6 +817,51 @@ int32_t  StreamPCM::setResume()
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
     mStreamMutex.unlock();
+    return status;
+}
+
+int32_t StreamPCM::standby()
+{
+    int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    mStreamMutex.lock();
+    if (!standBy) {
+        status = session->stop(this);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
+            goto exit;
+        }
+
+        for (int i = 0; i < mDevices.size(); i++) {
+            status = mDevices[i]->stop();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                goto exit;
+            }
+
+            rm->deregisterDevice(mDevices[i]);
+
+            status = mDevices[i]->close();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                goto exit;
+            }
+            mDevices.erase(mDevices.begin() + i);
+        }
+
+        rm->lockGraph();
+        status = session->close(this);
+        rm->unlockGraph();
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "session close failed with status %d", status);
+            goto exit;
+        }
+        standBy = true;
+    }
+exit:
+    mStreamMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 

@@ -382,8 +382,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 deviceMetaData);
         getAgmMetaData(streamDeviceKV, emptyKV, (struct prop_data *)streamDevicePropId,
                 streamDeviceMetaData);
-        if (!streamMetaData.size && !deviceMetaData.size &&
-                !streamDeviceMetaData.size) {
+        if (!streamMetaData.size && !streamDeviceMetaData.size) {
             QAL_ERR(LOG_TAG, "stream/device metadata is zero");
             status = -EINVAL;
             goto freeMetaData;
@@ -1015,8 +1014,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             (struct prop_data *)devicePropId, deviceRxMetaData);
     SessionAlsaUtils::getAgmMetaData(streamDeviceRxKV, emptyKV,
             (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
-    if (!streamRxMetaData.size && !deviceRxMetaData.size &&
-            !streamDeviceRxMetaData.size) {
+    if (!streamRxMetaData.size && !streamDeviceRxMetaData.size) {
         QAL_ERR(LOG_TAG, "stream/device RX metadata is zero");
         status = -EINVAL;
         goto freeRxMetaData;
@@ -1538,10 +1536,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     }
     SessionAlsaUtils::getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
              deviceMetaData);
-    if (!deviceMetaData.size || !deviceMetaData.buf) {
-        QAL_ERR(LOG_TAG, "get device meta data failed %d", status);
-        return -EINVAL;
-    }
 
     if (streamDeviceKV.size()) {
         SessionAlsaUtils::getAgmMetaData(streamDeviceKV, emptyKV,
@@ -1600,7 +1594,8 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
         status = -EINVAL;
         goto free_streamdevicemd;
     }
-    mixer_ctl_set_array(aifMdCtrl, (void *)deviceMetaData.buf, deviceMetaData.size);
+    if (deviceMetaData.size)
+        mixer_ctl_set_array(aifMdCtrl, (void *)deviceMetaData.buf, deviceMetaData.size);
 
     feCtrl = mixer_get_ctl_by_name(mixerHandle, cntrlName.str().data());
     QAL_ERR(LOG_TAG,"mixer control %s", cntrlName.str().data());

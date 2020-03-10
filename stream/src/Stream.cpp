@@ -116,7 +116,6 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
                 //TODO:for now keeping QAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, mQalDevice, count, modifiers,
                                    noOfModifiers, rm);
-                stream->setStandby(isStandby);
                 break;
             case QAL_STREAM_COMPRESSED:
                 stream = new StreamCompress(sAttr, mQalDevice, count, modifiers,
@@ -423,6 +422,16 @@ exit:
 int32_t Stream::disconnectStreamDevice(Stream* streamHandle, qal_device_id_t dev_id)
 {
     int32_t status = -EINVAL;
+    mStreamMutex.lock();
+    status = disconnectStreamDevice_l(streamHandle, dev_id);
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, qal_device_id_t dev_id)
+{
+    int32_t status = -EINVAL;
     std::shared_ptr<Device> dev = nullptr;
 
     // Stream does not know if the same device is being used by other streams or not
@@ -460,6 +469,16 @@ error_1:
 }
 
 int32_t Stream::connectStreamDevice(Stream* streamHandle, struct qal_device *dattr)
+{
+    int32_t status = -EINVAL;
+    mStreamMutex.lock();
+    status = connectStreamDevice_l(streamHandle, dattr);
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *dattr)
 {
     int32_t status = -EINVAL;
     std::shared_ptr<Device> dev = nullptr;
@@ -650,19 +669,3 @@ done:
     return status;
 }
 
-void Stream::setStandby(bool isStandby)
-{
-    mStreamMutex.lock();
-    standBy = isStandby;
-    mStreamMutex.unlock();
-}
-
-bool Stream::getStandby()
-{
-    bool isStandby;
-
-    mStreamMutex.lock();
-    isStandby = standBy;
-    mStreamMutex.unlock();
-    return isStandby;
-}

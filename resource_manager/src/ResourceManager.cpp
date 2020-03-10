@@ -2267,7 +2267,7 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
 
     /*disconnect active list from the current devices they are attached to*/
     for(sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++){
-        status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
+        status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
         if (status) {
             QAL_ERR(LOG_TAG,"failed to disconnect stream %pK from device %d",
                     std::get<0>(*sIter), std::get<1>(*sIter));
@@ -2287,7 +2287,7 @@ int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, stru
 
     /*disconnect active list from the current devices they are attached to*/
     for(sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++){
-        status = std::get<0>(*sIter)->connectStreamDevice(std::get<0>(*sIter), std::get<1>(*sIter));
+        status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
         if (status) {
             QAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
                     std::get<0>(*sIter), (std::get<1>(*sIter))->id);
@@ -2814,7 +2814,9 @@ int32_t ResourceManager::a2dpSuspend()
             }
         } else {
             // put to standby for non offload usecase
-            (*sIter)->setStandby(true);
+            mResourceManagerMutex.unlock();
+            (*sIter)->standby();
+            mResourceManagerMutex.lock();
         }
     }
 

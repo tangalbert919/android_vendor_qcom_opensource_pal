@@ -129,6 +129,7 @@ public:
     virtual int32_t setResume()= 0;
     virtual int32_t flush() {return 0;}
     virtual int32_t read(struct qal_buffer *buf) = 0;
+    virtual int32_t standby() {return 0;};
 
     virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
@@ -158,10 +159,10 @@ public:
     bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
     int32_t getTimestamp(struct qal_session_time *stime);
     int disconnectStreamDevice(Stream* streamHandle,  qal_device_id_t dev_id);
+    int disconnectStreamDevice_l(Stream* streamHandle,  qal_device_id_t dev_id);
     int connectStreamDevice(Stream* streamHandle, struct qal_device *dattr);
+    int connectStreamDevice_l(Stream* streamHandle, struct qal_device *dattr);
     int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
-    void setStandby(bool standby);
-    bool getStandby();
 };
 
 #endif//STREAM_H_
