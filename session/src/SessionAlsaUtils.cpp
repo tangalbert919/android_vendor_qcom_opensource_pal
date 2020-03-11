@@ -158,11 +158,7 @@ void SessionAlsaUtils::getAgmMetaData(const std::vector <std::pair<int, int>> &k
     md.buf = nullptr;
     md.size = 0;
 
-    if (kv.size() == 0) {
-        QAL_DBG(LOG_TAG, "key vector size 0");
-        return;
-    }
-
+    // kv/ckv/propData may be empty when clearing metadata, skip size check
     mdSize = sizeof(uint32_t) * 4 +
         ((kv.size() + ckv.size()) * sizeof(struct agm_key_value));
     if (propData)
@@ -425,6 +421,99 @@ freeStreamMetaData:
     free(streamMetaData.buf);
 exit:
    delete builder;
+   return status;
+}
+
+int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
+    const std::vector<int> &DevIds, const std::vector<std::pair<int32_t, std::string>> &BackEnds)
+{
+    int status = 0;
+    uint32_t i;
+    std::vector <std::pair<int, int>> emptyKV;
+    struct qal_stream_attributes sAttr;
+    struct agmMetaData streamMetaData(nullptr, 0);
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceMetaData(nullptr, 0);
+    uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
+    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
+    std::ostringstream feName;
+    struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+    struct mixer *mixerHandle;
+
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return status;
+    }
+
+    /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
+    if (sAttr.type == QAL_STREAM_COMPRESSED)
+        feName << COMPRESS_SND_DEV_NAME_PREFIX << DevIds.at(0);
+    else
+        feName << PCM_SND_DEV_NAME_PREFIX << DevIds.at(0);
+
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+        feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle,
+            feName.str(), i);
+        if (!feMixerCtrls[i]) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s %s",
+                feName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeStreamMetaData;
+        }
+    }
+    // clear stream metadata
+    getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)streamPropId,
+            streamMetaData);
+    if (streamMetaData.size)
+        mixer_ctl_set_array(feMixerCtrls[FE_METADATA],
+            (void *)streamMetaData.buf, streamMetaData.size);
+
+    // clear device metadata
+    for (auto be = BackEnds.begin(); be != BackEnds.end(); ++be) {
+        getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)devicePropId,
+                deviceMetaData);
+        getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)streamDevicePropId,
+                streamDeviceMetaData);
+        if (!streamMetaData.size && !deviceMetaData.size &&
+                !streamDeviceMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream/device metadata is zero");
+            status = -EINVAL;
+            goto freeMetaData;
+        }
+        beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, BE_METADATA);
+        if (!beMetaDataMixerCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
+                    beCtrlNames[BE_METADATA]);
+            status = -EINVAL;
+            goto freeMetaData;
+        }
+
+        /** set mixer controls */
+        if (deviceMetaData.size)
+            mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                    deviceMetaData.size);
+        if (streamDeviceMetaData.size) {
+            mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
+            mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,
+                    streamDeviceMetaData.size);
+        }
+
+        free(streamDeviceMetaData.buf);
+        free(deviceMetaData.buf);
+        streamDeviceMetaData.buf = nullptr;
+        deviceMetaData.buf = nullptr;
+    }
+
+freeMetaData:
+    free(streamDeviceMetaData.buf);
+    free(deviceMetaData.buf);
+freeStreamMetaData:
+    free(streamMetaData.buf);
+exit:
    return status;
 }
 
@@ -932,6 +1021,174 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     SessionAlsaUtils::getAgmMetaData(deviceTxKV, emptyKV,
             (struct prop_data *)devicePropId, deviceTxMetaData);
     SessionAlsaUtils::getAgmMetaData(streamDeviceTxKV, emptyKV,
+            (struct prop_data *)streamDevicePropId, streamDeviceTxMetaData);
+    if (!streamTxMetaData.size && !deviceTxMetaData.size &&
+            !streamDeviceTxMetaData.size) {
+        QAL_ERR(LOG_TAG, "stream/device TX metadata is zero");
+        status = -EINVAL;
+        goto freeTxMetaData;
+    }
+
+    if (sAttr.type == QAL_STREAM_VOICE_CALL) {
+        if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
+            sAttr.info.voice_call_info.VSID == VOICELBMMODE1){
+            rxFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 1 << "p";
+            txFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 1 << "c";
+        } else {
+            rxFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 2 << "p";
+            txFeName << PCM_SND_VOICE_DEV_NAME_PREFIX  << 2 << "c";
+        }
+
+    } else {
+        rxFeName << PCM_SND_DEV_NAME_PREFIX << RxDevIds.at(0);
+        txFeName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0);
+    }
+
+    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+        rxFeMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, rxFeName.str(), i);
+        txFeMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, txFeName.str(), i);
+        if (!rxFeMixerCtrls[i] || !txFeMixerCtrls[i]) {
+            QAL_ERR(LOG_TAG, "invalid mixer control: (%s%s)/(%s%s)",
+                    rxFeName.str().data(), feCtrlNames[i],
+                    txFeName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeTxMetaData;
+        }
+    }
+
+    rxBeMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle,
+            rxBackEnds[0].second, BE_METADATA);
+    txBeMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, txBackEnds[0].second, BE_METADATA);
+    if (!rxBeMixerCtrl || !txBeMixerCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control: (%s%s)/(%s%s)",
+                rxBackEnds[0].second.data(), beCtrlNames[BE_METADATA],
+                txBackEnds[0].second.data(), beCtrlNames[BE_METADATA]);
+        status = -EINVAL;
+        goto freeTxMetaData;
+    }
+
+    if (SessionAlsaUtils::isRxDevice(associatedDevices[0]->getSndDeviceId()))
+        rxDevNum = 0;
+    else
+        rxDevNum = 1;
+
+    txDevNum = !rxDevNum;
+
+    /** set TX mixer controls */
+    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], "ZERO");
+    if (streamTxMetaData.size)
+        mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamTxMetaData.buf,
+                streamTxMetaData.size);
+    if (deviceTxMetaData.size)
+        mixer_ctl_set_array(txBeMixerCtrl, (void *)deviceTxMetaData.buf,
+                deviceTxMetaData.size);
+    if (streamDeviceTxMetaData.size) {
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], txBackEnds[0].second.data());
+        mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamDeviceTxMetaData.buf,
+                streamDeviceTxMetaData.size);
+    }
+    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONNECT], txBackEnds[0].second.data());
+
+    /** set RX mixer controls */
+    mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], "ZERO");
+    if (streamRxMetaData.size)
+        mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamRxMetaData.buf,
+                streamRxMetaData.size);
+    if (deviceRxMetaData.size)
+        mixer_ctl_set_array(rxBeMixerCtrl, (void *)deviceRxMetaData.buf,
+                deviceRxMetaData.size);
+    if (streamDeviceRxMetaData.size) {
+        mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], rxBackEnds[0].second.data());
+        mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamDeviceRxMetaData.buf,
+                streamDeviceRxMetaData.size);
+    }
+    mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONNECT], rxBackEnds[0].second.data());
+
+    if (sAttr.type != QAL_STREAM_VOICE_CALL) {
+        txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
+        if (!txFeMixerCtrls[FE_LOOPBACK]) {
+            QAL_ERR(LOG_TAG, "invalid mixer control %s%s",
+                    txFeName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeTxMetaData;
+        }
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
+    }
+freeTxMetaData:
+    free(streamDeviceTxMetaData.buf);
+    free(deviceTxMetaData.buf);
+    free(streamTxMetaData.buf);
+freeRxMetaData:
+    free(streamDeviceRxMetaData.buf);
+    free(deviceRxMetaData.buf);
+    free(streamRxMetaData.buf);
+exit:
+   return status;
+}
+
+int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
+    const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
+    const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
+    const std::vector<std::pair<int32_t, std::string>> &txBackEnds)
+{
+    int status = 0;
+    std::vector <std::pair<int, int>> emptyKV;
+    struct qal_stream_attributes sAttr;
+    struct agmMetaData streamRxMetaData(nullptr, 0);
+    struct agmMetaData streamTxMetaData(nullptr, 0);
+    struct agmMetaData deviceRxMetaData(nullptr, 0);
+    struct agmMetaData deviceTxMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceRxMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceTxMetaData(nullptr, 0);
+    std::ostringstream rxFeName, txFeName;
+    struct mixer_ctl *rxFeMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl *rxBeMixerCtrl = nullptr;
+    struct mixer_ctl *txFeMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl *txBeMixerCtrl = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct mixer *mixerHandle;
+    uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
+    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
+    uint32_t i, rxDevNum, txDevNum;
+
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return status;
+    }
+
+    status = streamHandle->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+    if (associatedDevices.size() != 2) {
+        QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
+                associatedDevices.size());
+        return status;
+    }
+    status = rmHandle->getAudioMixer(&mixerHandle);
+
+    // get audio mixer
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
+            (struct prop_data *)streamPropId, streamRxMetaData);
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
+            (struct prop_data *)devicePropId, deviceRxMetaData);
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
+            (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
+    if (!streamRxMetaData.size && !deviceRxMetaData.size &&
+            !streamDeviceRxMetaData.size) {
+        QAL_ERR(LOG_TAG, "stream/device RX metadata is zero");
+        status = -EINVAL;
+        goto freeRxMetaData;
+    }
+
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
+            (struct prop_data *)streamPropId, streamTxMetaData);
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
+            (struct prop_data *)devicePropId, deviceTxMetaData);
+    SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
             (struct prop_data *)streamDevicePropId, streamDeviceTxMetaData);
     if (!streamTxMetaData.size && !deviceTxMetaData.size &&
             !streamDeviceTxMetaData.size) {

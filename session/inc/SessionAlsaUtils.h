@@ -97,6 +97,12 @@ public:
                     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
                     const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
+    static int close(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds,
+            const std::vector<std::pair<int32_t, std::string>> &BackEnds);
+    static int close(Stream * s, std::shared_ptr<ResourceManager> rm,
+                    const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
+                    const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
+                    const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
                        bool isCompress, int tag_id, uint32_t *miid);
     static int setMixerParameter(struct mixer *mixer, int device,
