@@ -425,7 +425,8 @@ exit:
 }
 
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
-    const std::vector<int> &DevIds, const std::vector<std::pair<int32_t, std::string>> &BackEnds)
+    const std::vector<int> &DevIds, const std::vector<std::pair<int32_t, std::string>> &BackEnds,
+    std::vector<std::pair<std::string, int>> &freedevicemetadata)
 {
     int status = 0;
     uint32_t i;
@@ -441,7 +442,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
     struct mixer *mixerHandle;
-
+    QAL_DBG(LOG_TAG, "Enter.");
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
@@ -493,9 +494,16 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         }
 
         /** set mixer controls */
-        if (deviceMetaData.size)
-            mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
-                    deviceMetaData.size);
+        for (auto freeDevmeta = freedevicemetadata.begin(); freeDevmeta != freedevicemetadata.end(); ++freeDevmeta) {
+            QAL_DBG(LOG_TAG, "backend %s and freedevicemetadata %d", freeDevmeta->first.data(), freeDevmeta->second);
+            if (!(freeDevmeta->first.compare(be->second)) && freeDevmeta->second == 0) {
+                QAL_ERR(LOG_TAG, "No need to free device metadata as device is still active");
+            } else {
+                 if (deviceMetaData.size)
+                     mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                                         deviceMetaData.size);
+            }
+        }
         if (streamDeviceMetaData.size) {
             mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
             mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,

@@ -772,14 +772,35 @@ int SessionAlsaPcm::close(Stream * s)
 {
     int status = 0;
     struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::string backendname;
+    int32_t beDevId = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
+    status = s->getAssociatedDevices(associatedDevices);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+        return status;
+    }
     switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
-            status = SessionAlsaUtils::close(s, rm, pcmDevIds, txAifBackEnds);
+            for (auto dev: associatedDevices) {
+                beDevId = dev->getSndDeviceId();
+                rm->getBackendName(beDevId, backendname);
+                QAL_ERR(LOG_TAG, "backendname %s", backendname.c_str());
+                if (dev->getDeviceCount() != 0) {
+                    QAL_DBG(LOG_TAG, "Tx dev still active\n")
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
+                } else {
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 1));
+                    QAL_DBG(LOG_TAG, "Tx dev not active");
+                }
+            }
+            status = SessionAlsaUtils::close(s, rm, pcmDevIds, txAifBackEnds, freeDeviceMetadata);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
@@ -793,7 +814,19 @@ int SessionAlsaPcm::close(Stream * s)
             pcm = NULL;
             break;
         case QAL_AUDIO_OUTPUT:
-            status = SessionAlsaUtils::close(s, rm, pcmDevIds, rxAifBackEnds);
+            for (auto dev: associatedDevices) {
+                beDevId = dev->getSndDeviceId();
+                rm->getBackendName(beDevId, backendname);
+                QAL_ERR(LOG_TAG, "backendname %s", backendname.c_str());
+                if (dev->getDeviceCount() != 0) {
+                    QAL_DBG(LOG_TAG, "Rx dev still active");
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
+                } else {
+                    QAL_DBG(LOG_TAG, "Rx dev not active");
+                    freeDeviceMetadata.push_back(std::make_pair(backendname, 1));
+                }
+            }
+            status = SessionAlsaUtils::close(s, rm, pcmDevIds, rxAifBackEnds, freeDeviceMetadata);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr, 0);

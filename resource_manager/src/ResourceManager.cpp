@@ -3509,6 +3509,12 @@ void ResourceManager::update_snd_name(int channel)
                     } else if (channel == 2) {
                          std::string sndName("handset-dmic-endfire");
                          updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 3) {
+                         std::string sndName("three-mic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
+                    } else if (channel == 4) {
+                         std::string sndName("quad-mic");
+                         updateSndName(deviceInfo[size1].deviceId , sndName);
                     }
                     break;
                 case QAL_DEVICE_IN_SPEAKER_MIC:

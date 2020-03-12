@@ -61,6 +61,7 @@ private:
     std::vector<int> pcmDevTxIds;
     std::vector<std::pair<int32_t, std::string>> rxAifBackEnds;
     std::vector<std::pair<int32_t, std::string>> txAifBackEnds;
+    std::vector<std::pair<std::string, int>> freeDeviceMetadata;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;

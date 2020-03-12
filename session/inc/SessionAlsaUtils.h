@@ -98,7 +98,7 @@ public:
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
                     const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
     static int close(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds,
-            const std::vector<std::pair<int32_t, std::string>> &BackEnds);
+            const std::vector<std::pair<int32_t, std::string>> &BackEnds, std::vector<std::pair<std::string, int>> &freedevicemetadata);
     static int close(Stream * s, std::shared_ptr<ResourceManager> rm,
                     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
