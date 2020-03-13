@@ -31,6 +31,7 @@
 #include "USBAudio.h"
 
 #include <cstdio>
+#include <cmath>
 #include "USBAudio.h"
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
@@ -634,15 +635,15 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
             bitwidth = (*iter)->getBitWidth();
             if (bitwidth == media_config.bit_width) {
                 config->bit_width = bitwidth;
-                QAL_INFO(LOG_TAG, "found matching bit width=%d", config->bit_width);
+                QAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
                 // 2. sample rate
                 ret = (*iter)->getBestRate(media_config.sample_rate,
                                     &config->sample_rate);
-                QAL_INFO(LOG_TAG, "found matching bit width=%d", config->sample_rate);
+                QAL_INFO(LOG_TAG, "found matching SampleRate = %d", config->sample_rate);
                 // 3. get channel
                 ret = (*iter)->getBestChInfo(media_config.ch_info,
                                     &config->ch_info);
-                QAL_INFO(LOG_TAG, "found matching ch=%d", config->ch_info->channels);
+                QAL_INFO(LOG_TAG, "found matching Channels = %d", config->ch_info->channels);
                 break;
             } else {
                 // if bit width does not match, use highest width.
@@ -713,14 +714,19 @@ unsigned int USBDeviceConfig::getDefaultRate() {
 // return 0 if match, else return -EINVAL with default sample rate
 int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int i = 0;
+    int nearestRate = 0;
+    int diff = requested_rate;
 
     for (i = 0; i < rate_size_; i++) {
         if (requested_rate == rates_[i]) {
             *best_rate = requested_rate;
             return 0;
+        } else if (abs(double(requested_rate - rates_[i])) < diff) {
+            nearestRate = rates_[i];
+            diff = abs(double(requested_rate - rates_[i]));
         }
     }
-    *best_rate = rates_[0];
+    *best_rate = nearestRate;
 
     return 0;
 }
