@@ -112,7 +112,7 @@ public:
     void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
 
-    virtual int32_t getMIID(const char *backendName, int32_t tagId, uint32_t *miid) { return -EINVAL; }
+    virtual uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) { return -EINVAL; }
 };
 
 #endif //SESSION_H

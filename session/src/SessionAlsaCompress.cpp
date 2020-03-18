@@ -105,7 +105,7 @@ int SessionAlsaCompress::setCustomFormatParam(qal_audio_fmt_t audio_fmt)
         // set config for vorbis, as it cannot be upstreamed.
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
                     compressDevIds.at(0), rxAifBackEnds[0].second.data(),
-                    true, STREAM_INPUT_MEDIA_FORMAT, &miid);
+                    STREAM_INPUT_MEDIA_FORMAT, &miid);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "getModuleInstanceId failed");
             return status;
@@ -136,7 +136,7 @@ int SessionAlsaCompress::setCustomFormatParam(qal_audio_fmt_t audio_fmt)
             return status;
         }
         status = SessionAlsaUtils::setMixerParameter(mixer,
-                        compressDevIds.at(0), true, payload, payloadSize);
+                        compressDevIds.at(0), payload, payloadSize);
         free(payload);
         if (status != 0) {
             QAL_ERR(LOG_TAG,"setMixerParameter failed");
@@ -647,7 +647,7 @@ int SessionAlsaCompress::start(Stream * s)
             }
 
             status = SessionAlsaUtils::getModuleInstanceId(mixer, (compressDevIds.at(0)),
-                     rxAifBackEnds[0].second.data(), true, STREAM_SPR, &spr_miid);
+                     rxAifBackEnds[0].second.data(), STREAM_SPR, &spr_miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
                 return status;
@@ -665,7 +665,7 @@ int SessionAlsaCompress::start(Stream * s)
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
                                                                rxAifBackEnds[i].second.data(),
-                                                               true, TAG_DEVICE_MFC_SR, &miid);
+                                                               TAG_DEVICE_MFC_SR, &miid);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
@@ -684,7 +684,7 @@ int SessionAlsaCompress::start(Stream * s)
                         return status;
                     }
                 }
-                status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0), true,
+                status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
@@ -852,14 +852,14 @@ int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSi
     return 0;
 }
 
-int32_t SessionAlsaCompress::getMIID(const char *backendName, int32_t tagId, uint32_t *miid)
+uint32_t SessionAlsaCompress::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;
     int device = compressDevIds.at(0);
 
     status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                    backendName,
-                                                   true, tagId, miid);
+                                                   tagId, miid);
     if (0 != status)
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
 
@@ -884,7 +884,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
             effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                            rxAifBackEnds[0].second.data(),
-                                                           true, tagId, &miid);
+                                                           tagId, &miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
                 break;
@@ -901,7 +901,7 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer,
                                                              compressDevIds.at(0),
-                                                             true, alsaParamData,
+                                                             alsaParamData,
                                                              alsaPayloadSize);
                 QAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
                 free(alsaParamData);
@@ -1105,7 +1105,7 @@ int SessionAlsaCompress::getParameters(Stream *s, int tagId, uint32_t param_id, 
 int SessionAlsaCompress::getTimestamp(struct qal_session_time *stime)
 {
     int status = 0;
-    status = SessionAlsaUtils::getTimestamp(mixer, true, compressDevIds, spr_miid, stime);
+    status = SessionAlsaUtils::getTimestamp(mixer, compressDevIds, spr_miid, stime);
     if (0 != status) {
        QAL_ERR(LOG_TAG, "getTimestamp failed status = %d", status);
        return status;

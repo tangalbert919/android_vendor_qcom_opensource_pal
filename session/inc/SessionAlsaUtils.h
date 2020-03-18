@@ -104,14 +104,14 @@ public:
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
                     const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
-                       bool isCompress, int tag_id, uint32_t *miid);
+                       int tag_id, uint32_t *miid);
     static int setMixerParameter(struct mixer *mixer, int device,
-                        bool isCompress, void *payload, int size);
-    static int setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress);
-    static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register);
-    static int setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name);
+                                 void *payload, int size);
+    static int setStreamMetadataType(struct mixer *mixer, int device, const char *val);
+    static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, bool is_register);
+    static int setECRefPath(struct mixer *mixer, int device, const char *intf_name);
 
-    static int getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
+    static int getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
     static int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
         const std::vector<int> &pcmDevIds,

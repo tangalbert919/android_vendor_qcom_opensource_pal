@@ -134,7 +134,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
-    int32_t getMIID(const char *backendName, int32_t tagId, uint32_t *miid) override;
+    uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
 };
 
 #endif //SESSION_ALSACOMPRESS_H

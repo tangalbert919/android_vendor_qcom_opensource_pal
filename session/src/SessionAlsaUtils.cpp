@@ -626,28 +626,28 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
                                sizeof(aif_media_config)/sizeof(aif_media_config[0]));
 }
 
-int SessionAlsaUtils::getTimestamp(struct mixer *mixer, bool isCompress, const std::vector<int> &DevIds,
+int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds,
                                    uint32_t spr_miid, struct qal_session_time *stime)
 {
     int status = 0;
     const char *getParamControl = "getParam";
-    const char *stream = "PCM";
-    struct mixer_ctl *ctl;
+    char *pcmDeviceName = NULL;
     std::ostringstream CntrlName;
+    struct mixer_ctl *ctl;
     struct param_id_spr_session_time_t *spr_session_time;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
-    if (isCompress)
-        stream = "COMPRESS";
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    PayloadBuilder* builder = new PayloadBuilder();
-    CntrlName<<stream<<DevIds.at(0)<<" "<<getParamControl;
+    pcmDeviceName = rm->getDeviceNameFromID(DevIds.at(0));
+    CntrlName<<pcmDeviceName<<" "<<getParamControl;
     ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
     if (!ctl) {
         QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
         return -ENOENT;
     }
 
+    PayloadBuilder* builder = new PayloadBuilder();
     builder->payloadTimestamp(&payload, &payloadSize, spr_miid);
     status = mixer_ctl_set_array(ctl, payload, payloadSize);
     if (0 != status) {
@@ -675,9 +675,9 @@ exit:
 }
 
 int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
-                       bool isCompress, int tag_id, uint32_t *miid)
+                       int tag_id, uint32_t *miid)
 {
-    char const *stream = "PCM";
+    char *pcmDeviceName = NULL;
     char const *control = "getTaggedInfo";
     char *mixer_str;
     struct mixer_ctl *ctl;
@@ -686,20 +686,20 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
     struct gsl_tag_module_info *tag_info;
     struct gsl_tag_module_info_entry *tag_entry;
     int offset = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    ret = setStreamMetadataType(mixer, device, intf_name, isCompress);
+    pcmDeviceName = rm->getDeviceNameFromID(device);
+
+    ret = setStreamMetadataType(mixer, device, intf_name);
     if (ret)
         return ret;
 
-    if (isCompress)
-        stream = "COMPRESS";
-
-    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
         return -ENOMEM;
 
-    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
 
     QAL_DBG(LOG_TAG, " - mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -751,25 +751,25 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
 }
 
 int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
-                        bool isCompress, void *payload, int size)
+                                        void *payload, int size)
 {
-    char const *stream = "PCM";
+    char *pcmDeviceName = NULL;
     char const *control = "setParam";
     char *mixer_str;
     struct mixer_ctl *ctl;
     int ctl_len = 0,ret = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    if (isCompress)
-        stream = "COMPRESS";
+    pcmDeviceName = rm->getDeviceNameFromID(device);
 
-    QAL_DBG(LOG_TAG, "- mixer -%s-\n", stream);
-    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    QAL_DBG(LOG_TAG, "- mixer -%s-\n", pcmDeviceName);
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str) {
         free(payload);
         return -ENOMEM;
     }
-    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
 
     QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -785,25 +785,24 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     return ret;
 }
 
-int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, const char *val, bool isCompress)
+int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, const char *val)
 {
-    char const *stream = "PCM";
+    char *pcmDeviceName = NULL;
     char const *control = "control";
     char *mixer_str;
     struct mixer_ctl *ctl;
     int ctl_len = 0,ret = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    if (isCompress)
-        stream = "COMPRESS";
-
-    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    pcmDeviceName = rm->getDeviceNameFromID(device);
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
         QAL_ERR(LOG_TAG,"%s:calloc failed",__func__);
         return ret;
     }
-    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
     QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
@@ -817,9 +816,9 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
     return ret;
 }
 
-int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, bool isCompress, int tag_id, bool is_register)
+int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, bool is_register)
 {
-    char const *stream = "PCM";
+    char *pcmDeviceName = NULL;
     char const *control = "event";
     char *mixer_str;
     struct mixer_ctl *ctl;
@@ -827,24 +826,23 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
     int payload_size = 0;
     int ctl_len = 0,status = 0;
     uint32_t miid;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    pcmDeviceName = rm->getDeviceNameFromID(device);
 
     // get module instance id
-    status = SessionAlsaUtils::getModuleInstanceId(mixer, device, intf_name, false, tag_id, &miid);
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device, intf_name, tag_id, &miid);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", tag_id, status);
         return EINVAL;
     }
 
-
-    if (isCompress)
-        stream = "COMPRESS";
-
-    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
         return -ENOMEM;
 
-    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+    snprintf(mixer_str, ctl_len, "%s%d %s", pcmDeviceName, control);
 
     QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -872,26 +870,26 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
     return status;
 }
 
-int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, bool isCompress, const char *intf_name)
+int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *intf_name)
 {
-    char const *stream = "PCM";
+    char *pcmDeviceName = NULL;
     char const *control = "echoReference";
     char *mixer_str;
     struct mixer_ctl *ctl;
     int ctl_len = 0;
     int ret = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    if (isCompress)
-        stream = "COMPRESS";
+    pcmDeviceName = rm->getDeviceNameFromID(device);
 
-    ctl_len = strlen(stream) + 4 + strlen(control) + 1;
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
         ret = -ENOMEM;
         QAL_ERR(LOG_TAG,"%s:calloc failed",__func__);
         return ret;
     }
-    snprintf(mixer_str, ctl_len, "%s%d %s", stream, device, control);
+    snprintf(mixer_str, ctl_len, "%s%d %s", pcmDeviceName, control);
 
     printf("%s - mixer -%s-\n", __func__, mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -1409,7 +1407,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
        if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                    aifBackEndsToConnect[0].second.data(),
-                                                   is_compress, TAG_DEVICE_MFC_SR, &miid);
+                                                   TAG_DEVICE_MFC_SR, &miid);
         if (status != 0) {
             QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
             return status;
@@ -1427,7 +1425,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         }
 
         status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0),
-                                                     is_compress, payload, payloadSize);
+                                                     payload, payloadSize);
         free(payload);
         if (status != 0) {
             QAL_ERR(LOG_TAG,"setMixerParameter failed");

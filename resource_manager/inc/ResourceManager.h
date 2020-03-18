@@ -49,6 +49,7 @@
 
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
+#define MAX_PCM_NAME_SIZE 50
 
 enum qal_alsa_or_gsl {
     ALSA = 0,
@@ -101,6 +102,7 @@ struct xml_userdata {
 
 struct deviceCap {
     int deviceId;
+    char name[MAX_PCM_NAME_SIZE];
     stream_supported_type type;
     int playback;
     int record;
@@ -380,6 +382,7 @@ public:
                                      int dev_id);
     int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                             std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
+    char* getDeviceNameFromID(uint32_t id);
 };
 
 #endif

@@ -460,6 +460,18 @@ ResourceManager::~ResourceManager()
 
 }
 
+char* ResourceManager::getDeviceNameFromID(uint32_t id)
+{
+    for (int i=0; i < devInfo.size(); i++) {
+        if (devInfo[i].deviceId == id) {
+            QAL_DBG(LOG_TAG, "pcm id name is %s ", devInfo[i].name);
+            return devInfo[i].name;
+        }
+    }
+
+    return NULL;
+}
+
 int ResourceManager::init_audio()
 {
     int ret = 0;
@@ -3508,6 +3520,7 @@ void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_C
         devInfo.push_back(dev);
     } else if (!strcmp(tag_name, "name")) {
         size = devInfo.size() - 1;
+        strlcpy(devInfo[size].name, data->data_buf, strlen(data->data_buf)+1);
         if(strstr(data->data_buf,"PCM")) {
             devInfo[size].type = PCM;
         } else if (strstr(data->data_buf,"COMP")) {

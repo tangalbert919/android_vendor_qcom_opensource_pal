@@ -78,6 +78,32 @@ SessionAlsaVoice::~SessionAlsaVoice()
 
 }
 
+uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
+{
+    int status = 0;
+    int device = 0;
+
+    switch (tagId) {
+    case DEVICE_HW_ENDPOINT_TX:
+        device = pcmDevTxIds.at(0);
+        break;
+    case DEVICE_HW_ENDPOINT_RX:
+        device = pcmDevRxIds.at(0);
+        break;
+    default:
+        QAL_ERR(LOG_TAG, "Unsupported tag info %x",tagId);
+        return -EINVAL;
+    }
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                   backendName,
+                                                   tagId, miid);
+    if (0 != status)
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+
+    return status;
+}
+
 
 int SessionAlsaVoice::prepare(Stream * s)
 {
@@ -131,16 +157,6 @@ int SessionAlsaVoice::open(Stream * s)
         rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXDIR);
     }
 
-    /* not need right now */
-    /*status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
-                                                   aifBackEnds[0].data(),
-                                                   false, STREAM_SPR,
-                                                   &spr_miid);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
-                STREAM_SPR, status);
-        return status;
-    }*/
 exit:
     return status;
 }

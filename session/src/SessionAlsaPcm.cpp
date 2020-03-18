@@ -206,14 +206,14 @@ exit:
     return status;
 }
 
-int32_t SessionAlsaPcm::getMIID(const char *backendName, int32_t tagId, uint32_t *miid)
+uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;
     int device = pcmDevIds.at(0);
 /* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
     status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                    backendName,
-                                                   false, tagId, miid);
+                                                   tagId, miid);
     if (0 != status)
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
 
@@ -473,7 +473,7 @@ int SessionAlsaPcm::start(Stream * s)
         switch(sAttr.direction) {
             case QAL_AUDIO_INPUT:
                 if (sAttr.type == QAL_STREAM_VOICE_UI) {
-                    SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, customPayload, customPayloadSize);
+                    SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), customPayload, customPayloadSize);
                 }
 
                 pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
@@ -490,7 +490,7 @@ int SessionAlsaPcm::start(Stream * s)
             case QAL_AUDIO_OUTPUT:
                 status = SessionAlsaUtils::getModuleInstanceId(mixer,
                              pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
-                             false, STREAM_SPR, &spr_miid);
+                             STREAM_SPR, &spr_miid);
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
                     status = 0; //TODO: add this to some policy in qal
@@ -542,7 +542,7 @@ int SessionAlsaPcm::start(Stream * s)
     }
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), false, DEVICE_SVA, true);
+                txAifBackEnds[0].second.data(), false, DEVICE_SVA);
         dev = rm->getActiveEchoReferenceRxDevices(s);
         if (dev && !ecRefDevId) {
             status = setECRef(s, dev, true);
@@ -591,7 +591,7 @@ int SessionAlsaPcm::start(Stream * s)
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
                                                                txAifBackEnds[0].second.data(),
-                                                               false, TAG_STREAM_MFC_SR, &miid);
+                                                               TAG_STREAM_MFC_SR, &miid);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
@@ -610,7 +610,7 @@ int SessionAlsaPcm::start(Stream * s)
                         return status;
                     }
                 }
-                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
@@ -639,7 +639,7 @@ int SessionAlsaPcm::start(Stream * s)
                 /* This has to be done after sending all mixer controls and before connect */
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
                                                                rxAifBackEnds[i].second.data(),
-                                                               false, TAG_DEVICE_MFC_SR, &miid);
+                                                               TAG_DEVICE_MFC_SR, &miid);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
@@ -659,7 +659,7 @@ int SessionAlsaPcm::start(Stream * s)
                     }
                 }
 
-                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false,
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
@@ -743,7 +743,7 @@ int SessionAlsaPcm::stop(Stream * s)
         }
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
-                false, DEVICE_SVA, false);
+                false, DEVICE_SVA);
     } else if (sAttr.direction == QAL_AUDIO_INPUT) {
         if (ecRefDevId) {
             status = setECRef(s, nullptr, false);
@@ -1102,7 +1102,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             struct qal_st_sound_model *pSoundModel = NULL;
             pSoundModel = (struct qal_st_sound_model *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_SVA, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
                 goto exit;
@@ -1115,7 +1115,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
             pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_SVA, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
                 goto exit;
@@ -1129,7 +1129,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
             // set custom config for detection event
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_SVA, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
                 goto exit;
@@ -1142,7 +1142,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
             pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_SVA, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
                 goto exit;
@@ -1155,7 +1155,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
             pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_ADAM, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_ADAM, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_ADAM, status);
                 goto exit;
@@ -1166,13 +1166,13 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         case PARAM_ID_DETECTION_ENGINE_RESET:
         {
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), false, DEVICE_SVA, &miid);
+                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
                 goto exit;
             }
             builder->payloadSVAEngineReset(&paramData, &paramSize, miid);
-            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), false, paramData, paramSize);
+            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), paramData, paramSize);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set mixer param, status = %d", status);
                 goto exit;
@@ -1186,7 +1186,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                            rxAifBackEnds[0].second.data(),
-                                                           false, tagId, &miid);
+                                                           tagId, &miid);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
                 break;
@@ -1203,7 +1203,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer,
                                                              pcmDevIds.at(0),
-                                                             false, paramData,
+                                                             paramData,
                                                              paramSize);
                 QAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
             }
@@ -1371,8 +1371,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 "rx dev %d already enabled", rx_dev->getSndDeviceId(), ecRefDevId);
             return 0;
         }
-        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
-            false, "ZERO");
+        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
         if (status) {
             QAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
             return status;
@@ -1386,7 +1385,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         // TODO: handle EC Ref switch case also
         rxDeviceList.push_back(rx_dev);
         backendNames = rm->getBackEndNames(rxDeviceList);
-        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), false,
+        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
             backendNames[0].c_str());
         if (status) {
             QAL_ERR(LOG_TAG, "Failed to set EC ref path, status %d", status);
@@ -1429,14 +1428,14 @@ int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void 
 
     if (!rxAifBackEnds.empty()) { /** search in RX GKV */
         status = SessionAlsaUtils::getModuleInstanceId(mixer, device, rxAifBackEnds[0].second.data(),
-                false, tagId, &miid);
+                tagId, &miid);
         if (status) /** if not found, reset miid to 0 again */
             miid = 0;
     }
 
     if (!txAifBackEnds.empty()) { /** search in TX GKV */
         status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
-                false, tagId, &miid);
+                tagId, &miid);
         if (status)
             miid = 0;
     }
@@ -1502,7 +1501,7 @@ int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)
 int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
 {
     int status = 0;
-    status = SessionAlsaUtils::getTimestamp(mixer, false, pcmDevIds, spr_miid, stime);
+    status = SessionAlsaUtils::getTimestamp(mixer, pcmDevIds, spr_miid, stime);
     if (0 != status) {
        QAL_ERR(LOG_TAG, "getTimestamp failed status = %d", status);
        return status;

@@ -94,7 +94,7 @@ private:
     int setVoiceMixerParameter(Stream * s, struct mixer *mixer, void *payload,
                           int size, int dir);
     char* getMixerVoiceStream(Stream *s, int dir);
-
+    uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
 };
 
 #endif //SESSION_ALSAVOICE_H
