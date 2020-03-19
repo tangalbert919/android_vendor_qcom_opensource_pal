@@ -543,7 +543,7 @@ int SessionAlsaPcm::start(Stream * s)
     }
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), false, DEVICE_SVA);
+                txAifBackEnds[0].second.data(), DEVICE_SVA, true);
         dev = rm->getActiveEchoReferenceRxDevices(s);
         if (dev && !ecRefDevId) {
             status = setECRef(s, dev, true);
@@ -744,7 +744,7 @@ int SessionAlsaPcm::stop(Stream * s)
         }
         QAL_DBG(LOG_TAG, "threadHandler joined");
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
-                false, DEVICE_SVA);
+                DEVICE_SVA, false);
     } else if (sAttr.direction == QAL_AUDIO_INPUT) {
         if (ecRefDevId) {
             status = setECRef(s, nullptr, false);

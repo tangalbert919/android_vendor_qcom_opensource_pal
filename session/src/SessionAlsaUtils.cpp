@@ -841,7 +841,7 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
     if (!mixer_str)
         return -ENOMEM;
 
-    snprintf(mixer_str, ctl_len, "%s%d %s", pcmDeviceName, control);
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
 
     QAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -888,7 +888,7 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *
         QAL_ERR(LOG_TAG,"%s:calloc failed",__func__);
         return ret;
     }
-    snprintf(mixer_str, ctl_len, "%s%d %s", pcmDeviceName, control);
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
 
     printf("%s - mixer -%s-\n", __func__, mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
