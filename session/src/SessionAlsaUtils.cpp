@@ -328,8 +328,15 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         QAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
         goto exit;
     }
-    getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
-            streamMetaData);
+    if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
+        getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
+                streamMetaData);
+        if (!streamMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream metadata is zero");
+            status = -ENOMEM;
+            goto exit;
+        }
+    }
     status = rmHandle->getAudioMixer(&mixerHandle);
 
     /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
@@ -351,6 +358,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     if (streamMetaData.size)
         mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamMetaData.buf,
                 streamMetaData.size);
+
     for (std::vector<std::pair<int32_t, std::string>>::const_iterator be = BackEnds.begin();
            be != BackEnds.end(); ++be) {
         if ((status = builder->populateDeviceKV(streamHandle, be->first, deviceKV)) != 0) {
@@ -378,14 +386,23 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
             status = 0; /**< ignore stream device KV failures */
         }
-        getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
-                deviceMetaData);
-        getAgmMetaData(streamDeviceKV, emptyKV, (struct prop_data *)streamDevicePropId,
-                streamDeviceMetaData);
-        if (!streamMetaData.size && !streamDeviceMetaData.size) {
-            QAL_ERR(LOG_TAG, "stream/device metadata is zero");
-            status = -EINVAL;
-            goto freeMetaData;
+        if (deviceKV.size() > 0) {
+            getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+                    deviceMetaData);
+            if (!deviceMetaData.size) {
+                QAL_ERR(LOG_TAG, "device metadata is zero");
+                status = -ENOMEM;
+                goto freeMetaData;
+            }
+        }
+        if (streamDeviceKV.size() > 0) {
+            getAgmMetaData(streamDeviceKV, emptyKV, (struct prop_data *)streamDevicePropId,
+                    streamDeviceMetaData);
+            if (!streamDeviceMetaData.size) {
+                QAL_ERR(LOG_TAG, "stream/device metadata is zero");
+                status = -ENOMEM;
+                goto freeMetaData;
+            }
         }
         beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, BE_METADATA);
         if (!beMetaDataMixerCtrl) {
@@ -419,8 +436,8 @@ freeMetaData:
 freeStreamMetaData:
     free(streamMetaData.buf);
 exit:
-   delete builder;
-   return status;
+    delete builder;
+    return status;
 }
 
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
@@ -462,7 +479,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             QAL_ERR(LOG_TAG, "invalid mixer control: %s %s",
                 feName.str().data(), feCtrlNames[i]);
             status = -EINVAL;
-            goto freeStreamMetaData;
+            goto exit;
         }
     }
     // clear stream metadata
@@ -478,10 +495,9 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
                 deviceMetaData);
         getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)streamDevicePropId,
                 streamDeviceMetaData);
-        if (!streamMetaData.size && !deviceMetaData.size &&
-                !streamDeviceMetaData.size) {
+        if (!deviceMetaData.size || !streamDeviceMetaData.size) {
             QAL_ERR(LOG_TAG, "stream/device metadata is zero");
-            status = -EINVAL;
+            status = -ENOMEM;
             goto freeMetaData;
         }
         beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, BE_METADATA);
@@ -498,16 +514,14 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             if (!(freeDevmeta->first.compare(be->second)) && freeDevmeta->second == 0) {
                 QAL_ERR(LOG_TAG, "No need to free device metadata as device is still active");
             } else {
-                 if (deviceMetaData.size)
-                     mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
-                                         deviceMetaData.size);
+                mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                                    deviceMetaData.size);
             }
         }
-        if (streamDeviceMetaData.size) {
-            mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
-            mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,
-                    streamDeviceMetaData.size);
-        }
+
+        mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
+        mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,
+                streamDeviceMetaData.size);
 
         free(streamDeviceMetaData.buf);
         free(deviceMetaData.buf);
@@ -518,10 +532,9 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
 freeMetaData:
     free(streamDeviceMetaData.buf);
     free(deviceMetaData.buf);
-freeStreamMetaData:
     free(streamMetaData.buf);
 exit:
-   return status;
+    return status;
 }
 
 int SessionAlsaUtils::setDeviceCustomPayload(std::shared_ptr<ResourceManager> rmHandle,
@@ -572,15 +585,18 @@ int SessionAlsaUtils::setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandl
         return -EINVAL;
     }
 
-    getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+    if (deviceKV.size() > 0) {
+        getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
                 deviceMetaData);
-    if (!deviceMetaData.size || !deviceMetaData.buf) {
-        QAL_ERR(LOG_TAG, "get device meta data failed %d", status);
-        return -EINVAL;
+        if (!deviceMetaData.size) {
+            QAL_ERR(LOG_TAG, "get device meta data failed %d", status);
+            return -ENOMEM;
+        }
     }
 
-    status = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
-                    deviceMetaData.size);
+    if (deviceMetaData.size)
+        status = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                        deviceMetaData.size);
 
     free(deviceMetaData.buf);
     deviceMetaData.buf = nullptr;
@@ -1008,29 +1024,61 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         status = 0; /**< ignore stream device KV failures */
     }
     // get audio mixer
-    SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV,
-            (struct prop_data *)streamPropId, streamRxMetaData);
-    SessionAlsaUtils::getAgmMetaData(deviceRxKV, emptyKV,
-            (struct prop_data *)devicePropId, deviceRxMetaData);
-    SessionAlsaUtils::getAgmMetaData(streamDeviceRxKV, emptyKV,
-            (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
-    if (!streamRxMetaData.size && !streamDeviceRxMetaData.size) {
-        QAL_ERR(LOG_TAG, "stream/device RX metadata is zero");
-        status = -EINVAL;
-        goto freeRxMetaData;
+    if ((streamRxKV.size() > 0) || (streamRxCKV.size() > 0)) {
+        SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV,
+                (struct prop_data *)streamPropId, streamRxMetaData);
+        if (!streamRxMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream RX metadata is zero");
+            status = -ENOMEM;
+            goto freeRxMetaData;
+        }
+    }
+    if (deviceRxKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(deviceRxKV, emptyKV,
+                (struct prop_data *)devicePropId, deviceRxMetaData);
+        if (!deviceRxMetaData.size) {
+            QAL_ERR(LOG_TAG, "device RX metadata is zero");
+            status = -ENOMEM;
+            goto freeRxMetaData;
+        }
+    }
+    if (streamDeviceRxKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(streamDeviceRxKV, emptyKV,
+                (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
+        if (!streamDeviceRxMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream/device RX metadata is zero");
+            status = -ENOMEM;
+            goto freeRxMetaData;
+        }
     }
 
-    SessionAlsaUtils::getAgmMetaData(streamTxKV, streamTxCKV,
-            (struct prop_data *)streamPropId, streamTxMetaData);
-    SessionAlsaUtils::getAgmMetaData(deviceTxKV, emptyKV,
-            (struct prop_data *)devicePropId, deviceTxMetaData);
-    SessionAlsaUtils::getAgmMetaData(streamDeviceTxKV, emptyKV,
-            (struct prop_data *)streamDevicePropId, streamDeviceTxMetaData);
-    if (!streamTxMetaData.size && !deviceTxMetaData.size &&
-            !streamDeviceTxMetaData.size) {
-        QAL_ERR(LOG_TAG, "stream/device TX metadata is zero");
-        status = -EINVAL;
-        goto freeTxMetaData;
+    if ((streamTxKV.size() > 0) || (streamTxCKV.size() > 0)) {
+        SessionAlsaUtils::getAgmMetaData(streamTxKV, streamTxCKV,
+                (struct prop_data *)streamPropId, streamTxMetaData);
+        if (!streamTxMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream TX metadata is zero");
+            status = -ENOMEM;
+            goto freeTxMetaData;
+        }
+    }
+    if (deviceTxKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(deviceTxKV, emptyKV,
+                (struct prop_data *)devicePropId, deviceTxMetaData);
+        if (!deviceTxMetaData.size) {
+            QAL_ERR(LOG_TAG, "device TX metadata is zero");
+            status = -ENOMEM;
+            goto freeTxMetaData;
+        }
+    }
+
+    if (streamDeviceTxKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(streamDeviceTxKV, emptyKV,
+                (struct prop_data *)streamDevicePropId, streamDeviceTxMetaData);
+        if (!streamDeviceTxMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream/device TX metadata is zero");
+            status = -ENOMEM;
+            goto freeTxMetaData;
+        }
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_CALL) {
@@ -1127,7 +1175,7 @@ freeRxMetaData:
     free(deviceRxMetaData.buf);
     free(streamRxMetaData.buf);
 exit:
-   return status;
+    return status;
 }
 
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
@@ -1181,10 +1229,10 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             (struct prop_data *)devicePropId, deviceRxMetaData);
     SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
             (struct prop_data *)streamDevicePropId, streamDeviceRxMetaData);
-    if (!streamRxMetaData.size && !deviceRxMetaData.size &&
+    if (!streamRxMetaData.size || !deviceRxMetaData.size ||
             !streamDeviceRxMetaData.size) {
         QAL_ERR(LOG_TAG, "stream/device RX metadata is zero");
-        status = -EINVAL;
+        status = -ENOMEM;
         goto freeRxMetaData;
     }
 
@@ -1194,10 +1242,10 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             (struct prop_data *)devicePropId, deviceTxMetaData);
     SessionAlsaUtils::getAgmMetaData(emptyKV, emptyKV,
             (struct prop_data *)streamDevicePropId, streamDeviceTxMetaData);
-    if (!streamTxMetaData.size && !deviceTxMetaData.size &&
+    if (!streamTxMetaData.size || !deviceTxMetaData.size ||
             !streamDeviceTxMetaData.size) {
         QAL_ERR(LOG_TAG, "stream/device TX metadata is zero");
-        status = -EINVAL;
+        status = -ENOMEM;
         goto freeTxMetaData;
     }
 
@@ -1248,32 +1296,24 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
 
     /** set TX mixer controls */
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], "ZERO");
-    if (streamTxMetaData.size)
-        mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamTxMetaData.buf,
-                streamTxMetaData.size);
-    if (deviceTxMetaData.size)
-        mixer_ctl_set_array(txBeMixerCtrl, (void *)deviceTxMetaData.buf,
-                deviceTxMetaData.size);
-    if (streamDeviceTxMetaData.size) {
-        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], txBackEnds[0].second.data());
-        mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamDeviceTxMetaData.buf,
-                streamDeviceTxMetaData.size);
-    }
+    mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamTxMetaData.buf,
+            streamTxMetaData.size);
+    mixer_ctl_set_array(txBeMixerCtrl, (void *)deviceTxMetaData.buf,
+            deviceTxMetaData.size);
+    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], txBackEnds[0].second.data());
+    mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamDeviceTxMetaData.buf,
+            streamDeviceTxMetaData.size);
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONNECT], txBackEnds[0].second.data());
 
     /** set RX mixer controls */
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], "ZERO");
-    if (streamRxMetaData.size)
-        mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamRxMetaData.buf,
-                streamRxMetaData.size);
-    if (deviceRxMetaData.size)
-        mixer_ctl_set_array(rxBeMixerCtrl, (void *)deviceRxMetaData.buf,
-                deviceRxMetaData.size);
-    if (streamDeviceRxMetaData.size) {
-        mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], rxBackEnds[0].second.data());
-        mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamDeviceRxMetaData.buf,
-                streamDeviceRxMetaData.size);
-    }
+    mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamRxMetaData.buf,
+            streamRxMetaData.size);
+    mixer_ctl_set_array(rxBeMixerCtrl, (void *)deviceRxMetaData.buf,
+            deviceRxMetaData.size);
+    mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], rxBackEnds[0].second.data());
+    mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamDeviceRxMetaData.buf,
+            streamDeviceRxMetaData.size);
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONNECT], rxBackEnds[0].second.data());
 
     if (sAttr.type != QAL_STREAM_VOICE_CALL) {
@@ -1295,7 +1335,7 @@ freeRxMetaData:
     free(deviceRxMetaData.buf);
     free(streamRxMetaData.buf);
 exit:
-   return status;
+    return status;
 }
 
 int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
@@ -1534,17 +1574,24 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
         QAL_ERR(LOG_TAG, "%s: get device PP KV failed %d", status);
         status = 0; /** ignore error */
     }
-    SessionAlsaUtils::getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
-             deviceMetaData);
 
-    if (streamDeviceKV.size()) {
+    if (deviceKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+                deviceMetaData);
+        if (!deviceMetaData.size) {
+            QAL_ERR(LOG_TAG, "device meta data is zero");
+            status = -ENOMEM;
+            goto freeMetaData;
+        }
+    }
+    if (streamDeviceKV.size() > 0) {
         SessionAlsaUtils::getAgmMetaData(streamDeviceKV, emptyKV,
                 (struct prop_data *)streamDevicePropId,
                 streamDeviceMetaData);
-        if (!streamDeviceMetaData.size || !streamDeviceMetaData.buf) {
-            QAL_ERR(LOG_TAG, "get stream device meta data failed %d", status);
-            status = -EINVAL;
-            goto free_devicemd;
+        if (!streamDeviceMetaData.size) {
+            QAL_ERR(LOG_TAG, "stream/device meta data is zero");
+            status = -ENOMEM;
+            goto freeMetaData;
         }
     }
 
@@ -1588,11 +1635,11 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     status = rmHandle->getAudioMixer(&mixerHandle);
 
     aifMdCtrl = mixer_get_ctl_by_name(mixerHandle, aifMdName.str().data());
-    QAL_ERR(LOG_TAG,"mixer control %s", aifMdName.str().data());
+    QAL_DBG(LOG_TAG,"mixer control %s", aifMdName.str().data());
     if (!aifMdCtrl) {
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", aifMdName.str().data());
         status = -EINVAL;
-        goto free_streamdevicemd;
+        goto freeMetaData;
     }
     if (deviceMetaData.size)
         mixer_ctl_set_array(aifMdCtrl, (void *)deviceMetaData.buf, deviceMetaData.size);
@@ -1602,25 +1649,23 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     if (!feCtrl) {
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", cntrlName.str().data());
         status = -EINVAL;
-        goto free_streamdevicemd;
+        goto freeMetaData;
     }
     mixer_ctl_set_enum_by_string(feCtrl, aifBackEndsToConnect[0].second.data());
 
-    if (streamDeviceMetaData.size) {
-        feMdCtrl = mixer_get_ctl_by_name(mixerHandle, feMdName.str().data());
-        QAL_DBG(LOG_TAG,"mixer control %s", feMdName.str().data());
-        if (!feMdCtrl) {
-            QAL_ERR(LOG_TAG, "invalid mixer control: %s", feMdName.str().data());
-            status = -EINVAL;
-            goto free_streamdevicemd;
-        }
-        mixer_ctl_set_array(feMdCtrl, (void *)streamDeviceMetaData.buf, streamDeviceMetaData.size);
+    feMdCtrl = mixer_get_ctl_by_name(mixerHandle, feMdName.str().data());
+    QAL_DBG(LOG_TAG,"mixer control %s", feMdName.str().data());
+    if (!feMdCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control: %s", feMdName.str().data());
+        status = -EINVAL;
+        goto freeMetaData;
     }
-free_streamdevicemd:
+    if (streamDeviceMetaData.size)
+        mixer_ctl_set_array(feMdCtrl, (void *)streamDeviceMetaData.buf, streamDeviceMetaData.size);
+freeMetaData:
     free(streamDeviceMetaData.buf);
-free_devicemd:
     free(deviceMetaData.buf);
-
+exit:
     delete builder;
     return status;
 }

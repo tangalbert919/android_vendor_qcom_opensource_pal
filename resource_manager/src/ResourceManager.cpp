@@ -2262,7 +2262,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
 }
 
 int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList){
-    int status = -EINVAL;
+    int status = 0;
     std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
 
     /*disconnect active list from the current devices they are attached to*/
@@ -2282,7 +2282,7 @@ error:
 }
 
 int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList){
-    int status = -EINVAL;
+    int status = 0;
     std::vector <std::tuple<Stream *, struct qal_device *>>::iterator sIter;
 
     /*disconnect active list from the current devices they are attached to*/
@@ -2306,7 +2306,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
                                          std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList)
 {
     mResourceManagerMutex.lock();
-    int status = -EINVAL;
+    int status = 0;
     status = streamDevDisconnect(streamDevDisconnectList);
     if (status) {
         QAL_ERR(LOG_TAG,"disconnect failed");
@@ -2332,7 +2332,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 {
     bool isDeviceSwitch = false;
     bool isVoiceCall = false;
-    int status = -EINVAL;
+    int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dattr;
@@ -2433,7 +2433,7 @@ error:
 int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
                                               struct qal_device *newDevAttr)
 {
-    int status = -EINVAL;
+    int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
     std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
