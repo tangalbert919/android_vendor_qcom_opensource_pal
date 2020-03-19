@@ -52,6 +52,9 @@ enum {
  */
 #define MAX_SAD_BLOCKS      10
 #define SAD_BLOCK_SIZE      3
+#define ACK_ENABLE      "Ack_Enable"
+#define CONNECT         "Connect"
+#define DISCONNECT      "Disconnect"
 
 static struct extDispState {
     void *edidInfo = NULL;
@@ -264,11 +267,11 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
         char *ack_str = NULL;
 
         if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE)
-            ack_str = "Ack_Enable";
+            ack_str = ACK_ENABLE;
         else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT)
-            ack_str = "Connect";
+            ack_str = CONNECT;
         else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT)
-            ack_str = "Disconnect";
+            ack_str = DISCONNECT;
         else {
             QAL_ERR(LOG_TAG, " Invalid input parameter - 0x%x\n", node_value);
             return -EINVAL;
@@ -315,7 +318,7 @@ int DisplayPort::init(qal_param_device_connection_t device_conn)
     return 0;
 }
 
-int DisplayPort::deinit(qal_param_device_connection_t device_conn)
+int DisplayPort::deinit(qal_param_device_connection_t device_conn __unused)
 {
     updateAudioAckState(EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT, dp_controller, dp_stream);
     //To-Do : Have to invalidate the cahed EDID

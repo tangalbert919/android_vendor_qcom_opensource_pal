@@ -55,7 +55,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         uint32_t num_conf_levels) override;
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
                             uint32_t pre_roll_duration) override;
-    void SetDetected(bool detected) {};
+    void SetDetected(bool detected __unused) {};
     int32_t GetParameters(uint32_t param_id, void **payload) override;
     int32_t ConnectSessionDevice(
         Stream* stream_handle,

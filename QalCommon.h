@@ -33,7 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-  
 
 #define QAL_ERR(...)  CASA_LOG_ERR(__VA_ARGS__)
 #define QAL_DBG(...)  CASA_LOG_DEBUG(__VA_ARGS__)

@@ -276,9 +276,6 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     sm_data_ = nullptr;
     exit_thread_ = false;
     exit_buffering_ = false;
-    uint32_t bufferSize = DEFAULT_QAL_RING_BUFFER_SIZE;
-    struct qal_stream_attributes sAttr;
-
     buffer_size_ = CNN_BUFFER_SIZE;  // 480ms of 16k 16bit mono worth;
     kw_start_timestamp_ = 0;
     kw_end_timestamp_ = CNN_DURATION_US;

@@ -636,7 +636,7 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
 }
 
 void PayloadBuilder::payloadSlimConfig(uint8_t** payload, size_t* size,
-    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data, std::string epName) {
+    struct gsl_module_id_info* moduleInfo, struct sessionToPayloadParam* data __unused, std::string epName) {
     struct apm_module_param_data_t* header;
     struct  param_id_slimbus_cfg_t * slimConfig;
     uint8_t* payloadInfo = NULL;
@@ -824,7 +824,7 @@ void PayloadBuilder::payloadAuxpcmConfig(uint8_t** payload, size_t* size,
     struct param_id_hw_pcm_intf_cfg_t* AuxpcmConfig = NULL;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0, padBytes = 0;
-    int32_t AuxpcmLinkIdx = 0,index;
+    int32_t AuxpcmLinkIdx = 0;
 
     payloadSize = sizeof(struct apm_module_param_data_t) +
         sizeof( struct param_id_hw_pcm_intf_cfg_t);
@@ -1034,14 +1034,14 @@ void PayloadBuilder::payloadStreamConfig(uint8_t** payload, size_t* size,
 }
 
 void PayloadBuilder::payloadDeviceConfig(uint8_t** payload, size_t* size,
-    struct gsl_module_id_info* moduleInfo, int payloadTag,
+    struct gsl_module_id_info* moduleInfo, int payloadTag __unused,
     struct sessionToPayloadParam* data)
 {
     payloadHwEpConfig(payload, size, moduleInfo, data);
 }
 
 void PayloadBuilder::payloadDeviceEpConfig(uint8_t **payload, size_t *size,
-    struct gsl_module_id_info* moduleInfo, int payloadTag,
+    struct gsl_module_id_info* moduleInfo, int payloadTag __unused,
     struct sessionToPayloadParam *data, std::string epName)
 {
     int found = 0;
@@ -1370,7 +1370,7 @@ void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name,
     }
 }
 
-void PayloadBuilder::endTag(void *userdata __unused, const XML_Char *tag_name)
+void PayloadBuilder::endTag(void *userdata __unused, const XML_Char *tag_name __unused)
 {
     return;
 }
@@ -1433,10 +1433,9 @@ done:
 }
 
 void PayloadBuilder::payloadVolume(uint8_t **payload, size_t *size,
-                 uint32_t moduleId, struct qal_volume_data *volumedata, int tag)
+                 uint32_t moduleId, struct qal_volume_data *volumedata, int tag __unused)
 {
     struct volume_ctrl_multichannel_gain_t* volCtrlPayload;
-    struct volume_ctrl_master_gain_t* volMasterPayload;
     size_t payloadSize, padBytes = 0;
     uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
@@ -1571,8 +1570,6 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
             uint32_t *customPayload, uint32_t customPayloadSize,
             uint32_t moduleInstanceId, uint32_t paramId) {
     struct apm_module_param_data_t* header;
-    uint8_t *phrase_sm;
-    uint8_t *sm_data;
     uint8_t* payloadInfo = NULL;
     size_t alsaPayloadSize = 0;
 
@@ -2155,7 +2152,8 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     sattr = new struct qal_stream_attributes();
     if (!sattr) {
         QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
-        return -ENOMEM;
+        status = -ENOMEM;
+        goto exit;
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
@@ -2205,7 +2203,7 @@ exit:
 
 /** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
-        std::vector <std::pair<int,int>> &keyVectorTx)
+        std::vector <std::pair<int,int>> &keyVectorTx __unused)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
@@ -2214,7 +2212,8 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
     sattr = new struct qal_stream_attributes();
     if (!sattr) {
         QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
-        return -ENOMEM;
+        status = -ENOMEM;
+        goto exit;
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
@@ -2326,8 +2325,8 @@ exit:
 
 }
 
-int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t beDevId,
-        std::vector <std::pair<int,int>> &keyVector)
+int PayloadBuilder::populateStreamDeviceKV(Stream* s __unused, int32_t beDevId __unused,
+        std::vector <std::pair<int,int>> &keyVector __unused)
 {
     int status = 0;
 
@@ -2353,7 +2352,7 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
+int PayloadBuilder::populateDeviceKV(Stream* s __unused, int32_t beDevId,
         std::vector <std::pair<int,int>> &keyVector)
 {
     int status = 0;
@@ -2594,8 +2593,8 @@ error_1:
     return status;
 }
 
-int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag,
-        struct qal_volume_data **volume_data)
+int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
+        struct qal_volume_data **volume_data __unused)
 {
     int status = 0;
 
@@ -2802,7 +2801,7 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag)
+int PayloadBuilder::populateTkv(Stream *s __unused, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag)
 {
     int status = 0;
     std::vector <std::pair<int,int>> keyVector;

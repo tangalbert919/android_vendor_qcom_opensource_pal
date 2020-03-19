@@ -88,7 +88,7 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
 }
 
 
-int SessionAlsaVoice::prepare(Stream * s)
+int SessionAlsaVoice::prepare(Stream * s __unused)
 {
    return 0;
 }
@@ -102,19 +102,19 @@ int SessionAlsaVoice::open(Stream * s)
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
     if (sAttr.direction != (QAL_AUDIO_INPUT|QAL_AUDIO_OUTPUT)) {
         QAL_ERR(LOG_TAG,"%s: Voice session dir must be input and output  \n"
         , __func__);
-        return status;
+        goto exit;
     }
 
     pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RXDIR);
@@ -128,7 +128,7 @@ int SessionAlsaVoice::open(Stream * s)
     status = rm->getAudioMixer(&mixer);
     if (status) {
         QAL_ERR(LOG_TAG,"mixer error");
-        return status;
+        goto exit;
     }
 
     status = SessionAlsaUtils::open(s, rm, pcmDevRxIds, pcmDevTxIds,
@@ -210,7 +210,7 @@ int SessionAlsaVoice::start(Stream * s)
 
     SessionAlsaVoice::setConfig(s, MODULE, VSID, RXDIR);
     /*if no volume is set set a default volume*/
-    struct qal_volume_data *volume;
+    struct qal_volume_data *volume = NULL;
     if ((s->getVolumeData(volume))) {
         QAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
                  default_volume);
@@ -252,7 +252,7 @@ exit:
     return status;
 }
 
-int SessionAlsaVoice::stop(Stream * s)
+int SessionAlsaVoice::stop(Stream * s __unused)
 {
     int status = 0;
 
@@ -426,7 +426,7 @@ if (paramData) {
     return status;
 }
 
-int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
+int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, int dir)
 {
     int status = 0;
     int device = pcmDevRxIds.at(0);
@@ -483,7 +483,7 @@ if (paramData) {
 }
 
 int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
-                                   int device, int dir){
+                                   int device __unused, int dir){
     int status = 0;
     uint32_t tagsent;
     struct agm_tag_config* tagConfig;
@@ -811,7 +811,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
 int SessionAlsaVoice::setVoiceMixerParameter(Stream * s, struct mixer *mixer,
                                              void *payload, int size, int dir)
 {
-    char *control = "setParam";
+    char *control = (char*)"setParam";
     char *mixer_str;
     struct mixer_ctl *ctl;
     int ctl_len = 0,ret = 0;
@@ -850,29 +850,29 @@ int SessionAlsaVoice::setVoiceMixerParameter(Stream * s, struct mixer *mixer,
 }
 
 char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
-    char *stream = "VOICEMMODE1p";
+    char *stream = (char*)"VOICEMMODE1p";
     struct qal_stream_attributes sAttr;
 
     s->getStreamAttributes(&sAttr);
     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
         sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
         if (dir == TXDIR) {
-            stream = "VOICEMMODE1c";
+            stream = (char*)"VOICEMMODE1c";
         } else {
-            stream = "VOICEMMODE1p";
+            stream = (char*)"VOICEMMODE1p";
         }
     } else {
         if (dir == TXDIR) {
-            stream = "VOICEMMODE2c";
+            stream = (char*)"VOICEMMODE2c";
         } else {
-            stream = "VOICEMMODE2p";
+            stream = (char*)"VOICEMMODE2p";
         }
     }
 
     return stream;
 }
 
-int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+int SessionAlsaVoice::setECRef(Stream *s __unused, std::shared_ptr<Device> rx_dev __unused, bool is_enable __unused)
 {
     return 0;
 }

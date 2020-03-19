@@ -47,7 +47,7 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
     int32_t StartRecognition(Stream *s) override;
-    int32_t RestartRecognition(Stream *s) { return 0; }
+    int32_t RestartRecognition(Stream *s __unused) { return 0; }
     int32_t StopBuffering(Stream *s) override;
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
@@ -69,9 +69,9 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
         qal_stream_type_t stream_type __unused,
         std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t SetupSessionDevice(
-        Stream* stream_handle __unused,
-        qal_stream_type_t stream_type __unused,
-        std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
+       Stream* stream_handle __unused,
+       qal_stream_type_t stream_type __unused,
+       std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
                             uint32_t pre_roll_duration __unused) {
         return 0;
@@ -112,3 +112,4 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
     uint32_t bytes_processed_;
 };
 #endif  // SOUNDTRIGGERENGINECAPICNN_H
+

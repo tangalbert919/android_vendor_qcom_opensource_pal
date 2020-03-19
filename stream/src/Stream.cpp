@@ -248,6 +248,11 @@ int32_t  Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDe
 {
     int32_t status = 0;
 
+    if (mDevices.size() == 0) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid session, status %d", status);
+        goto exit;
+    }
     QAL_ERR(LOG_TAG, "no. of devices %d", mDevices.size());
     for (int32_t i=0; i < mDevices.size(); i++) {
         aDevices.push_back(mDevices[i]);

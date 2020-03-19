@@ -39,7 +39,7 @@ DeviceAlsa::~DeviceAlsa()
 {
 }
 
-int DeviceAlsa::open(struct qal_device *device, std::shared_ptr<ResourceManager> rm_)
+int DeviceAlsa::open(struct qal_device *device __unused, std::shared_ptr<ResourceManager> rm_ __unused)
 {
     return 0;
 }

@@ -364,12 +364,6 @@ ResourceManager::ResourceManager()
     QAL_INFO(LOG_TAG, "Enter.");
     int ret = 0;
     const qal_alsa_or_gsl ag = getQALConfigALSAOrGSL();
-    // TODO: set bOverwriteFlag to true by default
-    // should we add api for client to set this value?
-    bool bOverwriteFlag = true;
-
-    // Initialize the default rotation
-    rotation_type_ = QAL_SPEAKER_ROTATION_LR;
     // Init audio_route and audio_mixer
 
     na_props.rm_na_prop_enabled = false;
@@ -941,12 +935,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                                         struct qal_device *devices, int no_of_devices)
 {
     bool result = false;
-    uint16_t channels, dev_channels;
+    uint16_t channels;
     uint32_t samplerate, bitwidth;
     uint32_t rc;
     size_t cur_sessions = 0;
     size_t max_sessions = 0;
-    qal_audio_fmt_t format, dev_format;
 
     if (!attributes || !devices || !no_of_devices) {
         QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
@@ -1112,7 +1105,6 @@ int ResourceManager::registerStream(Stream *s)
     int ret = 0;
     qal_stream_type_t type;
     QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
-    qal_stream_attributes incomingStreamAttr;
     ret = s->getStreamType(&type);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
@@ -1517,7 +1509,6 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
 {
     int status = 0;
     int deviceId = 0;
-    Stream *rx_str = nullptr;
     std::shared_ptr<Device> rx_device = nullptr;
     std::shared_ptr<Device> tx_device = nullptr;
     struct qal_stream_attributes tx_attr;
@@ -1585,7 +1576,6 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream(
 {
     int deviceId = 0;
     int status = 0;
-    Stream *tx_str = nullptr;
     std::vector<Stream*> tx_stream_list;
     struct qal_stream_attributes tx_attr;
     struct qal_stream_attributes rx_attr;
@@ -2753,7 +2743,7 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 {
     char *value=NULL;
     int len;
-    int ret = 0, err;
+    int ret = 0;
     char *kv_pairs = str_parms_to_str(parms);
 
     if(kv_pairs == NULL) {
@@ -3699,7 +3689,6 @@ void ResourceManager::processTagInfo(const XML_Char **attr)
 {
     int32_t tagId;
     int32_t found = 0;
-    char tagChar[128] = {0};
     if (strcmp(attr[0], "id" ) !=0 ) {
         QAL_ERR(LOG_TAG, " 'id' not found");
         return;
@@ -3857,7 +3846,6 @@ void ResourceManager::snd_reset_data_buf(struct xml_userdata *data)
 
 void ResourceManager::process_voicemode_info(const XML_Char **attr)
 {
-    int size = 0;
     std::string tagkey(attr[1]);
     std::string tagvalue(attr[3]);
     struct vsid_modepair modepair = {};
@@ -4011,7 +3999,6 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
 void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     const XML_Char **attr)
 {
-    snd_card_defs_xml_tags_t tagId;
     stream_supported_type type;
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     static std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;

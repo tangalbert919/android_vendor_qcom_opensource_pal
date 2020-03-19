@@ -60,7 +60,7 @@ SessionAlsaPcm::~SessionAlsaPcm()
 }
 
 
-int SessionAlsaPcm::prepare(Stream * s)
+int SessionAlsaPcm::prepare(Stream * s __unused)
 {
    return 0;
 }
@@ -360,7 +360,7 @@ int SessionAlsaPcm::getConfig(Stream * s)
 }
 */
 
-int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_qal_payload_t *effectPayload)
+int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_qal_payload_t *effectPayload)
 {
     int status = 0;
     uint32_t tagsent;
@@ -441,9 +441,7 @@ int SessionAlsaPcm::start(Stream * s)
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
-    Stream *str = nullptr;
     struct qal_device dAttr;
-    uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
     struct sessionToPayloadParam deviceData;
     struct sessionToPayloadParam streamData;
     uint8_t* payload = NULL;
@@ -732,7 +730,6 @@ int SessionAlsaPcm::stop(Stream * s)
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
-    Stream *str = nullptr;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -823,7 +820,7 @@ int SessionAlsaPcm::close(Stream * s)
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         QAL_ERR(LOG_TAG,"stream get attributes failed");
-        return status;
+        goto exit;
     }
     status = s->getAssociatedDevices(associatedDevices);
     if (status != 0) {
@@ -1005,7 +1002,7 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
     return status;
 }
 
-int SessionAlsaPcm::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
+int SessionAlsaPcm::read(Stream *s, int tag __unused, struct qal_buffer *buf, int * size)
 {
     int status = 0, bytesRead = 0, bytesToRead = 0, offset = 0, pcmReadSize = 0;
     uint64_t timestamp = 0;
@@ -1066,7 +1063,7 @@ exit:
     return status;
 }
 
-int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size,
+int SessionAlsaPcm::write(Stream *s __unused, int tag, struct qal_buffer *buf, int * size,
                           int flag)
 {
     int status = 0, bytesWritten = 0, bytesRemaining = 0, offset = 0;
@@ -1133,7 +1130,7 @@ int SessionAlsaPcm::writeBufferInit(Stream * /*streamHandle*/, size_t /*noOfBuf*
     return 0;
 }
 
-int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t param_id, void *payload)
+int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unused, uint32_t param_id, void *payload)
 {
     int status = 0;
     int device = pcmDevIds.at(0);
@@ -1366,7 +1363,6 @@ int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
     unsigned int num_values;
     int status = 0;
     struct agm_event_cb_params *params;
-    Stream *s = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -1477,7 +1473,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
     return status;
 }
 
-int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
+int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_id, void **payload)
 {
     int status = 0;
     uint8_t *ptr = NULL;
@@ -1583,7 +1579,7 @@ int SessionAlsaPcm::getTimestamp(struct qal_session_time *stime)
     }
     return status;
 }
-int SessionAlsaPcm::drain(qal_drain_type_t type)
+int SessionAlsaPcm::drain(qal_drain_type_t type __unused)
 {
     return 0;
 }

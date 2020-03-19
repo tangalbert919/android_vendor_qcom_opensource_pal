@@ -54,6 +54,7 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Stream.h"
+#include "QalCommon.h"
 
 /* Param ID definitions */
 #define PARAM_ID_MEDIA_FORMAT 0x0800100C
@@ -184,7 +185,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
-    uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) {return 0;};
+    uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused,  uint32_t *miid __unused) {return 0;};
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
 };
 

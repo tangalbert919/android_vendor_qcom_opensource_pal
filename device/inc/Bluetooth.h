@@ -156,6 +156,7 @@ private:
 
     void init_a2dp_sink();
     bool a2dp_send_sink_setup_complete(void);
+    using Bluetooth::init;
     void init();
 
 public:

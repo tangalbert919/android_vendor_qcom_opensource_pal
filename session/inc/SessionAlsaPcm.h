@@ -34,6 +34,7 @@
 #include "PayloadBuilder.h"
 #include "Session.h"
 #include "QalAudioRoute.h"
+#include "QalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <thread>
 
@@ -46,8 +47,6 @@ class Session;
 class SessionAlsaPcm : public Session
 {
 private:
-    void * graphHandle;
-    size_t size = 0;
     uint32_t spr_miid = 0;
     PayloadBuilder* builder;
     struct pcm *pcm;
@@ -62,7 +61,6 @@ private:
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
-    void *cookie;
     std::thread threadHandler;
     sessionState mState;
     session_callback sessionCb;

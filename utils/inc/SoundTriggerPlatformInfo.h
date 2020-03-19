@@ -31,7 +31,6 @@
 #define SOUND_TRIGGER_PLATFORM_INFO_H
 
 #include <stdint.h>
-
 #include <map>
 #include <memory>
 #include <string>

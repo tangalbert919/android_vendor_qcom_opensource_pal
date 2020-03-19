@@ -57,7 +57,7 @@ int DeviceGsl::open(struct qal_device *device,
     int pcmId = rm_->getPcmDeviceId(device->id);
     int flags;
     struct pcm_config config;
-    int fd = 0;
+
     QAL_DBG(LOG_TAG, "Enter. pcm id %d and soundcard %d", pcmId, sndCard);
     if(device->id >= QAL_DEVICE_OUT_HANDSET && device->id <= QAL_DEVICE_OUT_PROXY)
         flags = PCM_OUT;

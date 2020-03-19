@@ -60,6 +60,11 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
             id = SND_AUDIOCODEC_MP3;
             break;
 #ifdef SND_COMPRESS_DEC_HDR
+        case QAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
+        case QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
+        case QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
+            id = -1;
+            break;
         case QAL_AUDIO_FMT_AAC:
         case QAL_AUDIO_FMT_AAC_ADTS:
         case QAL_AUDIO_FMT_AAC_ADIF:
@@ -365,12 +370,12 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_t
     return status;
 }
 
-int SessionAlsaCompress::prepare(Stream * s)
+int SessionAlsaCompress::prepare(Stream * s __unused)
 {
    return 0;
 }
 
-int SessionAlsaCompress::setTKV(Stream * s, configType type, effect_qal_payload_t *effectPayload)
+int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_qal_payload_t *effectPayload)
 {
     int status = 0;
     uint32_t tagsent;
@@ -621,7 +626,6 @@ int SessionAlsaCompress::start(Stream * s)
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
-    uint32_t ch_tag = 0, bitwidth_tag = 16, mfc_sr_tag = 0;
     struct sessionToPayloadParam deviceData;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
@@ -731,7 +735,7 @@ free_feIds:
    return 0;
 }
 
-int SessionAlsaCompress::pause(Stream * s)
+int SessionAlsaCompress::pause(Stream * s __unused)
 {
     int32_t status = 0;
 
@@ -743,7 +747,7 @@ int SessionAlsaCompress::pause(Stream * s)
    return status;
 }
 
-int SessionAlsaCompress::resume(Stream * s)
+int SessionAlsaCompress::resume(Stream * s __unused)
 {
     int32_t status = 0;
 
@@ -755,7 +759,7 @@ int SessionAlsaCompress::resume(Stream * s)
    return status;
 }
 
-int SessionAlsaCompress::stop(Stream * s)
+int SessionAlsaCompress::stop(Stream * s __unused)
 {
     int32_t status = 0;
 
@@ -766,7 +770,6 @@ int SessionAlsaCompress::stop(Stream * s)
 
 int SessionAlsaCompress::close(Stream * s)
 {
-    int status = 0;
     struct qal_stream_attributes sAttr;
     std::ostringstream disconnectCtrlName;
     s->getStreamAttributes(&sAttr);
@@ -813,12 +816,12 @@ int SessionAlsaCompress::close(Stream * s)
     return 0;
 }
 
-int SessionAlsaCompress::read(Stream *s, int tag, struct qal_buffer *buf, int * size)
+int SessionAlsaCompress::read(Stream *s __unused, int tag __unused, struct qal_buffer *buf __unused, int * size __unused)
 {
     return 0;
 }
 
-int SessionAlsaCompress::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+int SessionAlsaCompress::fileWrite(Stream *s __unused, int tag __unused, struct qal_buffer *buf, int * size, int flag __unused)
 {
     std::fstream fs;
     QAL_DBG(LOG_TAG, "Enter.");
@@ -835,7 +838,7 @@ int SessionAlsaCompress::fileWrite(Stream *s, int tag, struct qal_buffer *buf, i
     return 0;
 }
 
-int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+int SessionAlsaCompress::write(Stream *s __unused, int tag __unused, struct qal_buffer *buf, int * size, int flag __unused)
 {
     int bytes_written = 0;
     int status;
@@ -880,11 +883,11 @@ int SessionAlsaCompress::write(Stream *s, int tag, struct qal_buffer *buf, int *
     return 0;
 }
 
-int SessionAlsaCompress::readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionAlsaCompress::readBufferInit(Stream *s __unused, size_t noOfBuf __unused, size_t bufSize __unused, int flag __unused)
 {
     return 0;
 }
-int SessionAlsaCompress::writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionAlsaCompress::writeBufferInit(Stream *s __unused, size_t noOfBuf __unused, size_t bufSize __unused, int flag __unused)
 {
     return 0;
 }
@@ -919,7 +922,7 @@ uint32_t SessionAlsaCompress::getMIID(const char *backendName, uint32_t tagId, u
     return status;
 }
 
-int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
+int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t param_id, void *payload)
 {
     qal_param_payload *param_payload = (qal_param_payload *)payload;
     int status = 0;
@@ -998,7 +1001,12 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
     switch (audio_fmt) {
         case QAL_AUDIO_FMT_MP3:
             break;
+        case QAL_AUDIO_FMT_DEFAULT_PCM:
+            break;
 #ifdef SND_COMPRESS_DEC_HDR
+        case QAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
+        case QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
+            break;
         case QAL_AUDIO_FMT_AAC:
             codec.format = SND_AUDIOSTREAMFORMAT_RAW;
             codec.options.aac_dec.audio_obj_type = param_payload->qal_snd_dec.aac_dec.audio_obj_type;
@@ -1178,7 +1186,7 @@ int SessionAlsaCompress::drain(qal_drain_type_t type)
     return 0;
 }
 
-int SessionAlsaCompress::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
+int SessionAlsaCompress::getParameters(Stream *s __unused, int tagId __unused, uint32_t param_id __unused, void **payload __unused)
 {
     return 0;
 }
@@ -1194,7 +1202,7 @@ int SessionAlsaCompress::getTimestamp(struct qal_session_time *stime)
     return status;
 }
 
-int SessionAlsaCompress::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+int SessionAlsaCompress::setECRef(Stream *s __unused, std::shared_ptr<Device> rx_dev __unused, bool is_enable __unused)
 {
     return 0;
 }

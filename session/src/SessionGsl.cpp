@@ -357,7 +357,6 @@ int SessionGsl::setPayloadConfig(Stream *s)
     struct qal_stream_attributes sAttr;
     struct qal_device dAttr, devAttr;
     s->getStreamAttributes(&sAttr);
-    char epName[128] = {0};
     std::string epname;
 
     QAL_DBG(LOG_TAG, "Enter.");
@@ -597,7 +596,6 @@ free_payload:
 free_moduleInfo:
     if (moduleInfo)
        free(moduleInfo);
-free_deviceData:
     if (deviceData)
        free(deviceData);
 free_sessionData:
@@ -650,7 +648,7 @@ exit:
     return status;
 }
 
-int SessionGsl::readBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionGsl::readBufferInit(Stream * s __unused, size_t noOfBuf, size_t bufSize, int flag)
 {
     int status = 0;
 
@@ -684,10 +682,9 @@ exit:
     return status;
 }
 
-int SessionGsl::writeBufferInit(Stream * s, size_t noOfBuf, size_t bufSize, int flag)
+int SessionGsl::writeBufferInit(Stream * s __unused, size_t noOfBuf, size_t bufSize, int flag)
 {
     int status = 0;
-    struct gslCmdGetReadWriteBufInfo buf;
 
     QAL_DBG(LOG_TAG, "Enter. bufSize:%d noOfBuf:%d flag:%d", bufSize, noOfBuf, flag);
 
@@ -720,7 +717,7 @@ exit:
     return status;
 }
 
-int SessionGsl::close(Stream *s)
+int SessionGsl::close(Stream *s __unused)
 {
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
@@ -760,7 +757,7 @@ exit:
     return status;
 }
 
-int SessionGsl::stop(Stream * s)
+int SessionGsl::stop(Stream * s __unused)
 {
     int status = 0;
     QAL_DBG(LOG_TAG, "Enter. graphHandle:%pK", graphHandle);
@@ -775,13 +772,13 @@ exit:
     return status;
 }
 
-int SessionGsl::setTKV(Stream * s, configType type, effect_qal_payload_t *payload)
+int SessionGsl::setTKV(Stream * s __unused, configType type __unused, effect_qal_payload_t *payload __unused)
 {
     return 0;
 }
 
-int SessionGsl::setConfig(Stream *s, configType type, uint32_t tag1,
-        uint32_t tag2, uint32_t tag3)
+int SessionGsl::setConfig(Stream *s __unused, configType type __unused, uint32_t tag1 __unused,
+        uint32_t tag2 __unused, uint32_t tag3 __unused)
 {
     return 0;
 }
@@ -877,7 +874,7 @@ exit:
     return status;
 }
 
-int SessionGsl::fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size)
+int SessionGsl::fileRead(Stream *s __unused, int tag __unused, struct qal_buffer *buf, int * size)
 {
     std::fstream fs;
     QAL_DBG(LOG_TAG, "Enter.");
@@ -949,7 +946,7 @@ exit:
     return status;
 }
 
-int SessionGsl::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+int SessionGsl::fileWrite(Stream *s __unused, int tag __unused, struct qal_buffer *buf, int * size, int flag __unused)
 {
     std::fstream fs;
     QAL_DBG(LOG_TAG, "Enter.");
@@ -966,7 +963,7 @@ int SessionGsl::fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size
     return 0;
 }
 
-int SessionGsl::write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag)
+int SessionGsl::write(Stream *s __unused, int tag, struct qal_buffer *buf, int * size, int flag)
 {
     int status = 0, bytesWritten = 0, bytesRemaining = 0, offset = 0;
     uint32_t sizeWritten = 0;
@@ -1020,7 +1017,7 @@ exit:
     return 0;
 }
 
-int SessionGsl::getParameters(Stream *s, int tagId, uint32_t param_id, void **payload)
+int SessionGsl::getParameters(Stream *s __unused, int tagId, uint32_t param_id, void **payload)
 {
     int status = 0;
     uint8_t *data = NULL;
@@ -1392,7 +1389,7 @@ int SessionGsl::disconnectSessionDevice(Stream* /*streamHandle*/, qal_stream_typ
     return 0;
 }
 
-int SessionGsl::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
+int SessionGsl::setECRef(Stream *s __unused, std::shared_ptr<Device> rx_dev __unused, bool is_enable __unused)
 {
     return 0;
 }

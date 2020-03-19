@@ -286,12 +286,12 @@ std::string Device::getQALDeviceName()
 }
 
 
-int Device::init(qal_param_device_connection_t device_conn)
+int Device::init(qal_param_device_connection_t device_conn __unused)
 {
     return 0;
 }
 
-int Device::deinit(qal_param_device_connection_t device_conn)
+int Device::deinit(qal_param_device_connection_t device_conn __unused)
 {
     return 0;
 }
@@ -302,7 +302,6 @@ int Device::open()
     mDeviceMutex.lock();
     QAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
         deviceCount, this->deviceAttr.id, initialized);
-    void *stream;
     DeviceImpl *devImpl;
 
     if (!initialized) {
@@ -488,12 +487,12 @@ exit :
     return status;
 }
 
-int32_t Device::setDeviceParameter(uint32_t param_id, void *param)
+int32_t Device::setDeviceParameter(uint32_t param_id __unused, void *param __unused)
 {
     return 0;
 }
 
-int32_t Device::getDeviceParameter(uint32_t param_id, void **param)
+int32_t Device::getDeviceParameter(uint32_t param_id __unused, void **param __unused)
 {
     return 0;
 }

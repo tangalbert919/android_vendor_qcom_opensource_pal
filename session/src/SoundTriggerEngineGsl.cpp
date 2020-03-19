@@ -305,10 +305,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     struct qal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
-    uint32_t sampleRate;
-    uint32_t bitWidth;
-    uint32_t channels;
-    uint32_t bufferSize = DEFAULT_QAL_RING_BUFFER_SIZE;
     size_t num_output_ports;
     uint32_t size;
     engine_id_ = id;
@@ -643,7 +639,6 @@ int32_t SoundTriggerEngineGsl::UpdateBufConfig(
 void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data) {
     int32_t status = 0;
-    StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
 
     std::unique_lock<std::mutex> lck(mutex_);
     status = ParseDetectionPayload(data);

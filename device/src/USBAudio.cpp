@@ -234,12 +234,12 @@ int32_t USB::isBitWidthSupported(unsigned int bitWidth __unused)
     return 0;
 }
 
-int32_t USB::checkAndUpdateBitWidth(unsigned int *bitWidth  __unused)
+int32_t USB::checkAndUpdateBitWidth(unsigned int *bitWidth __unused)
 {
     return 0;
 }
 
-int32_t USB::checkAndUpdateSampleRate(unsigned int *sampleRate  __unused)
+int32_t USB::checkAndUpdateSampleRate(unsigned int *sampleRate __unused)
 {
     return 0;
 }
@@ -622,7 +622,7 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
-         if ((*iter)->getType() == is_playback)
+        if ((*iter)->getType() == is_playback) {
             if (is_playback) {
                 QAL_INFO(LOG_TAG, "USB output");
                 media_config = sattr->out_media_config;
@@ -630,6 +630,7 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
                 QAL_INFO(LOG_TAG, "USB input");
                 media_config = sattr->in_media_config;
             }
+
              // 1. search for matching bitwidth
              // only one bitwidth for one usb device config.
             bitwidth = (*iter)->getBitWidth();
@@ -652,8 +653,8 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
                     candidate_config = (*iter).get();
                 }
             }
+        }
     }
-
     if (iter == usb_device_config_list_.end()) {
         if (candidate_config) {
             QAL_INFO(LOG_TAG, "Stream bitwidth of %d is not supported by USB. Use USB width of %d",

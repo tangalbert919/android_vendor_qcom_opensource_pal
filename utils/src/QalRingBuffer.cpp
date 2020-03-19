@@ -32,14 +32,14 @@
 #include "QalCommon.h"
 #define LOG_TAG "QAL: QalRingBuffer"
 
-int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader)
+int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader __unused)
 {
 
     return 0;
 }
 
-size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader,
-                           void* readBuffer, size_t readSize)
+size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader __unused,
+                           void* readBuffer __unused, size_t readSize __unused)
 {
     return 0;
 }
@@ -194,7 +194,7 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
     return readSize;
 }
 
-size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
+size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize __unused)
 {
     std::lock_guard<std::mutex> lock(ringBuffer_->mutex_);
 

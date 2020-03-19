@@ -501,8 +501,6 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
     qal_param_payload *param_payload = NULL;
-    uint32_t isPayloadTKV = false;
-    uint32_t payloadSize = 0;
     effect_qal_payload_t *effectQalPayload = nullptr;
 
     switch (param_id) {

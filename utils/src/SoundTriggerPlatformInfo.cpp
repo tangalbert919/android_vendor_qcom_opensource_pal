@@ -169,7 +169,6 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
     }
 }
 
-
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),
@@ -199,8 +198,7 @@ void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
     }
 }
 
-void SoundModelConfig::HandleCharData(const char* data) {
-
+void SoundModelConfig::HandleCharData(const char* data __unused) {
 }
 
 void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
@@ -399,7 +397,7 @@ void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
     return;
 }
 
-void SoundTriggerPlatformInfo::HandleCharData(const char* data) {
+void SoundTriggerPlatformInfo::HandleCharData(const char* data __unused) {
 }
 
 int SoundTriggerPlatformInfo::StringToUUID(const char* str,

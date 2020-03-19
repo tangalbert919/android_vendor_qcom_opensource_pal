@@ -126,7 +126,7 @@ class StreamSoundTrigger : public Stream {
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;
 
-    int32_t addRemoveEffect(qal_audio_effect_t effect __unused,
+    int32_t addRemoveEffect(qal_audio_effect_t effec __unused,
                             bool enable __unused) {
         return -ENOSYS;
     }

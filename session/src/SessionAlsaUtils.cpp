@@ -286,7 +286,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::shared_ptr<Device> beDevObj = nullptr;
-    long aif_media_config[3];
     struct mixer *mixerHandle;
     uint32_t i;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
@@ -463,7 +462,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
     /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
@@ -1208,18 +1207,18 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
-        return status;
+        goto exit;
     }
 
     status = streamHandle->getAssociatedDevices(associatedDevices);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
+        goto exit;
     }
     if (associatedDevices.size() != 2) {
         QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
                 associatedDevices.size());
-        return status;
+        goto exit;
     }
     status = rmHandle->getAudioMixer(&mixerHandle);
 
@@ -1539,7 +1538,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     std::ostringstream aifMdName;
     std::ostringstream aifMfCtrlName;
     std::ostringstream feMdName;
-    struct mixer_ctl *connectCtrl;
     std::ostringstream connectCtrlName;
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
@@ -1550,16 +1548,10 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     struct mixer_ctl *feCtrl = nullptr;
     struct mixer_ctl *feMdCtrl = nullptr;
     struct mixer_ctl *aifMdCtrl = nullptr;
-    struct mixer_ctl *aifMfCtrl = nullptr;
-    long aif_media_config[3];
     PayloadBuilder* builder = new PayloadBuilder();
     struct mixer *mixerHandle = nullptr;
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
-    struct sessionToPayloadParam deviceData;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    uint32_t miid;
     bool is_compress = false;
     struct qal_stream_attributes sAttr;
     int sub = 1;

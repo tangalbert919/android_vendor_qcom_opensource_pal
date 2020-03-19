@@ -269,12 +269,12 @@ int Session::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
-int Session::pause(Stream * s)
+int Session::pause(Stream * s __unused)
 {
     return 0;
 }
 
-int Session::resume(Stream * s)
+int Session::resume(Stream * s __unused)
 {
      return 0;
 }

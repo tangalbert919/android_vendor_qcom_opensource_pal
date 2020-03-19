@@ -39,6 +39,7 @@
 #include <queue>
 #include <deque>
 #include "QalAudioRoute.h"
+#include "QalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <condition_variable>
 #include <sound/compress_params.h>
@@ -65,10 +66,7 @@ class SessionAlsaCompress : public Session
 {
 private:
 
-    void * graphHandle;
     struct compress *compress;
-    void * payload;
-    size_t size = 0;
     uint32_t spr_miid = 0;
     PayloadBuilder* builder;
     struct snd_codec codec;
@@ -79,11 +77,6 @@ private:
 
     std::condition_variable cv_; /* used to wait for incoming requests */
     std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
-    struct mixer_ctl *feCtrl;
-    struct mixer_ctl *feMdCtrl;
-    struct mixer_ctl *aifMdCtrl;
-    struct mixer_ctl *connectCtrl;
-    struct mixer_ctl *aifMfCtrl;
     struct mixer_ctl *disconnectCtrl;
     void getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr);
     int getSndCodecId(qal_audio_fmt_t fmt);

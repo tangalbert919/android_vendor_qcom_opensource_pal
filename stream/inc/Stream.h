@@ -142,7 +142,7 @@ public:
     virtual int32_t prepare() = 0;
     virtual int32_t pause() {return 0;}
     virtual int32_t resume() {return 0;}
-    virtual int32_t drain(qal_drain_type_t type) {return 0;}
+    virtual int32_t drain(qal_drain_type_t type __unused) {return 0;}
     virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
     virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
     virtual int32_t setMute( bool state) = 0;
