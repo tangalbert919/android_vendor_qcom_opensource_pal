@@ -119,9 +119,16 @@ struct kvpair_info {
     unsigned int value;
 };
 
+typedef enum {
+    SIDETONE_OFF,
+    SIDETONE_HW,
+    SIDETONE_SW,
+} sidetone_mode_t;
+
 struct usecase_info {
     int type;
     std::vector<kvpair_info> kvpair;
+    sidetone_mode_t sidetoneMode;
 };
 
 struct deviceIn {
@@ -417,6 +424,8 @@ public:
     int getQalValueFromGKV(qal_key_vector_t *gkv, int key);
     qal_speaker_rotation_type getCurrentRotationType();
     int ssrHandler(card_status_t state);
+    int32_t getSidetoneMode(qal_device_id_t deviceId, qal_stream_type_t type,
+                            sidetone_mode_t *mode);
 };
 
 #endif

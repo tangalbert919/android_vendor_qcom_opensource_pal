@@ -2336,7 +2336,8 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s __unused, int32_t beDevId _
 
 int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
+        std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo,
+                                           sidetone_mode_t sidetoneMode)
 {
     int status = 0;
 
@@ -2346,7 +2347,7 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t rxBeDevId,
         goto exit;
 
     status = populateDeviceKV(s, rxBeDevId, keyVectorRx, txBeDevId,
-            keyVectorTx);
+            keyVectorTx, sidetoneMode);
 
 exit:
     return status;
@@ -2424,14 +2425,27 @@ int PayloadBuilder::populateDeviceKV(Stream* s __unused, int32_t beDevId,
 
 int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx)
+        std::vector <std::pair<int,int>> &keyVectorTx, sidetone_mode_t sidetoneMode)
 {
     int status = 0;
+    struct qal_stream_attributes sAttr;
 
     QAL_DBG(LOG_TAG,"%s: enter", __func__);
 
+    status = s->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return status;
+    }
+
     populateDeviceKV(s, rxBeDevId, keyVectorRx);
     populateDeviceKV(s, txBeDevId, keyVectorTx);
+
+    /*add sidetone kv if needed*/
+    if (sAttr.type == QAL_STREAM_VOICE_CALL && sidetoneMode == SIDETONE_SW) {
+        QAL_DBG(LOG_TAG, "SW sidetone mode push kv");
+        keyVectorTx.push_back(std::make_pair(SW_SIDETONE, SW_SIDETONE_ON));
+    }
 
     return status;
 }

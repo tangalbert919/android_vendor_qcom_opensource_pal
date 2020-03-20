@@ -951,6 +951,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t i, rxDevNum, txDevNum;
     struct qal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
+    sidetone_mode_t sidetoneMode = SIDETONE_OFF;
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
@@ -977,10 +978,18 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     if(status) {
        QAL_ERR(LOG_TAG, "get dev info failed");
     }
-    //get vsid info
-    status = rmHandle->getVsidInfo(&vsidinfo);
-    if(status) {
-        QAL_ERR(LOG_TAG, "get vsid info failed");
+
+    if(sAttr.type == QAL_STREAM_VOICE_CALL){
+        //get vsid info
+        status = rmHandle->getVsidInfo(&vsidinfo);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get vsid info failed");
+        }
+
+        status = rmHandle->getSidetoneMode((qal_device_id_t)txBackEnds[0].first, sAttr.type, &sidetoneMode);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get sidetone mode failed");
+        }
     }
     // get streamKV
     if ((status = builder->populateStreamKV(streamHandle, streamRxKV,
@@ -1005,7 +1014,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     }
     // get deviceKV
     if ((status = builder->populateDeviceKV(streamHandle, rxBackEnds[0].first,
-                    deviceRxKV, txBackEnds[0].first, deviceTxKV)) != 0) {
+                    deviceRxKV, txBackEnds[0].first, deviceTxKV, sidetoneMode)) != 0) {
         QAL_ERR(LOG_TAG, "%s: get device KV for Rx/Tx failed %d", status);
         goto exit;
     }
@@ -1018,7 +1027,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     }
     // get streamdeviceKV
     status = builder->populateStreamDeviceKV(streamHandle, rxBackEnds[0].first,
-            streamDeviceRxKV, txBackEnds[0].first, streamDeviceTxKV, vsidinfo);
+            streamDeviceRxKV, txBackEnds[0].first, streamDeviceTxKV, vsidinfo,
+                                             sidetoneMode);
     if (status) {
         QAL_VERBOSE(LOG_TAG, "get stream device KV for Rx/Tx failed %d", status);
         status = 0; /**< ignore stream device KV failures */
@@ -1558,6 +1568,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     struct qal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
     bool is_lpi = false;
+    sidetone_mode_t sidetoneMode = SIDETONE_OFF;
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
@@ -1565,16 +1576,24 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
         return status;
     }
 
-    //get vsid info
-    status = rmHandle->getVsidInfo(&vsidinfo);
-    if(status) {
-        QAL_ERR(LOG_TAG, "get vsid info failed");
-    }
-
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         return status;
+    }
+
+    if(sAttr.type == QAL_STREAM_VOICE_CALL){
+        //get vsid info
+        status = rmHandle->getVsidInfo(&vsidinfo);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get vsid info failed");
+        }
+
+        status = rmHandle->getSidetoneMode((qal_device_id_t)pcmDevIds.at(0),
+                                           sAttr.type, &sidetoneMode);
+        if(status) {
+            QAL_ERR(LOG_TAG, "get sidetone mode failed");
+        }
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
@@ -1588,10 +1607,12 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
 
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateStreamDeviceKV(streamHandle,
-            aifBackEndsToConnect[0].first, streamDeviceKV, 0, emptyKV, vsidinfo);
+            aifBackEndsToConnect[0].first, streamDeviceKV, 0, emptyKV, vsidinfo,
+                                                 sidetoneMode);
     else
         status = builder->populateStreamDeviceKV(streamHandle,
-            0, emptyKV, aifBackEndsToConnect[0].first, streamDeviceKV, vsidinfo);
+            0, emptyKV, aifBackEndsToConnect[0].first, streamDeviceKV, vsidinfo,
+                                                 sidetoneMode);
 
     if (status) {
         QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);

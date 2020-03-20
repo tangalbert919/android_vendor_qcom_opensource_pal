@@ -38,6 +38,7 @@
 #include <sstream>
 #include <string>
 #include <agm_api.h>
+#include "audio_route/audio_route.h"
 
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define MAX_VOL_INDEX 5
@@ -151,6 +152,7 @@ int SessionAlsaVoice::start(Stream * s)
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     qal_param_payload qalPayload;
+    int txDevId;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -234,6 +236,17 @@ int SessionAlsaVoice::start(Stream * s)
         setParameters(s, TTY_MODE, QAL_PARAM_ID_TTY_MODE, &qalPayload);
     }
 
+    /*set sidetone*/
+    status = getTXDeviceId(s, &txDevId);
+    if (status){
+        QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+    } else {
+        status = setSidetone(txDevId,s,1);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: enabling sidetone failed \n", __func__);
+        }
+    }
+
     status = pcm_start(pcmRx);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
@@ -255,6 +268,18 @@ exit:
 int SessionAlsaVoice::stop(Stream * s __unused)
 {
     int status = 0;
+    int txDevId = QAL_DEVICE_NONE;
+
+    /*disable sidetone*/
+    status = getTXDeviceId(s, &txDevId);
+    if (status){
+        QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+    } else {
+        status = setSidetone(txDevId,s,0);
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: disabling sidetone failed \n", __func__);
+        }
+    }
 
     status = pcm_stop(pcmRx);
     if (status) {
@@ -699,8 +724,63 @@ int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+    return status;
+}
 
+int SessionAlsaVoice::setSidetone(int deviceId,Stream * s, bool enable){
+    int status = 0;
+    sidetone_mode_t mode;
 
+    status = rm->getSidetoneMode((qal_device_id_t)deviceId, QAL_STREAM_VOICE_CALL, &mode);
+    if(status) {
+            QAL_ERR(LOG_TAG, "get sidetone mode failed");
+    }
+    if (mode == SIDETONE_HW) {
+        QAL_DBG(LOG_TAG, "HW sidetone mode being set");
+        if (enable) {
+            status = setHWSidetone(s,1);
+        } else {
+            status = setHWSidetone(s,0);
+        }
+    }
+    /*if SW mode it will be set via kv in graph open*/
+    return status;
+}
+
+int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
+    int status = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct audio_route *audioRoute;
+    bool set = false;
+
+    status = s->getAssociatedDevices(associatedDevices);
+    status = rm->getAudioRoute(&audioRoute);
+
+    status = s->getAssociatedDevices(associatedDevices);
+    for(int i =0; i < associatedDevices.size(); i++) {
+        switch(associatedDevices[i]->getSndDeviceId()){
+            case QAL_DEVICE_IN_HANDSET_MIC:
+                if(enable)
+                    audio_route_apply_and_update_path(audioRoute, "sidetone-handset");
+                else
+                    audio_route_reset_and_update_path(audioRoute, "sidetone-handset");
+                set = true;
+                break;
+            case QAL_DEVICE_IN_WIRED_HEADSET:
+                if(enable)
+                    audio_route_apply_and_update_path(audioRoute, "sidetone-headphones");
+                else
+                    audio_route_reset_and_update_path(audioRoute, "sidetone-headphones");
+                set = true;
+                break;
+            default:
+                QAL_DBG(LOG_TAG,"%s: codec sidetone not supported on device %d",__func__,associatedDevices[i]->getSndDeviceId());
+                break;
+
+        }
+        if(set)
+            break;
+    }
     return status;
 }
 
@@ -712,6 +792,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
     std::vector<std::string> aifBackEndsToDisconnect;
     struct qal_device dAttr;
     int status = 0;
+    int txDevId = QAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds,txAifBackEnds);
@@ -728,6 +809,16 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
+        /*if HW sidetone is enable disable it */
+        status = getTXDeviceId(streamHandle, &txDevId);
+        if (status){
+            QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+        } else {
+            status = setSidetone(txDevId,streamHandle,0);
+            if(0 != status) {
+                QAL_ERR(LOG_TAG,"%s: disabling sidetone failed \n", __func__);
+            }
+        }
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
                                                             streamType, rm,
                                                             dAttr, pcmDevTxIds,
@@ -748,6 +839,7 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
     std::vector<std::string> aifBackEndsToConnect;
     struct qal_device dAttr;
     int status = 0;
+    int txDevId = QAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
@@ -762,7 +854,18 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
-
+        /*set sidetone on new tx device*/
+        if (deviceToConnect->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
+            deviceToConnect->getSndDeviceId() < QAL_DEVICE_IN_MAX) {
+            txDevId = deviceToConnect->getSndDeviceId();
+        }
+        if(txDevId != QAL_DEVICE_NONE)
+        {
+            status = setSidetone(txDevId,streamHandle,1);
+        }
+        if(0 != status) {
+            QAL_ERR(LOG_TAG,"%s: enabling sidetone failed \n", __func__);
+        }
         status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
                                                        rm, dAttr, pcmDevTxIds,
                                                        txAifBackEnds);
@@ -875,5 +978,31 @@ char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
 int SessionAlsaVoice::setECRef(Stream *s __unused, std::shared_ptr<Device> rx_dev __unused, bool is_enable __unused)
 {
     return 0;
+}
+
+int SessionAlsaVoice::getTXDeviceId(Stream *s, int *id)
+{
+    int status = 0;
+    int i;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    *id = QAL_DEVICE_NONE;
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+
+    for (i =0; i < associatedDevices.size(); i++) {
+        if (associatedDevices[i]->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
+            associatedDevices[i]->getSndDeviceId() < QAL_DEVICE_IN_MAX) {
+            *id = associatedDevices[i]->getSndDeviceId();
+            break;
+        }
+    }
+    if(i >= QAL_DEVICE_IN_MAX){
+        status = -EINVAL;
+    }
+    return status;
 }
 
