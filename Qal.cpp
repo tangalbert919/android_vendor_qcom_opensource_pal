@@ -49,10 +49,8 @@ class Stream;
     __gcov_flush();
 }*/
 
-static void notify_concurrent_stream(Stream *s, bool active)
+static void notify_concurrent_stream(qal_stream_type_t type, qal_stream_direction_t dir, bool active)
 {
-    qal_stream_type_t type;
-    qal_stream_direction_t dir;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     if (!rm) {
@@ -60,9 +58,7 @@ static void notify_concurrent_stream(Stream *s, bool active)
         return;
     }
 
-    s->getStreamType(&type);
-    s->getStreamDirection(&dir);
-
+    QAL_DBG(LOG_TAG, "Notify voice ui streams of concurrent stream type %d, direction %d, active %d", type, dir, active);
     // Currently inform only to Voice UI streams.
     if (type != QAL_STREAM_VOICE_UI) {
         std::vector<Stream*> vui_streams;
@@ -120,6 +116,8 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
     void * stream = NULL;
     Stream *s = NULL;
     int status;
+    qal_stream_type_t type;
+    qal_stream_direction_t dir;
     if (!attributes || !devices) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
@@ -147,6 +145,11 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
         delete s;
         return status;
     }
+
+    s->getStreamType(&type);
+    s->getStreamDirection(&dir);
+    notify_concurrent_stream(type, dir, true);
+
     if (cb)
        s->registerCallBack(cb, cookie);
     stream = static_cast<void *>(s);
@@ -159,6 +162,8 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
+    qal_stream_type_t type;
+    qal_stream_direction_t dir;
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -166,11 +171,19 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s = static_cast<Stream *>(stream_handle);
+
+    // store stream type/direction as stream attribute is released after close
+    s->getStreamType(&type);
+    s->getStreamDirection(&dir);
+
     status = s->close();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
+        notify_concurrent_stream(type, dir, false);
         return status;
     }
+
+    notify_concurrent_stream(type, dir, false);
 
     delete s;
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -188,13 +201,9 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
     s =  static_cast<Stream *>(stream_handle);
-
-    notify_concurrent_stream(s, true);
-
     status = s->start();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-        notify_concurrent_stream(s, false);
         return status;
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -215,10 +224,8 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
     status = s->stop();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
-        notify_concurrent_stream(s, false);
         return status;
     }
-    notify_concurrent_stream(s, false);
 
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
