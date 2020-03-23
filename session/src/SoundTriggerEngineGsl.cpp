@@ -732,6 +732,19 @@ int32_t SoundTriggerEngineGsl::DisconnectSessionDevice(
     return status;
 }
 
+int32_t SoundTriggerEngineGsl::SetupSessionDevice(
+    Stream* stream_handle,
+    qal_stream_type_t stream_type,
+    std::shared_ptr<Device> device_to_disconnect) {
+
+    int32_t status = 0;
+
+    status = session_->setupSessionDevice(stream_handle, stream_type,
+                                          device_to_disconnect);
+
+    return status;
+}
+
 void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
     QAL_DBG(LOG_TAG, "setting capture requested %d", is_requested);
     capture_requested_ = is_requested;
@@ -748,4 +761,13 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     }
 
     return session_->setECRef(s, dev, is_enable);
+}
+
+int32_t SoundTriggerEngineGsl::GetSetupDuration(
+    struct audio_dam_downstream_setup_duration **duration) {
+    int32_t status = 0;
+
+    *duration = dam_setup_duration_;
+
+    return status;
 }

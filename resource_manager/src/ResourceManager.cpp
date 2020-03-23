@@ -3036,6 +3036,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
                     status = dev->setDeviceParameter(param_id, param_payload);
+                } else {
+                    for (int i = 0; i < active_streams_st.size(); i++) {
+                        status = active_streams_st[i]->UpdateDeviceConnectionState(
+                            device_connection->connection_state,
+                            device_connection->id);
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
+                        }
+                    }
                 }
             } else {
                 QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",

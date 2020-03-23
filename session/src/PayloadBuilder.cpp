@@ -2403,9 +2403,11 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
            keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
            break;
         case QAL_DEVICE_IN_HANDSET_VA_MIC:
+            keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC_VA));
+            break;
         case QAL_DEVICE_IN_HEADSET_VA_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC_VA));
-           break;
+            keyVector.push_back(std::make_pair(DEVICETX, HEADSETMIC_VA));
+            break;
         default:
             QAL_DBG(LOG_TAG,"%s: Invalid device id %d\n", __func__,beDevId);
             break;

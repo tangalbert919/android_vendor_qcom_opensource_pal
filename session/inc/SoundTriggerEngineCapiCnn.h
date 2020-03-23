@@ -68,6 +68,10 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
         Stream* stream_handle __unused,
         qal_stream_type_t stream_type __unused,
         std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
+    int32_t SetupSessionDevice(
+        Stream* stream_handle __unused,
+        qal_stream_type_t stream_type __unused,
+        std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
                             uint32_t pre_roll_duration __unused) {
         return 0;
@@ -78,6 +82,10 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
         bool is_enable __unused) { return 0; }
+    int32_t GetSetupDuration(
+        struct audio_dam_downstream_setup_duration **duration __unused) {
+        return 0;
+    }
 
  private:
     int32_t StartSoundEngine();

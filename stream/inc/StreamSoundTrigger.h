@@ -138,8 +138,10 @@ class StreamSoundTrigger : public Stream {
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
-    int switchDevice(Stream* stream_handle, uint32_t no_of_devices,
-                     struct qal_device *device_array);
+    int32_t GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev);
+    int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
+    int32_t UpdateDeviceConnectionState(bool connect, qal_device_id_t device_id);
+
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
                                 qal_stream_direction_t dir,
                                 bool active) override;
@@ -345,6 +347,40 @@ class StreamSoundTrigger : public Stream {
         }
         ~StECRefEventConfig() {}
     };
+    class StDeviceConnectedEventConfigData : public StEventConfigData {
+     public:
+        StDeviceConnectedEventConfigData(qal_device_id_t id)
+            : dev_id_(id) {}
+        ~StDeviceConnectedEventConfigData() {}
+
+        qal_device_id_t dev_id_;
+    };
+    class StDeviceConnectedEventConfig : public StEventConfig {
+     public:
+        StDeviceConnectedEventConfig(qal_device_id_t id)
+            : StEventConfig(ST_EV_DEVICE_CONNECTED) {
+            data_ = std::make_shared<StDeviceConnectedEventConfigData>(id);
+        }
+        ~StDeviceConnectedEventConfig() {}
+    };
+
+    class StDeviceDisconnectedEventConfigData : public StEventConfigData {
+     public:
+        StDeviceDisconnectedEventConfigData(qal_device_id_t id)
+            : dev_id_(id) {}
+        ~StDeviceDisconnectedEventConfigData() {}
+
+        qal_device_id_t dev_id_;
+    };
+    class StDeviceDisconnectedEventConfig : public StEventConfig {
+     public:
+        StDeviceDisconnectedEventConfig(qal_device_id_t id)
+            : StEventConfig(ST_EV_DEVICE_DISCONNECTED) {
+            data_ = std::make_shared<StDeviceDisconnectedEventConfigData>(id);
+        }
+        ~StDeviceDisconnectedEventConfig() {}
+    };
+
     class StState {
      public:
         StState(StreamSoundTrigger& st_stream, int32_t state_id)
@@ -443,6 +479,15 @@ class StreamSoundTrigger : public Stream {
     bool pending_stop_;
     bool paused_;
     int32_t conc_tx_cnt_;
+
+    static void EventThread(StreamSoundTrigger& st_stream);
+    void PostEvent(std::shared_ptr<StEventConfig> ev_cfg);
+    void HandleEvents();
+    std::thread event_thread_;
+    std::mutex event_mutex_;
+    std::condition_variable event_cond_;
+    bool exit_event_thread_;
+    std::vector<std::shared_ptr<StEventConfig>> pending_event_configs_;
 
     void AddState(StState* state);
     int32_t GetCurrentStateId();

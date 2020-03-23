@@ -305,9 +305,18 @@ public:
         Stream* stream_handle,
         qal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) = 0;
+    virtual int32_t SetupSessionDevice(
+        Stream* streamHandle,
+        qal_stream_type_t streamType,
+        std::shared_ptr<Device> deviceToConnect) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual struct detection_event_info* GetDetectionEventInfo() = 0;
-    virtual int32_t setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) = 0;
+    virtual int32_t setECRef(
+        Stream *s,
+        std::shared_ptr<Device> dev,
+        bool is_enable) = 0;
+    virtual int32_t GetSetupDuration(
+        struct audio_dam_downstream_setup_duration **duration) = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<QalRingBufferReader *> &reader_list);

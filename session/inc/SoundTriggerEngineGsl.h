@@ -65,9 +65,18 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         Stream* stream_handle,
         qal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) override;
+    int32_t SetupSessionDevice(
+        Stream* stream_handle,
+        qal_stream_type_t stream_type,
+        std::shared_ptr<Device> device_to_disconnect) override;
     void SetCaptureRequested(bool is_requested) override;
     struct detection_event_info* GetDetectionEventInfo() override;
-    int32_t setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) override;
+    int32_t setECRef(
+        Stream *s,
+        std::shared_ptr<Device> dev,
+        bool is_enable) override;
+    int32_t GetSetupDuration(
+        struct audio_dam_downstream_setup_duration **duration) override;
 
  private:
     int32_t StartBuffering();

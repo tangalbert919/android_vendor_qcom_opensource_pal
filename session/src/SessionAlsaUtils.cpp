@@ -38,6 +38,7 @@
 //#include "SessionAlsaCompress.h"
 #include "SessionAlsaVoice.h"
 #include "ResourceManager.h"
+#include "StreamSoundTrigger.h"
 #include <agm_api.h>
 #include "detection_cmn_api.h"
 #include "spr_api.h"
@@ -1401,6 +1402,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     int status = 0;
     std::ostringstream connectCtrlName;
     struct sessionToPayloadParam deviceData;
+    StreamSoundTrigger *stHandle = nullptr;
+    struct audio_dam_downstream_setup_duration *setupDuration;
     PayloadBuilder* builder = new PayloadBuilder();
     struct qal_stream_attributes sAttr;
     int sub = 1;
@@ -1442,35 +1445,68 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (QAL_STREAM_VOICE_CALL != streamType) {
-       if (sAttr.direction == QAL_AUDIO_OUTPUT) {
-        status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
-                                                   aifBackEndsToConnect[0].second.data(),
-                                                   TAG_DEVICE_MFC_SR, &miid);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-            return status;
-        }
-        QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+        if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+            status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
+                                                       aifBackEndsToConnect[0].second.data(),
+                                                       TAG_DEVICE_MFC_SR, &miid);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                return status;
+            }
+            QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
                 pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
 
-        deviceData.bitWidth = dAttr.config.bit_width;
-        deviceData.sampleRate = dAttr.config.sample_rate;
-        deviceData.numChannel = dAttr.config.ch_info->channels;
-        builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
-        if (!payloadSize) {
-            QAL_ERR(LOG_TAG,"%s payloadMFCConfig failed\n", __func__);
-            return -EINVAL;
-        }
+            deviceData.bitWidth = dAttr.config.bit_width;
+            deviceData.sampleRate = dAttr.config.sample_rate;
+            deviceData.numChannel = dAttr.config.ch_info->channels;
+            builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
+            if (!payloadSize) {
+                QAL_ERR(LOG_TAG,"%s payloadMFCConfig failed\n", __func__);
+                return -EINVAL;
+            }
 
-        status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0),
+            status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0),
                                                      payload, payloadSize);
-        free(payload);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG,"setMixerParameter failed");
-            return status;
-        }
-    } else {
-           QAL_ERR(LOG_TAG, "No need to configure mfc for input");
+            free(payload);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                return status;
+            }
+        } else {
+           if (sAttr.type == QAL_STREAM_VOICE_UI) {
+                // update config for audio dam buffer
+                status = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
+                    pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(),
+                    DEVICE_ADAM, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n",
+                        miid, pcmDevIds.at(0),
+                        aifBackEndsToConnect[0].second.data(), dAttr.id);
+                stHandle = dynamic_cast<StreamSoundTrigger *>(streamHandle);
+                status = stHandle->GetSetupDuration(&setupDuration);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG, "Failed to get setup duration");
+                    return status;
+                }
+                builder->payloadSVAStreamSetupDuration(&payload, &payloadSize,
+                                                       miid, setupDuration);
+                if (!payloadSize) {
+                    QAL_ERR(LOG_TAG, "Failed to populate setup duration");
+                    return -EINVAL;
+                }
+
+                status = SessionAlsaUtils::setMixerParameter(mixerHandle,
+                    pcmDevIds.at(0), payload, payloadSize);
+                free(payload);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG, "Failed to set parameter, status %d",
+                            status);
+                    return status;
+                }
+           }
        }
     } else {
         if (sess) {
@@ -1529,6 +1565,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     int sub = 1;
     struct qal_ec_info ecinfo = {};
     struct vsid_info vsidinfo = {};
+    bool is_lpi = false;
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
@@ -1540,6 +1577,21 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     status = rmHandle->getVsidInfo(&vsidinfo);
     if(status) {
         QAL_ERR(LOG_TAG, "get vsid info failed");
+    }
+
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        return status;
+    }
+
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        if (dAttr.id != QAL_DEVICE_IN_HANDSET_MIC &&
+            rmHandle->IsVoiceUILPISupported() &&
+            !rmHandle->CheckForActiveConcurrentNonLPIStream()) {
+            QAL_INFO(LOG_TAG,"lpi true");
+            is_lpi = true;
+        }
     }
 
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
@@ -1568,7 +1620,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
             QAL_ERR(LOG_TAG, "get ec info failed");
         }
         status = builder->populateDevicePPKV(streamHandle, 0, emptyKV,
-                aifBackEndsToConnect[0].first, streamDeviceKV, ecinfo.kvpair, false);
+                aifBackEndsToConnect[0].first, streamDeviceKV, ecinfo.kvpair, is_lpi);
     }
     if (status != 0) {
         QAL_ERR(LOG_TAG, "%s: get device PP KV failed %d", status);

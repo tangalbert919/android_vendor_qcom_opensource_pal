@@ -532,7 +532,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     struct qal_stream_attributes sattr;
     struct qal_ec_info ecinfo = {};
 
-    if (!stream_handle ) {
+    if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "%s: Invalid stream handle status %d", __func__, status);
         return status;
@@ -554,6 +554,13 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     /* TODO: Decide whether to update device config or not based on flag */
     s =  static_cast<Stream *>(stream_handle);
     s->getStreamAttributes(&sattr);
+
+    // device switch will be handled in global param setting for SVA
+    if (sattr.type == QAL_STREAM_VOICE_UI) {
+        QAL_DBG(LOG_TAG,
+            "Device switch handles in global param set, skip here");
+        return status;
+    }
 
     for (int i = 0; i < no_of_devices; i++) {
         if (sattr.direction == QAL_AUDIO_INPUT) {
