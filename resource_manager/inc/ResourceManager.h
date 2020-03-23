@@ -368,6 +368,9 @@ public:
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);
+    static bool isOutputDevId(int deviceId);
+    static bool isInputDevId(int deviceId);
+    static bool matchDevDir(int devId1, int devId2);
     bool getScreenState();
     bool isDeviceAvailable(qal_device_id_t id);
     bool isDeviceReady(qal_device_id_t id);

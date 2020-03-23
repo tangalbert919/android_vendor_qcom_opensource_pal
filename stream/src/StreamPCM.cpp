@@ -616,7 +616,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
-        QAL_DBG(LOG_TAG, "in standby, dropped buffer size - %d", size);
+        QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
         mStreamMutex.unlock();
         return size;
     }
@@ -644,11 +644,18 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
         standBy = false;
         rm->unlockGraph();
     }
-    mStreamMutex.unlock();
 
+    mStreamMutex.unlock();
     status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "session write is failed with status %d", status);
+        mStreamMutex.lock();
+        if (standBy) {
+            QAL_INFO(LOG_TAG, "in standby state, ignore write failure");
+            mStreamMutex.unlock();
+            return buf->size;
+        }
+        mStreamMutex.unlock();
         return -status;
     }
     QAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);

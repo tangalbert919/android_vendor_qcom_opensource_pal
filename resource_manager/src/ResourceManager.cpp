@@ -2115,12 +2115,12 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
     std::shared_ptr<Device> dev;
     std::vector <Stream *> activeStreams;
 
-    if (dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_IN_MAX)
+    if (isValidDevId(dev_id) && (dev_id != QAL_DEVICE_NONE))
         backEndName = listAllBackEndIds[dev_id].second;
     for (int i = QAL_DEVICE_OUT_MIN; i < QAL_DEVICE_IN_MAX; i++) {
         if ((i != dev_id) && (backEndName == listAllBackEndIds[i].second)) {
             dev = Device::getObject((qal_device_id_t) i);
-            if(dev){
+            if(dev) {
                 getActiveStream_l(dev, activeStreams);
                 QAL_DBG(LOG_TAG, "got dev %d active streams on dev is %d", i, activeStreams.size() );
                 for (int j=0; j < activeStreams.size(); j++) {
@@ -2281,8 +2281,8 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
     int status = 0;
     std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
 
-    /*disconnect active list from the current devices they are attached to*/
-    for(sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++){
+    /* disconnect active list from the current devices they are attached to */
+    for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
         status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
         if (status) {
             QAL_ERR(LOG_TAG,"failed to disconnect stream %pK from device %d",
@@ -2290,7 +2290,7 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
             goto error;
         } else {
             QAL_ERR(LOG_TAG,"disconnect stream %pK from device %d",
-                        std::get<0>(*sIter), std::get<1>(*sIter));
+                    std::get<0>(*sIter), std::get<1>(*sIter));
         }
     }
 error:
@@ -2301,8 +2301,8 @@ int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, stru
     int status = 0;
     std::vector <std::tuple<Stream *, struct qal_device *>>::iterator sIter;
 
-    /*disconnect active list from the current devices they are attached to*/
-    for(sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++){
+    /* connect active list from the current devices they are attached to */
+    for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
         status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
         if (status) {
             QAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
@@ -2393,8 +2393,8 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         status = (*sIter)->getStreamType(&streamType);
-        if (QAL_STREAM_VOICE_CALL == streamType){
-            /*overwrite in attr with current device config of voice call*/
+        if (QAL_STREAM_VOICE_CALL == streamType) {
+            /* overwrite in attr with current device config of voice call */
             status = inDev->getDeviceAttributes(inDevAttr);
             QAL_DBG(LOG_TAG,"voice active updating attributes to voice");
             goto error;
@@ -2421,15 +2421,15 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
             if (dattr.id == inDevAttr->id) {
                 isDeviceSwitch = isDeviceSwitchRequired(&dattr, inDevAttr, inStrAttr);
-                if (isDeviceSwitch){
+                if (isDeviceSwitch) {
                     streamDevDisconnect.push_back({*sIter,inDevAttr->id});
                     StreamDevConnect.push_back({*sIter,inDevAttr});
                 } else {
-                        // case 2. If incoming device config has lower priority then update incoming
-                        //  device config with currently running device config
-                        QAL_ERR(LOG_TAG, "%s: device %d is already running with higher priority device config",
-                                __func__, inDevAttr->id);
-                        memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
+                    // case 2. If incoming device config has lower priority then update incoming
+                    //  device config with currently running device config
+                    QAL_ERR(LOG_TAG, "%s: device %d is already running with higher priority device config",
+                            __func__, inDevAttr->id);
+                    memcpy(inDevAttr, (void*)&dattr, sizeof(struct qal_device));
                 }
             }
         }
@@ -2437,7 +2437,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
 error:
     //if device switch is need perform it
-    if (streamDevDisconnect.size()){
+    if (streamDevDisconnect.size()) {
             status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
             if (status) {
                  QAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
@@ -2467,9 +2467,9 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
     //created dev switch vectors
 
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++){
-        streamDevDisconnect.push_back({(*sIter),inDev->getSndDeviceId()});
-        StreamDevConnect.push_back({(*sIter),newDevAttr});
+    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
+        StreamDevConnect.push_back({(*sIter), newDevAttr});
     }
     status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
     if (status) {
@@ -2506,6 +2506,32 @@ bool ResourceManager::isValidDevId(int deviceId)
 {
     if (((deviceId >= QAL_DEVICE_NONE) && (deviceId < QAL_DEVICE_OUT_MAX))
         || ((deviceId > QAL_DEVICE_IN_MIN) && (deviceId < QAL_DEVICE_IN_MAX)))
+        return true;
+
+    return false;
+}
+
+bool ResourceManager::isOutputDevId(int deviceId)
+{
+    if ((deviceId > QAL_DEVICE_NONE) && (deviceId < QAL_DEVICE_OUT_MAX))
+        return true;
+
+    return false;
+}
+
+bool ResourceManager::isInputDevId(int deviceId)
+{
+    if ((deviceId > QAL_DEVICE_IN_MIN) && (deviceId < QAL_DEVICE_IN_MAX))
+        return true;
+
+    return false;
+}
+
+bool ResourceManager::matchDevDir(int devId1, int devId2)
+{
+    if (isOutputDevId(devId1) && isOutputDevId(devId2))
+        return true;
+    if (isInputDevId(devId1) && isInputDevId(devId2))
         return true;
 
     return false;
