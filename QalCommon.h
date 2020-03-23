@@ -29,6 +29,7 @@
 
 #include "casa_osal_types.h"
 #include "casa_osal_log.h"
+#include "casa_osal_mem_op.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

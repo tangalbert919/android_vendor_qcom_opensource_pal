@@ -1063,7 +1063,7 @@ int SessionGsl::getParameters(Stream *s, int tagId, uint32_t param_id, void **pa
                 goto exit;
             }
 
-            casa_osal_memcpy(config, sizeof(ffv_doa_tracking_monitor_t),
+            casa_mem_cpy(config, sizeof(ffv_doa_tracking_monitor_t),
                              data + sizeof(struct apm_module_param_data_t),
                              sizeof(ffv_doa_tracking_monitor_t));
             *payload = (void *)config;

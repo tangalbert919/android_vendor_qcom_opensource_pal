@@ -155,7 +155,7 @@ int32_t  Stream::getStreamAttributes(struct qal_stream_attributes *sAttr)
         QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
     }
-    casa_osal_memcpy(sAttr, sizeof(qal_stream_attributes), mStreamAttr,
+    casa_mem_cpy(sAttr, sizeof(qal_stream_attributes), mStreamAttr,
                      sizeof(qal_stream_attributes));
     QAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d",
             sAttr->type, sAttr->flags, sAttr->direction);
@@ -173,7 +173,7 @@ int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifi
         QAL_ERR(LOG_TAG, "Invalid modifers pointer, status %d", status);
         goto exit;
     }
-    casa_osal_memcpy (modifiers, sizeof(modifier_kv), mModifiers,
+    casa_mem_cpy (modifiers, sizeof(modifier_kv), mModifiers,
                       sizeof(modifier_kv));
     *noOfModifiers = mNoOfModifiers;
     QAL_DBG(LOG_TAG, "noOfModifiers %u", *noOfModifiers);
@@ -274,7 +274,7 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
     }
 
     if (mVolumeData != NULL) {
-        casa_osal_memcpy(vData, sizeof(uint32_t) +
+        casa_mem_cpy(vData, sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (mVolumeData->no_of_volpair)),
                       mVolumeData, sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (mVolumeData->no_of_volpair)));

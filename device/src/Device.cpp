@@ -165,12 +165,12 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
         QAL_ERR(LOG_TAG, "Allocation failed for channel map");
     }
     memset(&deviceAttr, 0, sizeof(struct qal_device));
-    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), device,
+    casa_mem_cpy(&deviceAttr, sizeof(struct qal_device), device,
                      sizeof(struct qal_device));
     // copy channel info
     deviceAttr.config.ch_info = device_ch_info;
     if (device->config.ch_info)
-        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
+        casa_mem_cpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
                          ch_info_size);
     else
         QAL_ERR(LOG_TAG, "Channel Map info in NULL");
@@ -209,7 +209,7 @@ int Device::getDeviceAttributes(struct qal_device *dattr)
         QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
         goto exit;
     }
-    casa_osal_memcpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+    casa_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
 
 exit:
     return status;
@@ -242,13 +242,13 @@ int Device::setDeviceAttributes(struct qal_device dattr)
             free(deviceAttr.config.ch_info);
     }
 
-    casa_osal_memcpy(&deviceAttr, sizeof(struct qal_device), &dattr,
+    casa_mem_cpy(&deviceAttr, sizeof(struct qal_device), &dattr,
                      sizeof(struct qal_device));
 
     // copy channel info
     deviceAttr.config.ch_info = device_ch_info;
     if (dattr.config.ch_info)
-        casa_osal_memcpy(deviceAttr.config.ch_info, ch_info_size,
+        casa_mem_cpy(deviceAttr.config.ch_info, ch_info_size,
                          dattr.config.ch_info, ch_info_size);
 
     return status;

@@ -1550,7 +1550,7 @@ int SessionAlsaPcm::getParameters(Stream *s, int tagId, uint32_t param_id, void 
         goto exit;
     }
 
-    casa_osal_memcpy(config, configSize, ptr, configSize);
+    casa_mem_cpy(config, configSize, ptr, configSize);
     *payload = (void *)config;
 
 

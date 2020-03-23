@@ -109,10 +109,10 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         throw std::runtime_error("channel info allocation failed");
     }
 
-    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes),
+    casa_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes),
                      sattr, sizeof(qal_stream_attributes));
     mStreamAttr->in_media_config.ch_info = ch_info;
-    casa_osal_memcpy(mStreamAttr->in_media_config.ch_info,
+    casa_mem_cpy(mStreamAttr->in_media_config.ch_info,
                      sizeof(qal_channel_info),
                      sattr->in_media_config.ch_info,
                      sizeof(qal_channel_info));
@@ -795,16 +795,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         }
 
         if (sound_model->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-            casa_osal_memcpy(sm_config_, sizeof(*phrase_sm),
+            casa_mem_cpy(sm_config_, sizeof(*phrase_sm),
                              phrase_sm, sizeof(*phrase_sm));
-            casa_osal_memcpy((uint8_t *)sm_config_ + common_sm->data_offset,
+            casa_mem_cpy((uint8_t *)sm_config_ + common_sm->data_offset,
                              common_sm->data_size,
                              (uint8_t *)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
         } else {
-            casa_osal_memcpy(sm_config_, sizeof(*common_sm),
+            casa_mem_cpy(sm_config_, sizeof(*common_sm),
                              common_sm, sizeof(*common_sm));
-            casa_osal_memcpy((uint8_t *)sm_config_ +  common_sm->data_offset,
+            casa_mem_cpy((uint8_t *)sm_config_ +  common_sm->data_offset,
                              common_sm->data_size,
                              (uint8_t *)common_sm + common_sm->data_offset,
                              common_sm->data_size);
@@ -839,7 +839,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                                 status);
                         goto error_exit;
                     }
-                    casa_osal_memcpy(sm_data, sizeof(*phrase_sm),
+                    casa_mem_cpy(sm_data, sizeof(*phrase_sm),
                                      (char *)phrase_sm, sizeof(*phrase_sm));
                     common_sm = (struct qal_st_sound_model *)sm_data;
                     common_sm->data_size = big_sm->size;
@@ -847,7 +847,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         sizeof(SML_HeaderTypeV3) +
                         (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
-                    casa_osal_memcpy(sm_data + sizeof(*phrase_sm), big_sm->size,
+                    casa_mem_cpy(sm_data + sizeof(*phrase_sm), big_sm->size,
                                      (char *)phrase_sm + common_sm->data_offset,
                                      big_sm->size);
                     common_sm->data_offset = sizeof(*phrase_sm);
@@ -885,7 +885,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         QAL_ERR(LOG_TAG, "Failed to alloc memory for sm_data");
                         goto error_exit;
                     }
-                    casa_osal_memcpy(sm_data, sm_size, ptr, sm_size);
+                    casa_mem_cpy(sm_data, sm_size, ptr, sm_size);
 
                     engine = SoundTriggerEngine::Create(this, big_sm->type);
                     if (!engine) {
@@ -921,9 +921,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                 status = -ENOMEM;
                 goto error_exit;
             }
-            casa_osal_memcpy(sm_data, sizeof(*phrase_sm),
+            casa_mem_cpy(sm_data, sizeof(*phrase_sm),
                              (uint8_t *)phrase_sm, sizeof(*phrase_sm));
-            casa_osal_memcpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
+            casa_mem_cpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
             gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM);
@@ -1008,9 +1008,9 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
             QAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d", status);
             return -ENOMEM;
         }
-        casa_osal_memcpy(rec_config_, sizeof(struct qal_st_recognition_config),
+        casa_mem_cpy(rec_config_, sizeof(struct qal_st_recognition_config),
                          config, sizeof(struct qal_st_recognition_config));
-        casa_osal_memcpy((uint8_t *)rec_config_ + config->data_offset,
+        casa_mem_cpy((uint8_t *)rec_config_ + config->data_offset,
                          config->data_size,
                          (uint8_t *)config + config->data_offset,
                          config->data_size);

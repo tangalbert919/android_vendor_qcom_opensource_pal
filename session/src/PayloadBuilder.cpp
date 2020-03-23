@@ -1678,7 +1678,7 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     header->error_code = 0x0;
     header->param_size = customPayloadSize;
     if (customPayloadSize)
-        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          customPayload,
                          customPayloadSize);
@@ -1719,7 +1719,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
     sm_data = (uint8_t *)soundModel + soundModel->data_offset;
-    casa_osal_memcpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
+    casa_mem_cpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
@@ -1761,7 +1761,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
 
     wakeUpConfig = (struct detection_engine_config_voice_wakeup*)
                    (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_osal_memcpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
+    casa_mem_cpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
                      fixedConfigVoiceWakeupSize);
     confidence_level = (uint8_t*)((uint8_t*)wakeUpConfig + fixedConfigVoiceWakeupSize);
     kw_user_enable = (uint8_t*)((uint8_t*)wakeUpConfig +
@@ -1814,7 +1814,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
 
     pWakeUpBufCfg = (struct detection_engine_voice_wakeup_buffer_config *)
                     (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_osal_memcpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
+    casa_mem_cpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
                      pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
 
     *size = payloadSize + padBytes;
@@ -1853,7 +1853,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
 
     pDownStreamSetupDuration = (struct audio_dam_downstream_setup_duration *)
                                (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_osal_memcpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
+    casa_mem_cpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
@@ -1889,7 +1889,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
 
     pEventCfg = (struct detection_engine_generic_event_cfg *)
                 (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_osal_memcpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
+    casa_mem_cpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
                      pEventConfig, sizeof(struct detection_engine_generic_event_cfg));
 
     *size = payloadSize + padBytes;

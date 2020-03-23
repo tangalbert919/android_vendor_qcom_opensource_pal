@@ -98,15 +98,15 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
         if (writeOffset_ + sizeToCopy > bufferEnd_) {
             i = bufferEnd_ - writeOffset_;
 
-            casa_osal_memcpy(buffer_ + writeOffset_, i, writeBuffer, i);
+            casa_mem_cpy(buffer_ + writeOffset_, i, writeBuffer, i);
             writtenSize += i;
             sizeToCopy -= writtenSize;
-            casa_osal_memcpy(buffer_, sizeToCopy, (char*)writeBuffer + writtenSize,
+            casa_mem_cpy(buffer_, sizeToCopy, (char*)writeBuffer + writtenSize,
                              sizeToCopy);
             writtenSize += sizeToCopy;
             writeOffset_ = sizeToCopy;
         } else {
-            casa_osal_memcpy(buffer_ + writeOffset_, sizeToCopy, writeBuffer,
+            casa_mem_cpy(buffer_ + writeOffset_, sizeToCopy, writeBuffer,
                              sizeToCopy);
             writeOffset_ += sizeToCopy;
             writtenSize = sizeToCopy;
@@ -141,13 +141,13 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
         unreadSize_ = ringBuffer_->writeOffset_ - readOffset_;
 
         if (bufferSize >= unreadSize_) {
-            casa_osal_memcpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
+            casa_mem_cpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
                              readOffset_, unreadSize_);
             readOffset_ += unreadSize_;
             readSize = unreadSize_;
             unreadSize_ = 0;
         } else {
-            casa_osal_memcpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
+            casa_mem_cpy(readBuffer, unreadSize_, ringBuffer_->buffer_ +
                              readOffset_, bufferSize);
             readOffset_ += bufferSize;
             readSize = bufferSize;
@@ -159,7 +159,7 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
         int32_t i = ringBuffer_->bufferEnd_ - readOffset_;
 
         if (bufferSize >= i) {
-            casa_osal_memcpy(readBuffer, i, (char*)(ringBuffer_->buffer_ +
+            casa_mem_cpy(readBuffer, i, (char*)(ringBuffer_->buffer_ +
                              readOffset_), i);
             readSize = i;
             freeClientSize -= readSize;
@@ -167,14 +167,14 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
             readOffset_ = 0;
             //copy remaining unread buffer
             if (freeClientSize > unreadSize_) {
-                casa_osal_memcpy((char *)readBuffer + readSize, unreadSize_,
+                casa_mem_cpy((char *)readBuffer + readSize, unreadSize_,
                                  ringBuffer_->buffer_, unreadSize_);
                 readSize += unreadSize_;
                 readOffset_ = unreadSize_;
                 unreadSize_ = 0;
             } else {
                 //copy whatever we can
-                casa_osal_memcpy((char *)readBuffer + readSize, freeClientSize,
+                casa_mem_cpy((char *)readBuffer + readSize, freeClientSize,
                                  ringBuffer_->buffer_, freeClientSize);
                 readSize += freeClientSize;
                 readOffset_ = freeClientSize;
@@ -182,7 +182,7 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
             }
 
         } else {
-            casa_osal_memcpy(readBuffer, bufferSize, ringBuffer_->buffer_ +
+            casa_mem_cpy(readBuffer, bufferSize, ringBuffer_->buffer_ +
                              readOffset_, bufferSize);
             readSize = bufferSize;
             readOffset_ += bufferSize;

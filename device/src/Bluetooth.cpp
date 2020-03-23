@@ -867,9 +867,9 @@ int BtA2dp::getDeviceAttributes(struct qal_device *dattr)
 
     if (is_configured) {
         dattr->id = deviceAttr.id;
-        casa_osal_memcpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
+        casa_mem_cpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
     } else {
-        casa_osal_memcpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+        casa_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
     }
 
 exit:

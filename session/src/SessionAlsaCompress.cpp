@@ -121,7 +121,7 @@ int SessionAlsaCompress::setCustomFormatParam(qal_audio_fmt_t audio_fmt)
         media_fmt_hdr->data_format = DATA_FORMAT_RAW_COMPRESSED ;
         media_fmt_hdr->fmt_id = MEDIA_FMT_ID_VORBIS;
         media_fmt_hdr->payload_size = sizeof(struct qal_snd_dec_vorbis);
-        casa_osal_memcpy(media_fmt_hdr->payload,
+        casa_mem_cpy(media_fmt_hdr->payload,
                             sizeof(struct qal_snd_dec_vorbis),
                             &codec.format,
                             sizeof(struct qal_snd_dec_vorbis));

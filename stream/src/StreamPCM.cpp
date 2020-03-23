@@ -76,7 +76,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         throw std::runtime_error("failed to malloc for stream attributes");
     }
 
-    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
+    casa_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
 
     if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
         struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
@@ -88,7 +88,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         }
 
         mStreamAttr->out_media_config.ch_info = ch_info;
-        casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
+        casa_mem_cpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
                         sattr->out_media_config.ch_info, sizeof(qal_channel_info));
     } else if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
         struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
@@ -99,7 +99,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
             throw std::runtime_error("failed to malloc for ch_info output");
         }
         mStreamAttr->in_media_config.ch_info = ch_info;
-        casa_osal_memcpy(mStreamAttr->in_media_config.ch_info, sizeof(qal_channel_info),
+        casa_mem_cpy(mStreamAttr->in_media_config.ch_info, sizeof(qal_channel_info),
         sattr->in_media_config.ch_info, sizeof(qal_channel_info));
    }
 
@@ -507,7 +507,7 @@ int32_t  StreamPCM::setStreamAttributes(struct qal_stream_attributes *sattr)
     }
     memset(mStreamAttr, 0, sizeof(struct qal_stream_attributes));
     mStreamMutex.lock();
-    casa_osal_memcpy (mStreamAttr, sizeof(struct qal_stream_attributes), sattr,
+    casa_mem_cpy (mStreamAttr, sizeof(struct qal_stream_attributes), sattr,
                       sizeof(struct qal_stream_attributes));
     mStreamMutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //TODO:gkv or ckv or tkv need to pass
@@ -541,7 +541,7 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
     }
 
     //mStreamMutex.lock();
-    casa_osal_memcpy (mVolumeData, (sizeof(uint32_t) +
+    casa_mem_cpy (mVolumeData, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) *
                       (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) *

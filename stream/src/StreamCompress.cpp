@@ -84,9 +84,9 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
           throw std::runtime_error("failed to malloc for ch_info");
        }
 
-    casa_osal_memcpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
+    casa_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
     mStreamAttr->out_media_config.ch_info = ch_info;
-    casa_osal_memcpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
+    casa_mem_cpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
     sattr->out_media_config.ch_info, sizeof(qal_channel_info));
     QAL_VERBOSE(LOG_TAG,"Create new compress session");
 
