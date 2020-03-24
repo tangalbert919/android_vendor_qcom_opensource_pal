@@ -647,16 +647,19 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t no_of_devices, struc
     // created stream connect list
     StreamDevConnect.clear();
     for (int i = 0; i < no_of_devices; i++) {
-         for(disIter = streamDevDisconnect.begin(); disIter != streamDevDisconnect.end(); disIter++){
-             //check to make sure device direction is the same
-             id1 = IS_RX_DEVICE(deviceArray[i].id);
-             id2 = IS_RX_DEVICE(std::get<1>(*disIter));
-             dif = (id1 ^ id2);
-             if (!dif){
-                 QAL_DBG(LOG_TAG, "dir the same push dev to connect %d", deviceArray[i].id);
-                 StreamDevConnect.push_back({std::get<0>(*disIter), &deviceArray[i]});
-             }
-         }
+        if (streamDevDisconnect.size() == 0) {
+            StreamDevConnect.push_back({streamHandle, &deviceArray[i]});
+        }
+        for (disIter = streamDevDisconnect.begin(); disIter != streamDevDisconnect.end(); disIter++) {
+            // check to make sure device direction is the same
+            id1 = IS_RX_DEVICE(deviceArray[i].id);
+            id2 = IS_RX_DEVICE(std::get<1>(*disIter));
+            dif = (id1 ^ id2);
+            if (!dif) {
+                QAL_DBG(LOG_TAG, "dir the same push dev to connect %d", deviceArray[i].id);
+                StreamDevConnect.push_back({std::get<0>(*disIter), &deviceArray[i]});
+            }
+        }
     }
     QAL_DBG(LOG_TAG, "connectList size is %d",StreamDevConnect.size());
     status = rm->streamDevSwitch(streamDevDisconnect,StreamDevConnect);
