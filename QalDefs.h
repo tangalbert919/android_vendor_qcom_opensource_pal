@@ -206,6 +206,7 @@ typedef struct qal_param_payload_s {
     qal_snd_dec_t qal_snd_dec;
     uint32_t *effect_payload;
     uint32_t tty_mode;            /*TODO need to change whole structure to void pointer or union */
+    bool volume_boost;
 } qal_param_payload;
 
 typedef struct gef_payload_s {
@@ -600,6 +601,7 @@ typedef enum {
     QAL_PARAM_ID_DEVICE_CAPABILITY,
     QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES,
     QAL_PARAM_ID_TTY_MODE,
+    QAL_PARAM_ID_VOLUME_BOOST,
 }qal_param_id_type_t;
 
 /** HDMI/DP */

@@ -78,10 +78,8 @@ typedef enum {
 #define BW_16 24
 #define BW_24 25
 #define BW_32 26
-#define TTY_MODE_OFF 27
-#define TTY_MODE_HCO 28
-#define TTY_MODE_VCO 29
-#define TTY_MODE_FULL 30
+#define TTY_MODE 27
+#define VOICE_VOLUME_BOOST 30
 
 class Device;
 class ResourceManager;

@@ -45,24 +45,7 @@
 #define percent_to_index(val, min, max) \
             ((val) * ((max) - (min)) * 0.01 + (min) + .5)
 
-static const std::map<uint32_t, uint32_t> ttyTagtoMode
-{
-    { TTY_MODE_OFF,  VOICE_TTY_MODE_OFF},
-    { TTY_MODE_HCO,  VOICE_TTY_MODE_HCO},
-    { TTY_MODE_VCO,  VOICE_TTY_MODE_VCO},
-    { TTY_MODE_FULL, VOICE_TTY_MODE_FULL}
-
-};
-
-static const std::map<uint32_t, uint32_t> ttyModetoTag
-{
-    {QAL_TTY_OFF, TTY_MODE_OFF },
-    {QAL_TTY_HCO, TTY_MODE_HCO },
-    {QAL_TTY_VCO, TTY_MODE_VCO },
-    {QAL_TTY_FULL, TTY_MODE_FULL }
-
-};
-
+#define NUM_OF_CAL_KEYS 2
 
 SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
 {
@@ -167,6 +150,7 @@ int SessionAlsaVoice::start(Stream * s)
     struct qal_stream_attributes sAttr;
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    qal_param_payload qalPayload;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -246,7 +230,8 @@ int SessionAlsaVoice::start(Stream * s)
 
     /*set tty mode*/
     if (ttyMode) {
-        SessionAlsaVoice::setConfig(s, MODULE, ttyModetoTag.at(ttyMode), RXDIR);
+        qalPayload.tty_mode = ttyMode;
+        setParameters(s, TTY_MODE, QAL_PARAM_ID_TTY_MODE, &qalPayload);
     }
 
     status = pcm_start(pcmRx);
@@ -309,58 +294,74 @@ int SessionAlsaVoice::close(Stream * s)
 
     return status;
 }
-/*
 int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
 {
     int status = 0;
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
+    uint32_t miid = 0;
+    qal_param_payload *QalPayload = (qal_param_payload *)payload;
 
-    CntrlName << stream << device << " " << control;
-    ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
-    if (!ctl) {
-        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
-        status = -ENOENT;
-        goto exit;
-    }
+    switch (static_cast<uint32_t>(tagId)) {
 
-    QAL_DBG(LOG_TAG, "Enter.");
-    switch (param_id) {
-        case QAL_PARAM_ID_SET_VOICE_VOLUME:
-            builder->payloadVoiceCalKeys(&paramData, &paramSize, vsid,
-                                         VCPM_MODULE_INSTANCE_ID);
+        case VOICE_VOLUME_BOOST:
             device = pcmDevRxIds.at(0);
+            volume_boost = QalPayload->volume_boost;
+            status = payloadCalKeys(s, &paramData, &paramSize);
+            status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
+                                            RXDIR);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                        status);
+            }
+            if (!paramData) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
+            break;
+
+        case TTY_MODE:
+            device = pcmDevRxIds.at(0);
+            status = payloadSetTTYMode(&paramData, &paramSize,
+                                       QalPayload->tty_mode);
+            status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
+                                            RXDIR);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
+                        status);
+                break;
+            }
+
+            if (!paramData) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
+                goto exit;
+            }
             break;
 
         default:
+            QAL_ERR(LOG_TAG,"%s: Failed unsupported tag type %d \n", __func__,
+                    static_cast<uint32_t>(tagId));
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
-            goto exit;
+            break;
     }
-
-    if (!paramData) {
-        status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
         goto exit;
     }
 
     QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
 
-    status = SessionAlsaUtils::setMixerParameter(mixer,device,false,
-                                                 paramData, paramSize);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to set voice params status = %d", status);
-    }
-
-    QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload :
-    free(paramData);
 exit:
-    return status;
+if (paramData) {
+    free(paramData);
 }
-*/
+    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    return status;
+
+}
 
 int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
 {
@@ -372,7 +373,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
     switch (static_cast<uint32_t>(tag)) {
         case TAG_STREAM_VOLUME:
             device = pcmDevRxIds.at(0);
-            status = payloadCalKeysVolume(s, &paramData, &paramSize);
+            status = payloadCalKeys(s, &paramData, &paramSize);
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
@@ -421,6 +422,13 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
     size_t paramSize = 0;
 
     switch (static_cast<uint32_t>(tag)) {
+
+        case MUTE_TAG:
+        case UNMUTE_TAG:
+            device = pcmDevTxIds.at(0);
+            status = payloadTaged(s, type, tag, device, TXDIR);
+            break;
+
         case VSID:
             device = pcmDevRxIds.at(0);
             status = payloadSetVSID(&paramData, &paramSize);
@@ -440,33 +448,6 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag, int dir)
                 goto exit;
             }
 
-            break;
-        case TTY_MODE_OFF:
-        case TTY_MODE_HCO:
-        case TTY_MODE_VCO:
-        case TTY_MODE_FULL:
-            device = pcmDevRxIds.at(0);
-            status = payloadSetTTYMode(&paramData, &paramSize, tag);
-            status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
-                                                              paramData,
-                                                              paramSize,
-                                                              dir);
-            if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
-                        status);
-                break;
-            }
-
-            if (!paramData) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
-                goto exit;
-            }
-            break;
-        case MUTE_TAG:
-        case UNMUTE_TAG:
-            device = pcmDevTxIds.at(0);
-            status = payloadTaged(s, type, tag, device, TXDIR);
             break;
 
         default:
@@ -589,7 +570,7 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
     return status;
 }
 
-int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t *size)
+int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size)
 {
     int status = 0;
     apm_module_param_data_t* header;
@@ -597,7 +578,7 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
     size_t payloadSize = 0, padBytes = 0;
     uint8_t *vol_pl;
     vcpm_param_cal_keys_payload_t cal_keys;
-    vcpm_ckv_pair_t cal_key_pair;
+    vcpm_ckv_pair_t cal_key_pair[NUM_OF_CAL_KEYS];
     float volume = 0.0;
     int vol;
     struct qal_volume_data *voldata = NULL;
@@ -619,7 +600,7 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
 
     payloadSize = sizeof(apm_module_param_data_t) +
                   sizeof(vcpm_param_cal_keys_payload_t) +
-                  sizeof(vcpm_ckv_pair_t);
+                  sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS;
     padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
     payloadInfo = new uint8_t[payloadSize + padBytes]();
@@ -633,8 +614,7 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     cal_keys.vsid = vsid;
-    cal_keys.num_ckv_pairs = 1;
-    cal_key_pair.cal_key_id = VCPM_CAL_KEY_ID_VOLUME_LEVEL;
+    cal_keys.num_ckv_pairs = 2;
     if (volume < 0.0) {
             volume = 0.0;
     } else if (volume > 1.0) {
@@ -647,15 +627,22 @@ int SessionAlsaVoice::payloadCalKeysVolume(Stream * s, uint8_t **payload, size_t
     // 0 -> 5, 20 -> 4, 40 ->3, 60 -> 2, 80 -> 1, 100 -> 0
     // So adjust the volume to get the correct volume index in driver
     vol = 100 - vol;
-    cal_key_pair.value = percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX);
+
+    /*volume key*/
+    cal_key_pair[0].cal_key_id = VCPM_CAL_KEY_ID_VOLUME_LEVEL;
+    cal_key_pair[0].value = percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX);
+
+    /*cal key for volume boost*/
+    cal_key_pair[1].cal_key_id = VCPM_CAL_KEY_ID_VOL_BOOST;
+    cal_key_pair[1].value = volume_boost;
 
     vol_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
     casa_mem_cpy(vol_pl, sizeof(vcpm_param_cal_keys_payload_t),
                      &cal_keys, sizeof(vcpm_param_cal_keys_payload_t));
 
     vol_pl += sizeof(vcpm_param_cal_keys_payload_t);
-    casa_mem_cpy(vol_pl, sizeof(vcpm_ckv_pair_t),
-                     &cal_key_pair, sizeof(vcpm_ckv_pair_t));
+    casa_mem_cpy(vol_pl, sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS,
+                     &cal_key_pair, sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS);
 
 
     *size = payloadSize + padBytes;
@@ -669,7 +656,7 @@ exit:
     return status;
 }
 
-int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t tag){
+int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t mode){
     int status = 0;
     apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
@@ -693,7 +680,7 @@ int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
 
     tty_payload.vsid = vsid;
-    tty_payload.mode = ttyTagtoMode.at(tag);
+    tty_payload.mode = mode;
     phrase_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
     casa_mem_cpy(phrase_pl,  sizeof(vcpm_param_id_tty_mode_t),
                      &tty_payload,  sizeof(vcpm_param_id_tty_mode_t));

@@ -532,6 +532,11 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
         goto exit;
     }
 
+    /*if already allocated free and reallocate */
+    if (mVolumeData) {
+        free(mVolumeData);
+    }
+
     mVolumeData = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
                       (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
     if (!mVolumeData) {
@@ -737,23 +742,9 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         }
         case QAL_PARAM_ID_TTY_MODE:
         {
-            param_payload = (qal_param_payload *)payload;
-            switch (param_payload->tty_mode) {
-              case QAL_TTY_OFF:
-                  status = session->setConfig(this, MODULE, TTY_MODE_OFF, RXDIR);
-                  break;
-              case QAL_TTY_HCO:
-                  status = session->setConfig(this, MODULE, TTY_MODE_HCO, RXDIR);
-                  break;
-              case QAL_TTY_VCO:
-                  status = session->setConfig(this, MODULE, TTY_MODE_VCO, RXDIR);
-                  break;
-              case QAL_TTY_FULL:
-                  status = session->setConfig(this, MODULE, TTY_MODE_FULL, RXDIR);
-                  break;
-            }
+            status = session->setParameters(this, TTY_MODE, param_id, payload);
             if (status)
-               QAL_ERR(LOG_TAG, "setConfig for tty mode %d failed with %d",
+               QAL_ERR(LOG_TAG, "setParam for tty mode %d failed with %d",
                        param_payload->tty_mode, status);
             break;
         }
@@ -770,6 +761,14 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
             }
         }
         break;
+        case QAL_PARAM_ID_VOLUME_BOOST:
+        {
+            status = session->setParameters(this, VOICE_VOLUME_BOOST, param_id, payload);
+            if (status)
+               QAL_ERR(LOG_TAG, "setParam for volume boost failed with %d",
+                       status);
+            break;
+        }
         default:
             QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;
