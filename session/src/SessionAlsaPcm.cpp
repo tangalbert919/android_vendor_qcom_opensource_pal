@@ -892,12 +892,25 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToDisconnect;
     std::vector<std::pair<int32_t, std::string>> txAifBackEndsToDisconnect;
     int32_t status = 0;
+    struct qal_stream_attributes sAttr;
 
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToDisconnect,
             txAifBackEndsToDisconnect);
     deviceToDisconnect->getDeviceAttributes(&dAttr);
 
+    if (sAttr.direction == QAL_AUDIO_INPUT) {
+        if (ecRefDevId) {
+            status = setECRef(streamHandle, nullptr, false);
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+        }
+    }
     if (!rxAifBackEndsToDisconnect.empty())
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, pcmDevIds, rxAifBackEndsToDisconnect);
