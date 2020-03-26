@@ -89,6 +89,7 @@ protected:
     void updateDeviceAttributes(void);
     bool isPlaceholderEncoder(void);
     bool isAbrEnabled;
+    bool isTwsMonoModeOn;
     struct pcm *fbPcm;
     std::vector<int> fbpcmDevIds;
     void startAbr();

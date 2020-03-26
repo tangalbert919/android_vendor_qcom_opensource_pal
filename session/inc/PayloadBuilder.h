@@ -206,6 +206,8 @@ public:
                           struct qal_media_config *data);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct qal_media_config *data);
+    void payloadTWSConfig(uint8_t** payload, size_t* size, uint32_t miid,
+                          bool isTwsMonoModeOn, uint32_t codecFormat);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx ,struct vsid_info vsidinfo);

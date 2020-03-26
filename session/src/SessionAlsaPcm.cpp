@@ -1223,6 +1223,26 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             }
             break;
         }
+        case QAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        {
+            qal_bt_tws_payload *tws_payload = (qal_bt_tws_payload *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadTWSConfig(&paramData, &paramSize, miid,
+                    tws_payload->isTwsMonoModeOn, tws_payload->codecFormat);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                QAL_INFO(LOG_TAG, "mixer set tws config status=%d\n", status);
+                free(paramData);
+            }
+            return 0;
+        }
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);

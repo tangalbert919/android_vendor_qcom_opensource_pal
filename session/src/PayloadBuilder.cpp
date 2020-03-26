@@ -31,6 +31,7 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
+#include "plugins/codecs/bt_intf.h"
 #include "spr_api.h"
 #include <bt_intf.h>
 
@@ -1938,6 +1939,61 @@ void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t mo
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+}
+
+void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, bool isTwsMonoModeOn, uint32_t codecFormat)
+{
+    struct apm_module_param_data_t* header = NULL;
+    uint8_t* payloadInfo = NULL;
+    uint32_t param_id = 0, val = 2;
+    size_t payloadSize = 0, padBytes = 0, customPayloadSize = 0;
+    param_id_aptx_classic_switch_enc_pcm_input_payload_t *aptx_classic_payload;
+    param_id_aptx_adaptive_enc_switch_to_mono_t *aptx_adaptive_payload;
+
+    if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO) {
+        param_id = PARAM_ID_APTX_CLASSIC_SWITCH_ENC_PCM_INPUT;
+        customPayloadSize = sizeof(param_id_aptx_classic_switch_enc_pcm_input_payload_t);
+    } else {
+        param_id = PARAM_ID_APTX_ADAPTIVE_ENC_SWITCH_TO_MONO;
+        customPayloadSize = sizeof(param_id_aptx_adaptive_enc_switch_to_mono_t);
+    }
+    payloadSize = QAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                        + customPayloadSize);
+    payloadInfo = (uint8_t *)calloc(1, (size_t)payloadSize);
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return;
+    }
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = miid;
+    header->param_id = param_id;
+    header->error_code = 0x0;
+    header->param_size = customPayloadSize;
+    val = (isTwsMonoModeOn == true) ? 1 : 2;
+    if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO) {
+        aptx_classic_payload =
+            (param_id_aptx_classic_switch_enc_pcm_input_payload_t*)(payloadInfo +
+             sizeof(struct apm_module_param_data_t));
+        aptx_classic_payload->transition_direction = val;
+        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                         customPayloadSize,
+                         aptx_classic_payload,
+                         customPayloadSize);
+    } else {
+        aptx_adaptive_payload =
+            (param_id_aptx_adaptive_enc_switch_to_mono_t*)(payloadInfo +
+             sizeof(struct apm_module_param_data_t));
+        aptx_adaptive_payload->switch_between_mono_and_stereo = val;
+        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                         customPayloadSize,
+                         aptx_adaptive_payload,
+                         customPayloadSize);
+    }
+
+    *size = payloadSize;
+    *payload = payloadInfo;
 }
 
 void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,

@@ -43,7 +43,7 @@
 #define MODULE_ID_APTX_ADAPTIVE_ENC     0x07001082
 #define MODULE_ID_APTX_ADAPTIVE_SWB_DEC 0x07001083
 #define MODULE_ID_APTX_ADAPTIVE_SWB_ENC 0x07001084
-#define NUM_CODEC                       3
+#define NUM_CODEC                       4
 
 /*
  * enums which describes the APTX Adaptive
@@ -75,6 +75,14 @@ typedef struct audio_aptx_hd_encoder_config_s {
     uint32_t bitrate;
     uint32_t bits_per_sample;
 } audio_aptx_hd_encoder_config_t;
+
+typedef struct audio_aptx_dual_mono_config_s{
+    uint16_t sampling_rate;
+    uint8_t  channels;
+    uint32_t bitrate;
+    uint32_t sync_mode;
+    uint32_t bits_per_sample;
+} audio_aptx_dual_mono_config_t;
 
 typedef struct audio_aptx_ad_encoder_config_s {
     uint32_t sampling_rate;

@@ -3098,6 +3098,22 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
+        case QAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct qal_device dattr;
+
+            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr, rm);
+                status = dev->setDeviceParameter(param_id, param_payload);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                    goto exit;
+                }
+            }
+        }
+        break;
         default:
             QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;

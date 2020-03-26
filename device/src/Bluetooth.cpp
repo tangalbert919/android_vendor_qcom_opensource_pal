@@ -252,6 +252,18 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     }
 
+    if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO ||
+        codecFormat == CODEC_TYPE_APTX_AD) {
+        builder->payloadTWSConfig(&paramData, &paramSize, miid,
+                                  isTwsMonoModeOn, codecFormat);
+        if (paramSize) {
+            dev->updateCustomPayload(paramData, paramSize);
+            free(paramData);
+            paramData = NULL;
+            paramSize = 0;
+        }
+    }
+
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
@@ -740,6 +752,9 @@ int BtA2dp::startPlayback()
             return -EINVAL;
         }
 
+        if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO && audio_is_tws_mono_mode_enable)
+            isTwsMonoModeOn = audio_is_tws_mono_mode_enable();
+
         /* Update Device GKV based on Encoder type */
         updateDeviceMetadata();
         ret = configureA2dpEncoderDecoder(codec_info);
@@ -786,6 +801,9 @@ int BtA2dp::stopPlayback()
         }
         is_configured = false;
         bt_state = A2DP_STATE_STOPPED;
+        /* Reset isTwsMonoModeOn during stop */
+        if (!param_bt_a2dp.a2dp_suspended)
+            isTwsMonoModeOn = false;
     }
 
     QAL_DBG(LOG_TAG, "Stop A2DP playback, total active sessions :%d",
@@ -978,6 +996,30 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
                 }
             }
             rm->a2dpResume();
+        }
+        break;
+    }
+    case QAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+    {
+        isTwsMonoModeOn = param_a2dp->is_tws_mono_mode_on;
+        if (bt_state == A2DP_STATE_STARTED) {
+            std::shared_ptr<Device> dev = nullptr;
+            Stream *stream = NULL;
+            Session *session = NULL;
+            std::vector<Stream*> activestreams;
+            qal_bt_tws_payload param_tws;
+
+            dev = Device::getInstance(&deviceAttr, rm);
+            status = rm->getActiveStream_l(dev, activestreams);
+            if ((0 != status) || (activestreams.size() == 0)) {
+                QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+                return -EINVAL;
+            }
+            stream = static_cast<Stream *>(activestreams[0]);
+            stream->getAssociatedSession(&session);
+            param_tws.isTwsMonoModeOn = isTwsMonoModeOn;
+            param_tws.codecFormat = (uint32_t)codecFormat;
+            session->setParameters(stream, BT_PLACEHOLDER_ENCODER, param_id, &param_tws);
         }
         break;
     }

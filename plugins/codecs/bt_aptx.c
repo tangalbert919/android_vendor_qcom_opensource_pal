@@ -97,6 +97,86 @@ free_payload:
     return ret;
 }
 
+static int aptx_dual_mono_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
+{
+    audio_aptx_dual_mono_config_t *aptx_dm_bt_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    param_id_aptx_classic_sync_mode_payload_t *aptx_sync_mode = NULL;
+    int ret = 0, num_blks = 2, i = 0;
+    custom_block_t *blk[2] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    aptx_dm_bt_cfg = (audio_aptx_dual_mono_config_t*)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format    = aptx_dm_bt_cfg->bits_per_sample;
+    enc_payload->sample_rate   = aptx_dm_bt_cfg->sampling_rate;
+    enc_payload->channel_count = aptx_dm_bt_cfg->channels;
+    enc_payload->num_blks      = num_blks;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_REAL_MODULE_ID */
+    ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_APTX_CLASSIC_ENC);
+    if (ret)
+        goto free_payload;
+
+    /* populate payload for PARAM_ID_APTX_CLASSIC_SET_SYNC_MODE */
+    aptx_sync_mode = (param_id_aptx_classic_sync_mode_payload_t*)calloc(1,
+                         sizeof(param_id_aptx_classic_sync_mode_payload_t));
+    if (aptx_sync_mode == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+
+    /* Sync mode should be DUAL AUTOSYNC (1) for TWS+ */
+    aptx_sync_mode->sync_mode = aptx_dm_bt_cfg->sync_mode;
+    aptx_sync_mode->startup_mode = aptx_dm_bt_cfg->sync_mode;
+    aptx_sync_mode->cvr_fade_duration = 255;
+
+    ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_CLASSIC_SET_SYNC_MODE,
+            aptx_sync_mode, sizeof(param_id_aptx_classic_sync_mode_payload_t));
+    free(aptx_sync_mode);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    enc_payload->blocks[1] = blk[1];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+
+    return ret;
+}
+
 int bt_apt_ad_populate_enc_audiosrc_info(custom_block_t *blk, uint16_t sample_rate)
 {
     struct param_id_aptx_adaptive_enc_original_samplerate_t *param = NULL;
@@ -316,6 +396,10 @@ static int bt_aptx_populate_payload(bt_codec_t *codec, void *src, void **dst)
             config_fn = ((codec->direction == ENC) ? &aptx_hd_pack_enc_config :
                                                      NULL);
             break;
+        case CODEC_TYPE_APTX_DUAL_MONO:
+            config_fn = ((codec->direction == ENC) ? &aptx_dual_mono_pack_enc_config :
+                                                     NULL);
+            break;
         default:
             ALOGD("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
     }
@@ -336,6 +420,7 @@ static uint64_t bt_aptx_get_decoder_latency(bt_codec_t *codec,
         case CODEC_TYPE_APTX:
         case CODEC_TYPE_APTX_HD:
         case CODEC_TYPE_APTX_AD:
+        case CODEC_TYPE_APTX_DUAL_MONO:
         default:
             latency = 200;
             ALOGD("No valid decoder defined, setting latency to %dms", latency);
@@ -351,6 +436,7 @@ static uint64_t bt_aptx_get_encoder_latency(bt_codec_t *codec,
 
     switch (codec->codecFmt) {
         case CODEC_TYPE_APTX:
+        case CODEC_TYPE_APTX_DUAL_MONO:
             latency = ENCODER_LATENCY_APTX;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_APTX : slatency;
             break;

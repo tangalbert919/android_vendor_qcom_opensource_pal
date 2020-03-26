@@ -49,6 +49,8 @@
 #include "audio_dam_buffer_api.h"
 #include "codec_dma_api.h"
 #include "detection_cmn_api.h"
+#include "aptx_classic_encoder_api.h"
+#include "aptx_adaptive_encoder_api.h"
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Stream.h"

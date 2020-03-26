@@ -908,6 +908,26 @@ int SessionAlsaCompress::setParameters(Stream *s, int tagId, uint32_t param_id, 
             }
             break;
         }
+        case QAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        {
+            qal_bt_tws_payload *tws_payload = (qal_bt_tws_payload *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadTWSConfig(&alsaParamData, &alsaPayloadSize,
+                 miid, tws_payload->isTwsMonoModeOn, tws_payload->codecFormat);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                QAL_INFO(LOG_TAG, "mixer set tws config status=%d\n", status);
+                free(alsaParamData);
+            }
+            return 0;
+        }
         default:
             QAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
             break;
