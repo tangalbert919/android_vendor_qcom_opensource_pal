@@ -48,6 +48,7 @@
 #include "DisplayPort.h"
 #include "Handset.h"
 #include "SoundTriggerPlatformInfo.h"
+#include <unistd.h>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -75,7 +76,8 @@
 #define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
 #endif
 
-#define MAX_SND_CARD 110
+#define MAX_SND_CARD 10
+#define MAX_RETRY_CNT 20
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
 #define DEVICE_NAME_MAX_SIZE 128
@@ -474,38 +476,52 @@ char* ResourceManager::getDeviceNameFromID(uint32_t id)
 
 int ResourceManager::init_audio()
 {
-    int ret = 0;
+    int ret = 0, retry = 0;
+    bool snd_card_found = false;
     char snd_macro[] = "snd";
     char *snd_card_name = NULL, *snd_card_name_t = NULL;
     char *snd_internal_name = NULL;
     char *tmp = NULL;
     char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
     QAL_DBG(LOG_TAG, "Enter.");
-    snd_card = 0;
-    while (snd_card < MAX_SND_CARD) {
-        audio_mixer = mixer_open(snd_card);
-        if (!audio_mixer) {
+
+    do {
+        /* Look for only default codec sound card */
+        /* Ignore USB sound card if detected */
+        snd_card = 0;
+        while (snd_card < MAX_SND_CARD) {
+            audio_mixer = mixer_open(snd_card);
+            if (audio_mixer) {
+                snd_card_name = strdup(mixer_get_name(audio_mixer));
+                if (!snd_card_name) {
+                    QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
+                    mixer_close(audio_mixer);
+                    return -EINVAL;
+                }
+                QAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s, am:%p",
+                snd_card, snd_card_name, rm->audio_mixer);
+
+                /* TODO: Needs to extend for new targets */
+                if (strstr(snd_card_name, "kona") ||
+                    strstr(snd_card_name, "sm8150")) {
+                    QAL_VERBOSE(LOG_TAG, "Found Codec sound card");
+                    snd_card_found = true;
+                    break;
+                }
+            }
             snd_card++;
-            continue;
-        } else {
-            QAL_INFO(LOG_TAG, "mixer open success. snd_card_num = %d, am:%p",
-                    snd_card, rm->audio_mixer);
-            break;
         }
-    }
+
+        if (!snd_card_found) {
+            QAL_INFO(LOG_TAG, "No audio mixer, retry %d", retry++);
+            sleep(1);
+        }
+    } while (!snd_card_found && retry <= MAX_RETRY_CNT);
 
     if (snd_card >= MAX_SND_CARD || !audio_mixer) {
         QAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
     }
-
-    snd_card_name = strdup(mixer_get_name(audio_mixer));
-    if (!snd_card_name) {
-        QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
-        mixer_close(audio_mixer);
-        return -EINVAL;
-    }
-
     snd_card_name_t = strdup(snd_card_name);
     snd_internal_name = strtok_r(snd_card_name_t, "-", &tmp);
 
