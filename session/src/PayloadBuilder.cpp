@@ -1977,7 +1977,7 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
             (param_id_aptx_classic_switch_enc_pcm_input_payload_t*)(payloadInfo +
              sizeof(struct apm_module_param_data_t));
         aptx_classic_payload->transition_direction = val;
-        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          aptx_classic_payload,
                          customPayloadSize);
@@ -1986,7 +1986,7 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
             (param_id_aptx_adaptive_enc_switch_to_mono_t*)(payloadInfo +
              sizeof(struct apm_module_param_data_t));
         aptx_adaptive_payload->switch_between_mono_and_stereo = val;
-        casa_osal_memcpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          aptx_adaptive_payload,
                          customPayloadSize);
