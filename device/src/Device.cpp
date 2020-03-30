@@ -133,6 +133,14 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
     case QAL_DEVICE_IN_WIRED_HEADSET:
         QAL_VERBOSE(LOG_TAG, "headset mic device");
         return HeadsetMic::getObject();
+    case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
+    case QAL_DEVICE_IN_BLUETOOTH_A2DP:
+        QAL_VERBOSE(LOG_TAG, "BT A2DP device %d", dev_id);
+        return BtA2dp::getObject(dev_id);
+    case QAL_DEVICE_OUT_BLUETOOTH_SCO:
+    case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        QAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
+        return BtSco::getObject(dev_id);
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;

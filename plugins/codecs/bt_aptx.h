@@ -58,6 +58,18 @@ typedef enum {
     APTX_AD_CHANNEL_EARBUD = 8,
 } enc_aptx_ad_channel_mode;
 
+/*
+ * enums which describes the APTX Adaptive
+ * sampling frequency, these values are used
+ * by encoder
+ */
+typedef enum {
+    APTX_AD_SR_UNCHANGED = 0x0,
+    APTX_AD_48 = 0x1,  // 48 KHz default
+    APTX_AD_44_1 = 0x2, // 44.1kHz
+    APTX_AD_96 = 0x3,  // 96KHz
+} enc_aptx_ad_s_rate;
+
 /* Information about BT APTX encoder configuration
  * This data is used between audio HAL module and
  * BT IPC library to configure DSP encoder
@@ -76,7 +88,7 @@ typedef struct audio_aptx_hd_encoder_config_s {
     uint32_t bits_per_sample;
 } audio_aptx_hd_encoder_config_t;
 
-typedef struct audio_aptx_dual_mono_config_s{
+typedef struct audio_aptx_dual_mono_config_s {
     uint16_t sampling_rate;
     uint8_t  channels;
     uint32_t bitrate;

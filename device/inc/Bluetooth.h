@@ -160,6 +160,7 @@ public:
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     int32_t getDeviceParameter(uint32_t param_id, void **param) override;
 
+    static std::shared_ptr<Device> getObject(qal_device_id_t id);
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     virtual ~BtA2dp();
@@ -177,6 +178,7 @@ protected:
     int bt_swb_speech_mode;
     int startSwb();
 public:
+    static std::shared_ptr<Device> getObject(qal_device_id_t id);
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     int start();

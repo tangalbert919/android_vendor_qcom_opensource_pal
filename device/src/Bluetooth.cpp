@@ -556,6 +556,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     param_bt_a2dp.reconfigured = false;
     param_bt_a2dp.a2dp_suspended = false;
     is_handoff_in_progress = false;
+    isTwsMonoModeOn = false;
     is_a2dp_offload_supported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
@@ -1068,6 +1069,14 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     return 0;
 }
 
+std::shared_ptr<Device> BtA2dp::getObject(qal_device_id_t id)
+{
+    if (id == QAL_DEVICE_OUT_BLUETOOTH_A2DP)
+        return objRx;
+    else
+        return objTx;
+}
+
 std::shared_ptr<Device>
 BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
@@ -1178,6 +1187,14 @@ int BtSco::stop()
 
     Device::stop();
     return status;
+}
+
+std::shared_ptr<Device> BtSco::getObject(qal_device_id_t id)
+{
+    if (id == QAL_DEVICE_OUT_BLUETOOTH_SCO)
+        return objRx;
+    else
+        return objTx;
 }
 
 std::shared_ptr<Device> BtSco::getInstance(struct qal_device *device,

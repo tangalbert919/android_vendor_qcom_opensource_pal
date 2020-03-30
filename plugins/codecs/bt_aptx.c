@@ -40,6 +40,7 @@
 #include <aptx_hd_encoder_api.h>
 #include <aptx_adaptive_encoder_api.h>
 
+#define DEFAULT_FADE_DURATION 255
 static int aptx_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
 {
     audio_aptx_encoder_config_t *aptx_bt_cfg = NULL;
@@ -148,8 +149,12 @@ static int aptx_dual_mono_pack_enc_config(bt_codec_t *codec, void *src, void **d
 
     /* Sync mode should be DUAL AUTOSYNC (1) for TWS+ */
     aptx_sync_mode->sync_mode = aptx_dm_bt_cfg->sync_mode;
-    aptx_sync_mode->startup_mode = aptx_dm_bt_cfg->sync_mode;
-    aptx_sync_mode->cvr_fade_duration = 255;
+    if (enc_payload->channel_count == 1)
+        aptx_sync_mode->startup_mode = 1; /* (L + R)/2 input */
+    else
+        aptx_sync_mode->startup_mode = 0; /* L and R separate input */
+
+    aptx_sync_mode->cvr_fade_duration = DEFAULT_FADE_DURATION;
 
     ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_CLASSIC_SET_SYNC_MODE,
             aptx_sync_mode, sizeof(param_id_aptx_classic_sync_mode_payload_t));
@@ -218,9 +223,24 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
+    /* ABR is always enabled for APTx Adaptive */
+    enc_payload->is_abr_enabled = true;
     enc_payload->bit_format  = aptx_ad_bt_cfg->bits_per_sample;
-    enc_payload->sample_rate = aptx_ad_bt_cfg->sampling_rate;
     enc_payload->num_blks    = num_blks;
+
+    switch(aptx_ad_bt_cfg->sampling_rate) {
+        case APTX_AD_SR_UNCHANGED:
+        case APTX_AD_48:
+        default:
+            enc_payload->sample_rate = 48000;
+            break;
+        case APTX_AD_44_1:
+            enc_payload->sample_rate = 44100;
+            break;
+        case APTX_AD_96:
+            enc_payload->sample_rate = 96000;
+            break;
+    }
 
     switch (aptx_ad_bt_cfg->channel_mode) {
         case APTX_AD_CHANNEL_MONO:
@@ -436,7 +456,6 @@ static uint64_t bt_aptx_get_encoder_latency(bt_codec_t *codec,
 
     switch (codec->codecFmt) {
         case CODEC_TYPE_APTX:
-        case CODEC_TYPE_APTX_DUAL_MONO:
             latency = ENCODER_LATENCY_APTX;
             latency += (slatency <= 0) ? DEFAULT_SINK_LATENCY_APTX : slatency;
             break;
