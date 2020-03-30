@@ -80,6 +80,13 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
     std::ignore = no_of_modifiers;
     currentState = STREAM_IDLE;
 
+    // Setting default volume to unity
+    mVolumeData = (struct qal_volume_data *)malloc(sizeof(struct qal_volume_data)
+                          +sizeof(struct qal_channel_vol_kv));
+    mVolumeData->no_of_volpair = 1;
+    mVolumeData->volume_pair[0].channel_mask = 0x03;
+    mVolumeData->volume_pair[0].vol = 1.0f;
+
     mStreamAttr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
     if (!mStreamAttr) {
         QAL_ERR(LOG_TAG,"malloc for stream attributes failed");

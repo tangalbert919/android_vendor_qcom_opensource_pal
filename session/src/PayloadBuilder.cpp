@@ -2600,7 +2600,9 @@ int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>
     int status = 0;
 
     QAL_ERR(LOG_TAG,"%s: enter \n", __func__);
-    keyVector.push_back(std::make_pair(VOLUME,LEVEL_0)); /*TODO Decide what to send as ckv in graph open*/
+    // Sending volume minimum as we want to ramp up instead of ramping down
+    // while setting the desired volume.Thus avoiding glitch
+    keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
     QAL_ERR(LOG_TAG,"%s: Entered default %x %x \n", __func__, VOLUME, LEVEL_0);
 
     return status;

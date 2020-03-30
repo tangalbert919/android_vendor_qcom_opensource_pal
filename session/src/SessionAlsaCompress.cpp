@@ -722,6 +722,10 @@ int SessionAlsaCompress::start(Stream * s)
         default:
             break;
     }
+    // Setting the volume as no default volume is set now in stream open
+    if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
+            QAL_ERR(LOG_TAG,"Setting volume failed");
+    }
 
 free_feIds:
    return 0;

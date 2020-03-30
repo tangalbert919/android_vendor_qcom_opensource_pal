@@ -707,6 +707,11 @@ int SessionAlsaPcm::start(Stream * s)
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
             break;
     }
+    // Setting the volume as in stream open, no default volume is set.
+    if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
+            QAL_ERR(LOG_TAG,"Setting volume failed");
+    }
+
     mState = SESSION_STARTED;
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
