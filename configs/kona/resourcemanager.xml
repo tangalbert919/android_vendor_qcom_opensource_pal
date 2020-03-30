@@ -72,9 +72,10 @@
             <id>QAL_DEVICE_IN_HANDSET_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -83,7 +84,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOIP_TX</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -92,7 +92,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -101,7 +100,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -113,56 +111,10 @@
             <id>QAL_DEVICE_IN_SPEAKER_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
+            <channels>1</channels>
+            <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
-                <channels>3</channels>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000004"/>
-                    <!-- AUDIO_FLUENCE_PRO -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
-                <channels>3</channels>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000005"/>
-                    <!-- VOIP_FLUENCE_PRO -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
-                <channels>1</channels>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
-                <name>QAL_STREAM_LOOPBACK</name>
-                <channels>1</channels>
-                <devicePP-metadata>
-                </devicePP-metadata>
-            </usecase>
-        </in-device>
-        <in-device>
-            <id>QAL_DEVICE_IN_WIRED_HEADSET</id>
-            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
-            <max_channels>1</max_channels>
-            <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -170,8 +122,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-               <name>QAL_STREAM_VOIP_TX</name>
-               <channels>1</channels>
+                <name>QAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -180,7 +131,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -189,7 +139,50 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
-                <channels>1</channels>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000008"/>
+                    <!-- VOICE_FLUENCE_SMECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_LOOPBACK</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+        </in-device>
+        <in-device>
+            <id>QAL_DEVICE_IN_WIRED_HEADSET</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>headset-mic</snd_device_name>
+            <usecase>
+                <name>QAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000002"/>
+                    <!-- AUDIO_FLUENCE_SMECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOIP_TX</name>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000007"/>
+                    <!-- VOIP_FLUENCE_SMECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOICE_UI</name>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000001"/>
+                    <!-- VOICE_UI_FLUENCE_FFECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOICE_CALL</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -201,9 +194,10 @@
             <id>QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET</id>
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -211,8 +205,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-               <name>QAL_STREAM_VOIP_TX</name>
-               <channels>1</channels>
+                <name>QAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -221,7 +214,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -230,7 +222,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -242,9 +233,10 @@
             <id>QAL_DEVICE_IN_HANDSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>va-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -256,9 +248,10 @@
             <id>QAL_DEVICE_IN_HEADSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>headset-va-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -270,9 +263,10 @@
             <id>QAL_DEVICE_IN_USB_HEADSET</id>
             <back_end_name>USB_AUDIO-TX</back_end_name>
             <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_VOIP_TX</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -281,7 +275,6 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_UI</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -290,16 +283,14 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_PRO -->
+                    <!-- AUDIO_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
-                <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->

@@ -50,7 +50,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     int status = 0;
     uint32_t count = 0;
     bool isStandby = false;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
 
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
@@ -87,12 +87,17 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             mQalDevice[count].address = dAttr[i].address;
         }
         if (sAttr->direction != QAL_AUDIO_OUTPUT) {
-           status = rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &ecinfo);
-           if(status) {
-              QAL_ERR(LOG_TAG, "get ec info failed");
+           status = rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &devinfo);
+           if (status) {
+              QAL_ERR(LOG_TAG, "get dev info failed");
+           }
+           if (devinfo.channels > devinfo.max_channels) {
+              QAL_ERR(LOG_TAG, "channels %d exceeds maxchannels %d failed to create stream",
+                       devinfo.channels, devinfo.max_channels);
+              goto exit;
            }
         }
-        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr, ecinfo.channels);
+        status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr, devinfo.channels);
         if (status) {
            QAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
            goto exit;

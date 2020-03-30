@@ -293,7 +293,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     bool is_lpi = false;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
@@ -369,14 +369,14 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
         if (sAttr.direction == QAL_AUDIO_OUTPUT)
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
-                    emptyKV, ecinfo.kvpair, is_lpi);
+                    emptyKV, devinfo.kvpair, is_lpi);
         else {
-            status = rmHandle->getDeviceInfo((qal_device_id_t)be->first, sAttr.type, &ecinfo);
+            status = rmHandle->getDeviceInfo((qal_device_id_t)be->first, sAttr.type, &devinfo);
             if(status) {
-                QAL_ERR(LOG_TAG, "get ec info failed");
+                QAL_ERR(LOG_TAG, "get dev info failed");
             }
             status = builder->populateDevicePPKV(streamHandle, 0, emptyKV, be->first,
-                     streamDeviceKV, ecinfo.kvpair, is_lpi);
+                     streamDeviceKV, devinfo.kvpair, is_lpi);
         }
         if (status != 0) {
             QAL_VERBOSE(LOG_TAG, "%s: get device PP KV failed %d", status);
@@ -950,7 +950,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t i, rxDevNum, txDevNum;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
 
     status = streamHandle->getStreamAttributes(&sAttr);
@@ -974,9 +974,9 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     // get keyvalue pair info
-    status = rmHandle->getDeviceInfo((qal_device_id_t)txBackEnds[0].first, sAttr.type, &ecinfo);
+    status = rmHandle->getDeviceInfo((qal_device_id_t)txBackEnds[0].first, sAttr.type, &devinfo);
     if(status) {
-       QAL_ERR(LOG_TAG, "get ec info failed");
+       QAL_ERR(LOG_TAG, "get dev info failed");
     }
     //get vsid info
     status = rmHandle->getVsidInfo(&vsidinfo);
@@ -1013,7 +1013,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
      // get devicePP
     if ((status = builder->populateDevicePPKV(streamHandle,
                     rxBackEnds[0].first, streamDeviceRxKV, txBackEnds[0].first,
-                    streamDeviceTxKV,ecinfo.kvpair, false))!= 0) {
+                    streamDeviceTxKV,devinfo.kvpair, false))!= 0) {
         QAL_ERR(LOG_TAG, "%s: get device KV failed %d", status);
         goto exit;
     }
@@ -1563,7 +1563,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     bool is_compress = false;
     struct qal_stream_attributes sAttr;
     int sub = 1;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
     bool is_lpi = false;
 
@@ -1613,14 +1613,14 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateDevicePPKV(streamHandle,
                 aifBackEndsToConnect[0].first, streamDeviceKV,
-                0, emptyKV,ecinfo.kvpair, false);
+                0, emptyKV,devinfo.kvpair, false);
     else {
-        status = rmHandle->getDeviceInfo(dAttr.id, streamType, &ecinfo);
+        status = rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
         if(status) {
-            QAL_ERR(LOG_TAG, "get ec info failed");
+            QAL_ERR(LOG_TAG, "get dev info failed");
         }
         status = builder->populateDevicePPKV(streamHandle, 0, emptyKV,
-                aifBackEndsToConnect[0].first, streamDeviceKV, ecinfo.kvpair, is_lpi);
+                aifBackEndsToConnect[0].first, streamDeviceKV, devinfo.kvpair, is_lpi);
     }
     if (status != 0) {
         QAL_ERR(LOG_TAG, "%s: get device PP KV failed %d", status);

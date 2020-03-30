@@ -58,7 +58,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm) {
     std::shared_ptr<Device> dev = nullptr;
-    struct qal_ec_info ecinfo = {};
     int status = 0;
     class SoundTriggerUUID uuid;
     reader_ = nullptr;
@@ -137,7 +136,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
         if (dattr[0].config.ch_info)
             free(dattr[0].config.ch_info);
-
         if (GetQalDevice(dev_id, &dattr[0])) {
             QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
             if (dattr[0].config.ch_info)

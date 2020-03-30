@@ -116,18 +116,19 @@ struct kvpair_info {
 
 struct usecase_info {
     int type;
-    int channel;
     std::vector<kvpair_info> kvpair;
 };
 
 struct deviceIn {
     int deviceId;
     int max_channel;
+    int channel;
     std::vector<usecase_info> usecase;
 };
 
-struct qal_ec_info {
+struct qal_device_info {
      int channels;
+     int max_channels;
      std::vector<kvpair_info> kvpair;
 };
 
@@ -266,7 +267,7 @@ public:
                             struct qal_stream_attributes *attributes, int32_t channel);
     /*getDeviceInfo - updates channels,fluence info and snd name of the device*/
     int32_t getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
-                       struct qal_ec_info *ecinfo);
+                       struct qal_device_info *devinfo);
     int32_t getVsidInfo(struct vsid_info  *info);
     void getChannelMap(uint8_t *channel_map, int channels);
     int registerStream(Stream *s);
@@ -352,7 +353,6 @@ public:
     static void snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
-    static void update_snd_name(int channel);
     static void process_kvinfo(const XML_Char **attr);
     static void process_voicemode_info(const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);

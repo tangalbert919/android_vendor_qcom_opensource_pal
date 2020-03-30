@@ -530,7 +530,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     Stream *s = NULL;
     std::shared_ptr<ResourceManager> rm = NULL;
     struct qal_stream_attributes sattr;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -564,12 +564,17 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 
     for (int i = 0; i < no_of_devices; i++) {
         if (sattr.direction != QAL_AUDIO_OUTPUT) {
-           status = rm->getDeviceInfo(devices[i].id, sattr.type, &ecinfo);
-           if(status) {
-              QAL_ERR(LOG_TAG, "get ec info failed");
+           status = rm->getDeviceInfo(devices[i].id, sattr.type, &devinfo);
+           if (status) {
+              QAL_ERR(LOG_TAG, "get dev info failed");
+           }
+           if (devinfo.channels > devinfo.max_channels) {
+              QAL_ERR(LOG_TAG, "channels %d exceeds maxchannels %d set device failed",
+                       devinfo.channels, devinfo.max_channels);
+              return -EINVAL;
            }
         }
-        status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr, ecinfo.channels);
+        status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr, devinfo.channels);
         if (status) {
            QAL_ERR(LOG_TAG, "Failed to get Device config, err: %d", status);
            return status;

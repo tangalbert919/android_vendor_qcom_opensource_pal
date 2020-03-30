@@ -560,23 +560,23 @@ int ResourceManager::init()
 }
 
 int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
-                                         struct qal_ec_info *ecinfo)
+                                         struct qal_device_info *devinfo)
 {
     int32_t status = 0;
     struct kvpair_info kv = {};
 
     for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
         if (deviceId == deviceInfo[size1].deviceId) {
+            devinfo->channels = deviceInfo[size1].channel;
+            devinfo->max_channels = deviceInfo[size1].max_channel;
             for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
                 if (type == deviceInfo[size1].usecase[size2].type) {
-                    ecinfo->channels = deviceInfo[size1].usecase[size2].channel;
                     for (int32_t kvsize = 0;
                     kvsize < deviceInfo[size1].usecase[size2].kvpair.size(); kvsize++) {
                        kv.key =  deviceInfo[size1].usecase[size2].kvpair[kvsize].key;
                        kv.value =  deviceInfo[size1].usecase[size2].kvpair[kvsize].value;
-                       ecinfo->kvpair.push_back(kv);
+                       devinfo->kvpair.push_back(kv);
                     }
-                    update_snd_name(ecinfo->channels);
                     return status;
                }
             }
@@ -3344,7 +3344,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     struct qal_stream_attributes sAttr;
     struct qal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
-    struct qal_ec_info ecinfo = {};
+    struct qal_device_info devinfo = {};
 
     QAL_DBG(LOG_TAG, "%s Enter", __func__);
     memset(&conn_device, 0, sizeof(struct qal_device));
@@ -3384,11 +3384,11 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             }
         } else if (isBtScoDevice(device_id)) {
             dAttr.id = device_id;
-            status = rm->getDeviceInfo(dAttr.id, sAttr.type, &ecinfo);
+            status = rm->getDeviceInfo(dAttr.id, sAttr.type, &devinfo);
             if (status) {
-               QAL_ERR(LOG_TAG, "get ec info failed");
+               QAL_ERR(LOG_TAG, "get dev info failed");
             }
-            status = getDeviceConfig(&dAttr, &sAttr, ecinfo.channels);
+            status = getDeviceConfig(&dAttr, &sAttr, devinfo.channels);
             if (status) {
                 QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
@@ -3728,78 +3728,6 @@ void ResourceManager::snd_reset_data_buf(struct xml_userdata *data)
     data->data_buf[data->offs] = '\0';
 }
 
-void ResourceManager::update_snd_name(int channel)
-{
-    for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
-        for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
-            switch (deviceInfo[size1].deviceId) {
-                case QAL_DEVICE_IN_HANDSET_MIC:
-                    if (channel == 1) {
-                         std::string sndName("handset-mic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 2) {
-                         std::string sndName("handset-dmic-endfire");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 3) {
-                         std::string sndName("three-mic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 4) {
-                         std::string sndName("quad-mic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                case QAL_DEVICE_IN_SPEAKER_MIC:
-                    if (channel == 1) {
-                         std::string sndName("speaker-mic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 2) {
-                         std::string sndName("speaker-dmic-endfire");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 3) {
-                         std::string sndName("speaker-tmic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel == 4) {
-                         std::string sndName("speaker-qmic");
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    } else if (channel > 4) {
-                         char snd_Name[20];
-                         snprintf (snd_Name, sizeof(snd_Name), "speaker-%dmic", channel);
-                         std::string sndName(snd_Name);
-                         updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                case QAL_DEVICE_IN_WIRED_HEADSET:
-                    {
-                        std::string sndName("headset-mic");
-                        updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-                    {
-                        std::string sndName("bt-a2dp");
-                        updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                case QAL_DEVICE_IN_HANDSET_VA_MIC:
-                    {
-                        std::string sndName("va-mic");
-                        updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                case QAL_DEVICE_IN_HEADSET_VA_MIC:
-                    {
-                        std::string sndName("headset-va-mic");
-                        updateSndName(deviceInfo[size1].deviceId , sndName);
-                    }
-                    break;
-                default:
-                   QAL_ERR(LOG_TAG, "device id not found to update snd name");
-                   break;
-
-            }
-        }
-     }
-}
 void ResourceManager::process_voicemode_info(const XML_Char **attr)
 {
     int size = 0;
@@ -3896,6 +3824,13 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "max_channels")) {
             size = deviceInfo.size() - 1;
             deviceInfo[size].max_channel = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "channels")) {
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].channel = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "snd_device_name")) {
+            size = deviceInfo.size() - 1;
+            std::string snddevname(data->data_buf);
+            updateSndName(deviceInfo[size].deviceId, snddevname);
         }
     } else if (data->tag == TAG_USECASE) {
         if (!strcmp(tag_name, "name")) {
@@ -3903,10 +3838,6 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             usecase_data.type  = usecaseIdLUT.at(userIdname);
             size = deviceInfo.size() - 1;
             deviceInfo[size].usecase.push_back(usecase_data);
-        } else if (!strcmp(tag_name, "channels")) {
-            size = deviceInfo.size() - 1;
-            sizeusecase = deviceInfo[size].usecase.size() - 1;
-            deviceInfo[size].usecase[sizeusecase].channel = atoi(data->data_buf);
         }
     }
     if (!strcmp(tag_name, "kvpair")) {
