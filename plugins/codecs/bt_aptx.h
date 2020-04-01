@@ -92,8 +92,7 @@ typedef struct audio_aptx_dual_mono_config_s {
     uint16_t sampling_rate;
     uint8_t  channels;
     uint32_t bitrate;
-    uint32_t sync_mode;
-    uint32_t bits_per_sample;
+    uint8_t sync_mode;
 } audio_aptx_dual_mono_config_t;
 
 typedef struct audio_aptx_ad_encoder_config_s {

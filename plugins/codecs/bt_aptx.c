@@ -120,7 +120,7 @@ static int aptx_dual_mono_pack_enc_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format    = aptx_dm_bt_cfg->bits_per_sample;
+    enc_payload->bit_format    = 16;
     enc_payload->sample_rate   = aptx_dm_bt_cfg->sampling_rate;
     enc_payload->channel_count = aptx_dm_bt_cfg->channels;
     enc_payload->num_blks      = num_blks;
