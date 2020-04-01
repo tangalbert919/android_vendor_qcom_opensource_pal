@@ -86,7 +86,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             mQalDevice[count].id == QAL_DEVICE_IN_USB_HEADSET) {
             mQalDevice[count].address = dAttr[i].address;
         }
-        if (sAttr->direction == QAL_AUDIO_INPUT) {
+        if (sAttr->direction != QAL_AUDIO_OUTPUT) {
            status = rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &ecinfo);
            if(status) {
               QAL_ERR(LOG_TAG, "get ec info failed");

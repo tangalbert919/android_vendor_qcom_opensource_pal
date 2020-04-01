@@ -563,7 +563,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     }
 
     for (int i = 0; i < no_of_devices; i++) {
-        if (sattr.direction == QAL_AUDIO_INPUT) {
+        if (sattr.direction != QAL_AUDIO_OUTPUT) {
            status = rm->getDeviceInfo(devices[i].id, sattr.type, &ecinfo);
            if(status) {
               QAL_ERR(LOG_TAG, "get ec info failed");
