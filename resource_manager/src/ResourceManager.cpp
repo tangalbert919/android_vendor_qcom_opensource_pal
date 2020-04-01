@@ -3099,7 +3099,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
             dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
-                dev = Device::getInstance(&dattr , rm);
+                dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
                 if (status) {
                     QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
@@ -3111,10 +3111,19 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     goto exit;
                 }
                 if (param_bt_a2dp->reconfigured == true) {
+                    struct qal_device spkrDattr;
+                    std::shared_ptr<Device> spkrDev = nullptr;
+
                     QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
+                    spkrDattr.id = QAL_DEVICE_OUT_SPEAKER;
+                    spkrDev = Device::getInstance(&spkrDattr, rm);
+
+                    getDeviceConfig(&spkrDattr, NULL, 0);
                     getDeviceConfig(&dattr, NULL, 0);
+
                     mResourceManagerMutex.unlock();
-                    rm->forceDeviceSwitch(dev, &dattr);
+                    rm->forceDeviceSwitch(dev, &spkrDattr);
+                    rm->forceDeviceSwitch(spkrDev, &dattr);
                     mResourceManagerMutex.lock();
                     param_bt_a2dp->reconfigured = false;
                     dev->setDeviceParameter(param_id, param_bt_a2dp);
