@@ -206,8 +206,8 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     bt_enc_payload_t *enc_payload = NULL;
     struct param_id_aptx_adaptive_enc_init_t *enc_init = NULL;
     struct param_id_aptx_adaptive_enc_profile_t *enc_profile = NULL;
-    int ret = 0, num_blks = 4, i = 0;
-    custom_block_t *blk[4] = {NULL};
+    int ret = 0, num_blks = 3, i = 0;
+    custom_block_t *blk[3] = {NULL};
 
     ALOGV("%s", __func__);
     if ((src == NULL) || (dst == NULL)) {
@@ -259,11 +259,6 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         }
     }
 
-    /* populate payload for PARAM_ID_REAL_MODULE_ID */
-    ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_APTX_ADAPTIVE_ENC);
-    if (ret)
-        goto free_payload;
-
     /* populate payload for PARAM_ID_APTX_ADAPTIVE_ENC_INIT */
     enc_init = (struct param_id_aptx_adaptive_enc_init_t*)calloc(1, sizeof(struct param_id_aptx_adaptive_enc_init_t));
     if (enc_init == NULL) {
@@ -286,7 +281,7 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     for (int i = 0; i < sizeof(enc_init->sinkCapability); i++)
         enc_init->sinkCapability[i] = aptx_ad_bt_cfg->sink_cap[i];
 
-    ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_ADAPTIVE_ENC_INIT,
+    ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_APTX_ADAPTIVE_ENC_INIT,
             enc_init, sizeof(struct param_id_aptx_adaptive_enc_init_t));
     free(enc_init);
     if (ret)
@@ -306,7 +301,7 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     enc_profile->hQLatTarget0     = aptx_ad_bt_cfg->TTP_modeB_low;
     enc_profile->hQLatTarget1     = aptx_ad_bt_cfg->TTP_modeB_high;
 
-    ret = bt_base_populate_enc_cmn_param(blk[2], PARAM_ID_APTX_ADAPTIVE_ENC_PROFILE,
+    ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_ADAPTIVE_ENC_PROFILE,
             enc_profile, sizeof(struct param_id_aptx_adaptive_enc_profile_t));
     free(enc_profile);
     if (ret)
@@ -314,14 +309,13 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
 
     /* populate payload for PARAM_ID_APTX_ADAPTIVE_ENC_AUDIOSRC_INFO */
     //TODO: hard coded sample rate as 0 - same as system setting
-    ret = bt_apt_ad_populate_enc_audiosrc_info(blk[3], 0);
+    ret = bt_apt_ad_populate_enc_audiosrc_info(blk[2], 0);
     if (ret)
         goto free_payload;
 
     enc_payload->blocks[0] = blk[0];
     enc_payload->blocks[1] = blk[1];
     enc_payload->blocks[2] = blk[2];
-    enc_payload->blocks[3] = blk[3];
     *dst = enc_payload;
     codec->payload = enc_payload;
 
