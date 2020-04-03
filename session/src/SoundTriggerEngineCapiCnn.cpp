@@ -387,13 +387,6 @@ int32_t SoundTriggerEngineCapiCnn::StopSoundEngine()
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
-    status = capi_handle_->vtbl_ptr->end(capi_handle_);
-    if (status != CAPI_V2_EOK) {
-        QAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
-            status);
-        status = -EINVAL;
-    }
     {
         processing_started_ = false;
         std::lock_guard<std::mutex> lck(event_mutex_);
@@ -461,7 +454,17 @@ exit:
 
 int32_t SoundTriggerEngineCapiCnn::UnloadSoundModel(Stream *s __unused)
 {
-    return 0;
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
+    status = capi_handle_->vtbl_ptr->end(capi_handle_);
+    if (status != CAPI_V2_EOK) {
+        QAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
+            status);
+        status = -EINVAL;
+    }
+
+    return status;
 }
 
 int32_t SoundTriggerEngineCapiCnn::StartRecognition(Stream *s __unused)
