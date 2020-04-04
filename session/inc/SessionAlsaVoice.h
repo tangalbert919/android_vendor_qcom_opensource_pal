@@ -63,6 +63,7 @@ private:
     float default_volume = 0.5;
     uint32_t ttyMode = QAL_TTY_OFF;
     bool volume_boost = vol_boost_disable;
+    bool slow_talk = false;
 
 public:
 

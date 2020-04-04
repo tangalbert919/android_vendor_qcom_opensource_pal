@@ -309,16 +309,27 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, voi
             device = pcmDevRxIds.at(0);
             volume_boost = QalPayload->volume_boost;
             status = payloadCalKeys(s, &paramData, &paramSize);
+            if (!paramData) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
                                             RXDIR);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
             }
-            if (!paramData) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                goto exit;
+            break;
+
+        case VOICE_SLOW_TALK_OFF:
+        case VOICE_SLOW_TALK_ON:
+            device = pcmDevRxIds.at(0);
+            slow_talk = QalPayload->slow_talk;
+            status = payloadTaged(s, MODULE, tagId, device, RXDIR);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set voice slow_Talk params status = %d",
+                        status);
             }
             break;
 
@@ -347,6 +358,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, voi
             status = -EINVAL;
             break;
     }
+
     if (0 != status) {
         QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
         goto exit;

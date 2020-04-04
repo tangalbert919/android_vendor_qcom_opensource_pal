@@ -79,6 +79,8 @@ typedef enum {
 #define BW_24 25
 #define BW_32 26
 #define TTY_MODE 27
+#define VOICE_SLOW_TALK_OFF 28
+#define VOICE_SLOW_TALK_ON 29
 #define VOICE_VOLUME_BOOST 30
 
 class Device;

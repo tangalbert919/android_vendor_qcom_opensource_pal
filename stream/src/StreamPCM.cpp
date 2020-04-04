@@ -769,6 +769,19 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
                        status);
             break;
         }
+        case QAL_PARAM_ID_SLOW_TALK:
+        {
+            param_payload = (qal_param_payload *)payload;
+            QAL_ERR(LOG_TAG,"slow talk %d",param_payload->slow_talk);
+
+            uint32_t slow_talk_tag =
+                     param_payload->slow_talk ? VOICE_SLOW_TALK_ON : VOICE_SLOW_TALK_OFF;
+            status = session->setParameters(this, slow_talk_tag, param_id, payload);
+            if (status)
+               QAL_ERR(LOG_TAG, "setParam for slow talk failed with %d",
+                       status);
+            break;
+        }
         default:
             QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;
