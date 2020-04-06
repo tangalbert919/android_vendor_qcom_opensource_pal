@@ -2528,14 +2528,12 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 }
                 break;
             case QAL_STREAM_VOICE_UI:
-                if (is_lpi) {
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS));
-                } else {
-                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
-                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
-                                               kvpair[kvsize].value));
-                    }
-                }
+                /*
+                 * add key-vector for the device pre-proc that was selected
+                 * by the stream
+                 */
+                for (auto& kv: s->getDevPpModifiers())
+                    keyVectorTx.push_back(kv);
                 break;
             default:
                 QAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);

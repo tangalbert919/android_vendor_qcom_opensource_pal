@@ -35,8 +35,19 @@
 #include <map>
 
 #include "QalCommon.h"
+#include "QalDefs.h"
+#include "kvh2xml.h"
 
 #define LOG_TAG "QAL: SoundTriggerPlatformInf"
+
+const std::map<std::string, uint32_t> devicePPKeyLUT {
+    {std::string{ "DEVICEPP_TX" }, DEVICEPP_TX},
+};
+
+const std::map<std::string, uint32_t> devicePPValueLUT {
+    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS},
+    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS},
+};
 
 SoundTriggerUUID::SoundTriggerUUID() :
     timeLow(0),
@@ -83,77 +94,109 @@ SoundTriggerUUID& SoundTriggerUUID::operator = (SoundTriggerUUID& rhs) {
     return *this;
 }
 
-
-SecondStageCfg::SecondStageCfg() :
-    sm_detection_type_(KEYWORD_DETECTION),
-    sm_id_(0),
-    module_lib_(nullptr),
+CaptureProfile::CaptureProfile(const std::string name) :
+    name_(name),
+    device_id_(QAL_DEVICE_IN_MIN),
     sample_rate_(16000),
-    bit_width_(16),
-    channel_count_(1) {
+    channels_(1),
+    bitwidth_(16),
+    device_pp_kv_(std::make_pair(DEVICEPP_TX,
+        DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS))
+{
 
 }
 
-void SecondStageCfg::HandleStartTag(const char* tag, const char** attribs) {
+void CaptureProfile::HandleCharData(const char* data) {
+}
+
+void CaptureProfile::HandleEndTag(const char* tag) {
+    QAL_DBG(LOG_TAG, "Got end tag %s", tag);
+    return;
+}
+
+void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
+
+    QAL_DBG(LOG_TAG, "Got start tag %s", tag);
     if (!strcmp(tag, "param")) {
         uint32_t i = 0;
         while (attribs[i]) {
-            if (!strcmp(attribs[i], "sm_detection_type")) {
-                ++i;
-                if (!strcmp(attribs[i],"KEYWORD_DETECTION"))
-                    sm_detection_type_ = KEYWORD_DETECTION;
-                else if (!strcmp(attribs[i],"USER_VERIFICATION"))
-                    sm_detection_type_ = USER_VERIFICATION;
-                else
-                    QAL_ERR(LOG_TAG, "Invalid sm_detection_type");
-            } else if(!strcmp(attribs[i], "sm_id")) {
-                sm_id_ = std::stoi(attribs[++i], 0, 16);
-            } else if(!strcmp(attribs[i], "module_lib")) {
-                module_lib_ =
-                    std::make_unique<std::string>(attribs[++i]);
-            } else if(!strcmp(attribs[i], "sample_rate")) {
+            if (!strcmp(attribs[i], "device_id")) {
+                auto itr = deviceIdLUT.find(attribs[++i]);
+                if (itr == deviceIdLUT.end()) {
+                    QAL_ERR(LOG_TAG, "could not find key %s in lookup table",
+                        attribs[i]);
+                } else {
+                    device_id_ = itr->second;
+                }
+            } else if (!strcmp(attribs[i], "sample_rate")) {
                 sample_rate_ = std::stoi(attribs[++i]);
-            } else if(!strcmp(attribs[i], "bit_wdith")) {
-                bit_width_ = std::stoi(attribs[++i]);
-            } else if(!strcmp(attribs[i], "channel_count")) {
-                channel_count_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "bit_width")) {
+                bitwidth_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "channels")) {
+                channels_ = std::stoi(attribs[++i]);
             } else {
                 QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
             ++i; /* move to next attribute */
         }
+    } else if (!strcmp(tag, "kvpair")) {
+        uint32_t i = 0;
+        uint32_t key = 0, value = 0;
+        while (attribs[i]) {
+            if (!strcmp(attribs[i], "key")) {
+                auto keyItr = devicePPKeyLUT.find(attribs[++i]);
+                if (keyItr == devicePPKeyLUT.end()) {
+                    QAL_ERR(LOG_TAG, "could not find key %s in lookup table",
+                        attribs[i]);
+                } else {
+                    key = keyItr->second;
+                }
+            } else if(!strcmp(attribs[i], "value")) {
+                auto valItr = devicePPValueLUT.find(attribs[++i]);
+                if (valItr == devicePPValueLUT.end()) {
+                    QAL_ERR(LOG_TAG, "could not find value %s in lookup table",
+                        attribs[i]);
+                } else {
+                    value = valItr->second;
+                }
+
+                device_pp_kv_ = std::make_pair(key, value);
+            }
+            ++i; /* move to next attribute */
+        }
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+        QAL_ERR(LOG_TAG, "Invalid tag %d", (char *)tag);
     }
 }
 
-void SecondStageCfg::HandleEndTag(const char* tag) {
-    /* no-op */
-}
 
-void SecondStageCfg::HandleCharData(const char* data) {
-    /* no-op */
-}
-
-
-SoundModelConfig::SoundModelConfig() :
+SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),
     bit_width_(16),
     out_channels_(1),
     capture_keyword_(2000),
     client_capture_read_delay_(2000),
+    cap_profile_map_(cap_prof_map),
     curr_child_(nullptr)
 {
 }
 
-std::shared_ptr<SecondStageCfg> SoundModelConfig::
-    GetArmSsUsecase(uint32_t sm_id) const {
-    auto armSsUc = arm_ss_uc_list_.find(sm_id);
-    if (armSsUc != arm_ss_uc_list_.end())
-        return armSsUc->second;
-    else
-        return nullptr;
+void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
+    const char** attribs) {
+    uint32_t i = 0;
+    while (attribs[i]) {
+        if (!strcmp(attribs[i], "capture_profile_handset")) {
+            op_modes_[std::make_pair(mode, ST_INPUT_MODE_HANDSET)] =
+                cap_profile_map_.at(std::string(attribs[++i]));
+        } else if(!strcmp(attribs[i], "capture_profile_headset")) {
+            op_modes_[std::make_pair(mode, ST_INPUT_MODE_HEADSET)] =
+                cap_profile_map_.at(std::string(attribs[++i]));
+        } else {
+            QAL_ERR(LOG_TAG, "got unexpected attribute: %s", attribs[i]);
+        }
+        ++i; /* move to next attribute */
+    }
 }
 
 void SoundModelConfig::HandleCharData(const char* data) {
@@ -161,18 +204,7 @@ void SoundModelConfig::HandleCharData(const char* data) {
 }
 
 void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
-
-    /* Delegate to child element if currently active */
-    if (curr_child_) {
-        curr_child_->HandleStartTag(tag, attribs);
-        return;
-    }
-
-    if (!strcmp(tag, "arm_ss_usecase")) {
-        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
-            std::make_shared<SecondStageCfg>());
-        return;
-    }
+    QAL_DBG(LOG_TAG, "Got tag %s", tag);
 
     if (!strcmp(tag, "param")) {
         uint32_t i = 0;
@@ -198,25 +230,19 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             }
             ++i; /* move to next attribute */
         }
+    } else if (!strcmp(tag, "low_power")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
+    } else if (!strcmp(tag, "high_performance")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
+    } else if (!strcmp(tag, "high_performance_and_charging")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %d", (char *)tag);
+          QAL_ERR(LOG_TAG, "Invalid tag %d", (char *)tag);
     }
 }
 
 void SoundModelConfig::HandleEndTag(const char* tag) {
 
-    if (!strcmp(tag, "arm_ss_usecase")) {
-        std::shared_ptr<SecondStageCfg> sec_stg_cfg(
-            std::dynamic_pointer_cast<SecondStageCfg>(curr_child_));
-        const auto res = arm_ss_uc_list_.insert(
-            std::make_pair(sec_stg_cfg->GetSmId(), sec_stg_cfg));
-        if (!res.second)
-            QAL_ERR(LOG_TAG, "Failed to insert to map");
-        curr_child_ = nullptr;
-    }
-
-    if (curr_child_)
-        curr_child_->HandleEndTag(tag);
     return;
 }
 
@@ -248,6 +274,15 @@ std::shared_ptr<SoundModelConfig> SoundTriggerPlatformInfo::GetSmConfig(
         return nullptr;
 }
 
+std::shared_ptr<CaptureProfile> SoundTriggerPlatformInfo::GetCapProfile(
+    const std::string& name) const {
+    auto capProfile = capture_profile_map_.find(name);
+    if (capProfile != capture_profile_map_.end())
+        return capProfile->second;
+    else
+        return nullptr;
+}
+
 std::shared_ptr<SoundTriggerPlatformInfo>
 SoundTriggerPlatformInfo::GetInstance() {
 
@@ -266,10 +301,22 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
         return;
     }
 
+    QAL_DBG(LOG_TAG, "Got start tag %s", tag);
     if (!strcmp(tag, "sound_model_config")) {
         curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
-            std::make_shared<SoundModelConfig>());
+            std::make_shared<SoundModelConfig>(capture_profile_map_));
         return;
+    }
+
+    if (!strcmp(tag, "capture_profile")) {
+        if (attribs[0] && !strcmp(attribs[0], "name")) {
+            curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
+                    std::make_shared<CaptureProfile>(attribs[1]));
+            return;
+        } else {
+            QAL_ERR("missing name attrib for tag %s", tag);
+            return;
+        }
     }
 
     if (!strcmp(tag, "param")) {
@@ -319,23 +366,32 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
             }
             ++i; /* move to next attribute */
         }
-    } else if (!strcmp(tag, "common_config")) {
-         QAL_DBG(LOG_TAG, "Got tag %s", tag);
     } else {
         QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
     }
 }
 
 void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
+    QAL_DBG(LOG_TAG, "Got end tag %s", tag);
+
     if (!strcmp(tag, "sound_model_config")) {
         std::shared_ptr<SoundModelConfig> sm_cfg(
-        std::dynamic_pointer_cast<SoundModelConfig>(curr_child_));
+            std::static_pointer_cast<SoundModelConfig>(curr_child_));
         const auto res = sound_model_cfg_list_.insert(
             std::make_pair(sm_cfg->GetUUID(), sm_cfg));
         if (!res.second)
             QAL_ERR(LOG_TAG, "Failed to insert to map");
         curr_child_ = nullptr;
+    } else if (!strcmp(tag, "capture_profile")) {
+        std::shared_ptr<CaptureProfile> cap_prof(
+            std::static_pointer_cast<CaptureProfile>(curr_child_));
+        const auto res = capture_profile_map_.insert(
+            std::make_pair(cap_prof->GetName(), cap_prof));
+        if (!res.second)
+            QAL_ERR(LOG_TAG, "Failed to insert to map");
+        curr_child_ = nullptr;
     }
+
 
     if (curr_child_)
         curr_child_->HandleEndTag(tag);

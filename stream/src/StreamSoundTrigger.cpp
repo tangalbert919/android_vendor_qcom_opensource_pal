@@ -119,44 +119,57 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d",
                 no_of_devices);
-    for (int i = 0; i < no_of_devices; i++) {
-        // update best device
-        qal_device_id_t dev_id = GetAvailCaptureDevice();
-        if (dattr[i].id != dev_id) {
-            QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
-            dattr[i].id = dev_id;
-            if (dattr[i].config.ch_info)
-                free(dattr[i].config.ch_info);
-            status = rm->getDeviceInfo(dattr[i].id, mStreamAttr->type, &ecinfo);
-            if(status) {
-               QAL_ERR(LOG_TAG, "get ec info failed");
-            }
-            if (rm->getDeviceConfig((struct qal_device *)&dattr[i], sattr, ecinfo.channels)) {
-                QAL_ERR(LOG_TAG, "Failed to get config for dev %d", dev_id);
-                throw std::runtime_error("failed to get device config");
-            }
-        }
 
-        dev = Device::getInstance(&dattr[i] , rm);
-        if (!dev) {
-            QAL_ERR(LOG_TAG, "Device creation is failed");
-            free(mStreamAttr->in_media_config.ch_info);
-            free(mStreamAttr);
-            throw std::runtime_error("failed to create device object");
-        }
-        //Is this required for Voice UI?
-        QAL_DBG(LOG_TAG, "Updating device config for voice UI");
-        bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i],
-                                                            sattr);
-
-        if (isDeviceConfigUpdated)
-            QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
-
-        mDevices.push_back(dev);
-        dev = nullptr;
+    /* assume only one input device */
+    if (no_of_devices > 1) {
+        std::string err;
+        err = "incorrect number of devices expected 1, got " +
+            std::to_string(no_of_devices);
+        QAL_ERR(LOG_TAG, err.c_str());
+        free(mStreamAttr);
+        free(ch_info);
+        throw std::runtime_error(err);
     }
 
+    // update best device
+    qal_device_id_t dev_id = GetAvailCaptureDevice();
+    if (dattr[0].id != dev_id) {
+        QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+        dattr[0].id = dev_id;
+        if (dattr[0].config.ch_info)
+            free(dattr[0].config.ch_info);
+        status = rm->getDeviceInfo(dattr[0].id, mStreamAttr->type, &ecinfo);
+        if(status) {
+           QAL_ERR(LOG_TAG, "get ec info failed");
+        }
+        if (rm->getDeviceConfig((struct qal_device *)&dattr[0], sattr,
+            ecinfo.channels)) {
+            QAL_ERR(LOG_TAG, "Failed to get config for dev %d", dev_id);
+            free(mStreamAttr);
+            free(ch_info);
+            throw std::runtime_error("failed to get device config");
+        }
+    }
+
+    dev = Device::getInstance(&dattr[0] , rm);
+    if (!dev) {
+        QAL_ERR(LOG_TAG, "Device creation is failed");
+        free(mStreamAttr->in_media_config.ch_info);
+        free(mStreamAttr);
+        throw std::runtime_error("failed to create device object");
+    }
+    //Is this required for Voice UI?
+    QAL_DBG(LOG_TAG, "Updating device config for voice UI");
+    bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[0], sattr);
+
+    if (isDeviceConfigUpdated)
+        QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
+
+    mDevices.push_back(dev);
+    dev = nullptr;
+
     rm->registerStream(this);
+
     // Create internal states
     st_idle_ = new StIdle(*this);
     st_loaded_ = new StLoaded(*this);
@@ -369,6 +382,7 @@ void StreamSoundTrigger::ConcurrentStreamStatus(qal_stream_type_t type,
             std::lock_guard<std::mutex> lck(mStreamMutex);
             std::shared_ptr<StEventConfig> ev_cfg(
                 new StConcurrentStreamEventConfig(type, active));
+
             status = cur_state_->ProcessEvent(ev_cfg);
         }
     } else if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
@@ -1797,6 +1811,44 @@ void StreamSoundTrigger::AddEngine(std::shared_ptr<EngineCfg> engine_cfg) {
     engines_.push_back(engine_cfg);
 }
 
+std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    bool is_lpi = false;
+
+    /* initialize if we shoud come up in lpi or non-lpi state */
+    if (rm->IsVoiceUILPISupported() &&
+        !rm->CheckForActiveConcurrentNonLPIStream())
+        is_lpi = true;
+    else
+        is_lpi = false;
+
+    if (GetAvailCaptureDevice() == QAL_DEVICE_IN_HEADSET_VA_MIC) {
+        if (is_lpi)
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_LOW_POWER,
+                    ST_INPUT_MODE_HEADSET));
+        else
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                    ST_INPUT_MODE_HEADSET));
+    } else {
+        if (is_lpi)
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_LOW_POWER,
+                    ST_INPUT_MODE_HANDSET));
+        else
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                    ST_INPUT_MODE_HANDSET));
+    }
+
+    QAL_DBG(LOG_TAG, "using capture profile %s: dev_id=0x%x, chs=%d, sr=%d",
+        cap_prof->GetName().c_str(), cap_prof->GetDevId(),
+        cap_prof->GetChannels(), cap_prof->GetSampleRate());
+
+    return cap_prof;
+}
+
 void StreamSoundTrigger::AddState(StState* state) {
    st_states_.insert(std::make_pair(state->GetStateId(), state));
 }
@@ -1841,17 +1893,23 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
     switch (ev_cfg->id_) {
       case ST_EV_LOAD_SOUND_MODEL: {
+          std::shared_ptr<CaptureProfile> cap_prof = nullptr;
           StLoadEventConfigData *data =
               (StLoadEventConfigData *)ev_cfg->data_.get();
-          std::vector<std::shared_ptr<Device>> tmp_devices;
-          for (auto& dev: st_stream_.mDevices) {
-              status = dev->open();
+
+          if (st_stream_.mDevices.size() > 0) {
+              status = st_stream_.mDevices[0]->open();
               if (0 != status) {
                   QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
                   goto err_exit;
               }
-              tmp_devices.push_back(dev);
           }
+
+          cap_prof = st_stream_.GetCurrentCaptureProfile();
+          /* store the pre-proc KV selected in the config file */
+          st_stream_.mDevPpModifiers.clear();
+          st_stream_.mDevPpModifiers.push_back(cap_prof->GetDevicePpKv());
+
           status = st_stream_.LoadSoundModel(
               (struct qal_st_sound_model *)data->data_);
 
@@ -1864,8 +1922,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
               break;
           }
       err_exit:
-          for (auto& tmp_dev: tmp_devices)
-              tmp_dev->close();
           break;
       }
       case ST_EV_PAUSE: {
@@ -1874,7 +1930,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
       }
       case ST_EV_RESUME: {
           st_stream_.paused_ = false;
-         break;
+          break;
       }
       case ST_EV_READ_BUFFER: {
           status = -EIO;
@@ -1959,7 +2015,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
     switch (ev_cfg->id_) {
     case ST_EV_UNLOAD_SOUND_MODEL: {
         int ret = 0;
-        for (auto& dev: st_stream_.mDevices) {
+        if (st_stream_.mDevices.size() > 0) {
+            auto& dev = st_stream_.mDevices[0];
             QAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
                     dev->getQALDeviceName().c_str());
             ret = dev->close();
@@ -2021,23 +2078,41 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
 
-        std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
-        std::vector<std::shared_ptr<Device>> tmp_devices;
+        /* Update capture device based on mode and configuration and start it */
+        struct qal_device dattr;
+        if (st_stream_.mDevices.size() > 0) {
+            auto& dev = st_stream_.mDevices[0];
+            std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+            dev->getDeviceAttributes(&dattr);
+            cap_prof = st_stream_.GetCurrentCaptureProfile();
+            dattr.config.ch_info = (struct qal_channel_info *) malloc(
+                sizeof(qal_channel_info) + cap_prof->GetChannels());
+            if (!dattr.config.ch_info) {
+                QAL_ERR(LOG_TAG, "failed to alloc ch_map");
+                break;
+            }
+            dattr.config.bit_width = cap_prof->GetBitWidth();
+            dattr.config.ch_info->channels = cap_prof->GetChannels();
+            dattr.config.sample_rate = cap_prof->GetSampleRate();
+            dev->setDeviceAttributes(dattr);
 
-        for (auto& dev: st_stream_.mDevices){
+            /* now start the device */
             QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
                     dev->getQALDeviceName().c_str());
-
             status = dev->start();
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
-                goto err_exit;
+                if (dattr.config.ch_info)
+                    free(dattr.config.ch_info);
+                break;
             } else {
                 st_stream_.rm->registerDevice(dev);
-                tmp_devices.push_back(dev);
             }
+            QAL_DBG(LOG_TAG, "device started");
         }
 
+        /* Start the engines */
+        std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
         for (auto& eng: st_stream_.engines_) {
             QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
             status = eng->GetEngine()->StartRecognition(&st_stream_);
@@ -2060,10 +2135,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         for (auto& eng: tmp_engines)
             eng->StopRecognition(&st_stream_);
 
-        for (auto& dev: tmp_devices) {
-            dev->stop();
-            st_stream_.rm->deregisterDevice(dev);
+        if (st_stream_.mDevices.size() > 0) {
+            st_stream_.rm->deregisterDevice(st_stream_.mDevices[0]);
+            st_stream_.mDevices[0]->stop();
         }
+
+        if (dattr.config.ch_info)
+            free(dattr.config.ch_info);
+
         break;
     }
     case ST_EV_CONCURRENT_STREAM: {
@@ -2283,7 +2362,8 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                           eng->GetEngineId(), status);
               }
           }
-          for (auto& dev: st_stream_.mDevices) {
+          if (st_stream_.mDevices.size() > 0) {
+            auto& dev = st_stream_.mDevices[0];
               QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                       dev->getQALDeviceName().c_str());
               status = dev->stop();
@@ -2334,7 +2414,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
       case ST_EV_EC_REF: {
           StECRefEventConfigData *data =
               (StECRefEventConfigData *)ev_cfg->data_.get();
-          Stream *s = dynamic_cast<Stream *>(&st_stream_);
+          Stream *s = static_cast<Stream *>(&st_stream_);
           status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
               data->is_enable_);
           if (status) {
@@ -2563,7 +2643,8 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                           eng->GetEngineId(), status);
               }
           }
-          for (auto& dev: st_stream_.mDevices){
+          if (st_stream_.mDevices.size() > 0){
+              auto& dev = st_stream_.mDevices[0];
               QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                       dev->getQALDeviceName().c_str());
               status = dev->stop();
@@ -2589,7 +2670,8 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                           eng->GetEngineId(), status);
               }
           }
-          for (auto& dev: st_stream_.mDevices) {
+          if (st_stream_.mDevices.size() > 0) {
+              auto& dev = st_stream_.mDevices[0];
               QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                       dev->getQALDeviceName().c_str());
               status = dev->stop();
@@ -2740,7 +2822,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                           eng->GetEngineId(), status);
               }
           }
-          for (auto& dev: st_stream_.mDevices) {
+          if (st_stream_.mDevices.size() > 0) {
+              auto& dev = st_stream_.mDevices[0];
               QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                       dev->getQALDeviceName().c_str());
               status = dev->stop();
@@ -2788,7 +2871,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                           eng->GetEngineId(), status);
               }
           }
-          for (auto& dev: st_stream_.mDevices) {
+          if (st_stream_.mDevices.size() > 0) {
+              auto& dev = st_stream_.mDevices[0];
               QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                       dev->getQALDeviceName().c_str());
               status = dev->stop();

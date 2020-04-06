@@ -385,15 +385,7 @@ ResourceManager::ResourceManager()
     if (ret) {
         QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
-    ret = ResourceManager::XmlParser(STXMLFILE);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in sound trigger xml parsing ret %d", ret);
-        /*
-         * clear ret as we want to allow the case where ST xml file is not
-         * present
-         */
-        ret = 0;
-    }
+
     if (ag == ALSA) {
         listAllFrontEndIds.clear();
         listFreeFrontEndIds.clear();

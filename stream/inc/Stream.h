@@ -83,6 +83,7 @@ typedef enum {
 #define VOICE_SLOW_TALK_ON 29
 #define VOICE_VOLUME_BOOST 30
 
+using KeyVect_t = std::vector<std::pair<uint32_t, uint32_t>>;
 class Device;
 class ResourceManager;
 class Session;
@@ -101,6 +102,7 @@ protected:
     static std::shared_ptr<ResourceManager> rm;
     struct modifier_kv *mModifiers;
     uint32_t mNoOfModifiers;
+    KeyVect_t mDevPpModifiers;
     size_t inBufSize;
     size_t outBufSize;
     size_t inBufCount;
@@ -144,6 +146,7 @@ public:
 
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
+    const KeyVect_t& getDevPpModifiers() const;
     int32_t getStreamType(qal_stream_type_t* streamType);
     int32_t getStreamDirection(qal_stream_direction_t *dir);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);

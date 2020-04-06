@@ -513,7 +513,6 @@ struct qal_stream_attributes {
     struct qal_media_config out_media_config;    /**<  media config of the output audio samples */
 };
 
-
 /**< Key value pair to identify the topology of a usecase from default  */
 struct modifier_kv  {
     uint32_t key;
