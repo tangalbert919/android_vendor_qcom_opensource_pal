@@ -84,7 +84,7 @@ int Bluetooth::updateDeviceMetadata()
         case CODEC_TYPE_APTX_HD:
         case CODEC_TYPE_APTX_DUAL_MONO:
         default:
-            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = GENERIC, codecFormat = %d", codecFormat);
+            QAL_INFO(LOG_TAG, "Setting BT_FORMAT = GENERIC, codecFormat = 0x%x", codecFormat);
             keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
             break;
         }
@@ -135,6 +135,7 @@ void Bluetooth::updateDeviceAttributes()
         break;
     case CODEC_TYPE_APTX_AD_SPEECH:
         deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
+        break;
     default:
         break;
     }
@@ -145,10 +146,66 @@ bool Bluetooth::isPlaceholderEncoder()
     switch (codecFormat) {
         case CODEC_TYPE_LDAC:
         case CODEC_TYPE_APTX_AD:
+        case CODEC_TYPE_APTX_AD_SPEECH:
             return false;
         default:
             return true;
     }
+}
+
+int Bluetooth::getPluginPayload(void **libHandle, bt_codec_t **btCodec,
+              bt_enc_payload_t **out_buf, void *codec_info, codec_type ctype)
+{
+    std::string lib_path;
+    open_fn_t plugin_open_fn = NULL;
+    int status = 0;
+    bt_codec_t *codec = NULL;
+    void *handle = NULL;
+
+    lib_path = rm->getBtCodecLib(codecFormat, (ctype == ENC ? "enc" : "dec"));
+    if (lib_path.empty()) {
+        QAL_ERR(LOG_TAG, "%s: fail to get BT codec library", __func__);
+        return -ENOSYS;
+    }
+
+    handle = dlopen(lib_path.c_str(), RTLD_NOW);
+    if (handle == NULL) {
+        QAL_ERR(LOG_TAG, "%s: failed to dlopen lib %s", __func__, lib_path.c_str());
+        return -EINVAL;
+    }
+
+    dlerror();
+    plugin_open_fn = (open_fn_t)dlsym(handle, "plugin_open");
+    if (!plugin_open_fn) {
+        QAL_ERR(LOG_TAG, "%s: dlsym to open fn failed, err = '%s'\n",
+                __func__, dlerror());
+        status = -EINVAL;
+        goto error;
+    }
+
+    status = plugin_open_fn(&codec, codecFormat, ctype);
+    if (status) {
+        QAL_ERR(LOG_TAG, "%s: failed to open plugin %d", __func__, status);
+        goto error;
+    }
+
+    status = codec->plugin_populate_payload(codec, codec_info, (void **)out_buf);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG, "%s: fail to pack the encoder config %d", __func__, status);
+        goto error;
+    }
+    *btCodec = codec;
+    *libHandle = handle;
+    goto done;
+
+error:
+    if (codec)
+        codec->close_plugin(codec);
+
+    if (handle)
+        dlclose(handle);
+done:
+    return status;
 }
 
 int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
@@ -158,10 +215,8 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activestreams;
-    open_fn_t plugin_open_fn = NULL;
     bt_codec_t *codec = NULL;
     bt_enc_payload_t *out_buf = NULL;
-    std::string lib_path;
     PayloadBuilder* builder = new PayloadBuilder();
     std::string backEndName;
     uint8_t* paramData = NULL;
@@ -188,35 +243,9 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     /* Retrieve plugin library from resource manager.
      * Map to interested symbols.
      */
-    lib_path = rm->getBtCodecLib(codecFormat, (type == ENC ? "enc" : "dec"));
-    if (lib_path.empty()) {
-        QAL_ERR(LOG_TAG, "%s: fail to get BT codec library", __func__);
-        return -ENOSYS;
-    }
-    handle = dlopen(lib_path.c_str(), RTLD_NOW);
-    if (handle == NULL) {
-        QAL_ERR(LOG_TAG, "%s: failed to dlopen lib %s", __func__, lib_path.c_str());
-        return -EINVAL;
-    }
-
-    dlerror();
-    plugin_open_fn = (open_fn_t)dlsym(handle, "plugin_open");
-    if (!plugin_open_fn) {
-        QAL_ERR(LOG_TAG, "%s: dlsym to open fn failed, err = '%s'\n",
-                __func__, dlerror());
-        status = -EINVAL;
-        goto error;
-    }
-
-    status = plugin_open_fn(&codec, codecFormat, type);
+    status = getPluginPayload(&handle, &codec, &out_buf, codec_info, type);
     if (status) {
-        QAL_ERR(LOG_TAG, "%s: failed to open plugin %d", __func__, status);
-        goto error;
-    }
-
-    status = codec->plugin_populate_payload(codec, codec_info, (void **)&out_buf);
-    if (status != 0) {
-        QAL_ERR(LOG_TAG, "%s: fail to pack the encoder config %d", __func__, status);
+        QAL_ERR(LOG_TAG, "failed to payload from plugin");
         goto error;
     }
 
@@ -227,16 +256,13 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     codecConfig.ch_info->channels = out_buf->channel_count;
     isAbrEnabled = out_buf->is_abr_enabled;
 
+    /* Update Device sampleRate based on encoder config */
+    updateDeviceAttributes();
+
     codecTagId = (type == ENC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
     status = session->getMIID(backEndName.c_str(), codecTagId, &miid);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", codecTagId, status);
-        goto error;
-    }
-
-    status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", RAT_RENDER, status);
         goto error;
     }
 
@@ -271,6 +297,9 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     }
 
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+        goto done;
+
     if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO ||
         codecFormat == CODEC_TYPE_APTX_AD) {
         builder->payloadTWSConfig(&paramData, &paramSize, miid,
@@ -281,6 +310,12 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
             paramData = NULL;
             paramSize = 0;
         }
+    }
+
+    status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", RAT_RENDER, status);
+        goto error;
     }
 
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
@@ -294,9 +329,6 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         QAL_ERR(LOG_TAG, "%s: Invalid RAT module param size", __func__);
         goto error;
     }
-
-    /* Update Device sampleRate based on encoder config */
-    updateDeviceAttributes();
 
     /* COP PACKETIZER Module Configuration is only needed for RX path */
     if (type == DEC)
@@ -335,10 +367,32 @@ error:
     return status;
 }
 
+int Bluetooth::getDeviceAttributes(struct qal_device *dattr)
+{
+    int status = 0;
+
+    if (!dattr) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
+        goto exit;
+    }
+
+    if (is_configured) {
+        dattr->id = deviceAttr.id;
+        casa_mem_cpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
+    } else {
+        casa_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+    }
+
+exit:
+    return status;
+}
+
 void Bluetooth::startAbr()
 {
     int ret = 0, dir;
     struct qal_device fbDevice;
+    std::shared_ptr<BtSco> fbDev = nullptr;
     struct qal_channel_info *ch_info = NULL;
     struct qal_stream_attributes sAttr;
     std::string backEndName;
@@ -354,6 +408,12 @@ void Bluetooth::startAbr()
     memset(&sAttr, 0, sizeof(sAttr));
     memset(&config, 0, sizeof(config));
 
+    mAbrMutex.lock();
+    if (abrRefCnt > 0) {
+        abrRefCnt++;
+        mAbrMutex.unlock();
+        return;
+    }
     /* Configure device attributes */
     ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t) + sizeof(uint8_t));
     ch_info->channels = CHANNELS_1;
@@ -380,6 +440,12 @@ void Bluetooth::startAbr()
         dir = TXLOOPBACK;
         flags = PCM_IN;
         keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
+    }
+
+    if (fbDevice.id == QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
+        fbDevice.id == QAL_DEVICE_OUT_BLUETOOTH_SCO) {
+        keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
+        keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
     }
 
     /* Configure Device Metadata */
@@ -458,12 +524,80 @@ void Bluetooth::startAbr()
         goto err_pcm_open;
     }
 
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
+        uint32_t codecTagId = 0, miid = 0;
+        void *pluginLibHandle = NULL;
+        bt_codec_t *codec = NULL;
+        bt_enc_payload_t *out_buf = NULL;
+        custom_block_t *blk = NULL;
+        uint8_t* paramData = NULL;
+        size_t paramSize = 0;
+        PayloadBuilder* builder = new PayloadBuilder();
+
+        fbDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(&fbDevice, rm));
+        if (!fbDev) {
+            QAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
+            goto err_pcm_open;
+        }
+
+        if (fbDev->is_configured == true)
+            goto start_pcm;
+
+        codecTagId = (type == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
+        ret = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
+                     fbpcmDevIds.at(0), backEndName.c_str(), codecTagId, &miid);
+        if (ret) {
+            QAL_ERR(LOG_TAG, "getMiid for feedback device failed");
+            goto err_pcm_open;
+        }
+
+        ret = getPluginPayload(&pluginLibHandle, &codec, &out_buf,
+              (void *)&bt_swb_speech_mode, (type == DEC ? ENC : DEC));
+        if (ret) {
+            QAL_ERR(LOG_TAG, "getPluginPayload failed");
+            goto err_pcm_open;
+        }
+
+        /* SWB Encoder/Decoder has only 1 param, read block 0 */
+        fbDev->codecConfig.sample_rate = out_buf->sample_rate;
+        fbDev->codecConfig.bit_width = out_buf->bit_format;
+        fbDev->codecConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
+                                   (sizeof(uint8_t) * out_buf->channel_count));
+        fbDev->codecConfig.ch_info->channels = out_buf->channel_count;
+
+        blk = out_buf->blocks[0];
+        builder->payloadCustomParam(&paramData, &paramSize,
+                  (uint32_t *)blk->payload, blk->payload_sz, miid, blk->param_id);
+
+        codec->close_plugin(codec);
+        dlclose(pluginLibHandle);
+
+        if (!paramData) {
+            QAL_ERR(LOG_TAG, "Failed to populateAPMHeader\n");
+            ret = -ENOMEM;
+            goto err_pcm_open;
+        }
+
+        ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
+                                    paramData, paramSize);
+        if (ret) {
+             QAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
+                               fbDevice.id);
+             goto err_pcm_open;
+        }
+    }
+
+start_pcm:
     ret = pcm_start(fbPcm);
     if (ret) {
         QAL_ERR(LOG_TAG, "pcm_start rx failed %d", ret);
         goto err_pcm_open;
     }
 
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+        fbDev->is_configured = true;
+
+    abrRefCnt++;
     QAL_INFO(LOG_TAG, "Feedback Device started successfully");
     goto done;
 err_pcm_open:
@@ -473,6 +607,7 @@ free_fe:
     fbpcmDevIds.clear();
 done:
     free(ch_info);
+    mAbrMutex.unlock();
     return;
 }
 
@@ -483,8 +618,16 @@ void Bluetooth::stopAbr()
     struct mixer *mixerHandle = NULL;
     int dir, ret = 0;
 
-    if (!fbPcm)
+    mAbrMutex.lock();
+    if (!fbPcm) {
+        mAbrMutex.unlock();
         return;
+    }
+
+    if (--abrRefCnt != 0) {
+        mAbrMutex.unlock();
+        return;
+    }
 
     memset(&sAttr, 0, sizeof(sAttr));
     sAttr.type = QAL_STREAM_LOW_LATENCY;
@@ -514,6 +657,7 @@ free_fe:
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
+    mAbrMutex.unlock();
 }
 
 
@@ -855,27 +999,6 @@ bool BtA2dp::isDeviceReady()
     return ret;
 }
 
-int BtA2dp::getDeviceAttributes(struct qal_device *dattr)
-{
-    int status = 0;
-
-    if (!dattr) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
-        goto exit;
-    }
-
-    if (is_configured) {
-        dattr->id = deviceAttr.id;
-        casa_mem_cpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
-    } else {
-        casa_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
-    }
-
-exit:
-    return status;
-}
-
 int BtA2dp::startCapture()
 {
     int ret = 0;
@@ -1121,8 +1244,10 @@ bool BtSco::isDeviceReady()
 
 void BtSco::updateSampleRate(uint32_t *sampleRate)
 {
+    /* In case of SWB, HW EP is configured at 96KHz sample rate
+       where as encoder runs at 32KHz. */
     if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
-        *sampleRate = SAMPLINGRATE_32K;
+        *sampleRate = SAMPLINGRATE_96K;
     else
         *sampleRate = deviceAttr.config.sample_rate;
 }
@@ -1156,10 +1281,12 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
 
 int BtSco::startSwb()
 {
-    /* All modules present in SWB graph is configured from acdb file.
-       Update Device Metadata to select appropriate graph in case of swb. */
-    codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
-    return  updateDeviceMetadata();
+    int ret = 0;
+
+    if (!is_configured)
+        ret = configureA2dpEncoderDecoder((void *)&bt_swb_speech_mode);
+
+    return ret;
 }
 
 int BtSco::start()
@@ -1167,7 +1294,16 @@ int BtSco::start()
     int status = 0;
 
     if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
-        startSwb();
+        codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
+
+    updateDeviceMetadata();
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
+        status = startSwb();
+        if (status)
+            return status;
+    } else {
+        is_configured = false;
+    }
 
     status = Device::start();
     if (!status) {

@@ -39,8 +39,19 @@
 #include <aptx_classic_encoder_api.h>
 #include <aptx_hd_encoder_api.h>
 #include <aptx_adaptive_encoder_api.h>
+#include <aptx_adaptive_swb_encoder_api.h>
+#include <aptx_adaptive_swb_decoder_api.h>
 
-#define DEFAULT_FADE_DURATION 255
+typedef enum {
+    SWAP_DISABLE,
+    SWAP_ENABLE,
+} swap_status_t;
+
+#define DEFAULT_FADE_DURATION           255
+#define SAMPLING_RATE_32K               32000
+#define CH_MONO                         1
+#define DEFAULT_ENCODER_BIT_FORMAT      16
+
 static int aptx_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
 {
     audio_aptx_encoder_config_t *aptx_bt_cfg = NULL;
@@ -120,7 +131,7 @@ static int aptx_dual_mono_pack_enc_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format    = 16;
+    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
     enc_payload->sample_rate   = aptx_dm_bt_cfg->sampling_rate;
     enc_payload->channel_count = aptx_dm_bt_cfg->channels;
     enc_payload->num_blks      = num_blks;
@@ -390,6 +401,148 @@ free_payload:
     return ret;
 }
 
+static int aptx_ad_speech_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
+{
+    param_id_aptx_adaptive_speech_enc_init_t *aptx_ad_speech_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    uint32_t *mode;
+    int ret = 0, num_blks = 1, i = 0;
+    custom_block_t *blk[1] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    mode = (uint32_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->sample_rate   = SAMPLING_RATE_32K;
+    enc_payload->channel_count = CH_MONO;
+    enc_payload->num_blks      = num_blks;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_APTX_ADAPTIVE_SPEECH_ENC_INIT */
+    aptx_ad_speech_cfg = (param_id_aptx_adaptive_speech_enc_init_t *)calloc(1,
+                         sizeof(param_id_aptx_adaptive_speech_enc_init_t));
+    if (aptx_ad_speech_cfg == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+    aptx_ad_speech_cfg->speechMode = *mode;
+    aptx_ad_speech_cfg->byteSwap = SWAP_ENABLE;
+
+    ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_ADAPTIVE_SPEECH_ENC_INIT,
+            aptx_ad_speech_cfg, sizeof(param_id_aptx_adaptive_speech_enc_init_t));
+    free(aptx_ad_speech_cfg);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+
+    return ret;
+}
+
+static int aptx_ad_speech_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
+{
+    param_id_aptx_adaptive_speech_dec_init_t *aptx_ad_speech_cfg = NULL;
+    bt_enc_payload_t *enc_payload = NULL;
+    uint32_t *mode;
+    int ret = 0, num_blks = 1, i = 0;
+    custom_block_t *blk[1] = {NULL};
+
+    ALOGV("%s", __func__);
+    if ((src == NULL) || (dst == NULL)) {
+        ALOGE("%s: invalid input parameters", __func__);
+        return -EINVAL;
+    }
+
+    mode = (uint32_t *)src;
+
+    enc_payload = (bt_enc_payload_t *)calloc(1, sizeof(bt_enc_payload_t) +
+                   num_blks * sizeof(custom_block_t *));
+    if (enc_payload == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        return -ENOMEM;
+    }
+    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->sample_rate   = SAMPLING_RATE_32K;
+    enc_payload->channel_count = CH_MONO;
+    enc_payload->num_blks      = num_blks;
+
+    for (i = 0; i < num_blks; i++) {
+        blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
+        if (!blk[i]) {
+            ret = -ENOMEM;
+            goto free_payload;
+        }
+    }
+
+    /* populate payload for PARAM_ID_APTX_ADAPTIVE_SPEECH_DEC_INIT */
+    aptx_ad_speech_cfg = (param_id_aptx_adaptive_speech_dec_init_t *)calloc(1,
+                         sizeof(param_id_aptx_adaptive_speech_dec_init_t));
+    if (aptx_ad_speech_cfg == NULL) {
+        ALOGE("%s: fail to allocate memory", __func__);
+        ret = -ENOMEM;
+        goto free_payload;
+    }
+    aptx_ad_speech_cfg->speechMode = *mode;
+    aptx_ad_speech_cfg->byteSwap = SWAP_ENABLE;
+
+    ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_APTX_ADAPTIVE_SPEECH_DEC_INIT,
+            aptx_ad_speech_cfg, sizeof(param_id_aptx_adaptive_speech_dec_init_t));
+    free(aptx_ad_speech_cfg);
+    if (ret)
+        goto free_payload;
+
+    enc_payload->blocks[0] = blk[0];
+    *dst = enc_payload;
+    codec->payload = enc_payload;
+
+    return ret;
+free_payload:
+    for (i = 0; i < num_blks; i++) {
+        if (blk[i]) {
+            if (blk[i]->payload)
+                free(blk[i]->payload);
+            free(blk[i]);
+        }
+    }
+    if (enc_payload)
+        free(enc_payload);
+
+    return ret;
+}
+
 static int bt_aptx_populate_payload(bt_codec_t *codec, void *src, void **dst)
 {
     config_fn_t config_fn = NULL;
@@ -413,6 +566,10 @@ static int bt_aptx_populate_payload(bt_codec_t *codec, void *src, void **dst)
         case CODEC_TYPE_APTX_DUAL_MONO:
             config_fn = ((codec->direction == ENC) ? &aptx_dual_mono_pack_enc_config :
                                                      NULL);
+            break;
+        case CODEC_TYPE_APTX_AD_SPEECH:
+            config_fn = ((codec->direction == ENC) ? &aptx_ad_speech_pack_enc_config :
+                                                     &aptx_ad_speech_pack_dec_config);
             break;
         default:
             ALOGD("%s unsupported codecFmt %d\n", __func__, codec->codecFmt);
