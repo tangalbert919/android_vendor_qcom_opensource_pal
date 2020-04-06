@@ -577,12 +577,30 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
     uint32_t deviceSlots[QAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
+    struct qal_device dAttr;
+    int32_t ret = 0;
 
     mStreamMutex.lock();
 
     if ((numDev == 0) || (!newDevices)) {
         QAL_ERR(LOG_TAG, "invalid param for device switch");
         status = -EINVAL;
+        goto done;
+    }
+
+    ret = mDevices[0]->getDeviceAttributes(&dAttr);
+
+    if (ret) {
+        QAL_ERR(LOG_TAG, "device attributes invalid");
+        status = -EINVAL;
+        goto done;
+    }
+
+    if ((mDevices[0]->getSndDeviceId() == newDevices[0].id) &&
+        (dAttr.config.sample_rate == newDevices[0].config.sample_rate) &&
+        (dAttr.config.bit_width == newDevices[0].config.bit_width) &&
+        (dAttr.config.ch_info->channels == newDevices[0].config.ch_info->channels)) {
+        QAL_ERR(LOG_TAG, "same device, no need to switch %d", mDevices[0]->getSndDeviceId());
         goto done;
     }
 
