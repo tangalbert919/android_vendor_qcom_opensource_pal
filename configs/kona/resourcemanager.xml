@@ -148,6 +148,12 @@
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
+            <usecase>
+                <name>QAL_STREAM_LOOPBACK</name>
+                <channels>1</channels>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
         </in-device>
         <in-device>
             <id>QAL_DEVICE_IN_WIRED_HEADSET</id>
