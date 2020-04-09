@@ -56,14 +56,15 @@ enum {
     VOP_REJECTED = 0x10,
 };
 
-enum {
+typedef enum {
     ST_STATE_NONE,
     ST_STATE_IDLE,
     ST_STATE_LOADED,
     ST_STATE_ACTIVE,
     ST_STATE_DETECTED,
     ST_STATE_BUFFERING,
-};
+    ST_STATE_SSR,
+} st_state_id_t;
 
 enum {
     ST_EV_LOAD_SOUND_MODEL,
@@ -401,6 +402,18 @@ class StreamSoundTrigger : public Stream {
         ~StChargingStateEventConfig() {}
     };
 
+    class StSSROfflineConfig : public StEventConfig {
+     public:
+        StSSROfflineConfig() : StEventConfig(ST_EV_SSR_OFFLINE) { }
+        ~StSSROfflineConfig() {}
+    };
+
+    class StSSROnlineConfig : public StEventConfig {
+     public:
+        StSSROnlineConfig() : StEventConfig(ST_EV_SSR_ONLINE) { }
+        ~StSSROnlineConfig() {}
+    };
+
     class StState {
      public:
         StState(StreamSoundTrigger& st_stream, int32_t state_id)
@@ -461,11 +474,21 @@ class StreamSoundTrigger : public Stream {
         int32_t ProcessEvent(std::shared_ptr<StEventConfig> ev_cfg) override;
     };
 
+    class StSSR : public StState {
+     public:
+        StSSR(StreamSoundTrigger& st_stream)
+            : StState(st_stream, ST_STATE_SSR) {}
+        ~StSSR() {}
+        int32_t ProcessEvent(std::shared_ptr<StEventConfig> ev_cfg) override;
+    };
+
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     qal_device_id_t GetAvailCaptureDevice();
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);
+    int32_t UpdateSoundModel(struct qal_st_sound_model *sm_data);
     int32_t SendRecognitionConfig(struct qal_st_recognition_config *config);
+    int32_t UpdateRecognitionConfig(struct qal_st_recognition_config *config);
     bool compareRecognitionConfig(
        const struct qal_st_recognition_config *current_config,
        struct qal_st_recognition_config *new_config);
@@ -534,9 +557,11 @@ class StreamSoundTrigger : public Stream {
     StState *st_active;
     StState *st_detected_;
     StState *st_buffering_;
+    StState *st_ssr_;
 
     StState *cur_state_;
     StState *prev_state_;
+    st_state_id_t state_for_restore_;
     std::map<uint32_t, StState*> st_states_;
     bool charging_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;

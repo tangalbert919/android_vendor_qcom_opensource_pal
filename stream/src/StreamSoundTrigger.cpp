@@ -172,16 +172,19 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     st_active = new StActive(*this);
     st_detected_ = new StDetected(*this);
     st_buffering_ = new StBuffering(*this);
+    st_ssr_ = new StSSR(*this);
 
     AddState(st_idle_);
     AddState(st_loaded_);
     AddState(st_active);
     AddState(st_detected_);
     AddState(st_buffering_);
+    AddState(st_ssr_);
 
     // Set initial state
     cur_state_ = st_idle_;
     prev_state_ = nullptr;
+    state_for_restore_ = ST_STATE_IDLE;
 
     timer_thread_ = std::thread(TimerThread, std::ref(*this));
     timer_stop_waiting_ = false;
@@ -1003,6 +1006,83 @@ error_exit:
     return status;
 }
 
+int32_t StreamSoundTrigger::UpdateSoundModel(
+    struct qal_st_sound_model *sound_model) {
+    int32_t status = 0;
+    int32_t sm_size = 0;
+    struct qal_st_phrase_sound_model *phrase_sm = nullptr;
+    struct qal_st_sound_model *common_sm = nullptr;
+
+    QAL_DBG(LOG_TAG, "Enter");
+
+    if (!sound_model) {
+        QAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
+        return -EINVAL;
+    }
+    sound_model_type_ = sound_model->type;
+
+    if (sound_model->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+        phrase_sm = (struct qal_st_phrase_sound_model *)sound_model;
+        if ((phrase_sm->common.data_offset < sizeof(*phrase_sm)) ||
+            (phrase_sm->common.data_size == 0) ||
+            (phrase_sm->num_phrases == 0)) {
+            QAL_ERR(LOG_TAG, "Invalid phrase sound model params data size=%d, "
+                   "data offset=%d, type=%d phrases=%d status %d",
+                   phrase_sm->common.data_size, phrase_sm->common.data_offset,
+                   phrase_sm->num_phrases, status);
+            return -EINVAL;
+        }
+        common_sm = (struct qal_st_sound_model*)&phrase_sm->common;
+        sm_size = sizeof(*phrase_sm) + common_sm->data_size;
+
+    } else if (sound_model->type == QAL_SOUND_MODEL_TYPE_GENERIC) {
+        if ((sound_model->data_size == 0) ||
+            (sound_model->data_offset < sizeof(struct qal_st_sound_model))) {
+            QAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
+                    " data offset=%d status %d", sound_model->data_size,
+                    sound_model->data_offset, status);
+            return -EINVAL;
+        }
+        common_sm = sound_model;
+        sm_size = sizeof(*common_sm) + common_sm->data_size;
+    } else {
+        QAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
+                sound_model->type, status);
+        return -EINVAL;
+    }
+    if ((struct qal_st_sound_model *)sm_config_ != sound_model) {
+        // Cache to use during SSR and other internal events handling.
+        if (sm_config_) {
+            free(sm_config_);
+        }
+        sm_config_ = (struct qal_st_phrase_sound_model *)calloc(1, sm_size);
+        if (!sm_config_) {
+            QAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
+                    status);
+            status = -ENOMEM;
+            return status;
+        }
+
+        if (sound_model->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
+            casa_mem_cpy(sm_config_, sizeof(*phrase_sm),
+                         phrase_sm, sizeof(*phrase_sm));
+            casa_mem_cpy((uint8_t *)sm_config_ + common_sm->data_offset,
+                         common_sm->data_size,
+                         (uint8_t *)phrase_sm + common_sm->data_offset,
+                         common_sm->data_size);
+        } else {
+            casa_mem_cpy(sm_config_, sizeof(*common_sm),
+                         common_sm, sizeof(*common_sm));
+            casa_mem_cpy((uint8_t *)sm_config_ +  common_sm->data_offset,
+                         common_sm->data_size,
+                         (uint8_t *)common_sm + common_sm->data_offset,
+                         common_sm->data_size);
+        }
+    }
+
+    return status;
+}
+
 // TODO: look into how cookies are used here
 int32_t StreamSoundTrigger::SendRecognitionConfig(
     struct qal_st_recognition_config *config) {
@@ -1204,6 +1284,37 @@ error_exit:
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
+}
+
+int32_t StreamSoundTrigger::UpdateRecognitionConfig(
+    struct qal_st_recognition_config *config) {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    if (!config) {
+        QAL_ERR(LOG_TAG, "Invalid config");
+        return -EINVAL;
+    }
+    if (rec_config_ != config) {
+        // Possible due to subsequent detections.
+        if (rec_config_) {
+            free(rec_config_);
+        }
+        rec_config_ = (struct qal_st_recognition_config *)calloc(1,
+            sizeof(struct qal_st_recognition_config) + config->data_size);
+        if (!rec_config_) {
+            QAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d", status);
+            return -ENOMEM;
+        }
+        casa_mem_cpy(rec_config_, sizeof(struct qal_st_recognition_config),
+                     config, sizeof(struct qal_st_recognition_config));
+        casa_mem_cpy((uint8_t *)rec_config_ + config->data_offset,
+                     config->data_size,
+                     (uint8_t *)config + config->data_offset,
+                     config->data_size);
+    }
 
     return status;
 }
@@ -2040,6 +2151,10 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             delete qal_dev;
             break;
         }
+        case ST_EV_SSR_OFFLINE:
+            st_stream_.state_for_restore_ = ST_STATE_IDLE;
+            TransitTo(ST_STATE_SSR);
+            break;
         default: {
             QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -2387,6 +2502,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             }
             break;
         }
+        case ST_EV_SSR_OFFLINE: {
+            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            TransitTo(ST_STATE_SSR);
+            break;
+        }
         default: {
             QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -2686,6 +2808,18 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             }
             break;
         }
+        case ST_EV_SSR_OFFLINE: {
+            st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+            std::shared_ptr<StEventConfig> ev_cfg1(
+                new StStopRecognitionEventConfig(false));
+            status = st_stream_.ProcessInternalEvent(ev_cfg1);
+
+            std::shared_ptr<StEventConfig> ev_cfg2(
+                new StUnloadEventConfig());
+            status = st_stream_.ProcessInternalEvent(ev_cfg2);
+            TransitTo(ST_STATE_SSR);
+            break;
+        }
         default: {
             QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -2804,6 +2938,18 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         case ST_EV_DEVICE_CONNECTED:
         case ST_EV_DEVICE_DISCONNECTED: {
             // No need to handle as new device will be used after deferred stop
+            break;
+        }
+        case ST_EV_SSR_OFFLINE: {
+            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            std::shared_ptr<StEventConfig> ev_cfg1(
+                new StStopRecognitionEventConfig(false));
+            status = st_stream_.ProcessInternalEvent(ev_cfg1);
+
+            std::shared_ptr<StEventConfig> ev_cfg2(
+                new StUnloadEventConfig());
+            status = st_stream_.ProcessInternalEvent(ev_cfg2);
+            TransitTo(ST_STATE_SSR);
             break;
         }
         default: {
@@ -3116,6 +3262,22 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             // device connection event will be handled in loaded state.
             break;
         }
+        case ST_EV_SSR_OFFLINE: {
+            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            std::shared_ptr<StEventConfig> ev_cfg1(
+                new StStopBufferingEventConfig());
+            status = st_stream_.ProcessInternalEvent(ev_cfg1);
+
+            std::shared_ptr<StEventConfig> ev_cfg2(
+                new StStopRecognitionEventConfig(false));
+            status = st_stream_.ProcessInternalEvent(ev_cfg2);
+
+            std::shared_ptr<StEventConfig> ev_cfg3(
+                new StUnloadEventConfig());
+            status = st_stream_.ProcessInternalEvent(ev_cfg3);
+            TransitTo(ST_STATE_SSR);
+            break;
+        }
         default: {
             QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -3124,10 +3286,147 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
     return status;
 }
 
+int32_t StreamSoundTrigger::StSSR::ProcessEvent(
+   std::shared_ptr<StEventConfig> ev_cfg) {
+    int32_t status = 0;
+
+    QAL_VERBOSE(LOG_TAG, "StSSR: handle event %d", ev_cfg->id_);
+
+    switch (ev_cfg->id_) {
+        case ST_EV_SSR_ONLINE: {
+            TransitTo(ST_STATE_IDLE);
+
+            if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
+                st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
+                std::shared_ptr<StEventConfig> ev_cfg1(
+                    new StLoadEventConfig(st_stream_.sm_config_));
+                status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to load sound model, status %d",
+                        status);
+                    break;
+                }
+            }
+
+            if (st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
+                status = st_stream_.SendRecognitionConfig(
+                    st_stream_.rec_config_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG,
+                        "Failed to send recognition config, status %d", status);
+                    break;
+                }
+                std::shared_ptr<StEventConfig> ev_cfg2(
+                    new StStartRecognitionEventConfig(false));
+                status = st_stream_.ProcessInternalEvent(ev_cfg2);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                }
+            }
+            break;
+        }
+        case ST_EV_LOAD_SOUND_MODEL: {
+            if (st_stream_.state_for_restore_ != ST_STATE_IDLE) {
+                QAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    st_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                StLoadEventConfigData *data =
+                    (StLoadEventConfigData *)ev_cfg->data_.get();
+                status = st_stream_.UpdateSoundModel(
+                    (struct qal_st_sound_model *)data->data_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to update sound model, status %d",
+                        status);
+                } else {
+                    st_stream_.state_for_restore_ = ST_STATE_LOADED;
+                }
+            }
+            break;
+        }
+        case ST_EV_UNLOAD_SOUND_MODEL: {
+            if (st_stream_.state_for_restore_ != ST_STATE_LOADED) {
+                QAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    st_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                st_stream_.state_for_restore_ = ST_STATE_IDLE;
+            }
+            break;
+        }
+        case ST_EV_RECOGNITION_CONFIG: {
+            if (st_stream_.state_for_restore_ != ST_STATE_LOADED) {
+                QAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    st_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                StRecognitionCfgEventConfigData *data =
+                    (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+                status = st_stream_.UpdateRecognitionConfig(
+                    (struct qal_st_recognition_config *)data->data_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Failed to update recognition config,"
+                        "status %d", status);
+                }
+            }
+            break;
+        }
+        case ST_EV_START_RECOGNITION: {
+            if (st_stream_.state_for_restore_ != ST_STATE_LOADED) {
+                QAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    st_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                StStartRecognitionEventConfigData *data =
+                    (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+                if (!st_stream_.rec_config_) {
+                    QAL_ERR(LOG_TAG, "Recognition config not set",
+                        data->restart_);
+                    status = -EINVAL;
+                    break;
+                }
+                st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+            }
+            break;
+        }
+        case ST_EV_STOP_RECOGNITION: {
+            if (st_stream_.state_for_restore_ != ST_STATE_ACTIVE) {
+                QAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    st_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            }
+            break;
+        }
+        case ST_EV_READ_BUFFER:
+            status = -EIO;
+            break;
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
+    }
+
+    return status;
+}
+
 int32_t StreamSoundTrigger::ssrDownHandler() {
-     return 0;
+    int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StSSROfflineConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    return status;
 }
 
 int32_t StreamSoundTrigger::ssrUpHandler() {
-     return 0;
+    int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StSSROnlineConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    return status;
 }
