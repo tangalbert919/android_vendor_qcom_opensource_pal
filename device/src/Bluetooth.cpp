@@ -222,7 +222,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t codecTagId = 0;
-    uint32_t miid = 0, ratMiid = 0, copMiid = 0;
+    uint32_t miid = 0, ratMiid = 0, copMiid = 0, cnvMiid = 0;
     std::shared_ptr<Device> dev = nullptr;
     uint32_t num_payloads;
 
@@ -330,6 +330,26 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         goto error;
     }
 
+    /* PCM CNV Module Configuration */
+    status = session->getMIID(backEndName.c_str(), BT_PCM_CONVERTER, &cnvMiid);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d\n",
+                BT_PCM_CONVERTER, status);
+        goto error;
+    }
+
+    builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig);
+    if (paramSize) {
+        dev->updateCustomPayload(paramData, paramSize);
+        free(paramData);
+        paramData = NULL;
+        paramSize = 0;
+    } else {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "%s: Invalid PCM CNV module param size", __func__);
+        goto error;
+    }
+
     /* COP PACKETIZER Module Configuration is only needed for RX path */
     if (type == DEC)
         goto done;
@@ -337,7 +357,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d\n",
-                                             COP_PACKETIZER_V0, status);
+                COP_PACKETIZER_V0, status);
         goto error;
     }
 

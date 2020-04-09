@@ -204,9 +204,12 @@ public:
     void payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadQuery(uint8_t **payload, size_t *size, uint32_t moduleId,
                             uint32_t paramId, uint32_t querySize);
-    void populateChannelMap(uint16_t* pcmChannel, uint8_t num_ch);
+    template <typename T>
+    void populateChannelMap(T pcmChannel, uint8_t numChannel);
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct qal_media_config *data);
+    void payloadPcmCnvConfig(uint8_t** payload, size_t* size, uint32_t miid,
+                             struct qal_media_config *data);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct qal_media_config *data);
     void payloadTWSConfig(uint8_t** payload, size_t* size, uint32_t miid,

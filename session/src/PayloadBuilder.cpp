@@ -271,8 +271,8 @@ std::vector<std::pair<uint32_t, uint32_t>> VSIDtoKV {
     { VOICELBMMODE2, 0},
 };
 
-/* This can only be used for channel map having size 16 bits for each index */
-void PayloadBuilder::populateChannelMap(uint16_t* pcmChannel, uint8_t numChannel)
+template <typename T>
+void PayloadBuilder::populateChannelMap(T pcmChannel, uint8_t numChannel)
 {
     if (numChannel == 1) {
         pcmChannel[0] = PCM_CHANNEL_C;
@@ -399,51 +399,7 @@ void PayloadBuilder::payloadInMediaConfig(uint8_t** payload, size_t* size,
                       mediaFmtPayload->sample_rate, mediaFmtPayload->bit_width,
                       mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);
 
-    if (data->numChannel == 1) {
-        pcmChannel[0] = PCM_CHANNEL_C;
-    } else if (data->numChannel == 2) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-    } else if (data->numChannel == 3) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-    }  else if (data->numChannel == 4) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_LB;
-        pcmChannel[3] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 5) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LB;
-        pcmChannel[4] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 6) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LFE;
-        pcmChannel[4] = PCM_CHANNEL_LB;
-        pcmChannel[5] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 7) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_LB;
-        pcmChannel[6] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 8) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_CS;
-        pcmChannel[6] = PCM_CHANNEL_LB;
-        pcmChannel[7] = PCM_CHANNEL_RB;
-    }
+    populateChannelMap(pcmChannel, data->numChannel);
 
     *size = (payloadSize + padBytes);
     *payload = payloadInfo;
@@ -528,51 +484,7 @@ void PayloadBuilder::payloadOutMediaConfig(uint8_t** payload, size_t* size,
     QAL_VERBOSE(LOG_TAG, "interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",
                   mediaFmtPayload->interleaved, mediaFmtPayload->bit_width,
                   mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);
-    if (data->numChannel == 1) {
-        pcmChannel[0] = PCM_CHANNEL_C;
-    } else if (data->numChannel == 2) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-    } else if (data->numChannel == 3) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-    } else if (data->numChannel == 4) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_LB;
-        pcmChannel[3] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 5) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LB;
-        pcmChannel[4] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 6) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LFE;
-        pcmChannel[4] = PCM_CHANNEL_LB;
-        pcmChannel[5] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 7) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_LB;
-        pcmChannel[6] = PCM_CHANNEL_RB;
-    } else if (data->numChannel == 8) {
-        pcmChannel[0] = PCM_CHANNEL_L;
-        pcmChannel[1] = PCM_CHANNEL_R;
-        pcmChannel[2] = PCM_CHANNEL_C;
-        pcmChannel[3] = PCM_CHANNEL_LS;
-        pcmChannel[4] = PCM_CHANNEL_RS;
-        pcmChannel[5] = PCM_CHANNEL_CS;
-        pcmChannel[6] = PCM_CHANNEL_LB;
-        pcmChannel[7] = PCM_CHANNEL_RB;
-    }
+    populateChannelMap(pcmChannel, data->numChannel);
     *size = (payloadSize + padBytes);
     *payload = payloadInfo;
 
@@ -2089,6 +2001,87 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "sample_rate:%d bits_per_sample:%d q_factor:%d data_format:%d num_channels:%d",
                       ratConf->sample_rate, ratConf->bits_per_sample, ratConf->q_factor,
                       ratConf->data_format, ratConf->num_channels);
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+                *size);
+}
+
+void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, struct qal_media_config *data)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct media_format_t *mediaFmtHdr;
+    struct payload_pcm_output_format_cfg_t *mediaFmtPayload;
+    int numChannels;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    uint8_t *pcmChannel;
+
+    if (!data) {
+        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    numChannels = data->ch_info->channels;
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct media_format_t) +
+                  sizeof(struct payload_pcm_output_format_cfg_t) +
+                  sizeof(uint8_t)*numChannels;
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header          = (struct apm_module_param_data_t*)payloadInfo;
+    mediaFmtHdr     = (struct media_format_t*)(payloadInfo +
+                      sizeof(struct apm_module_param_data_t));
+    mediaFmtPayload = (struct payload_pcm_output_format_cfg_t*)(payloadInfo +
+                      sizeof(struct apm_module_param_data_t) +
+                      sizeof(struct media_format_t));
+    pcmChannel      = (uint8_t*)(payloadInfo + sizeof(struct apm_module_param_data_t) +
+                      sizeof(struct media_format_t) +
+                      sizeof(struct payload_pcm_output_format_cfg_t));
+
+    header->module_instance_id = miid;
+    header->param_id           = PARAM_ID_PCM_OUTPUT_FORMAT_CFG;
+    header->error_code         = 0x0;
+    header->param_size         = payloadSize - sizeof(struct apm_module_param_data_t);
+    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    mediaFmtHdr->data_format  = DATA_FORMAT_FIXED_POINT;
+    mediaFmtHdr->fmt_id       = MEDIA_FMT_ID_PCM;
+    mediaFmtHdr->payload_size = sizeof(payload_pcm_output_format_cfg_t) +
+                                sizeof(uint8_t) * numChannels;
+    QAL_DBG(LOG_TAG, "mediaFmtHdr data_format:%x fmt_id:%x payload_size:%d channels:%d",
+                      mediaFmtHdr->data_format, mediaFmtHdr->fmt_id,
+                      mediaFmtHdr->payload_size, numChannels);
+
+    mediaFmtPayload->endianness      = PCM_LITTLE_ENDIAN;
+    mediaFmtPayload->alignment       = 1;
+    mediaFmtPayload->num_channels    = data->ch_info->channels;
+    if ((data->bit_width == 16) || (data->bit_width == 32)) {
+        mediaFmtPayload->bit_width       = data->bit_width;
+        mediaFmtPayload->bits_per_sample = data->bit_width;
+        mediaFmtPayload->q_factor        = data->bit_width - 1;
+    } else if (data->bit_width == 24) {
+        // convert to Q31 that's expected by HD encoders.
+        mediaFmtPayload->bit_width       = 32;
+        mediaFmtPayload->bits_per_sample = 32;
+        mediaFmtPayload->q_factor        = 31;
+    } else {
+        QAL_ERR(LOG_TAG, "invalid bit width %d", data->bit_width);
+    }
+    mediaFmtPayload->interleaved     = PCM_INTERLEAVED;
+    QAL_DBG(LOG_TAG, "interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",
+                  mediaFmtPayload->interleaved, mediaFmtPayload->bit_width,
+                  mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);
+    populateChannelMap(pcmChannel, numChannels);
+    *size = (payloadSize + padBytes);
+    *payload = payloadInfo;
+
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
                 *size);
 }
