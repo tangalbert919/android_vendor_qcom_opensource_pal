@@ -26,24 +26,26 @@
 <!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                             -->
 <resource_manager_info>
     <pcm_ids>
-        <device name="QAL_DEVICE_OUT_SPEAKER" pcm_id="0" hw_intf="slim-0-rx" snd_device_name="speaker" back_end_name="SLIM-DEV1-RX-0"/>
-        <device name="QAL_DEVICE_OUT_HANDSET" pcm_id="0" hw_intf="slim-0-rx" snd_device_name="handset" back_end_name="SLIM-DEV1-RX-0"/>
-        <device name="QAL_DEVICE_OUT_WIRED_HEADPHONE" pcm_id="0" hw_intf="slim-6-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
-        <device name="QAL_DEVICE_OUT_WIRED_HEADSET" pcm_id="0" hw_intf="slim-6-rx" snd_device_name="headphones" back_end_name="SLIM-DEV1-RX-6"/>
-        <device name="QAL_DEVICE_OUT_BLUETOOTH_A2DP" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-RX-7"/>
-        <device name="QAL_DEVICE_OUT_BLUETOOTH_SCO" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-RX-7"/>
+        <device name="QAL_DEVICE_OUT_SPEAKER" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="speaker" back_end_name="CODEC_DMA-LPAIF_WSA-RX-0"/>
+        <device name="QAL_DEVICE_OUT_HANDSET" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="handset" back_end_name="CODEC_DMA-LPAIF_WSA-RX-0"/>
+        <device name="QAL_DEVICE_OUT_WIRED_HEADPHONE" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="headphones" back_end_name="CODEC_DMA-LPAIF_RXTX-RX-0"/>
+        <device name="QAL_DEVICE_OUT_WIRED_HEADSET" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="headphones" back_end_name="CODEC_DMA-LPAIF_RXTX-RX-0"/>
+        <device name="QAL_DEVICE_OUT_BLUETOOTH_A2DP" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-RX-7"/>
+        <device name="QAL_DEVICE_OUT_BLUETOOTH_SCO" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-RX-7"/>
         <device name="QAL_DEVICE_OUT_AUX_DIGITAL" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
         <device name="QAL_DEVICE_OUT_HDMI" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
         <device name="QAL_DEVICE_OUT_USB_DEVICE" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
         <device name="QAL_DEVICE_OUT_USB_HEADSET" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
-        <device name="QAL_DEVICE_OUT_AUX_DIGITAL" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
-        <device name="QAL_DEVICE_OUT_HDMI" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
-        <device name="QAL_DEVICE_IN_HANDSET_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="handset-mic" back_end_name="SLIM-DEV1-TX-0"/>
-        <device name="QAL_DEVICE_IN_SPEAKER_MIC" pcm_id="1" hw_intf="slim-0-tx" snd_device_name="speaker-tmic" back_end_name="SLIM-DEV1-TX-0"/>
-        <device name="QAL_DEVICE_IN_WIRED_HEADSET" pcm_id="1" hw_intf="slim-1-tx" snd_device_name="headset-mic" back_end_name="SLIM-DEV1-TX-0"/>
-        <device name="QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV2-TX-7"/>
+        <device name="QAL_DEVICE_OUT_AUX_DIGITAL_1" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
         <device name="QAL_DEVICE_IN_USB_DEVICE" pcm_id="1" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
         <device name="QAL_DEVICE_IN_USB_HEADSET" pcm_id="1" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
+        <device name="QAL_DEVICE_IN_HANDSET_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="handset-mic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
+        <device name="QAL_DEVICE_IN_SPEAKER_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="speaker-tmic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
+        <device name="QAL_DEVICE_IN_WIRED_HEADSET" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="headset-mic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
+        <device name="QAL_DEVICE_IN_HANDSET_VA_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="va-mic" back_end_name="CODEC_DMA-LPAIF_VA-TX-0"/>
+        <device name="QAL_DEVICE_IN_HEADSET_VA_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="headset-va-mic" back_end_name="CODEC_DMA-LPAIF_VA-TX-0"/>
+        <device name="QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-TX-7"/>
+        <device name="QAL_DEVICE_IN_BLUETOOTH_A2DP" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-TX-7"/>
     </pcm_ids>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
@@ -52,6 +54,9 @@
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_SBC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
         <codec codec_format="CODEC_TYPE_LDAC" codec_type="enc" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_APTX" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_HD" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_AD" codec_type="enc" codec_library="lib_bt_aptx.so" />
     </bt_codecs>
     <config_voice>
         <vsid>0xB3000000</vsid>
@@ -65,7 +70,7 @@
     <device_profile>
         <in-device>
             <id>QAL_DEVICE_IN_HANDSET_MIC</id>
-            <back_end_name>SLIM-DEV1-TX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
@@ -106,7 +111,7 @@
         </in-device>
         <in-device>
             <id>QAL_DEVICE_IN_SPEAKER_MIC</id>
-            <back_end_name>SLIM-DEV1-TX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
@@ -144,10 +149,16 @@
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
+            <usecase>
+                <name>QAL_STREAM_LOOPBACK</name>
+                <channels>1</channels>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
         </in-device>
         <in-device>
             <id>QAL_DEVICE_IN_WIRED_HEADSET</id>
-            <back_end_name>SLIM-DEV1-TX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>1</max_channels>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
@@ -217,8 +228,17 @@
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000008"/>
+                    <!-- VOICE_FLUENCE_SMECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
         </in-device>
-		<in-device>
+        <in-device>
             <id>QAL_DEVICE_IN_HANDSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
@@ -232,7 +252,7 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
-		<in-device>
+        <in-device>
             <id>QAL_DEVICE_IN_HEADSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
@@ -251,11 +271,20 @@
             <back_end_name>USB_AUDIO-TX</back_end_name>
             <max_channels>1</max_channels>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>QAL_STREAM_VOIP_TX</name>
                 <channels>1</channels>
                 <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
+                    <kvpair key="0xAD000000" value="0xAD000002"/>
+                    <!-- VOICE_UI_FLUENCE_FFECNS -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOICE_UI</name>
+                <channels>1</channels>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000001"/>
+                    <!-- VOICE_UI_FLUENCE_FFECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
@@ -264,7 +293,16 @@
                 <channels>1</channels>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
+                    <!-- AUDIO_FLUENCE_PRO -->
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <devicePP-metadata>
+                    <kvpair key="0xAD000000" value="0xAD000008"/>
+                    <!-- VOICE_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
@@ -277,7 +315,7 @@
         <common_config>
             <param max_sessions="8" />
             <param enable_failure_detection="false" />
-            <param support_device_switch="false" />
+            <param support_device_switch="true" />
             <param transit_to_non_lpi_on_charging="false" />
             <!-- Param used to indicate if SVA has dedicated back end path and ports not conflicting with other audio paths  -->
             <param dedicated_sva_path="true" />
@@ -290,6 +328,15 @@
         </common_config>
 
         <capture_profile_list>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                </devicePP-metadata>
+            </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="2" />
@@ -299,9 +346,18 @@
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
                 </devicePP-metadata>
             </capture_profile>
-            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
+            <capture_profile name="TRI_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
-                <param channels="1" />
+                <param channels="3" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                </devicePP-metadata>
+            </capture_profile>
+            <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFNS">
+                <param sample_rate="16000" />
+                <param channels="4" />
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
