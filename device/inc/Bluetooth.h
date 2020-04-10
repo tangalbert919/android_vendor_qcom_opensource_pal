@@ -35,6 +35,7 @@
 #include <tinyalsa/asoundlib.h>
 #include <bt_intf.h>
 #include <vector>
+#include <mutex>
 
 #define DISALLOW_COPY_AND_ASSIGN(name) \
     name(const name &); \
@@ -86,17 +87,23 @@ protected:
     bool                    is_configured;
     bool                    is_handoff_in_progress;
 
+    int getPluginPayload(void **handle, bt_codec_t **btCodec,
+              bt_enc_payload_t **out_buf, void *codec_info, codec_type ctype);
     int configureA2dpEncoderDecoder(void *codec_info);
     int updateDeviceMetadata(void);
     void updateDeviceAttributes(void);
     bool isPlaceholderEncoder(void);
     bool isAbrEnabled;
     bool isTwsMonoModeOn;
+    int bt_swb_speech_mode;
     struct pcm *fbPcm;
     std::vector<int> fbpcmDevIds;
+    int abrRefCnt;
+    std::mutex mAbrMutex;
     void startAbr();
     void stopAbr();
 public:
+    int getDeviceAttributes (struct qal_device *dattr) override;
     virtual ~Bluetooth();
 };
 
@@ -155,7 +162,6 @@ public:
     int start();
     int stop();
 
-    int getDeviceAttributes (struct qal_device *dattr) override;
     bool      isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     int32_t getDeviceParameter(uint32_t param_id, void **param) override;
@@ -175,7 +181,6 @@ protected:
     BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     bool bt_sco_on;
     bool bt_wb_speech_enabled;
-    int bt_swb_speech_mode;
     int startSwb();
 public:
     static std::shared_ptr<Device> getObject(qal_device_id_t id);
