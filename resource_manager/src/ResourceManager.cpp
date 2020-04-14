@@ -1416,6 +1416,23 @@ bool ResourceManager::IsVoipAndVoiceUIConcurrencySupported() {
     return false;
 }
 
+bool ResourceManager::IsTransitToNonLPIOnChargingSupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetTransitToNonLpiOnCharging();
+    }
+    return false;
+}
+
+bool ResourceManager::CheckForForcedTransitToNonLPI() {
+    if (IsTransitToNonLPIOnChargingSupported() && charging_state_)
+      return true;
+
+    return false;
+}
+
 std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
     Stream *tx_str)
 {
@@ -3060,6 +3077,36 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
                       sizeof(qal_param_device_connection_t), payload_size);
                 status = -EINVAL;
+            }
+        }
+        break;
+        case QAL_PARAM_ID_CHARGING_STATE:
+        {
+            qal_param_charging_state *battery_charging_state =
+                (qal_param_charging_state *)param_payload;
+
+            if (IsTransitToNonLPIOnChargingSupported()) {
+                if (payload_size == sizeof(qal_param_charging_state)) {
+                    QAL_INFO(LOG_TAG, "Charging State = %d",
+                              battery_charging_state->charging_state);
+                    charging_state_ = battery_charging_state->charging_state;
+                    for (int i = 0; i < active_streams_st.size(); i++) {
+                        status = active_streams_st[i]->UpdateChargingState(
+                            battery_charging_state->charging_state);
+                        if (status) {
+                            QAL_ERR(LOG_TAG,
+                                    "Failed to handling charging state\n");
+                        }
+                    }
+                } else {
+                    QAL_ERR(LOG_TAG,
+                            "Incorrect size : expected (%d), received(%d)",
+                            sizeof(qal_param_charging_state), payload_size);
+                    status = -EINVAL;
+                }
+            } else {
+                QAL_DBG(LOG_TAG,
+                          "transit_to_non_lpi_on_charging set to false\n");
             }
         }
         break;

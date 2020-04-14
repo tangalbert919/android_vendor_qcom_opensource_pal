@@ -77,6 +77,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     mNoOfModifiers = 0;
     mModifiers = (struct modifier_kv *) (nullptr);
 
+    charging_state_ = rm->GetChargingState();
+    QAL_DBG(LOG_TAG, "Charging State %d", charging_state_);
+
     // get sound trigger platform info
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
@@ -490,6 +493,24 @@ int32_t StreamSoundTrigger::UpdateDeviceConnectionState(bool connect,
     return status;
 }
 
+int32_t StreamSoundTrigger::UpdateChargingState(bool state) {
+    int32_t status = 0;
+    QAL_DBG(LOG_TAG, "Enter, state %d", state);
+
+    if (charging_state_ != state) {
+        charging_state_ = state;
+        std::shared_ptr<StEventConfig> ev_cfg(
+            new StChargingStateEventConfig(state));
+        PostEvent(ev_cfg);
+    } else {
+        QAL_DBG(LOG_TAG, "No change in charging state");
+        status = EINVAL;
+    }
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
 void StreamSoundTrigger::EventThread(StreamSoundTrigger& st_stream) {
     QAL_DBG(LOG_TAG, "Enter");
 
@@ -527,6 +548,7 @@ void StreamSoundTrigger::HandleEvents() {
         switch (ev_cfg->id_) {
             case ST_EV_DEVICE_CONNECTED:
             case ST_EV_DEVICE_DISCONNECTED:
+            case ST_EV_CHARGING_STATE:
                 status = cur_state_->ProcessEvent(ev_cfg);
                 if (status) {
                     QAL_ERR(LOG_TAG, "Failed to handle event %d", ev_cfg->id_);
@@ -541,7 +563,8 @@ void StreamSoundTrigger::HandleEvents() {
     pending_event_configs_.clear();
 }
 
-int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev) {
+int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id,
+    struct qal_device *dev) {
     int32_t status = 0;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
@@ -884,7 +907,8 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     AddEngine(engine_cfg);
                 } else {
                     sm_size = big_sm->size;
-                    ptr = (uint8_t *)sm_payload + sizeof(SML_GlobalHeaderType) +
+                    ptr = (uint8_t *)sm_payload +
+                        sizeof(SML_GlobalHeaderType) +
                         sizeof(SML_HeaderTypeV3) +
                         (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
@@ -1014,7 +1038,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         rec_config_ = (struct qal_st_recognition_config *)calloc(1,
             sizeof(struct qal_st_recognition_config) + config->data_size);
         if (!rec_config_) {
-            QAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d", status);
+            QAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d",
+                status);
             return -ENOMEM;
         }
         casa_mem_cpy(rec_config_, sizeof(struct qal_st_recognition_config),
@@ -1137,11 +1162,12 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     ring_buffer_len = hist_buffer_duration + pre_roll_duration +
         client_capture_read_delay;
     ring_buffer_size = (ring_buffer_len / 1000) * sm_info_->GetSampleRate() *
-                       sm_info_->GetBitWidth() * sm_info_->GetOutChannels() / 8;
+                       sm_info_->GetBitWidth() *
+                       sm_info_->GetOutChannels() / 8;
     status = gsl_engine_->CreateBuffer(ring_buffer_size,
                                        engines_.size(), reader_list);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get ring buffer reader, status %d", status);
+        QAL_ERR(LOG_TAG, "Failed to get ring buf reader, status %d", status);
         goto error_exit;
     }
 
@@ -1545,8 +1571,8 @@ int32_t StreamSoundTrigger::FillConfLevels(
             if ((user_id < config->num_phrases) ||
                 (user_id >= num_conf_levels)) {
                 status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d", user_id,
-                        status);
+                QAL_ERR(LOG_TAG, "Invalid params user id %d status %d",
+                        user_id, status);
                 goto exit;
             } else {
                 if (user_id_tracker[user_id] == 1) {
@@ -1809,6 +1835,7 @@ void StreamSoundTrigger::AddEngine(std::shared_ptr<EngineCfg> engine_cfg) {
 std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     bool is_lpi = false;
+    bool is_transit_to_nlpi = false;
 
     /* initialize if we shoud come up in lpi or non-lpi state */
     if (rm->IsVoiceUILPISupported() &&
@@ -1817,24 +1844,45 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     else
         is_lpi = false;
 
+    is_transit_to_nlpi = rm->CheckForForcedTransitToNonLPI();
+
+    if (is_transit_to_nlpi)
+        is_lpi = false;
+
     if (GetAvailCaptureDevice() == QAL_DEVICE_IN_HEADSET_VA_MIC) {
         if (is_lpi)
             cap_prof = sm_info_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HEADSET));
-        else
-            cap_prof = sm_info_->GetCaptureProfile(
-                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
-                    ST_INPUT_MODE_HEADSET));
+        else {
+            if (is_transit_to_nlpi) {
+                cap_prof = sm_info_->GetCaptureProfile(
+                                std::make_pair(
+                                    ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
+                                    ST_INPUT_MODE_HEADSET));
+            } else {
+                cap_prof = sm_info_->GetCaptureProfile(
+                                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                                    ST_INPUT_MODE_HEADSET));
+            }
+        }
     } else {
         if (is_lpi)
             cap_prof = sm_info_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HANDSET));
-        else
-            cap_prof = sm_info_->GetCaptureProfile(
-                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
-                    ST_INPUT_MODE_HANDSET));
+        else {
+            if (is_transit_to_nlpi) {
+                cap_prof = sm_info_->GetCaptureProfile(
+                                std::make_pair(
+                                    ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
+                                    ST_INPUT_MODE_HANDSET));
+            } else {
+                cap_prof = sm_info_->GetCaptureProfile(
+                                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                                    ST_INPUT_MODE_HANDSET));
+            }
+        }
     }
 
     QAL_DBG(LOG_TAG, "using capture profile %s: dev_id=0x%x, chs=%d, sr=%d",
@@ -1887,114 +1935,115 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
     QAL_DBG(LOG_TAG, "StIdle: handle event %d", ev_cfg->id_);
 
     switch (ev_cfg->id_) {
-      case ST_EV_LOAD_SOUND_MODEL: {
-          std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-          StLoadEventConfigData *data =
-              (StLoadEventConfigData *)ev_cfg->data_.get();
+        case ST_EV_LOAD_SOUND_MODEL: {
+            std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+            StLoadEventConfigData *data =
+                (StLoadEventConfigData *)ev_cfg->data_.get();
 
-          if (st_stream_.mDevices.size() > 0) {
-              status = st_stream_.mDevices[0]->open();
-              if (0 != status) {
-                  QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                  goto err_exit;
-              }
-          }
+            if (st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->open();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                    goto err_exit;
+                }
+            }
+            cap_prof = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.cap_prof_ = cap_prof;
+            /* store the pre-proc KV selected in the config file */
+            st_stream_.mDevPpModifiers.clear();
+            st_stream_.mDevPpModifiers.push_back(
+                st_stream_.cap_prof_->GetDevicePpKv());
 
-          cap_prof = st_stream_.GetCurrentCaptureProfile();
-          /* store the pre-proc KV selected in the config file */
-          st_stream_.mDevPpModifiers.clear();
-          st_stream_.mDevPpModifiers.push_back(cap_prof->GetDevicePpKv());
+            status = st_stream_.LoadSoundModel(
+                (struct qal_st_sound_model *)data->data_);
 
-          status = st_stream_.LoadSoundModel(
-              (struct qal_st_sound_model *)data->data_);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to load sm, status %d", status);
+                goto err_exit;
+            } else {
+                QAL_VERBOSE(LOG_TAG, "Opened the engine and dev successfully");
+                TransitTo(ST_STATE_LOADED);
+                break;
+            }
+        err_exit:
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            break;
+        }
+        case ST_EV_RESUME: {
+            st_stream_.paused_ = false;
+            break;
+        }
+        case ST_EV_READ_BUFFER: {
+            status = -EIO;
+            break;
+        }
+        case ST_EV_DEVICE_CONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = data->dev_id_;
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
+                goto connection_err;
+            }
+            st_stream_.mDevices.clear();
 
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to load sound model, status %d", status);
-              goto err_exit;
-          } else {
-              QAL_VERBOSE(LOG_TAG, "Opened the engine and device successfully");
-              TransitTo(ST_STATE_LOADED);
-              break;
-          }
-      err_exit:
-          break;
-      }
-      case ST_EV_PAUSE: {
-          st_stream_.paused_ = true;
-          break;
-      }
-      case ST_EV_RESUME: {
-          st_stream_.paused_ = false;
-          break;
-      }
-      case ST_EV_READ_BUFFER: {
-          status = -EIO;
-          break;
-      }
-      case ST_EV_DEVICE_CONNECTED: {
-          struct qal_device *qal_dev = new struct qal_device;
-          std::shared_ptr<Device> dev = nullptr;
-          StDeviceConnectedEventConfigData *data =
-              (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-          qal_device_id_t dev_id = data->dev_id_;
-          status = st_stream_.GetQalDevice(dev_id, qal_dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-              goto connection_err;
-          }
-          st_stream_.mDevices.clear();
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                status = -EINVAL;
+                goto connection_err;
+            }
 
-          dev = Device::getInstance(qal_dev, st_stream_.rm);
-          if (!dev) {
-              QAL_ERR(LOG_TAG, "Device creation failed");
-              status = -EINVAL;
-              goto connection_err;
-          }
+            dev->setDeviceAttributes(*qal_dev);
 
-          dev->setDeviceAttributes(*qal_dev);
+            st_stream_.mDevices.push_back(dev);
+        connection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
+        }
+        case ST_EV_DEVICE_DISCONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
+                goto disconnection_err;
+            }
+            st_stream_.mDevices.clear();
 
-          st_stream_.mDevices.push_back(dev);
-      connection_err:
-          if (qal_dev->config.ch_info) {
-              free(qal_dev->config.ch_info);
-          }
-          delete qal_dev;
-          break;
-      }
-      case ST_EV_DEVICE_DISCONNECTED: {
-          struct qal_device *qal_dev = new struct qal_device;
-          std::shared_ptr<Device> dev = nullptr;
-          StDeviceConnectedEventConfigData *data =
-              (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-          qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-          status = st_stream_.GetQalDevice(dev_id, qal_dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-              goto disconnection_err;
-          }
-          st_stream_.mDevices.clear();
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                status = -EINVAL;
+                goto disconnection_err;
+            }
 
-          dev = Device::getInstance(qal_dev, st_stream_.rm);
-          if (!dev) {
-              QAL_ERR(LOG_TAG, "Device creation failed");
-              status = -EINVAL;
-              goto disconnection_err;
-          }
+            dev->setDeviceAttributes(*qal_dev);
 
-          dev->setDeviceAttributes(*qal_dev);
-
-          st_stream_.mDevices.push_back(dev);
-      disconnection_err:
-          if (qal_dev->config.ch_info) {
-              free(qal_dev->config.ch_info);
-          }
-          delete qal_dev;
-          break;
-      }
-      default: {
-          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
-          break;
-      }
+            st_stream_.mDevices.push_back(dev);
+        disconnection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
+        }
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
     }
 
     return status;
@@ -2008,311 +2057,340 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
     QAL_DBG(LOG_TAG, "StLoaded: handle event %d", ev_cfg->id_);
 
     switch (ev_cfg->id_) {
-    case ST_EV_UNLOAD_SOUND_MODEL: {
-        int ret = 0;
-        if (st_stream_.mDevices.size() > 0) {
-            auto& dev = st_stream_.mDevices[0];
-            QAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
-                    dev->getQALDeviceName().c_str());
-            ret = dev->close();
-            if (0 != ret) {
-                QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                status = ret;
+        case ST_EV_UNLOAD_SOUND_MODEL: {
+            int ret = 0;
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                ret = dev->close();
+                if (0 != ret) {
+                    QAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                    status = ret;
+                }
             }
-        }
 
-        for (auto& eng: st_stream_.engines_) {
-            QAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
-            status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
-                        eng->GetEngineId(), status);
-                status = ret;
+            for (auto& eng: st_stream_.engines_) {
+                QAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                    status = ret;
+                }
+                free(eng->sm_data_);
             }
-            free(eng->sm_data_);
-        }
-        if (st_stream_.reader_) {
-            delete st_stream_.reader_;
-            st_stream_.reader_ = nullptr;
-        }
-        st_stream_.engines_.clear();
+            if (st_stream_.reader_) {
+                delete st_stream_.reader_;
+                st_stream_.reader_ = nullptr;
+            }
+            st_stream_.engines_.clear();
 
-        TransitTo(ST_STATE_IDLE);
-        break;
-    }
-    case ST_EV_RECOGNITION_CONFIG: {
-        StRecognitionCfgEventConfigData *data =
-            (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
-        status = st_stream_.SendRecognitionConfig(
-           (struct qal_st_recognition_config *)data->data_);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
-                    status);
-        }
-        break;
-    }
-    case ST_EV_RESUME: {
-        if (!st_stream_.paused_) {
-            // Possible if App has stopped recognition during active
-            // concurrency.
+            TransitTo(ST_STATE_IDLE);
             break;
         }
-        st_stream_.paused_ = false;
-        // fall through to start
-        [[fallthrough]];
-    }
-    case ST_EV_START_RECOGNITION: {
-        if (st_stream_.paused_) {
-           break; // Concurrency is active, start later.
-        }
-        StStartRecognitionEventConfigData *data =
-            (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
-        if (!st_stream_.rec_config_) {
-            QAL_ERR(LOG_TAG, "Recognition config not set", data->restart_);
-            status = -EINVAL;
-            break;
-        }
-
-        /* Update capture device based on mode and configuration and start it */
-        struct qal_device dattr;
-        if (st_stream_.mDevices.size() > 0) {
-            auto& dev = st_stream_.mDevices[0];
-            std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-            dev->getDeviceAttributes(&dattr);
-            cap_prof = st_stream_.GetCurrentCaptureProfile();
-            dattr.config.ch_info = (struct qal_channel_info *) malloc(
-                sizeof(qal_channel_info) + cap_prof->GetChannels());
-            if (!dattr.config.ch_info) {
-                QAL_ERR(LOG_TAG, "failed to alloc ch_map");
-                break;
-            }
-            dattr.config.bit_width = cap_prof->GetBitWidth();
-            dattr.config.ch_info->channels = cap_prof->GetChannels();
-            dattr.config.sample_rate = cap_prof->GetSampleRate();
-            dev->setDeviceAttributes(dattr);
-
-            /* now start the device */
-            QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
-                    dev->getQALDeviceName().c_str());
-            status = dev->start();
+        case ST_EV_RECOGNITION_CONFIG: {
+            StRecognitionCfgEventConfigData *data =
+                (StRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+            status = st_stream_.SendRecognitionConfig(
+               (struct qal_st_recognition_config *)data->data_);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
-                if (dattr.config.ch_info)
-                    free(dattr.config.ch_info);
-                break;
-            } else {
-                st_stream_.rm->registerDevice(dev);
-            }
-            QAL_DBG(LOG_TAG, "device started");
-        }
-
-        /* Start the engines */
-        std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
-        for (auto& eng: st_stream_.engines_) {
-            QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
-            status = eng->GetEngine()->StartRecognition(&st_stream_);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Start st engine %d failed, status %d",
-                        eng->GetEngineId(), status);
-                goto err_exit;
-            } else {
-                tmp_engines.push_back(eng->GetEngine());
-            }
-        }
-
-        if (st_stream_.reader_)
-            st_stream_.reader_->reset();
-
-        TransitTo(ST_STATE_ACTIVE);
-        break;
-
-    err_exit:
-        for (auto& eng: tmp_engines)
-            eng->StopRecognition(&st_stream_);
-
-        if (st_stream_.mDevices.size() > 0) {
-            st_stream_.rm->deregisterDevice(st_stream_.mDevices[0]);
-            st_stream_.mDevices[0]->stop();
-        }
-
-        if (dattr.config.ch_info)
-            free(dattr.config.ch_info);
-
-        break;
-    }
-    case ST_EV_CONCURRENT_STREAM: {
-        std::shared_ptr<StEventConfig> ev_cfg1(new StUnloadEventConfig());
-        status = st_stream_.ProcessInternalEvent(ev_cfg1);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-            break;
-        }
-        std::shared_ptr<StEventConfig> ev_cfg2(
-            new StLoadEventConfig(st_stream_.sm_config_));
-        status = st_stream_.ProcessInternalEvent(ev_cfg2);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
-            break;
-        }
-        if (st_stream_.rec_config_) {
-            status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                QAL_ERR(LOG_TAG, "Failed to send recog config, status %d",
                         status);
+            }
+            break;
+        }
+        case ST_EV_RESUME: {
+            if (!st_stream_.paused_) {
+                // Possible if App has stopped recognition during active
+                // concurrency.
                 break;
             }
+            st_stream_.paused_ = false;
+            // fall through to start
+            [[fallthrough]];
         }
-        break;
-    }
-    case ST_EV_PAUSE: {
-        st_stream_.paused_ = true;
-        break;
-    }
-    case ST_EV_STOP_RECOGNITION: {
-        // Possible if client is stopping during active concurrency.
-        // Reset puase flag to avoid restarting when concurrency inactive.
-        st_stream_.paused_ = false;
-        break;
-    }
-    case ST_EV_READ_BUFFER: {
-        status = -EIO;
-        break;
-    }
-    case ST_EV_DEVICE_CONNECTED: {
-        struct qal_device *qal_dev = new struct qal_device;
-        std::shared_ptr<Device> dev = nullptr;
-        StDeviceConnectedEventConfigData *data =
-            (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-        qal_device_id_t dev_id = data->dev_id_;
-        status = st_stream_.GetQalDevice(dev_id, qal_dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-            goto connection_err;
+        case ST_EV_START_RECOGNITION: {
+            if (st_stream_.paused_) {
+               break; // Concurrency is active, start later.
+            }
+            StStartRecognitionEventConfigData *data =
+                (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+            if (!st_stream_.rec_config_) {
+                QAL_ERR(LOG_TAG, "Recognition config not set", data->restart_);
+                status = -EINVAL;
+                break;
+            }
+
+            /* Update cap dev based on mode and configuration and start it */
+            struct qal_device dattr;
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                dev->getDeviceAttributes(&dattr);
+                dattr.config.ch_info = (struct qal_channel_info *) malloc(
+                    sizeof(qal_channel_info) +
+                    st_stream_.cap_prof_->GetChannels());
+                if (!dattr.config.ch_info) {
+                    QAL_ERR(LOG_TAG, "failed to alloc ch_map");
+                    break;
+                }
+                dattr.config.bit_width = st_stream_.cap_prof_->GetBitWidth();
+                dattr.config.ch_info->channels =
+                    st_stream_.cap_prof_->GetChannels();
+                dattr.config.sample_rate =
+                    st_stream_.cap_prof_->GetSampleRate();
+                dev->setDeviceAttributes(dattr);
+
+                /* now start the device */
+                QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->start();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
+                    if (dattr.config.ch_info)
+                        free(dattr.config.ch_info);
+                    break;
+                } else {
+                    st_stream_.rm->registerDevice(dev);
+                }
+                QAL_DBG(LOG_TAG, "device started");
+            }
+
+            /* Start the engines */
+            std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StartRecognition(&st_stream_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "Start st engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                    goto err_exit;
+                } else {
+                    tmp_engines.push_back(eng->GetEngine());
+                }
+            }
+
+            if (st_stream_.reader_)
+                st_stream_.reader_->reset();
+
+            TransitTo(ST_STATE_ACTIVE);
+            break;
+
+        err_exit:
+            for (auto& eng: tmp_engines)
+                eng->StopRecognition(&st_stream_);
+
+            if (st_stream_.mDevices.size() > 0) {
+                st_stream_.rm->deregisterDevice(st_stream_.mDevices[0]);
+                st_stream_.mDevices[0]->stop();
+            }
+
+            if (dattr.config.ch_info)
+                free(dattr.config.ch_info);
+
+            break;
         }
-
-        for (auto& device: st_stream_.mDevices) {
-            st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, device);
-
-            status = device->close();
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            break;
+        }
+        case ST_EV_STOP_RECOGNITION: {
+            // Possible if client is stopping during active concurrency.
+            // Reset puase flag to avoid restarting when concurrency inactive.
+            st_stream_.paused_ = false;
+            break;
+        }
+        case ST_EV_READ_BUFFER: {
+            status = -EIO;
+            break;
+        }
+        case ST_EV_DEVICE_CONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = data->dev_id_;
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
                 goto connection_err;
             }
-        }
-        st_stream_.mDevices.clear();
 
-        dev = Device::getInstance(qal_dev, st_stream_.rm);
-        if (!dev) {
-            QAL_ERR(LOG_TAG, "Device creation failed");
-            status = -EINVAL;
-            goto connection_err;
-        }
+            for (auto& device: st_stream_.mDevices) {
+                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
+                    st_stream_.mStreamAttr->type, device);
 
-        dev->setDeviceAttributes(*qal_dev);
+                status = device->close();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "dev close failed, status %d", status);
+                    goto connection_err;
+                }
+            }
+            st_stream_.mDevices.clear();
 
-        status = dev->open();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                dev->getSndDeviceId(), status);
-            goto connection_err;
-        }
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Dev creation failed");
+                status = -EINVAL;
+                goto connection_err;
+            }
 
-        st_stream_.mDevices.push_back(dev);
-        status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-            st_stream_.mStreamAttr->type, dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
-                    dev->getSndDeviceId(), status);
-            st_stream_.mDevices.pop_back();
-            dev->close();
-            goto connection_err;
-        }
+            dev->setDeviceAttributes(*qal_dev);
 
-        status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-            st_stream_.mStreamAttr->type, dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "connectSessionDevice for %d failed with status %d",
-                    dev->getSndDeviceId(), status);
-            st_stream_.mDevices.pop_back();
-            dev->close();
-        }
-
-    connection_err:
-        if (qal_dev->config.ch_info) {
-            free(qal_dev->config.ch_info);
-        }
-        delete qal_dev;
-        break;
-    }
-    case ST_EV_DEVICE_DISCONNECTED: {
-        struct qal_device *qal_dev = new struct qal_device;
-        std::shared_ptr<Device> dev = nullptr;
-        StDeviceConnectedEventConfigData *data =
-            (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-        qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-        status = st_stream_.GetQalDevice(dev_id, qal_dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-            goto disconnection_err;
-        }
-
-        for (auto& device: st_stream_.mDevices) {
-            st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, device);
-
-            status = device->close();
+            status = dev->open();
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                    dev->getSndDeviceId(), status);
+                goto connection_err;
+            }
+
+            st_stream_.mDevices.push_back(dev);
+            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,
+                        "setupSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+                goto connection_err;
+            }
+
+            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,
+                        "connectSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+            }
+
+        connection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
+        }
+        case ST_EV_DEVICE_DISCONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get qal device with id %d",
+                    dev_id);
                 goto disconnection_err;
             }
-        }
-        st_stream_.mDevices.clear();
 
-        dev = Device::getInstance(qal_dev, st_stream_.rm);
-        if (!dev) {
-            QAL_ERR(LOG_TAG, "Device creation failed");
-            status = -EINVAL;
-            goto disconnection_err;
-        }
+            for (auto& device: st_stream_.mDevices) {
+                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
+                    st_stream_.mStreamAttr->type, device);
 
-        dev->setDeviceAttributes(*qal_dev);
-        status = dev->open();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                dev->getSndDeviceId(), status);
-            goto disconnection_err;
-        }
-        st_stream_.mDevices.push_back(dev);
-        status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-            st_stream_.mStreamAttr->type, dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
+                status = device->close();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "device close failed with status %d",
+                        status);
+                    goto disconnection_err;
+                }
+            }
+            st_stream_.mDevices.clear();
+
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                status = -EINVAL;
+                goto disconnection_err;
+            }
+
+            dev->setDeviceAttributes(*qal_dev);
+            status = dev->open();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
                     dev->getSndDeviceId(), status);
-            st_stream_.mDevices.pop_back();
-            dev->close();
-            goto disconnection_err;
-        }
+                goto disconnection_err;
+            }
+            st_stream_.mDevices.push_back(dev);
+            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,
+                    "setupSessionDevice for %d failed with status %d",
+                     dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+                goto disconnection_err;
+            }
 
-        status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-            st_stream_.mStreamAttr->type, dev);
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "connectSessionDevice for %d failed with status %d",
+            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,
+                    "connectSessionDevice for %d failed with status %d",
                     dev->getSndDeviceId(), status);
-            st_stream_.mDevices.pop_back();
-            dev->close();
+                st_stream_.mDevices.pop_back();
+                dev->close();
+            }
+        disconnection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
         }
-    disconnection_err:
-        if (qal_dev->config.ch_info) {
-            free(qal_dev->config.ch_info);
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE: {
+            std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
+
+            new_cap_prof = st_stream_.GetCurrentCaptureProfile();
+            if (st_stream_.cap_prof_ != new_cap_prof) {
+                QAL_DBG(LOG_TAG,
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    st_stream_.cap_prof_->GetName().c_str(),
+                    st_stream_.cap_prof_->GetDevId(),
+                    st_stream_.cap_prof_->GetChannels(),
+                    st_stream_.cap_prof_->GetSampleRate());
+                QAL_DBG(LOG_TAG,
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    new_cap_prof->GetName().c_str(),
+                    new_cap_prof->GetDevId(),
+                    new_cap_prof->GetChannels(),
+                    new_cap_prof->GetSampleRate());
+                std::shared_ptr<StEventConfig> ev_cfg1(
+                    new StUnloadEventConfig());
+                status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
+                    break;
+                }
+                std::shared_ptr<StEventConfig> ev_cfg2(
+                    new StLoadEventConfig(st_stream_.sm_config_));
+                status = st_stream_.ProcessInternalEvent(ev_cfg2);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
+                    break;
+                }
+                if (st_stream_.rec_config_) {
+                    status = st_stream_.SendRecognitionConfig(
+                        st_stream_.rec_config_);
+                    if (0 != status) {
+                        QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                                status);
+                        break;
+                    }
+                }
+            } else {
+              QAL_INFO(LOG_TAG,"no action needed, same capture profile");
+            }
+            break;
         }
-        delete qal_dev;
-        break;
-    }
-    default: {
-        QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
-        break;
-    }
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
     }
     return status;
 }
@@ -2323,273 +2401,295 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
     int32_t status = 0;
 
     switch (ev_cfg->id_) {
-      case ST_EV_DETECTED: {
-          StDetectedEventConfigData *data =
-              (StDetectedEventConfigData *) ev_cfg->data_.get();
-          if (data->det_type_ != GMM_DETECTED)
-              break;
-          if (!st_stream_.rec_config_->capture_requested &&
-              st_stream_.engines_.size() == 1) {
-              TransitTo(ST_STATE_DETECTED);
-              if (st_stream_.GetCurrentStateId() == ST_STATE_DETECTED) {
-                  st_stream_.PostDelayedStop();
-              }
-          } else {
-              TransitTo(ST_STATE_BUFFERING);
-              st_stream_.SetDetectedToEngines(true);
-          }
-          if (st_stream_.engines_.size() == 1) {
-              st_stream_.notifyClient();
-          }
-          break;
-      }
-      case ST_EV_PAUSE: {
-          st_stream_.paused_ = true;
-          // fall through to stop
-          [[fallthrough]];
-      }
-      case ST_EV_STOP_RECOGNITION: {
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.mDevices.size() > 0) {
-            auto& dev = st_stream_.mDevices[0];
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              }
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          break;
-      }
-      case ST_EV_CONCURRENT_STREAM: {
-          std::shared_ptr<StEventConfig> ev_cfg1(
-              new StStopRecognitionEventConfig(false));
-          status = st_stream_.ProcessInternalEvent(ev_cfg1);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
-              break;
-          }
-          std::shared_ptr<StEventConfig> ev_cfg2(new StUnloadEventConfig());
-          status = st_stream_.ProcessInternalEvent(ev_cfg2);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-              break;
-          }
-          std::shared_ptr<StEventConfig> ev_cfg3(
-              new StLoadEventConfig(st_stream_.sm_config_));
-          status = st_stream_.ProcessInternalEvent(ev_cfg3);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to Load, status %d", status);
-              break;
+        case ST_EV_DETECTED: {
+            StDetectedEventConfigData *data =
+                (StDetectedEventConfigData *) ev_cfg->data_.get();
+            if (data->det_type_ != GMM_DETECTED)
+                break;
+            if (!st_stream_.rec_config_->capture_requested &&
+                st_stream_.engines_.size() == 1) {
+                TransitTo(ST_STATE_DETECTED);
+                if (st_stream_.GetCurrentStateId() == ST_STATE_DETECTED) {
+                    st_stream_.PostDelayedStop();
+                }
+            } else {
+                TransitTo(ST_STATE_BUFFERING);
+                st_stream_.SetDetectedToEngines(true);
+            }
+            if (st_stream_.engines_.size() == 1) {
+                st_stream_.notifyClient();
+            }
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            // fall through to stop
+            [[fallthrough]];
+        }
+        case ST_EV_STOP_RECOGNITION: {
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0) {
+              auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                }
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            break;
+        }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
+            break;
+        }
+        case ST_EV_READ_BUFFER: {
+            status = -EIO;
+            break;
+        }
+        case ST_EV_DEVICE_CONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = data->dev_id_;
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
+                goto connection_err;
+            }
 
-          }
-          status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
-                      status);
-              break;
-          }
-          std::shared_ptr<StEventConfig> ev_cfg4(
-              new StStartRecognitionEventConfig(false));
-          status = st_stream_.ProcessInternalEvent(ev_cfg4);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
-          }
-          break;
-      }
-      case ST_EV_EC_REF: {
-          StECRefEventConfigData *data =
-              (StECRefEventConfigData *)ev_cfg->data_.get();
-          Stream *s = static_cast<Stream *>(&st_stream_);
-          status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
-              data->is_enable_);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
-          }
-          break;
-      }
-      case ST_EV_READ_BUFFER: {
-          status = -EIO;
-          break;
-      }
-      case ST_EV_DEVICE_CONNECTED: {
-          struct qal_device *qal_dev = new struct qal_device;
-          std::shared_ptr<Device> dev = nullptr;
-          StDeviceConnectedEventConfigData *data =
-              (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-          qal_device_id_t dev_id = data->dev_id_;
-          status = st_stream_.GetQalDevice(dev_id, qal_dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-              goto connection_err;
-          }
+            for (auto& device: st_stream_.mDevices) {
+                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
+                    st_stream_.mStreamAttr->type, device);
 
-          for (auto& device: st_stream_.mDevices) {
-              st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                  st_stream_.mStreamAttr->type, device);
+                status = device->stop();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                    goto connection_err;
+                }
 
-              status = device->stop();
-              if (0 != status) {
-                  QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                  goto connection_err;
-              }
+                st_stream_.rm->deregisterDevice(device);
 
-              st_stream_.rm->deregisterDevice(device);
+                status = device->close();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                    goto connection_err;
+                }
+            }
+            st_stream_.mDevices.clear();
 
-              status = device->close();
-              if (0 != status) {
-                  QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                  goto connection_err;
-              }
-          }
-          st_stream_.mDevices.clear();
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                status = -EINVAL;
+                goto connection_err;
+            }
 
-          dev = Device::getInstance(qal_dev, st_stream_.rm);
-          if (!dev) {
-              QAL_ERR(LOG_TAG, "Device creation failed");
-              status = -EINVAL;
-              goto connection_err;
-          }
+            dev->setDeviceAttributes(*qal_dev);
 
-          dev->setDeviceAttributes(*qal_dev);
+            status = dev->open();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                    dev->getSndDeviceId(), status);
+                goto connection_err;
+            }
 
-          status = dev->open();
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                  dev->getSndDeviceId(), status);
-              goto connection_err;
-          }
+            st_stream_.mDevices.push_back(dev);
+            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+                goto connection_err;
+            }
 
-          st_stream_.mDevices.push_back(dev);
-          status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-              st_stream_.mStreamAttr->type, dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
-                      dev->getSndDeviceId(), status);
-              st_stream_.mDevices.pop_back();
-              dev->close();
-              goto connection_err;
-          }
+            st_stream_.rm->registerDevice(dev);
 
-          st_stream_.rm->registerDevice(dev);
+            status = dev->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device %d start failed with status %d",
+                    dev->getSndDeviceId(), status);
+                goto connection_err;
+            }
 
-          status = dev->start();
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "device %d start failed with status %d",
-                  dev->getSndDeviceId(), status);
-              goto connection_err;
-          }
+            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "connectSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+            }
 
-          status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-              st_stream_.mStreamAttr->type, dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "connectSessionDevice for %d failed with status %d",
-                      dev->getSndDeviceId(), status);
-              st_stream_.mDevices.pop_back();
-              dev->close();
-          }
+        connection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
+        }
+        case ST_EV_DEVICE_DISCONNECTED: {
+            struct qal_device *qal_dev = new struct qal_device;
+            std::shared_ptr<Device> dev = nullptr;
+            StDeviceConnectedEventConfigData *data =
+                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
+            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
+                goto disconnection_err;
+            }
 
-      connection_err:
-          if (qal_dev->config.ch_info) {
-              free(qal_dev->config.ch_info);
-          }
-          delete qal_dev;
-          break;
-      }
-      case ST_EV_DEVICE_DISCONNECTED: {
-          struct qal_device *qal_dev = new struct qal_device;
-          std::shared_ptr<Device> dev = nullptr;
-          StDeviceConnectedEventConfigData *data =
-              (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-          qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-          status = st_stream_.GetQalDevice(dev_id, qal_dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-              goto disconnection_err;
-          }
+            for (auto& device: st_stream_.mDevices) {
+                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
+                    st_stream_.mStreamAttr->type, device);
 
-          for (auto& device: st_stream_.mDevices) {
-              st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                  st_stream_.mStreamAttr->type, device);
+                status = device->stop();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                    goto disconnection_err;
+                }
 
-              status = device->stop();
-              if (0 != status) {
-                  QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                  goto disconnection_err;
-              }
+                st_stream_.rm->deregisterDevice(device);
 
-              st_stream_.rm->deregisterDevice(device);
+                status = device->close();
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                    goto disconnection_err;
+                }
+            }
+            st_stream_.mDevices.clear();
 
-              status = device->close();
-              if (0 != status) {
-                  QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                  goto disconnection_err;
-              }
-          }
-          st_stream_.mDevices.clear();
+            dev = Device::getInstance(qal_dev, st_stream_.rm);
+            if (!dev) {
+                QAL_ERR(LOG_TAG, "Device creation failed");
+                status = -EINVAL;
+                goto disconnection_err;
+            }
 
-          dev = Device::getInstance(qal_dev, st_stream_.rm);
-          if (!dev) {
-              QAL_ERR(LOG_TAG, "Device creation failed");
-              status = -EINVAL;
-              goto disconnection_err;
-          }
+            dev->setDeviceAttributes(*qal_dev);
+            status = dev->open();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                    dev->getSndDeviceId(), status);
+                goto disconnection_err;
+            }
+            st_stream_.mDevices.push_back(dev);
+            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+                goto disconnection_err;
+            }
 
-          dev->setDeviceAttributes(*qal_dev);
-          status = dev->open();
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                  dev->getSndDeviceId(), status);
-              goto disconnection_err;
-          }
-          st_stream_.mDevices.push_back(dev);
-          status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-              st_stream_.mStreamAttr->type, dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
-                      dev->getSndDeviceId(), status);
-              st_stream_.mDevices.pop_back();
-              dev->close();
-              goto disconnection_err;
-          }
+            st_stream_.rm->registerDevice(dev);
 
-          st_stream_.rm->registerDevice(dev);
+            status = dev->start();
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "device %d start failed with status %d",
+                    dev->getSndDeviceId(), status);
+                goto disconnection_err;
+            }
 
-          status = dev->start();
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "device %d start failed with status %d",
-                  dev->getSndDeviceId(), status);
-              goto disconnection_err;
-          }
+            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
+                st_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,
+                        "connectSessionDevice for %d failed with status %d",
+                        dev->getSndDeviceId(), status);
+                st_stream_.mDevices.pop_back();
+                dev->close();
+            }
+        disconnection_err:
+            if (qal_dev->config.ch_info) {
+                free(qal_dev->config.ch_info);
+            }
+            delete qal_dev;
+            break;
+        }
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE: {
+            std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
 
-          status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-              st_stream_.mStreamAttr->type, dev);
-          if (0 != status) {
-              QAL_ERR(LOG_TAG, "connectSessionDevice for %d failed with status %d",
-                      dev->getSndDeviceId(), status);
-              st_stream_.mDevices.pop_back();
-              dev->close();
-          }
-      disconnection_err:
-          if (qal_dev->config.ch_info) {
-              free(qal_dev->config.ch_info);
-          }
-          delete qal_dev;
-          break;
-      }
-      default: {
-          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
-          break;
-      }
+            new_cap_prof = st_stream_.GetCurrentCaptureProfile();
+            if (st_stream_.cap_prof_ != new_cap_prof) {
+                QAL_DBG(LOG_TAG,
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    st_stream_.cap_prof_->GetName().c_str(),
+                    st_stream_.cap_prof_->GetDevId(),
+                    st_stream_.cap_prof_->GetChannels(),
+                    st_stream_.cap_prof_->GetSampleRate());
+                QAL_DBG(LOG_TAG,
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    new_cap_prof->GetName().c_str(),
+                    new_cap_prof->GetDevId(),
+                    new_cap_prof->GetChannels(),
+                    new_cap_prof->GetSampleRate());
+                std::shared_ptr<StEventConfig> ev_cfg1(
+                    new StStopRecognitionEventConfig(false));
+                status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
+                    break;
+                }
+                std::shared_ptr<StEventConfig> ev_cfg2(new StUnloadEventConfig());
+                status = st_stream_.ProcessInternalEvent(ev_cfg2);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
+                    break;
+                }
+                std::shared_ptr<StEventConfig> ev_cfg3(
+                    new StLoadEventConfig(st_stream_.sm_config_));
+                status = st_stream_.ProcessInternalEvent(ev_cfg3);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to Load, status %d", status);
+                    break;
+                }
+                status =
+                    st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG,
+                        "Failed to send recognition config, status %d",
+                        status);
+                    break;
+                }
+                std::shared_ptr<StEventConfig> ev_cfg4(
+                    new StStartRecognitionEventConfig(false));
+                status = st_stream_.ProcessInternalEvent(ev_cfg4);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                }
+            } else {
+              QAL_INFO(LOG_TAG,"no action needed, same capture profile");
+            }
+            break;
+        }
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
     }
     return status;
 }
@@ -2601,113 +2701,115 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
     QAL_DBG(LOG_TAG, "StDetected: handle event %d", ev_cfg->id_);
 
     switch (ev_cfg->id_) {
-      case ST_EV_START_RECOGNITION: {
-          // Client restarts next recognition without config changed.
-          st_stream_.CancelDelayedStop();
+        case ST_EV_START_RECOGNITION: {
+            // Client restarts next recognition without config changed.
+            st_stream_.CancelDelayedStop();
 
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->RestartRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.reader_)
-              st_stream_.reader_->reset();
-          if (!status) {
-              TransitTo(ST_STATE_ACTIVE);
-          } else {
-              TransitTo(ST_STATE_LOADED);
-          }
-          break;
-      }
-      case ST_EV_PAUSE: {
-          st_stream_.CancelDelayedStop();
-          st_stream_.paused_ = true;
-          // fall through to stop
-          [[fallthrough]];
-      }
-      case ST_EV_STOP_RECOGNITION: {
-          st_stream_.CancelDelayedStop();
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.mDevices.size() > 0){
-              auto& dev = st_stream_.mDevices[0];
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status)
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          break;
-      }
-      case ST_EV_RECOGNITION_CONFIG: {
-          /*
-           * Client can update config for next recognition.
-           * Get to loaded state as START event will start recognition.
-           */
-          st_stream_.CancelDelayedStop();
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.reader_)
+                st_stream_.reader_->reset();
+            if (!status) {
+                TransitTo(ST_STATE_ACTIVE);
+            } else {
+                TransitTo(ST_STATE_LOADED);
+            }
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.CancelDelayedStop();
+            st_stream_.paused_ = true;
+            // fall through to stop
+            [[fallthrough]];
+        }
+        case ST_EV_STOP_RECOGNITION: {
+            st_stream_.CancelDelayedStop();
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0){
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status)
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            break;
+        }
+        case ST_EV_RECOGNITION_CONFIG: {
+            /*
+             * Client can update config for next recognition.
+             * Get to loaded state as START event will start recognition.
+             */
+            st_stream_.CancelDelayedStop();
 
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.mDevices.size() > 0) {
-              auto& dev = st_stream_.mDevices[0];
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              }
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          status = st_stream_.ProcessInternalEvent(ev_cfg);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
-                      status);
-          }
-          // START event will be handled in loaded state.
-          break;
-      }
-      case ST_EV_CONCURRENT_STREAM: {
-          st_stream_.CancelDelayedStop();
-          // Reuse from Active state.
-          TransitTo(ST_STATE_ACTIVE);
-          status = st_stream_.ProcessInternalEvent(ev_cfg);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                               "status %d", status);
-          }
-          break;
-      }
-      case ST_EV_RESUME: {
-          st_stream_.paused_ = false;
-          break;
-      }
-      case ST_EV_DEVICE_CONNECTED:
-      case ST_EV_DEVICE_DISCONNECTED: {
-          // No need to handle as new device will be used after deferred stop
-          break;
-      }
-      default: {
-          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
-          break;
-      }
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                }
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
+                        status);
+            }
+            // START event will be handled in loaded state.
+            break;
+        }
+
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE: {
+            st_stream_.CancelDelayedStop();
+            // Reuse from Active state.
+            TransitTo(ST_STATE_ACTIVE);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
+                                 "status %d", status);
+            }
+            break;
+        }
+        case ST_EV_RESUME: {
+            st_stream_.paused_ = false;
+            break;
+        }
+        case ST_EV_DEVICE_CONNECTED:
+        case ST_EV_DEVICE_DISCONNECTED: {
+            // No need to handle as new device will be used after deferred stop
+            break;
+        }
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
     }
     return status;
 }
@@ -2719,238 +2821,47 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
     QAL_VERBOSE(LOG_TAG, "StBuffering: handle event %d", ev_cfg->id_);
 
     switch (ev_cfg->id_) {
-      case ST_EV_READ_BUFFER: {
-          StReadBufferEventConfigData *data =
-              (StReadBufferEventConfigData *)ev_cfg->data_.get();
-          struct qal_buffer *buf = (struct qal_buffer *)data->data_;
+        case ST_EV_READ_BUFFER: {
+            StReadBufferEventConfigData *data =
+                (StReadBufferEventConfigData *)ev_cfg->data_.get();
+            struct qal_buffer *buf = (struct qal_buffer *)data->data_;
 
-          if (!st_stream_.reader_) {
-              QAL_ERR(LOG_TAG, "no reader exists");
-              status = -EINVAL;
-              break;
-          }
-          status = st_stream_.reader_->read(buf->buffer, buf->size);
-          break;
-      }
-      case ST_EV_STOP_BUFFERING: {
-          QAL_DBG(LOG_TAG, "StBuffering: stop buffering");
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                          eng->GetEngineId());
-              status = eng->GetEngine()->StopBuffering(&st_stream_);
-              if (status){
-                  QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.reader_) {
-              st_stream_.reader_->reset();
-          }
-          st_stream_.PostDelayedStop();
-          break;
-      }
-      case ST_EV_START_RECOGNITION: {
-        /*
-         * Can happen if client requests next recognition without any config
-         * change with/without reading buffers after sending detection event.
-         */
-        StStartRecognitionEventConfigData *data =
-            (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
-        QAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
-                data->restart_);
-        st_stream_.CancelDelayedStop();
-
-        for (auto& eng: st_stream_.engines_) {
-            QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                        eng->GetEngineId());
-            status = eng->GetEngine()->StopBuffering(&st_stream_);
-            if (status)
-                QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                        eng->GetEngineId(), status);
-        }
-        if (st_stream_.reader_)
-            st_stream_.reader_->reset();
-
-        for (auto& eng: st_stream_.engines_) {
-            QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
-            status = eng->GetEngine()->RestartRecognition(&st_stream_);
-            if (status) {
-                QAL_ERR(LOG_TAG, "Restart engine %d buffering failed, status %d",
-                        eng->GetEngineId(), status);
+            if (!st_stream_.reader_) {
+                QAL_ERR(LOG_TAG, "no reader exists");
+                status = -EINVAL;
                 break;
             }
+            status = st_stream_.reader_->read(buf->buffer, buf->size);
+            break;
         }
-        if (!status) {
-            TransitTo(ST_STATE_ACTIVE);
-        } else {
-            TransitTo(ST_STATE_LOADED);
+        case ST_EV_STOP_BUFFERING: {
+            QAL_DBG(LOG_TAG, "StBuffering: stop buffering");
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                            eng->GetEngineId());
+                status = eng->GetEngine()->StopBuffering(&st_stream_);
+                if (status){
+                    QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.reader_) {
+                st_stream_.reader_->reset();
+            }
+            st_stream_.PostDelayedStop();
+            break;
         }
-        break;
-      }
-      case ST_EV_RECOGNITION_CONFIG: {
+        case ST_EV_START_RECOGNITION: {
           /*
-           * Can happen if client doesn't read buffers after sending detection
-           * event, but requests next recognition with config change.
-           * Get to loaded state as START event will start the recognition.
+           * Can happen if client requests next recognition without any config
+           * change with/without reading buffers after sending detection event.
            */
+          StStartRecognitionEventConfigData *data =
+              (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+          QAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
+                  data->restart_);
           st_stream_.CancelDelayedStop();
 
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                          eng->GetEngineId());
-              status = eng->GetEngine()->StopBuffering(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-                  // continue stopping recognition
-              }
-          }
-          if (st_stream_.reader_) {
-            st_stream_.reader_->reset();
-          }
-
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.mDevices.size() > 0) {
-              auto& dev = st_stream_.mDevices[0];
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              }
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          status = st_stream_.ProcessInternalEvent(ev_cfg);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
-                      status);
-          }
-          // START event will be handled in loaded state.
-          break;
-      }
-      case ST_EV_PAUSE: {
-          st_stream_.paused_ = true;
-          QAL_DBG(LOG_TAG, "StBuffering: Pause");
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                          eng->GetEngineId());
-              status = eng->GetEngine()->StopBuffering(&st_stream_);
-              if (status){
-                  QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.reader_) {
-              st_stream_.reader_->reset();
-          }
-          // fall through to stop
-          [[fallthrough]];
-      }
-      case ST_EV_STOP_RECOGNITION:  {
-          // Possible with deffered stop if client doesn't start next recognition.
-          st_stream_.CancelDelayedStop();
-
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          if (st_stream_.mDevices.size() > 0) {
-              auto& dev = st_stream_.mDevices[0];
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              }
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          break;
-      }
-      case ST_EV_DETECTED: {
-          // Second stage detections fall here.
-          StDetectedEventConfigData *data =
-              (StDetectedEventConfigData *)ev_cfg->data_.get();
-          if (data->det_type_ == GMM_DETECTED) {
-              break;
-          }
-          // If second stage has rejected, stop buffering and restart recognition
-          if (data->det_type_ == CNN_REJECTED ||
-              data->det_type_ == VOP_REJECTED) {
-              QAL_DBG(LOG_TAG, "Second stage rejected, type %d",
-                      data->det_type_);
-              st_stream_.detection_state_ = ENGINE_IDLE;
-              for (auto& eng: st_stream_.engines_) {
-                  QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                              eng->GetEngineId());
-                  status = eng->GetEngine()->StopBuffering(&st_stream_);
-                  if (status) {
-                      QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
-                                       "status %d", eng->GetEngineId(), status);
-                      // Continue to restart
-                  }
-              }
-              if (st_stream_.reader_) {
-                  st_stream_.reader_->reset();
-              }
-              for (auto& eng: st_stream_.engines_) {
-                  QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
-                  status = eng->GetEngine()->RestartRecognition(&st_stream_);
-                  if (status) {
-                      QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
-                              eng->GetEngineId(), status);
-                      break;
-                  }
-              }
-              if (!status) {
-                  TransitTo(ST_STATE_ACTIVE);
-              } else {
-                  TransitTo(ST_STATE_LOADED);
-              }
-              break;
-          }
-          st_stream_.detection_state_ |=  data->det_type_;
-          if (st_stream_.detection_state_ & (CNN_DETECTED | VOP_DETECTED)) {
-              QAL_DBG(LOG_TAG, "Second stage detected");
-              st_stream_.detection_state_ = ENGINE_IDLE;
-              if (!st_stream_.rec_config_->capture_requested) {
-                  for (auto& eng: st_stream_.engines_) {
-                      QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                                  eng->GetEngineId());
-                      status = eng->GetEngine()->StopBuffering(&st_stream_);
-                      if (status) {
-                          QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
-                                  "status %d", eng->GetEngineId(), status);
-                      }
-                  }
-                  if (st_stream_.reader_) {
-                      st_stream_.reader_->reset();
-                  }
-                  TransitTo(ST_STATE_DETECTED);
-              }
-              st_stream_.notifyClient();
-              if (!st_stream_.rec_config_->capture_requested &&
-                  (st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING ||
-                   st_stream_.GetCurrentStateId() == ST_STATE_DETECTED)) {
-                  st_stream_.PostDelayedStop();
-              }
-          }
-          break;
-      }
-      case ST_EV_CONCURRENT_STREAM: {
-          st_stream_.CancelDelayedStop();
           for (auto& eng: st_stream_.engines_) {
               QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
                           eng->GetEngineId());
@@ -2961,62 +2872,254 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
           }
           if (st_stream_.reader_)
               st_stream_.reader_->reset();
-          // Reuse from Active state.
-          TransitTo(ST_STATE_ACTIVE);
-          status = st_stream_.ProcessInternalEvent(ev_cfg);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                               "status %d", status);
-          }
-          break;
-      }
-      case ST_EV_DEVICE_CONNECTED:
-      case ST_EV_DEVICE_DISCONNECTED: {
-          st_stream_.CancelDelayedStop();
 
           for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                          eng->GetEngineId());
-              status = eng->GetEngine()->StopBuffering(&st_stream_);
+              QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+              status = eng->GetEngine()->RestartRecognition(&st_stream_);
               if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                  QAL_ERR(LOG_TAG, "Restart engine %d buffering failed, status %d",
                           eng->GetEngineId(), status);
+                  break;
               }
           }
-          if (st_stream_.reader_) {
-            st_stream_.reader_->reset();
+          if (!status) {
+              TransitTo(ST_STATE_ACTIVE);
+          } else {
+              TransitTo(ST_STATE_LOADED);
           }
+          break;
+        }
+        case ST_EV_RECOGNITION_CONFIG: {
+            /*
+             * Can happen if client doesn't read buffers after sending detection
+             * event, but requests next recognition with config change.
+             * Get to loaded state as START event will start the recognition.
+             */
+            st_stream_.CancelDelayedStop();
 
-          for (auto& eng: st_stream_.engines_) {
-              QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->StopRecognition(&st_stream_);
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-              }
-          }
-          for (auto& dev: st_stream_.mDevices) {
-              QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
-                      dev->getQALDeviceName().c_str());
-              status = dev->stop();
-              if (status) {
-                  QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-              }
-              st_stream_.rm->deregisterDevice(dev);
-          }
-          TransitTo(ST_STATE_LOADED);
-          status = st_stream_.ProcessInternalEvent(ev_cfg);
-          if (status) {
-              QAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
-                      status);
-          }
-          // device connection event will be handled in loaded state.
-          break;
-      }
-      default: {
-          QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
-          break;
-      }
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                            eng->GetEngineId());
+                status = eng->GetEngine()->StopBuffering(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                    // continue stopping recognition
+                }
+            }
+            if (st_stream_.reader_) {
+              st_stream_.reader_->reset();
+            }
+
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                }
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
+                        status);
+            }
+            // START event will be handled in loaded state.
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            QAL_DBG(LOG_TAG, "StBuffering: Pause");
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                            eng->GetEngineId());
+                status = eng->GetEngine()->StopBuffering(&st_stream_);
+                if (status){
+                    QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.reader_) {
+                st_stream_.reader_->reset();
+            }
+            // fall through to stop
+            [[fallthrough]];
+        }
+        case ST_EV_STOP_RECOGNITION:  {
+            // Possible with deffered stop if client doesn't start next recognition.
+            st_stream_.CancelDelayedStop();
+
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                }
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            break;
+        }
+        case ST_EV_DETECTED: {
+            // Second stage detections fall here.
+            StDetectedEventConfigData *data =
+                (StDetectedEventConfigData *)ev_cfg->data_.get();
+            if (data->det_type_ == GMM_DETECTED) {
+                break;
+            }
+            // If second stage has rejected, stop buffering and restart recognition
+            if (data->det_type_ == CNN_REJECTED ||
+                data->det_type_ == VOP_REJECTED) {
+                QAL_DBG(LOG_TAG, "Second stage rejected, type %d",
+                        data->det_type_);
+                st_stream_.detection_state_ = ENGINE_IDLE;
+                for (auto& eng: st_stream_.engines_) {
+                    QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                                eng->GetEngineId());
+                    status = eng->GetEngine()->StopBuffering(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
+                                         "status %d", eng->GetEngineId(), status);
+                        // Continue to restart
+                    }
+                }
+                if (st_stream_.reader_) {
+                    st_stream_.reader_->reset();
+                }
+                for (auto& eng: st_stream_.engines_) {
+                    QAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+                    status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                                eng->GetEngineId(), status);
+                        break;
+                    }
+                }
+                if (!status) {
+                    TransitTo(ST_STATE_ACTIVE);
+                } else {
+                    TransitTo(ST_STATE_LOADED);
+                }
+                break;
+            }
+            st_stream_.detection_state_ |=  data->det_type_;
+            if (st_stream_.detection_state_ & (CNN_DETECTED | VOP_DETECTED)) {
+                QAL_DBG(LOG_TAG, "Second stage detected");
+                st_stream_.detection_state_ = ENGINE_IDLE;
+                if (!st_stream_.rec_config_->capture_requested) {
+                    for (auto& eng: st_stream_.engines_) {
+                        QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                                    eng->GetEngineId());
+                        status = eng->GetEngine()->StopBuffering(&st_stream_);
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
+                                    "status %d", eng->GetEngineId(), status);
+                        }
+                    }
+                    if (st_stream_.reader_) {
+                        st_stream_.reader_->reset();
+                    }
+                    TransitTo(ST_STATE_DETECTED);
+                }
+                st_stream_.notifyClient();
+                if (!st_stream_.rec_config_->capture_requested &&
+                    (st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING ||
+                     st_stream_.GetCurrentStateId() == ST_STATE_DETECTED)) {
+                    st_stream_.PostDelayedStop();
+                }
+            }
+            break;
+        }
+        case ST_EV_CHARGING_STATE:
+        case ST_EV_CONCURRENT_STREAM: {
+            st_stream_.CancelDelayedStop();
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                            eng->GetEngineId());
+                status = eng->GetEngine()->StopBuffering(&st_stream_);
+                if (status)
+                    QAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+            }
+            if (st_stream_.reader_)
+                st_stream_.reader_->reset();
+            // Reuse from Active state.
+            TransitTo(ST_STATE_ACTIVE);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
+                                 "status %d", status);
+            }
+            break;
+        }
+        case ST_EV_DEVICE_CONNECTED:
+        case ST_EV_DEVICE_DISCONNECTED: {
+            st_stream_.CancelDelayedStop();
+
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
+                            eng->GetEngineId());
+                status = eng->GetEngine()->StopBuffering(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.reader_) {
+              st_stream_.reader_->reset();
+            }
+
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            for (auto& dev: st_stream_.mDevices) {
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                }
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
+                        status);
+            }
+            // device connection event will be handled in loaded state.
+            break;
+        }
+        default: {
+            QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            break;
+        }
     }
     return status;
 }

@@ -82,7 +82,8 @@ enum {
     ST_EV_SSR_OFFLINE,
     ST_EV_SSR_ONLINE,
     ST_EV_CONCURRENT_STREAM,
-    ST_EV_EC_REF
+    ST_EV_EC_REF,
+    ST_EV_CHARGING_STATE
 };
 
 class ResourceManager;
@@ -140,6 +141,7 @@ class StreamSoundTrigger : public Stream {
     int32_t GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev);
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
     int32_t UpdateDeviceConnectionState(bool connect, qal_device_id_t device_id);
+    int32_t UpdateChargingState(bool state);
 
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
                                 qal_stream_direction_t dir,
@@ -380,6 +382,23 @@ class StreamSoundTrigger : public Stream {
         ~StDeviceDisconnectedEventConfig() {}
     };
 
+    class StChargingStateEventConfigData : public StEventConfigData {
+     public:
+        StChargingStateEventConfigData(bool charging_state)
+            : charging_state_(charging_state) {}
+        ~StChargingStateEventConfigData() {}
+
+        bool charging_state_;
+    };
+    class StChargingStateEventConfig : public StEventConfig {
+     public:
+        StChargingStateEventConfig(bool charging_state)
+            : StEventConfig(ST_EV_CHARGING_STATE) {
+            data_ = std::make_shared<StChargingStateEventConfigData>(charging_state);
+        }
+        ~StChargingStateEventConfig() {}
+    };
+
     class StState {
      public:
         StState(StreamSoundTrigger& st_stream, int32_t state_id)
@@ -517,5 +536,7 @@ class StreamSoundTrigger : public Stream {
     StState *cur_state_;
     StState *prev_state_;
     std::map<uint32_t, StState*> st_states_;
+    bool charging_state_;
+    std::shared_ptr<CaptureProfile> cap_prof_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

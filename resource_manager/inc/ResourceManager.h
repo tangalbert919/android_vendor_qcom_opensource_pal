@@ -224,6 +224,7 @@ protected:
     std::vector <qal_device_id_t> avail_devices_;
     bool bOverwriteFlag;
     bool screen_state_;
+    bool charging_state_;
     qal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
@@ -339,7 +340,10 @@ public:
     bool IsAudioCaptureAndVoiceUIConcurrencySupported();
     bool IsVoiceCallAndVoiceUIConcurrencySupported();
     bool IsVoipAndVoiceUIConcurrencySupported();
+    bool IsTransitToNonLPIOnChargingSupported();
     bool CheckForActiveConcurrentNonLPIStream();
+    bool GetChargingState() const { return charging_state_; }
+    bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
     void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);

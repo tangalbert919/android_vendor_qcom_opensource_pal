@@ -654,6 +654,13 @@ typedef struct qal_param_screen_state {
     bool              screen_state;
 } qal_param_screen_state_t;
 
+/* Payload For ID: QAL_PARAM_ID_CHARGING_STATE
+ * Description   : Charging State
+*/
+typedef struct qal_param_charging_state {
+    bool              charging_state;
+} qal_param_charging_state_t;
+
 /*
  * Used to identify the swapping type
  */
