@@ -135,19 +135,14 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     qal_device_id_t dev_id = GetAvailCaptureDevice();
     if (dattr[0].id != dev_id) {
         QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
-        dattr[0].id = dev_id;
         if (dattr[0].config.ch_info)
             free(dattr[0].config.ch_info);
-        status = rm->getDeviceInfo(dattr[0].id, mStreamAttr->type, &ecinfo);
-        if(status) {
-           QAL_ERR(LOG_TAG, "get ec info failed");
-        }
-        if (rm->getDeviceConfig((struct qal_device *)&dattr[0], sattr,
-            ecinfo.channels)) {
-            QAL_ERR(LOG_TAG, "Failed to get config for dev %d", dev_id);
-            free(mStreamAttr);
-            free(ch_info);
-            throw std::runtime_error("failed to get device config");
+
+        if (GetQalDevice(dev_id, &dattr[0])) {
+            QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
+            if (dattr[0].config.ch_info)
+                free(dattr[0].config.ch_info);
+            throw std::runtime_error("Failed to get device config");
         }
     }
 
@@ -550,27 +545,29 @@ void StreamSoundTrigger::HandleEvents() {
 
 int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev) {
     int32_t status = 0;
-    struct qal_ec_info ecinfo = {};
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
     if (!dev) {
         QAL_ERR(LOG_TAG, "Invalid qal device object");
         return -EINVAL;
     }
 
-    status = rm->getDeviceInfo(dev_id, mStreamAttr->type, &ecinfo);
-    if(status) {
-        QAL_ERR(LOG_TAG, "get ec info failed");
-    }
-
     dev->id = dev_id;
-    status = rm->getDeviceConfig(dev, mStreamAttr, ecinfo.channels);
-    if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get Device config, err: %d", status);
-        if (dev->config.ch_info) {
-            free(dev->config.ch_info);
-        }
-        return status;
+
+    /* TODO: we may need to add input param for this function
+     * to indicate the device id we need for capture profile
+     */
+    cap_prof = GetCurrentCaptureProfile();
+    dev->config.ch_info = (struct qal_channel_info *) malloc(
+        sizeof(qal_channel_info) + cap_prof->GetChannels());
+    if (!dev->config.ch_info) {
+        QAL_ERR(LOG_TAG, "failed to alloc ch_map");
+        return -ENOMEM;
     }
+    dev->config.bit_width = cap_prof->GetBitWidth();
+    dev->config.ch_info->channels = cap_prof->GetChannels();
+    dev->config.sample_rate = cap_prof->GetSampleRate();
+    dev->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
 
     return status;
 }
