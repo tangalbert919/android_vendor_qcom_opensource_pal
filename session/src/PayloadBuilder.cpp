@@ -2060,19 +2060,24 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
                       mediaFmtHdr->payload_size, numChannels);
 
     mediaFmtPayload->endianness      = PCM_LITTLE_ENDIAN;
-    mediaFmtPayload->alignment       = 1;
     mediaFmtPayload->num_channels    = data->ch_info->channels;
     if ((data->bit_width == 16) || (data->bit_width == 32)) {
         mediaFmtPayload->bit_width       = data->bit_width;
         mediaFmtPayload->bits_per_sample = data->bit_width;
         mediaFmtPayload->q_factor        = data->bit_width - 1;
+        mediaFmtPayload->alignment       = PCM_LSB_ALIGNED;
     } else if (data->bit_width == 24) {
         // convert to Q31 that's expected by HD encoders.
-        mediaFmtPayload->bit_width       = 32;
-        mediaFmtPayload->bits_per_sample = 32;
-        mediaFmtPayload->q_factor        = 31;
+        mediaFmtPayload->bit_width       = BIT_WIDTH_24;
+        mediaFmtPayload->bits_per_sample = BITS_PER_SAMPLE_32;
+        mediaFmtPayload->q_factor        = PCM_Q_FACTOR_31;
+        mediaFmtPayload->alignment       = PCM_MSB_ALIGNED;
     } else {
         QAL_ERR(LOG_TAG, "invalid bit width %d", data->bit_width);
+        delete[] payloadInfo;
+        *size = 0;
+        *payload = NULL;
+        return;
     }
     mediaFmtPayload->interleaved     = PCM_INTERLEAVED;
     QAL_DBG(LOG_TAG, "interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",

@@ -593,6 +593,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
     int32_t size = 0;
     bool isA2dp = false;
     bool isSpkr = false;
+    bool isA2dpSuspended = false;
     uint32_t frameSize = 0;
     uint32_t byteWidth = 0;
     uint32_t sampleRate = 0;
@@ -606,8 +607,19 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
         if (mDevices[i]->getSndDeviceId() == QAL_DEVICE_OUT_SPEAKER)
             isSpkr = true;
     }
-    if (isA2dp && !isSpkr && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP)
-            || (mDevices.size() == 0)) {
+
+    if (isA2dp && !isSpkr) {
+        qal_param_bta2dp_t *paramA2dp = NULL;
+        size_t paramSize = 0;
+        int ret = rm->getParameter(QAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                (void **)&paramA2dp,
+                &paramSize,
+                NULL);
+        if (!ret)
+            isA2dpSuspended = paramA2dp->a2dp_suspended;
+    }
+
+    if (isA2dpSuspended || (mDevices.size() == 0)) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;
         sampleRate = mStreamAttr->out_media_config.sample_rate;
         if (mStreamAttr->out_media_config.ch_info)

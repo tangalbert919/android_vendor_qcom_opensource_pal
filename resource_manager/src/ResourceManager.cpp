@@ -2939,9 +2939,10 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
                     break;
                 }
             }
-        }
             break;
+        }
         case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
+        case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
         {
             std::shared_ptr<Device> dev = nullptr;
             struct qal_device dattr;
@@ -2958,9 +2959,8 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
                 *param_payload = param_bt_a2dp;
                 *payload_size = sizeof(qal_param_bta2dp_t);
             }
-        }
             break;
-
+        }
         case QAL_PARAM_ID_DEVICE_CAPABILITY:
         {
             qal_param_device_capability_t *param_device_capability = (qal_param_device_capability_t *)(*param_payload);
@@ -2969,8 +2969,8 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
                         param_device_capability->addr.card_id,
                         param_device_capability->id);
             status = getDeviceDefaultCapability(*param_device_capability);
-        }
             break;
+        }
         case QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES:
         {
             QAL_INFO(LOG_TAG, "get sound trigge properties, status %d", status);
@@ -2981,8 +2981,8 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
 
             *param_payload = qstp;
             *payload_size = sizeof(qal_st_properties);
-        }
             break;
+        }
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
@@ -3217,33 +3217,6 @@ exit:
     mResourceManagerMutex.unlock();
     return status;
 }
-
-#if 0
-int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
-                                  size_t *payload_size)
-{
-    int status = 0;
-
-    QAL_INFO(LOG_TAG, "ID:%d", param_id);
-    std::lock_guard<std::mutex> lock(mResourceManagerMutex);
-    switch (param_id) {
-        case QAL_PARAM_ID_DEVICE_CAPABILITY: {
-            qal_param_device_capability_t *param_device_capability = (qal_param_device_capability_t *)(*param_payload);
-            QAL_INFO(LOG_TAG, "Device %d card = %d qalid=%x",
-                        param_device_capability->addr.device_num,
-                        param_device_capability->addr.card_id,
-                        param_device_capability->id);
-            status = getDeviceDefaultCapability(*param_device_capability);
-        }
-        break;
-        default:
-            QAL_ERR(LOG_TAG,"Unsupported ParamID:%d", param_id);
-            break;
-    }
-
-    return status;
-}
-#endif
 
 int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_state)
 {
@@ -3487,8 +3460,8 @@ bool ResourceManager::isDeviceReady(qal_device_id_t id)
                 return false;
             }
             is_ready = dev->isDeviceReady();
-        }
             break;
+        }
         default:
             is_ready = true;
             break;
