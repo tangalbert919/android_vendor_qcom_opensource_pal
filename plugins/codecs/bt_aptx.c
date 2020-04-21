@@ -447,7 +447,7 @@ static int aptx_ad_speech_pack_enc_config(bt_codec_t *codec, void *src, void **d
     aptx_ad_speech_cfg->speechMode = *mode;
     aptx_ad_speech_cfg->byteSwap = SWAP_ENABLE;
 
-    ret = bt_base_populate_enc_cmn_param(blk[1], PARAM_ID_APTX_ADAPTIVE_SPEECH_ENC_INIT,
+    ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_APTX_ADAPTIVE_SPEECH_ENC_INIT,
             aptx_ad_speech_cfg, sizeof(param_id_aptx_adaptive_speech_enc_init_t));
     free(aptx_ad_speech_cfg);
     if (ret)
