@@ -266,6 +266,33 @@
         </in-device>
         <out_devices/>
     </device_profile>
+    <in_streams>
+        <in_stream>
+            <name>QAL_STREAM_VOIP_TX</name>
+                <policies>
+                    <ec_ref>
+                        <!--<disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>-->
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>QAL_STREAM_LOW_LATENCY</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <!--<disabled_stream>QAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>-->
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>QAL_STREAM_VOICE_UI</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+    </in_streams>
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
 

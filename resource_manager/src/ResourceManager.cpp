@@ -302,6 +302,7 @@ void str_parms_del(struct str_parms *str_parms, const char *key){return;}
 #endif
 
 std::vector<deviceIn> ResourceManager::deviceInfo;
+std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
 
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
@@ -630,6 +631,24 @@ int ResourceManager::init_audio()
 int ResourceManager::init()
 {
     return 0;
+}
+
+bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_type_t rx_streamtype)
+{
+    bool ecref_status = true;
+    for (int i = 0; i < txEcInfo.size(); i++) {
+        if (tx_streamtype == txEcInfo[i].tx_stream_type) {
+            for (auto rx_type = txEcInfo[i].disabled_rx_streams.begin();
+                  rx_type != txEcInfo[i].disabled_rx_streams.end(); rx_type++) {
+               if (rx_streamtype == *rx_type) {
+                   ecref_status = false;
+                   QAL_DBG(LOG_TAG, "given rx %d disabled %d status %d",rx_streamtype, *rx_type, ecref_status);
+                   break;
+               }
+            }
+        }
+    }
+    return ecref_status;
 }
 
 int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
@@ -1539,8 +1558,12 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
     for (auto& rx_str: mActiveStreams) {
         rx_str->getStreamAttributes(&rx_attr);
         rx_device_list.clear();
-        if (rx_attr.direction != QAL_AUDIO_INPUT &&
-            rx_attr.type != QAL_STREAM_LOW_LATENCY) {
+        if (rx_attr.direction != QAL_AUDIO_INPUT) {
+            if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
+                QAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
+                        rx_attr.type, tx_attr.type);
+                continue;
+            }
             rx_str->getAssociatedDevices(rx_device_list);
             for (int i = 0; i < rx_device_list.size(); i++) {
                 if (!isDeviceActive_l(rx_device_list[i]))
@@ -1594,15 +1617,16 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream(
         status = -EINVAL;
         goto exit;
     }
-    if (rx_attr.type == QAL_STREAM_LOW_LATENCY) {
-        QAL_DBG(LOG_TAG, "No need to set EC ref of tx stream for ll streams");
-        goto exit;
-    }
 
     for (auto& tx_str: mActiveStreams) {
         tx_device_list.clear();
         tx_str->getStreamAttributes(&tx_attr);
         if (tx_attr.direction == QAL_AUDIO_INPUT) {
+            if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
+                QAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
+                        rx_attr.type, tx_attr.type);
+                continue;
+            }
             tx_str->getAssociatedDevices(tx_device_list);
             for (int i = 0; i < tx_device_list.size(); i++) {
                 if (!isDeviceActive_l(tx_device_list[i]))
@@ -3971,6 +3995,49 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
     }
 }
 
+void ResourceManager::process_input_streams(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    struct tx_ecinfo txecinfo = {};
+    int type = 0;
+    int size = -1 , typesize = -1;
+
+    if (data->offs <= 0)
+        return;
+    data->data_buf[data->offs] = '\0';
+
+    if (data->resourcexml_parsed)
+      return;
+
+    if (data->tag == TAG_INSTREAM) {
+        if (!strcmp(tag_name, "name")) {
+            std::string userIdname(data->data_buf);
+            txecinfo.tx_stream_type  = usecaseIdLUT.at(userIdname);
+            txEcInfo.push_back(txecinfo);
+            QAL_DBG(LOG_TAG, "name %d", txecinfo.tx_stream_type);
+        }
+    } else if (data->tag == TAG_ECREF) {
+        if (!strcmp(tag_name, "disabled_stream")) {
+            std::string userIdname(data->data_buf);
+            type  = usecaseIdLUT.at(userIdname);
+            size = txEcInfo.size() - 1;
+            txEcInfo[size].disabled_rx_streams.push_back(type);
+            QAL_DBG(LOG_TAG, "ecref %d", type);
+        }
+    }
+    if (!strcmp(tag_name, "in_streams")) {
+        data->tag = TAG_INSTREAMS;
+    } else if (!strcmp(tag_name, "in_stream")) {
+        data->tag = TAG_INSTREAM;
+    } else if (!strcmp(tag_name, "policies")) {
+        data->tag = TAG_POLICIES;
+    } else if (!strcmp(tag_name, "ec_ref")) {
+        data->tag = TAG_ECREF;
+    } else if (!strcmp(tag_name, "resource_manager_info")) {
+        data->tag = TAG_RESOURCE_ROOT;
+        data->resourcexml_parsed = true;
+    }
+}
+
 void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name)
 {
     if (data->offs <= 0)
@@ -4055,6 +4122,14 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "kvpair")) {
         process_kvinfo(attr);
         data->tag = TAG_KVPAIR;
+    } else if (!strcmp(tag_name, "in_streams")) {
+        data->tag = TAG_INSTREAMS;
+    } else if (!strcmp(tag_name, "in_stream")) {
+        data->tag = TAG_INSTREAM;
+    } else if (!strcmp(tag_name, "policies")) {
+        data->tag = TAG_POLICIES;
+    } else if (!strcmp(tag_name, "ec_ref")) {
+        data->tag = TAG_ECREF;
     }
 
     if (!strcmp(tag_name, "card"))
@@ -4092,8 +4167,9 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
         return;
     }
 
-   process_config_voice(data,tag_name);
-   process_device_info(data,tag_name);
+    process_config_voice(data,tag_name);
+    process_device_info(data,tag_name);
+    process_input_streams(data,tag_name);
 
     if (data->card_parsed)
         return;

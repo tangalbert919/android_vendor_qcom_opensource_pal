@@ -78,6 +78,10 @@ typedef enum {
     TAG_CONFIG_VOICE,
     TAG_CONFIG_MODE_MAP,
     TAG_CONFIG_MODE_PAIR,
+    TAG_INSTREAMS,
+    TAG_INSTREAM,
+    TAG_POLICIES,
+    TAG_ECREF,
 } resource_xml_tags_t;
 
 typedef enum {
@@ -141,6 +145,11 @@ struct vsid_modepair {
 struct vsid_info {
      int vsid;
      std::vector<vsid_modepair> modepair;
+};
+
+struct tx_ecinfo {
+    int tx_stream_type;
+    std::vector<int> disabled_rx_streams;
 };
 
 enum {
@@ -260,6 +269,7 @@ protected:
     static std::map<std::pair<uint32_t, std::string>, std::string> btCodecMap;
     static std::map<std::string, uint32_t> btFmtTable;
     static std::vector<deviceIn> deviceInfo;
+    static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
     static SndCardMonitor *sndmon;
     ResourceManager();
@@ -273,9 +283,10 @@ public:
                            struct qal_device *devices, int no_of_devices);
     int32_t getDeviceConfig(struct qal_device *deviceattr,
                             struct qal_stream_attributes *attributes, int32_t channel);
-    /*getDeviceInfo - updates channels,fluence info and snd name of the device*/
+    /*getDeviceInfo - updates channels,fluence info of the device*/
     int32_t getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
                        struct qal_device_info *devinfo);
+    bool getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
     void getChannelMap(uint8_t *channel_map, int channels);
     int registerStream(Stream *s);
@@ -363,6 +374,7 @@ public:
     static void snd_reset_data_buf(struct xml_userdata *data);
     static void snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_kvinfo(const XML_Char **attr);
     static void process_voicemode_info(const XML_Char **attr);
