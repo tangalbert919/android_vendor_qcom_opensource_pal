@@ -1532,10 +1532,12 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
        }
     } else {
         if (sess) {
-            if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
-                sess->setConfig(streamHandle, MODULE, VSID, RXDIR);
-            else
-                sess->setConfig(streamHandle, MODULE, VSID, TXDIR);
+            SessionAlsaVoice *voiceSession = dynamic_cast<SessionAlsaVoice *>(sess);
+            if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first)) {
+                voiceSession->setSessionParameters(streamHandle, RXDIR);
+            } else {
+                voiceSession->setSessionParameters(streamHandle, TXDIR);
+            }
         } else {
             QAL_ERR(LOG_TAG, "invalid session voice object");
             return -EINVAL;
