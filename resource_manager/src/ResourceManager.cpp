@@ -1523,7 +1523,7 @@ bool ResourceManager::CheckForForcedTransitToNonLPI() {
     return false;
 }
 
-std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
+std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     Stream *tx_str)
 {
     int status = 0;
@@ -1535,7 +1535,6 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
     std::vector <std::shared_ptr<Device>> tx_device_list;
     std::vector <std::shared_ptr<Device>> rx_device_list;
 
-    mResourceManagerMutex.lock();
     // check stream direction
     status = tx_str->getStreamAttributes(&tx_attr);
     if (status) {
@@ -1587,13 +1586,23 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
     }
 
 exit:
-    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return rx_device;
 }
 
-std::vector<Stream*> ResourceManager::getConcurrentTxStream(
+std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
+    Stream *tx_str)
+{
+    std::shared_ptr<Device> rx_device = nullptr;
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    rx_device = getActiveEchoReferenceRxDevices_l(tx_str);
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
+    return rx_device;
+}
+
+std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     Stream *rx_str,
     std::shared_ptr<Device> rx_device)
 {
@@ -1605,7 +1614,6 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream(
     std::shared_ptr<Device> tx_device = nullptr;
     std::vector <std::shared_ptr<Device>> tx_device_list;
 
-    mResourceManagerMutex.lock();
     // check stream direction
     status = rx_str->getStreamAttributes(&rx_attr);
     if (status) {
@@ -1646,9 +1654,20 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream(
         }
     }
 exit:
-    mResourceManagerMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return tx_stream_list;
+}
 
+std::vector<Stream*> ResourceManager::getConcurrentTxStream(
+    Stream *rx_str,
+    std::shared_ptr<Device> rx_device)
+{
+    std::vector<Stream*> tx_stream_list;
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    tx_stream_list = getConcurrentTxStream_l(rx_str, rx_device);
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
     return tx_stream_list;
 }
 

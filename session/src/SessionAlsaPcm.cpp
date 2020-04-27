@@ -581,11 +581,6 @@ int SessionAlsaPcm::start(Stream * s)
             return status;
         }
 
-        /*
-         * Get concurrent tx stream from resourcemanager
-         * and set ec ref. NOTE: setECRef lock stream event
-         * lock instead of stream lock to avoid deadlock
-         */
         for (auto dev: associatedDevices) {
             str_list = rm->getConcurrentTxStream(s, dev);
             for (auto str: str_list) {
@@ -923,6 +918,10 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     std::vector<std::pair<int32_t, std::string>> txAifBackEndsToDisconnect;
     int32_t status = 0;
     struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+    Stream *str = nullptr;
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -935,10 +934,36 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     deviceToDisconnect->getDeviceAttributes(&dAttr);
 
     if (sAttr.direction == QAL_AUDIO_INPUT) {
+        QAL_DBG(LOG_TAG, "EC Ref id %d", ecRefDevId);
         if (ecRefDevId) {
             status = setECRef(streamHandle, nullptr, false);
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+        }
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        QAL_DBG(LOG_TAG, "EC Ref disable");
+        status = streamHandle->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
+
+        for (auto dev: associatedDevices) {
+            str_list = rm->getConcurrentTxStream_l(streamHandle, dev);
+            for (auto str: str_list) {
+                /*
+                 * NOTE: this check works based on sequence that
+                 * Rx stream stops device after stopping session
+                 */
+                if (dev->getDeviceCount() != 1) {
+                    QAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
+                } else {
+                    status = str->setECRef(dev, false);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+                    }
+                }
+            }
         }
     }
     if (!rxAifBackEndsToDisconnect.empty())
@@ -985,11 +1010,50 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
     std::vector<std::pair<int32_t, std::string>> rxAifBackEndsToConnect;
     std::vector<std::pair<int32_t, std::string>> txAifBackEndsToConnect;
     int32_t status = 0;
+    struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+    Stream *str = nullptr;
 
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEndsToConnect,
             txAifBackEndsToConnect);
     deviceToConnect->getDeviceAttributes(&dAttr);
+
+    if (sAttr.direction == QAL_AUDIO_INPUT) {
+        QAL_DBG(LOG_TAG, "Enter enable EC Ref");
+        dev = rm->getActiveEchoReferenceRxDevices_l(streamHandle);
+        if (dev && !ecRefDevId) {
+            status = setECRef(streamHandle, dev, true);
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+        }
+     } else if (sAttr.direction == QAL_AUDIO_OUTPUT){
+        associatedDevices.clear();
+        status = streamHandle->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
+
+        for (auto dev: associatedDevices) {
+            str_list = rm->getConcurrentTxStream_l(streamHandle, dev);
+            for (auto str: str_list) {
+                QAL_DBG(LOG_TAG, "Enter enable EC Ref 2");
+                status = str->setECRef(dev, true);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                }
+            }
+        }
+        associatedDevices.clear();
+    }
 
     if (!rxAifBackEndsToConnect.empty())
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,

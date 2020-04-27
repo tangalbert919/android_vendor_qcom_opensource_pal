@@ -365,7 +365,10 @@ public:
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
     void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
+    std::shared_ptr<Device> getActiveEchoReferenceRxDevices_l(Stream *tx_str);
     std::vector<Stream*> getConcurrentTxStream(
+        Stream *rx_str, std::shared_ptr<Device> rx_device);
+    std::vector<Stream*> getConcurrentTxStream_l(
         Stream *rx_str, std::shared_ptr<Device> rx_device);
     bool checkECRef(std::shared_ptr<Device> rx_dev,
                     std::shared_ptr<Device> tx_dev);
