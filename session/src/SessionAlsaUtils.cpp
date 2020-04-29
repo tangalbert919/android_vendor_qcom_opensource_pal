@@ -307,12 +307,17 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        associatedDevices.at(0)->getDeviceAttributes(&dAttr);
-        if (dAttr.id != QAL_DEVICE_IN_HANDSET_MIC &&
-            rmHandle->IsVoiceUILPISupported() &&
-            !rmHandle->CheckForActiveConcurrentNonLPIStream()) {
-            QAL_INFO(LOG_TAG,"lpi true");
-            is_lpi = true;
+        if (associatedDevices.size() > 0) {
+            associatedDevices.at(0)->getDeviceAttributes(&dAttr);
+            if (dAttr.id != QAL_DEVICE_IN_HANDSET_MIC &&
+                rmHandle->IsVoiceUILPISupported() &&
+                !rmHandle->CheckForActiveConcurrentNonLPIStream()) {
+                QAL_INFO(LOG_TAG,"lpi true");
+                is_lpi = true;
+            }
+        } else {
+            QAL_ERR(LOG_TAG, "associated device size is 0");
+            return -EINVAL;
         }
     }
 

@@ -370,7 +370,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
     if (!deviceData) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "deviceData malloc failed status %d", status);
-        goto free_sessionData;
+        goto clean;
     }
     status = rm->getStreamTag(streamTag);
     sessionData->direction = sAttr.direction;
@@ -380,8 +380,9 @@ int SessionGsl::setPayloadConfig(Stream *s)
         sessionData->bitWidth = sAttr.in_media_config.bit_width;
         sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
         status = s->getAssociatedDevices(associatedRecordDevices);
-        if(0 != status) {
+        if((0 != status) || (associatedRecordDevices.size() == 0)) {
             QAL_ERR(LOG_TAG"%s: getAssociatedDevices Failed \n", __func__);
+            goto clean;
             return status;
         }
         associatedRecordDevices[0]->getDeviceAttributes(&devAttr);
@@ -401,36 +402,40 @@ int SessionGsl::setPayloadConfig(Stream *s)
         sessionData->bitWidth, sessionData->sampleRate, sessionData->numChannel);
 
     for (i=0; i<streamTag.size(); i++) {
-        moduleInfo = NULL;
-        moduleInfoSize = 0;
-        QAL_ERR(LOG_TAG,"tag id %x",streamTag[i]);
+        QAL_VERBOSE(LOG_TAG,"tag id %x",streamTag[i]);
+        if (moduleInfo) {
+            free(moduleInfo);
+            moduleInfo = NULL;
+            moduleInfoSize = 0;
+        }
         status = gslGetTaggedModuleInfo(gkv, streamTag[i], &moduleInfo, &moduleInfoSize);
-        if (0 != status)
+        if ((status != 0) || (moduleInfo == NULL))
             continue;
-        else {
+
+        builder->payloadStreamConfig(&payload, &payloadSize, moduleInfo,
+                                     streamTag[i], sessionData);
+        if (!payload) {
+            status = -ENOMEM;
+            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            continue;
+        }
+        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+        }
+        if (payload) {
+            free(payload);
             payload = NULL;
             payloadSize = 0;
-            builder->payloadStreamConfig(&payload, &payloadSize, moduleInfo,
-                                         streamTag[i], sessionData);
-            if (!payload) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                continue;
-            }
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
-                //goto free_payload;
-            }
         }
     }
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
         QAL_ERR(LOG_TAG, "getAssociatedDevices Failed status %d", status);
-        goto free_payload;
+        goto clean;
     }
 
-    for (int32_t i=0; i<(associatedDevices.size()); i++) {
+    for (int32_t i=0; i<associatedDevices.size(); i++) {
         dev_id = associatedDevices[i]->getSndDeviceId();
         rm->getDeviceEpName(dev_id, epname);
         QAL_VERBOSE(LOG_TAG, "epname = %s", epname.c_str());
@@ -438,167 +443,172 @@ int SessionGsl::setPayloadConfig(Stream *s)
     status = rm->getDeviceTag(deviceTag);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "failed to get device tag, status %d", status);
-        goto free_payload;
+        goto clean;
     }
     for (i=0; i < deviceTag.size(); i++) {
-        moduleInfo = NULL;
-        moduleInfoSize = 0;
+        if (moduleInfo) {
+            free(moduleInfo);
+            moduleInfo = NULL;
+            moduleInfoSize = 0;
+        }
         deviceData->metadata = NULL;
         status = gslGetTaggedModuleInfo(gkv, deviceTag[i], &moduleInfo, &moduleInfoSize);
-        if (0 != status)
-             continue;
-        else {
+        if ((status != 0) || (moduleInfo == NULL))
+            continue;
+
+        if (deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
+            for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                dev_id = associatedDevices[i]->getSndDeviceId();
+                if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
+                    rm->getDeviceEpName(dev_id, epname);
+                    associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    deviceData->bitWidth = dAttr.config.bit_width;
+                    deviceData->sampleRate = dAttr.config.sample_rate;
+                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d,and channels %d",
+                            deviceData->bitWidth,
+                            deviceData->sampleRate, deviceData->numChannel);
+                } else
+                    continue;
+                sessionData->direction = PLAYBACK;
+            }
+        } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
+            for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                dev_id = associatedDevices[i]->getSndDeviceId();
+                if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
+                    rm->getDeviceEpName(dev_id, epname);
+                    associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    deviceData->bitWidth = dAttr.config.bit_width;
+                    deviceData->sampleRate = dAttr.config.sample_rate;
+                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d",
+                            deviceData->bitWidth,
+                            deviceData->sampleRate, deviceData->numChannel);
+                } else
+                    continue;
+                sessionData->direction = RECORD;
+            }
+        } else {
+            continue;
+        }
+        switch (deviceData->sampleRate) {
+            case SAMPLINGRATE_8K :
+                setConfig(s,MODULE,MFC_SR_8K);
+                break;
+            case SAMPLINGRATE_16K :
+                setConfig(s,MODULE,MFC_SR_16K);
+                break;
+            case SAMPLINGRATE_32K :
+                setConfig(s,MODULE,MFC_SR_32K);
+                break;
+            case SAMPLINGRATE_44K :
+                setConfig(s,MODULE,MFC_SR_44K);
+                break;
+            case SAMPLINGRATE_48K :
+                setConfig(s,MODULE,MFC_SR_48K);
+                break;
+            case SAMPLINGRATE_96K :
+                setConfig(s,MODULE,MFC_SR_96K);
+                break;
+            case SAMPLINGRATE_192K :
+                setConfig(s,MODULE,MFC_SR_192K);
+                break;
+            case SAMPLINGRATE_384K :
+                setConfig(s,MODULE,MFC_SR_384K);
+                break;
+            default:
+                QAL_ERR(LOG_TAG, "Invalid sample rate = %d", deviceData->sampleRate);
+        }
+
+        builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo,
+                                       deviceTag[i], deviceData, epname);
+        if (!payload) {
+            status = -ENOMEM;
+            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            continue;
+        }
+        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
+        }
+        if (payload) {
+            free(payload);
             payload = NULL;
             payloadSize = 0;
-            if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
-                for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getSndDeviceId();
-                    if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
-                        rm->getDeviceEpName(dev_id, epname);
-                        associatedDevices[i]->getDeviceAttributes(&dAttr);
-                        deviceData->bitWidth = dAttr.config.bit_width;
-                        deviceData->sampleRate = dAttr.config.sample_rate;
-                        deviceData->numChannel = dAttr.config.ch_info->channels;
-                        QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d,and channels %d",
-                                deviceData->bitWidth,
-                                deviceData->sampleRate, deviceData->numChannel);
-                    } else
-                        continue;
-                    sessionData->direction = PLAYBACK;
-                }
-            } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
-                for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getSndDeviceId();
-                    if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
-                        rm->getDeviceEpName(dev_id, epname);
-                        associatedDevices[i]->getDeviceAttributes(&dAttr);
-                        deviceData->bitWidth = dAttr.config.bit_width;
-                        deviceData->sampleRate = dAttr.config.sample_rate;
-                        deviceData->numChannel = dAttr.config.ch_info->channels;
-                        QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d",
-                                deviceData->bitWidth,
-                                deviceData->sampleRate, deviceData->numChannel);
-                    } else
-                        continue;
-                    sessionData->direction = RECORD;
-                }
-            } else {
-                continue;
-            }
-            switch (deviceData->sampleRate) {
-                case SAMPLINGRATE_8K :
-                    setConfig(s,MODULE,MFC_SR_8K);
-                    break;
-                case SAMPLINGRATE_16K :
-                    setConfig(s,MODULE,MFC_SR_16K);
-                    break;
-                case SAMPLINGRATE_32K :
-                    setConfig(s,MODULE,MFC_SR_32K);
-                    break;
-                case SAMPLINGRATE_44K :
-                    setConfig(s,MODULE,MFC_SR_44K);
-                    break;
-                case SAMPLINGRATE_48K :
-                    setConfig(s,MODULE,MFC_SR_48K);
-                    break;
-                case SAMPLINGRATE_96K :
-                    setConfig(s,MODULE,MFC_SR_96K);
-                    break;
-                case SAMPLINGRATE_192K :
-                    setConfig(s,MODULE,MFC_SR_192K);
-                    break;
-                case SAMPLINGRATE_384K :
-                    setConfig(s,MODULE,MFC_SR_384K);
-                    break;
-                default:
-                    QAL_ERR(LOG_TAG, "Invalid sample rate = %d", deviceData->sampleRate);
-            }
-
-            if (moduleInfo) {
-                builder->payloadDeviceEpConfig(&payload, &payloadSize, moduleInfo,
-                                               deviceTag[i], deviceData, epname);
-                if (!payload) {
-                    status = -ENOMEM;
-                    QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                continue;
-                }
-                status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-                if (0 != status) {
-                    QAL_ERR(LOG_TAG, "Get custom config failed with status = %d", status);
-                    //goto free_payload;
-                }
-            }
         }
     }
 
     for (i=0; i < deviceTag.size(); i++) {
-        moduleInfo = NULL;
-        moduleInfoSize = 0;
+        if (moduleInfo) {
+            free(moduleInfo);
+            moduleInfo = NULL;
+            moduleInfoSize = 0;
+        }
         status = gslGetTaggedModuleInfo(gkv, deviceTag[i], &moduleInfo, &moduleInfoSize);
         deviceData->metadata = NULL;
         if ((status != 0) || (moduleInfo == NULL))
             continue;
-        else {
+
+        if (deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
+            for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                dev_id = associatedDevices[i]->getSndDeviceId();
+                if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
+                    associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    deviceData->bitWidth = dAttr.config.bit_width;
+                    deviceData->sampleRate = dAttr.config.sample_rate;
+                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d",
+                            deviceData->bitWidth,
+                            deviceData->sampleRate,deviceData->numChannel);
+                } else
+                    continue;
+                sessionData->direction = PLAYBACK;
+            }
+        } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
+            for (int32_t i=0; i<(associatedDevices.size()); i++) {
+                dev_id = associatedDevices[i]->getSndDeviceId();
+                if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
+                   associatedDevices[i]->getDeviceAttributes(&dAttr);
+                   deviceData->bitWidth = dAttr.config.bit_width;
+                   deviceData->sampleRate = dAttr.config.sample_rate;
+                   deviceData->numChannel = dAttr.config.ch_info->channels;
+                   QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d,and channels %d",
+                           deviceData->bitWidth,
+                           deviceData->sampleRate,deviceData->numChannel);
+                } else
+                   continue;
+                sessionData->direction = RECORD;
+            }
+        } else
+            continue;
+
+        builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo,
+                                     deviceTag[i], deviceData);
+        if (!payload) {
+            status = -ENOMEM;
+            QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+            goto clean;
+        }
+        status = gslSetCustomConfig(graphHandle, payload, payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "Get custom config failed with status = %d",
+                    status);
+        }
+        if (payload) {
+            free(payload);
             payload = NULL;
             payloadSize = 0;
-            if(deviceTag[i] == DEVICE_HW_ENDPOINT_RX) {
-                for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getSndDeviceId();
-                    if(dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
-                        associatedDevices[i]->getDeviceAttributes(&dAttr);
-                        deviceData->bitWidth = dAttr.config.bit_width;
-                        deviceData->sampleRate = dAttr.config.sample_rate;
-                        deviceData->numChannel = dAttr.config.ch_info->channels;
-                        QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d",
-                                deviceData->bitWidth,
-                                deviceData->sampleRate,deviceData->numChannel);
-                    } else
-                        continue;
-                    sessionData->direction = PLAYBACK;
-                }
-            } else if (deviceTag[i] == DEVICE_HW_ENDPOINT_TX) {
-                for (int32_t i=0; i<(associatedDevices.size()); i++) {
-                    dev_id = associatedDevices[i]->getSndDeviceId();
-                    if(dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
-                       associatedDevices[i]->getDeviceAttributes(&dAttr);
-                       deviceData->bitWidth = dAttr.config.bit_width;
-                       deviceData->sampleRate = dAttr.config.sample_rate;
-                       deviceData->numChannel = dAttr.config.ch_info->channels;
-                       QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d,and channels %d",
-                               deviceData->bitWidth,
-                               deviceData->sampleRate,deviceData->numChannel);
-                    } else
-                       continue;
-                    sessionData->direction = RECORD;
-                }
-            } else
-                continue;
-
-            builder->payloadDeviceConfig(&payload, &payloadSize, moduleInfo,
-                                         deviceTag[i], deviceData);
-            if (!payload) {
-                status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
-                goto free_moduleInfo;
-            }
-            status = gslSetCustomConfig(graphHandle, payload, payloadSize);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Get custom config failed with status = %d",
-                        status);
-                //goto free_payload;
-            }
         }
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
-free_payload:
+
+clean:
     if (payload)
        free(payload);
-free_moduleInfo:
     if (moduleInfo)
        free(moduleInfo);
     if (deviceData)
        free(deviceData);
-free_sessionData:
     if (sessionData)
        free(sessionData);
 exit:
