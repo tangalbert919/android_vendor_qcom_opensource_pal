@@ -2275,7 +2275,31 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 goto free_sattr;
             }
             break;
-    case QAL_STREAM_DEEP_BUFFER:
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_ULL_PLAYBACK));
+                //keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+            } else if (sattr->direction == QAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_ULL_RECORD));
+            } else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
+            break;
+        case QAL_STREAM_PROXY:
+            if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_PROXY_PLAYBACK));
+                //keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
+            } else if (sattr->direction == QAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_PROXY_RECORD));
+            } else {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
+            break;
+        case QAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_DEEP_BUFFER));
             } else {
@@ -2414,6 +2438,12 @@ int PayloadBuilder::populateDeviceKV(Stream* s __unused, int32_t beDevId,
         case QAL_DEVICE_IN_HEADSET_VA_MIC:
             keyVector.push_back(std::make_pair(DEVICETX, HEADSETMIC_VA));
             break;
+        case QAL_DEVICE_IN_PROXY:
+            keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
+            break;
+        case QAL_DEVICE_OUT_PROXY:
+            keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
+            break;
         default:
             QAL_DBG(LOG_TAG,"%s: Invalid device id %d\n", __func__,beDevId);
             break;
@@ -2509,7 +2539,13 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
             case QAL_STREAM_DEEP_BUFFER:
             case QAL_STREAM_PCM_OFFLOAD:
                 if (sattr->direction == QAL_AUDIO_OUTPUT) {
+                  if(dAttr.id == QAL_DEVICE_OUT_PROXY) {
+                    QAL_DBG(LOG_TAG,"Device PP for Proxy is Rx Default");
+                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_DEFAULT));
+                  }
+                  else {
                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
+                  }
                 }
                 else if (sattr->direction == QAL_AUDIO_INPUT) {
                     for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {

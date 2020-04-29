@@ -90,11 +90,13 @@
 // TODO: double check and confirm actual
 // values for max sessions number
 #define MAX_SESSIONS_LOW_LATENCY 8
+#define MAX_SESSIONS_ULTRA_LOW_LATENCY 8
 #define MAX_SESSIONS_DEEP_BUFFER 1
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 2
+#define MAX_SESSIONS_PROXY 8
 
 static struct str_parms *configParamKVPairs;
 
@@ -260,6 +262,8 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "QAL_STREAM_LOOPBACK" },                 QAL_STREAM_LOOPBACK},
     {std::string{ "QAL_STREAM_TRANSCODE" },                QAL_STREAM_TRANSCODE},
     {std::string{ "QAL_STREAM_VOICE_UI" },                 QAL_STREAM_VOICE_UI},
+    {std::string{ "QAL_STREAM_ULTRA_LOW_LATENCY" },        QAL_STREAM_ULTRA_LOW_LATENCY},
+    {std::string{ "QAL_STREAM_PROXY" },                    QAL_STREAM_PROXY},
 };
 
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
@@ -956,6 +960,40 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             USB_in_device->selectBestConfig(deviceattr, sAttr, false);
             }
             break;
+        case QAL_DEVICE_IN_PROXY:
+            {
+            /* For QAL_DEVICE_IN_PROXY, copy all config from stream attributes */
+            dev_ch_info = (struct qal_channel_info *) calloc (1, sizeof(uint16_t)
+                              + sizeof(uint8_t) * sAttr->in_media_config.ch_info->channels);
+            dev_ch_info->channels = sAttr->in_media_config.ch_info->channels;
+            for (int i = 0; i < sAttr->in_media_config.ch_info->channels; i++)
+                dev_ch_info->ch_map[i] = sAttr->in_media_config.ch_info->ch_map[i];
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+
+            QAL_DBG(LOG_TAG, "QAL_DEVICE_IN_PROXY sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+            break;
+        case QAL_DEVICE_OUT_PROXY:
+            {
+            /* For QAL_DEVICE_OUT_PROXY, copy all config from stream attributes */
+            dev_ch_info = (struct qal_channel_info *) calloc (1, sizeof(uint16_t)
+                              + sizeof(uint8_t) * sAttr->out_media_config.ch_info->channels);
+            dev_ch_info->channels = sAttr->out_media_config.ch_info->channels;
+            for (int i = 0; i < sAttr->out_media_config.ch_info->channels; i++)
+                dev_ch_info->ch_map[i] = sAttr->out_media_config.ch_info->ch_map[i];
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+
+            QAL_DBG(LOG_TAG, "QAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+            break;
         case QAL_DEVICE_OUT_AUX_DIGITAL:
         case QAL_DEVICE_OUT_AUX_DIGITAL_1:
         case QAL_DEVICE_OUT_HDMI:
@@ -1008,6 +1046,10 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             cur_sessions = active_streams_ll.size();
             max_sessions = MAX_SESSIONS_LOW_LATENCY;
             break;
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
+            cur_sessions = active_streams_ull.size();
+            max_sessions = MAX_SESSIONS_ULTRA_LOW_LATENCY;
+            break;
         case QAL_STREAM_DEEP_BUFFER:
             cur_sessions = active_streams_db.size();
             max_sessions = MAX_SESSIONS_DEEP_BUFFER;
@@ -1035,6 +1077,10 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             cur_sessions = active_streams_po.size();
             max_sessions = MAX_SESSIONS_PCM_OFFLOAD;
             break;
+        case QAL_STREAM_PROXY:
+            cur_sessions = active_streams_proxy.size();
+            max_sessions = MAX_SESSIONS_PROXY;
+            break;
         default:
             QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -1050,6 +1096,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOICE_CALL_TX:
         case QAL_STREAM_VOICE_CALL_RX_TX:
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
         case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_GENERIC:
         case QAL_STREAM_VOIP:
@@ -1057,6 +1104,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_VOIP_TX:
         case QAL_STREAM_PCM_OFFLOAD:
         case QAL_STREAM_LOOPBACK:
+        case QAL_STREAM_PROXY:
             if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info->channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -1200,6 +1248,18 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sST, active_streams_st);
             break;
         }
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        {
+            StreamPCM* sULL = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sULL, active_streams_ull);
+            break;
+        }
+        case QAL_STREAM_PROXY:
+        {
+            StreamPCM* sProxy = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sProxy, active_streams_proxy);
+            break;
+        }
         default:
             ret = -EINVAL;
             QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
@@ -1297,6 +1357,18 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = deregisterstream(sST, active_streams_st);
+            break;
+        }
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        {
+            StreamPCM* sULL = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sULL, active_streams_ull);
+            break;
+        }
+        case QAL_STREAM_PROXY:
+        {
+            StreamPCM* sProxy = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sProxy, active_streams_proxy);
             break;
         }
         default:
@@ -1776,11 +1848,13 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     int ret = 0;
     // merge all types of active streams into activestreams
     getActiveStreams(d, activestreams, active_streams_ll);
+    getActiveStreams(d, activestreams, active_streams_ull);
     getActiveStreams(d, activestreams, active_streams_ulla);
     getActiveStreams(d, activestreams, active_streams_db);
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
     getActiveStreams(d, activestreams, active_streams_po);
+    getActiveStreams(d, activestreams, active_streams_proxy);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -1995,6 +2069,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
 
     switch(sAttr.type) {
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
         case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
@@ -2002,6 +2077,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
         case QAL_STREAM_VOICE_UI:
         case QAL_STREAM_PCM_OFFLOAD:
         case QAL_STREAM_LOOPBACK:
+        case QAL_STREAM_PROXY:
             switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
@@ -2182,6 +2258,8 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
 {
     switch(sAttr.type) {
         case QAL_STREAM_LOW_LATENCY:
+        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        case QAL_STREAM_PROXY:
         case QAL_STREAM_DEEP_BUFFER:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:

@@ -645,3 +645,46 @@ int32_t qal_get_param(uint32_t param_id, void **param_payload,
 
     return status;
 }
+
+int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
+                              struct qal_mmap_position *position)
+{
+   Stream *s = NULL;
+   int status;
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
+    }
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->GetMmapPosition(position);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
+        return status;
+    }
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
+int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
+                              int32_t min_size_frames,
+                              struct qal_mmap_buffer *info)
+{
+   Stream *s = NULL;
+   int status;
+    if (!stream_handle) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
+        return status;
+    }
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  static_cast<Stream *>(stream_handle);
+    status = s->createMmapBuffer(min_size_frames, info);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
+        return status;
+    }
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
+    return status;
+}

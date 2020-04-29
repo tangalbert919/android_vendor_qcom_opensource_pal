@@ -67,6 +67,10 @@ public:
    int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
    int32_t ssrDownHandler() override;
    int32_t ssrUpHandler() override;
+   int32_t createMmapBuffer(int32_t min_size_frames,
+                                   struct qal_mmap_buffer *info) override;
+   int32_t GetMmapPosition(struct qal_mmap_position *position) override;
+
    static int32_t isSampleRateSupported(uint32_t sampleRate);
    static int32_t isChannelSupported(uint32_t numChannels);
    static int32_t isBitWidthSupported(uint32_t bitWidth);

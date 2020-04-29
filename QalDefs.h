@@ -296,6 +296,8 @@ typedef enum {
     QAL_STREAM_TRANSCODE,            /**< audio transcode */
     QAL_STREAM_VOICE_UI,             /**< voice ui */
     QAL_STREAM_PCM_OFFLOAD,          /**< pcm offload audio */
+    QAL_STREAM_ULTRA_LOW_LATENCY,    /**< pcm ULL audio */
+    QAL_STREAM_PROXY,                /**< pcm proxy audio */
 } qal_stream_type_t;
 
 /** Audio devices available for enabling streams */
@@ -497,16 +499,20 @@ typedef struct dynamic_media_config {
 
 /**  Available stream flags of an audio session*/
 typedef enum {
-    QAL_STREAM_FLAG_TIMESTAMP,          /**< Enable time stamps associated to audio buffers  */
-    QAL_STREAM_FLAG_NON_BLOCKING,       /**< Stream IO operations are non blocking */
+    QAL_STREAM_FLAG_TIMESTAMP       = 0x1,  /**< Enable time stamps associated to audio buffers  */
+    QAL_STREAM_FLAG_NON_BLOCKING    = 0x2,  /**< Stream IO operations are non blocking */
+    QAL_STREAM_FLAG_MMAP            = 0x4,  /**< Stream Mode should be in MMAP*/
+    QAL_STREAM_FLAG_MMAP_NO_IRQ     = 0x8,  /**< Stream Mode should be No IRQ */
 } qal_stream_flags_t;
 
 #define QAL_STREAM_FLAG_NON_BLOCKING_MASK 0x2
+#define QAL_STREAM_FLAG_MMAP_MASK 0x4
+#define QAL_STREAM_FLAG_MMAP_NO_IRQ_MASK 0x8
 
 /**< QAL stream attributes to be specified, used in qal_stream_open cmd */
 struct qal_stream_attributes {
     qal_stream_type_t type;                      /**<  stream type */
-    qal_stream_info_t info;
+    qal_stream_info_t info;                      /**<  stream info */
     qal_stream_flags_t flags;                    /**<  stream flags */
     qal_stream_direction_t direction;            /**<  direction of the streams */
     struct qal_media_config in_media_config;     /**<  media config of the input audio samples */
@@ -536,6 +542,51 @@ struct qal_buffer {
     qal_meta_data_flags_t flags;   /**< meta data flags */
 };
 
+
+/** qal_mmap_buffer flags */
+enum {
+    QAL_MMMAP_BUFF_FLAGS_NONE = 0,
+    /**
+    * Only set this flag if applications can access the audio buffer memory
+    * shared with the backend (usually DSP) _without_ security issue.
+    *
+    * Setting this flag also implies that Binder will allow passing the shared memory FD
+    * to applications.
+    *
+    * That usually implies that the kernel will prevent any access to the
+    * memory surrounding the audio buffer as it could lead to a security breach.
+    *
+    * For example, a "/dev/snd/" file descriptor generally is not shareable,
+    * but an "anon_inode:dmabuffer" file descriptor is shareable.
+    * See also Linux kernel's dma_buf.
+    *
+    */
+    QAL_MMMAP_BUFF_FLAGS_APP_SHAREABLE = 1,
+};
+
+/** qal_mmap_buffer flags, can be OR'able */
+typedef uint32_t qal_mmap_buffer_flags_t;
+
+/** QAL buffer structure used for reading/writing buffers from/to the stream */
+struct qal_mmap_buffer {
+    void*    buffer;                /**< base address of mmap memory buffer,
+                                         for use by local proces only */
+    int32_t  fd;                    /**< fd for mmap memory buffer */
+    uint32_t buffer_size_frames;    /**< total buffer size in frames */
+    uint32_t burst_size_frames;     /**< transfer size granularity in frames */
+    qal_mmap_buffer_flags_t flags;  /**< Attributes describing the buffer. */
+};
+
+ /**
+ * Mmap buffer read/write position returned by GetMmapPosition.
+ * note\ Used by streams opened in mmap mode.
+ */
+struct qal_mmap_position {
+    int64_t  time_nanoseconds; /**< timestamp in ns, CLOCK_MONOTONIC */
+    int32_t  position_frames;  /**< increasing 32 bit frame count reset when stop()
+                                    is called */
+};
+
 /** channel mask and volume pair */
 struct qal_channel_vol_kv {
     uint32_t channel_mask;       /**< channel mask */
@@ -544,7 +595,7 @@ struct qal_channel_vol_kv {
 
 /** Volume data strucutre defintion used as argument for volume command */
 struct qal_volume_data {
-    uint32_t no_of_volpair;                    /**< no of volume pairs*/
+    uint32_t no_of_volpair;                       /**< no of volume pairs*/
     struct qal_channel_vol_kv volume_pair[0];     /**< channel mask and volume pair */
 };
 

@@ -461,6 +461,33 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload, size_t payload_siz
 int32_t qal_get_param(uint32_t param_id, void **param_payload,
                         size_t *payload_size, void *query);
 
+/**
+  * \brief Set audio volume specific to a stream.
+  *
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from qal_stream_open
+  * \param[in] min_size_frames - minimum frame size required.
+  * \param[out] info - map buffer descriptor returned by
+  *       stream.
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
+                              int32_t min_size_frames,
+                              struct qal_mmap_buffer *info);
+
+/**
+  * \brief Set audio volume specific to a stream.
+  *
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from qal_stream_open
+  * \param[out] position - Mmap buffer read/write position returned.
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
+                              struct qal_mmap_position *position);
+
 extern void  __gcov_flush();
 
 /**

@@ -121,6 +121,11 @@ public:
     virtual uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused) { return -EINVAL; }
     int getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload);
     virtual struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) {return nullptr;}
+    virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
+                                   struct qal_mmap_buffer *info __unused) {return -EINVAL;}
+    virtual int GetMmapPosition(Stream *s __unused, struct qal_mmap_position *position __unused) {return -EINVAL;}
+
+
 };
 
 #endif //SESSION_H

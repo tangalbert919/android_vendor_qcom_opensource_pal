@@ -1327,3 +1327,40 @@ exit :
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
+
+int32_t StreamPCM::createMmapBuffer(int32_t min_size_frames,
+                                   struct qal_mmap_buffer *info)
+{
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    if (currentState == STREAM_INIT) {
+        mStreamMutex.lock();
+        status = session->createMmapBuffer(this, min_size_frames, info);
+        if (0 != status)
+            QAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
+        mStreamMutex.unlock();
+    } else {
+        status = -EINVAL;
+    }
+    QAL_DBG(LOG_TAG, "Exit. status - %d", status);
+
+    return status;
+}
+
+int32_t StreamPCM::GetMmapPosition(struct qal_mmap_position *position)
+{
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+
+    mStreamMutex.lock();
+    status = session->GetMmapPosition(this, position);
+    if (0 != status)
+        QAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
+    mStreamMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit. status - %d", status);
+
+    return status;
+}
+

@@ -133,6 +133,9 @@ public:
                             std::string backEndName, struct qal_device *dAttr);
     static int setDeviceCustomPayload(std::shared_ptr<ResourceManager> rmHandle,
                            std::string backEndName, void *payload, size_t size);
+    static unsigned int bytesToFrames(size_t bufSizeInBytes, unsigned int channels,
+                           enum pcm_format format);
+    static bool isMmapUsecase(struct qal_stream_attributes attr);
 };
 
 #endif //SESSION_ALSA_UTILS

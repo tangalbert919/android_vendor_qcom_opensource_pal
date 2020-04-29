@@ -232,8 +232,10 @@ protected:
     std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
     std::vector <StreamPCM*> active_streams_ulla;
+    std::vector <StreamPCM*> active_streams_ull;
     std::vector <StreamPCM*> active_streams_db;
     std::vector <StreamPCM*> active_streams_po;
+    std::vector <StreamPCM*> active_streams_proxy;
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <SoundTriggerEngine*> active_engines_st;

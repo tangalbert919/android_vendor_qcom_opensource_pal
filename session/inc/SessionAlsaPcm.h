@@ -66,7 +66,6 @@ private:
     session_callback sessionCb;
     void *cbCookie;
     qal_device_id_t ecRefDevId;
-
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
@@ -103,6 +102,11 @@ public:
     bool isActive();
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
     struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
+    int createMmapBuffer(Stream *s, int32_t min_size_frames,
+                                   struct qal_mmap_buffer *info) override;
+    int GetMmapPosition(Stream *s, struct qal_mmap_position *position) override;
+    void adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames);
+
 };
 
 #endif //SESSION_ALSAPCM_H

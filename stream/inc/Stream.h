@@ -164,6 +164,9 @@ public:
     virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
     virtual int32_t ssrDownHandler() = 0;
     virtual int32_t ssrUpHandler() = 0;
+    virtual int32_t createMmapBuffer(int32_t min_size_frames __unused,
+                                   struct qal_mmap_buffer *info __unused) {return -EINVAL;}
+    virtual int32_t GetMmapPosition(struct qal_mmap_position *position __unused) {return -EINVAL;}
 
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);

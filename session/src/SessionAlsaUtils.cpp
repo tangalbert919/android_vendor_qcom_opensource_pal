@@ -247,6 +247,16 @@ error:
     return status;
 }
 
+bool SessionAlsaUtils::isMmapUsecase(struct qal_stream_attributes sAttr)
+{
+
+    return ((sAttr.type == QAL_STREAM_ULTRA_LOW_LATENCY) &&
+            ((sAttr.flags & QAL_STREAM_FLAG_MMAP_MASK)
+                        ||(sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
+            );
+
+}
+
 struct mixer_ctl *SessionAlsaUtils::getFeMixerControl(struct mixer *am, std::string feName,
         uint32_t idx)
 {
@@ -421,8 +431,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         if (deviceMetaData.size)
             mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
                     deviceMetaData.size);
+        mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
         if (streamDeviceMetaData.size) {
-            mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], be->second.data());
             mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,
                     streamDeviceMetaData.size);
         }
@@ -1467,7 +1477,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (QAL_STREAM_VOICE_CALL != streamType) {
-        if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        if (sAttr.direction == QAL_AUDIO_OUTPUT &&
+                !(SessionAlsaUtils::isMmapUsecase(sAttr))) {
             status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                        aifBackEndsToConnect[0].second.data(),
                                                        TAG_DEVICE_MFC_SR, &miid);
@@ -1530,7 +1541,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
                 }
            }
        }
-    } else {
+    } else if (!(SessionAlsaUtils::isMmapUsecase(sAttr))) {
         if (sess) {
             SessionAlsaVoice *voiceSession = dynamic_cast<SessionAlsaVoice *>(sess);
             if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first)) {
@@ -1749,3 +1760,13 @@ exit:
     delete builder;
     return status;
 }
+
+unsigned int SessionAlsaUtils::bytesToFrames(size_t bufSizeInBytes, unsigned int channels,
+                           enum pcm_format format)
+{
+    unsigned int bits = pcm_format_to_bits(format);
+    unsigned int ch = (channels == 0)? 1 : channels ;
+
+    return (bufSizeInBytes * 8)/(ch*bits);
+}
+

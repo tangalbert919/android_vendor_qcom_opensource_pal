@@ -49,6 +49,7 @@
 #include "Handset.h"
 #include "Bluetooth.h"
 #include "DisplayPort.h"
+#include "RTProxy.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -108,6 +109,10 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_IN_HEADSET_VA_MIC:
         QAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
         return HeadsetVaMic::getInstance(device, Rm);
+    case QAL_DEVICE_OUT_PROXY:
+    case QAL_DEVICE_IN_PROXY:
+        QAL_VERBOSE(LOG_TAG, "RTProxy device");
+        return RTProxy::getInstance(device, Rm);
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -141,6 +146,10 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
     case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
         QAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
         return BtSco::getObject(dev_id);
+    case QAL_DEVICE_OUT_PROXY:
+    case QAL_DEVICE_IN_PROXY:
+        QAL_VERBOSE(LOG_TAG, "RTProxy device %d");
+        return RTProxy::getObject();
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
