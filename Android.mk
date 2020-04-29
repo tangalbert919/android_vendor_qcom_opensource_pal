@@ -99,7 +99,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libtinyalsa \
     libtinycompress\
-    libagm
+    libagmclient
 
 LOCAL_HEADER_LIBRARIES := \
     libcasa-acdbdata \

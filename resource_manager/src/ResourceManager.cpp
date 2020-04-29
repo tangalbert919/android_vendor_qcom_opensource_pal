@@ -50,6 +50,7 @@
 #include "SoundTriggerPlatformInfo.h"
 #include "SndCardMonitor.h"
 #include <unistd.h>
+#include <agm_api.h>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -370,6 +371,12 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
 };
 
+void agmServiceCrashHandler(uint64_t cookie)
+{
+    QAL_ERR(LOG_TAG, "AGM service crashed :( ");
+    _exit(1);
+}
+
 ResourceManager::ResourceManager()
 {
     QAL_INFO(LOG_TAG, "Enter.");
@@ -457,6 +464,14 @@ ResourceManager::ResourceManager()
     if (ag == GSL) {
         ret = SessionGsl::init(DEFAULT_ACDB_FILES);
     }
+
+    // Get AGM service handle
+    ret = agm_register_service_crash_callback(&agmServiceCrashHandler,
+                                               (uint64_t)this);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "AGM service not up%d", ret);
+    }
+
     QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
