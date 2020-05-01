@@ -568,6 +568,11 @@ int SessionAlsaPcm::start(Stream * s)
             case QAL_AUDIO_INPUT:
                 if (sAttr.type == QAL_STREAM_VOICE_UI) {
                     SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), customPayload, customPayloadSize);
+                    if (customPayload) {
+                        free(customPayload);
+                        customPayload = NULL;
+                        customPayloadSize = 0;
+                    }
                 }
 
                 if(SessionAlsaUtils::isMmapUsecase(sAttr)) {
@@ -717,6 +722,11 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
@@ -806,6 +816,11 @@ int SessionAlsaPcm::start(Stream * s)
 
                     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                                  customPayload, customPayloadSize);
+                    if (customPayload) {
+                        free(customPayload);
+                        customPayload = NULL;
+                        customPayloadSize = 0;
+                    }
                     if (status != 0) {
                         QAL_ERR(LOG_TAG,"setMixerParameter failed");
                         return status;
@@ -1011,7 +1026,7 @@ int SessionAlsaPcm::close(Stream * s)
 exit:
     return status;
 }
-
+/* TODO: Check if this can be moved to Session class */
 int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
         qal_stream_type_t streamType, std::shared_ptr<Device> deviceToDisconnect)
 {
@@ -1026,13 +1041,33 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
             txAifBackEndsToDisconnect);
     deviceToDisconnect->getDeviceAttributes(&dAttr);
 
-    if (!rxAifBackEndsToDisconnect.empty())
+    if (!rxAifBackEndsToDisconnect.empty()) {
+        int cnt = 0;
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, pcmDevIds, rxAifBackEndsToDisconnect);
 
-    if (!txAifBackEndsToDisconnect.empty())
+        for (const auto &elem : rxAifBackEnds) {
+            cnt++;
+            for (const auto &disConnectElem : rxAifBackEndsToDisconnect) {
+                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                    rxAifBackEnds.erase(rxAifBackEnds.begin() + cnt - 1, rxAifBackEnds.begin() + cnt);
+            }
+        }
+    }
+    if (!txAifBackEndsToDisconnect.empty()) {
+        int cnt = 0;
+
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, pcmDevIds, txAifBackEndsToDisconnect);
+
+        for (const auto &elem : txAifBackEnds) {
+            cnt++;
+            for (const auto &disConnectElem : txAifBackEndsToDisconnect) {
+                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                    txAifBackEnds.erase(txAifBackEnds.begin() + cnt - 1, txAifBackEnds.begin() + cnt);
+            }
+        }
+    }
 
     return status;
 }
@@ -1076,13 +1111,19 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
             txAifBackEndsToConnect);
     deviceToConnect->getDeviceAttributes(&dAttr);
 
-    if (!rxAifBackEndsToConnect.empty())
+    if (!rxAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, pcmDevIds, rxAifBackEndsToConnect);
+        for (const auto &elem : rxAifBackEndsToConnect)
+            rxAifBackEnds.push_back(elem);
+    }
 
-    if (!txAifBackEndsToConnect.empty())
+    if (!txAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, pcmDevIds, txAifBackEndsToConnect);
+        for (const auto &elem : txAifBackEndsToConnect)
+            txAifBackEnds.push_back(elem);
+    }
 
     return status;
 }
