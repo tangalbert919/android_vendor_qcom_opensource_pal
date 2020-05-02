@@ -485,7 +485,11 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, qal_device_id_t d
             QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
-            session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+            status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                goto error_1;
+            }
 
             status = mDevices[i]->stop();
             if (0 != status) {
@@ -571,7 +575,11 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
             dev->getSndDeviceId(), dev->getQALDeviceName().c_str(), status);
         goto error_2;
     }
-    session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
+    status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
+        goto error_2;
+    }
 
     goto error_1;
 
