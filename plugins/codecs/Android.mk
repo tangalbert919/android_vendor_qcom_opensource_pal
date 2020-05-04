@@ -17,10 +17,10 @@ LOCAL_SHARED_LIBRARIES := \
     libdl
 
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
 
 LOCAL_HEADER_LIBRARIES := \
-    libgecko-headers
+    libspf-headers
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := lib_bt_bundle
@@ -45,10 +45,10 @@ LOCAL_SHARED_LIBRARIES := \
     libdl
 
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
 
 LOCAL_HEADER_LIBRARIES := \
-    libgecko-headers
+    libspf-headers
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := lib_bt_aptx

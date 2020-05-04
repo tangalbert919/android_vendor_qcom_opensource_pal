@@ -399,9 +399,9 @@ int Bluetooth::getDeviceAttributes(struct qal_device *dattr)
 
     if (is_configured) {
         dattr->id = deviceAttr.id;
-        casa_mem_cpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
+        ar_mem_cpy(&dattr->config, sizeof(struct qal_media_config), &codecConfig, sizeof(struct qal_media_config));
     } else {
-        casa_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+        ar_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
     }
 
 exit:

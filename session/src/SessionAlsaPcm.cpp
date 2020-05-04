@@ -381,8 +381,9 @@ int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_qal_payl
         case MODULE:
         {
             qal_key_vector_t *qal_kvpair = (qal_key_vector_t *)effectPayload->payload;
-            for (int i = 0; i < qal_kvpair->num_tkvs; i++) {
-                tkv.push_back(std::make_pair(qal_kvpair->kvp[i].key, qal_kvpair->kvp[i].value));
+            uint32_t num_tkvs =  qal_kvpair->num_tkvs;
+            for (int i = 0; i < num_tkvs; i++) {
+                    tkv.push_back(std::make_pair(qal_kvpair->kvp[i].key, qal_kvpair->kvp[i].value));
             }
 
             if (tkv.size() == 0) {
@@ -1588,7 +1589,7 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
         goto exit;
     }
 
-    casa_mem_cpy(config, configSize, ptr, configSize);
+    ar_mem_cpy(config, configSize, ptr, configSize);
     *payload = (void *)config;
 
 

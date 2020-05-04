@@ -8,7 +8,7 @@ adie_rtc-def += -D_ANDROID_
 #LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
 LOCAL_SRC_FILES := \
     src/adie_rtc.c
 
@@ -29,7 +29,7 @@ LOCAL_VENDOR_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/qal/adie_rtc
 LOCAL_MODULE := adie_rtc_test
 LOCAL_MODULE_OWNER := qti

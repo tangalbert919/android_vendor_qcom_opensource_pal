@@ -25,7 +25,7 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
-            ./session/inc/SessionQts.h \
+            ./session/inc/SessionAts.h \
             ./session/inc/SessionAlsaUtils.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SessionAlsaCompress.h \
@@ -67,7 +67,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionGsl.cpp \
-              ./session/src/SessionQts.cpp \
+              ./session/src/SessionAts.cpp \
               ./session/src/SessionAlsaUtils.cpp \
               ./session/src/SessionAlsaPcm.cpp \
               ./session/src/SessionAlsaCompress.cpp\
@@ -103,7 +103,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
-            ${top_srcdir}/session/inc/SessionQts.h \
+            ${top_srcdir}/session/inc/SessionAts.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SessionAlsaCompress.h \
             ${top_srcdir}/session/inc/SessionAlsaVoice.h \
@@ -117,7 +117,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_extn.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_properties.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_types.h \
-            ${WORKSPACE}/audio/mm-audio/capiv2_api/mmdefs.h \
+            ${WORKSPACE}/audio/mm-audio/capiv2_api/ar_defs.h \
             ${top_srcdir}/resource_manager/inc/ResourceManager.h \
             ${top_srcdir}/QalDefs.h \
             ${top_srcdir}/QalApi.h \
@@ -131,7 +131,7 @@ AM_CPPFLAGS += -I $(top_srcdir)/session/inc
 AM_CPPFLAGS += -I $(top_srcdir)/resource_manager/inc
 AM_CPPFLAGS += -I $(top_srcdir)/utils/inc
 AM_CPPFLAGS += -I $(top_srcdir)/
-AM_CPPFLAGS += $(GECKO_CFLAGS)/
+AM_CPPFLAGS += $(SPF_CFLAGS)/
 AM_CPPFLAGS += $(ACDBDATA_CFLAGS)
 AM_CPPFLAGS += -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/agm
 
@@ -163,7 +163,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionGsl.cpp \
-              ${top_srcdir}/session/src/SessionQts.cpp \
+              ${top_srcdir}/session/src/SessionAts.cpp \
               ${top_srcdir}/session/src/SessionAlsaUtils.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SessionAlsaCompress.cpp \
@@ -186,7 +186,7 @@ library_includedir = $(includedir)/qal
 
 lib_LTLIBRARIES     = libqal.la
 libqal_la_SOURCES   = $(qal_sources)
-libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lcasa_osal -lexpat -ltinycompress
+libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lar_osal -lexpat -ltinycompress
 libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
 libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
 libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -104,7 +104,7 @@ int find_codec_index(uint32_t handle)
     for (i=0; i < (int)number_of_codecs; i++)
         if (codec_info[i].handle == handle)
             goto done;
-    CASA_LOG_ERR(LOG_TAG,"%s->could not find codec with handle %d\n", __func__, handle);
+    AR_LOG_ERR(LOG_TAG,"%s->could not find codec with handle %d\n", __func__, handle);
     i = -EINVAL;
  done:
     return i;
@@ -115,7 +115,7 @@ int find_codec_index(uint32_t handle)
     int ret = 0;
     unsigned int i;
     if(chipset_name == NULL){
-        CASA_LOG_ERR(LOG_TAG,"chipset_name is null");
+        AR_LOG_ERR(LOG_TAG,"chipset_name is null");
         ret = -EINVAL;
         goto done;
     }
@@ -134,7 +134,7 @@ int find_codec_index(uint32_t handle)
 static int read_version_file(char *version_path)
  {
     int ret = 0;
-    casa_fhandle file_handle;
+    ar_fhandle file_handle;
     int fd;
     char    *token;
     char    *token2;
@@ -142,49 +142,49 @@ static int read_version_file(char *version_path)
     size_t  num_read;
     char    version_entry[FILE_NAME_LENGTH];
     if(version_path == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"version_path is null");
+        AR_LOG_ERR(LOG_TAG,"version_path is null");
         ret = -EINVAL;
         goto done;
     }
 
-    fd = casa_fopen(&file_handle, version_path, CASA_FOPEN_READ_ONLY);
+    fd = ar_fopen(&file_handle, version_path, AR_FOPEN_READ_ONLY);
     if (fd != 0) {
-        CASA_LOG_ERR(LOG_TAG,"%s: file open failed for path %s\n", __func__, version_path);
+        AR_LOG_ERR(LOG_TAG,"%s: file open failed for path %s\n", __func__, version_path);
         ret = -ENODEV;
         goto done;
     }
 
-    fd = casa_fread(file_handle, version_entry, sizeof(version_entry),&num_read);
+    fd = ar_fread(file_handle, version_entry, sizeof(version_entry),&num_read);
     if (fd != 0) {
-        CASA_LOG_ERR(LOG_TAG,"%s: file read failed for path %s\n", __func__);
+        AR_LOG_ERR(LOG_TAG,"%s: file read failed for path %s\n", __func__);
         ret = -ENODEV;
         goto done;
     }
 
     token = strtok_r(version_entry, "_", &save);
     if (token == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset name\n", __func__);
+        AR_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset name\n", __func__);
         ret = -EINVAL;
         goto close;
     }
 
     ret = get_chipset_id(token);
     if (ret < 0) {
-        CASA_LOG_ERR(LOG_TAG,"%s: get_chipset_id failed error %d\n", __func__, ret);
+        AR_LOG_ERR(LOG_TAG,"%s: get_chipset_id failed error %d\n", __func__, ret);
         ret = -EINVAL;
         goto close;
     }
 
     token = strtok_r(NULL, "_", &save);
     if (token == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset major version\n", __func__);
+        AR_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset major version\n", __func__);
         ret = -EINVAL;
         goto close;
     }
 
     token2 = strtok_r(NULL, "_", &save);
     if (token2 == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset minor version\n", __func__);
+        AR_LOG_ERR(LOG_TAG,"%s: strtok failed to get chipset minor version\n", __func__);
         ret = -EINVAL;
         goto close;
     }
@@ -208,13 +208,13 @@ static int get_reg_path(char **match_strings, int array_size)
 
     if(*match_strings == NULL){
         ret = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"Empty array of string");
+        AR_LOG_ERR(LOG_TAG,"Empty array of string");
     }
 
     for(i = 0; i <  array_size; i++) {
         dir = opendir(path);
         if (dir == NULL) {
-            CASA_LOG_INFO(LOG_TAG,"%d (%s) opendir %s failed\n", errno, strerror(errno), path);
+            AR_LOG_INFO(LOG_TAG,"%d (%s) opendir %s failed\n", errno, strerror(errno), path);
             return -EINVAL;
         }
 
@@ -249,7 +249,7 @@ static int find_codecs_info(void)
     char version_path[FILE_NAME_LENGTH] = CODEC_INFO_PATH;
     dir = opendir(version_path);
     if (dir == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"%s: %d (%s) opendir %s failed\n", __func__, errno, strerror(errno), CODEC_INFO_PATH);
+        AR_LOG_ERR(LOG_TAG,"%s: %d (%s) opendir %s failed\n", __func__, errno, strerror(errno), CODEC_INFO_PATH);
         ret = -ENODEV;
         goto done;
     }
@@ -260,27 +260,27 @@ static int find_codecs_info(void)
         ret = snprintf(codec_info[number_of_codecs].codec_name,
             sizeof(codec_info[number_of_codecs].codec_name), "%s", dentry->d_name);
         if (ret < 0) {
-            CASA_LOG_ERR(LOG_TAG,"%s: snprintf failed: %s in %s, err %d\n",
+            AR_LOG_ERR(LOG_TAG,"%s: snprintf failed: %s in %s, err %d\n",
                 __func__, dentry->d_name, CODEC_INFO_PATH, ret);
             continue;
         }
         ret = snprintf(version_path, sizeof(version_path),
             "%s%s/version", CODEC_INFO_PATH, dentry->d_name);
         if (ret < 0) {
-            CASA_LOG_ERR(LOG_TAG,"%s: snprintf failed: %s in %s, err %d\n",
+            AR_LOG_ERR(LOG_TAG,"%s: snprintf failed: %s in %s, err %d\n",
                 __func__, dentry->d_name, CODEC_INFO_PATH, ret);
             continue;
         }
         ret = read_version_file(version_path);
         if (ret < 0) {
-            CASA_LOG_ERR(LOG_TAG,"%s: read_version_file failed, err %d path %s\n",
+            AR_LOG_ERR(LOG_TAG,"%s: read_version_file failed, err %d path %s\n",
                 __func__, ret, version_path);
             continue;
         }
         char *match_strings[] = {"regmap", codec_info[number_of_codecs].codec_name, "registers"};
         ret = get_reg_path(match_strings, sizeof(match_strings)/sizeof(char *));
         if (ret < 0) {
-            CASA_LOG_ERR(LOG_TAG,"%s: get_reg_path failed, err %d, path %s\n",
+            AR_LOG_ERR(LOG_TAG,"%s: get_reg_path failed, err %d, path %s\n",
                 __func__, ret, version_path);
             continue;
         }
@@ -302,7 +302,7 @@ static int find_codecs(void)
     if (number_of_codecs == 0) {
         ret = get_reg_path(old_match_strings, sizeof(old_match_strings)/sizeof(char *));
         if (ret < 0) {
-            CASA_LOG_ERR(LOG_TAG,"%s: get_reg_path failed, err %d\n",__func__, ret);
+            AR_LOG_ERR(LOG_TAG,"%s: get_reg_path failed, err %d\n",__func__, ret);
             goto done;
         }
 
@@ -310,7 +310,7 @@ static int find_codecs(void)
         number_of_codecs++;
     }
     for (i=0; i < number_of_codecs; i++)
-        CASA_LOG_VERBOSE(LOG_TAG,"%s: codec %s: handle %d, chipset id %d, major %d, minor %d, reg path %s\n",
+        AR_LOG_VERBOSE(LOG_TAG,"%s: codec %s: handle %d, chipset id %d, major %d, minor %d, reg path %s\n",
             __func__, codec_info[i].codec_name, codec_info[i].handle, codec_info[i].chipset_id,
             codec_info[i].major_version, codec_info[i].minor_version, codec_info[i].reg_path);
  done:
@@ -326,7 +326,7 @@ int32_t adie_rtc_get_codec_info(struct adie_rtc_codec_info *cdc_info)
     }
     else{
         if(cdc_info->handle == NULL) {
-            CASA_LOG_ERR(LOG_TAG,"handle is null");
+            AR_LOG_ERR(LOG_TAG,"handle is null");
             ret = -EINVAL;
             goto done;
         }
@@ -364,7 +364,7 @@ static int parse_codec_reg_file(char_t **rtc_io_buf_base, int32_t *rtc_io_buf_si
     {
         rc = -EINVAL;
         *rtc_io_buf_base = NULL;
-        CASA_LOG_ERR(LOG_TAG,"Invalid fd");
+        AR_LOG_ERR(LOG_TAG,"Invalid fd");
         goto done;
     }
 
@@ -377,7 +377,7 @@ static int parse_codec_reg_file(char_t **rtc_io_buf_base, int32_t *rtc_io_buf_si
             free(*rtc_io_buf_base);
             *rtc_io_buf_base = NULL;
             buf_size = 0;
-            CASA_LOG_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
+            AR_LOG_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
                  READ_STEP_SIZE, codec_info[codec_idx].reg_path);
             goto done;
         }
@@ -422,19 +422,19 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     codec_idx = find_codec_index(handle);
     if (codec_idx < 0) {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
+        AR_LOG_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
         goto done;
     } else if (strlen(codec_info[codec_idx].reg_path) == 0) {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"codec path is empty\n %d", handle);
+        AR_LOG_ERR(LOG_TAG,"codec path is empty\n %d", handle);
         goto done;
     }
-    //CASA_LOG_INFO(LOG_TAG,"reg path= %s",codec_info[codec_idx].reg_path);
+    //AR_LOG_INFO(LOG_TAG,"reg path= %s",codec_info[codec_idx].reg_path);
     fd = open(codec_info[codec_idx].reg_path, O_RDWR);
     if(fd < 0)
     {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"cannot open adie peek error: %d, path: %s",
+        AR_LOG_ERR(LOG_TAG,"cannot open adie peek error: %d, path: %s",
                 fd, codec_info[codec_idx].reg_path);
         goto done;
     }
@@ -442,14 +442,14 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     if (rtc_io_buf_base == NULL || result < 0)
     {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
+        AR_LOG_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
                 READ_STEP_SIZE, codec_info[codec_idx].reg_path);
             goto close_fd;
     }
     if (rtc_io_buf_size <= 0)
     {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"length of written bytes does not match expected value %d", rtc_io_buf_size);
+        AR_LOG_ERR(LOG_TAG,"length of written bytes does not match expected value %d", rtc_io_buf_size);
         goto close_fd;
     }
     numBytes = rtc_io_buf_size;
@@ -457,18 +457,18 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     memcpy((void*)reg, (void*)(rtc_io_buf+offset), sizeof(uint32_t));
     token = strtok_r(reg, ":", &save);
     if (token == NULL) {
-        CASA_LOG_ERR(LOG_TAG,"%s: strtok failed to find register length : delimiter!\n", __func__);
+        AR_LOG_ERR(LOG_TAG,"%s: strtok failed to find register length : delimiter!\n", __func__);
         result = -EINVAL;
         goto done;
     }
     reg_len = strlen(token);
     if (reg_len <= 0) {
-        CASA_LOG_ERR(LOG_TAG,"%s: register length is %d!\n", __func__, reg_len);
+        AR_LOG_ERR(LOG_TAG,"%s: register length is %d!\n", __func__, reg_len);
         result = -EINVAL;
         goto done;
     }
     register_length = reg_len;
-    CASA_LOG_DEBUG(LOG_TAG,"%s: valid register length is %d\n", __func__, register_length);
+    AR_LOG_DEBUG(LOG_TAG,"%s: valid register length is %d\n", __func__, register_length);
     while(numBytes>offset)
     {
         memcpy((void*)reg, (void*)(rtc_io_buf+offset), sizeof(uint32_t));
@@ -483,20 +483,20 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
         if(ultempRegAddr == regAddr)
         {
             found = 1;
-            CASA_LOG_INFO(LOG_TAG,"register[%08X] found from the file!\n",regAddr);
+            AR_LOG_INFO(LOG_TAG,"register[%08X] found from the file!\n",regAddr);
             break;
         }
     }
     if (found == 0)
     {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"get adie register[0x%x] failed Peek(%s) Poke(%s)",
+        AR_LOG_ERR(LOG_TAG,"get adie register[0x%x] failed Peek(%s) Poke(%s)",
         regAddr, codec_info[codec_idx].reg_path, codec_info[codec_idx].reg_path);
         goto close_fd;
     }
     else
     {
-        CASA_LOG_ERR(LOG_TAG,"Found the value for register = 0x%X, value = 0x%X\n",regAddr,lRegValue);
+        AR_LOG_ERR(LOG_TAG,"Found the value for register = 0x%X, value = 0x%X\n",regAddr,lRegValue);
     }
     /* return a masked value */
     lRegValue &= regMask;
@@ -524,10 +524,10 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
 
     codec_idx = find_codec_index(handle);
     if (codec_idx < 0) {
-        CASA_LOG_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
+        AR_LOG_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
         goto done;
     } else if (strlen(codec_info[codec_idx].reg_path) == 0) {
-        CASA_LOG_ERR(LOG_TAG,"codec path is empty\n %d", handle);
+        AR_LOG_ERR(LOG_TAG,"codec path is empty\n %d", handle);
         goto done;
     }
 
@@ -538,12 +538,12 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
         regAddr += CDC_REG_DIG_OFFSET;
 
     numBytes1 = asprintf(&temp, "0x%x 0x%x", regAddr, ulRegValue);
-    CASA_LOG_DEBUG(LOG_TAG,"set register request received for ==> reg[%X], val[%X], bytes[%zu]\n",
+    AR_LOG_DEBUG(LOG_TAG,"set register request received for ==> reg[%X], val[%X], bytes[%zu]\n",
             regAddr, ulRegValue, numBytes1);
     fd = open(codec_info[codec_idx].reg_path, O_RDWR);
     if(fd < 0) {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"ERROR! cannot open adie poke error: %d, path: %s",
+        AR_LOG_ERR(LOG_TAG,"ERROR! cannot open adie poke error: %d, path: %s",
                 fd, codec_info[codec_idx].reg_path);
         if (temp != NULL)
         {
@@ -554,7 +554,7 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
         goto done;
     }
     numBytes2 = write(fd, temp, numBytes1);
-    CASA_LOG_DEBUG(LOG_TAG,"set register ==> actual bytes written[%zu]\n", numBytes2);
+    AR_LOG_DEBUG(LOG_TAG,"set register ==> actual bytes written[%zu]\n", numBytes2);
     if (temp != NULL) {
         free(temp);
         temp = NULL;
@@ -563,11 +563,11 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
     /* make sure the write is successful */
     if (numBytes1 != numBytes2) {
         result = -EINVAL;
-        CASA_LOG_ERR(LOG_TAG,"set adie register failed for Register[0x%X], numBytes[%zu]",regAddr ,numBytes1);
+        AR_LOG_ERR(LOG_TAG,"set adie register failed for Register[0x%X], numBytes[%zu]",regAddr ,numBytes1);
         goto done;
     }
     //*resp_buf_bytes_filled = 0;
-    CASA_LOG_INFO(LOG_TAG,"Set Register Success\n");
+    AR_LOG_INFO(LOG_TAG,"Set Register Success\n");
 
  done:
     return result;
@@ -579,13 +579,13 @@ int32_t adie_rtc_init()
     codec_info = (struct codec_info *)malloc(MAX_NUMBER_OF_CODECS*sizeof(struct codec_info));
     if(codec_info == NULL) {
         ret = -ENOMEM;
-        CASA_LOG_ERR(LOG_TAG,"malloc failed\n");
+        AR_LOG_ERR(LOG_TAG,"malloc failed\n");
         goto done;
     }
     if (!found_codec_path) {
         if (find_codecs() < 0) {
             ret = -EINVAL;
-            CASA_LOG_ERR(LOG_TAG,"failed to get register paths \n");
+            AR_LOG_ERR(LOG_TAG,"failed to get register paths \n");
         }
     }
 

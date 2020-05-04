@@ -64,7 +64,7 @@
 #define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
 #define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/etc/kvh2xml.xml"
+#define SPFXMLFILE "/etc/kvh2xml.xml"
 #define SNDPARSER "/etc/card-defs.xml"
 #define STXMLFILE "/etc/sound_trigger_platform_info.xml"
 #else
@@ -72,7 +72,7 @@
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
 #define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/vendor/etc/resourcemanager.xml"
-#define GECKOXMLFILE "/vendor/etc/kvh2xml.xml"
+#define SPFXMLFILE "/vendor/etc/kvh2xml.xml"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
 #define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
 #endif
@@ -395,9 +395,9 @@ ResourceManager::ResourceManager()
     streamTag.clear();
     deviceTag.clear();
     btCodecMap.clear();
-    ret = ResourceManager::XmlParser(GECKOXMLFILE);
+    ret = ResourceManager::XmlParser(SPFXMLFILE);
     if (ret) {
-        QAL_ERR(LOG_TAG, "error in gecko xml parsing ret %d", ret);
+        QAL_ERR(LOG_TAG, "error in spf xml parsing ret %d", ret);
     }
     ret = ResourceManager::XmlParser(XMLFILE);
     if (ret) {

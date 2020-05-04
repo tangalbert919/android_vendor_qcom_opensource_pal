@@ -126,7 +126,7 @@ int SessionAlsaCompress::setCustomFormatParam(qal_audio_fmt_t audio_fmt)
         media_fmt_hdr->data_format = DATA_FORMAT_RAW_COMPRESSED ;
         media_fmt_hdr->fmt_id = MEDIA_FMT_ID_VORBIS;
         media_fmt_hdr->payload_size = sizeof(struct qal_snd_dec_vorbis);
-        casa_mem_cpy(media_fmt_hdr->payload,
+        ar_mem_cpy(media_fmt_hdr->payload,
                             sizeof(struct qal_snd_dec_vorbis),
                             &codec.format,
                             sizeof(struct qal_snd_dec_vorbis));
@@ -390,7 +390,8 @@ int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_qal
         case MODULE:
         {
             qal_key_vector_t *qal_kvpair = (qal_key_vector_t *)effectPayload->payload;
-            for (int i = 0; i < qal_kvpair->num_tkvs; i++) {
+            uint32_t num_tkvs = qal_kvpair->num_tkvs;
+            for (uint32_t i = 0; i < num_tkvs; i++) {
                 tkv.push_back(std::make_pair(qal_kvpair->kvp[i].key, qal_kvpair->kvp[i].value));
             }
 

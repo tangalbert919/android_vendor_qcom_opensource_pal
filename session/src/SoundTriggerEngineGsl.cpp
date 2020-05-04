@@ -510,7 +510,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
     /*
-     * TODO: This sequence RESET->STOP->START is currently required from gecko
+     * TODO: This sequence RESET->STOP->START is currently required from spf
      * as ENGINE_RESET alone can't reset the graph (including DAM etc..) ready
      * for next detection.
      */
@@ -561,7 +561,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
         buffer_->reset();
     }
     /*
-     * TODO: Currently gecko requires ENGINE_RESET to close the DAM gate as stop
+     * TODO: Currently spf requires ENGINE_RESET to close the DAM gate as stop
      * will not close the gate, rather just flushes the buffers, resulting in no
      * further detections.
      */
@@ -646,13 +646,13 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
                                                   void *data) {
     SoundTriggerEngineGsl *engine = nullptr;
 
-    QAL_DBG(LOG_TAG, "Enter, event detected on GECKO, event id = 0x%x", event_id);
+    QAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
     if (!hdl || !data) {
         QAL_ERR(LOG_TAG, "Invalid engine handle or event data");
         return;
     }
 
-    // Possible that AGM_EVENT_EOS_RENDERED could be sent during gecko stop.
+    // Possible that AGM_EVENT_EOS_RENDERED could be sent during spf stop.
     // Check and handle only required detection event.
     if (event_id != EVENT_ID_DETECTION_ENGINE_GENERIC_INFO)
         return;

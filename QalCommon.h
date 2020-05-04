@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,14 +27,14 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "casa_osal_types.h"
-#include "casa_osal_log.h"
-#include "casa_osal_mem_op.h"
+#include "ar_osal_types.h"
+#include "ar_osal_log.h"
+#include "ar_osal_mem_op.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-#define QAL_ERR(...)  CASA_LOG_ERR(__VA_ARGS__)
-#define QAL_DBG(...)  CASA_LOG_DEBUG(__VA_ARGS__)
-#define QAL_INFO(...) CASA_LOG_INFO(__VA_ARGS__)
-#define QAL_VERBOSE(...) CASA_LOG_VERBOSE(__VA_ARGS__)
+#define QAL_ERR(...)  AR_LOG_ERR(__VA_ARGS__)
+#define QAL_DBG(...)  AR_LOG_DEBUG(__VA_ARGS__)
+#define QAL_INFO(...) AR_LOG_INFO(__VA_ARGS__)
+#define QAL_VERBOSE(...) AR_LOG_VERBOSE(__VA_ARGS__)

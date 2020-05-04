@@ -225,7 +225,7 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
 
     vsid_payload.vsid = vsid;
     vsid_pl = (uint8_t*)vsidPayload + sizeof(apm_module_param_data_t);
-    casa_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
+    ar_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
 
     return status;
@@ -745,7 +745,7 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
 
     vsid_payload.vsid = vsid;
     vsid_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
-    casa_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
+    ar_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
 
     *size = payloadSize + padBytes;
@@ -822,11 +822,11 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     cal_key_pair[1].value = volume_boost;
 
     vol_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
-    casa_mem_cpy(vol_pl, sizeof(vcpm_param_cal_keys_payload_t),
+    ar_mem_cpy(vol_pl, sizeof(vcpm_param_cal_keys_payload_t),
                      &cal_keys, sizeof(vcpm_param_cal_keys_payload_t));
 
     vol_pl += sizeof(vcpm_param_cal_keys_payload_t);
-    casa_mem_cpy(vol_pl, sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS,
+    ar_mem_cpy(vol_pl, sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS,
                      &cal_key_pair, sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS);
 
 
@@ -867,7 +867,7 @@ int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_
     tty_payload.vsid = vsid;
     tty_payload.mode = mode;
     phrase_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
-    casa_mem_cpy(phrase_pl,  sizeof(vcpm_param_id_tty_mode_t),
+    ar_mem_cpy(phrase_pl,  sizeof(vcpm_param_id_tty_mode_t),
                      &tty_payload,  sizeof(vcpm_param_id_tty_mode_t));
 
     *size = payloadSize + padBytes;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,8 +27,8 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SESSION_QTS_H
-#define SESSION_QTS_H
+#ifndef SESSION_ATS_H
+#define SESSION_ATS_H
 
 #include "QalCommon.h"
 #include <dlfcn.h>
@@ -36,15 +36,15 @@
 class Stream;
 class Session;
 
-class SessionQts
+class SessionAts
 {
 private:
-    static void* qtsLibHandle;
+    static void* atsLibHandle;
 public:
-    SessionQts();
-    ~SessionQts();
+    SessionAts();
+    ~SessionAts();
     static int init();
     static void deinit();
 };
 
-#endif //SESSION_QTS_H
+#endif //SESSION_ATS_H

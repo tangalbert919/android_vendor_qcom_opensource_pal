@@ -40,7 +40,7 @@
 #include "SoundTriggerPlatformInfo.h"
 
 /* Event Mode
- * Indicating info GECKO will notify to client
+ * Indicating info SPF will notify to client
  */
 #define CONFIDENCE_LEVEL_INFO    0x1
 #define KEYWORD_INDICES_INFO     0x2

@@ -39,7 +39,7 @@
 #include "PayloadBuilder.h"
 #include "ResourceManager.h"
 
-#define GSL_LIB  "libcasa-gsl.so"
+#define GSL_LIB  "libar-gsl.so"
 #define PLAYBACK 0x1
 #define RECORD 0x2
 #define BUFFER_EOS 1
@@ -825,7 +825,7 @@ int SessionGsl::setConfig(Stream *s, configType type, int tag)
         }
         QAL_DBG(LOG_TAG, "MODULE: tag:%d tagsent:%x tkv key %x value %x \n", tag,
                 tagsent, (tkv->kvp[0].key), (tkv->kvp[0].value));
-        //TODO:Remove this hack and payload pause and resume once QACT fixes TKV issue in acdb file
+        //TODO:Remove this hack and payload pause and resume once ARCT fixes TKV issue in acdb file
         if (tagsent == TAG_PAUSE) {
             QAL_VERBOSE(LOG_TAG,"Do not call gslSetConfig if tagsent:%x \n", tagsent);
         } else {
@@ -1070,7 +1070,7 @@ int SessionGsl::getParameters(Stream *s __unused, int tagId, uint32_t param_id, 
                 goto exit;
             }
 
-            casa_mem_cpy(config, sizeof(ffv_doa_tracking_monitor_t),
+            ar_mem_cpy(config, sizeof(ffv_doa_tracking_monitor_t),
                              data + sizeof(struct apm_module_param_data_t),
                              sizeof(ffv_doa_tracking_monitor_t));
             *payload = (void *)config;

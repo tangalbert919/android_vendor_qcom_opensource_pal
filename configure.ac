@@ -46,14 +46,14 @@ fi
 
 AM_CONDITIONAL(USE_GLIB, test "x${with_glib}" = "xyes")
 
-AC_ARG_WITH([gecko],
-      AC_HELP_STRING([--with-gecko],
-         [enable gecko, Build against gecko. Use this when building for HLOS systems which use gecko]))
+AC_ARG_WITH([spf],
+      AC_HELP_STRING([--with-spf],
+         [enable spf, Build against spf. Use this when building for HLOS systems which use spf]))
 
-GECKO_CFLAGS=
-AS_IF([test "x$with_gecko" != "xno"], [GECKO_CFLAGS="-I$with_gecko"])
+SPF_CFLAGS=
+AS_IF([test "x$with_spf" != "xno"], [SPF_CFLAGS="-I$with_spf"])
 
-AC_SUBST(GECKO_CFLAGS)
+AC_SUBST(SPF_CFLAGS)
 
 AC_ARG_WITH([acdbdata],
       AC_HELP_STRING([--with-acdbdata],

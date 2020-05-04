@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019, The Linux Foundation. All rights reserved.
+* Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -707,7 +707,7 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     stime->absolute_time.value_msw = spr_session_time->absolute_time.value_msw;
     stime->timestamp.value_lsw = spr_session_time->timestamp.value_lsw;
     stime->timestamp.value_msw = spr_session_time->timestamp.value_msw;
-    //flags from Gecko are igonred
+    //flags from Spf are igonred
 exit:
     delete builder;
     return status;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,66 +28,66 @@
  */
 
 
-#include "SessionQts.h"
+#include "SessionAts.h"
 #include <errno.h>
-#define QTS_LIB  "libqts.so"
-#define LOG_TAG "QAL: SessionQts"
+#define ATS_LIB  "libats.so"
+#define LOG_TAG "QAL: SessionAts"
 
-void *SessionQts::qtsLibHandle = NULL;
+void *SessionAts::atsLibHandle = NULL;
 
-typedef int32_t (*qts_init_t)(void);
-typedef void (*qts_deinit_t)(void);
-qts_init_t qtsInit;
-qts_deinit_t qtsDeinit;
+typedef int32_t (*ats_init_t)(void);
+typedef void (*ats_deinit_t)(void);
+ats_init_t atsInit;
+ats_deinit_t atsDeinit;
 
-int SessionQts::init()
+int SessionAts::init()
 {
     int ret = 0;
     QAL_DBG(LOG_TAG, "Enter.");
-    if(!qtsLibHandle) {
-        qtsLibHandle = dlopen(QTS_LIB, RTLD_NOW);
-        if (NULL == qtsLibHandle) {
+    if(!atsLibHandle) {
+        atsLibHandle = dlopen(ATS_LIB, RTLD_NOW);
+        if (NULL == atsLibHandle) {
             const char *err_str = dlerror();
             QAL_ERR(LOG_TAG, "DLOPEN failed for %s, %s",
-                  QTS_LIB, err_str?err_str:"unknown");
+                  ATS_LIB, err_str?err_str:"unknown");
             return -EINVAL;
         }
 
     }
 
-    /*loading the qts function symbols*/
-    qtsInit = (qts_init_t)dlsym(qtsLibHandle, "qts_init");
-    if (!qtsInit) {
-        QAL_ERR(LOG_TAG, "dlsym error %s for qts_init", dlerror());
+    /*loading the ats function symbols*/
+    atsInit = (ats_init_t)dlsym(atsLibHandle, "ats_init");
+    if (!atsInit) {
+        QAL_ERR(LOG_TAG, "dlsym error %s for ats_init", dlerror());
         ret = -EINVAL;
         goto error;
     }
-    qtsDeinit = (qts_deinit_t)dlsym(qtsLibHandle, "qts_deinit");
-    if (!qtsDeinit) {
-        QAL_ERR(LOG_TAG, "dlsym error %s for qts_deinit", dlerror());
+    atsDeinit = (ats_deinit_t)dlsym(atsLibHandle, "ats_deinit");
+    if (!atsDeinit) {
+        QAL_ERR(LOG_TAG, "dlsym error %s for ats_deinit", dlerror());
         ret = -EINVAL;
         goto error;
     }
 
-    QAL_INFO(LOG_TAG, "Initializing QTS...");
-    ret = qtsInit();
+    QAL_INFO(LOG_TAG, "Initializing ATS...");
+    ret = atsInit();
     if (0 != ret) {
-        QAL_ERR(LOG_TAG, "qts init failed with err = %d", ret);
+        QAL_ERR(LOG_TAG, "ats init failed with err = %d", ret);
         goto error;
     }
     goto exit;
 error:
-    dlclose(qtsLibHandle);
-    qtsLibHandle = NULL;
+    dlclose(atsLibHandle);
+    atsLibHandle = NULL;
 exit:
     return ret;
 }
 
-void SessionQts::deinit()
+void SessionAts::deinit()
 {
-    QAL_INFO(LOG_TAG, "Deinitializing QTS...");
-    if(NULL != qtsLibHandle){
-        qtsDeinit();
-        dlclose(qtsLibHandle);
+    QAL_INFO(LOG_TAG, "Deinitializing ATS...");
+    if(NULL != atsLibHandle){
+        atsDeinit();
+        dlclose(atsLibHandle);
     }
 }

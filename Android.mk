@@ -28,10 +28,10 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc \
     $(LOCAL_PATH)/utils/inc                  \
     $(LOCAL_PATH)/plugins/codecs
 
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/casa_osal
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gsl
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/apm
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/casa/gecko/api/vcpm
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/gsl
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/spf/api/apm
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/spf/api/vcpm
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
 LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
@@ -91,7 +91,7 @@ LOCAL_MODULE_OWNER := qti
 LOCAL_MODULE_TAGS  := optional
 
 LOCAL_SHARED_LIBRARIES := \
-    libcasa-gsl\
+    libar-gsl\
     liblog\
     libexpat\
     liblx-osal\
@@ -102,8 +102,8 @@ LOCAL_SHARED_LIBRARIES := \
     libagmclient
 
 LOCAL_HEADER_LIBRARIES := \
-    libcasa-acdbdata \
-    libgecko-headers \
+    libar-acdbdata \
+    libspf-headers \
     capiv2-headers
 
 LOCAL_COPY_HEADERS_TO := mm-audio/qal

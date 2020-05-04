@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,8 +30,8 @@
 #ifndef ADIE_RTC_H
 #define ADIE_RTC_H
 #include <stdint.h>
-#include "casa_osal_log.h"
-#include "casa_osal_file_io.h"
+#include "ar_osal_log.h"
+#include "ar_osal_file_io.h"
 enum cdc
 {
     MSM8X52 = 1,

@@ -44,8 +44,8 @@
 
 /* ID of the Output Media Format parameters used by MODULE_ID_MFC */
 #define PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT            0x08001024
-#include "gk_begin_pack.h"
-#include "gk_begin_pragma.h"
+#include "spf_begin_pack.h"
+#include "spf_begin_pragma.h"
 /* Payload of the PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT parameter in the
  Media Format Converter Module. Following this will be the variable payload for channel_map. */
 
@@ -114,8 +114,8 @@ struct param_id_mfc_output_media_fmt_t
         @h2xmle_range        {1..63}
         @h2xmle_default      {1}    */
 }
-#include "gk_end_pragma.h"
-#include "gk_end_pack.h"
+#include "spf_end_pragma.h"
+#include "spf_end_pack.h"
 ;
 /* Structure type def for above payload. */
 typedef struct param_id_mfc_output_media_fmt_t param_id_mfc_output_media_fmt_t;
@@ -1587,7 +1587,7 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     header->error_code = 0x0;
     header->param_size = customPayloadSize;
     if (customPayloadSize)
-        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          customPayload,
                          customPayloadSize);
@@ -1628,7 +1628,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
     sm_data = (uint8_t *)soundModel + soundModel->data_offset;
-    casa_mem_cpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
+    ar_mem_cpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
@@ -1670,7 +1670,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
 
     wakeUpConfig = (struct detection_engine_config_voice_wakeup*)
                    (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_mem_cpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
+    ar_mem_cpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
                      fixedConfigVoiceWakeupSize);
     confidence_level = (uint8_t*)((uint8_t*)wakeUpConfig + fixedConfigVoiceWakeupSize);
     kw_user_enable = (uint8_t*)((uint8_t*)wakeUpConfig +
@@ -1723,7 +1723,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
 
     pWakeUpBufCfg = (struct detection_engine_voice_wakeup_buffer_config *)
                     (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_mem_cpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
+    ar_mem_cpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
                      pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
 
     *size = payloadSize + padBytes;
@@ -1762,7 +1762,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
 
     pDownStreamSetupDuration = (struct audio_dam_downstream_setup_duration *)
                                (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_mem_cpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
+    ar_mem_cpy(pDownStreamSetupDuration, structSize, pSetupDuration, structSize);
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
@@ -1798,7 +1798,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
 
     pEventCfg = (struct detection_engine_generic_event_cfg *)
                 (payloadInfo + sizeof(struct apm_module_param_data_t));
-    casa_mem_cpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
+    ar_mem_cpy(pEventCfg, sizeof(struct detection_engine_generic_event_cfg),
                      pEventConfig, sizeof(struct detection_engine_generic_event_cfg));
 
     *size = payloadSize + padBytes;
@@ -1921,7 +1921,7 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
             (param_id_aptx_classic_switch_enc_pcm_input_payload_t*)(payloadInfo +
              sizeof(struct apm_module_param_data_t));
         aptx_classic_payload->transition_direction = val;
-        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          aptx_classic_payload,
                          customPayloadSize);
@@ -1930,7 +1930,7 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
             (param_id_aptx_adaptive_enc_switch_to_mono_t*)(payloadInfo +
              sizeof(struct apm_module_param_data_t));
         aptx_adaptive_payload->switch_between_mono_and_stereo = val;
-        casa_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
                          customPayloadSize,
                          aptx_adaptive_payload,
                          customPayloadSize);

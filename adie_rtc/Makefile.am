@@ -20,7 +20,7 @@ lib_includedir = $(includedir)/adie_rtc
 
 lib_LTLIBRARIES  = libadie_rtc.la
 libadie_rtc_la_SOURCES = $(rtc_c_sources)
-libadie_rtc_la_LIBADD = -lcasa_osal $(GLIB_LIBS)
+libadie_rtc_la_LIBADD = -lar_osal $(GLIB_LIBS)
 libadie_rtc_la_CFLAGS = $(AM_CFLAGS) $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
 libadie_rtc_la_LDFLAGS = -shared -avoid-version
 

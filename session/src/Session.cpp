@@ -240,7 +240,7 @@ int Session::getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload)
     }
 
     ptr = (uint8_t *)payloadData + sizeof(struct apm_module_param_data_t);
-    casa_mem_cpy(effectCustomPayload->data, effectPayload->payloadSize,
+    ar_mem_cpy(effectCustomPayload->data, effectPayload->payloadSize,
                         ptr, effectPayload->payloadSize);
 
 exit:

@@ -30,8 +30,8 @@
 #ifndef _BT_PLUGIN_INTF_H_
 #define _BT_PLUGIN_INTF_H_
 
-// import data definition expected from Gecko
-#include <casa_osal_types.h>
+// import data definition expected from Spf
+#include <ar_osal_types.h>
 #include <common_enc_dec_api.h>
 #include <media_fmt_api.h>
 #include <system/audio-base.h>
