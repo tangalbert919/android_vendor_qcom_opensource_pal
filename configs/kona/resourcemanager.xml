@@ -307,7 +307,8 @@
             <name>QAL_STREAM_VOIP_TX</name>
                 <policies>
                     <ec_ref>
-                        <!--<disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>-->
+                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>QAL_STREAM_VOIP_RX</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>

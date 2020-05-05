@@ -2254,6 +2254,7 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
                     QAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
                 }
             }
+            activeStreams.clear();
         }
     }
 }
