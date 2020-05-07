@@ -31,7 +31,6 @@
 #define _BLUETOOTH_H_
 
 #include "Device.h"
-#include <system/audio-base.h>
 #include <tinyalsa/asoundlib.h>
 #include <bt_intf.h>
 #include <vector>
@@ -67,7 +66,6 @@ typedef void * (*audio_get_enc_config_t)(uint8_t *multicast_status,
                                         uint8_t *num_dev, codec_format_t *codec_format);
 typedef int (*audio_source_check_a2dp_ready_t)(void);
 typedef bool (*audio_is_tws_mono_mode_enable_t)(void);
-typedef int (*audio_is_source_scrambling_enabled_t)(void);
 typedef int (*audio_sink_start_t)(void);
 typedef int (*audio_sink_stop_t)(void);
 typedef void * (*audio_get_dec_config_t)(codec_format_t *codec_format);
@@ -84,6 +82,8 @@ protected:
     struct qal_media_config codecConfig;
     codec_format_t          codecFormat;
     codec_type              type;
+    void                    *pluginHandler;
+    bt_codec_t              *pluginCodec;
     bool                    is_configured;
     bool                    is_handoff_in_progress;
 
@@ -129,7 +129,6 @@ private:
     static audio_get_enc_config_t               audio_get_enc_config;
     static audio_source_check_a2dp_ready_t      audio_source_check_a2dp_ready;
     static audio_is_tws_mono_mode_enable_t      audio_is_tws_mono_mode_enable;
-    static audio_is_source_scrambling_enabled_t audio_is_source_scrambling_enabled;
     static audio_sink_get_a2dp_latency_t        audio_sink_get_a2dp_latency;
 
     static void                                 *bt_lib_sink_handle;

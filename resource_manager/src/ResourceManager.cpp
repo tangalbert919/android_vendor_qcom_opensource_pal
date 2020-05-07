@@ -3565,6 +3565,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
         }
         case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
         case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
+        case QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
         {
             std::shared_ptr<Device> dev = nullptr;
             struct qal_device dattr;

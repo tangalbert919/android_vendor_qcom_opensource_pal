@@ -649,6 +649,7 @@ typedef enum {
     QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
     QAL_PARAM_ID_BT_A2DP_SUSPENDED,
     QAL_PARAM_ID_BT_A2DP_TWS_CONFIG,
+    QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY,
     QAL_PARAM_ID_DEVICE_CAPABILITY,
     QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES,
     QAL_PARAM_ID_TTY_MODE,
@@ -749,6 +750,7 @@ typedef struct qal_param_bta2dp {
     bool     reconfigured;
     bool     a2dp_suspended;
     bool     is_tws_mono_mode_on;
+    uint32_t latency;
 } qal_param_bta2dp_t;
 
 typedef struct qal_bt_tws_payload_s {

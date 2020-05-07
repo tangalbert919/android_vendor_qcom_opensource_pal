@@ -518,7 +518,7 @@ static uint64_t bt_bundle_get_decoder_latency(bt_codec_t *codec,
 }
 
 static uint64_t bt_bundle_get_encoder_latency(bt_codec_t *codec,
-                                       uint32_t slatency __unused)
+                                       uint32_t slatency)
 {
     uint32_t latency = 0;
 

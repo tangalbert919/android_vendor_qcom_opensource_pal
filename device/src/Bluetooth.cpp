@@ -210,12 +210,10 @@ done:
 
 int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
 {
-    void *handle = NULL;
     int status = 0, i;
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activestreams;
-    bt_codec_t *codec = NULL;
     bt_enc_payload_t *out_buf = NULL;
     PayloadBuilder* builder = new PayloadBuilder();
     std::string backEndName;
@@ -243,7 +241,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     /* Retrieve plugin library from resource manager.
      * Map to interested symbols.
      */
-    status = getPluginPayload(&handle, &codec, &out_buf, codec_info, type);
+    status = getPluginPayload(&pluginHandler, &pluginCodec, &out_buf, codec_info, type);
     if (status) {
         QAL_ERR(LOG_TAG, "failed to payload from plugin");
         goto error;
@@ -378,12 +376,6 @@ done:
     is_configured = true;
 
 error:
-    if (codec)
-        codec->close_plugin(codec);
-
-    if (handle)
-        dlclose(handle);
-
     return status;
 }
 
@@ -698,7 +690,6 @@ clear_source_a2dpsuspend_flag_t BtA2dp::clear_source_a2dpsuspend_flag = nullptr;
 audio_get_enc_config_t BtA2dp::audio_get_enc_config = nullptr;
 audio_source_check_a2dp_ready_t BtA2dp::audio_source_check_a2dp_ready = nullptr;
 audio_is_tws_mono_mode_enable_t BtA2dp::audio_is_tws_mono_mode_enable = nullptr;
-audio_is_source_scrambling_enabled_t BtA2dp::audio_is_source_scrambling_enabled = nullptr;
 audio_sink_get_a2dp_latency_t BtA2dp::audio_sink_get_a2dp_latency = nullptr;
 audio_sink_start_t BtA2dp::audio_sink_start = nullptr;
 audio_sink_stop_t BtA2dp::audio_sink_stop = nullptr;
@@ -715,6 +706,8 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     a2dp_role = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
     type = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
     codecFormat = CODEC_TYPE_INVALID;
+    pluginHandler = NULL;
+    pluginCodec = NULL;
 
     init();
     param_bt_a2dp.reconfigured = false;
@@ -728,6 +721,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     QAL_DBG(LOG_TAG, "%s: A2DP offload supported = %d", __func__,
             is_a2dp_offload_supported);
     param_bt_a2dp.reconfig_supported = is_a2dp_offload_supported;
+    param_bt_a2dp.latency = 0;
     is_configured = false;
 }
 
@@ -809,8 +803,6 @@ void BtA2dp::init_a2dp_source()
                   dlsym(bt_lib_source_handle, "audio_check_a2dp_ready");
     audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
                   dlsym(bt_lib_source_handle, "audio_sink_get_a2dp_latency");
-    audio_is_source_scrambling_enabled = (audio_is_source_scrambling_enabled_t)
-                  dlsym(bt_lib_source_handle, "audio_is_scrambling_enabled");
     audio_is_tws_mono_mode_enable = (audio_is_tws_mono_mode_enable_t)
                   dlsym(bt_lib_source_handle, "isTwsMonomodeEnable");
 
@@ -992,6 +984,15 @@ int BtA2dp::stopPlayback()
         /* Reset isTwsMonoModeOn during stop */
         if (!param_bt_a2dp.a2dp_suspended)
             isTwsMonoModeOn = false;
+
+        if (pluginCodec) {
+            pluginCodec->close_plugin(pluginCodec);
+            pluginCodec = NULL;
+        }
+        if (pluginHandler) {
+            dlclose(pluginHandler);
+            pluginHandler = NULL;
+        }
     }
 
     QAL_DBG(LOG_TAG, "Stop A2DP playback, total active sessions :%d",
@@ -1091,6 +1092,15 @@ int BtA2dp::stopCapture()
             QAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
         }
         bt_state = A2DP_STATE_STOPPED;
+
+        if (pluginCodec) {
+            pluginCodec->close_plugin(pluginCodec);
+            pluginCodec = NULL;
+        }
+        if (pluginHandler) {
+            dlclose(pluginHandler);
+            pluginHandler = NULL;
+        }
     }
     QAL_DBG(LOG_TAG, "Stop A2DP capture, total active sessions :%d",
             total_active_session_requests);
@@ -1200,12 +1210,26 @@ exit:
 
 int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
 {
-    switch(param_id) {
+    switch (param_id) {
     case QAL_PARAM_ID_BT_A2DP_RECONFIG:
     case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
     case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
         *param = &param_bt_a2dp;
         break;
+    case QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
+    {
+        uint32_t slatency = 0;
+        if (audio_sink_get_a2dp_latency && (bt_state != A2DP_STATE_DISCONNECTED))
+            slatency = audio_sink_get_a2dp_latency();
+        if (pluginCodec) {
+            param_bt_a2dp.latency =
+                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+        } else {
+            param_bt_a2dp.latency = 0;
+        }
+        *param = &param_bt_a2dp;
+        break;
+    }
     default:
         return -EINVAL;
     }
@@ -1276,7 +1300,7 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
 {
     qal_param_btsco_t* param_bt_sco = (qal_param_btsco_t *)param;
 
-    switch(param_id) {
+    switch (param_id) {
     case QAL_PARAM_ID_BT_SCO:
         bt_sco_on = param_bt_sco->bt_sco_on;
         isAbrEnabled = false;
