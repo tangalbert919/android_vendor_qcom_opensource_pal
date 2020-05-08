@@ -102,6 +102,7 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
+                <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -141,6 +142,7 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
+                <sidetone_mode>OFF</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -185,6 +187,7 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
+                <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -293,6 +296,7 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
+                <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->

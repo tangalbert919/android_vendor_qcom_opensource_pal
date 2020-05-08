@@ -221,10 +221,10 @@ public:
         std::vector <std::pair<int,int>> &keyVectorTx);
     int populateStreamDeviceKV(Stream* s, int32_t beDevId, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamDeviceKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
-        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo);
+        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo, sidetone_mode_t sidetoneMode);
     int populateDeviceKV(Stream* s, int32_t beDevId, std::vector <std::pair<int,int>> &keyVector);
     int populateDeviceKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
-        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx);
+        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, sidetone_mode_t sidetoneMode);
     int populateDevicePPKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx,
         std::vector<kvpair_info> kvpair, bool is_lpi);

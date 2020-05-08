@@ -95,6 +95,9 @@ private:
                           int size, int dir);
     char* getMixerVoiceStream(Stream *s, int dir);
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
+    int setSidetone(int deviceId, Stream * s, bool enable);
+    int setHWSidetone(Stream * s, bool enable);
+    int getTXDeviceId(Stream *s, int *id);
 };
 
 #endif //SESSION_ALSAVOICE_H

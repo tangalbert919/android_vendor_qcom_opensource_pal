@@ -262,6 +262,12 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "QAL_STREAM_VOICE_UI" },                 QAL_STREAM_VOICE_UI},
 };
 
+const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
+    {std::string{ "OFF" }, SIDETONE_OFF},
+    {std::string{ "HW" },  SIDETONE_HW},
+    {std::string{ "SW" },  SIDETONE_SW},
+};
+
 std::shared_ptr<ResourceManager> ResourceManager::rm = nullptr;
 std::vector <int> ResourceManager::streamTag = {0};
 std::vector <int> ResourceManager::streamPpTag = {0};
@@ -678,6 +684,26 @@ int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type
      }
      status = -EINVAL;
      return status;
+}
+
+int32_t ResourceManager::getSidetoneMode(qal_device_id_t deviceId,
+                                         qal_stream_type_t type,
+                                         sidetone_mode_t *mode){
+    int32_t status = 0;
+
+    *mode = SIDETONE_OFF;
+    for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
+        if (deviceId == deviceInfo[size1].deviceId) {
+            for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
+                if (type == deviceInfo[size1].usecase[size2].type) {
+                    *mode = deviceInfo[size1].usecase[size2].sidetoneMode;
+                    QAL_DBG(LOG_TAG, "found sidetoneMode %d for dev %d", *mode, deviceId);
+                    break;
+                }
+            }
+        }
+    }
+    return status;
 }
 
 int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
@@ -3999,6 +4025,11 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             usecase_data.type  = usecaseIdLUT.at(userIdname);
             size = deviceInfo.size() - 1;
             deviceInfo[size].usecase.push_back(usecase_data);
+        } else if (!strcmp(tag_name, "sidetone_mode")) {
+            std::string mode(data->data_buf);
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].sidetoneMode = sidetoneModetoId.at(mode);
         }
     }
     if (!strcmp(tag_name, "kvpair")) {
@@ -4011,6 +4042,8 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         data->tag = TAG_IN_DEVICE_PROFILE;
     } else if (!strcmp(tag_name, "device_profile")) {
         data->tag = TAG_RESOURCE_MANAGER_INFO;
+    } else if (!strcmp(tag_name, "sidetone_mode")) {
+        data->tag = TAG_USECASE;
     } else if (!strcmp(tag_name, "resource_manager_info")) {
         data->tag = TAG_RESOURCE_ROOT;
         data->resourcexml_parsed = true;
@@ -4152,6 +4185,8 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_POLICIES;
     } else if (!strcmp(tag_name, "ec_ref")) {
         data->tag = TAG_ECREF;
+    }else if (!strcmp(tag_name, "sidetone_mode")) {
+        data->tag = TAG_USECASE;
     }
 
     if (!strcmp(tag_name, "card"))
