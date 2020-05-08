@@ -568,16 +568,10 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     }
 
     for (int i = 0; i < no_of_devices; i++) {
-        if (sattr.direction != QAL_AUDIO_OUTPUT) {
-           status = rm->getDeviceInfo(devices[i].id, sattr.type, &devinfo);
-           if (status) {
-              QAL_ERR(LOG_TAG, "get dev info failed");
-           }
-           if (devinfo.channels > devinfo.max_channels) {
-              QAL_ERR(LOG_TAG, "channels %d exceeds maxchannels %d set device failed",
-                       devinfo.channels, devinfo.max_channels);
-              return -EINVAL;
-           }
+        rm->getDeviceInfo(devices[i].id, sattr.type, &devinfo);
+        if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
+            QAL_ERR(LOG_TAG, "Num channels[%d] is invalid", devinfo.channels);
+            return -EINVAL;
         }
         status = rm->getDeviceConfig((struct qal_device *)&devices[i], &sattr, devinfo.channels);
         if (status) {

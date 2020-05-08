@@ -385,9 +385,10 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
                     emptyKV, devinfo.kvpair, is_lpi);
         else {
-            status = rmHandle->getDeviceInfo((qal_device_id_t)be->first, sAttr.type, &devinfo);
-            if(status) {
-                QAL_ERR(LOG_TAG, "get dev info failed");
+            rmHandle->getDeviceInfo((qal_device_id_t)be->first, sAttr.type, &devinfo);
+            if (devinfo.kvpair.size() == 0) {
+                QAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
+                        be->first, sAttr.type);
             }
             status = builder->populateDevicePPKV(streamHandle, 0, emptyKV, be->first,
                      streamDeviceKV, devinfo.kvpair, is_lpi);
@@ -998,9 +999,10 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     // get keyvalue pair info
-    status = rmHandle->getDeviceInfo((qal_device_id_t)txBackEnds[0].first, sAttr.type, &devinfo);
-    if(status) {
-       QAL_ERR(LOG_TAG, "get dev info failed");
+    rmHandle->getDeviceInfo((qal_device_id_t)txBackEnds[0].first, sAttr.type, &devinfo);
+    if (devinfo.kvpair.size() == 0) {
+        QAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
+                txBackEnds[0].first, sAttr.type);
     }
 
     if(sAttr.type == QAL_STREAM_VOICE_CALL){
@@ -1655,10 +1657,11 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
                 aifBackEndsToConnect[0].first, streamDeviceKV,
                 0, emptyKV,devinfo.kvpair, false);
     else {
-        status = rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
-        if(status) {
-            QAL_ERR(LOG_TAG, "get dev info failed");
-        }
+        rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
+        if (devinfo.kvpair.size() == 0) {
+            QAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
+                    dAttr.id, streamType);
+         }
         status = builder->populateDevicePPKV(streamHandle, 0, emptyKV,
                 aifBackEndsToConnect[0].first, streamDeviceKV, devinfo.kvpair, is_lpi);
     }

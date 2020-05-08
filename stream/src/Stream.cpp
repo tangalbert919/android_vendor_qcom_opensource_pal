@@ -50,7 +50,6 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     int status = 0;
     uint32_t count = 0;
     bool isStandby = false;
-    struct qal_device_info devinfo = {};
 
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
@@ -73,6 +72,8 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         goto exit;
     }
     for (int i = 0; i < noOfDevices; i++) {
+        struct qal_device_info devinfo = {};
+
         if (!rm->isDeviceReady(dAttr[i].id)) {
             QAL_ERR(LOG_TAG, "Device %d is not ready\n", dAttr[i].id);
             continue;  //  continue with other devices for combo usecase
@@ -86,16 +87,11 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             mQalDevice[count].id == QAL_DEVICE_IN_USB_HEADSET) {
             mQalDevice[count].address = dAttr[i].address;
         }
-        if (sAttr->direction != QAL_AUDIO_OUTPUT) {
-           status = rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &devinfo);
-           if (status) {
-              QAL_ERR(LOG_TAG, "get dev info failed");
-           }
-           if (devinfo.channels > devinfo.max_channels) {
-              QAL_ERR(LOG_TAG, "channels %d exceeds maxchannels %d failed to create stream",
-                       devinfo.channels, devinfo.max_channels);
-              goto exit;
-           }
+        rm->getDeviceInfo(mQalDevice[count].id, sAttr->type, &devinfo);
+        if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
+            QAL_ERR(LOG_TAG, "Invalid num channels[%d], failed to create stream",
+                    devinfo.channels);
+            goto exit;
         }
         status = rm->getDeviceConfig((struct qal_device *)&mQalDevice[count], sAttr, devinfo.channels);
         if (status) {
@@ -648,6 +644,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
     }
 
     for (int i = 0; i < numDev; i++) {
+        struct qal_device_info devinfo = {};
         /*
          * When A2DP is disconnected the
          * music playback is paused and the policy manager sends routing=0
@@ -658,7 +655,14 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         if ((newDevices[i].id == QAL_DEVICE_NONE) &&   /* This assumes that QAL_DEVICE_NODE comes as single device */
             (isCurDeviceA2dp == true) && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
             newDevices[i].id = QAL_DEVICE_OUT_SPEAKER;
-            rm->getDeviceConfig(&newDevices[i], NULL, 0);
+
+            rm->getDeviceInfo(newDevices[i].id, mStreamAttr->type, &devinfo);
+            if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
+                QAL_ERR(LOG_TAG, "Invalid num channels[%d], failed to create stream",
+                        devinfo.channels);
+                continue;
+            }
+            rm->getDeviceConfig(&newDevices[i], mStreamAttr, devinfo.channels);
         }
 
         if (newDevices[i].id == QAL_DEVICE_NONE)

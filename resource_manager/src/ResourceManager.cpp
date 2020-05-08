@@ -55,15 +55,17 @@
 #include <cutils/str_parms.h>
 #endif
 
-#define MIXER_FILE_DELIMITER "_"
-#define MIXER_FILE_EXT ".xml"
-#define MIXER_PATH_MAX_LENGTH 100
+#define XML_FILE_DELIMITER "_"
+#define XML_FILE_EXT ".xml"
+#define XML_PATH_MAX_LENGTH 100
+#define HW_INFO_ARRAY_MAX_SIZE 32
 
 #if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
 #define MIXER_XML_BASE_STRING "/etc/mixer_paths"
 #define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
 #define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/etc/resourcemanager.xml"
+#define RMNGR_XMLFILE_BASE_STRING  "/etc/resourcemanager"
 #define SPFXMLFILE "/etc/kvh2xml.xml"
 #define SNDPARSER "/etc/card-defs.xml"
 #define STXMLFILE "/etc/sound_trigger_platform_info.xml"
@@ -72,6 +74,7 @@
 #define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
 #define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/vendor/etc/resourcemanager.xml"
+#define RMNGR_XMLFILE_BASE_STRING  "/vendor/etc/resourcemanager"
 #define SPFXMLFILE "/vendor/etc/kvh2xml.xml"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
 #define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
@@ -100,6 +103,18 @@
 #define DEFAULT_MAX_SESSIONS 8
 
 static struct str_parms *configParamKVPairs;
+
+char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
+
+struct snd_card_split {
+    char device[HW_INFO_ARRAY_MAX_SIZE];
+    char form_factor[HW_INFO_ARRAY_MAX_SIZE];
+};
+
+static struct snd_card_split cur_snd_card_split{
+    .device = {0},
+    .form_factor = {0},
+};
 
 // default properties which will be updated based on platform configuration
 static struct qal_st_properties qst_properties = {
@@ -381,6 +396,45 @@ void agmServiceCrashHandler(uint64_t cookie)
     _exit(1);
 }
 
+void ResourceManager::split_snd_card(const char* in_snd_card_name)
+{
+    /* Sound card name follows below mentioned convention:
+       <target name>-<form factor>-snd-card.
+       Parse target name and form factor.
+    */
+    char *snd_card_name = NULL;
+    char *tmp = NULL;
+    char *device = NULL;
+    char *form_factor = NULL;
+
+    if (in_snd_card_name == NULL) {
+        QAL_ERR(LOG_TAG, "%s: snd_card_name passed is NULL", __func__);
+        goto err;
+    }
+    snd_card_name = strdup(in_snd_card_name);
+
+    device = strtok_r(snd_card_name, "-", &tmp);
+    if (device == NULL) {
+        QAL_ERR(LOG_TAG, "%s: called on invalid snd card name", __func__);
+        goto err;
+    }
+    strlcpy(cur_snd_card_split.device, device, HW_INFO_ARRAY_MAX_SIZE);
+
+    form_factor = strtok_r(NULL, "-", &tmp);
+    if (form_factor == NULL) {
+        QAL_ERR(LOG_TAG, "%s: called on invalid snd card name", __func__);
+        goto err;
+    }
+    strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
+
+    QAL_ERR(LOG_TAG, "%s: snd_card_name(%s) device(%s) form_factor(%s)",
+               __func__, in_snd_card_name, device, form_factor);
+
+err:
+    if (snd_card_name)
+        free(snd_card_name);
+}
+
 ResourceManager::ResourceManager()
 {
     QAL_INFO(LOG_TAG, "Enter.");
@@ -397,11 +451,23 @@ ResourceManager::ResourceManager()
     streamTag.clear();
     deviceTag.clear();
     btCodecMap.clear();
+
+    ret = ResourceManager::init_audio();
+    QAL_INFO(LOG_TAG, "Enter.");
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+    }
+
+    if (ag == GSL) {
+        ret = SessionGsl::init(DEFAULT_ACDB_FILES);
+    }
+
     ret = ResourceManager::XmlParser(SPFXMLFILE);
     if (ret) {
         QAL_ERR(LOG_TAG, "error in spf xml parsing ret %d", ret);
     }
-    ret = ResourceManager::XmlParser(XMLFILE);
+
+    ret = ResourceManager::XmlParser(rmngr_xml_file);
     if (ret) {
         QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
@@ -458,16 +524,6 @@ ResourceManager::ResourceManager()
             }
         }
     }
-    ret = ResourceManager::init_audio();
-    QAL_INFO(LOG_TAG, "Enter.");
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
-    }
-
-    if (ag == GSL) {
-        ret = SessionGsl::init(DEFAULT_ACDB_FILES);
-    }
-
     // Get AGM service handle
     ret = agm_register_service_crash_callback(&agmServiceCrashHandler,
                                                (uint64_t)this);
@@ -603,10 +659,10 @@ int ResourceManager::init_audio()
     int ret = 0, retry = 0;
     bool snd_card_found = false;
     char snd_macro[] = "snd";
-    char *snd_card_name = NULL, *snd_card_name_t = NULL;
-    char *snd_internal_name = NULL;
+    char *snd_card_name = NULL;
     char *tmp = NULL;
-    char mixer_xml_file[MIXER_PATH_MAX_LENGTH] = {0};
+    char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
+
     QAL_DBG(LOG_TAG, "Enter.");
 
     do {
@@ -654,27 +710,24 @@ int ResourceManager::init_audio()
         QAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
     }
-    snd_card_name_t = strdup(snd_card_name);
-    snd_internal_name = strtok_r(snd_card_name_t, "-", &tmp);
 
-    if (snd_internal_name != NULL)
-        snd_internal_name = strtok_r(NULL, "-", &tmp);
+    split_snd_card(snd_card_name);
 
-    if (snd_internal_name != NULL) {
-        QAL_ERR(LOG_TAG, "snd_internal_name: %s", snd_internal_name);
-        strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, MIXER_PATH_MAX_LENGTH);
-        ret = strcmp(snd_internal_name, snd_macro);
-        if (ret == 0) {
-            strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
-        } else {
-            //strlcat(mixer_xml_file, MIXER_FILE_DELIMITER, MIXER_PATH_MAX_LENGTH);
-            //strlcat(mixer_xml_file, snd_internal_name, MIXER_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, MIXER_FILE_EXT, MIXER_PATH_MAX_LENGTH);
-            QAL_ERR(LOG_TAG, "mixer_paths_xml name: %s", mixer_xml_file);
+    strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, XML_PATH_MAX_LENGTH);
+    strlcpy(rmngr_xml_file, RMNGR_XMLFILE_BASE_STRING, XML_PATH_MAX_LENGTH);
+    /* Note: This assumes IDP/MTP form factor will use mixer_paths.xml /
+             resourcemanager.xml.
+       TODO: Add support for form factors other than IDP/QRD.
+    */
+    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))){
+            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
 
-        }
-    } else
-        strlcpy(mixer_xml_file, MIXER_XML_DEFAULT_PATH, MIXER_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    }
+    strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
     audio_route = audio_route_init(snd_card, mixer_xml_file);
     QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
@@ -683,14 +736,10 @@ int ResourceManager::init_audio()
         mixer_close(audio_mixer);
         if (snd_card_name)
             free(snd_card_name);
-        if (snd_card_name_t)
-            free(snd_card_name_t);
         return -EINVAL;
     }
     // audio_route init success
 
-    if (snd_card_name_t)
-        free(snd_card_name_t);
     QAL_ERR(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
@@ -719,10 +768,9 @@ bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_
     return ecref_status;
 }
 
-int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
+void ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
                                          struct qal_device_info *devinfo)
 {
-    int32_t status = 0;
     struct kvpair_info kv = {};
 
     for (int32_t size1 = 0; size1 < deviceInfo.size(); size1++) {
@@ -737,13 +785,11 @@ int32_t ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type
                        kv.value =  deviceInfo[size1].usecase[size2].kvpair[kvsize].value;
                        devinfo->kvpair.push_back(kv);
                     }
-                    return status;
+                    return;
                }
             }
         }
      }
-     status = -EINVAL;
-     return status;
 }
 
 int32_t ResourceManager::getSidetoneMode(qal_device_id_t deviceId,
@@ -888,9 +934,9 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_HANDSET:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*1);
-            dev_ch_info->channels = CHANNELS_1;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
@@ -899,10 +945,9 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_SPEAKER:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*2);
-            dev_ch_info->channels = CHANNELS_2;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
@@ -911,10 +956,9 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         case QAL_DEVICE_OUT_WIRED_HEADSET:
             dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*2);
-            dev_ch_info->channels = CHANNELS_2;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
@@ -941,10 +985,10 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
         case QAL_DEVICE_IN_BLUETOOTH_A2DP:
-            dev_ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t)
-                           + sizeof(uint8_t));
-            dev_ch_info->channels = CHANNELS_1;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
+            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
             deviceattr->config.bit_width = BITWIDTH_16;
@@ -954,19 +998,10 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
         {
             std::shared_ptr<BtSco> scoDev;
-            int num_ch = 1;
 
-            if (deviceattr->id == QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
-                num_ch = channel;
-
-            dev_ch_info =(struct qal_channel_info *) calloc(1, sizeof(uint16_t)
-                          + sizeof(uint8_t)*1);
-            if (!dev_ch_info) {
-                QAL_ERR(LOG_TAG, "out of memory");
-                status = -EINVAL;
-                break;
-            }
-            dev_ch_info->channels = num_ch;
+            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
+                          + sizeof(uint8_t)*channel);
+            dev_ch_info->channels = channel;
             getChannelMap(&(dev_ch_info->ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
@@ -3536,6 +3571,7 @@ int32_t ResourceManager::a2dpSuspend()
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<Stream*>::iterator sIter;
+    struct qal_device_info devinfo = {};
 
     dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
     dev = Device::getInstance(&dattr , rm);
@@ -3549,16 +3585,15 @@ int32_t ResourceManager::a2dpSuspend()
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         int ret = 0;
-        qal_stream_type_t type;
+        struct qal_stream_attributes sAttr = {};
 
-        ret = (*sIter)->getStreamType(&type);
+        ret = (*sIter)->getStreamAttributes(&sAttr);
         if (0 != ret) {
             QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
             goto exit;
         }
-        if (type == QAL_STREAM_COMPRESSED) {
+        if (sAttr.type == QAL_STREAM_COMPRESSED) {
             if (!((*sIter)->a2dp_compress_mute)) {
-                struct qal_stream_attributes sAttr;
                 struct qal_device speakerDattr;
 
                 QAL_DBG(LOG_TAG, "%s: selecting speaker and muting stream", __func__);
@@ -3567,9 +3602,17 @@ int32_t ResourceManager::a2dpSuspend()
                 (*sIter)->a2dp_compress_mute = true;
                 // force switch to speaker
                 speakerDattr.id = QAL_DEVICE_OUT_SPEAKER;
-                getDeviceConfig(&speakerDattr, &sAttr, 0);
+
+                getDeviceInfo(speakerDattr.id, sAttr.type, &devinfo);
+                if ((devinfo.channels == 0) ||
+                       (devinfo.channels > devinfo.max_channels)) {
+                    status = -EINVAL;
+                    QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                    goto exit;
+                }
+                getDeviceConfig(&speakerDattr, &sAttr, devinfo.channels);
                 mResourceManagerMutex.unlock();
-                rm->forceDeviceSwitch(dev, &speakerDattr);
+                forceDeviceSwitch(dev, &speakerDattr);
                 mResourceManagerMutex.lock();
                 (*sIter)->resume(); //compress_resume
                 /* backup actual device name in stream class */
@@ -3595,6 +3638,7 @@ int32_t ResourceManager::a2dpResume()
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<Stream*>::iterator sIter;
+    struct qal_stream_attributes sAttr;
 
     dattr.id = QAL_DEVICE_OUT_SPEAKER;
     dev = Device::getInstance(&dattr , rm);
@@ -3611,22 +3655,31 @@ int32_t ResourceManager::a2dpResume()
     // unmute the stream
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         int ret = 0;
-        qal_stream_type_t type;
+        struct qal_device_info devinfo = {};
 
-        ret = (*sIter)->getStreamType(&type);
-        if (0 != ret) {
-            QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+        status = (*sIter)->getStreamAttributes(&sAttr);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
             goto exit;
         }
-        if (type == QAL_STREAM_COMPRESSED &&
+        if (sAttr.type == QAL_STREAM_COMPRESSED &&
             ((*sIter)->suspendedDevId == QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
             struct qal_device a2dpDattr;
 
             a2dpDattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
             QAL_DBG(LOG_TAG, "%s: restoring A2dp and unmuting stream", __func__);
-            getDeviceConfig(&a2dpDattr, NULL, 0);
+
+            getDeviceInfo(a2dpDattr.id, sAttr.type, &devinfo);
+            if ((devinfo.channels == 0) ||
+                   (devinfo.channels > devinfo.max_channels)) {
+                status = -EINVAL;
+                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                goto exit;
+            }
+
+            getDeviceConfig(&a2dpDattr, &sAttr, devinfo.channels);
             mResourceManagerMutex.unlock();
-            rm->forceDeviceSwitch(dev, &a2dpDattr);
+            forceDeviceSwitch(dev, &a2dpDattr);
             mResourceManagerMutex.lock();
             (*sIter)->suspendedDevId = QAL_DEVICE_NONE;
             if ((*sIter)->a2dp_compress_mute) {
@@ -3843,6 +3896,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             std::shared_ptr<Device> dev = nullptr;
             struct qal_device dattr;
             qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+            struct qal_device_info devinfo = {};
 
             dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
@@ -3860,17 +3914,36 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (param_bt_a2dp->reconfigured == true) {
                     struct qal_device spkrDattr;
                     std::shared_ptr<Device> spkrDev = nullptr;
+                    struct qal_stream_attributes sAttr;
+                    struct qal_device_info devinfo = {};
 
                     QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
                     spkrDattr.id = QAL_DEVICE_OUT_SPEAKER;
                     spkrDev = Device::getInstance(&spkrDattr, rm);
 
-                    getDeviceConfig(&spkrDattr, NULL, 0);
-                    getDeviceConfig(&dattr, NULL, 0);
+                    /* Num channels for Rx devices is same for all usecases,
+                       stream type is irrelevant here. */
+                    getDeviceInfo(spkrDattr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+                    if ((devinfo.channels == 0) ||
+                          (devinfo.channels > devinfo.max_channels)) {
+                        status = -EINVAL;
+                        QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                        goto exit;
+                    }
+
+                    getDeviceConfig(&spkrDattr, NULL, devinfo.channels);
+                    getDeviceInfo(dattr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+                    if ((devinfo.channels == 0) ||
+                          (devinfo.channels > devinfo.max_channels)) {
+                        status = -EINVAL;
+                        QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                        goto exit;
+                    }
+                    getDeviceConfig(&dattr, NULL, devinfo.channels);
 
                     mResourceManagerMutex.unlock();
-                    rm->forceDeviceSwitch(dev, &spkrDattr);
-                    rm->forceDeviceSwitch(spkrDev, &dattr);
+                    forceDeviceSwitch(dev, &spkrDattr);
+                    forceDeviceSwitch(spkrDev, &dattr);
                     mResourceManagerMutex.lock();
                     param_bt_a2dp->reconfigured = false;
                     dev->setDeviceParameter(param_id, param_bt_a2dp);
@@ -4109,7 +4182,6 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     bool is_connected = connection_state.connection_state;
     bool device_available = isDeviceAvailable(device_id);
     struct qal_device dAttr;
-    struct qal_stream_attributes sAttr;
     struct qal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
     struct qal_device_info devinfo = {};
@@ -4140,7 +4212,15 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
         QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
             dAttr.id = device_id;
-            status = getDeviceConfig(&dAttr, &sAttr, 0);
+            /* Stream type is irrelevant here as we need device num channels
+               which is independent of stype for BT devices */
+            rm->getDeviceInfo(dAttr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+            if ((devinfo.channels == 0) ||
+                   (devinfo.channels > devinfo.max_channels)) {
+                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                return -EINVAL;
+            }
+            status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
             if (status) {
                 QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
@@ -4152,11 +4232,15 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             }
         } else if (isBtScoDevice(device_id)) {
             dAttr.id = device_id;
-            status = rm->getDeviceInfo(dAttr.id, sAttr.type, &devinfo);
-            if (status) {
-               QAL_ERR(LOG_TAG, "get dev info failed");
+            /* Stream type is irrelevant here as we need device num channels
+               which is independent of stype for BT devices */
+            rm->getDeviceInfo(dAttr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+            if ((devinfo.channels == 0) ||
+                   (devinfo.channels > devinfo.max_channels)) {
+                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                return -EINVAL;
             }
-            status = getDeviceConfig(&dAttr, &sAttr, devinfo.channels);
+            status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
             if (status) {
                 QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
@@ -4167,8 +4251,6 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
                 throw std::runtime_error("failed to create device object");
                 return -EIO;
             }
-            if (dAttr.config.ch_info)
-                free(dAttr.config.ch_info);
         }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
@@ -4500,49 +4582,6 @@ void ResourceManager::processTagInfo(const XML_Char **attr)
 
 }
 
-void ResourceManager::processDeviceInfo(const XML_Char **attr)
-{
-    int32_t deviceId;
-    int32_t pcmId;
-
-    if (strcmp(attr[0], "name" ) !=0 ) {
-        QAL_ERR(LOG_TAG, " 'name' not found");
-        return;
-    }
-
-    std::string deviceName(attr[1]);
-    deviceId = deviceIdLUT.at(deviceName);
-
-    if (strcmp(attr[2],"pcm_id") !=0 ) {
-        QAL_ERR(LOG_TAG, " 'pcm_id' not found %s is the tag", attr[2]);
-        return;
-    }
-    pcmId = atoi(attr[3]);
-    updatePcmId(deviceId, pcmId);
-    if (strcmp(attr[4],"hw_intf") !=0 ) {
-        QAL_ERR(LOG_TAG, " 'hw_intf' not found");
-        return;
-    }
-    std::string linkName(attr[5]);
-    updateLinkName(deviceId, linkName);
-
-    if (strcmp(attr[6], "snd_device_name") != 0) {
-        QAL_ERR(LOG_TAG, " 'snd_device_name' not found");
-        return;
-    }
-    std::string sndName(attr[7]);
-    updateSndName(deviceId, sndName);
-    const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
-    if (ag == ALSA) {
-        if (strcmp(attr[8], "back_end_name") != 0) {
-            QAL_ERR(LOG_TAG, "'back_end_name' not found");
-            return;
-        }
-        std::string backName(attr[9]);
-        updateBackEndName(deviceId, backName);
-    }
-}
-
 void ResourceManager::processConfigParams(const XML_Char **attr)
 {
     if (strcmp(attr[0], "key") != 0) {
@@ -4568,7 +4607,6 @@ void ResourceManager::processCardInfo(struct xml_userdata *data, const XML_Char 
     int card;
     if (!strcmp(tag_name, "id")) {
         card = atoi(data->data_buf);
-        snd_card = card;
         data->card_found = true;
     }
 }
@@ -4713,7 +4751,7 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
     if (data->resourcexml_parsed)
       return;
 
-    if (data->tag == TAG_IN_DEVICE) {
+    if ((data->tag == TAG_IN_DEVICE) || (data->tag == TAG_OUT_DEVICE)) {
         if (!strcmp(tag_name, "id")) {
             std::string deviceName(data->data_buf);
             dev.deviceId  = deviceIdLUT.at(deviceName);
@@ -4752,8 +4790,8 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         data->tag = TAG_USECASE;
     } else if (!strcmp(tag_name, "usecase")) {
         data->tag = TAG_IN_DEVICE;
-    } else if (!strcmp(tag_name, "in-device")) {
-        data->tag = TAG_IN_DEVICE_PROFILE;
+    } else if (!strcmp(tag_name, "in-device") || !strcmp(tag_name, "out-device")) {
+        data->tag = TAG_DEVICE_PROFILE;
     } else if (!strcmp(tag_name, "device_profile")) {
         data->tag = TAG_RESOURCE_MANAGER_INFO;
     } else if (!strcmp(tag_name, "sidetone_mode")) {
@@ -4851,7 +4889,6 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     }
 
     if (strcmp(tag_name, "device") == 0) {
-        processDeviceInfo(attr);
         return;
     } else if (strcmp(tag_name, "Tag") == 0) {
         processTagInfo(attr);
@@ -4881,9 +4918,11 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_CONFIG_MODE_PAIR;
         process_voicemode_info(attr);
     } else if (!strcmp(tag_name, "device_profile")) {
-        data->tag = TAG_IN_DEVICE_PROFILE;
+        data->tag = TAG_DEVICE_PROFILE;
     } else if (!strcmp(tag_name, "in-device")) {
         data->tag = TAG_IN_DEVICE;
+    } else if (!strcmp(tag_name, "out-device")) {
+        data->tag = TAG_OUT_DEVICE;
     } else if (!strcmp(tag_name, "usecase")) {
         data->tag = TAG_USECASE;
     } else if (!strcmp(tag_name, "devicePP-metadata")) {

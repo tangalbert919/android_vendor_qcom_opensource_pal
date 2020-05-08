@@ -74,8 +74,9 @@ typedef enum {
 typedef enum {
     TAG_RESOURCE_ROOT,
     TAG_RESOURCE_MANAGER_INFO,
-    TAG_IN_DEVICE_PROFILE,
+    TAG_DEVICE_PROFILE,
     TAG_IN_DEVICE,
+    TAG_OUT_DEVICE,
     TAG_USECASE,
     TAG_DEVICEPP,
     TAG_KVPAIR,
@@ -303,8 +304,8 @@ public:
                            struct qal_device *devices, int no_of_devices);
     int32_t getDeviceConfig(struct qal_device *deviceattr,
                             struct qal_stream_attributes *attributes, int32_t channel);
-    /*getDeviceInfo - updates channels,fluence info of the device*/
-    int32_t getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
+    /*getDeviceInfo - updates channels, fluence info of the device*/
+    void  getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
                        struct qal_device_info *devinfo);
     bool getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
@@ -326,6 +327,7 @@ public:
                            qal_param_device_connection_t connection_state);
     /* bIsUpdated - to specify if the config is updated by rm */
     int checkAndGetDeviceConfig(struct qal_device *device ,bool* bIsUpdated);
+    void split_snd_card(const char* in_snd_card_name);
     int init_audio();
     static int init();
     static void deinit();
@@ -415,7 +417,6 @@ public:
     static void process_kvinfo(const XML_Char **attr);
     static void process_voicemode_info(const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
-    static void processDeviceInfo(const XML_Char **attr);
     static void processTagInfo(const XML_Char **attr);
     static void processBTCodecInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
