@@ -568,7 +568,12 @@ int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
        QAL_VERBOSE(LOG_TAG,"Volume payload mask:%x vol:%f\n",
                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    if (currentState == STREAM_STARTED && rm->cardState == CARD_STATUS_ONLINE) {
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the stream_start is not done or if sound card is
+     * offline.
+     */
+    if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
+        && currentState != STREAM_INIT) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
            QAL_ERR(LOG_TAG,"session setConfig for VOLUME_TAG failed with status %d",status);

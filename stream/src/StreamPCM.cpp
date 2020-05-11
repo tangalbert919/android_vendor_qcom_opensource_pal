@@ -228,18 +228,16 @@ int32_t  StreamPCM::close()
     int32_t status = 0;
     mStreamMutex.lock();
 
-    if (currentState == STREAM_IDLE && rm->cardState == CARD_STATUS_ONLINE) {
-        QAL_ERR(LOG_TAG, "Stream already closed, state %d", currentState);
-        mStreamMutex.unlock();
-        return status;
-    }
     QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %d state %d",
             session, mDevices.size(), currentState);
 
-    if (currentState == STREAM_IDLE && rm->cardState == CARD_STATUS_OFFLINE) {
-        /*If current state is STREAM_IDLE, that means SSR down has happened,
-         *Session is already closed as part of ssr handling, so just
-         *close device and destroy the objects.
+    if (currentState == STREAM_IDLE) {
+        /* If current state is STREAM_IDLE, that means :
+         * 1. SSR down has happened
+         * Session is already closed as part of ssr handling, so just
+         * close device and destroy the objects.
+         * 2. Stream created but opened failed.
+         * No need to call session close for this case too.
          */
         for (int32_t i=0; i < mDevices.size(); i++) {
             status = mDevices[i]->close();
@@ -639,8 +637,12 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
         QAL_INFO(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    //If it is SSR down, just cache the mvolume.
-    if (rm->cardState == CARD_STATUS_ONLINE && currentState == STREAM_STARTED) {
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the pcm_open is not done or if sound card is
+     * offline.
+     */
+    if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
+        && currentState != STREAM_INIT) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
