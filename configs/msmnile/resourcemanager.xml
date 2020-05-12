@@ -250,8 +250,8 @@
             <usecase>
                 <name>QAL_STREAM_VOICE_CALL</name>
                 <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
+                    <kvpair key="0xAD000000" value="0xAD000007"/>
+                    <!-- VOIP_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>
