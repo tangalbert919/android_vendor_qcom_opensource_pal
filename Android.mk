@@ -3,6 +3,7 @@ ifeq ($(call is-board-platform-in-list, sdm845 msmnile kona lahaina),true)
 ifneq ($(BUILD_TINY_ANDROID),true)
 
 LOCAL_PATH := $(call my-dir)
+PAL_BASE_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_USE_VNDK := true
@@ -115,7 +116,8 @@ LOCAL_VENDOR_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
-include $(LOCAL_PATH)/plugins/Android.mk
+include $(PAL_BASE_PATH)/plugins/Android.mk
+include $(PAL_BASE_PATH)/ipc/HwBinders/Android.mk
 
 endif # BUILD_TINY_ANDROID
 endif # is-board-platform-in-list

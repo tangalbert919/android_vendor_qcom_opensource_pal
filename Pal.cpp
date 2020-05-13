@@ -526,6 +526,7 @@ int32_t pal_add_remove_effect(pal_stream_handle_t *stream_handle,
     return status;
 
 }
+
 int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                            uint32_t no_of_devices, struct pal_device *devices)
 {
@@ -661,7 +662,7 @@ int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->GetMmapPosition(position);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
+        PAL_ERR(LOG_TAG, "pal_stream_get_mmap_position failed with status %d", status);
         return status;
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -683,7 +684,7 @@ int32_t pal_stream_create_mmap_buffer(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->createMmapBuffer(min_size_frames, info);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
+        PAL_ERR(LOG_TAG, "pal_stream_create_mmap_buffer failed with status %d", status);
         return status;
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
