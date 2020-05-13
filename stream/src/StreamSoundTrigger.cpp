@@ -191,7 +191,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     // Set initial state
     cur_state_ = st_idle_;
     prev_state_ = nullptr;
-    state_for_restore_ = ST_STATE_IDLE;
+    state_for_restore_ = ST_STATE_NONE;
 
     timer_thread_ = std::thread(TimerThread, std::ref(*this));
     timer_stop_waiting_ = false;
@@ -2159,7 +2159,9 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             break;
         }
         case ST_EV_SSR_OFFLINE:
-            st_stream_.state_for_restore_ = ST_STATE_IDLE;
+            if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
+                st_stream_.state_for_restore_ = ST_STATE_IDLE;
+            }
             TransitTo(ST_STATE_SSR);
             break;
         default: {
@@ -2510,7 +2512,9 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_SSR_OFFLINE: {
-            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
+                st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            }
             std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             TransitTo(ST_STATE_SSR);
@@ -2816,7 +2820,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             break;
         }
         case ST_EV_SSR_OFFLINE: {
-            st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+            if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
+                st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+            }
             std::shared_ptr<StEventConfig> ev_cfg1(
                 new StStopRecognitionEventConfig(false));
             status = st_stream_.ProcessInternalEvent(ev_cfg1);
@@ -2948,7 +2954,9 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             break;
         }
         case ST_EV_SSR_OFFLINE: {
-            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
+                st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            }
             std::shared_ptr<StEventConfig> ev_cfg1(
                 new StStopRecognitionEventConfig(false));
             status = st_stream_.ProcessInternalEvent(ev_cfg1);
@@ -3270,7 +3278,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             break;
         }
         case ST_EV_SSR_OFFLINE: {
-            st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
+                st_stream_.state_for_restore_ = ST_STATE_LOADED;
+            }
             std::shared_ptr<StEventConfig> ev_cfg1(
                 new StStopBufferingEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg1);
@@ -3328,8 +3338,11 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                 status = st_stream_.ProcessInternalEvent(ev_cfg2);
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                    break;
                 }
             }
+            QAL_DBG(LOG_TAG, "StSSR: event %d handled", ev_cfg->id_);
+            st_stream_.state_for_restore_ = ST_STATE_NONE;
             break;
         }
         case ST_EV_LOAD_SOUND_MODEL: {
