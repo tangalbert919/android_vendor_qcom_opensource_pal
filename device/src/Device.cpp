@@ -158,31 +158,19 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
 
 Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
-    struct qal_channel_info *device_ch_info;
     uint16_t channels;
-    uint16_t ch_info_size;
     rm = Rm;
-    if (device->config.ch_info) {
-        channels = device->config.ch_info->channels;
-    } else {
+
+    channels = device->config.ch_info.channels;
+    if (channels > MAX_CHANNEL_SUPPORTED) {
+        QAL_ERR(LOG_TAG, "channels %d are greater,reset to MAX", channels);
         channels = MAX_CHANNEL_SUPPORTED;
-    }
-    QAL_DBG(LOG_TAG, "channels %d", channels);
-    ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
-    device_ch_info = (struct qal_channel_info *) calloc(1, ch_info_size);
-    if (device_ch_info == NULL) {
-        QAL_ERR(LOG_TAG, "Allocation failed for channel map");
-    }
+    } else
+       QAL_DBG(LOG_TAG, "channels %d", channels);
+
     memset(&deviceAttr, 0, sizeof(struct qal_device));
     ar_mem_cpy(&deviceAttr, sizeof(struct qal_device), device,
                      sizeof(struct qal_device));
-    // copy channel info
-    deviceAttr.config.ch_info = device_ch_info;
-    if (device->config.ch_info)
-        ar_mem_cpy(deviceAttr.config.ch_info, ch_info_size, device->config.ch_info,
-                         ch_info_size);
-    else
-        QAL_ERR(LOG_TAG, "Channel Map info in NULL");
 
     mQALDeviceName.clear();
     customPayload = NULL;
@@ -205,8 +193,6 @@ Device::~Device()
     customPayload = NULL;
     customPayloadSize = 0;
     QAL_ERR(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
-    if (deviceAttr.config.ch_info)
-        free(deviceAttr.config.ch_info);
 }
 
 int Device::getDeviceAttributes(struct qal_device *dattr)
@@ -231,34 +217,11 @@ int Device::getDefaultConfig(qal_param_device_capability_t capability __unused) 
 int Device::setDeviceAttributes(struct qal_device dattr)
 {
     int status = 0;
-    int ch_info_size = 0;
-    struct qal_channel_info *device_ch_info = NULL;
 
     QAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
 
-    if (dattr.config.ch_info) {
-        ch_info_size = sizeof(struct qal_channel_info) +
-            dattr.config.ch_info->channels * sizeof(uint8_t);
-
-        device_ch_info =
-            (struct qal_channel_info *)calloc(1, ch_info_size);
-        if (!device_ch_info) {
-            QAL_ERR(LOG_TAG, "Allocation failed for channel map");
-            return -EINVAL;
-        }
-
-        if (deviceAttr.config.ch_info)
-            free(deviceAttr.config.ch_info);
-    }
-
     ar_mem_cpy(&deviceAttr, sizeof(struct qal_device), &dattr,
                      sizeof(struct qal_device));
-
-    // copy channel info
-    deviceAttr.config.ch_info = device_ch_info;
-    if (dattr.config.ch_info)
-        ar_mem_cpy(deviceAttr.config.ch_info, ch_info_size,
-                         dattr.config.ch_info, ch_info_size);
 
     return status;
 }

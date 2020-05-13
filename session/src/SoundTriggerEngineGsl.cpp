@@ -643,7 +643,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
-                                                  void *data) {
+                                                  void *data, uint32_t event_size) {
     SoundTriggerEngineGsl *engine = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);

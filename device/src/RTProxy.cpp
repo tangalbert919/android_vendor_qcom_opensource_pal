@@ -59,42 +59,14 @@ std::shared_ptr<Device> RTProxy::getInstance(struct qal_device *device,
 RTProxy::RTProxy(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
-
-    struct qal_channel_info *device_ch_info;
-    uint16_t channels = CHANNELS_2;
-    uint16_t ch_info_size;
-
     rm = Rm;
-
-    if (device->config.ch_info) {
-        channels = device->config.ch_info->channels;
-    }
-
-    QAL_DBG(LOG_TAG, "channels %d", channels);
-    ch_info_size = sizeof(uint16_t) + sizeof(uint8_t)*channels;
-    device_ch_info = (struct qal_channel_info *) calloc(1, ch_info_size);
-    if (device_ch_info == NULL) {
-        QAL_ERR(LOG_TAG, "Allocation failed for channel map");
-    }
-
     memset(&mDeviceAttr, 0, sizeof(struct qal_device));
     memcpy(&mDeviceAttr, device, sizeof(struct qal_device));
-
-    mDeviceAttr.config.ch_info = device_ch_info;
-    if (device->config.ch_info)
-        memcpy(mDeviceAttr.config.ch_info,
-                        device->config.ch_info, ch_info_size);
-    else
-        QAL_ERR(LOG_TAG, "Channel Map info in NULL");
-
 }
 
 RTProxy::~RTProxy()
 {
-    if(mDeviceAttr.config.ch_info) {
-        free(mDeviceAttr.config.ch_info);
-        mDeviceAttr.config.ch_info = NULL;
-    }
+
 }
 
 int32_t RTProxy::isSampleRateSupported(uint32_t sampleRate)

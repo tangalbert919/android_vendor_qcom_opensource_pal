@@ -123,40 +123,35 @@ void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
             mfc_sr_tag = MFC_SR_48K;
             break;
     }
-    if (config->ch_info) {
-        switch (config->ch_info->channels) {
-            case CHANNELS_1:
-                ch_tag = CHS_1;
-                break;
-            case CHANNELS_2:
-                ch_tag = CHS_2;
-                break;
-            case CHANNELS_3:
-                ch_tag = CHS_3;
-                break;
-            case CHANNELS_4:
-                ch_tag = CHS_4;
-                break;
-            case CHANNELS_5:
-                ch_tag = CHS_5;
-                break;
-            case CHANNELS_6:
-                ch_tag = CHS_6;
-                break;
-            case CHANNELS_7:
-                ch_tag = CHS_7;
-                break;
-            case CHANNELS_8:
-                ch_tag = CHS_8;
-                break;
-            default:
-                ch_tag = CHS_1;
-                break;
-        }
-    } else {
-        ch_tag = CHS_1;
+    switch (config->ch_info.channels) {
+        case CHANNELS_1:
+            ch_tag = CHS_1;
+            break;
+        case CHANNELS_2:
+            ch_tag = CHS_2;
+            break;
+        case CHANNELS_3:
+            ch_tag = CHS_3;
+            break;
+        case CHANNELS_4:
+            ch_tag = CHS_4;
+            break;
+        case CHANNELS_5:
+            ch_tag = CHS_5;
+            break;
+        case CHANNELS_6:
+            ch_tag = CHS_6;
+            break;
+        case CHANNELS_7:
+            ch_tag = CHS_7;
+            break;
+        case CHANNELS_8:
+            ch_tag = CHS_8;
+            break;
+        default:
+            ch_tag = CHS_1;
+            break;
     }
-
     switch (config->bit_width) {
         case BITWIDTH_16:
             bitwidth_tag = BW_16;
@@ -312,7 +307,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
              }
 
              if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                  (2 == dAttr.config.ch_info->channels)) {
+                  (2 == dAttr.config.ch_info.channels)) {
                  /* Get PSPD MFC MIID and configure to match to device config */
                  /* This has to be done after sending all mixer controls and
                   * before connect
@@ -332,7 +327,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
 
                 deviceData.bitWidth = dAttr.config.bit_width;
                 deviceData.sampleRate = dAttr.config.sample_rate;
-                deviceData.numChannel = dAttr.config.ch_info->channels;
+                deviceData.numChannel = dAttr.config.ch_info.channels;
                 deviceData.rotation_type = rotation_type;
                 builder->payloadMFCConfig((uint8_t **)&alsaParamData,
                                            &alsaPayloadSize, miid, &deviceData);

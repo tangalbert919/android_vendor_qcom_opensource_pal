@@ -501,7 +501,8 @@ class StreamSoundTrigger : public Stream {
                                  uint8_t **out_payload,
                                  uint32_t *out_payload_size,
                                  uint32_t version);
-    int32_t GenerateCallbackEvent(struct qal_st_recognition_event **event);
+    int32_t GenerateCallbackEvent(struct qal_st_recognition_event **event,
+                                  uint32_t *event_size);
     static int32_t HandleDetectionEvent(qal_stream_handle_t *stream_handle,
                                         uint32_t event_id,
                                         uint32_t *event_data,

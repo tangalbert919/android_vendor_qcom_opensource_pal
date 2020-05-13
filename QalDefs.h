@@ -51,9 +51,10 @@ extern "C" {
 #endif
 
 #define MIXER_PATH_MAX_LENGTH 100
+#define QAL_MAX_CHANNELS_SUPPORTED 64
 
 /** Audio stream handle */
-typedef void qal_stream_handle_t;
+typedef uint64_t qal_stream_handle_t;
 
 /** Sound Trigger handle */
 typedef void qal_st_handle_t;
@@ -169,7 +170,7 @@ typedef struct qal_key_value_pair_s {
 
 typedef struct qal_key_vector_s {
     size_t num_tkvs;  /**< number of key value pairs */
-    qal_key_value_pair_t *kvp;  /**< vector of key value pairs */
+    qal_key_value_pair_t kvp[];  /**< vector of key value pairs */
 } qal_key_vector_t;
 
 typedef enum {
@@ -179,14 +180,14 @@ typedef enum {
 
 typedef struct qal_effect_custom_payload_s {
     uint32_t paramId;
-    uint32_t *data;
+    uint32_t data[];
 } qal_effect_custom_payload_t;
 
 typedef struct effect_qal_payload_s {
     qal_param_type_t isTKV;      /* payload type: 0->non-tkv 1->tkv*/
     uint32_t tag;
     uint32_t  payloadSize;
-    uint32_t  *payload; /* TKV uses qal_key_vector_t, while nonTKV uses qal_effect_custom_payload_t */
+    uint32_t  payload[]; /* TKV uses qal_key_vector_t, while nonTKV uses qal_effect_custom_payload_t */
 } effect_qal_payload_t;
 
 /** Audio parameter data*/
@@ -201,19 +202,14 @@ typedef union {
 
 /** Audio parameter data*/
 typedef struct qal_param_payload_s {
-    bool has_fluence;                     /**  true if fluence is to be enabled */
-    bool has_effect;
-    qal_snd_dec_t qal_snd_dec;
-    uint32_t *effect_payload;
-    uint32_t tty_mode;            /*TODO need to change whole structure to void pointer or union */
-    bool volume_boost;
-    bool slow_talk;
+    uint32_t payload_size;
+    uint8_t payload[];
 } qal_param_payload;
 
 typedef struct gef_payload_s {
     qal_key_vector_t *graph;
-    effect_qal_payload_t data;
     bool persist;
+    effect_qal_payload_t data;
 } gef_payload_t;
 
 /** Audio channel map enumeration*/
@@ -257,7 +253,7 @@ typedef enum {
 /** Audio channel info data structure */
 struct qal_channel_info {
     uint16_t channels;      /**< number of channels*/
-    uint8_t  ch_map[0];     /**< ch_map value per channel. */
+    uint8_t  ch_map[QAL_MAX_CHANNELS_SUPPORTED]; /**< ch_map value per channel. */
 };
 
 /** Audio stream direction enumeration */
@@ -485,9 +481,8 @@ typedef union {
 struct qal_media_config {
     uint32_t sample_rate;                /**< sample rate */
     uint32_t bit_width;                  /**< bit width */
-    struct qal_channel_info *ch_info;    /**< channel info */
     qal_audio_fmt_t aud_fmt_id;          /**< audio format id*/
-//    qal_audio_fmt_cfg_t aud_fmt_cfg;     /**< audio format configuration */
+    struct qal_channel_info ch_info;    /**< channel info */
 };
 
 /** Android Media configuraiton  */
@@ -533,6 +528,11 @@ enum {
 /** metadata flags, can be OR'able */
 typedef uint32_t qal_meta_data_flags_t;
 
+typedef struct qal_meta_data {
+    size_t payload_size;
+    uint8_t payload[];
+} qal_meta_data_t;
+
 /** QAL buffer structure used for reading/writing buffers from/to the stream */
 struct qal_buffer {
     void *buffer;                  /**<  buffer pointer */
@@ -540,6 +540,7 @@ struct qal_buffer {
     size_t offset;                 /**< offset in buffer from where valid byte starts */
     struct timespec *ts;           /**< timestmap */
     qal_meta_data_flags_t flags;   /**< meta data flags */
+    struct qal_meta_data metadata;   /**< meta data flags */
 };
 
 
@@ -596,7 +597,7 @@ struct qal_channel_vol_kv {
 /** Volume data strucutre defintion used as argument for volume command */
 struct qal_volume_data {
     uint32_t no_of_volpair;                       /**< no of volume pairs*/
-    struct qal_channel_vol_kv volume_pair[0];     /**< channel mask and volume pair */
+    struct qal_channel_vol_kv volume_pair[];     /**< channel mask and volume pair */
 };
 
 struct qal_time_us {
@@ -636,7 +637,7 @@ typedef enum {
     QAL_PARAM_ID_DIRECTION_OF_ARRIVAL,
     QAL_PARAM_ID_UIEFFECT,
     QAL_PARAM_ID_STOP_BUFFERING,
-
+    QAL_PARAM_ID_CODEC_CONFIGURATION,
     /* Non-Stream Specific Parameters*/
     QAL_PARAM_ID_DEVICE_CONNECTION,
     QAL_PARAM_ID_SCREEN_STATE,
@@ -971,6 +972,7 @@ struct ffv_doa_tracking_monitor_t
  */
 typedef int32_t (*qal_stream_callback)(qal_stream_handle_t *stream_handle,
                                        uint32_t event_id, uint32_t *event_data,
+                                       uint32_t event_data_size,
                                        void *cookie);
 
 #ifdef __cplusplus

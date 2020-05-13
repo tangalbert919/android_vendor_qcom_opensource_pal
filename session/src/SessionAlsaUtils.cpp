@@ -363,7 +363,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
         feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, feName.str(), i);
         if (!feMixerCtrls[i]) {
-            QAL_ERR(LOG_TAG, "invalid mixer control: %s %s", feName.str().data(),
+            QAL_ERR(LOG_TAG, "invalid mixer control: %s%s", feName.str().data(),
                    feCtrlNames[i]);
             status = -EINVAL;
             goto freeStreamMetaData;
@@ -651,7 +651,7 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
     }
 
     aif_media_config[0] = dAttr->config.sample_rate;
-    aif_media_config[1] = dAttr->config.ch_info->channels;
+    aif_media_config[1] = dAttr->config.ch_info.channels;
     aif_media_config[2] = bitsToAlsaFormat(dAttr->config.bit_width);
     aif_media_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
 
@@ -1494,7 +1494,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
 
             deviceData.bitWidth = dAttr.config.bit_width;
             deviceData.sampleRate = dAttr.config.sample_rate;
-            deviceData.numChannel = dAttr.config.ch_info->channels;
+            deviceData.numChannel = dAttr.config.ch_info.channels;
             builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
             if (!payloadSize) {
                 QAL_ERR(LOG_TAG,"%s payloadMFCConfig failed\n", __func__);

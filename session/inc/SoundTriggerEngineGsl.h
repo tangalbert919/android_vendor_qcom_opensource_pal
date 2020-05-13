@@ -87,7 +87,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     void HandleSessionEvent(uint32_t event_id __unused, void *data);
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
-    static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data);
+    static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data,
+                                      uint32_t event_size);
 
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_generic_event_cfg event_config_;

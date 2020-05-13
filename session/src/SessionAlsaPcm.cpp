@@ -473,7 +473,7 @@ int SessionAlsaPcm::start(Stream * s)
                 config.format = PCM_FORMAT_S24_3LE;
             else if (sAttr.in_media_config.bit_width == 16)
                 config.format = PCM_FORMAT_S16_LE;
-            config.channels = sAttr.in_media_config.ch_info->channels;
+            config.channels = sAttr.in_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                 config.channels, config.format);
             config.period_count = in_buf_count;
@@ -485,7 +485,7 @@ int SessionAlsaPcm::start(Stream * s)
                 config.format = PCM_FORMAT_S24_3LE;
             else if (sAttr.out_media_config.bit_width == 16)
                 config.format = PCM_FORMAT_S16_LE;
-            config.channels = sAttr.out_media_config.ch_info->channels;
+            config.channels = sAttr.out_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                 config.channels, config.format);
             config.period_count = out_buf_count;
@@ -646,7 +646,7 @@ int SessionAlsaPcm::start(Stream * s)
                         pcmDevIds.at(0), txAifBackEnds[0].second.data());
                 streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
-                streamData.numChannel = sAttr.in_media_config.ch_info->channels;
+                streamData.numChannel = sAttr.in_media_config.ch_info.channels;
                 streamData.rotation_type = QAL_SPEAKER_ROTATION_LR;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                 if (payloadSize) {
@@ -696,15 +696,15 @@ int SessionAlsaPcm::start(Stream * s)
                             pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
                     deviceData.bitWidth = dAttr.config.bit_width;
                     deviceData.sampleRate = dAttr.config.sample_rate;
-                    deviceData.numChannel = dAttr.config.ch_info->channels;
+                    deviceData.numChannel = dAttr.config.ch_info.channels;
                     deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
 
                     if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                        (2 == dAttr.config.ch_info->channels)) {
-                        // Stereo Speakers. Check for the rotation type
+                        (2 == dAttr.config.ch_info.channels)) {
+                    // Stereo Speakers. Check for the rotation type
                         if (QAL_SPEAKER_ROTATION_RL ==
-                                                    rm->getCurrentRotationType()) {
-                            // Rotation is of RL, so need to swap the channels
+                                                rm->getCurrentRotationType()) {
+                        // Rotation is of RL, so need to swap the channels
                             deviceData.rotation_type = QAL_SPEAKER_ROTATION_RL;
                         }
                     }
@@ -713,6 +713,7 @@ int SessionAlsaPcm::start(Stream * s)
                         status = updateCustomPayload(payload, payloadSize);
                         delete payload;
                         if (0 != status) {
+                            QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
                             QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
                             return status;
                         }
@@ -1368,7 +1369,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
         {
             qal_effect_custom_payload_t *customPayload;
             qal_param_payload *param_payload = (qal_param_payload *)payload;
-            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->payload);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                                            rxAifBackEnds[0].second.data(),
                                                            tagId, &miid);
@@ -1725,7 +1726,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
                     config.format = PCM_FORMAT_S24_3LE;
                 else if (sAttr.in_media_config.bit_width == 16)
                     config.format = PCM_FORMAT_S16_LE;
-                config.channels = sAttr.in_media_config.ch_info->channels;
+                config.channels = sAttr.in_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                     config.channels, config.format);
                 config.period_count = in_buf_count;
@@ -1744,7 +1745,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
                     config.format = PCM_FORMAT_S24_3LE;
                 else if (sAttr.out_media_config.bit_width == 16)
                     config.format = PCM_FORMAT_S16_LE;
-                config.channels = sAttr.out_media_config.ch_info->channels;
+                config.channels = sAttr.out_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                     config.channels, config.format);
                 config.period_count = out_buf_count;

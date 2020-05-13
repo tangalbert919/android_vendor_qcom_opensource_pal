@@ -888,39 +888,33 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                                          struct qal_stream_attributes *sAttr, int32_t channel)
 {
     int32_t status = 0;
-    struct qal_channel_info *dev_ch_info = NULL;
+    struct qal_channel_info dev_ch_info;
 
     QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
-            dev_ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                           + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_IN_HANDSET_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_IN_WIRED_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
@@ -933,21 +927,17 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
         case QAL_DEVICE_OUT_HANDSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_OUT_SPEAKER:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
@@ -955,10 +945,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         case QAL_DEVICE_OUT_WIRED_HEADSET:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
@@ -973,22 +961,18 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_IN_HANDSET_VA_MIC:
         case QAL_DEVICE_IN_HEADSET_VA_MIC:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
+            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
         case QAL_DEVICE_IN_BLUETOOTH_A2DP:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
             deviceattr->config.bit_width = BITWIDTH_16;
@@ -999,10 +983,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         {
             std::shared_ptr<BtSco> scoDev;
 
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t)
-                          + sizeof(uint8_t)*channel);
-            dev_ch_info->channels = channel;
-            getChannelMap(&(dev_ch_info->ch_map[0]), channel);
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
             deviceattr->config.bit_width = BITWIDTH_16;
@@ -1010,7 +992,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             scoDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(deviceattr, rm));
             if (!scoDev) {
                 QAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
-                free(dev_ch_info);
                 return -EINVAL;
             }
             scoDev->updateSampleRate(&deviceattr->config.sample_rate);
@@ -1033,7 +1014,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                 }
                 status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
                 QAL_ERR(LOG_TAG, "device samplerate %d, bitwidth %d, ch %d", deviceattr->config.sample_rate, deviceattr->config.bit_width,
-                        deviceattr->config.ch_info->channels);
+                        deviceattr->config.ch_info.channels);
             }
             break;
         case QAL_DEVICE_IN_USB_DEVICE:
@@ -1054,12 +1035,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         case QAL_DEVICE_IN_PROXY:
             {
             /* For QAL_DEVICE_IN_PROXY, copy all config from stream attributes */
-            dev_ch_info = (struct qal_channel_info *) calloc (1, sizeof(uint16_t)
-                              + sizeof(uint8_t) * sAttr->in_media_config.ch_info->channels);
-            dev_ch_info->channels = sAttr->in_media_config.ch_info->channels;
-            for (int i = 0; i < sAttr->in_media_config.ch_info->channels; i++)
-                dev_ch_info->ch_map[i] = sAttr->in_media_config.ch_info->ch_map[i];
-            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.ch_info =sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
@@ -1070,13 +1046,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             break;
         case QAL_DEVICE_OUT_PROXY:
             {
-            /* For QAL_DEVICE_OUT_PROXY, copy all config from stream attributes */
-            dev_ch_info = (struct qal_channel_info *) calloc (1, sizeof(uint16_t)
-                              + sizeof(uint8_t) * sAttr->out_media_config.ch_info->channels);
-            dev_ch_info->channels = sAttr->out_media_config.ch_info->channels;
-            for (int i = 0; i < sAttr->out_media_config.ch_info->channels; i++)
-                dev_ch_info->ch_map[i] = sAttr->out_media_config.ch_info->ch_map[i];
-            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
             deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
@@ -1104,14 +1074,12 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                  */
                 int channels = dp_device->getMaxChannel();
 
-                if (channels > sAttr->out_media_config.ch_info->channels)
-                    channels = sAttr->out_media_config.ch_info->channels;
+                if (channels > sAttr->out_media_config.ch_info.channels)
+                    channels = sAttr->out_media_config.ch_info.channels;
 
-                dev_ch_info = (struct qal_channel_info *) calloc(1,
-                                    sizeof(uint16_t) + sizeof(uint8_t)*channels);
-                dev_ch_info->channels = channels;
+                dev_ch_info.channels = channels;
 
-                getChannelMap(&(dev_ch_info->ch_map[0]), channels);
+                getChannelMap(&(dev_ch_info.ch_map[0]), channels);
                 deviceattr->config.ch_info = dev_ch_info;
                 QAL_DBG(LOG_TAG, "Channel map set for %d", channels);
 
@@ -1244,11 +1212,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_LOOPBACK:
         case QAL_STREAM_PROXY:
             if (attributes->direction == QAL_AUDIO_INPUT) {
-                channels = attributes->in_media_config.ch_info->channels;
+                channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
                 bitwidth = attributes->in_media_config.bit_width;
             } else {
-                channels = attributes->out_media_config.ch_info->channels;
+                channels = attributes->out_media_config.ch_info.channels;
                 samplerate = attributes->out_media_config.sample_rate;
                 bitwidth = attributes->out_media_config.bit_width;
             }
@@ -1264,11 +1232,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             break;
         case QAL_STREAM_COMPRESSED:
             if (attributes->direction == QAL_AUDIO_INPUT) {
-               channels = attributes->in_media_config.ch_info->channels;
+               channels = attributes->in_media_config.ch_info.channels;
                samplerate = attributes->in_media_config.sample_rate;
                bitwidth = attributes->in_media_config.bit_width;
             } else {
-               channels = attributes->out_media_config.ch_info->channels;
+               channels = attributes->out_media_config.ch_info.channels;
                samplerate = attributes->out_media_config.sample_rate;
                bitwidth = attributes->out_media_config.bit_width;
             }
@@ -1284,11 +1252,11 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             break;
         case QAL_STREAM_VOICE_UI:
             if (attributes->direction == QAL_AUDIO_INPUT) {
-               channels = attributes->in_media_config.ch_info->channels;
+               channels = attributes->in_media_config.ch_info.channels;
                samplerate = attributes->in_media_config.sample_rate;
                bitwidth = attributes->in_media_config.bit_width;
             } else {
-               channels = attributes->out_media_config.ch_info->channels;
+               channels = attributes->out_media_config.ch_info.channels;
                samplerate = attributes->out_media_config.sample_rate;
                bitwidth = attributes->out_media_config.bit_width;
             }
@@ -1303,7 +1271,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             result = true;
             break;
         case QAL_STREAM_VOICE_CALL:
-            channels = attributes->out_media_config.ch_info->channels;
+            channels = attributes->out_media_config.ch_info.channels;
             samplerate = attributes->out_media_config.sample_rate;
             bitwidth = attributes->out_media_config.bit_width;
             rc = (StreamPCM::isBitWidthSupported(bitwidth) |
@@ -1454,7 +1422,7 @@ int ResourceManager::deregisterStream(Stream *s)
     get priority from remaining streams and find highest priority stream
     and store in mHighestPriorityActiveStream
 #endif
-    QAL_DBG(LOG_TAG, "stream type %d", type);
+    QAL_ERR(LOG_TAG, "stream type %d", type);
     mResourceManagerMutex.lock();
     switch (type) {
         case QAL_STREAM_LOW_LATENCY:
@@ -2083,7 +2051,8 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     }
 
     // callback
-    session_cb(cookie, params->event_id, (void *)params->event_payload);
+    session_cb(cookie, params->event_id, (void *)params->event_payload,
+                 params->event_payload_size);
 
 exit:
     if (buf)
@@ -2399,7 +2368,7 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
     //TODO:check if device config is supported
     bool dev_supported = false;
     *blsUpdated = false;
-    uint16_t channels = device->config.ch_info->channels;
+    uint16_t channels = device->config.ch_info.channels;
     uint32_t samplerate = device->config.sample_rate;
     uint32_t bitwidth = device->config.bit_width;
 
@@ -2409,7 +2378,7 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
     // because no config file parsed in init
     if (channels != DEFAULT_CHANNELS) {
         if (bOverwriteFlag) {
-            device->config.ch_info->channels = DEFAULT_CHANNELS;
+            device->config.ch_info.channels = DEFAULT_CHANNELS;
             *blsUpdated = true;
         }
     } else if (samplerate != DEFAULT_SAMPLE_RATE) {
@@ -2994,7 +2963,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             is_ds_required = true;
         } else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
-            (activeDevAttr->config.ch_info->channels < inDevAttr->config.ch_info->channels)) {
+            (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)) {
             is_ds_required = true;
         }
         break;
@@ -3002,7 +2971,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
     case QAL_DEVICE_OUT_WIRED_HEADPHONE:
         if ((QAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width != inDevAttr->config.bit_width) ||
-            (activeDevAttr->config.ch_info->channels != inDevAttr->config.ch_info->channels))) {
+            (activeDevAttr->config.ch_info.channels != inDevAttr->config.ch_info.channels))) {
             is_ds_required = true;
         } else if ((QAL_STREAM_COMPRESSED == inStrAttr->type || QAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
@@ -3016,7 +2985,7 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             }
         } else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
-            (activeDevAttr->config.ch_info->channels < inDevAttr->config.ch_info->channels)) {
+            (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)) {
             is_ds_required = true;
         }
         break;
@@ -3702,6 +3671,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
     switch (param_id) {
         case QAL_PARAM_ID_UIEFFECT:
         {
+#if 0
             gef_payload_t *gef_payload = (gef_payload_t *)query;
             int index = 0;
             int qal_device_id = 0;
@@ -3711,13 +3681,13 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->isGKVMatch(gef_payload->graph);
                 if (match) {
-                    qal_param_payload qal_payload;
-                    qal_payload.has_effect = 1;
-                    qal_payload.effect_payload = (uint32_t *)&gef_payload->data;
+                    qal_param_payload *qal_payload;
+                    qal_payload.payload = (uint8_t *)&gef_payload->data;
                     status = (*sIter)->getEffectParameters((void *)&qal_payload, payload_size);
                     break;
                 }
             }
+#endif
             break;
         }
         case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
@@ -4032,6 +4002,7 @@ setdevparam:
         break;
         case QAL_PARAM_ID_UIEFFECT:
         {
+#if 0
             gef_payload_t *gef_payload = (gef_payload_t*)param_payload;
             int index = 0;
             int qal_device_id = 0;
@@ -4042,11 +4013,11 @@ setdevparam:
                 match = (*sIter)->isGKVMatch(gef_payload->graph);
                 if (match) {
                     qal_param_payload qal_payload;
-                    qal_payload.has_effect = 1;
-                    qal_payload.effect_payload = (uint32_t *)&gef_payload->data;
+                    qal_payload.payload = (uint8_t *)&gef_payload->data;
                     status = (*sIter)->setParameters(param_id, (void *)&qal_payload);
                 }
             }
+#endif
         }
         break;
         default:
@@ -4102,9 +4073,9 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
            goto error;
         }
         QAL_INFO(LOG_TAG, "Device Got %d with channel %d",deviceId,
-                                                 dattr.config.ch_info->channels);
+                                                 dattr.config.ch_info.channels);
         if ((QAL_DEVICE_OUT_SPEAKER == deviceId) &&
-            (2 == dattr.config.ch_info->channels)) {
+            (2 == dattr.config.ch_info.channels)) {
 
             QAL_INFO(LOG_TAG, "Device is Stereo Speaker");
             std::vector <Stream *> activeStreams;

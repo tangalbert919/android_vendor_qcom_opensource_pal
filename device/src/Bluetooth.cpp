@@ -249,9 +249,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
 
     codecConfig.sample_rate = out_buf->sample_rate;
     codecConfig.bit_width = out_buf->bit_format;
-    codecConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
-                                   (sizeof(uint8_t) * out_buf->channel_count));
-    codecConfig.ch_info->channels = out_buf->channel_count;
+    codecConfig.ch_info.channels = out_buf->channel_count;
     isAbrEnabled = out_buf->is_abr_enabled;
 
     /* Update Device sampleRate based on encoder config */
@@ -405,7 +403,7 @@ void Bluetooth::startAbr()
     int ret = 0, dir;
     struct qal_device fbDevice;
     std::shared_ptr<BtSco> fbDev = nullptr;
-    struct qal_channel_info *ch_info = NULL;
+    struct qal_channel_info ch_info;
     struct qal_stream_attributes sAttr;
     std::string backEndName;
     std::vector <std::pair<int, int>> keyVector;
@@ -427,9 +425,8 @@ void Bluetooth::startAbr()
         return;
     }
     /* Configure device attributes */
-    ch_info = (struct qal_channel_info *)calloc(1, sizeof(uint16_t) + sizeof(uint8_t));
-    ch_info->channels = CHANNELS_1;
-    ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
+    ch_info.channels = CHANNELS_1;
+    ch_info.ch_map[0] = QAL_CHMAP_CHANNEL_FL;
 
     fbDevice.config.ch_info = ch_info;
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
@@ -573,9 +570,7 @@ void Bluetooth::startAbr()
         /* SWB Encoder/Decoder has only 1 param, read block 0 */
         fbDev->codecConfig.sample_rate = out_buf->sample_rate;
         fbDev->codecConfig.bit_width = out_buf->bit_format;
-        fbDev->codecConfig.ch_info = (struct qal_channel_info *) calloc(1,sizeof(uint16_t) +
-                                   (sizeof(uint8_t) * out_buf->channel_count));
-        fbDev->codecConfig.ch_info->channels = out_buf->channel_count;
+        fbDev->codecConfig.ch_info.channels = out_buf->channel_count;
 
         blk = out_buf->blocks[0];
         builder->payloadCustomParam(&paramData, &paramSize,
@@ -618,7 +613,6 @@ free_fe:
     rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
     fbpcmDevIds.clear();
 done:
-    free(ch_info);
     mAbrMutex.unlock();
     return;
 }

@@ -64,7 +64,7 @@ int DeviceGsl::open(struct qal_device *device,
     else
         flags = PCM_IN;
     
-    config.channels = device->config.ch_info->channels;
+    config.channels = device->config.ch_info.channels;
     config.rate = device->config.sample_rate;
     QAL_DBG(LOG_TAG,"channels %d and samplerate %d", config.channels, config.rate);
     config.period_size = DEVICE_GSL_PERIOD_512;

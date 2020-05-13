@@ -45,6 +45,8 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
                     const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm)
 {
     mStreamMutex.lock();
+    uint32_t in_channels, out_channels = 0;
+    uint32_t attribute_size = 0;
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         QAL_ERR(LOG_TAG, "Sound card offline, can not create stream");
@@ -89,7 +91,8 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         throw std::runtime_error("invalid arguments");
     }
 
-    mStreamAttr = (struct qal_stream_attributes *) calloc(1, sizeof(struct qal_stream_attributes));
+    attribute_size = sizeof(struct qal_stream_attributes);
+    mStreamAttr = (struct qal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
         QAL_ERR(LOG_TAG, "%s: malloc for stream attributes failed %s", __func__, strerror(errno));
         mStreamMutex.unlock();
@@ -98,39 +101,19 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
 
     ar_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
 
-    if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
-        struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
-        if (!ch_info) {
-            QAL_ERR(LOG_TAG,"malloc for ch_info failed");
-            free(mStreamAttr);
-            mStreamMutex.unlock();
-            throw std::runtime_error("failed to malloc for ch_info output");
-        }
-
-        mStreamAttr->out_media_config.ch_info = ch_info;
-        ar_mem_cpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
-                        sattr->out_media_config.ch_info, sizeof(qal_channel_info));
-    } else if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT)) {
-        struct qal_channel_info *ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
-        if (!ch_info) {
-            QAL_ERR(LOG_TAG,"malloc for ch_info failed");
-            free(mStreamAttr);
-            mStreamMutex.unlock();
-            throw std::runtime_error("failed to malloc for ch_info output");
-        }
-        mStreamAttr->in_media_config.ch_info = ch_info;
-        ar_mem_cpy(mStreamAttr->in_media_config.ch_info, sizeof(qal_channel_info),
-        sattr->in_media_config.ch_info, sizeof(qal_channel_info));
-   }
+    if (mStreamAttr->in_media_config.ch_info.channels > QAL_MAX_CHANNELS_SUPPORTED) {
+        QAL_ERR(LOG_TAG,"in_channels is invalid %d", in_channels);
+        mStreamAttr->in_media_config.ch_info.channels = QAL_MAX_CHANNELS_SUPPORTED;
+    }
+    if (mStreamAttr->out_media_config.ch_info.channels > QAL_MAX_CHANNELS_SUPPORTED) {
+        QAL_ERR(LOG_TAG,"out_channels is invalid %d", out_channels);
+        mStreamAttr->out_media_config.ch_info.channels = QAL_MAX_CHANNELS_SUPPORTED;
+    }
 
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);
     if (!session) {
         QAL_ERR(LOG_TAG, "%s: session creation failed", __func__);
-        if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
-            free(mStreamAttr->out_media_config.ch_info);
-        if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
-            free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
@@ -145,11 +128,6 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
         dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
         if (!dev) {
             QAL_ERR(LOG_TAG, "Device creation failed");
-            if ((sattr->direction == QAL_AUDIO_OUTPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
-                free(mStreamAttr->out_media_config.ch_info);
-            if ((sattr->direction == QAL_AUDIO_INPUT) || (sattr->direction == QAL_AUDIO_INPUT_OUTPUT))
-                free(mStreamAttr->in_media_config.ch_info);
-
             free(mStreamAttr);
 
             //TBD::free session too
@@ -272,10 +250,6 @@ exit:
     mStreamMutex.unlock();
     status = rm->deregisterStream(this);
     if (mStreamAttr) {
-        if ((mStreamAttr->direction == QAL_AUDIO_OUTPUT) || (mStreamAttr->direction == QAL_AUDIO_INPUT_OUTPUT))
-            free(mStreamAttr->out_media_config.ch_info);
-        if ((mStreamAttr->direction == QAL_AUDIO_INPUT) || (mStreamAttr->direction == QAL_AUDIO_INPUT_OUTPUT))
-            free(mStreamAttr->in_media_config.ch_info);
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
     }
@@ -670,15 +644,9 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
         uint32_t streamSize;
         uint32_t byteWidth = mStreamAttr->in_media_config.bit_width / 8;
         uint32_t sampleRate = mStreamAttr->in_media_config.sample_rate;
-        struct qal_channel_info *chInfo = mStreamAttr->in_media_config.ch_info;
+        struct qal_channel_info chInfo = mStreamAttr->in_media_config.ch_info;
 
-        if (!chInfo) {
-            QAL_ERR(LOG_TAG, "channel info is null");
-            status  = -EINVAL;
-            goto exit;
-        }
-
-        streamSize = byteWidth * chInfo->channels;
+        streamSize = byteWidth * chInfo.channels;
         if ((streamSize == 0) || (sampleRate == 0)) {
             QAL_ERR(LOG_TAG, "stream_size= %d, srate = %d",
                     streamSize, sampleRate);
@@ -770,8 +738,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
             || cachedState != STREAM_IDLE) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;
         sampleRate = mStreamAttr->out_media_config.sample_rate;
-        if (mStreamAttr->out_media_config.ch_info)
-            channelCount = mStreamAttr->out_media_config.ch_info->channels;
+        channelCount = mStreamAttr->out_media_config.ch_info.channels;
 
         frameSize = byteWidth * channelCount;
         if ((frameSize == 0) || (sampleRate == 0)) {
@@ -899,7 +866,12 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         case QAL_PARAM_ID_FLUENCE_ON_OFF:
         {
             param_payload = (qal_param_payload *)payload;
-            fluence_flag = param_payload->has_fluence;
+            if (param_payload->payload_size > sizeof(bool)) {
+                QAL_ERR(LOG_TAG, "Invalid payload size %d", param_payload->payload_size);
+                status = -EINVAL;
+                break;
+            }
+            fluence_flag = *((bool *)param_payload->payload);
             QAL_DBG(LOG_TAG,"fluence flag is %d",fluence_flag);
             uint32_t fluenceTag = fluence_flag ? FLUENCE_ON_TAG : FLUENCE_OFF_TAG;
             status = session->setConfig(this, MODULE, fluenceTag);
@@ -911,12 +883,8 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         case QAL_PARAM_ID_UIEFFECT:
         {
             param_payload = (qal_param_payload *)payload;
-            if (!param_payload->has_effect) {
-                QAL_ERR(LOG_TAG, "This is not effect param");
-                status = -EINVAL;
-                goto error;
-            }
-            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->payload);
             if (effectQalPayload->isTKV) {
                 status = session->setTKV(this, MODULE, effectQalPayload);
             } else {
@@ -929,10 +897,17 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         }
         case QAL_PARAM_ID_TTY_MODE:
         {
+            param_payload = (qal_param_payload *)payload;
+            if (param_payload->payload_size > sizeof(uint32_t)) {
+                QAL_ERR(LOG_TAG, "Invalid payload size %d", param_payload->payload_size);
+                status = -EINVAL;
+                break;
+            }
+            uint32_t tty_mode = *((uint32_t *)param_payload->payload);
             status = session->setParameters(this, TTY_MODE, param_id, payload);
             if (status)
                QAL_ERR(LOG_TAG, "setParam for tty mode %d failed with %d",
-                       param_payload->tty_mode, status);
+                       tty_mode, status);
             break;
         }
         case QAL_PARAM_ID_DEVICE_ROTATION:
@@ -958,12 +933,15 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         }
         case QAL_PARAM_ID_SLOW_TALK:
         {
+            bool slow_talk = false;
             param_payload = (qal_param_payload *)payload;
-            QAL_ERR(LOG_TAG,"slow talk %d",param_payload->slow_talk);
+            slow_talk = *((bool *)param_payload->payload);
+            QAL_ERR(LOG_TAG,"slow talk %d", slow_talk);
 
             uint32_t slow_talk_tag =
-                     param_payload->slow_talk ? VOICE_SLOW_TALK_ON : VOICE_SLOW_TALK_OFF;
-            status = session->setParameters(this, slow_talk_tag, param_id, payload);
+                          slow_talk ? VOICE_SLOW_TALK_ON : VOICE_SLOW_TALK_OFF;
+            status = session->setParameters(this, slow_talk_tag,
+                                            param_id, payload);
             if (status)
                QAL_ERR(LOG_TAG, "setParam for slow talk failed with %d",
                        status);

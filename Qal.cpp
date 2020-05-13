@@ -118,17 +118,19 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
                         qal_stream_callback cb, void *cookie,
                         qal_stream_handle_t **stream_handle)
 {
-    void * stream = NULL;
+    uint64_t *stream = NULL;
     Stream *s = NULL;
     int status;
     qal_stream_type_t type;
     qal_stream_direction_t dir;
-    if (!attributes || !devices) {
+    if (!attributes) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
+
     QAL_INFO(LOG_TAG, "Enter.");
+
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,
                            no_of_modifiers);
@@ -157,7 +159,7 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
 
     if (cb)
        s->registerCallBack(cb, cookie);
-    stream = static_cast<void *>(s);
+    stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
     QAL_DBG(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
@@ -175,7 +177,7 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s = static_cast<Stream *>(stream_handle);
+    s = reinterpret_cast<Stream *>(stream_handle);
 
     // store stream type/direction as stream attribute is released after close
     s->getStreamType(&type);
@@ -205,7 +207,9 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
         return status;
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+
+    s =  reinterpret_cast<Stream *>(stream_handle);
+
     status = s->start();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
@@ -225,7 +229,7 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->stop();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
@@ -246,7 +250,7 @@ ssize_t qal_stream_write(qal_stream_handle_t *stream_handle, struct qal_buffer *
         return status;
     }
     QAL_VERBOSE(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->write(buf);
     if (status < 0) {
         QAL_ERR(LOG_TAG, "stream write failed status %d", status);
@@ -266,7 +270,7 @@ ssize_t qal_stream_read(qal_stream_handle_t *stream_handle, struct qal_buffer *b
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->read(buf);
     if (status < 0) {
         QAL_ERR(LOG_TAG, "stream read failed status %d", status);
@@ -287,7 +291,7 @@ int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getParameters(param_id, (void **)param_payload);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "get parameters failed status %d param_id %u", status, param_id);
@@ -308,7 +312,7 @@ int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setParameters(param_id, (void *)param_payload);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
@@ -329,7 +333,7 @@ int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setVolume(volume);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "setVolume failed with status %d", status);
@@ -349,7 +353,7 @@ int32_t qal_stream_set_mute(qal_stream_handle_t *stream_handle, bool state)
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setMute(state);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "setMute failed with status %d", status);
@@ -369,7 +373,7 @@ int32_t qal_stream_pause(qal_stream_handle_t *stream_handle)
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setPause();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_pause failed with status %d", status);
@@ -391,7 +395,7 @@ int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
     }
 
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->setResume();
     if (0 != status) {
@@ -415,7 +419,7 @@ int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t ty
     }
 
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->drain(type);
     if (0 != status) {
@@ -439,7 +443,7 @@ int32_t qal_stream_flush(qal_stream_handle_t *stream_handle)
     }
 
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->flush();
     if (0 != status) {
@@ -463,7 +467,7 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setBufInfo(in_buf_size,in_buf_count,out_buf_size,out_buf_count);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
@@ -484,7 +488,7 @@ int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK\n", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getTimestamp(stime);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_get_timestamp failed with status %d\n", status);
@@ -517,7 +521,7 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle,
         return status;
     }
     if (QAL_STREAM_VOIP_TX == type) {
-        s =  static_cast<Stream *>(stream_handle);
+        s =  reinterpret_cast<Stream *>(stream_handle);
         status = s->addRemoveEffect(effect, enable);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "qal_add_effect failed with status %d", status);
@@ -557,7 +561,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 
     /* Choose best device config for this stream */
     /* TODO: Decide whether to update device config or not based on flag */
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     s->getStreamAttributes(&sattr);
 
     // device switch will be handled in global param setting for SVA
@@ -651,7 +655,7 @@ int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->GetMmapPosition(position);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);
@@ -673,7 +677,7 @@ int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
         return status;
     }
     QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  static_cast<Stream *>(stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->createMmapBuffer(min_size_frames, info);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_set_buffer_size failed with status %d", status);

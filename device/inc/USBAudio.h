@@ -81,7 +81,7 @@ public:
     int getSampleRates(int type, char *rates_str);
     int getBestRate(int requested_rate, unsigned int *best_rate);
     int getBestChInfo(struct qal_channel_info *requested_ch_info,
-                        struct qal_channel_info **best);
+                        struct qal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
 };

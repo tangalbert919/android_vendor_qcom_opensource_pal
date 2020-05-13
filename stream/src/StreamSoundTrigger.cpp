@@ -97,21 +97,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         throw std::runtime_error("stream attributes allocation failed");
     }
 
-    struct qal_channel_info *ch_info = (struct qal_channel_info *)calloc(1,
-        sizeof(struct qal_channel_info));
-    if (!ch_info) {
-        QAL_ERR(LOG_TAG, "channel info allocation failed");
-        free(mStreamAttr);
-        throw std::runtime_error("channel info allocation failed");
-    }
-
     ar_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes),
                      sattr, sizeof(qal_stream_attributes));
-    mStreamAttr->in_media_config.ch_info = ch_info;
-    ar_mem_cpy(mStreamAttr->in_media_config.ch_info,
-                     sizeof(qal_channel_info),
-                     sattr->in_media_config.ch_info,
-                     sizeof(qal_channel_info));
 
     QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d",
                 no_of_devices);
@@ -123,7 +110,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
             std::to_string(no_of_devices);
         QAL_ERR(LOG_TAG, err.c_str());
         free(mStreamAttr);
-        free(ch_info);
         throw std::runtime_error(err);
     }
 
@@ -188,9 +174,6 @@ StreamSoundTrigger::~StreamSoundTrigger() {
 
     rm->deregisterStream(this);
     if (mStreamAttr) {
-        if (mStreamAttr->in_media_config.ch_info) {
-            free(mStreamAttr->in_media_config.ch_info);
-        }
         free(mStreamAttr);
     }
     mDevices.clear();
@@ -565,14 +548,8 @@ int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id,
         cap_prof = GetCurrentCaptureProfile();
     }
 
-    dev->config.ch_info = (struct qal_channel_info *) malloc(
-        sizeof(qal_channel_info) + cap_prof->GetChannels());
-    if (!dev->config.ch_info) {
-        QAL_ERR(LOG_TAG, "failed to alloc ch_map");
-        return -ENOMEM;
-    }
     dev->config.bit_width = cap_prof->GetBitWidth();
-    dev->config.ch_info->channels = cap_prof->GetChannels();
+    dev->config.ch_info.channels = cap_prof->GetChannels();
     dev->config.sample_rate = cap_prof->GetSampleRate();
     dev->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
 
@@ -1352,8 +1329,9 @@ bool StreamSoundTrigger::compareRecognitionConfig(
 int32_t StreamSoundTrigger::notifyClient() {
     int32_t status = 0;
     struct qal_st_recognition_event *rec_event = nullptr;
+    uint32_t event_size;
 
-    status = GenerateCallbackEvent(&rec_event);
+    status = GenerateCallbackEvent(&rec_event, &event_size);
     if (status || !rec_event) {
         QAL_ERR(LOG_TAG, "Failed to generate callback event");
         return status;
@@ -1361,13 +1339,11 @@ int32_t StreamSoundTrigger::notifyClient() {
     if (callback_) {
         QAL_INFO(LOG_TAG, "Notify detection event to client");
         mStreamMutex.unlock();
-        callback_(this, 0, (uint32_t *)rec_event, rec_config_->cookie);
+        callback_((qal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
+                  event_size, rec_config_->cookie);
         mStreamMutex.lock();
     }
 
-    if (rec_event->media_config.ch_info) {
-        free(rec_event->media_config.ch_info);
-    }
     free(rec_event);
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -1375,10 +1351,9 @@ int32_t StreamSoundTrigger::notifyClient() {
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
-    struct qal_st_recognition_event **event) {
+    struct qal_st_recognition_event **event, uint32_t *evt_size) {
 
     struct qal_st_phrase_recognition_event *phrase_event = nullptr;
-    struct qal_channel_info *ch_info = nullptr;
     struct st_param_header *param_hdr = nullptr;
     struct st_confidence_levels_info *conf_levels = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
@@ -1411,21 +1386,12 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             return -ENOMEM;
         }
 
-        ch_info = (struct qal_channel_info *)
-                  calloc(1, sizeof(struct qal_channel_info));
-        if (!ch_info) {
-            QAL_ERR(LOG_TAG, "Failed to alloc memory for channel info");
-            free(phrase_event);
-            return -ENOMEM;
-        }
-
         phrase_event->num_phrases = rec_config_->num_phrases;
         memcpy(phrase_event->phrase_extras, rec_config_->phrases,
                phrase_event->num_phrases *
                sizeof(struct qal_st_phrase_recognition_extra));
 
         *event = &(phrase_event->common);
-        (*event)->media_config.ch_info = nullptr;
         (*event)->status = QAL_RECOGNITION_STATUS_SUCCESS;
         (*event)->type = sound_model_type_;
         (*event)->st_handle = (qal_st_handle_t *)this;
@@ -1440,8 +1406,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
 
         (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
         (*event)->media_config.bit_width = BITWIDTH_16;
-        (*event)->media_config.ch_info = ch_info;
-        (*event)->media_config.ch_info->channels = CHANNELS_1;
+        (*event)->media_config.ch_info.channels = CHANNELS_1;
         (*event)->media_config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
 
         // Filling Opaque data
@@ -1490,6 +1455,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             ((uint64_t)det_ev_info->detection_timestamp_lsw +
             ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
     }
+    *evt_size = event_size;
     // TODO: handle for generic sound model
     QAL_DBG(LOG_TAG, "Exit");
 
@@ -2083,15 +2049,12 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
                 if (st_stream_.GetQalDevice(dev_id, dattr, false)) {
                     QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
-                    if (dattr->config.ch_info)
-                        free(dattr->config.ch_info);
                     throw std::runtime_error("Failed to get device config");
                 }
 
                 dev = Device::getInstance(dattr, rm);
                 if (!dev) {
                     QAL_ERR(LOG_TAG, "Device creation is failed");
-                    free(st_stream_.mStreamAttr->in_media_config.ch_info);
                     free(st_stream_.mStreamAttr);
                     throw std::runtime_error("failed to create device object");
                 }
@@ -2168,9 +2131,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             dev->setDeviceAttributes(*qal_dev);
             st_stream_.mDevices.push_back(dev);
         set_device_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
             delete qal_dev;
             break;
         }
@@ -2300,15 +2260,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     goto err_exit;
                 }
 
-                dattr.config.ch_info = (struct qal_channel_info *)calloc(1,
-                    sizeof(qal_channel_info) +
-                    cap_prof->GetChannels());
-                if (!dattr.config.ch_info) {
-                    QAL_ERR(LOG_TAG, "failed to alloc ch_map");
-                    break;
-                }
                 dattr.config.bit_width = cap_prof->GetBitWidth();
-                dattr.config.ch_info->channels = cap_prof->GetChannels();
+                dattr.config.ch_info.channels = cap_prof->GetChannels();
                 dattr.config.sample_rate = cap_prof->GetSampleRate();
                 dev->setDeviceAttributes(dattr);
 
@@ -2319,8 +2272,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 status = dev->start();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
-                    if (dattr.config.ch_info)
-                        free(dattr.config.ch_info);
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev);
@@ -2355,9 +2306,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.rm->deregisterDevice(st_stream_.mDevices[0]);
                 st_stream_.mDevices[0]->stop();
             }
-
-            if (dattr.config.ch_info)
-                free(dattr.config.ch_info);
 
             break;
         }
@@ -2437,11 +2385,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.mDevices.pop_back();
                 dev->close();
             }
-
         set_device_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
             delete qal_dev;
             break;
         }
@@ -2670,9 +2614,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             }
 
         set_device_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
             delete qal_dev;
             break;
         }

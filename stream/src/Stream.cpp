@@ -201,7 +201,7 @@ int32_t Stream::getEffectParameters(void *effect_query, size_t *payload_size)
     }
 
     qal_param_payload *qal_param = (qal_param_payload *)effect_query;
-    effect_qal_payload_t *effectPayload = (effect_qal_payload_t *)qal_param->effect_payload;
+    effect_qal_payload_t *effectPayload = (effect_qal_payload_t *)qal_param->payload;
     qal_effect_custom_payload_t *customPayload =
         (qal_effect_custom_payload_t *)effectPayload->payload;
     status = session->getEffectParameters(this, effectPayload);
@@ -333,7 +333,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         }
         outBufSize = *out_buf_size;
         nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
-                      (sattr->out_media_config.ch_info->channels);
+                      (sattr->out_media_config.ch_info.channels);
         QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
@@ -350,9 +350,9 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
             goto exit;
         }
         inBufSize = *in_buf_size;
-        //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info->channels) * 32;
+        //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info.channels) * 32;
         nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
-                      (sattr->in_media_config.ch_info->channels);
+                      (sattr->in_media_config.ch_info.channels);
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
         if ((inBufSize % nBlockAlignIn) != 0) {
@@ -367,7 +367,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         }
         outBufSize = *out_buf_size;
         nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
-                      (sattr->out_media_config.ch_info->channels);
+                      (sattr->out_media_config.ch_info.channels);
         QAL_DBG(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
@@ -379,7 +379,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
 
         inBufSize = *in_buf_size;
         nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
-                      (sattr->in_media_config.ch_info->channels);
+                      (sattr->in_media_config.ch_info.channels);
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
         if ((inBufSize % nBlockAlignIn) != 0) {
@@ -624,7 +624,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
     if ((mDevices[0]->getSndDeviceId() == newDevices[0].id) &&
         (dAttr.config.sample_rate == newDevices[0].config.sample_rate) &&
         (dAttr.config.bit_width == newDevices[0].config.bit_width) &&
-        (dAttr.config.ch_info->channels == newDevices[0].config.ch_info->channels)) {
+        (dAttr.config.ch_info.channels == newDevices[0].config.ch_info.channels)) {
         QAL_ERR(LOG_TAG, "same device, no need to switch %d", mDevices[0]->getSndDeviceId());
         goto done;
     }

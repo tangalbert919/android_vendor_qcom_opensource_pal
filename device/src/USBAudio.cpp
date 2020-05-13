@@ -642,9 +642,9 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
                                     &config->sample_rate);
                 QAL_INFO(LOG_TAG, "found matching SampleRate = %d", config->sample_rate);
                 // 3. get channel
-                ret = (*iter)->getBestChInfo(media_config.ch_info,
+                ret = (*iter)->getBestChInfo(&media_config.ch_info,
                                     &config->ch_info);
-                QAL_INFO(LOG_TAG, "found matching Channels = %d", config->ch_info->channels);
+                QAL_INFO(LOG_TAG, "found matching Channels = %d", config->ch_info.channels);
                 break;
             } else {
                 // if bit width does not match, use highest width.
@@ -662,7 +662,7 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
             config->bit_width = bitwidth;
             ret = candidate_config->getBestRate(media_config.sample_rate,
                                 &config->sample_rate);
-            ret = candidate_config->getBestChInfo(media_config.ch_info,
+            ret = candidate_config->getBestChInfo(&media_config.ch_info,
                                 &config->ch_info);
         } else {
             QAL_ERR(LOG_TAG, "%s is not supported.", is_playback?"playback":"capture");
@@ -738,15 +738,13 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
 
 // return 0 if match, else return -EINVAL with default sample rate
 int USBDeviceConfig::getBestChInfo(struct qal_channel_info *requested_ch_info,
-                                        struct qal_channel_info **best_ch_info)
+                                        struct qal_channel_info *best_ch_info)
 {
-    struct qal_channel_info *usb_ch_info = nullptr;
+    struct qal_channel_info usb_ch_info;
 
-    usb_ch_info = (struct qal_channel_info *) calloc(1,
-        sizeof(uint16_t) + sizeof(uint8_t)* channels_);
-    usb_ch_info->channels = channels_;
+    usb_ch_info.channels = channels_;
     for (int i = 0; i < channels_; i++) {
-        usb_ch_info->ch_map[i] = QAL_CHMAP_CHANNEL_FL + i;
+        usb_ch_info.ch_map[i] = QAL_CHMAP_CHANNEL_FL + i;
     }
 
     *best_ch_info = usb_ch_info;

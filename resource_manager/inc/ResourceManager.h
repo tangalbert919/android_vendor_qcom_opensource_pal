@@ -178,7 +178,8 @@ struct nativeAudioProp {
    int na_mode;
 };
 
-typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
+typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data,
+                                   uint32_t event_size);
 
 class Device;
 class Stream;

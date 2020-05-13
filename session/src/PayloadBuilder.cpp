@@ -1957,7 +1957,7 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
         return;
     }
 
-    numChannel = data->ch_info->channels;
+    numChannel = data->ch_info.channels;
     bitWidth = data->bit_width;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_rat_mf_t) +
@@ -2019,7 +2019,7 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
         return;
     }
 
-    numChannels = data->ch_info->channels;
+    numChannels = data->ch_info.channels;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct media_format_t) +
                   sizeof(struct payload_pcm_output_format_cfg_t) +
@@ -2058,7 +2058,7 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
                       mediaFmtHdr->payload_size, numChannels);
 
     mediaFmtPayload->endianness      = PCM_LITTLE_ENDIAN;
-    mediaFmtPayload->num_channels    = data->ch_info->channels;
+    mediaFmtPayload->num_channels    = data->ch_info.channels;
     if ((data->bit_width == 16) || (data->bit_width == 32)) {
         mediaFmtPayload->bit_width       = data->bit_width;
         mediaFmtPayload->bits_per_sample = data->bit_width;
@@ -2104,7 +2104,7 @@ void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
         return;
     }
 
-    numChannel = data->ch_info->channels;
+    numChannel = data->ch_info.channels;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_cop_pack_output_media_fmt_t) +
                   sizeof(uint16_t)*numChannel;
@@ -2538,7 +2538,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
           return status;
        }
        if ((dAttr.id == rxBeDevId) || (dAttr.id == txBeDevId)) {
-          QAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info->channels, dAttr.id);
+          QAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
        }
 
         //todo move the keys to a to an xml of stream type to key

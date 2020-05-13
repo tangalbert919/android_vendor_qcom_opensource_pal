@@ -40,13 +40,15 @@
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 
-static void handleSessionCallBack(void *hdl, uint32_t event_id, void *data)
+static void handleSessionCallBack(void *hdl, uint32_t event_id, void *data,
+                                  uint32_t event_size)
 {
     Stream *s = NULL;
     qal_stream_callback cb;
     s = static_cast<Stream *>(hdl);
     if (s->getCallBack(&cb) == 0)
-       cb(static_cast<qal_stream_handle_t *>(s), event_id, (uint32_t *)data, s->cookie);
+       cb(reinterpret_cast<qal_stream_handle_t *>(s), event_id, (uint32_t *)data,
+          event_size, s->cookie);
 }
 
 StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct qal_device *dattr,
@@ -64,7 +66,6 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
 
     std::shared_ptr<Device> dev = nullptr;
     bool isDeviceConfigUpdated = false;
-    struct qal_channel_info * ch_info = NULL;
 
     session = nullptr;
     inBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
@@ -93,24 +94,12 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
-    ch_info = (struct qal_channel_info *) calloc(1, sizeof(struct qal_channel_info));
-    if (!ch_info) {
-          QAL_ERR(LOG_TAG,"malloc for ch_info failed");
-          free(mStreamAttr);
-          mStreamMutex.unlock();
-          throw std::runtime_error("failed to malloc for ch_info");
-       }
-
     ar_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
-    mStreamAttr->out_media_config.ch_info = ch_info;
-    ar_mem_cpy(mStreamAttr->out_media_config.ch_info, sizeof(qal_channel_info),
-    sattr->out_media_config.ch_info, sizeof(qal_channel_info));
     QAL_VERBOSE(LOG_TAG,"Create new compress session");
 
     session = Session::makeSession(rm, sattr);
     if (session == NULL){
        QAL_ERR(LOG_TAG,"session (compress) creation failed");
-       free(mStreamAttr->out_media_config.ch_info);
        free(mStreamAttr);
        mStreamMutex.unlock();
        throw std::runtime_error("failed to create session object");
@@ -122,7 +111,6 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
         dev = Device::getInstance((struct qal_device *)&dattr[i] , rm);
         if (dev == nullptr) {
             QAL_ERR(LOG_TAG, "Device creation is failed");
-            free(mStreamAttr->out_media_config.ch_info);
             free(mStreamAttr);
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
@@ -228,7 +216,6 @@ exit:
     status = rm->deregisterStream(this);
 
     if (mStreamAttr) {
-        free(mStreamAttr->out_media_config.ch_info);
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
     }
@@ -507,12 +494,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
         case QAL_PARAM_ID_UIEFFECT:
         {
             param_payload = (qal_param_payload *)payload;
-            if (!param_payload->has_effect) {
-                QAL_ERR(LOG_TAG, "This is not effect param");
-                status = -EINVAL;
-                goto exit;
-            }
-            effectQalPayload = (effect_qal_payload_t *)(param_payload->effect_payload);
+            effectQalPayload = (effect_qal_payload_t *)(param_payload->payload);
             if (effectQalPayload->isTKV) {
                 status = session->setTKV(this, MODULE, effectQalPayload);
             } else {

@@ -270,7 +270,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
     }
     deviceData.bitWidth = dAttr.config.bit_width;
     deviceData.sampleRate = dAttr.config.sample_rate;
-    deviceData.numChannel = dAttr.config.ch_info->channels;
+    deviceData.numChannel = dAttr.config.ch_info.channels;
     builder->payloadMFCConfig((uint8_t**)payload, payloadSize, miid, &deviceData);
 
     return status;
@@ -282,7 +282,7 @@ int SessionAlsaVoice::start(Stream * s)
     struct qal_stream_attributes sAttr;
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    qal_param_payload qalPayload;
+    qal_param_payload *qalPayload;
     int txDevId;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
@@ -304,7 +304,7 @@ int SessionAlsaVoice::start(Stream * s)
         config.format = PCM_FORMAT_S24_3LE;
     else if (sAttr.out_media_config.bit_width == 16)
         config.format = PCM_FORMAT_S16_LE;
-    config.channels = sAttr.out_media_config.ch_info->channels;
+    config.channels = sAttr.out_media_config.ch_info.channels;
     config.period_size = out_buf_size;
     config.period_count = out_buf_count;
     config.start_threshold = 0;
@@ -329,7 +329,7 @@ int SessionAlsaVoice::start(Stream * s)
         config.format = PCM_FORMAT_S24_3LE;
     else if (sAttr.in_media_config.bit_width == 16)
         config.format = PCM_FORMAT_S16_LE;
-    config.channels = sAttr.in_media_config.ch_info->channels;
+    config.channels = sAttr.in_media_config.ch_info.channels;
     config.period_size = in_buf_size;
     config.period_count = in_buf_count;
 
@@ -365,8 +365,11 @@ int SessionAlsaVoice::start(Stream * s)
 
     /*set tty mode*/
     if (ttyMode) {
-        qalPayload.tty_mode = ttyMode;
-        setParameters(s, TTY_MODE, QAL_PARAM_ID_TTY_MODE, &qalPayload);
+        qalPayload = (qal_param_payload *)calloc(1,
+                                 sizeof(qal_param_payload) + sizeof(ttyMode));
+        qalPayload->payload_size = sizeof(ttyMode);
+        *(qalPayload->payload) = ttyMode;
+        setParameters(s, TTY_MODE, QAL_PARAM_ID_TTY_MODE, qalPayload);
     }
 
     /*set sidetone*/
@@ -474,13 +477,14 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, voi
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t miid = 0;
+    uint32_t tty_mode;
     qal_param_payload *QalPayload = (qal_param_payload *)payload;
 
     switch (static_cast<uint32_t>(tagId)) {
 
         case VOICE_VOLUME_BOOST:
             device = pcmDevRxIds.at(0);
-            volume_boost = QalPayload->volume_boost;
+            volume_boost = *((bool *)QalPayload->payload);
             status = payloadCalKeys(s, &paramData, &paramSize);
             if (!paramData) {
                 status = -ENOMEM;
@@ -498,7 +502,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, voi
         case VOICE_SLOW_TALK_OFF:
         case VOICE_SLOW_TALK_ON:
             device = pcmDevRxIds.at(0);
-            slow_talk = QalPayload->slow_talk;
+            slow_talk = *((bool *)QalPayload->payload);
             status = payloadTaged(s, MODULE, tagId, device, RXDIR);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to set voice slow_Talk params status = %d",
@@ -507,9 +511,10 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, voi
             break;
 
         case TTY_MODE:
+            tty_mode = *((uint32_t *)QalPayload->payload);
             device = pcmDevRxIds.at(0);
             status = payloadSetTTYMode(&paramData, &paramSize,
-                                       QalPayload->tty_mode);
+                                       tty_mode);
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
                                             RXDIR);
             if (status) {

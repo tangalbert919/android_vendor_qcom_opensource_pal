@@ -378,7 +378,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
     if (sessionData->direction == QAL_AUDIO_INPUT) {
         sessionData->sampleRate = sAttr.in_media_config.sample_rate;
         sessionData->bitWidth = sAttr.in_media_config.bit_width;
-        sessionData->numChannel = sAttr.in_media_config.ch_info->channels;
+        sessionData->numChannel = sAttr.in_media_config.ch_info.channels;
         status = s->getAssociatedDevices(associatedRecordDevices);
         if((0 != status) || (associatedRecordDevices.size() == 0)) {
             QAL_ERR(LOG_TAG"%s: getAssociatedDevices Failed \n", __func__);
@@ -386,7 +386,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
             return status;
         }
         associatedRecordDevices[0]->getDeviceAttributes(&devAttr);
-        if (devAttr.config.ch_info->channels == sessionData->numChannel) {
+        if (devAttr.config.ch_info.channels == sessionData->numChannel) {
             sessionData->native = 1;
         } else {
             sessionData->native = 0;
@@ -394,7 +394,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
     } else {
         sessionData->sampleRate = sAttr.out_media_config.sample_rate;
         sessionData->bitWidth = sAttr.out_media_config.bit_width;
-        sessionData->numChannel = sAttr.out_media_config.ch_info->channels;
+        sessionData->numChannel = sAttr.out_media_config.ch_info.channels;
         sessionData->native = 0;
     }
     sessionData->metadata = NULL;
@@ -464,7 +464,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     associatedDevices[i]->getDeviceAttributes(&dAttr);
                     deviceData->bitWidth = dAttr.config.bit_width;
                     deviceData->sampleRate = dAttr.config.sample_rate;
-                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    deviceData->numChannel = dAttr.config.ch_info.channels;
                     QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d,and channels %d",
                             deviceData->bitWidth,
                             deviceData->sampleRate, deviceData->numChannel);
@@ -480,7 +480,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     associatedDevices[i]->getDeviceAttributes(&dAttr);
                     deviceData->bitWidth = dAttr.config.bit_width;
                     deviceData->sampleRate = dAttr.config.sample_rate;
-                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    deviceData->numChannel = dAttr.config.ch_info.channels;
                     QAL_DBG(LOG_TAG, "EP Device bit width %d, sample rate %d, and channels %d",
                             deviceData->bitWidth,
                             deviceData->sampleRate, deviceData->numChannel);
@@ -556,7 +556,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                     associatedDevices[i]->getDeviceAttributes(&dAttr);
                     deviceData->bitWidth = dAttr.config.bit_width;
                     deviceData->sampleRate = dAttr.config.sample_rate;
-                    deviceData->numChannel = dAttr.config.ch_info->channels;
+                    deviceData->numChannel = dAttr.config.ch_info.channels;
                     QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d, and channels %d",
                             deviceData->bitWidth,
                             deviceData->sampleRate,deviceData->numChannel);
@@ -571,7 +571,7 @@ int SessionGsl::setPayloadConfig(Stream *s)
                    associatedDevices[i]->getDeviceAttributes(&dAttr);
                    deviceData->bitWidth = dAttr.config.bit_width;
                    deviceData->sampleRate = dAttr.config.sample_rate;
-                   deviceData->numChannel = dAttr.config.ch_info->channels;
+                   deviceData->numChannel = dAttr.config.ch_info.channels;
                    QAL_DBG(LOG_TAG, "Device bit width %d, sample rate %d,and channels %d",
                            deviceData->bitWidth,
                            deviceData->sampleRate,deviceData->numChannel);
@@ -1236,10 +1236,11 @@ void SessionGsl::stCallBack(struct gsl_event_cb_params *event_params, void *clie
     Stream *s = (Stream *)client_data;
     s->getCallBack(&callBack);
     QAL_DBG(LOG_TAG, "CallBack acquired %pK", callBack);
-    qal_stream_handle_t *stream_handle = static_cast<void*>(s);
+    qal_stream_handle_t *stream_handle = reinterpret_cast<uint64_t *>(s);
     uint32_t event_id = event_params->event_id;
     uint32_t *event_data = (uint32_t *)(event_params->event_payload);
-    callBack(stream_handle, event_id, event_data, NULL);
+    callBack(stream_handle, event_id, event_data,
+              event_params->event_payload_size, NULL);
 }
 
 void SessionGsl::checkAndConfigConcurrency(Stream *s)
@@ -1333,12 +1334,12 @@ void SessionGsl::checkAndConfigConcurrency(Stream *s)
         keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_VOIP_FLUENCE_PRO));
     }
     else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
-             && (sAttr.in_media_config.ch_info->channels >= 3)) {
+             && (sAttr.in_media_config.ch_info.channels >= 3)) {
         keyVector.push_back(std::make_pair(STREAMTX, PCM_RECORD));
         keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_AUDIO_FLUENCE_PRO));
     }
     else if (txStreamType == QAL_STREAM_LOW_LATENCY && sAttr.direction == QAL_AUDIO_INPUT
-              && (sAttr.in_media_config.ch_info->channels == 1)) {
+              && (sAttr.in_media_config.ch_info.channels == 1)) {
         keyVector.push_back(std::make_pair(STREAMTX, PCM_RECORD));
         keyVector.push_back(std::make_pair(DEVICEPP_TX,DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
     }
