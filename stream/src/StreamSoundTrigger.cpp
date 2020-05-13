@@ -142,16 +142,14 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
 
     // update best device
     qal_device_id_t dev_id = GetAvailCaptureDevice();
-    if (dattr[0].id != dev_id) {
-        QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+    QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+    if (dattr[0].config.ch_info)
+        free(dattr[0].config.ch_info);
+    if (GetQalDevice(dev_id, &dattr[0])) {
+        QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
         if (dattr[0].config.ch_info)
             free(dattr[0].config.ch_info);
-        if (GetQalDevice(dev_id, &dattr[0])) {
-            QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
-            if (dattr[0].config.ch_info)
-                free(dattr[0].config.ch_info);
-            throw std::runtime_error("Failed to get device config");
-        }
+        throw std::runtime_error("Failed to get device config");
     }
 
     dev = Device::getInstance(&dattr[0] , rm);
@@ -161,12 +159,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         free(mStreamAttr);
         throw std::runtime_error("failed to create device object");
     }
-    //Is this required for Voice UI?
-    QAL_DBG(LOG_TAG, "Updating device config for voice UI");
-    bool isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[0], sattr);
-
-    if (isDeviceConfigUpdated)
-        QAL_VERBOSE(LOG_TAG, "%s: Device config updated", __func__);
 
     mDevices.push_back(dev);
     dev = nullptr;
@@ -521,6 +513,30 @@ int32_t StreamSoundTrigger::UpdateChargingState(bool state) {
     return status;
 }
 
+int32_t StreamSoundTrigger::ExternalStart() {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StResumeEventConfig());
+    PostEvent(ev_cfg);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
+}
+
+int32_t StreamSoundTrigger::ExternalStop() {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StPauseEventConfig());
+    PostEvent(ev_cfg);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
+}
+
 void StreamSoundTrigger::EventThread(StreamSoundTrigger& st_stream) {
     QAL_DBG(LOG_TAG, "Enter");
 
@@ -551,6 +567,7 @@ void StreamSoundTrigger::HandleEvents() {
     int32_t status = 0;
     std::shared_ptr<StEventConfig> ev_cfg = nullptr;
 
+    QAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mStreamMutex);
     for (int i = 0; i < pending_event_configs_.size(); i++) {
         ev_cfg = pending_event_configs_[i];
@@ -559,6 +576,8 @@ void StreamSoundTrigger::HandleEvents() {
             case ST_EV_DEVICE_CONNECTED:
             case ST_EV_DEVICE_DISCONNECTED:
             case ST_EV_CHARGING_STATE:
+            case ST_EV_PAUSE:
+            case ST_EV_RESUME:
                 status = cur_state_->ProcessEvent(ev_cfg);
                 if (status) {
                     QAL_ERR(LOG_TAG, "Failed to handle event %d", ev_cfg->id_);
@@ -571,6 +590,7 @@ void StreamSoundTrigger::HandleEvents() {
     }
 
     pending_event_configs_.clear();
+    QAL_DBG(LOG_TAG, "Exit");
 }
 
 int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id,
@@ -2256,27 +2276,49 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             /* Update cap dev based on mode and configuration and start it */
             struct qal_device dattr;
+            bool backend_update = false;
+            std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
+            std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+
+            backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, true);
+            if (backend_update) {
+                status = rm->StopOtherSVAStreams(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
+                }
+
+                status = rm->StartOtherSVAStreams(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                }
+            }
+
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 dev->getDeviceAttributes(&dattr);
-                dattr.config.ch_info = (struct qal_channel_info *) malloc(
+
+                cap_prof = st_stream_.rm->GetSVACaptureProfile();
+                if (!cap_prof) {
+                    QAL_ERR(LOG_TAG, "Invalid capture profile");
+                    goto err_exit;
+                }
+
+                dattr.config.ch_info = (struct qal_channel_info *)calloc(1,
                     sizeof(qal_channel_info) +
-                    st_stream_.cap_prof_->GetChannels());
+                    cap_prof->GetChannels());
                 if (!dattr.config.ch_info) {
                     QAL_ERR(LOG_TAG, "failed to alloc ch_map");
                     break;
                 }
-                dattr.config.bit_width = st_stream_.cap_prof_->GetBitWidth();
-                dattr.config.ch_info->channels =
-                    st_stream_.cap_prof_->GetChannels();
-                dattr.config.sample_rate =
-                    st_stream_.cap_prof_->GetSampleRate();
+                dattr.config.bit_width = cap_prof->GetBitWidth();
+                dattr.config.ch_info->channels = cap_prof->GetChannels();
+                dattr.config.sample_rate = cap_prof->GetSampleRate();
                 dev->setDeviceAttributes(dattr);
 
                 /* now start the device */
                 QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
-                dev->setSndName(st_stream_.cap_prof_->GetSndName());
+                dev->setSndName(cap_prof->GetSndName());
                 status = dev->start();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
@@ -2285,13 +2327,12 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev);
-                    dev->setSndName(st_stream_.cap_prof_->GetSndName());
+                    dev->setSndName(cap_prof->GetSndName());
                 }
                 QAL_DBG(LOG_TAG, "device started");
             }
 
             /* Start the engines */
-            std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
             for (auto& eng: st_stream_.engines_) {
                 QAL_VERBOSE(LOG_TAG, "Start st engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->StartRecognition(&st_stream_);
@@ -2570,6 +2611,21 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             [[fallthrough]];
         }
         case ST_EV_STOP_RECOGNITION: {
+            if (st_stream_.paused_ == true) {
+                bool backend_update = false;
+                backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, false);
+                if (backend_update) {
+                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
+                    }
+
+                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                    }
+                }
+            }
             for (auto& eng: st_stream_.engines_) {
                 QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->StopRecognition(&st_stream_);

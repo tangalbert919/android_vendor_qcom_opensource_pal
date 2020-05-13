@@ -78,9 +78,12 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetSetupDuration(
         struct audio_dam_downstream_setup_duration **duration) override;
 
+    static int instance_count_;
+
  private:
     int32_t StartBuffering();
     int32_t ParseDetectionPayload(void *event_data);
+    int32_t UpdateDAMSetupDuration(int port_num);
     void HandleSessionEvent(uint32_t event_id __unused, void *data);
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);

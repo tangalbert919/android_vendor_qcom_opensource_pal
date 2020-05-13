@@ -745,10 +745,10 @@ int SessionAlsaPcm::start(Stream * s)
     mState = SESSION_STARTED;
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        threadHandler = std::thread(SessionAlsaPcm::eventWaitThreadLoop, (void *)mixer, this);
-        if (!threadHandler.joinable()) {
-            QAL_ERR(LOG_TAG, "Failed to create threadHandler");
-            status = -EINVAL;
+        status = rm->registerMixerEventCallback(pcmDevIds,
+            sessionCb, cbCookie, true);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG, "Failed to register callback to rm");
         }
     }
 
@@ -801,12 +801,13 @@ int SessionAlsaPcm::stop(Stream * s)
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
         }
-        if (threadHandler.joinable()) {
-            threadHandler.join();
+        status = rm->registerMixerEventCallback(pcmDevIds,
+            sessionCb, cbCookie, false);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
-        QAL_DBG(LOG_TAG, "threadHandler joined");
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0), txAifBackEnds[0].second.data(),
-                DEVICE_SVA, false);
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            txAifBackEnds[0].second.data(), DEVICE_SVA, false);
     } else if (sAttr.direction == QAL_AUDIO_INPUT) {
         if (ecRefDevId) {
             status = setECRef(s, nullptr, false);
@@ -1445,97 +1446,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
 free_payload :
     free(paramData);
 exit:
-    return status;
-}
-
-void SessionAlsaPcm::eventWaitThreadLoop(void *context, SessionAlsaPcm *session)
-{
-    struct mixer *mixer = (struct mixer *)context;
-    int ret = 0;
-    struct snd_ctl_event mixer_event = {0};
-
-    QAL_VERBOSE(LOG_TAG, "subscribing for event");
-    mixer_subscribe_events(mixer, 1);
-
-    while (1) {
-        QAL_VERBOSE(LOG_TAG, "going to wait for event");
-        // TODO: set timeout here to avoid stuck during stop
-        // Better if AGM side can provide one event indicating stop
-        ret = mixer_wait_event(mixer, 1000);
-        QAL_VERBOSE(LOG_TAG, "mixer_wait_event returns %d", ret);
-        if (ret <= 0) {
-            QAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
-        } else if (ret > 0) {
-            ret = mixer_read_event(mixer, &mixer_event);
-            if (ret >= 0) {
-                QAL_INFO(LOG_TAG, "Event Received %s", mixer_event.data.elem.id.name);
-                ret = session->handleMixerEvent(mixer, (char *)mixer_event.data.elem.id.name);
-            } else {
-                QAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
-            }
-        }
-        if (!session->isActive()) {
-            QAL_VERBOSE(LOG_TAG, "Exit thread, isActive = %d", session->isActive());
-            break;
-        }
-    }
-    QAL_VERBOSE(LOG_TAG, "unsubscribing for event");
-    mixer_subscribe_events(mixer, 0);
-}
-
-int SessionAlsaPcm::handleMixerEvent(struct mixer *mixer, char *mixer_str)
-{
-    struct mixer_ctl *ctl = nullptr;
-    char *buf = nullptr;
-    unsigned int num_values;
-    int status = 0;
-    struct agm_event_cb_params *params;
-
-    QAL_DBG(LOG_TAG, "Enter");
-    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
-    if (!ctl) {
-        QAL_ERR(LOG_TAG, "Invalid mixer control: %s", mixer_str);
-        status = -EINVAL;
-        goto exit;
-    }
-
-    num_values = mixer_ctl_get_num_values(ctl);
-    QAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
-    buf = (char *)calloc(1, num_values);
-    if (!buf) {
-        QAL_ERR(LOG_TAG, "Failed to allocate buf");
-        status = -ENOMEM;
-        goto exit;
-    }
-
-    status = mixer_ctl_get_array(ctl, buf, num_values);
-    if (status < 0) {
-        QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
-        goto exit;
-    }
-
-    params = (struct agm_event_cb_params *)buf;
-    QAL_DBG(LOG_TAG, "source module id %x, event id %d, payload size %d",
-            params->source_module_id, params->event_id,
-            params->event_payload_size);
-
-    if (!params->source_module_id || !params->event_payload_size) {
-        QAL_ERR(LOG_TAG, "Invalid source module id or payload size");
-        goto exit;
-    }
-
-    if (!sessionCb) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid session callback");
-        goto exit;
-    }
-    sessionCb(cbCookie, params->event_id, (void *)params->event_payload);
-
-exit:
-    if (buf)
-        free(buf);
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 

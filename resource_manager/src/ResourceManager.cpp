@@ -47,10 +47,9 @@
 #include "HandsetMic.h"
 #include "DisplayPort.h"
 #include "Handset.h"
-#include "SoundTriggerPlatformInfo.h"
 #include "SndCardMonitor.h"
+#include "agm_api.h"
 #include <unistd.h>
-#include <agm_api.h>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -301,6 +300,7 @@ int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 SndCardMonitor* ResourceManager::sndmon = NULL;
+int ResourceManager::mixerEventRegisterCount = 0;
 static int max_session_num;
 
 //TODO:Needs to define below APIs so that functionality won't break
@@ -1643,6 +1643,363 @@ bool ResourceManager::CheckForForcedTransitToNonLPI() {
       return true;
 
     return false;
+}
+
+bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active) {
+    int status = 0;
+    bool backend_update = false;
+    uint16_t max_channels = 0;
+    uint32_t max_sample_rate = 0;
+    uint32_t max_bit_width = 0;
+    std::string default_snd_name = "va-mic";
+    std::string snd_name = "va-mic";
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+
+    if (!s) {
+        QAL_ERR(LOG_TAG, "Invalid stream");
+        return false;
+    }
+
+    // backend config update
+    if (is_active) {
+        cap_prof = s->GetCurrentCaptureProfile();
+        if (!cap_prof) {
+            QAL_ERR(LOG_TAG, "Failed to get capture profile");
+            return false;
+        }
+
+        if (!SVACaptureProfile) {
+            SVACaptureProfile = std::make_shared<CaptureProfile>("SVA_Default_Profile");
+            if (!SVACaptureProfile) {
+                QAL_ERR(LOG_TAG, "Failed to create capture profile");
+                return false;
+            }
+
+            SVACaptureProfile->SetChannels(cap_prof->GetChannels());
+            SVACaptureProfile->SetSampleRate(cap_prof->GetSampleRate());
+            SVACaptureProfile->SetBitWidth(cap_prof->GetBitWidth());
+            SVACaptureProfile->SetSndName(cap_prof->GetSndName());
+        } else {
+            if (SVACaptureProfile->GetChannels() < cap_prof->GetChannels()) {
+                backend_update = true;
+                SVACaptureProfile->SetChannels(cap_prof->GetChannels());
+            }
+            if (SVACaptureProfile->GetSampleRate() < cap_prof->GetSampleRate()) {
+                backend_update = true;
+                SVACaptureProfile->SetSampleRate(cap_prof->GetSampleRate());
+            }
+            if (SVACaptureProfile->GetBitWidth() < cap_prof->GetBitWidth()) {
+                backend_update = true;
+                SVACaptureProfile->SetBitWidth(cap_prof->GetBitWidth());
+            }
+            if (SVACaptureProfile->GetSndName().compare(cap_prof->GetSndName())) {
+                backend_update = true;
+                SVACaptureProfile->SetSndName(cap_prof->GetSndName());
+            }
+        }
+    } else {
+        for (int i = 0; i < active_streams_st.size(); i++) {
+            if (active_streams_st[i] == s) {
+                continue;
+            }
+
+            cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
+            if (!cap_prof) {
+                QAL_ERR(LOG_TAG, "Failed to get capture profile");
+                continue;
+            }
+
+            if (cap_prof->GetChannels() > max_channels) {
+                max_channels = cap_prof->GetChannels();
+            }
+            if (cap_prof->GetSampleRate() > max_sample_rate) {
+                max_sample_rate = cap_prof->GetSampleRate();
+            }
+            if (cap_prof->GetBitWidth() > max_bit_width) {
+                max_bit_width = cap_prof->GetBitWidth();
+            }
+            // TODO: check priority for devices
+            if (!default_snd_name.compare(cap_prof->GetSndName())) {
+                snd_name = cap_prof->GetSndName();
+            }
+        }
+
+        if (max_channels == 0 || max_sample_rate == 0 || max_bit_width == 0) {
+            QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
+            SVACaptureProfile.reset();
+        } else {
+            if (max_channels != SVACaptureProfile->GetChannels()) {
+                SVACaptureProfile->SetChannels(max_channels);
+                backend_update = true;
+            }
+            if (max_sample_rate != SVACaptureProfile->GetSampleRate()) {
+                SVACaptureProfile->SetSampleRate(max_sample_rate);
+                backend_update = true;
+            }
+            if (max_bit_width != SVACaptureProfile->GetBitWidth()) {
+                SVACaptureProfile->SetBitWidth(max_bit_width);
+                backend_update = true;
+            }
+            if (snd_name.compare(SVACaptureProfile->GetSndName())) {
+                SVACaptureProfile->SetSndName(snd_name);
+                backend_update = true;
+            }
+        }
+    }
+
+    return backend_update;
+}
+
+std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfile() {
+    return SVACaptureProfile;
+}
+
+/* NOTE: there should be only one callback for each pcm id
+ * so when new different callback register with same pcm id
+ * older one will be overwritten
+ */
+int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
+                                                session_callback callback,
+                                                void *cookie,
+                                                bool is_register) {
+    int status = 0;
+    std::map<int, std::pair<session_callback, void *>>::iterator it;
+
+    if (!callback || DevIds.size() <= 0) {
+        QAL_ERR(LOG_TAG, "Invalid callback or pcm ids");
+        return -EINVAL;
+    }
+
+    if (mixerEventRegisterCount == 0 && !is_register) {
+        QAL_ERR(LOG_TAG, "Cannot deregister unregistered callback");
+        return -EINVAL;
+    }
+
+    if (is_register) {
+        for (int i = 0; i < DevIds.size(); i++) {
+            it = mixerEventCallbackMap.find(DevIds[i]);
+            if (it != mixerEventCallbackMap.end()) {
+                QAL_DBG(LOG_TAG, "callback exists for pcm id %d, overwrite",
+                    DevIds[i]);
+                mixerEventCallbackMap.erase(it);
+            }
+            mixerEventCallbackMap.insert(std::make_pair(DevIds[i],
+                std::make_pair(callback, cookie)));
+
+        }
+        if (mixerEventRegisterCount++ == 0) {
+            QAL_DBG(LOG_TAG, "Creating mixer event thread");
+            mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
+        }
+    } else {
+        for (int i = 0; i < DevIds.size(); i++) {
+            it = mixerEventCallbackMap.find(DevIds[i]);
+            if (it != mixerEventCallbackMap.end()) {
+                QAL_DBG(LOG_TAG, "callback found for pcm id %d, remove",
+                    DevIds[i]);
+                if (callback == it->second.first) {
+                    mixerEventCallbackMap.erase(it);
+                } else {
+                    QAL_ERR(LOG_TAG, "No matching callback found for pcm id %d",
+                        DevIds[i]);
+                }
+            } else {
+                QAL_ERR(LOG_TAG, "No callback found for pcm id %d", DevIds[i]);
+            }
+        }
+        if (mixerEventRegisterCount-- == 1) {
+            if (mixerEventTread.joinable()) {
+                mixerEventTread.join();
+            }
+            QAL_DBG(LOG_TAG, "Mixer event thread joined");
+        }
+    }
+
+    return status;
+}
+
+void ResourceManager::mixerEventWaitThreadLoop(
+    std::shared_ptr<ResourceManager> rm) {
+    int ret = 0;
+    struct snd_ctl_event mixer_event = {0};
+    struct mixer *mixer = nullptr;
+
+    ret = rm->getAudioMixer(&mixer);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "Failed to get audio mxier");
+        return;
+    }
+
+    QAL_VERBOSE(LOG_TAG, "subscribing for event");
+    mixer_subscribe_events(mixer, 1);
+
+    while (1) {
+        QAL_VERBOSE(LOG_TAG, "going to wait for event");
+        /* TODO: set timeout here to avoid stuck during stop
+         * Better if AGM side can provide one event indicating stop
+         */
+        ret = mixer_wait_event(mixer, 1000);
+        QAL_VERBOSE(LOG_TAG, "mixer_wait_event returns %d", ret);
+        if (ret <= 0) {
+            QAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
+        } else if (ret > 0) {
+            ret = mixer_read_event(mixer, &mixer_event);
+            if (ret >= 0) {
+                QAL_INFO(LOG_TAG, "Event Received %s",
+                    mixer_event.data.elem.id.name);
+                ret = rm->handleMixerEvent(mixer,
+                    (char *)mixer_event.data.elem.id.name);
+            } else {
+                QAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
+            }
+        }
+        if (!rm->isCallbackRegistered()) {
+            QAL_VERBOSE(LOG_TAG, "Exit thread as no session registered");
+            break;
+        }
+    }
+    QAL_VERBOSE(LOG_TAG, "unsubscribing for event");
+    mixer_subscribe_events(mixer, 0);
+}
+
+int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
+    int status = 0;
+    int pcm_id = 0;
+    void *cookie = nullptr;
+    session_callback session_cb = nullptr;
+    std::string event_str(mixer_str);
+    // TODO: hard code in common defs
+    std::string pcm_prefix = "PCM";
+    std::string compress_prefix = "COMPRESS";
+    std::string event_suffix = "event";
+    size_t prefix_idx = 0;
+    size_t suffix_idx = 0;
+    size_t length = 0;
+    struct mixer_ctl *ctl = nullptr;
+    char *buf = nullptr;
+    unsigned int num_values;
+    struct agm_event_cb_params *params = nullptr;
+    std::map<int, std::pair<session_callback, void *>>::iterator it;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        QAL_ERR(LOG_TAG, "Invalid mixer control: %s", mixer_str);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    // parse event payload
+    num_values = mixer_ctl_get_num_values(ctl);
+    QAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
+    buf = (char *)calloc(1, num_values);
+    if (!buf) {
+        QAL_ERR(LOG_TAG, "Failed to allocate buf");
+        status = -ENOMEM;
+        goto exit;
+    }
+
+    status = mixer_ctl_get_array(ctl, buf, num_values);
+    if (status < 0) {
+        QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
+        goto exit;
+    }
+
+    params = (struct agm_event_cb_params *)buf;
+    QAL_DBG(LOG_TAG, "source module id %x, event id %d, payload size %d",
+            params->source_module_id, params->event_id,
+            params->event_payload_size);
+
+    if (!params->source_module_id || !params->event_payload_size) {
+        QAL_ERR(LOG_TAG, "Invalid source module id or payload size");
+        goto exit;
+    }
+
+    // NOTE: event we get should be in format like "PCM100 event"
+    prefix_idx = event_str.find(pcm_prefix);
+    if (prefix_idx == event_str.npos) {
+        prefix_idx = event_str.find(compress_prefix);
+        if (prefix_idx == event_str.npos) {
+            QAL_ERR(LOG_TAG, "Invalid mixer event");
+            status = -EINVAL;
+            goto exit;
+        } else {
+            prefix_idx += compress_prefix.length();
+        }
+    } else {
+        prefix_idx += pcm_prefix.length();
+    }
+
+    suffix_idx = event_str.find(event_suffix);
+    if (suffix_idx == event_str.npos || suffix_idx - prefix_idx <= 1) {
+        QAL_ERR(LOG_TAG, "Invalid mixer event");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    length = suffix_idx - prefix_idx;
+    pcm_id = std::stoi(event_str.substr(prefix_idx, length));
+
+    // acquire callback/cookie with pcm dev id
+    it = mixerEventCallbackMap.find(pcm_id);
+    if (it != mixerEventCallbackMap.end()) {
+        session_cb = it->second.first;
+        cookie = it->second.second;
+    }
+
+    if (!session_cb) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid session callback");
+        goto exit;
+    }
+
+    // callback
+    session_cb(cookie, params->event_id, (void *)params->event_payload);
+
+exit:
+    if (buf)
+        free(buf);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
+}
+
+int ResourceManager::StopOtherSVAStreams(StreamSoundTrigger *st) {
+    int status = 0;
+    StreamSoundTrigger *st_str = nullptr;
+
+    mResourceManagerMutex.lock();
+    for (int i = 0; i < active_streams_st.size(); i++) {
+        st_str = active_streams_st[i];
+        if (st_str && st_str != st) {
+            status = st_str->ExternalStop();
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to do external stop");
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+
+    return status;
+}
+
+int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
+    int status = 0;
+    StreamSoundTrigger *st_str = nullptr;
+
+    mResourceManagerMutex.lock();
+    for (int i = 0; i < active_streams_st.size(); i++) {
+        st_str = active_streams_st[i];
+        if (st_str && st_str != st) {
+            status = st_str->ExternalStart();
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to do external start");
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+
+    return status;
 }
 
 std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(

@@ -62,8 +62,6 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
-typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
-
 class Stream;
 class ResourceManager;
 class Session

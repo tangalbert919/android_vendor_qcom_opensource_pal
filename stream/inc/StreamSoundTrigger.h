@@ -152,10 +152,13 @@ class StreamSoundTrigger : public Stream {
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
+    std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     int32_t GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev);
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
     int32_t UpdateDeviceConnectionState(bool connect, qal_device_id_t device_id);
     int32_t UpdateChargingState(bool state);
+    int32_t ExternalStart();
+    int32_t ExternalStop();
 
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
                                 qal_stream_direction_t dir,
@@ -493,7 +496,6 @@ class StreamSoundTrigger : public Stream {
         int32_t ProcessEvent(std::shared_ptr<StEventConfig> ev_cfg) override;
     };
 
-    std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     qal_device_id_t GetAvailCaptureDevice();
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);

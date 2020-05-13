@@ -53,6 +53,8 @@
 #endif
 #define DWNSTRM_SETUP_DURATION_MS 300
 
+int SoundTriggerEngineGsl::instance_count_ = 0;
+
 void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
@@ -305,8 +307,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     struct qal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
-    size_t num_output_ports;
-    uint32_t size;
     engine_id_ = id;
     stage_id_ = stage_id;
     exit_thread_ = false;
@@ -345,23 +345,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     buffer_config_.hist_buffer_duration_in_ms = 0;
     buffer_config_.pre_roll_duration_in_ms = 0;
 
-    num_output_ports = 1;
-    size = sizeof(struct audio_dam_downstream_setup_duration) +
-        num_output_ports * sizeof(struct audio_dam_downstream_setup_duration_t);
-    dam_setup_duration_ =
-        (struct audio_dam_downstream_setup_duration *)calloc(1, size);
-    if (!dam_setup_duration_) {
-        QAL_ERR(LOG_TAG, "Failed to allocate dam setup duration");
-        delete session_;
-        throw std::runtime_error("Failed to allocate dam setup duration");
-    }
-    dam_setup_duration_->num_output_ports = num_output_ports;
-
-    for (int i = 0; i < dam_setup_duration_->num_output_ports; i++) {
-        dam_setup_duration_->port_cfgs[i].output_port_id = 1;
-        dam_setup_duration_->port_cfgs[i].dwnstrm_setup_duration_ms =
-            DWNSTRM_SETUP_DURATION_MS;
-    }
+    instance_count_++;
 
     QAL_DBG(LOG_TAG, "Exit");
 }
@@ -377,6 +361,7 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     if (reader_) {
         delete reader_;
     }
+    instance_count_--;
     QAL_INFO(LOG_TAG, "Exit");
 }
 
@@ -485,6 +470,12 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         goto exit;
     }
 
+    status = UpdateDAMSetupDuration(instance_count_);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG, "Failed to update dam setup duration, status = %d",
+                status);
+        goto exit;
+    }
     status = session_->setParameters(
         stream_handle_,
         DEVICE_ADAM,
@@ -765,4 +756,36 @@ int32_t SoundTriggerEngineGsl::GetSetupDuration(
     *duration = dam_setup_duration_;
 
     return status;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateDAMSetupDuration(int port_num) {
+    uint32_t size = 0;
+
+    if (dam_setup_duration_) {
+        if (dam_setup_duration_->num_output_ports == port_num) {
+            QAL_DBG(LOG_TAG, "No need to update DAM setup duration");
+            return 0;
+        } else {
+            free(dam_setup_duration_);
+            dam_setup_duration_ = nullptr;
+        }
+    }
+
+    size = sizeof(struct audio_dam_downstream_setup_duration) +
+        port_num * sizeof(struct audio_dam_downstream_setup_duration_t);
+    dam_setup_duration_ =
+        (struct audio_dam_downstream_setup_duration *)calloc(1, size);
+    if (!dam_setup_duration_) {
+        QAL_ERR(LOG_TAG, "Failed to allocate dam setup duration");
+        return -ENOMEM;
+    }
+
+    dam_setup_duration_->num_output_ports = port_num;
+    for (int i = 0; i < dam_setup_duration_->num_output_ports; i++) {
+        dam_setup_duration_->port_cfgs[i].output_port_id = i * 2 + 1;
+        dam_setup_duration_->port_cfgs[i].dwnstrm_setup_duration_ms =
+            DWNSTRM_SETUP_DURATION_MS;
+    }
+
+    return 0;
 }

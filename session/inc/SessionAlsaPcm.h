@@ -87,8 +87,6 @@ public:
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
-    static void eventWaitThreadLoop(void *context, SessionAlsaPcm *session);
-    int handleMixerEvent(struct mixer *mixer, char *mixer_str);
     int getTimestamp(struct qal_session_time *stime) override;
     int registerCallBack(session_callback cb, void *cookie) override;
     int drain(qal_drain_type_t type) override;

@@ -44,6 +44,7 @@
 #include <stdio.h>
 #include "QalDefs.h"
 #include "SndCardMonitor.h"
+#include "SoundTriggerPlatformInfo.h"
 #define RXLOOPBACK 0
 #define TXLOOPBACK 1
 #define audio_mixer mixer
@@ -174,6 +175,8 @@ struct nativeAudioProp {
    int na_mode;
 };
 
+typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data);
+
 class Device;
 class Stream;
 class StreamPCM;
@@ -283,6 +286,10 @@ protected:
     static struct vsid_info vsidInfo;
     static SndCardMonitor *sndmon;
     std::vector<std::pair<int32_t, bool>> STInstancesList;
+    static int mixerEventRegisterCount;
+    std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
+    std::thread mixerEventTread;
+    std::shared_ptr<CaptureProfile> SVACaptureProfile;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -306,6 +313,9 @@ public:
     int deregisterDevice(std::shared_ptr<Device> d);
     int registerDevice_l(std::shared_ptr<Device> d);
     int deregisterDevice_l(std::shared_ptr<Device> d);
+    int registerMixerEventCallback(const std::vector<int> &DevIds,
+                                   session_callback callback,
+                                   void *cookie, bool is_register);
     bool isDeviceActive(std::shared_ptr<Device> d);
     bool isDeviceActive_l(std::shared_ptr<Device> d);
     int addPlugInDevice(std::shared_ptr<Device> d,
@@ -375,6 +385,13 @@ public:
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
     void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
+    bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);
+    std::shared_ptr<CaptureProfile> GetSVACaptureProfile();
+    static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
+    bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
+    int handleMixerEvent(struct mixer *mixer, char *mixer_str);
+    int StopOtherSVAStreams(StreamSoundTrigger *st);
+    int StartOtherSVAStreams(StreamSoundTrigger *st);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices_l(Stream *tx_str);
     std::vector<Stream*> getConcurrentTxStream(
