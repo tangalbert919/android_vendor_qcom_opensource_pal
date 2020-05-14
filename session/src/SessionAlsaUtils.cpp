@@ -490,7 +490,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         feName << PCM_SND_DEV_NAME_PREFIX << DevIds.at(0);
 
     status = rmHandle->getAudioMixer(&mixerHandle);
-    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+    for (i = FE_CONTROL; i <= FE_DISCONNECT; ++i) {
         feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle,
             feName.str(), i);
         if (!feMixerCtrls[i]) {
@@ -543,6 +543,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void *)streamDeviceMetaData.buf,
                 streamDeviceMetaData.size);
 
+        mixer_ctl_set_enum_by_string(feMixerCtrls[FE_DISCONNECT], be->second.data());
         free(streamDeviceMetaData.buf);
         free(deviceMetaData.buf);
         streamDeviceMetaData.buf = nullptr;
@@ -1297,7 +1298,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         txFeName << PCM_SND_DEV_NAME_PREFIX << TxDevIds.at(0);
     }
 
-    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+    for (i = FE_CONTROL; i <= FE_DISCONNECT; ++i) {
         rxFeMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, rxFeName.str(), i);
         txFeMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, txFeName.str(), i);
         if (!rxFeMixerCtrls[i] || !txFeMixerCtrls[i]) {
@@ -1336,7 +1337,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], txBackEnds[0].second.data());
     mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamDeviceTxMetaData.buf,
             streamDeviceTxMetaData.size);
-    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONNECT], txBackEnds[0].second.data());
+    mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_DISCONNECT], txBackEnds[0].second.data());
 
     /** set RX mixer controls */
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], "ZERO");
@@ -1347,7 +1348,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], rxBackEnds[0].second.data());
     mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamDeviceRxMetaData.buf,
             streamDeviceRxMetaData.size);
-    mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONNECT], rxBackEnds[0].second.data());
+    mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_DISCONNECT], rxBackEnds[0].second.data());
 
     if (sAttr.type != QAL_STREAM_VOICE_CALL) {
         txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
