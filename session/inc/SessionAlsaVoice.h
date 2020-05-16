@@ -74,6 +74,7 @@ public:
     int setConfig(Stream * s, configType type, int tag = 0, int dir = 0) override;
     int setParameters(Stream *streamHandle, int tagId, uint32_t param_id,
                       void *payload) override;
+    int setSessionParameters(Stream *s, int dir);
     int start(Stream * s) override;
     int stop(Stream * s) override;
     int close(Stream * s) override;
@@ -98,6 +99,8 @@ private:
     int setSidetone(int deviceId, Stream * s, bool enable);
     int setHWSidetone(Stream * s, bool enable);
     int getTXDeviceId(Stream *s, int *id);
+    int populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
+    int populate_vsid_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
 };
 
 #endif //SESSION_ALSAVOICE_H

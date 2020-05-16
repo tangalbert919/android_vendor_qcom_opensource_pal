@@ -145,6 +145,137 @@ exit:
     return status;
 }
 
+int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
+{
+    int status = 0;
+    int pcmId = 0;
+    uint8_t *payload = NULL;
+    size_t payloadSize = 0;
+
+    if (dir == RXDIR) {
+        pcmId = pcmDevRxIds.at(0);
+        status = populate_rx_mfc_payload(s, &payload, &payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: populating vsid payload for RX Failed:%d \n", __func__);
+            goto exit;
+        }
+
+        // populate_vsid_payload, appends to the existing payload
+        status = populate_vsid_payload(s, &payload, &payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: populating vsid payload for RX Failed:%d \n", __func__, status);
+            goto exit;
+        }
+    } else {
+        pcmId = pcmDevTxIds.at(0);
+        status = populate_vsid_payload(s, &payload, &payloadSize);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: populating vsid payload for TX Failed:%d \n", __func__, status);
+            goto exit;
+        }
+    }
+
+    status = SessionAlsaUtils::setMixerParameter(mixer, pcmId,
+                                                 payload, payloadSize);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"%s: setMixerParameter failed:%d for dir:%s",
+                __func__, status, (dir == RXDIR)?"RX":"TX");
+        goto exit;
+    }
+
+exit:
+    if (payload) {
+        free(payload);
+    }
+    return status;
+}
+
+int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payload,
+                                            size_t *payloadSize)
+{
+    int status = 0;
+    apm_module_param_data_t* header;
+    uint8_t* vsidPayload = NULL;
+    size_t vsidpayloadSize = 0, padBytes = 0;
+    uint8_t *vsid_pl;
+    vcpm_param_vsid_payload_t vsid_payload;
+
+    vsidpayloadSize = sizeof(struct apm_module_param_data_t)+
+                  sizeof(vcpm_param_vsid_payload_t);
+    padBytes = QAL_PADDING_8BYTE_ALIGN(vsidpayloadSize);
+
+    vsidPayload =  (uint8_t *) realloc((void *)*payload,
+                                       (*payloadSize + vsidpayloadSize + padBytes));
+    if (!vsidPayload) {
+        QAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        return -EINVAL;
+    }
+    //set base out pointer to new address
+    *payload = vsidPayload;
+    //update payloadinfo so vsid can be added
+    vsidPayload = vsidPayload + (*payloadSize);
+    //update overall payload size
+    *payloadSize += (vsidpayloadSize + padBytes);
+
+    header = (apm_module_param_data_t*)vsidPayload;
+    header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
+    header->param_id = VCPM_PARAM_ID_VSID;
+    header->error_code = 0x0;
+    header->param_size = vsidpayloadSize - sizeof(struct apm_module_param_data_t);
+
+    vsid_payload.vsid = vsid;
+    vsid_pl = (uint8_t*)vsidPayload + sizeof(apm_module_param_data_t);
+    casa_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
+                     &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
+
+    return status;
+}
+
+int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize)
+{
+    int status = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dAttr;
+    struct sessionToPayloadParam deviceData;
+    uint32_t miid = 0;
+    int dev_id = 0;
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        return status;
+    }
+
+    rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
+    if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "no backend specified for this stream");
+        return status;
+    }
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
+                                                   rxAifBackEnds[0].second.c_str(),
+                                                   TAG_DEVICE_PP_MFC, &miid);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"getModuleInstanceId failed status:%d", status);
+        return status;
+    }
+
+    for (int i = 0; i < associatedDevices.size(); i++) {
+        dev_id = associatedDevices[i]->getSndDeviceId();
+        if (rm->isOutputDevId(dev_id)) {
+            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            break;
+        }
+    }
+    deviceData.bitWidth = dAttr.config.bit_width;
+    deviceData.sampleRate = dAttr.config.sample_rate;
+    deviceData.numChannel = dAttr.config.ch_info->channels;
+    builder->payloadMFCConfig((uint8_t**)payload, payloadSize, miid, &deviceData);
+
+    return status;
+}
+
 int SessionAlsaVoice::start(Stream * s)
 {
     struct pcm_config config;
@@ -153,6 +284,9 @@ int SessionAlsaVoice::start(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     qal_param_payload qalPayload;
     int txDevId;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    struct qal_volume_data *volume = NULL;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -212,7 +346,6 @@ int SessionAlsaVoice::start(Stream * s)
 
     SessionAlsaVoice::setConfig(s, MODULE, VSID, RXDIR);
     /*if no volume is set set a default volume*/
-    struct qal_volume_data *volume = NULL;
     if ((s->getVolumeData(volume))) {
         QAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
                  default_volume);
@@ -247,6 +380,18 @@ int SessionAlsaVoice::start(Stream * s)
         }
     }
 
+    status = populate_rx_mfc_payload(s, &payload, &payloadSize);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"Configuring RX MFC failed");
+        return status;
+    }
+    status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
+                                                 payload, payloadSize);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"setMixerParameter failed");
+        goto exit;
+    }
+
     status = pcm_start(pcmRx);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
@@ -261,7 +406,10 @@ int SessionAlsaVoice::start(Stream * s)
     }
 
 exit:
-    free(volume);
+    if (payload)
+        free(payload);
+    if (volume)
+        free(volume);
     return status;
 }
 

@@ -959,7 +959,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
                   sizeof(uint16_t)*numChannels;
     padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
     if (!payloadInfo) {
         QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -992,9 +992,9 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d",
+    QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
-                      mfcConf->num_channels);
+                      mfcConf->num_channels, header->module_instance_id);
     QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
                 *size);
 }
