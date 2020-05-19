@@ -493,9 +493,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, qal_device_id_t d
                 QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
                 goto error_1;
             }
-            // Call unblocked version of deregiser as this function is called
-            // with resoucemanager lock
-            rm->deregisterDevice_l(mDevices[i]);
+            rm->deregisterDevice(mDevices[i]);
 
             status = mDevices[i]->close();
             if (0 != status) {
@@ -564,7 +562,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
         goto error_1;
     }
 
-    rm->registerDevice_l(dev);
+    rm->registerDevice(dev);
 
     status = dev->start();
     if (0 != status) {
@@ -582,7 +580,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
 
 error_2:
     mDevices.pop_back();
-    rm->deregisterDevice_l(dev);
+    rm->deregisterDevice(dev);
     dev->close();
 error_1:
     return status;
@@ -735,10 +733,13 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         QAL_DBG(LOG_TAG, "connectList: stream handler 0x%p, device id %d",
                 std::get<0>(elem), std::get<1>(elem)->id);
 
+    mStreamMutex.unlock();
     status = rm->streamDevSwitch(streamDevDisconnect, StreamDevConnect);
     if (status) {
         QAL_ERR(LOG_TAG, "Device switch failed");
     }
+
+    return status;
 
 done:
     mStreamMutex.unlock();

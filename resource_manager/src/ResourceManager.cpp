@@ -2516,13 +2516,13 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
 
     /* disconnect active list from the current devices they are attached to */
     for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
-        status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
+        status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
         if (status) {
-            QAL_ERR(LOG_TAG,"failed to disconnect stream %pK from device %d",
+            QAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
                     std::get<0>(*sIter), std::get<1>(*sIter));
             goto error;
         } else {
-            QAL_ERR(LOG_TAG,"disconnect stream %pK from device %d",
+            QAL_DBG(LOG_TAG, "disconnect stream %pK from device %d",
                     std::get<0>(*sIter), std::get<1>(*sIter));
         }
     }
@@ -2536,13 +2536,13 @@ int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, stru
 
     /* connect active list from the current devices they are attached to */
     for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
-        status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
+        status = std::get<0>(*sIter)->connectStreamDevice(std::get<0>(*sIter), std::get<1>(*sIter));
         if (status) {
             QAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
                     std::get<0>(*sIter), (std::get<1>(*sIter))->id);
             goto error;
         } else {
-            QAL_ERR(LOG_TAG,"connected stream %pK from device %d",
+            QAL_DBG(LOG_TAG,"connected stream %pK from device %d",
                     std::get<0>(*sIter), (std::get<1>(*sIter))->id);
         }
     }
@@ -2554,7 +2554,6 @@ error:
 int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                                          std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList)
 {
-    mResourceManagerMutex.lock();
     int status = 0;
     status = streamDevDisconnect(streamDevDisconnectList);
     if (status) {
@@ -2566,7 +2565,6 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
         QAL_ERR(LOG_TAG,"Connect failed");
     }
 error:
-    mResourceManagerMutex.unlock();
     return status;
 }
 
@@ -2624,7 +2622,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
         goto error;
     }
 
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         status = (*sIter)->getStreamType(&streamType);
         if (QAL_STREAM_VOICE_CALL == streamType) {
             /* overwrite in attr with current device config of voice call */
@@ -2637,14 +2635,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
     // All the activesteams using device A should use same device config so no need
     // to run through on all activestreams for device A
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         status = (*sIter)->getAssociatedDevices(associatedDevices);
-        if(0 != status) {
+        if (0 != status) {
             QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
             goto error;
         }
 
-        for(dIter = associatedDevices.begin();
+        for (dIter = associatedDevices.begin();
             dIter != associatedDevices.end(); dIter++) {
             status = (*dIter)->getDeviceAttributes(&dattr);
             if(0 != status) {
@@ -2671,10 +2669,10 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 error:
     //if device switch is need perform it
     if (streamDevDisconnect.size()) {
-            status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
-            if (status) {
-                 QAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
-            }
+        status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+        if (status) {
+            QAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
+        }
     }
     return isDeviceSwitch;
 }
