@@ -55,6 +55,15 @@
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define MAX_PCM_NAME_SIZE 50
+#if LINUX_ENABLED
+#if defined(__LP64__)
+#define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
+#else
+#define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
+#endif
+#else
+#define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
+#endif
 
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 
@@ -177,6 +186,19 @@ struct nativeAudioProp {
 
 typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data,
                                    uint32_t event_size);
+
+typedef void* (*adm_init_t)();
+typedef void (*adm_deinit_t)(void *);
+typedef void (*adm_register_output_stream_t)(void *, void*);
+typedef void (*adm_register_input_stream_t)(void *, void*);
+typedef void (*adm_deregister_stream_t)(void *, void*);
+typedef void (*adm_request_focus_t)(void *, void*);
+typedef void (*adm_abandon_focus_t)(void *, void*);
+typedef void (*adm_set_config_t)(void *, void*,
+        struct pcm *, struct pcm_config *);
+typedef void (*adm_request_focus_v2_t)(void *, void*, long);
+typedef void (*adm_on_routing_change_t)(void *, void*);
+typedef int (*adm_request_focus_v2_1_t)(void *, void*, long);
 
 class Device;
 class Stream;
@@ -304,6 +326,20 @@ public:
     qal_global_callback globalCb = NULL;
     void *cookie;
     int initSndMonitor();
+    adm_init_t admInitFn;
+    adm_deinit_t admDeInitFn;
+    adm_register_output_stream_t admRegisterOutputStreamFn;
+    adm_register_input_stream_t admRegisterInputStreamFn;
+    adm_deregister_stream_t admDeregisterStreamFn;
+    adm_request_focus_t admRequestFocusFn;
+    adm_abandon_focus_t admAbandonFocusFn;
+    adm_set_config_t admSetConfigFn;
+    adm_request_focus_v2_t admRequestFocusV2Fn;
+    adm_on_routing_change_t admOnRoutingChangeFn;
+    adm_request_focus_v2_1_t  admRequestFocus_v2_1Fn;
+    void *admData;
+    void *admLibHdl;
+
     /* checks config for both stream and device */
     bool isStreamSupported(struct qal_stream_attributes *attributes,
                            struct qal_device *devices, int no_of_devices);
@@ -334,6 +370,7 @@ public:
     int checkAndGetDeviceConfig(struct qal_device *device ,bool* bIsUpdated);
     void split_snd_card(const char* in_snd_card_name);
     int init_audio();
+    void loadAdmLib();
     static int init();
     static void deinit();
     static std::shared_ptr<ResourceManager> getInstance();

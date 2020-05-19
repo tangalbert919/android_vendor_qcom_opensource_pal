@@ -104,7 +104,11 @@ public:
                                    struct qal_mmap_buffer *info) override;
     int GetMmapPosition(Stream *s, struct qal_mmap_position *position) override;
     void adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames);
-
+    void registerAdmStream(Stream *s, qal_stream_direction_t dir,
+            qal_stream_flags_t flags, struct pcm *, struct pcm_config *cfg);
+    void deRegisterAdmStream(Stream *s);
+    void requestAdmFocus(Stream *s, long ns);
+    void releaseAdmFocus(Stream *s);
 };
 
 #endif //SESSION_ALSAPCM_H

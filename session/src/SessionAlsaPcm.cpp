@@ -440,6 +440,57 @@ exit:
     return status;
 }
 
+void SessionAlsaPcm::deRegisterAdmStream(Stream *s)
+{
+    if (rm->admDeregisterStreamFn)
+        rm->admDeregisterStreamFn(rm->admData, static_cast<void *>(s));
+}
+
+void SessionAlsaPcm::registerAdmStream(Stream *s, qal_stream_direction_t dir,
+        qal_stream_flags_t flags, struct pcm *pcm, struct pcm_config *cfg)
+{
+    switch (dir) {
+    case QAL_AUDIO_INPUT:
+        if (rm->admRegisterInputStreamFn) {
+            rm->admRegisterInputStreamFn(rm->admData, static_cast<void *>(s));
+
+            if (flags & QAL_STREAM_FLAG_MMAP_MASK) {
+                if (rm->admSetConfigFn)
+                    rm->admSetConfigFn(rm->admData, static_cast<void *>(s),
+                            pcm, cfg);
+            }
+        }
+        break;
+    case QAL_AUDIO_OUTPUT:
+        if (rm->admRegisterOutputStreamFn) {
+            rm->admRegisterOutputStreamFn(rm->admData, static_cast<void *>(s));
+
+            if (flags & QAL_STREAM_FLAG_MMAP_MASK) {
+                if (rm->admSetConfigFn)
+                    rm->admSetConfigFn(rm->admData, static_cast<void *>(s),
+                            pcm, cfg);
+            }
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+void SessionAlsaPcm::requestAdmFocus(Stream *s,  long ns)
+{
+    if (rm->admRequestFocusV2Fn)
+        rm->admRequestFocusV2Fn(rm->admData, static_cast<void *>(s),
+                ns);
+    else if (rm->admRequestFocusFn)
+        rm->admRequestFocusFn(rm->admData, static_cast<void *>(s));
+}
+
+void SessionAlsaPcm::releaseAdmFocus(Stream *s)
+{
+    if (rm->admAbandonFocusFn)
+        rm->admAbandonFocusFn(rm->admData, static_cast<void *>(s));
+}
 int SessionAlsaPcm::start(Stream * s)
 {
     struct pcm_config config;
@@ -586,6 +637,10 @@ int SessionAlsaPcm::start(Stream * s)
                 break;
         }
         mState = SESSION_OPENED;
+
+        if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
+                !(sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
+            registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
@@ -884,6 +939,9 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
             }
+            if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
+                !(sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
+                deRegisterAdmStream(s);
             if (pcm)
                 status = pcm_close(pcm);
             if (status) {
@@ -909,6 +967,9 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
             }
+            if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
+                !(sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
+                deRegisterAdmStream(s);
             if (pcm)
                 status = pcm_close(pcm);
             if (status) {
@@ -1137,7 +1198,13 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct qal_buffer *buf, in
 
         if(SessionAlsaUtils::isMmapUsecase(sAttr))
         {
+            long ns = 0;
+            if (sAttr.in_media_config.sample_rate)
+                ns = pcm_bytes_to_frames(pcm, pcmReadSize)*1000000000LL/
+                    sAttr.in_media_config.sample_rate;
+            requestAdmFocus(s, ns);
             status =  pcm_mmap_read(pcm, data,  pcmReadSize);
+            releaseAdmFocus(s);
         } else {
             status =  pcm_read(pcm, data,  pcmReadSize);
         }
@@ -1212,7 +1279,14 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
 
         if(SessionAlsaUtils::isMmapUsecase(sAttr))
         {
+            long ns = 0;
+            if (sAttr.out_media_config.sample_rate)
+                ns = pcm_bytes_to_frames(pcm, sizeWritten)*1000000000LL/
+                    sAttr.out_media_config.sample_rate;
+            QAL_ERR(LOG_TAG,"1.bufsize:%u ns:%ld", sizeWritten, ns);
+            requestAdmFocus(s, ns);
             status =  pcm_mmap_write(pcm, data,  sizeWritten);
+            releaseAdmFocus(s);
         } else {
             status =  pcm_write(pcm, data,  sizeWritten);
         }
@@ -1236,9 +1310,16 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         mState = SESSION_STARTED;
     }
     data = static_cast<char *>(data) + offset;
-    if(SessionAlsaUtils::isMmapUsecase(sAttr))
+    if (SessionAlsaUtils::isMmapUsecase(sAttr) && sizeWritten)
     {
+        long ns = 0;
+        if (sAttr.out_media_config.sample_rate)
+            ns = pcm_bytes_to_frames(pcm, sizeWritten)*1000000000LL/
+                sAttr.out_media_config.sample_rate;
+    QAL_ERR(LOG_TAG,"2.bufsize:%u ns:%ld", sizeWritten, ns);
+        requestAdmFocus(s, ns);
         status =  pcm_mmap_write(pcm, data,  sizeWritten);
+        releaseAdmFocus(s);
     } else {
         status =  pcm_write(pcm, data,  sizeWritten);
     }

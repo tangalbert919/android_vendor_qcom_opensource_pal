@@ -49,6 +49,7 @@
 #include "SndCardMonitor.h"
 #include "agm_api.h"
 #include <unistd.h>
+#include <dlfcn.h>
 #include <mutex>
 
 #ifndef FEATURE_IPQ_OPENWRT
@@ -527,6 +528,7 @@ ResourceManager::ResourceManager()
         QAL_ERR(LOG_TAG, "AGM service not up%d", ret);
     }
 
+    ResourceManager::loadAdmLib();
     QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
@@ -559,6 +561,51 @@ ResourceManager::~ResourceManager()
     sndDeviceNameLUT.clear();
     devicePcmId.clear();
     deviceLinkName.clear();
+
+    if (admLibHdl) {
+        if (admDeInitFn)
+            admDeInitFn(admData);
+        dlclose(admLibHdl);
+    }
+
+}
+
+void ResourceManager::loadAdmLib()
+{
+    if (access(ADM_LIBRARY_PATH, R_OK) == 0) {
+        admLibHdl = dlopen(ADM_LIBRARY_PATH, RTLD_NOW);
+        if (admLibHdl == NULL) {
+            QAL_ERR(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
+        } else {
+            QAL_INFO(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
+            admInitFn = (adm_init_t)
+                dlsym(admLibHdl, "adm_init");
+            admDeInitFn = (adm_deinit_t)
+                dlsym(admLibHdl, "adm_deinit");
+            admRegisterInputStreamFn = (adm_register_input_stream_t)
+                dlsym(admLibHdl, "adm_register_input_stream");
+            admRegisterOutputStreamFn = (adm_register_output_stream_t)
+                dlsym(admLibHdl, "adm_register_output_stream");
+            admDeregisterStreamFn = (adm_deregister_stream_t)
+                dlsym(admLibHdl, "adm_deregister_stream");
+            admRequestFocusFn = (adm_request_focus_t)
+                dlsym(admLibHdl, "adm_request_focus");
+            admAbandonFocusFn = (adm_abandon_focus_t)
+                dlsym(admLibHdl, "adm_abandon_focus");
+            admSetConfigFn = (adm_set_config_t)
+                dlsym(admLibHdl, "adm_set_config");
+            admRequestFocusV2Fn = (adm_request_focus_v2_t)
+                dlsym(admLibHdl, "adm_request_focus_v2");
+            admOnRoutingChangeFn = (adm_on_routing_change_t)
+                dlsym(admLibHdl, "adm_on_routing_change");
+            admRequestFocus_v2_1Fn = (adm_request_focus_v2_1_t)
+                dlsym(admLibHdl, "adm_request_focus_v2_1");
+
+
+            if (admInitFn)
+                admData = admInitFn();
+        }
+    }
 }
 
 void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
