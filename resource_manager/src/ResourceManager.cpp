@@ -1053,15 +1053,62 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
         case QAL_DEVICE_OUT_AUX_DIGITAL:
         case QAL_DEVICE_OUT_AUX_DIGITAL_1:
         case QAL_DEVICE_OUT_HDMI:
-            dev_ch_info =(struct qal_channel_info *) calloc(1,sizeof(uint16_t) + sizeof(uint8_t)*2);
-            dev_ch_info->channels = CHANNELS_2;
-            dev_ch_info->ch_map[0] = QAL_CHMAP_CHANNEL_FL;
-            dev_ch_info->ch_map[1] = QAL_CHMAP_CHANNEL_FR;
-            deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info->channels);
-            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            {
+                std::shared_ptr<DisplayPort> dp_device;
+                dp_device = std::dynamic_pointer_cast<DisplayPort>
+                                    (DisplayPort::getInstance(deviceattr, rm));
+                if (!dp_device) {
+                    QAL_ERR(LOG_TAG, "Failed to get DisplayPort object.");
+                    return -EINVAL;
+                }
+                /**
+                 * Comparision of stream channel and device supported max channel.
+                 * If stream channel is less than or equal to device supported
+                 * channel then the channel of stream is taken othewise it is of
+                 * device
+                 */
+                int channels = dp_device->getMaxChannel();
+
+                if (channels > sAttr->out_media_config.ch_info->channels)
+                    channels = sAttr->out_media_config.ch_info->channels;
+
+                dev_ch_info = (struct qal_channel_info *) calloc(1,
+                                    sizeof(uint16_t) + sizeof(uint8_t)*channels);
+                dev_ch_info->channels = channels;
+
+                getChannelMap(&(dev_ch_info->ch_map[0]), channels);
+                deviceattr->config.ch_info = dev_ch_info;
+                QAL_DBG(LOG_TAG, "Channel map set for %d", channels);
+
+                if (dp_device->isSupportedSR(NULL,
+                            sAttr->out_media_config.sample_rate)) {
+                    deviceattr->config.sample_rate =
+                            sAttr->out_media_config.sample_rate;
+                } else {
+                    int sr = dp_device->getHighestSupportedSR();
+                    if (sAttr->out_media_config.sample_rate > sr)
+                        deviceattr->config.sample_rate = sr;
+                    else
+                        deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                }
+
+                QAL_DBG(LOG_TAG, "SR %d", deviceattr->config.sample_rate);
+
+                if (DisplayPort::isBitWidthSupported(
+                            sAttr->out_media_config.bit_width)) {
+                    deviceattr->config.bit_width =
+                            sAttr->out_media_config.bit_width;
+                } else {
+                    int bps = dp_device->getHighestSupportedBps();
+                    if (sAttr->out_media_config.bit_width > bps)
+                        deviceattr->config.bit_width = bps;
+                    else
+                        deviceattr->config.bit_width = BITWIDTH_16;
+                }
+                QAL_DBG(LOG_TAG, "Bit Width %d", deviceattr->config.bit_width);
+
+                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            }
             break;
         default:
             QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);

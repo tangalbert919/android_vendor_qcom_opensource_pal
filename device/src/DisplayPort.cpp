@@ -576,7 +576,7 @@ void DisplayPort::cacheEdid(struct audio_mixer *mixer, int controller, int strea
 int32_t DisplayPort::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
+    QAL_ERR(LOG_TAG, "%s: sampleRate %d", __func__, sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -595,6 +595,7 @@ int32_t DisplayPort::isSampleRateSupported(uint32_t sampleRate)
     }
     return rc;
 }
+
 //TBD why do these channels have to be supported, DisplayPorts support only 1/2?
 int32_t DisplayPort::isChannelSupported(uint32_t numChannels)
 {
@@ -725,7 +726,7 @@ const char * DisplayPort::edidFormatToStr(unsigned char format)
 bool DisplayPort::isSampleRateSupported(unsigned char srByte, int samplingRate)
 {
     int result = 0;
-
+    // Codec Supports Sample rate in range of 48K-192K
     QAL_VERBOSE(LOG_TAG," srByte: %d, samplingRate: %d", srByte, samplingRate);
     switch (samplingRate) {
     case 192000:
@@ -742,12 +743,6 @@ bool DisplayPort::isSampleRateSupported(unsigned char srByte, int samplingRate)
         break;
     case 48000:
         result = (srByte & BIT(2));
-        break;
-    case 44100:
-        result = (srByte & BIT(1));
-        break;
-    case 32000:
-        result = (srByte & BIT(0));
         break;
      default:
         break;
@@ -815,12 +810,6 @@ int DisplayPort::getHighestEdidSF(unsigned char byte)
     } else if (byte & BIT(2)) {
         QAL_VERBOSE(LOG_TAG,"Highest: 48kHz");
         nfreq = 48000;
-    } else if (byte & BIT(1)) {
-        QAL_VERBOSE(LOG_TAG,"Highest: 44.1kHz");
-        nfreq = 44100;
-    } else if (byte & BIT(0)) {
-        QAL_VERBOSE(LOG_TAG,"Highest: 32kHz");
-        nfreq = 32000;
     }
     return nfreq;
 }
@@ -1564,16 +1553,50 @@ bool DisplayPort::getSinkCaps(edidAudioInfo* info, char *edidData)
 bool DisplayPort::isSupportedSR(edidAudioInfo* info, int sr)
 {
     int i = 0;
+    struct extDispState *state = NULL;
+
+    state = &extDisp[dp_controller][dp_stream];
+    if (state && state->edidInfo)
+    {
+        info = (edidAudioInfo*) state->edidInfo;
+    }
     if (info != NULL && sr != 0) {
         for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
-        if (isSampleRateSupported(info->audioBlocksArray[i].samplingFreqBitmask , sr)) {
-                QAL_VERBOSE(LOG_TAG," returns true for sample rate [%d]", sr);
+        if (isSampleRateSupported(info->audioBlocksArray[i].samplingFreqBitmask,
+                    sr)) {
+                QAL_DBG(LOG_TAG," Returns true for sample rate [%d]", sr);
                 return true;
             }
         }
     }
-    QAL_VERBOSE(LOG_TAG," returns false for sample rate [%d]", sr);
+    QAL_ERR(LOG_TAG," Returns false for sample rate [%d]", sr);
     return false;
+}
+
+int DisplayPort::getMaxChannel()
+{
+    int i = 0;
+    struct extDispState *state = NULL;
+    int max_channel = 2;
+    edidAudioInfo *info = NULL;
+
+    state = &extDisp[dp_controller][dp_stream];
+    if (state && state->edidInfo)
+    {
+        info = (edidAudioInfo*) state->edidInfo;
+    }
+
+    if (info != NULL) {
+        for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
+            if (info->audioBlocksArray[i].formatId == LPCM) {
+                if (max_channel < info->audioBlocksArray[i].channels) {
+                    max_channel = info->audioBlocksArray[i].channels;
+                    QAL_DBG(LOG_TAG," Max channels updated to [%d]", max_channel);
+                }
+            }
+        }
+    }
+    return max_channel;
 }
 
 bool DisplayPort::isSupportedBps(edidAudioInfo* info, int bps)
@@ -1598,11 +1621,19 @@ bool DisplayPort::isSupportedBps(edidAudioInfo* info, int bps)
     return false;
 }
 
-int DisplayPort::getHighestSupportedSR(edidAudioInfo* info)
+int DisplayPort::getHighestSupportedSR()
 {
     int sr = 0;
     int highestSR = 0;
     int i;
+    struct extDispState *state = NULL;
+    edidAudioInfo *info = NULL;
+
+    state = &extDisp[dp_controller][dp_stream];
+    if (state && state->edidInfo)
+    {
+        info = (edidAudioInfo*) state->edidInfo;
+    }
 
     if (info != NULL) {
         for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
@@ -1617,4 +1648,42 @@ int DisplayPort::getHighestSupportedSR(edidAudioInfo* info)
 
     QAL_VERBOSE(LOG_TAG," returns [%d] for highest supported sr", highestSR);
     return highestSR;
+}
+
+int DisplayPort::getHighestSupportedBps()
+{
+    int bpsMask = 0;
+    int highestBps = 0;
+    int i;
+    struct extDispState *state = NULL;
+    edidAudioInfo *info = NULL;
+
+    state = &extDisp[dp_controller][dp_stream];
+    if (state && state->edidInfo)
+    {
+        info = (edidAudioInfo*) state->edidInfo;
+    }
+
+    if (info != NULL) {
+        for (i = 0; i < info->audioBlocks && i < MAX_EDID_BLOCKS; i++) {
+            bpsMask = info->audioBlocksArray[i].bitsPerSampleBitmask;
+            if (isSupportedBps(bpsMask, 24)) {
+                highestBps = 24;
+                break;
+            }
+            else if (isSupportedBps(bpsMask, 20)) {
+                if (highestBps < 20)
+                    highestBps = 20;
+            }
+            else if (isSupportedBps(bpsMask, BITWIDTH_16))
+                if (highestBps < BITWIDTH_16)
+                    highestBps = BITWIDTH_16;
+        }
+    }
+
+    if (highestBps == 0) {
+        QAL_ERR(LOG_TAG, "None of the supported BPS is highest");
+        highestBps = 16;
+    }
+    return highestBps;
 }

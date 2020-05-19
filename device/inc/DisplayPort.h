@@ -166,8 +166,10 @@ public:
     static void dumpEdidData(edidAudioInfo *info);
     static bool getSinkCaps(edidAudioInfo* info, char *edidData);
     bool isSupportedSR(edidAudioInfo* info, int sr);
+    int getMaxChannel();
     bool isSupportedBps(edidAudioInfo* info, int bps);
-    int getHighestSupportedSR(edidAudioInfo* info);
+    int getHighestSupportedSR();
+    int getHighestSupportedBps();
     ssize_t updateSysfsNode(const char *path, const char *data, size_t len);
     int getExtDispSysfsNodeIndex(int ext_disp_type);
     int updateExtDispSysfsNode(int node_value, int controller, int stream);
