@@ -3428,6 +3428,10 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             if (param_bt_a2dp->a2dp_suspended == false) {
                 /* Handle bt sco mic running usecase */
                 struct qal_device sco_tx_dattr;
+                struct qal_device_info devinfo = {};
+                struct qal_stream_attributes sAttr;
+                Stream *stream = NULL;
+                std::vector<Stream*> activestreams;
 
                 sco_tx_dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
                 QAL_DBG(LOG_TAG, "a2dp resumed, switch bt sco mic to handset mic");
@@ -3437,14 +3441,23 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
                     handset_tx_dattr.id = QAL_DEVICE_IN_HANDSET_MIC;
                     sco_tx_dev = Device::getInstance(&sco_tx_dattr , rm);
-                    getDeviceConfig(&handset_tx_dattr, NULL, 0);
+                    getActiveStream_l(sco_tx_dev, activestreams);
+                    if (activestreams.size() == 0) {
+                       QAL_ERR(LOG_TAG, "no other active streams found");
+                       goto setdevparam;
+                    }
+                    stream = static_cast<Stream *>(activestreams[0]);
+                    stream->getStreamAttributes(&sAttr);
+                    getDeviceInfo(handset_tx_dattr.id, sAttr.type, &devinfo);
+                    QAL_DBG(LOG_TAG, "devinfo.channels %d sAttr.type %d \n", devinfo.channels, sAttr.type);
+                    getDeviceConfig(&handset_tx_dattr, &sAttr, devinfo.channels);
                     mResourceManagerMutex.unlock();
                     rm->forceDeviceSwitch(sco_tx_dev, &handset_tx_dattr);
                     mResourceManagerMutex.lock();
                 }
                 /* TODO : Handle other things in BT class */
             }
-
+setdevparam:
             status = a2dp_dev->setDeviceParameter(param_id, param_payload);
             if (status) {
                 QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
