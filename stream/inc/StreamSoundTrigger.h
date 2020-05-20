@@ -66,6 +66,17 @@ typedef enum {
     ST_STATE_SSR,
 } st_state_id_t;
 
+static const std::map<int32_t, std::string> stStateNameMap
+{
+    {ST_STATE_NONE, std::string{"ST_STATE_NONE"}},
+    {ST_STATE_IDLE, std::string{"ST_STATE_IDLE"}},
+    {ST_STATE_LOADED, std::string{"ST_STATE_LOADED"}},
+    {ST_STATE_ACTIVE, std::string{"ST_STATE_ACTIVE"}},
+    {ST_STATE_DETECTED, std::string{"ST_STATE_DETECTED"}},
+    {ST_STATE_BUFFERING, std::string{"ST_STATE_BUFFERING"}},
+    {ST_STATE_SSR, std::string{"ST_STATE_SSR"}}
+};
+
 enum {
     ST_EV_LOAD_SOUND_MODEL,
     ST_EV_UNLOAD_SOUND_MODEL,

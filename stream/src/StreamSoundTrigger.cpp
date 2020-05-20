@@ -2036,8 +2036,10 @@ void StreamSoundTrigger::TransitTo(int32_t state_id) {
     }
     prev_state_ = cur_state_;
     cur_state_ = it->second;
-    QAL_DBG(LOG_TAG, "state transitioned from %d to %d",
-            prev_state_->GetStateId(), it->first);
+    auto oldState = stStateNameMap.at(prev_state_->GetStateId());
+    auto newState = stStateNameMap.at(it->first);
+    QAL_DBG(LOG_TAG, "state transitioned from %s to %s",
+            oldState.c_str(), newState.c_str());
 }
 
 int32_t StreamSoundTrigger::ProcessInternalEvent(
