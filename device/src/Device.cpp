@@ -414,6 +414,12 @@ int Device::start()
         }
         status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
 
+        if (!UpdatedSndName.empty()) {
+            QAL_DBG(LOG_TAG,"%s: Update sndName %s, currently %s",__func__,
+                    UpdatedSndName.c_str(), mSndDeviceName);
+            strlcpy(mSndDeviceName, UpdatedSndName.c_str(), DEVICE_NAME_MAX_SIZE);
+        }
+
         QAL_VERBOSE(LOG_TAG, "%s: audio_route %pK SND device name %s", __func__, audioRoute, mSndDeviceName);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);

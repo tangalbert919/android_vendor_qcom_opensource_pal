@@ -39,6 +39,8 @@
 #include "Device.h"
 #include "QalAudioRoute.h"
 
+#define DEVICE_NAME_MAX_SIZE 128
+
 class ResourceManager;
 
 class Device
@@ -52,11 +54,12 @@ protected:
     int deviceCount = 0;
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
-    char mSndDeviceName[128] = {0};
+    char mSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     void *deviceHandle;
     bool initialized = false;
     void *customPayload;
     size_t customPayloadSize;
+    std::string UpdatedSndName;
 
     Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
@@ -81,6 +84,7 @@ public:
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
     virtual int32_t getDeviceParameter(uint32_t param_id, void **param);
     virtual bool isDeviceReady() { return true;}
+    void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
     virtual ~Device();
 };
 

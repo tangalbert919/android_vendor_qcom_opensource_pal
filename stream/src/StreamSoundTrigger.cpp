@@ -2003,9 +2003,10 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
         }
     }
 
-    QAL_DBG(LOG_TAG, "using capture profile %s: dev_id=0x%x, chs=%d, sr=%d",
+    QAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
         cap_prof->GetName().c_str(), cap_prof->GetDevId(),
-        cap_prof->GetChannels(), cap_prof->GetSampleRate());
+        cap_prof->GetChannels(), cap_prof->GetSampleRate(),
+        cap_prof->GetSndName().c_str());
 
     return cap_prof;
 }
@@ -2270,6 +2271,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 /* now start the device */
                 QAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
+                dev->setSndName(st_stream_.cap_prof_->GetSndName());
                 status = dev->start();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
@@ -2278,6 +2280,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev);
+                    dev->setSndName(st_stream_.cap_prof_->GetSndName());
                 }
                 QAL_DBG(LOG_TAG, "device started");
             }
@@ -2658,6 +2661,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             }
 
             st_stream_.rm->registerDevice(dev);
+            dev->setSndName(st_stream_.cap_prof_->GetSndName());
 
             status = dev->start();
             if (0 != status) {

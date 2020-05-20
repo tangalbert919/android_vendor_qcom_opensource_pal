@@ -82,10 +82,11 @@ class CaptureProfile : public SoundTriggerXml {
     void HandleCharData(const char* data) override;
 
     std::string GetName() const { return name_; }
-    qal_device_id_t GetDevId() const { return device_id_; };
+    qal_device_id_t GetDevId() const { return device_id_; }
     uint32_t GetSampleRate() const { return sample_rate_; }
     uint32_t GetBitWidth() const { return bitwidth_; }
     uint32_t GetChannels() const { return channels_; }
+    std::string GetSndName() const { return snd_name_; }
     std::pair<uint32_t,uint32_t> GetDevicePpKv() const { return device_pp_kv_; }
 
  private:
@@ -95,6 +96,7 @@ class CaptureProfile : public SoundTriggerXml {
     uint32_t channels_;
     uint32_t bitwidth_;
     std::pair<uint32_t,uint32_t> device_pp_kv_;
+    std::string snd_name_;
 };
 
 using st_cap_profile_map_t =

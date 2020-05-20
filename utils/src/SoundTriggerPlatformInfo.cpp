@@ -101,7 +101,8 @@ CaptureProfile::CaptureProfile(const std::string name) :
     channels_(1),
     bitwidth_(16),
     device_pp_kv_(std::make_pair(DEVICEPP_TX,
-        DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS))
+        DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)),
+    snd_name_("va-mic")
 {
 
 }
@@ -134,6 +135,8 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
                 bitwidth_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "channels")) {
                 channels_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "snd_name")) {
+                snd_name_ = attribs[++i];
             } else {
                 QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
