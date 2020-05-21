@@ -760,7 +760,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
                 (void **)&paramA2dp,
                 &paramSize,
                 NULL);
-        if (!ret)
+        if (!ret && paramA2dp)
             isA2dpSuspended = paramA2dp->a2dp_suspended;
     }
 
