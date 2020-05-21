@@ -274,6 +274,12 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
 
 int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     int32_t status = 0;
+    qal_param_payload *param_payload = (qal_param_payload *)payload;
+
+    if (!param_payload) {
+        QAL_ERR(LOG_TAG, "Invalid payload");
+        return -EINVAL;
+    }
 
     QAL_DBG(LOG_TAG, "Enter, param id %d", param_id);
 
@@ -281,22 +287,17 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     switch (param_id) {
       case QAL_PARAM_ID_LOAD_SOUND_MODEL: {
           std::shared_ptr<StEventConfig> ev_cfg(
-              new StLoadEventConfig(payload));
+              new StLoadEventConfig((void *)param_payload->payload));
           status = cur_state_->ProcessEvent(ev_cfg);
           break;
       }
       case QAL_PARAM_ID_RECOGNITION_CONFIG: {
-          if (!payload) {
-              QAL_ERR(LOG_TAG, "Invalid config payload");
-              status = -EINVAL;
-              break;
-          }
           /*
            * Currently spf needs graph stop and start for next detection.
            * Handle this event similar to fresh start config.
            */
           std::shared_ptr<StEventConfig> ev_cfg(
-              new StRecognitionCfgEventConfig(payload));
+              new StRecognitionCfgEventConfig((void *)param_payload->payload));
           status = cur_state_->ProcessEvent(ev_cfg);
           break;
       }
