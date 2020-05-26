@@ -1770,6 +1770,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
         if (!pcm_is_ready(pcm)) {
             QAL_ERR(LOG_TAG, "pcm open not ready");
+            pcm = nullptr;
             step = "open";
             status = -EINVAL;
             goto exit;
@@ -1805,8 +1806,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             info->fd = buf_info.data_buf_fd;
             //mmap_shared_memory_fd = buf_info->shared_memory_fd; // for closing later
 
-            QAL_VERBOSE("%s: opened shared_memory_fd = %d",
-                __func__, info->fd);
+            QAL_VERBOSE(LOG_TAG, "opened shared_memory_fd = %d",
+                info->fd);
 
             if (buf_info.data_buf_size < buffer_size) {
                 status = -EINVAL;
@@ -1837,8 +1838,10 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
          } else {
              //status = -errno;
              QAL_ERR(LOG_TAG,"%s: %s - %d", __func__,step, status);
-             pcm_close(pcm);
-             pcm = NULL;
+             if (pcm) {
+                 pcm_close(pcm);
+                 pcm = NULL;
+             }
          }
      } else {
          status = 0;

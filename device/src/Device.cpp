@@ -337,6 +337,13 @@ int Device::open()
         mQALDeviceName = rm->getQALDeviceName(this->deviceAttr.id);
         initialized = true;
         QAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
+        {
+            std::string backEndName;
+            rm->getBackendName(this->deviceAttr.id, backEndName);
+            if (strlen(backEndName.c_str())) {
+                SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &(this->deviceAttr));
+            }
+        }
     }
 
     devObj = Device::getInstance(&deviceAttr, rm);
