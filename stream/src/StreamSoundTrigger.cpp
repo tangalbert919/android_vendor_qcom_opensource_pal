@@ -48,16 +48,12 @@
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 
-/* Qualcomm Technologies Inc. vendorUuid */
-const char *qcva_uuid = "68ab2d40-e860-11e3-95ef-0002a5d5c51b";
-
 StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
                                        struct qal_device *dattr,
                                        uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm) {
-    std::shared_ptr<Device> dev = nullptr;
     int status = 0;
     class SoundTriggerUUID uuid;
     reader_ = nullptr;
@@ -93,16 +89,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         QAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
         throw std::runtime_error("Failed to get sound trigger platform info");
     }
-    if (SoundTriggerPlatformInfo::StringToUUID(qcva_uuid, uuid)) {
-        QAL_ERR(LOG_TAG, "Failed to construct uuid for sound model");
-        throw std::runtime_error("Failed to construct uuid for sound model");
-    }
-    sm_info_ = st_info_->GetSmConfig(uuid);
-    if (!sm_info_) {
-        QAL_ERR(LOG_TAG, "Failed to get sound model platform info");
-        throw std::runtime_error("Failed to get sound model platform info");
-    }
-
     mStreamAttr = (struct qal_stream_attributes *)calloc(1,
         sizeof(struct qal_stream_attributes));
     if (!mStreamAttr) {
@@ -139,29 +125,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         free(ch_info);
         throw std::runtime_error(err);
     }
-
-    // update best device
-    qal_device_id_t dev_id = GetAvailCaptureDevice();
-    QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
-    if (dattr[0].config.ch_info)
-        free(dattr[0].config.ch_info);
-    if (GetQalDevice(dev_id, &dattr[0])) {
-        QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
-        if (dattr[0].config.ch_info)
-            free(dattr[0].config.ch_info);
-        throw std::runtime_error("Failed to get device config");
-    }
-
-    dev = Device::getInstance(&dattr[0] , rm);
-    if (!dev) {
-        QAL_ERR(LOG_TAG, "Device creation is failed");
-        free(mStreamAttr->in_media_config.ch_info);
-        free(mStreamAttr);
-        throw std::runtime_error("failed to create device object");
-    }
-
-    mDevices.push_back(dev);
-    dev = nullptr;
 
     rm->registerStream(this);
 
@@ -812,6 +775,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         QAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
         return -EINVAL;
     }
+
     sound_model_type_ = sound_model->type;
 
     if (sound_model->type == QAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -2080,10 +2044,68 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             std::shared_ptr<CaptureProfile> cap_prof = nullptr;
             StLoadEventConfigData *data =
                 (StLoadEventConfigData *)ev_cfg->data_.get();
+            class SoundTriggerUUID uuid;
+            struct qal_st_sound_model * qal_st_sm;
+            std::pair<int32_t,int32_t> streamConfigKV;
 
-            st_stream_.mInstanceID = st_stream_.rm->getStreamInstanceID(
-                st_stream_.mStreamAttr);
+            qal_st_sm = (struct qal_st_sound_model *)data->data_;
 
+            uuid.timeLow = (uint32_t)qal_st_sm->vendor_uuid.timeLow;
+            uuid.timeMid = (uint16_t)qal_st_sm->vendor_uuid.timeMid;
+            uuid.timeHiAndVersion = (uint16_t)qal_st_sm->vendor_uuid.timeHiAndVersion;
+            uuid.clockSeq = (uint16_t)qal_st_sm->vendor_uuid.clockSeq;
+            uuid.node[0] = (uint8_t)qal_st_sm->vendor_uuid.node[0];
+            uuid.node[1] = (uint8_t)qal_st_sm->vendor_uuid.node[1];
+            uuid.node[2] = (uint8_t)qal_st_sm->vendor_uuid.node[2];
+            uuid.node[3] = (uint8_t)qal_st_sm->vendor_uuid.node[3];
+            uuid.node[4] = (uint8_t)qal_st_sm->vendor_uuid.node[4];
+            uuid.node[5] = (uint8_t)qal_st_sm->vendor_uuid.node[5];
+
+            QAL_INFO(LOG_TAG, "Input vendor uuid : %08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
+                        uuid.timeLow,
+                        uuid.timeMid,
+                        uuid.timeHiAndVersion,
+                        uuid.clockSeq,
+                        uuid.node[0],
+                        uuid.node[1],
+                        uuid.node[2],
+                        uuid.node[3],
+                        uuid.node[4],
+                        uuid.node[5]);
+
+            st_stream_.sm_info_ = st_stream_.st_info_->GetSmConfig(uuid);
+
+            if (!st_stream_.sm_info_) {
+                QAL_ERR(LOG_TAG, "Failed to get sound model platform info");
+                throw std::runtime_error("Failed to get sound model platform info");
+            }
+
+            if (!st_stream_.mDevices.size()) {
+                struct qal_device* dattr = new (struct qal_device);
+                std::shared_ptr<Device> dev = nullptr;
+
+                // update best device
+                qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
+                QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+
+                if (st_stream_.GetQalDevice(dev_id, dattr)) {
+                    QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
+                    if (dattr->config.ch_info)
+                        free(dattr->config.ch_info);
+                    throw std::runtime_error("Failed to get device config");
+                }
+
+                dev = Device::getInstance(dattr, rm);
+                if (!dev) {
+                    QAL_ERR(LOG_TAG, "Device creation is failed");
+                    free(st_stream_.mStreamAttr->in_media_config.ch_info);
+                    free(st_stream_.mStreamAttr);
+                    throw std::runtime_error("failed to create device object");
+                }
+                st_stream_.mDevices.push_back(dev);
+                dev = nullptr;
+                delete dattr;
+            }
             if (st_stream_.mDevices.size() > 0) {
                 status = st_stream_.mDevices[0]->open();
                 if (0 != status) {
@@ -2091,6 +2113,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                     goto err_exit;
                 }
             }
+
             cap_prof = st_stream_.GetCurrentCaptureProfile();
             st_stream_.cap_prof_ = cap_prof;
             /* store the pre-proc KV selected in the config file */
@@ -2098,8 +2121,14 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             st_stream_.mDevPpModifiers.push_back(
                 st_stream_.cap_prof_->GetDevicePpKv());
 
-            status = st_stream_.LoadSoundModel(
-                (struct qal_st_sound_model *)data->data_);
+            streamConfigKV = st_stream_.sm_info_->GetStreamConfig();
+            st_stream_.mStreamModifiers.clear();
+            st_stream_.mStreamModifiers.push_back(streamConfigKV);
+
+            st_stream_.mInstanceID = st_stream_.rm->getStreamInstanceID(
+            st_stream_.mStreamAttr, streamConfigKV);
+
+            status = st_stream_.LoadSoundModel(qal_st_sm);
 
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to load sm, status %d", status);
@@ -2209,6 +2238,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
     switch (ev_cfg->id_) {
         case ST_EV_UNLOAD_SOUND_MODEL: {
             int ret = 0;
+            std::pair<uint32_t,uint32_t> streamConfigKV;
+
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 QAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
@@ -2236,8 +2267,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             }
             st_stream_.engines_.clear();
 
-            st_stream_.rm->resetStreamInstanceID(st_stream_.mStreamAttr,
-                st_stream_.mInstanceID);
+            streamConfigKV = st_stream_.sm_info_->GetStreamConfig();
+
+            st_stream_.rm->resetStreamInstanceID(
+                st_stream_.mStreamAttr,
+                st_stream_.mInstanceID,
+                streamConfigKV);
+
             TransitTo(ST_STATE_IDLE);
             break;
         }

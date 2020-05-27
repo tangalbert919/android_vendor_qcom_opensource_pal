@@ -54,6 +54,8 @@
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define MAX_PCM_NAME_SIZE 50
 
+using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
+
 enum qal_alsa_or_gsl {
     ALSA = 0,
     GSL
@@ -285,7 +287,7 @@ protected:
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
     static SndCardMonitor *sndmon;
-    std::vector<std::pair<int32_t, bool>> STInstancesList;
+    std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     static int mixerEventRegisterCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
     std::thread mixerEventTread;
@@ -448,7 +450,9 @@ public:
     int32_t getSidetoneMode(qal_device_id_t deviceId, qal_stream_type_t type,
                             sidetone_mode_t *mode);
     int getStreamInstanceID(qal_stream_attributes* StrAttr);
+    int getStreamInstanceID(qal_stream_attributes* StrAttr, std::pair<uint32_t, uint32_t> streamConfigModifierKV);
     int resetStreamInstanceID(qal_stream_attributes* StrAttr, uint32_t sInstanceID);
+    int resetStreamInstanceID(qal_stream_attributes* StrAttr, uint32_t sInstanceID, std::pair<uint32_t, uint32_t> streamConfigModifierKV);
 };
 
 #endif

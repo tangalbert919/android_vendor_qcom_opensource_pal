@@ -118,6 +118,7 @@ protected:
     struct modifier_kv *mModifiers;
     uint32_t mNoOfModifiers;
     KeyVect_t mDevPpModifiers;
+    KeyVect_t mStreamModifiers;
     size_t inBufSize;
     size_t outBufSize;
     size_t inBufCount;
@@ -171,6 +172,7 @@ public:
     int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     const KeyVect_t& getDevPpModifiers() const;
+    const KeyVect_t& getStreamModifiers() const;
     int32_t getStreamType(qal_stream_type_t* streamType);
     int32_t getStreamDirection(qal_stream_direction_t *dir);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);

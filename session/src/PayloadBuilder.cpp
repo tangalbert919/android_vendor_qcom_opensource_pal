@@ -2341,6 +2341,13 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                 QAL_ERR(LOG_TAG, "Invalid stream");
                 goto free_sattr;
             }
+            keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
+
+            // add key-vector for stream configuration
+            for (auto& kv: s->getStreamModifiers()) {
+                keyVector.push_back(kv);
+            }
+
             instance_id = s->getInstanceId();
             if (instance_id < INSTANCE_1) {
                 status = -EINVAL;
@@ -2348,9 +2355,9 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                     instance_id);
                 goto free_sattr;
             }
-            keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
             keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             break;
+
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);

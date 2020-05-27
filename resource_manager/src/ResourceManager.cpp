@@ -456,12 +456,6 @@ ResourceManager::ResourceManager()
             }
         }
     }
-
-    // Initialize all SVA session instances and mark as unused
-    for (int i = 1; i <= max_session_num; i++) {
-        STInstancesList.push_back(std::make_pair(i, false));
-    }
-
     ret = ResourceManager::init_audio();
     QAL_INFO(LOG_TAG, "Enter.");
     if (ret) {
@@ -2363,6 +2357,7 @@ void ResourceManager::deinit()
     }
     if (sndmon)
         delete sndmon;
+
 }
 
 int ResourceManager::getStreamTag(std::vector <int> &tag)
@@ -4090,28 +4085,21 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     return status;
 }
 
-int ResourceManager::resetStreamInstanceID(qal_stream_attributes *sAttr, uint32_t sInstanceID)
+int ResourceManager::resetStreamInstanceID(qal_stream_attributes *StrAttr, uint32_t sInstanceID)
 {
     int status = 0;
-    int i;
 
-    if (sAttr == NULL) {
+    if (StrAttr == NULL) {
         status = -EINVAL;
         return status;
     }
 
     mResourceManagerMutex.lock();
 
-    switch (sAttr->type) {
-        case QAL_STREAM_VOICE_UI:
-            for (i = 0; i < max_session_num; i++) {
-                if (STInstancesList[i].first == sInstanceID)
-                    STInstancesList[i].second = false;
-            }
-            break;
+    switch (StrAttr->type) {
         default:
             QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    sAttr->type);
+                    StrAttr->type);
             break;
     }
 
@@ -4120,31 +4108,134 @@ exit:
     return status;
 }
 
-int ResourceManager::getStreamInstanceID(qal_stream_attributes* sAttr)
+int ResourceManager::resetStreamInstanceID(qal_stream_attributes* StrAttr,
+    uint32_t sInstanceID,
+    std::pair<uint32_t, uint32_t> streamConfigModifierKV)
 {
     int status = 0;
-    int i;
+    int listNodeIndex = -1;
 
-    if (sAttr == NULL) {
+    if (StrAttr == NULL) {
         status = -EINVAL;
         return status;
     }
 
     mResourceManagerMutex.lock();
 
-    switch (sAttr->type) {
+    switch (StrAttr->type) {
         case QAL_STREAM_VOICE_UI:
-            for (i = 0; i < max_session_num; i++) {
-                if (!STInstancesList[i].second) {
-                    STInstancesList[i].second = true;
-                    status = STInstancesList[i].first;
+            for (int x = 0; x < STInstancesLists.size(); x++) {
+                if (STInstancesLists[x].first == streamConfigModifierKV.second) {
+                    QAL_DBG(LOG_TAG,"Found matching StreamConfig(%x) in STInstancesLists(%d)",
+                        streamConfigModifierKV.second, x);
+
+                    for (int i = 0; i < max_session_num; i++) {
+                        if (STInstancesLists[x].second[i].first == sInstanceID){
+                            STInstancesLists[x].second[i].second = false;
+                            QAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
+                                  "Instance(%d) to false",
+                                  x,
+                                  i,
+                                  sInstanceID);
+                            break;
+                        }
+                    }
                     break;
                 }
             }
             break;
         default:
             QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    sAttr->type);
+                    StrAttr->type);
+            break;
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr)
+{
+    int status = 0;
+
+    if (StrAttr == NULL) {
+        status = -EINVAL;
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+
+    switch (StrAttr->type) {
+        default:
+            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+                    StrAttr->type);
+            break;
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr,
+    std::pair<uint32_t, uint32_t> streamConfigModifierKV)
+{
+    int status = 0;
+    int i;
+    int listNodeIndex = -1;
+
+    if (StrAttr == NULL) {
+        status = -EINVAL;
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+
+    switch (StrAttr->type) {
+        case QAL_STREAM_VOICE_UI:
+            QAL_DBG(LOG_TAG,"STInstancesLists.size (%d)", STInstancesLists.size());
+
+            for (int x = 0; x < STInstancesLists.size(); x++) {
+                if (STInstancesLists[x].first == streamConfigModifierKV.second) {
+                    QAL_DBG(LOG_TAG,"Found list for StreamConfig(%x),index(%d)",
+                        streamConfigModifierKV.second, x);
+                    listNodeIndex = x;
+                    break;
+                }
+            }
+
+            if (listNodeIndex < 0) {
+                InstanceListNode_t streamConfigInstanceList;
+                QAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig(%x)",
+                    streamConfigModifierKV.second);
+
+                STInstancesLists.push_back(make_pair(
+                    streamConfigModifierKV.second,
+                    streamConfigInstanceList));
+                //Initialize List
+                for (i = 1; i <= max_session_num; i++) {
+                    STInstancesLists.back().second.push_back(std::make_pair(i, false));
+                }
+                listNodeIndex = STInstancesLists.size() - 1;
+            }
+
+            for (i = 0; i < max_session_num; i++) {
+                if (!STInstancesLists[listNodeIndex].second[i].second) {
+                    STInstancesLists[listNodeIndex].second[i].second = true;
+                    status = STInstancesLists[listNodeIndex].second[i].first;
+                    QAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
+                          "Instance(%d) to true",
+                          listNodeIndex,
+                          i,
+                          status);
+                    break;
+                }
+            }
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+                    StrAttr->type);
             break;
     }
 

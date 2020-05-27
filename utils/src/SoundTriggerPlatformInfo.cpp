@@ -47,6 +47,16 @@ const std::map<std::string, uint32_t> devicePPKeyLUT {
 const std::map<std::string, uint32_t> devicePPValueLUT {
     {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS},
     {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS},
+    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW" }, DEVICEPP_TX_VOICE_UI_RAW},
+};
+
+const std::map<std::string, uint32_t> streamConfigKeyLUT {
+    {std::string{ "VOICE_UI_STREAM_CONFIG" }, VOICE_UI_STREAM_CONFIG},
+};
+
+const std::map<std::string, uint32_t> streamConfigValueLUT {
+    {std::string{ "VUI_STREAM_CFG_SVA" }, VUI_STREAM_CFG_SVA},
+    {std::string{ "VUI_STREAM_CFG_HW" }, VUI_STREAM_CFG_HW},
 };
 
 SoundTriggerUUID::SoundTriggerUUID() :
@@ -231,7 +241,33 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             }
             ++i; /* move to next attribute */
         }
-    } else if (!strcmp(tag, "low_power")) {
+    } else if (!strcmp(tag, "kvpair")) {
+        uint32_t i = 0;
+        uint32_t key = 0, value = 0;
+        while (attribs[i]) {
+            if (!strcmp(attribs[i], "key")) {
+                auto keyItr = streamConfigKeyLUT.find(attribs[++i]);
+                if (keyItr == streamConfigKeyLUT.end()) {
+                    QAL_ERR(LOG_TAG, "could not find key %s in lookup table",
+                        attribs[i]);
+                } else {
+                    key = keyItr->second;
+                }
+            } else if(!strcmp(attribs[i], "value")) {
+                auto valItr = streamConfigValueLUT.find(attribs[++i]);
+                if (valItr == streamConfigValueLUT.end()) {
+                    QAL_ERR(LOG_TAG, "could not find value %s in lookup table",
+                        attribs[i]);
+                } else {
+                    QAL_ERR(LOG_TAG, "LUT Value %d in lookup table",
+                        valItr->second);
+                    value = valItr->second;
+                }
+                stream_config_ = std::make_pair(key, value);
+            }
+            ++i; /* move to next attribute */
+        }
+    }  else if (!strcmp(tag, "low_power")) {
         ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
     } else if (!strcmp(tag, "high_performance")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
