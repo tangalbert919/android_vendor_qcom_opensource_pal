@@ -35,7 +35,6 @@
 #include <sys/poll.h>
 #include <list>
 #include "ResourceManager.h"
-#include "QalDefs.h"
 #include "QalCommon.h"
 #include "SndCardMonitor.h"
 

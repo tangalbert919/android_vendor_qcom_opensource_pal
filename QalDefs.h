@@ -428,6 +428,11 @@ typedef enum {
     QAL_STREAM_CBK_EVENT_ERROR, /* stream hit some error, let AF take action */
 } qal_stream_callback_event_t;
 
+/* type of global callback events. */
+typedef enum {
+    QAL_SND_CARD_STATE,
+} qal_global_callback_event_t;
+
 typedef enum {
     QAL_STREAM_LOOPBACK_PCM,
     QAL_STREAM_LOOPBACK_HFP_RX,
@@ -974,6 +979,25 @@ typedef int32_t (*qal_stream_callback)(qal_stream_handle_t *stream_handle,
                                        uint32_t event_id, uint32_t *event_data,
                                        uint32_t event_data_size,
                                        void *cookie);
+
+/** @brief Callback function prototype to be given for
+ *         qal_register_callback.
+ *
+ * \param[in] event_id - event id of the event raised on the
+ *       stream.
+ * \param[in] event_data - event_data specific to the event
+ *       raised.
+ * \param[in] cookie - cookie specified in the
+ *       qal_register_global_callback.
+ */
+typedef int32_t (*qal_global_callback)(uint32_t event_id, uint32_t *event_data, void *cookie);
+
+/** Sound card state */
+typedef enum card_status_t {
+    CARD_STATUS_OFFLINE = 0,
+    CARD_STATUS_ONLINE,
+    CARD_STATUS_NONE,
+} card_status_t;
 
 #ifdef __cplusplus
 }  /* extern "C" */

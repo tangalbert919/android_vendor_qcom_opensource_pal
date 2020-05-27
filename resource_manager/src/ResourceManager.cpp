@@ -575,6 +575,8 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
     card_status_t prevState = CARD_STATUS_ONLINE;
     std::unique_lock<std::mutex> lock(rm->cvMutex);
     int ret = 0;
+    uint32_t eventData;
+    qal_global_callback_event_t event;
 
     QAL_INFO(LOG_TAG,"ssr Handling thread started");
 
@@ -592,6 +594,17 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
 
             rm->cardState = state;
             mResourceManagerMutex.lock();
+            if (state != prevState) {
+                if (rm->globalCb) {
+                    QAL_DBG(LOG_TAG, "Notifying client about sound card state %d global cb %pK",
+                                      rm->cardState, rm->globalCb);
+                    eventData = (int)rm->cardState;
+                    event = QAL_SND_CARD_STATE;
+                    QAL_DBG(LOG_TAG, "eventdata %d", eventData);
+                    rm->globalCb(event, &eventData, cookie);
+                }
+            }
+
             if (rm->mActiveStreams.empty()) {
                 QAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
                 prevState = state;
