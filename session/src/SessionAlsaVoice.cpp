@@ -360,7 +360,6 @@ int SessionAlsaVoice::start(Stream * s)
         volume->volume_pair[0].channel_mask = 1;
         volume->volume_pair[0].vol = default_volume;
         s->setVolume(volume);
-        free(volume);
     };
 
     /*set tty mode*/
