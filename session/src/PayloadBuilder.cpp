@@ -31,6 +31,7 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
+#include "StreamSoundTrigger.h"
 #include "plugins/codecs/bt_intf.h"
 #include "spr_api.h"
 #include <bt_intf.h>
@@ -2665,16 +2666,20 @@ error_1:
     return status;
 }
 
-int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
+int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
         struct qal_volume_data **volume_data __unused)
 {
     int status = 0;
 
-    QAL_ERR(LOG_TAG,"%s: enter \n", __func__);
-    // Sending volume minimum as we want to ramp up instead of ramping down
-    // while setting the desired volume.Thus avoiding glitch
-    keyVector.push_back(std::make_pair(VOLUME,LEVEL_15)); /*TODO Decide what to send as ckv in graph open*/
-    QAL_ERR(LOG_TAG,"%s: Entered default %x %x \n", __func__, VOLUME, LEVEL_0);
+    QAL_DBG(LOG_TAG, "Enter");
+
+    /*
+     * Sending volume minimum as we want to ramp up instead of ramping
+     * down while setting the desired volume. Thus avoiding glitch
+     * TODO: Decide what to send as ckv in graph open
+     */
+    keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+    QAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_0);
 
     return status;
 }
@@ -2789,6 +2794,16 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     int status = 0;
     QAL_VERBOSE(LOG_TAG,"%s: enter \n", __func__);
     std::vector <std::pair<int,int>> keyVector;
+    struct qal_stream_attributes sAttr;
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    KeyVect_t stream_config_kv;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    status = s->getStreamAttributes(&sAttr);
+    if(0 != status) {
+        QAL_ERR(LOG_TAG, "getStreamAttributes Failed");
+        return status;
+    }
 
     float voldB = 0.0f;
     struct qal_volume_data *voldata = NULL;
@@ -2862,6 +2877,31 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
           ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
        }
        break;
+    case TAG_MODULE_CHANNELS:
+        if (sAttr.type = QAL_STREAM_VOICE_UI) {
+            stream_config_kv = s->getStreamModifiers();
+            if (stream_config_kv.size() == 0 ||
+                stream_config_kv[0].second != VUI_STREAM_CFG_SVA) {
+                QAL_DBG(LOG_TAG, "Skip fluence ckv for non-SVA case");
+                break;
+            }
+
+            cap_prof = rm->GetSVACaptureProfile();
+            if (!cap_prof) {
+                QAL_ERR(LOG_TAG, "Invalid capture profile");
+                status = -EINVAL;
+                break;
+            }
+
+            if (!cap_prof->GetChannels()) {
+                QAL_ERR(LOG_TAG, "Invalid channels");
+                status = -EINVAL;
+                break;
+            }
+            ckv.push_back(std::make_pair(CHANNELS,
+                cap_prof->GetChannels()));
+        }
+        break;
     default:
         break;
     }

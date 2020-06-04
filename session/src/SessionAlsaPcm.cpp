@@ -751,6 +751,10 @@ int SessionAlsaPcm::start(Stream * s)
         if (status != 0) {
             QAL_ERR(LOG_TAG, "Failed to register callback to rm");
         }
+
+        if (setConfig(s, CALIBRATION, TAG_MODULE_CHANNELS) != 0) {
+            QAL_ERR(LOG_TAG, "Set fluence calibration failed");
+        }
     }
 
     return status;
