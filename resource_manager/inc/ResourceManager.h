@@ -349,10 +349,14 @@ public:
 
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size);
-
+    int setParameter(uint32_t param_id, void *param_payload,
+                     size_t payload_size, qal_device_id_t qal_device_id,
+                     qal_stream_type_t qal_stream_type);
     int getParameter(uint32_t param_id, void **param_payload,
                      size_t *payload_size, void *query = nullptr);
-
+    int getParameter(uint32_t param_id, void *param_payload,
+                     size_t payload_size, qal_device_id_t qal_device_id,
+                     qal_stream_type_t qal_stream_type);
     int getSndCard();
     int getPcmDeviceId(int deviceId);
     int getAudioRoute(struct audio_route** ar);

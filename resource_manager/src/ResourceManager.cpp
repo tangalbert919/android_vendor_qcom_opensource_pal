@@ -3947,6 +3947,41 @@ exit:
     return status;
 }
 
+
+int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
+                                  size_t payload_size __unused,
+                                  qal_device_id_t qal_device_id,
+                                  qal_stream_type_t qal_stream_type)
+{
+    int status = 0;
+
+    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    mResourceManagerMutex.lock();
+    switch (param_id) {
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            bool match = false;
+            std::vector<Stream*>::iterator sIter;
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
+                match = (*sIter)->checkStreamMatch(qal_device_id, qal_stream_type);
+                if (match) {
+                    status = (*sIter)->getEffectParameters(param_payload);
+                    break;
+                }
+            }
+            break;
+        }
+        default:
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+
+    mResourceManagerMutex.unlock();
+
+    return status;
+}
+
 int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   size_t payload_size)
 {
@@ -4255,6 +4290,45 @@ setdevparam:
     }
 
 exit:
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+
+int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
+                                  size_t payload_size __unused,
+                                  qal_device_id_t qal_device_id,
+                                  qal_stream_type_t qal_stream_type)
+{
+    int status = 0;
+
+    QAL_INFO(LOG_TAG, "%s xsang param_id=%d", __func__, param_id);
+
+    mResourceManagerMutex.lock();
+    switch (param_id) {
+        case QAL_PARAM_ID_UIEFFECT:
+        {
+            bool match = false;
+            std::vector<Stream*>::iterator sIter;
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
+                    sIter++) {
+                match = (*sIter)->checkStreamMatch(qal_device_id,
+                                                    qal_stream_type);
+                if (match) {
+                    status = (*sIter)->setParameters(param_id, param_payload);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "%s: failed to set param for qal_device_id=%x stream_type=%x",
+                                    __func__, qal_device_id, qal_stream_type);
+                    }
+                }
+            }
+        }
+        break;
+        default:
+            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+
     mResourceManagerMutex.unlock();
     return status;
 }

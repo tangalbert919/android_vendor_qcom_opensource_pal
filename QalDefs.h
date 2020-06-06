@@ -190,6 +190,11 @@ typedef struct effect_qal_payload_s {
     uint32_t  payload[]; /* TKV uses qal_key_vector_t, while nonTKV uses qal_effect_custom_payload_t */
 } effect_qal_payload_t;
 
+typedef enum {
+    GEF_PARAM_READ = 0,
+    GEF_PARAM_WRITE,
+} gef_param_rw_t;
+
 /** Audio parameter data*/
 typedef union {
     struct qal_snd_dec_aac aac_dec;

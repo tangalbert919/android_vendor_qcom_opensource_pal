@@ -696,3 +696,37 @@ int32_t qal_register_global_callback(qal_global_callback cb, void *cookie)
     }
     return 0;
 }
+
+int32_t qal_gef_rw_param(uint32_t param_id, void *param_payload,
+                      size_t payload_size, qal_device_id_t qal_device_id,
+                      qal_stream_type_t qal_stream_type, unsigned int dir)
+{
+    int status = 0;
+    std::shared_ptr<ResourceManager> rm = NULL;
+
+    rm = ResourceManager::getInstance();
+
+    if (rm) {
+        if (GEF_PARAM_WRITE == dir) {
+            status = rm->setParameter(param_id, param_payload, payload_size,
+                                        qal_device_id, qal_stream_type);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
+                        param_id, status);
+            }
+        } else {
+            status = rm->getParameter(param_id, param_payload, payload_size,
+                                        qal_device_id, qal_stream_type);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
+                        param_id, status);
+            }
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        status = -EINVAL;
+    }
+    QAL_DBG(LOG_TAG, "%s: Exit:", __func__);
+
+    return status;
+}

@@ -501,6 +501,29 @@ int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
   */
 int32_t qal_register_global_callback(qal_global_callback cb, void *cookie);
 
+/**
+  * \brief Set and get qal parameters for generic effect framework
+  *
+  * \param[in] param_id - param id whose parameters are to be
+  *       set.
+  * \param[in/out] param_payload - param data applicable to the
+  *       param_id
+  * \param[in] payload_size - size of payload
+  *
+  * \param[in] qal_stream_type - type of stream to apply the GEF param
+  *
+  * \param[in] qal_device_id - device id to apply the effect
+  *
+  * \param[i] qal_stream_type - stream type to apply the effect
+  *
+  * \param[in] dir - param read or write
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_gef_rw_param(uint32_t param_id, void *param_payload,
+                      size_t payload_size, qal_device_id_t qal_device_id,
+                      qal_stream_type_t qal_stream_type, unsigned int dir);
+
 extern void  __gcov_flush();
 
 /**

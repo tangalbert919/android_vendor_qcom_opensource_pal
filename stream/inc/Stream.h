@@ -197,6 +197,9 @@ public:
     bool isGKVMatch(qal_key_vector_t* gkv);
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
     uint32_t getInstanceId() { return mInstanceID; }
+    bool checkStreamMatch(qal_device_id_t qal_device_id,
+                                qal_stream_type_t qal_stream_type);
+    int32_t getEffectParameters(void *effect_query);
 };
 
 #endif//STREAM_H_
