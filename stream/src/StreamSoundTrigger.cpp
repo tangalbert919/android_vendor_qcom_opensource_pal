@@ -420,7 +420,6 @@ int32_t StreamSoundTrigger::UpdateDeviceConnectionState(bool connect,
     qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
 
     // TODO: add support for other devices
     if (device_id == QAL_DEVICE_IN_HANDSET_MIC ||
@@ -480,7 +479,6 @@ int32_t StreamSoundTrigger::ExternalStart() {
     int32_t status = 0;
 
     QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     std::shared_ptr<StEventConfig> ev_cfg(new StResumeEventConfig());
     PostEvent(ev_cfg);
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -492,7 +490,6 @@ int32_t StreamSoundTrigger::ExternalStop() {
     int32_t status = 0;
 
     QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     std::shared_ptr<StEventConfig> ev_cfg(new StPauseEventConfig());
     PostEvent(ev_cfg);
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
