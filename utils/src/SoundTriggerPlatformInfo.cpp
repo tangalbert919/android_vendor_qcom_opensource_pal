@@ -182,6 +182,34 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
     }
 }
 
+/*
+ * Priority compare result indicated by return value as below:
+ * 1. CAPTURE_PROFILE_PRIORITY_HIGH
+ *     current capture profile has higher priority than cap_prof
+ * 2. CAPTURE_PROFILE_PRIORITY_LOW
+ *     current capture profile has lower priority than cap_prof
+ * 3. CAPTURE_PROFILE_PRIORITY_SAME
+ *     current capture profile has same priority than cap_prof
+ */
+int32_t CaptureProfile::ComparePriority(std::shared_ptr<CaptureProfile> cap_prof) {
+    int32_t priority_check = 0;
+
+    if (!cap_prof) {
+        priority_check = CAPTURE_PROFILE_PRIORITY_HIGH;
+    } else {
+        // only compare channels for priority for now
+        if (channels_ < cap_prof->GetChannels()) {
+            priority_check = CAPTURE_PROFILE_PRIORITY_LOW;
+        } else if (channels_ > cap_prof->GetChannels()) {
+            priority_check = CAPTURE_PROFILE_PRIORITY_HIGH;
+        } else {
+            priority_check = CAPTURE_PROFILE_PRIORITY_SAME;
+        }
+    }
+
+    return priority_check;
+}
+
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),

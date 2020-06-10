@@ -67,6 +67,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     paused_ = false;
     pending_stop_ = false;
     conc_tx_cnt_ = 0;
+    active_state_ = false;
 
     // Setting default volume to unity
     mVolumeData = (struct qal_volume_data *)malloc(sizeof(struct qal_volume_data)
@@ -233,6 +234,9 @@ int32_t StreamSoundTrigger::start() {
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
+    if (!status) {
+        active_state_ = true;
+    }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -247,6 +251,9 @@ int32_t StreamSoundTrigger::stop() {
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
+    if (!status) {
+        active_state_ = false;
+    }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -413,44 +420,25 @@ int32_t StreamSoundTrigger::UpdateDeviceConnectionState(bool connect,
     qal_device_id_t device_id) {
 
     int32_t status = 0;
-    int32_t i = 0;
-    uint32_t channels = 0;
-    uint32_t device_num = 1;
-    qal_device_id_t dest_device;
     qal_device_id_t curr_device;
+    qal_device_id_t avail_device;
 
     QAL_DBG(LOG_TAG, "Enter");
 
-    // TODO: add support for other devices
-    if (device_id == QAL_DEVICE_IN_HANDSET_MIC ||
-        device_id == QAL_DEVICE_IN_SPEAKER_MIC) {
-        dest_device = QAL_DEVICE_IN_HANDSET_VA_MIC;
-    } else if (device_id == QAL_DEVICE_IN_WIRED_HEADSET) {
-        dest_device = QAL_DEVICE_IN_HEADSET_VA_MIC;
-    } else {
-        QAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
-        return status;
-    }
-
-    for (i = 0; i < mDevices.size(); i++) {
+    for (int i = 0; i < mDevices.size(); i++) {
         curr_device =
             static_cast<qal_device_id_t>(mDevices[i]->getSndDeviceId());
-        if ((connect && curr_device == dest_device) ||
-            (!connect && curr_device != dest_device)) {
+        if ((connect && curr_device == device_id) ||
+            (!connect && curr_device != device_id)) {
             QAL_ERR(LOG_TAG, "Invalid operation");
             return -EINVAL;
         }
     }
 
-    if (connect) {
-        std::shared_ptr<StEventConfig> ev_cfg(
-            new StDeviceConnectedEventConfig(dest_device));
-        PostEvent(ev_cfg);
-    } else {
-        std::shared_ptr<StEventConfig> ev_cfg(
-            new StDeviceDisconnectedEventConfig(dest_device));
-        PostEvent(ev_cfg);
-    }
+    avail_device = GetAvailCaptureDevice();
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StSetDeviceEventConfig(avail_device));
+    PostEvent(ev_cfg);
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -533,8 +521,7 @@ void StreamSoundTrigger::HandleEvents() {
         ev_cfg = pending_event_configs_[i];
 
         switch (ev_cfg->id_) {
-            case ST_EV_DEVICE_CONNECTED:
-            case ST_EV_DEVICE_DISCONNECTED:
+            case ST_EV_SET_DEVICE:
             case ST_EV_CHARGING_STATE:
             case ST_EV_PAUSE:
             case ST_EV_RESUME:
@@ -554,7 +541,7 @@ void StreamSoundTrigger::HandleEvents() {
 }
 
 int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id,
-    struct qal_device *dev) {
+    struct qal_device *dev, bool use_rm_profile) {
     int32_t status = 0;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
@@ -565,10 +552,19 @@ int32_t StreamSoundTrigger::GetQalDevice(qal_device_id_t dev_id,
 
     dev->id = dev_id;
 
-    /* TODO: we may need to add input param for this function
-     * to indicate the device id we need for capture profile
-     */
-    cap_prof = GetCurrentCaptureProfile();
+    if (use_rm_profile) {
+        cap_prof = rm->GetSVACaptureProfile();
+        if (!cap_prof) {
+            QAL_DBG(LOG_TAG, "Failed to get common capture profile");
+            cap_prof = GetCurrentCaptureProfile();
+        }
+    } else {
+        /* TODO: we may need to add input param for this function
+        * to indicate the device id we need for capture profile
+        */
+        cap_prof = GetCurrentCaptureProfile();
+    }
+
     dev->config.ch_info = (struct qal_channel_info *) malloc(
         sizeof(qal_channel_info) + cap_prof->GetChannels());
     if (!dev->config.ch_info) {
@@ -2085,7 +2081,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
                 QAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
 
-                if (st_stream_.GetQalDevice(dev_id, dattr)) {
+                if (st_stream_.GetQalDevice(dev_id, dattr, false)) {
                     QAL_ERR(LOG_TAG, "Failed to get dev config from capture profile");
                     if (dattr->config.ch_info)
                         free(dattr->config.ch_info);
@@ -2150,16 +2146,16 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             status = -EIO;
             break;
         }
-        case ST_EV_DEVICE_CONNECTED: {
+        case ST_EV_SET_DEVICE: {
             struct qal_device *qal_dev = new struct qal_device;
             std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            StSetDeviceEventConfigData *data =
+                (StSetDeviceEventConfigData *)ev_cfg->data_.get();
             qal_device_id_t dev_id = data->dev_id_;
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            status = st_stream_.GetQalDevice(dev_id, qal_dev, false);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
-                goto connection_err;
+                goto set_device_err;
             }
             st_stream_.mDevices.clear();
 
@@ -2167,43 +2163,12 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             if (!dev) {
                 QAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
-                goto connection_err;
+                goto set_device_err;
             }
 
             dev->setDeviceAttributes(*qal_dev);
-
             st_stream_.mDevices.push_back(dev);
-        connection_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
-            delete qal_dev;
-            break;
-        }
-        case ST_EV_DEVICE_DISCONNECTED: {
-            struct qal_device *qal_dev = new struct qal_device;
-            std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
-                goto disconnection_err;
-            }
-            st_stream_.mDevices.clear();
-
-            dev = Device::getInstance(qal_dev, st_stream_.rm);
-            if (!dev) {
-                QAL_ERR(LOG_TAG, "Device creation failed");
-                status = -EINVAL;
-                goto disconnection_err;
-            }
-
-            dev->setDeviceAttributes(*qal_dev);
-
-            st_stream_.mDevices.push_back(dev);
-        disconnection_err:
+        set_device_err:
             if (qal_dev->config.ch_info) {
                 free(qal_dev->config.ch_info);
             }
@@ -2412,16 +2377,17 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             status = -EIO;
             break;
         }
-        case ST_EV_DEVICE_CONNECTED: {
+        case ST_EV_SET_DEVICE: {
             struct qal_device *qal_dev = new struct qal_device;
             std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            StSetDeviceEventConfigData *data =
+                (StSetDeviceEventConfigData *)ev_cfg->data_.get();
             qal_device_id_t dev_id = data->dev_id_;
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            status = st_stream_.GetQalDevice(dev_id, qal_dev,
+                st_stream_.active_state_);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get qal dev with id %d", dev_id);
-                goto connection_err;
+                goto set_device_err;
             }
 
             for (auto& device: st_stream_.mDevices) {
@@ -2431,7 +2397,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 status = device->close();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "dev close failed, status %d", status);
-                    goto connection_err;
+                    goto set_device_err;
                 }
             }
             st_stream_.mDevices.clear();
@@ -2440,7 +2406,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             if (!dev) {
                 QAL_ERR(LOG_TAG, "Dev creation failed");
                 status = -EINVAL;
-                goto connection_err;
+                goto set_device_err;
             }
 
             dev->setDeviceAttributes(*qal_dev);
@@ -2449,7 +2415,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "device %d open failed with status %d",
                     dev->getSndDeviceId(), status);
-                goto connection_err;
+                goto set_device_err;
             }
 
             st_stream_.mDevices.push_back(dev);
@@ -2461,7 +2427,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-                goto connection_err;
+                goto set_device_err;
             }
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
@@ -2474,75 +2440,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 dev->close();
             }
 
-        connection_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
-            delete qal_dev;
-            break;
-        }
-        case ST_EV_DEVICE_DISCONNECTED: {
-            struct qal_device *qal_dev = new struct qal_device;
-            std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to get qal device with id %d",
-                    dev_id);
-                goto disconnection_err;
-            }
-
-            for (auto& device: st_stream_.mDevices) {
-                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                    st_stream_.mStreamAttr->type, device);
-
-                status = device->close();
-                if (0 != status) {
-                    QAL_ERR(LOG_TAG, "device close failed with status %d",
-                        status);
-                    goto disconnection_err;
-                }
-            }
-            st_stream_.mDevices.clear();
-
-            dev = Device::getInstance(qal_dev, st_stream_.rm);
-            if (!dev) {
-                QAL_ERR(LOG_TAG, "Device creation failed");
-                status = -EINVAL;
-                goto disconnection_err;
-            }
-
-            dev->setDeviceAttributes(*qal_dev);
-            status = dev->open();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto disconnection_err;
-            }
-            st_stream_.mDevices.push_back(dev);
-            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,
-                    "setupSessionDevice for %d failed with status %d",
-                     dev->getSndDeviceId(), status);
-                st_stream_.mDevices.pop_back();
-                dev->close();
-                goto disconnection_err;
-            }
-
-            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,
-                    "connectSessionDevice for %d failed with status %d",
-                    dev->getSndDeviceId(), status);
-                st_stream_.mDevices.pop_back();
-                dev->close();
-            }
-        disconnection_err:
+        set_device_err:
             if (qal_dev->config.ch_info) {
                 free(qal_dev->config.ch_info);
             }
@@ -2695,16 +2593,16 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             status = -EIO;
             break;
         }
-        case ST_EV_DEVICE_CONNECTED: {
+        case ST_EV_SET_DEVICE: {
             struct qal_device *qal_dev = new struct qal_device;
             std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
+            StSetDeviceEventConfigData *data =
+                (StSetDeviceEventConfigData *)ev_cfg->data_.get();
             qal_device_id_t dev_id = data->dev_id_;
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
+            status = st_stream_.GetQalDevice(dev_id, qal_dev, true);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-                goto connection_err;
+                goto set_device_err;
             }
 
             for (auto& device: st_stream_.mDevices) {
@@ -2714,7 +2612,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = device->stop();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                    goto connection_err;
+                    goto set_device_err;
                 }
 
                 st_stream_.rm->deregisterDevice(device);
@@ -2722,7 +2620,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = device->close();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                    goto connection_err;
+                    goto set_device_err;
                 }
             }
             st_stream_.mDevices.clear();
@@ -2731,7 +2629,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             if (!dev) {
                 QAL_ERR(LOG_TAG, "Device creation failed");
                 status = -EINVAL;
-                goto connection_err;
+                goto set_device_err;
             }
 
             dev->setDeviceAttributes(*qal_dev);
@@ -2740,7 +2638,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "device %d open failed with status %d",
                     dev->getSndDeviceId(), status);
-                goto connection_err;
+                goto set_device_err;
             }
 
             st_stream_.mDevices.push_back(dev);
@@ -2751,7 +2649,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-                goto connection_err;
+                goto set_device_err;
             }
 
             st_stream_.rm->registerDevice(dev);
@@ -2761,7 +2659,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "device %d start failed with status %d",
                     dev->getSndDeviceId(), status);
-                goto connection_err;
+                goto set_device_err;
             }
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
@@ -2773,89 +2671,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 dev->close();
             }
 
-        connection_err:
-            if (qal_dev->config.ch_info) {
-                free(qal_dev->config.ch_info);
-            }
-            delete qal_dev;
-            break;
-        }
-        case ST_EV_DEVICE_DISCONNECTED: {
-            struct qal_device *qal_dev = new struct qal_device;
-            std::shared_ptr<Device> dev = nullptr;
-            StDeviceConnectedEventConfigData *data =
-                (StDeviceConnectedEventConfigData *)ev_cfg->data_.get();
-            qal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
-            status = st_stream_.GetQalDevice(dev_id, qal_dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "Failed to get qal device with id %d", dev_id);
-                goto disconnection_err;
-            }
-
-            for (auto& device: st_stream_.mDevices) {
-                st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
-                    st_stream_.mStreamAttr->type, device);
-
-                status = device->stop();
-                if (0 != status) {
-                    QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                    goto disconnection_err;
-                }
-
-                st_stream_.rm->deregisterDevice(device);
-
-                status = device->close();
-                if (0 != status) {
-                    QAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                    goto disconnection_err;
-                }
-            }
-            st_stream_.mDevices.clear();
-
-            dev = Device::getInstance(qal_dev, st_stream_.rm);
-            if (!dev) {
-                QAL_ERR(LOG_TAG, "Device creation failed");
-                status = -EINVAL;
-                goto disconnection_err;
-            }
-
-            dev->setDeviceAttributes(*qal_dev);
-            status = dev->open();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto disconnection_err;
-            }
-            st_stream_.mDevices.push_back(dev);
-            status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
-                        dev->getSndDeviceId(), status);
-                st_stream_.mDevices.pop_back();
-                dev->close();
-                goto disconnection_err;
-            }
-
-            st_stream_.rm->registerDevice(dev);
-
-            status = dev->start();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "device %d start failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto disconnection_err;
-            }
-
-            status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
-                st_stream_.mStreamAttr->type, dev);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,
-                        "connectSessionDevice for %d failed with status %d",
-                        dev->getSndDeviceId(), status);
-                st_stream_.mDevices.pop_back();
-                dev->close();
-            }
-        disconnection_err:
+        set_device_err:
             if (qal_dev->config.ch_info) {
                 free(qal_dev->config.ch_info);
             }
@@ -3048,8 +2864,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             st_stream_.paused_ = false;
             break;
         }
-        case ST_EV_DEVICE_CONNECTED:
-        case ST_EV_DEVICE_DISCONNECTED: {
+        case ST_EV_SET_DEVICE: {
             // No need to handle as new device will be used after deferred stop
             break;
         }
@@ -3334,8 +3149,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             break;
         }
-        case ST_EV_DEVICE_CONNECTED:
-        case ST_EV_DEVICE_DISCONNECTED: {
+        case ST_EV_SET_DEVICE: {
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {

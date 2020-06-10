@@ -387,8 +387,11 @@ public:
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
     void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
+    std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(
+        StreamSoundTrigger *s);
     bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);
     std::shared_ptr<CaptureProfile> GetSVACaptureProfile();
+    int SwitchSVADevices(bool connect_state, qal_device_id_t device_id);
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);

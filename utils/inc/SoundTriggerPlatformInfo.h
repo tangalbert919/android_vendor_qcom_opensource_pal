@@ -36,6 +36,10 @@
 #include <string>
 #include "QalDefs.h"
 
+#define CAPTURE_PROFILE_PRIORITY_HIGH 1
+#define CAPTURE_PROFILE_PRIORITY_LOW -1
+#define CAPTURE_PROFILE_PRIORITY_SAME 0
+
 enum StOperatingModes {
     ST_OPERATING_MODE_LOW_POWER,
     ST_OPERATING_MODE_HIGH_PERF,
@@ -92,6 +96,8 @@ class CaptureProfile : public SoundTriggerXml {
     void SetChannels(uint32_t channels) { channels_ = channels; }
     void SetSndName(std::string snd_name) { snd_name_ = snd_name; }
     std::pair<uint32_t,uint32_t> GetDevicePpKv() const { return device_pp_kv_; }
+
+    int32_t ComparePriority(std::shared_ptr<CaptureProfile> cap_prof);
 
  private:
     std::string name_;

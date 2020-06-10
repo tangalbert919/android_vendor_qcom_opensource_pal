@@ -1679,15 +1679,43 @@ bool ResourceManager::CheckForForcedTransitToNonLPI() {
     return false;
 }
 
+std::shared_ptr<CaptureProfile> ResourceManager::GetCaptureProfileByPriority(
+    StreamSoundTrigger *s) {
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+
+    for (int i = 0; i < active_streams_st.size(); i++) {
+        // NOTE: input param s can be nullptr here
+        if (active_streams_st[i] == s) {
+            continue;
+        }
+
+        /*
+         * Ignore capture profile for streams in below states:
+         * 1. sound model loaded but not started by sthal
+         * 2. stop recognition called by sthal
+         */
+        if (!active_streams_st[i]->GetActiveState())
+            continue;
+
+        cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
+        if (!cap_prof) {
+            QAL_ERR(LOG_TAG, "Failed to get capture profile");
+            continue;
+        } else if (cap_prof->ComparePriority(cap_prof_priority) ==
+                   CAPTURE_PROFILE_PRIORITY_HIGH) {
+            cap_prof_priority = cap_prof;
+        }
+    }
+
+    return cap_prof_priority;
+}
+
 bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active) {
     int status = 0;
     bool backend_update = false;
-    uint16_t max_channels = 0;
-    uint32_t max_sample_rate = 0;
-    uint32_t max_bit_width = 0;
-    std::string default_snd_name = "va-mic";
-    std::string snd_name = "va-mic";
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     if (!s) {
         QAL_ERR(LOG_TAG, "Invalid stream");
@@ -1703,85 +1731,70 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
         }
 
         if (!SVACaptureProfile) {
-            SVACaptureProfile = std::make_shared<CaptureProfile>("SVA_Default_Profile");
-            if (!SVACaptureProfile) {
-                QAL_ERR(LOG_TAG, "Failed to create capture profile");
-                return false;
-            }
-
-            SVACaptureProfile->SetChannels(cap_prof->GetChannels());
-            SVACaptureProfile->SetSampleRate(cap_prof->GetSampleRate());
-            SVACaptureProfile->SetBitWidth(cap_prof->GetBitWidth());
-            SVACaptureProfile->SetSndName(cap_prof->GetSndName());
-        } else {
-            if (SVACaptureProfile->GetChannels() < cap_prof->GetChannels()) {
-                backend_update = true;
-                SVACaptureProfile->SetChannels(cap_prof->GetChannels());
-            }
-            if (SVACaptureProfile->GetSampleRate() < cap_prof->GetSampleRate()) {
-                backend_update = true;
-                SVACaptureProfile->SetSampleRate(cap_prof->GetSampleRate());
-            }
-            if (SVACaptureProfile->GetBitWidth() < cap_prof->GetBitWidth()) {
-                backend_update = true;
-                SVACaptureProfile->SetBitWidth(cap_prof->GetBitWidth());
-            }
-            if (SVACaptureProfile->GetSndName().compare(cap_prof->GetSndName())) {
-                backend_update = true;
-                SVACaptureProfile->SetSndName(cap_prof->GetSndName());
-            }
+            SVACaptureProfile = cap_prof;
+        } else if (SVACaptureProfile->ComparePriority(cap_prof) < 0){
+            SVACaptureProfile = cap_prof;
+            backend_update = true;
         }
     } else {
-        for (int i = 0; i < active_streams_st.size(); i++) {
-            if (active_streams_st[i] == s) {
-                continue;
-            }
+        cap_prof_priority = GetCaptureProfileByPriority(s);
 
-            cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
-            if (!cap_prof) {
-                QAL_ERR(LOG_TAG, "Failed to get capture profile");
-                continue;
-            }
-
-            if (cap_prof->GetChannels() > max_channels) {
-                max_channels = cap_prof->GetChannels();
-            }
-            if (cap_prof->GetSampleRate() > max_sample_rate) {
-                max_sample_rate = cap_prof->GetSampleRate();
-            }
-            if (cap_prof->GetBitWidth() > max_bit_width) {
-                max_bit_width = cap_prof->GetBitWidth();
-            }
-            // TODO: check priority for devices
-            if (!default_snd_name.compare(cap_prof->GetSndName())) {
-                snd_name = cap_prof->GetSndName();
-            }
-        }
-
-        if (max_channels == 0 || max_sample_rate == 0 || max_bit_width == 0) {
+        if (!cap_prof_priority) {
             QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
-            SVACaptureProfile.reset();
-        } else {
-            if (max_channels != SVACaptureProfile->GetChannels()) {
-                SVACaptureProfile->SetChannels(max_channels);
-                backend_update = true;
-            }
-            if (max_sample_rate != SVACaptureProfile->GetSampleRate()) {
-                SVACaptureProfile->SetSampleRate(max_sample_rate);
-                backend_update = true;
-            }
-            if (max_bit_width != SVACaptureProfile->GetBitWidth()) {
-                SVACaptureProfile->SetBitWidth(max_bit_width);
-                backend_update = true;
-            }
-            if (snd_name.compare(SVACaptureProfile->GetSndName())) {
-                SVACaptureProfile->SetSndName(snd_name);
-                backend_update = true;
-            }
+            SVACaptureProfile = nullptr;
+        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
+                   CAPTURE_PROFILE_PRIORITY_HIGH) {
+            SVACaptureProfile = cap_prof_priority;
+            backend_update = true;
         }
+
     }
 
     return backend_update;
+}
+
+int ResourceManager::SwitchSVADevices(bool connect_state,
+    qal_device_id_t device_id) {
+    int32_t status = 0;
+    qal_device_id_t dest_device;
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+
+    QAL_DBG(LOG_TAG, "Enter");
+
+    // TODO: add support for other devices
+    if (device_id == QAL_DEVICE_IN_HANDSET_MIC ||
+        device_id == QAL_DEVICE_IN_SPEAKER_MIC) {
+        dest_device = QAL_DEVICE_IN_HANDSET_VA_MIC;
+    } else if (device_id == QAL_DEVICE_IN_WIRED_HEADSET) {
+        dest_device = QAL_DEVICE_IN_HEADSET_VA_MIC;
+    } else {
+        QAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
+        return status;
+    }
+
+    SVACaptureProfile = nullptr;
+    cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+    if (!cap_prof_priority) {
+        QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
+        SVACaptureProfile = nullptr;
+    } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
+               CAPTURE_PROFILE_PRIORITY_HIGH) {
+        SVACaptureProfile = cap_prof_priority;
+    }
+
+    // handle device switch
+    for (int i = 0; i < active_streams_st.size(); i++) {
+        status = active_streams_st[i]->UpdateDeviceConnectionState(
+            connect_state, dest_device);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
+        }
+    }
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfile() {
@@ -3714,13 +3727,11 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     dev = Device::getInstance(&dattr, rm);
                     status = dev->setDeviceParameter(param_id, param_payload);
                 } else {
-                    for (int i = 0; i < active_streams_st.size(); i++) {
-                        status = active_streams_st[i]->UpdateDeviceConnectionState(
-                            device_connection->connection_state,
-                            device_connection->id);
-                        if (status) {
-                            QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
-                        }
+                    status = SwitchSVADevices(
+                        device_connection->connection_state,
+                        device_connection->id);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
                     }
                 }
             } else {

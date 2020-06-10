@@ -89,8 +89,7 @@ enum {
     ST_EV_STOP_BUFFERING,
     ST_EV_PAUSE,
     ST_EV_RESUME,
-    ST_EV_DEVICE_CONNECTED,
-    ST_EV_DEVICE_DISCONNECTED,
+    ST_EV_SET_DEVICE,
     ST_EV_SSR_OFFLINE,
     ST_EV_SSR_ONLINE,
     ST_EV_CONCURRENT_STREAM,
@@ -153,12 +152,15 @@ class StreamSoundTrigger : public Stream {
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
-    int32_t GetQalDevice(qal_device_id_t dev_id, struct qal_device *dev);
+    int32_t GetQalDevice(qal_device_id_t dev_id,
+                         struct qal_device *dev,
+                         bool use_rm_profile);
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
     int32_t UpdateDeviceConnectionState(bool connect, qal_device_id_t device_id);
     int32_t UpdateChargingState(bool state);
     int32_t ExternalStart();
     int32_t ExternalStop();
+    bool GetActiveState() { return active_state_; }
 
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
                                 qal_stream_direction_t dir,
@@ -365,40 +367,22 @@ class StreamSoundTrigger : public Stream {
         }
         ~StECRefEventConfig() {}
     };
-    class StDeviceConnectedEventConfigData : public StEventConfigData {
+    class StSetDeviceEventConfigData : public StEventConfigData {
      public:
-        StDeviceConnectedEventConfigData(qal_device_id_t id)
+        StSetDeviceEventConfigData(qal_device_id_t id)
             : dev_id_(id) {}
-        ~StDeviceConnectedEventConfigData() {}
+        ~StSetDeviceEventConfigData() {}
 
         qal_device_id_t dev_id_;
     };
-    class StDeviceConnectedEventConfig : public StEventConfig {
+    class StSetDeviceEventConfig : public StEventConfig {
      public:
-        StDeviceConnectedEventConfig(qal_device_id_t id)
-            : StEventConfig(ST_EV_DEVICE_CONNECTED) {
-            data_ = std::make_shared<StDeviceConnectedEventConfigData>(id);
+        StSetDeviceEventConfig(qal_device_id_t id)
+            : StEventConfig(ST_EV_SET_DEVICE) {
+            data_ = std::make_shared<StSetDeviceEventConfigData>(id);
         }
-        ~StDeviceConnectedEventConfig() {}
+        ~StSetDeviceEventConfig() {}
     };
-
-    class StDeviceDisconnectedEventConfigData : public StEventConfigData {
-     public:
-        StDeviceDisconnectedEventConfigData(qal_device_id_t id)
-            : dev_id_(id) {}
-        ~StDeviceDisconnectedEventConfigData() {}
-
-        qal_device_id_t dev_id_;
-    };
-    class StDeviceDisconnectedEventConfig : public StEventConfig {
-     public:
-        StDeviceDisconnectedEventConfig(qal_device_id_t id)
-            : StEventConfig(ST_EV_DEVICE_DISCONNECTED) {
-            data_ = std::make_shared<StDeviceDisconnectedEventConfigData>(id);
-        }
-        ~StDeviceDisconnectedEventConfig() {}
-    };
-
     class StChargingStateEventConfigData : public StEventConfigData {
      public:
         StChargingStateEventConfigData(bool charging_state)
@@ -577,6 +561,7 @@ class StreamSoundTrigger : public Stream {
     st_state_id_t state_for_restore_;
     std::map<uint32_t, StState*> st_states_;
     bool charging_state_;
+    bool active_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;
 };
 #endif // STREAMSOUNDTRIGGER_H_
