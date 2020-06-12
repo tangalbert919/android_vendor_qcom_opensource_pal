@@ -494,13 +494,13 @@ ResourceManager::ResourceManager()
     }
     for (int i=0; i < devInfo.size(); i++) {
         if (devInfo[i].type == PCM) {
-            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].playback == 1) {
                 listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
-            } else if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+            } else if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
                 listAllPcmLoopbackTxFrontEnds.push_back(devInfo[i].deviceId);
-            } else if (devInfo[i].playback == 1 && devInfo[i].loopback == 0) {
+            } else if (devInfo[i].playback == 1 && devInfo[i].sess_mode == DEFAULT) {
                 listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
-            } else if (devInfo[i].record == 1 && devInfo[i].loopback == 0) {
+            } else if (devInfo[i].record == 1 && devInfo[i].sess_mode == DEFAULT) {
                 listAllPcmRecordFrontEnds.push_back(devInfo[i].deviceId);
             }
         } else if (devInfo[i].type == COMPRESS) {
@@ -510,17 +510,17 @@ ResourceManager::ResourceManager()
                 listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
             }
         } else if (devInfo[i].type == VOICE1) {
-            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].playback == 1) {
                 listAllPcmVoice1RxFrontEnds.push_back(devInfo[i].deviceId);
             }
-            if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
                 listAllPcmVoice1TxFrontEnds.push_back(devInfo[i].deviceId);
             }
         } else if (devInfo[i].type == VOICE2) {
-            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].playback == 1) {
                 listAllPcmVoice2RxFrontEnds.push_back(devInfo[i].deviceId);
             }
-            if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
                 listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
             }
         }
@@ -4995,9 +4995,9 @@ void ResourceManager::processDeviceCapability(struct xml_userdata *data, const X
     } else if (strcmp(tag_name, "capture") == 0) {
         val = atoi(data->data_buf);
         devInfo[size].record = val;
-    } else if (strcmp(tag_name, "hostless") == 0) {
+    } else if (strcmp(tag_name,"session_mode") == 0) {
         val = atoi(data->data_buf);
-        devInfo[size].loopback = val;
+        devInfo[size].sess_mode = (sess_mode_t) val;
     }
 }
 

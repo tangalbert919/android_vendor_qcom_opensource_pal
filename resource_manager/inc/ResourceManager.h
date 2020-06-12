@@ -115,6 +115,11 @@ struct xml_userdata {
     bool is_parsing_sound_trigger;
     resource_xml_tags_t tag;
 };
+typedef enum {
+    DEFAULT = 0,
+    HOSTLESS,
+    NON_TUNNEL,
+} sess_mode_t;
 
 struct deviceCap {
     int deviceId;
@@ -122,7 +127,7 @@ struct deviceCap {
     stream_supported_type type;
     int playback;
     int record;
-    int loopback;
+    sess_mode_t sess_mode;
 };
 
 struct kvpair_info {
