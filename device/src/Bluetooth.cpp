@@ -135,6 +135,7 @@ void Bluetooth::updateDeviceAttributes()
         break;
     case CODEC_TYPE_APTX_AD_SPEECH:
         deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
+        deviceAttr.config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
         break;
     default:
         break;
