@@ -557,11 +557,17 @@ int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
        goto exit;
     }
 
-    mVolumeData = (struct qal_volume_data *)calloc(1, sizeof(uint32_t) +
-             (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
+    if(mVolumeData) {
+        //if mVolumeDate is already allocated- free it before updating
+        free(mVolumeData);
+        mVolumeData = (struct qal_volume_data *)NULL;
+    }
+
+    mVolumeData = (struct qal_volume_data *)calloc(1, sizeof(struct qal_volume_data) +
+                 (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
 
     mStreamMutex.lock();
-    memcpy (mVolumeData, volume, (sizeof(uint32_t) +
+    memcpy (mVolumeData, volume, (sizeof(struct qal_volume_data) +
              (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
     mStreamMutex.unlock();
     for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {

@@ -489,7 +489,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-                return -ENOENT;
+                status = -ENOENT;
+                goto exit;
             }
 
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
@@ -507,6 +508,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
     }
 
 exit:
+    if(tagConfig)
+        free(tagConfig);
     return status;
 }
 

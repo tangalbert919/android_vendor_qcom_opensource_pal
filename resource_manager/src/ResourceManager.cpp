@@ -312,6 +312,8 @@ int str_parms_add_str(struct str_parms *str_parms, const char *key,
                       const char *value){return 0;}
 struct str_parms *str_parms_create(void){return NULL;}
 void str_parms_del(struct str_parms *str_parms, const char *key){return;}
+void str_parms_destroy(struct str_parms *str_parms){return;}
+
 #endif
 
 std::vector<deviceIn> ResourceManager::deviceInfo;
@@ -478,6 +480,33 @@ ResourceManager::ResourceManager()
 
 ResourceManager::~ResourceManager()
 {
+    streamTag.clear();
+    streamPpTag.clear();
+    mixerTag.clear();
+    devicePpTag.clear();
+    deviceTag.clear();
+
+    listAllFrontEndIds.clear();
+    listAllPcmPlaybackFrontEnds.clear();
+    listAllPcmRecordFrontEnds.clear();
+    listAllPcmLoopbackRxFrontEnds.clear();
+    listAllPcmLoopbackTxFrontEnds.clear();
+    listAllCompressPlaybackFrontEnds.clear();
+    listAllCompressRecordFrontEnds.clear();
+    listFreeFrontEndIds.clear();
+    listAllPcmVoice1RxFrontEnds.clear();
+    listAllPcmVoice1TxFrontEnds.clear();
+    listAllPcmVoice2RxFrontEnds.clear();
+    listAllPcmVoice2TxFrontEnds.clear();
+    devInfo.clear();
+    deviceInfo.clear();
+    txEcInfo.clear();
+
+    STInstancesLists.clear();
+    listAllBackEndIds.clear();
+    sndDeviceNameLUT.clear();
+    devicePcmId.clear();
+    deviceLinkName.clear();
 }
 
 int ResourceManager::initSndMonitor()
@@ -585,12 +614,13 @@ int ResourceManager::init_audio()
         /* Ignore USB sound card if detected */
         snd_card = 0;
         while (snd_card < MAX_SND_CARD) {
-            audio_mixer = mixer_open(snd_card);
-            if (audio_mixer) {
-                snd_card_name = strdup(mixer_get_name(audio_mixer));
+            struct audio_mixer* tmp_mixer = NULL;
+            tmp_mixer = mixer_open(snd_card);
+            if (tmp_mixer) {
+                snd_card_name = strdup(mixer_get_name(tmp_mixer));
                 if (!snd_card_name) {
                     QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
-                    mixer_close(audio_mixer);
+                    mixer_close(tmp_mixer);
                     return -EINVAL;
                 }
                 QAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s, am:%p",
@@ -601,7 +631,14 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "sm8150")) {
                     QAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
+                    audio_mixer = tmp_mixer;
                     break;
+                } else {
+                    if (snd_card_name) {
+                        free(snd_card_name);
+                        snd_card_name = NULL;
+                    }
+                    mixer_close(tmp_mixer);
                 }
             }
             snd_card++;
@@ -651,6 +688,9 @@ int ResourceManager::init_audio()
         return -EINVAL;
     }
     // audio_route init success
+
+    if (snd_card_name_t)
+        free(snd_card_name_t);
     QAL_ERR(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
@@ -2359,6 +2399,11 @@ void ResourceManager::deinit()
     if (ag == GSL) {
         SessionGsl::deinit();
     }
+    if (audio_route)
+    {
+        audio_route_free(audio_route);
+    }
+
     if (sndmon)
         delete sndmon;
 
@@ -4479,8 +4524,10 @@ void ResourceManager::processConfigParams(const XML_Char **attr)
         goto done;
     }
     QAL_VERBOSE(LOG_TAG, " String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
+    configParamKVPairs = str_parms_create();
     str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
     setConfigParams(configParamKVPairs);
+    str_parms_destroy(configParamKVPairs);
 done:
     return;
 }
@@ -4928,7 +4975,7 @@ int ResourceManager::XmlParser(std::string xmlFile)
     XML_SetUserData(parser, &card_data);
     XML_SetElementHandler(parser, startTag, endTag);
     XML_SetCharacterDataHandler(parser, snd_data_handler);
-    configParamKVPairs = str_parms_create();
+
     while (1) {
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {

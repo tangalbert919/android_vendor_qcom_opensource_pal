@@ -392,6 +392,8 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         *in_buf_size = inBufSize;
     }
 exit:
+    if(sattr)
+        free(sattr);
     return status;
 }
 
