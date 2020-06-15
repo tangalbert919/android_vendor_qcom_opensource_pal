@@ -2165,7 +2165,11 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
         (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
          tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC) ||
         (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
-         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC))
+         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP &&
+         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP &&
+         tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC))
         result = true;
 
     QAL_DBG(LOG_TAG, "EC Ref: %d, rx dev: %d, tx dev: %d",
