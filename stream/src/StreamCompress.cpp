@@ -636,6 +636,7 @@ int32_t  StreamCompress::setPause()
        QAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
+    usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
     QAL_VERBOSE(LOG_TAG,"session setPause successful, state %d", currentState);

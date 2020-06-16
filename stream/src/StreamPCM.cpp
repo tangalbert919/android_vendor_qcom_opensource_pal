@@ -1020,6 +1020,7 @@ int32_t  StreamPCM::setPause()
                 status);
         goto exit;
     }
+    usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
     QAL_DBG(LOG_TAG, "Exit. session setConfig successful");

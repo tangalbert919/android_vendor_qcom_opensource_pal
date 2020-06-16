@@ -98,6 +98,13 @@ typedef enum {
  */
 #define SSR_RECOVERY 50000
 
+/* Soft pause has to wait for ramp period to ensure volume stepping finishes.
+ * This period of time was previously consumed in elite before acknowleging
+ * pause completion. But it's not the case in Gecko.
+ * FIXME: load the ramp period config from acdb.
+ */
+#define VOLUME_RAMP_PERIOD (40*1000)
+
 using KeyVect_t = std::vector<std::pair<uint32_t, uint32_t>>;
 class Device;
 class ResourceManager;
