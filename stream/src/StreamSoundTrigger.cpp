@@ -2118,8 +2118,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             st_stream_.mStreamModifiers.clear();
             st_stream_.mStreamModifiers.push_back(streamConfigKV);
 
-            st_stream_.mInstanceID = st_stream_.rm->getStreamInstanceID(
-            st_stream_.mStreamAttr, streamConfigKV);
+            st_stream_.mInstanceID = st_stream_.rm->getStreamInstanceID(&st_stream_);
 
             status = st_stream_.LoadSoundModel(qal_st_sm);
 
@@ -2232,9 +2231,9 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             streamConfigKV = st_stream_.sm_info_->GetStreamConfig();
 
             st_stream_.rm->resetStreamInstanceID(
-                st_stream_.mStreamAttr,
-                st_stream_.mInstanceID,
-                streamConfigKV);
+                &st_stream_,
+                st_stream_.mInstanceID);
+
 
             TransitTo(ST_STATE_IDLE);
             break;
@@ -2325,7 +2324,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev);
-                    dev->setSndName(cap_prof->GetSndName());
                 }
                 QAL_DBG(LOG_TAG, "device started");
             }

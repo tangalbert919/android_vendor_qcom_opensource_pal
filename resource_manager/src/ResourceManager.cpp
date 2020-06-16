@@ -4192,49 +4192,34 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     return status;
 }
 
-int ResourceManager::resetStreamInstanceID(qal_stream_attributes *StrAttr, uint32_t sInstanceID)
-{
-    int status = 0;
-
-    if (StrAttr == NULL) {
-        status = -EINVAL;
-        return status;
-    }
-
-    mResourceManagerMutex.lock();
-
-    switch (StrAttr->type) {
-        default:
-            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr->type);
-            break;
-    }
-
-exit:
-    mResourceManagerMutex.unlock();
-    return status;
-}
-
-int ResourceManager::resetStreamInstanceID(qal_stream_attributes* StrAttr,
-    uint32_t sInstanceID,
-    std::pair<uint32_t, uint32_t> streamConfigModifierKV)
-{
+int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
     int listNodeIndex = -1;
+    qal_stream_attributes StrAttr;
+    KeyVect_t streamConfigModifierKV;
 
-    if (StrAttr == NULL) {
-        status = -EINVAL;
+    status = str->getStreamAttributes(&StrAttr);
+
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         return status;
     }
 
     mResourceManagerMutex.lock();
 
-    switch (StrAttr->type) {
+    switch (StrAttr.type) {
         case QAL_STREAM_VOICE_UI:
+            streamConfigModifierKV = str->getStreamModifiers();
+
+            if (streamConfigModifierKV.size() == 0) {
+                QAL_DBG(LOG_TAG, "%s: no streamConfigModifierKV");
+                break;
+            }
+
             for (int x = 0; x < STInstancesLists.size(); x++) {
-                if (STInstancesLists[x].first == streamConfigModifierKV.second) {
+                if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
                     QAL_DBG(LOG_TAG,"Found matching StreamConfig(%x) in STInstancesLists(%d)",
-                        streamConfigModifierKV.second, x);
+                        streamConfigModifierKV[0].second, x);
 
                     for (int i = 0; i < max_session_num; i++) {
                         if (STInstancesLists[x].second[i].first == sInstanceID){
@@ -4253,60 +4238,47 @@ int ResourceManager::resetStreamInstanceID(qal_stream_attributes* StrAttr,
             break;
         default:
             QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr->type);
+                    StrAttr.type);
             break;
     }
 
 exit:
     mResourceManagerMutex.unlock();
     return status;
+
 }
 
-int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr)
-{
-    int status = 0;
-
-    if (StrAttr == NULL) {
-        status = -EINVAL;
-        return status;
-    }
-
-    mResourceManagerMutex.lock();
-
-    switch (StrAttr->type) {
-        default:
-            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr->type);
-            break;
-    }
-
-exit:
-    mResourceManagerMutex.unlock();
-    return status;
-}
-
-int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr,
-    std::pair<uint32_t, uint32_t> streamConfigModifierKV)
-{
+int ResourceManager::getStreamInstanceID(Stream *str) {
     int status = 0;
     int i;
     int listNodeIndex = -1;
+    qal_stream_attributes StrAttr;
+    KeyVect_t streamConfigModifierKV;
 
-    if (StrAttr == NULL) {
-        status = -EINVAL;
+    status = str->getStreamAttributes(&StrAttr);
+
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         return status;
     }
 
     mResourceManagerMutex.lock();
 
-    switch (StrAttr->type) {
+    switch (StrAttr.type) {
         case QAL_STREAM_VOICE_UI:
             QAL_DBG(LOG_TAG,"STInstancesLists.size (%d)", STInstancesLists.size());
 
+            streamConfigModifierKV = str->getStreamModifiers();
+
+            if (streamConfigModifierKV.size() == 0) {
+                QAL_DBG(LOG_TAG, "%s: no streamConfigModifierKV");
+                break;
+            }
+
             for (int x = 0; x < STInstancesLists.size(); x++) {
-                if (STInstancesLists[x].first == streamConfigModifierKV.second) {
+                if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
                     QAL_DBG(LOG_TAG,"Found list for StreamConfig(%x),index(%d)",
-                        streamConfigModifierKV.second, x);
+                        streamConfigModifierKV[0].second, x);
                     listNodeIndex = x;
                     break;
                 }
@@ -4315,10 +4287,10 @@ int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr,
             if (listNodeIndex < 0) {
                 InstanceListNode_t streamConfigInstanceList;
                 QAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig(%x)",
-                    streamConfigModifierKV.second);
+                    streamConfigModifierKV[0].second);
 
                 STInstancesLists.push_back(make_pair(
-                    streamConfigModifierKV.second,
+                    streamConfigModifierKV[0].second,
                     streamConfigInstanceList));
                 //Initialize List
                 for (i = 1; i <= max_session_num; i++) {
@@ -4342,13 +4314,14 @@ int ResourceManager::getStreamInstanceID(qal_stream_attributes* StrAttr,
             break;
         default:
             QAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr->type);
+                    StrAttr.type);
             break;
     }
 
 exit:
     mResourceManagerMutex.unlock();
     return status;
+
 }
 
 bool ResourceManager::isDeviceAvailable(qal_device_id_t id)

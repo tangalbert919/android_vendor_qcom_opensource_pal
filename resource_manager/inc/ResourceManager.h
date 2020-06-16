@@ -452,10 +452,8 @@ public:
     int ssrHandler(card_status_t state);
     int32_t getSidetoneMode(qal_device_id_t deviceId, qal_stream_type_t type,
                             sidetone_mode_t *mode);
-    int getStreamInstanceID(qal_stream_attributes* StrAttr);
-    int getStreamInstanceID(qal_stream_attributes* StrAttr, std::pair<uint32_t, uint32_t> streamConfigModifierKV);
-    int resetStreamInstanceID(qal_stream_attributes* StrAttr, uint32_t sInstanceID);
-    int resetStreamInstanceID(qal_stream_attributes* StrAttr, uint32_t sInstanceID, std::pair<uint32_t, uint32_t> streamConfigModifierKV);
+    int getStreamInstanceID(Stream *str);
+    int resetStreamInstanceID(Stream *str, uint32_t sInstanceID);
 };
 
 #endif
