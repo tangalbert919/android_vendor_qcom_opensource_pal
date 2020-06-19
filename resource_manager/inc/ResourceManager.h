@@ -42,6 +42,8 @@
 #include <map>
 #include <expat.h>
 #include <stdio.h>
+#include <queue>
+#include <deque>
 #include "QalDefs.h"
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
@@ -196,7 +198,6 @@ private:
     //both of the below are update on register and deregister stream
     int mPriorityHighestPriorityActiveStream; //priority of the highest priority active stream
     Stream* mHighestPriorityActiveStream; //pointer to the highest priority active stream
-
     int getNumFEs(const qal_stream_type_t sType) const;
     /* shouldDeviceSwitch will return true, if the incoming stream properties and device
      * properties should force a device switch, these are the points to consider
@@ -235,6 +236,7 @@ private:
     int handleDeviceConnectionChange(qal_param_device_connection_t connection_state);
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList);
+    void ssrHandlingLoop(std::shared_ptr<ResourceManager> rm);
 
 protected:
     std::vector <Stream*> mActiveStreams;
@@ -256,7 +258,6 @@ protected:
     qal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
-    static std::mutex ssrMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -289,6 +290,11 @@ protected:
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
     static SndCardMonitor *sndmon;
+    /* condition variable for which ssrHandlerLoop will wait */
+    static std::condition_variable cv;
+    static std::mutex cvMutex;
+    static std::queue<card_status_t> msgQ;
+    static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     static int mixerEventRegisterCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
@@ -451,7 +457,7 @@ public:
     char* getDeviceNameFromID(uint32_t id);
     int getQalValueFromGKV(qal_key_vector_t *gkv, int key);
     qal_speaker_rotation_type getCurrentRotationType();
-    int ssrHandler(card_status_t state);
+    void ssrHandler(card_status_t state);
     int32_t getSidetoneMode(qal_device_id_t deviceId, qal_stream_type_t type,
                             sidetone_mode_t *mode);
     int getStreamInstanceID(Stream *str);

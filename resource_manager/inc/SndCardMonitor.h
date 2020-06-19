@@ -33,7 +33,8 @@
 
 typedef enum card_status_t {
     CARD_STATUS_OFFLINE = 0,
-    CARD_STATUS_ONLINE
+    CARD_STATUS_ONLINE,
+    CARD_STATUS_NONE,
 } card_status_t;
 
 typedef struct {

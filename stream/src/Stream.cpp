@@ -608,9 +608,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
     }
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
-        QAL_ERR(LOG_TAG, "Sound card offline, cache data");
-        cachedNumDev = numDev;
-        cachedDev = newDevices;
+        QAL_ERR(LOG_TAG, "Sound card offline");
         goto done;
     }
     ret = mDevices[0]->getDeviceAttributes(&dAttr);

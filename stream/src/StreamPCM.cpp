@@ -66,8 +66,6 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
-    cachedNumDev = 0;
-    cachedDev = NULL;
     bool isDeviceConfigUpdated = false;
 
     QAL_DBG(LOG_TAG, "Enter");
@@ -247,6 +245,7 @@ int32_t  StreamPCM::close()
     }
 
 exit:
+    currentState = STREAM_IDLE;
     mStreamMutex.unlock();
     status = rm->deregisterStream(this);
     if (mStreamAttr) {
@@ -260,7 +259,6 @@ exit:
     }
     delete session;
     session = nullptr;
-    currentState = STREAM_IDLE;
     QAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
@@ -306,16 +304,24 @@ int32_t StreamPCM::start()
                 QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
                         status);
                 rm->unlockGraph();
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
+            if (errno == -ENETRESET &&
+                rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                cachedState = STREAM_STARTED;
+                rm->unlockGraph();
+                goto session_fail;
+            }
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
                         status);
                 rm->unlockGraph();
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
@@ -339,15 +345,23 @@ int32_t StreamPCM::start()
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
                         status);
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
+            if (errno == -ENETRESET &&
+                rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                cachedState = STREAM_STARTED;
+                rm->unlockGraph();
+                goto session_fail;
+            }
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
                         status);
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session start successful");
             break;
@@ -387,14 +401,22 @@ int32_t StreamPCM::start()
             status = session->prepare(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "session prepare is failed with status %d", status);
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
+            if (errno == -ENETRESET &&
+                rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                cachedState = STREAM_STARTED;
+                rm->unlockGraph();
+                goto session_fail;
+            }
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "session start is failed with status %d", status);
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG, "session start successful");
             break;
@@ -419,6 +441,10 @@ int32_t StreamPCM::start()
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. state %d", currentState);
+    goto exit;
+session_fail:
+    for (int32_t i=0; i < mDevices.size(); i++)
+        status = mDevices[i]->stop();
 exit:
     mStreamMutex.unlock();
     return status;
@@ -665,15 +691,13 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
         status = session->read(this, SHMEM_ENDPOINT, buf, &size);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session read is failed with status %d", status);
-            //TODO : Modify after GSL fix.
-            if (status == -EPERM) {
+            if (errno == -ENETRESET &&
+                rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
                 status = size;
                 QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
-                if (rm->cardState != CARD_STATUS_OFFLINE) {
-                    QAL_ERR(LOG_TAG, "Sound card offline");
-                    rm->cardState = CARD_STATUS_OFFLINE;
-                }
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
@@ -681,6 +705,7 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
                 QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
+                status = errno;
                 goto exit;
             }
         }
@@ -790,15 +815,13 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
             }
             mStreamMutex.unlock();
 
-            //TODO : Currently we are getting -EPERM from agm during SSR,
-            //need to be changed once agm gives fix to send -ENETRESET
-            if (status == -EPERM) {
+            /* ENETRESET is the error code returned by AGM during SSR */
+            if (errno == -ENETRESET &&
+                rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
                 status = size;
-                if (rm->cardState != CARD_STATUS_OFFLINE) {
-                    QAL_ERR(LOG_TAG, "Sound card offline");
-                    rm->cardState = CARD_STATUS_OFFLINE;
-                }
                 QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -807,6 +830,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
                 QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
+                status = errno;
                 goto exit;
             }
          }
@@ -814,7 +838,10 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
          return size;
     } else {
         QAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
-        status = -EINVAL;
+        if (currentState == STREAM_STOPPED)
+            status = -EIO;
+        else
+            status = -EINVAL;
         goto exit;
     }
 
@@ -1219,10 +1246,17 @@ int32_t StreamPCM::setECRef(std::shared_ptr<Device> dev, bool is_enable)
     return status;
 }
 
-int32_t StreamPCM::ssrDownHandler() {
+int32_t StreamPCM::ssrDownHandler()
+{
     int status = 0;
 
-    cachedState = currentState;
+    mStreamMutex.lock();
+    /* Updating cached state here only if it's STREAM_IDLE,
+     * Otherwise we can assume it is updated by hal thread
+     * already.
+     */
+    if (cachedState == STREAM_IDLE)
+        cachedState = currentState;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK cached State %d",
             session, cachedState);
 
@@ -1232,33 +1266,40 @@ int32_t StreamPCM::ssrDownHandler() {
         rm->lockGraph();
         status = session->close(this);
         rm->unlockGraph();
+        currentState = STREAM_IDLE;
+        mStreamMutex.unlock();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session close failed. status %d", status);
             goto exit;
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = stop();
         if (0 != status)
             QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
+        mStreamMutex.lock();
         rm->lockGraph();
         status = session->close(this);
         rm->unlockGraph();
+        currentState = STREAM_IDLE;
+        mStreamMutex.unlock();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session close failed. status %d", status);
             goto exit;
         }
     } else {
        QAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
+       mStreamMutex.unlock();
        goto exit;
     }
 
 exit :
-    currentState = STREAM_IDLE;
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
-int32_t StreamPCM::ssrUpHandler() {
+int32_t StreamPCM::ssrUpHandler()
+{
     int status = 0;
 
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
