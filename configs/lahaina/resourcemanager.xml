@@ -58,6 +58,11 @@
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_DEEP_BUFFER</name>
+                <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
@@ -102,6 +107,11 @@
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -153,6 +163,11 @@
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_DEEP_BUFFER</name>
+                <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
@@ -197,6 +212,11 @@
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -287,6 +307,11 @@
             </usecase>
             <usecase>
                 <name>QAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>QAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -416,11 +441,10 @@
                 </policies>
         </in_stream>
         <in_stream>
-            <name>QAL_STREAM_LOW_LATENCY</name>
+            <name>QAL_STREAM_DEEP_BUFFER</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
-                        <!--<disabled_stream>QAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>-->
                     </ec_ref>
                 </policies>
         </in_stream>

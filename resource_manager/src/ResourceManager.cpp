@@ -94,7 +94,7 @@
 // values for max sessions number
 #define MAX_SESSIONS_LOW_LATENCY 8
 #define MAX_SESSIONS_ULTRA_LOW_LATENCY 8
-#define MAX_SESSIONS_DEEP_BUFFER 1
+#define MAX_SESSIONS_DEEP_BUFFER 3
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_PCM_OFFLOAD 1
@@ -778,6 +778,10 @@ int ResourceManager::init()
 bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_type_t rx_streamtype)
 {
     bool ecref_status = true;
+    if (tx_streamtype == QAL_STREAM_LOW_LATENCY) {
+       QAL_DBG(LOG_TAG, "no need to enable ec for tx stream %d", tx_streamtype);
+       return false;
+    }
     for (int i = 0; i < txEcInfo.size(); i++) {
         if (tx_streamtype == txEcInfo[i].tx_stream_type) {
             for (auto rx_type = txEcInfo[i].disabled_rx_streams.begin();
@@ -2214,7 +2218,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
             conc_en = false;
         }
     } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
-                type == QAL_STREAM_RAW || // regular audio record
+                type == QAL_STREAM_DEEP_BUFFER || // regular audio record
                 type == QAL_STREAM_VOICE_CALL_RX ||
                 type == QAL_STREAM_VOICE_CALL_TX ||
                 type == QAL_STREAM_VOICE_CALL_RX_TX ||

@@ -1134,7 +1134,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
                 keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
             } else if (sattr->direction == QAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
+                keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
             } else if (sattr->direction == (QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT)) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_RX_LOOPBACK));
             } else {
@@ -1170,6 +1170,8 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case QAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_DEEP_BUFFER));
+            } else if (sattr->direction == QAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
             } else {
                 status = -EINVAL;
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
