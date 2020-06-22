@@ -684,7 +684,8 @@ int ResourceManager::init_audio()
 
                 /* TODO: Needs to extend for new targets */
                 if (strstr(snd_card_name, "kona") ||
-                    strstr(snd_card_name, "sm8150")) {
+                    strstr(snd_card_name, "sm8150")||
+                    strstr(snd_card_name, "lahaina") ) {
                     QAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_mixer = tmp_mixer;
@@ -3503,23 +3504,23 @@ void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndNam
 
 int convertCharToHex(std::string num)
 {
-    int32_t hexNum = 0;
-    int32_t base = 1;
+    uint64_t hexNum = 0;
+    uint32_t base = 1;
     const char * charNum = num.c_str();
     int32_t len = strlen(charNum);
     for (int i = len-1; i>=2; i--) {
         if (charNum[i] >= '0' && charNum[i] <= '9') {
             hexNum += (charNum[i] - 48) * base;
-            base = base * 16;
+            base = base << 4;
         } else if (charNum[i] >= 'A' && charNum[i] <= 'F') {
             hexNum += (charNum[i] - 55) * base;
-            base = base * 16;
+            base = base << 4;
         } else if (charNum[i] >= 'a' && charNum[i] <= 'f') {
             hexNum += (charNum[i] - 87) * base;
-            base = base * 16;
+            base = base << 4;
         }
     }
-    return hexNum;
+    return (int32_t) hexNum;
 }
 
 void ResourceManager::updateStreamTag(int32_t tagId)
