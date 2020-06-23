@@ -323,6 +323,8 @@ public:
     ~ResourceManager();
     enum card_status_t cardState;
     bool ssrStarted = false;
+    static bool isSpeakerProtectionEnabled;
+    static int spQuickCalTime;
     qal_global_callback globalCb = NULL;
     void *cookie;
     int initSndMonitor();

@@ -257,7 +257,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}}
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
+    {QAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -321,6 +322,8 @@ std::thread ResourceManager::workerThread;
 int ResourceManager::mixerEventRegisterCount = 0;
 int ResourceManager::concurrentStreamCount = 0;
 static int max_session_num;
+bool ResourceManager::isSpeakerProtectionEnabled;
+int ResourceManager::spQuickCalTime;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -392,6 +395,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
     {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
+    {QAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
 };
 
 void agmServiceCrashHandler(uint64_t cookie __unused)
@@ -529,6 +533,7 @@ ResourceManager::ResourceManager()
     }
 
     ResourceManager::loadAdmLib();
+
     QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
@@ -819,6 +824,19 @@ int ResourceManager::init_audio()
 
 int ResourceManager::init()
 {
+    std::shared_ptr<Speaker> dev = nullptr;
+
+    // Initialize Speaker Protection calibration mode
+    struct qal_device dattr;
+    // Get the speaker instance and activate speaker protection
+    dattr.id = QAL_DEVICE_OUT_SPEAKER;
+    dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
+    if (!dev) {
+        QAL_DBG(LOG_TAG, "Speaker instance created");
+    }
+    else
+        QAL_ERR(LOG_TAG, "Speaker instance not created");
+
     return 0;
 }
 
@@ -5091,6 +5109,11 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             size = deviceInfo.size() - 1;
             std::string snddevname(data->data_buf);
             updateSndName(deviceInfo[size].deviceId, snddevname);
+        } else if (!strcmp(tag_name, "speaker_protection_enabled")) {
+            if (atoi(data->data_buf))
+                isSpeakerProtectionEnabled = true;
+        } else if (!strcmp(tag_name, "quick_cal_time")) {
+            spQuickCalTime = atoi(data->data_buf);
         }
     } else if (data->tag == TAG_USECASE) {
         if (!strcmp(tag_name, "name")) {

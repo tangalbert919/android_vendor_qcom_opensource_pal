@@ -342,8 +342,9 @@ typedef enum {
     QAL_DEVICE_IN_HANDSET_VA_MIC = QAL_DEVICE_IN_MIN + 14,
     QAL_DEVICE_IN_BLUETOOTH_A2DP = QAL_DEVICE_IN_MIN + 15,
     QAL_DEVICE_IN_HEADSET_VA_MIC = QAL_DEVICE_IN_MIN + 16,
+    QAL_DEVICE_IN_VI_FEEDBACK = QAL_DEVICE_IN_MIN + 17,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 17,
+    QAL_DEVICE_IN_MAX = QAL_DEVICE_IN_MIN + 18,
 } qal_device_id_t;
 
 #ifdef __cplusplus
@@ -382,7 +383,8 @@ static const std::map<std::string, qal_device_id_t> deviceIdLUT {
     {std::string{ "QAL_DEVICE_IN_PROXY" },                 QAL_DEVICE_IN_PROXY},
     {std::string{ "QAL_DEVICE_IN_HANDSET_VA_MIC" },        QAL_DEVICE_IN_HANDSET_VA_MIC},
     {std::string{ "QAL_DEVICE_IN_BLUETOOTH_A2DP" },        QAL_DEVICE_IN_BLUETOOTH_A2DP},
-    {std::string{ "QAL_DEVICE_IN_HEADSET_VA_MIC" },        QAL_DEVICE_IN_HEADSET_VA_MIC}
+    {std::string{ "QAL_DEVICE_IN_HEADSET_VA_MIC" },        QAL_DEVICE_IN_HEADSET_VA_MIC},
+    {std::string{ "QAL_DEVICE_IN_VI_FEEDBACK" },           QAL_DEVICE_IN_VI_FEEDBACK}
 };
 
 //reverse mapping
@@ -421,7 +423,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {QAL_DEVICE_IN_PROXY,                 std::string{"QAL_DEVICE_IN_PROXY"}},
     {QAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"QAL_DEVICE_IN_HANDSET_VA_MIC"}},
     {QAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"QAL_DEVICE_IN_BLUETOOTH_A2DP"}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"QAL_DEVICE_IN_HEADSET_VA_MIC"}}
+    {QAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"QAL_DEVICE_IN_HEADSET_VA_MIC"}},
+    {QAL_DEVICE_IN_VI_FEEDBACK,           std::string{"QAL_DEVICE_IN_VI_FEEDBACK"}}
 };
 #endif
 

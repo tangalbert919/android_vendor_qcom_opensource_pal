@@ -352,12 +352,21 @@
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
         </in-device>
+        <in-device>
+            <id>QAL_DEVICE_IN_VI_FEEDBACK</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>vi-feedback-mono-2</snd_device_name>
+        </in-device>
         <out-device>
             <id>QAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>speaker</snd_device_name>
+            <speaker_protection_enabled>0</speaker_protection_enabled>
+            <quick_cal_time>0</quick_cal_time> <!-- Time in seconds for quick calibration. Set 0 to disable -->
         </out-device>
         <out-device>
             <id>QAL_DEVICE_OUT_HANDSET</id>

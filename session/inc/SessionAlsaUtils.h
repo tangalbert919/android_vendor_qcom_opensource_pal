@@ -77,10 +77,6 @@ class SessionAlsaUtils
 private:
     SessionAlsaUtils() {};
     static bool isRxDevice(uint32_t devId);
-    static void getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
-                        const std::vector <std::pair<int, int>> &ckv,
-                        struct prop_data *propData,
-                        struct agmMetaData &md);
     static struct mixer_ctl *getFeMixerControl(struct mixer *am, std::string feName,
         uint32_t idx);
     static struct mixer_ctl *getBeMixerControl(struct mixer *am, std::string beName,
@@ -108,7 +104,7 @@ public:
     static int setMixerParameter(struct mixer *mixer, int device,
                                  void *payload, int size);
     static int setStreamMetadataType(struct mixer *mixer, int device, const char *val);
-    static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, bool is_register);
+    static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, void *payload, int payload_size);
     static int setECRefPath(struct mixer *mixer, int device, const char *intf_name);
 
     static int getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
@@ -136,6 +132,10 @@ public:
     static unsigned int bytesToFrames(size_t bufSizeInBytes, unsigned int channels,
                            enum pcm_format format);
     static bool isMmapUsecase(struct qal_stream_attributes attr);
+    static void getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
+                        const std::vector <std::pair<int, int>> &ckv,
+                        struct prop_data *propData,
+                        struct agmMetaData &md);
 };
 
 #endif //SESSION_ALSA_UTILS

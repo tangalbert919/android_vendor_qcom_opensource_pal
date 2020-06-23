@@ -47,6 +47,7 @@ LOCAL_CFLAGS   += -Wno-macro-redefined
 LOCAL_CFLAGS   += -Wall -Werror
 LOCAL_CFLAGS   += -DCONFIG_GSL
 LOCAL_CFLAGS   += -D_GNU_SOURCE
+LOCAL_CFLAGS   += -DQAL_SP_TEMP_PATH=\"/data/misc/audio/audio.cal\"
 LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
@@ -69,6 +70,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/DisplayPort.cpp \
     device/src/HeadsetVaMic.cpp \
     device/src/RTProxy.cpp \
+    device/src/SpeakerProtection.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \

@@ -40,7 +40,6 @@
 #include "ResourceManager.h"
 #include "StreamSoundTrigger.h"
 #include <agm_api.h>
-#include "detection_cmn_api.h"
 #include "spr_api.h"
 #include "apm_api.h"
 #include <tinyalsa/asoundlib.h>
@@ -401,6 +400,23 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         if (status) {
             QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
             status = 0; /**< ignore stream device KV failures */
+        }
+
+        if (ResourceManager::isSpeakerProtectionEnabled) {
+            QAL_DBG(LOG_TAG, "Speaker protection enabled");
+            status = builder->populateCalKeyVector(streamHandle, emptyKV, SPKR_PROT_ENABLED);
+            if (status != 0) {
+                QAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SPP CKV failures */
+            }
+        }
+        else {
+            QAL_DBG(LOG_TAG, "Speaker protection disabled");
+            status = builder->populateCalKeyVector(streamHandle, emptyKV, SPKR_PROT_DISABLED);
+            if (status != 0) {
+                QAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SPP CKV failures */
+            }
         }
         if (deviceKV.size() > 0) {
             getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
@@ -856,14 +872,13 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
     return ret;
 }
 
-int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, bool is_register)
+int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, void *payload, int payload_size)
 {
     char *pcmDeviceName = NULL;
     char const *control = "event";
     char *mixer_str;
-    struct mixer_ctl *ctl;
     struct agm_event_reg_cfg *event_cfg;
-    int payload_size = 0;
+    struct mixer_ctl *ctl;
     int ctl_len = 0,status = 0;
     uint32_t miid;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
@@ -892,20 +907,11 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
         return ENOENT;
     }
 
-    ctl_len = sizeof(struct agm_event_reg_cfg) + payload_size;
-    event_cfg = (struct agm_event_reg_cfg *)calloc(1, ctl_len);
-    if (!event_cfg) {
-        free(mixer_str);
-        return -ENOMEM;
-    }
-
+    event_cfg = (struct agm_event_reg_cfg *)payload;
     event_cfg->module_instance_id = miid;
-    event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
-    event_cfg->event_config_payload_size = payload_size;
-    event_cfg->is_register = is_register ? 1 : 0;
 
-    status = mixer_ctl_set_array(ctl, event_cfg, ctl_len);
-    free(event_cfg);
+    status = mixer_ctl_set_array(ctl, (struct agm_event_reg_cfg *)payload,
+                        payload_size);
     free(mixer_str);
     return status;
 }

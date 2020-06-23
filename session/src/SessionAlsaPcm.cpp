@@ -33,6 +33,7 @@
 #include "SessionAlsaUtils.h"
 #include "Stream.h"
 #include "ResourceManager.h"
+#include "detection_cmn_api.h"
 #include <agm_api.h>
 #include <sstream>
 #include <string>
@@ -513,6 +514,8 @@ int SessionAlsaPcm::start(Stream * s)
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     uint32_t miid;
+    int payload_size = 0;
+    struct agm_event_reg_cfg *event_cfg;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -651,8 +654,18 @@ int SessionAlsaPcm::start(Stream * s)
             registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        payload_size = sizeof(struct agm_event_reg_cfg);
+
+        event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
+        if (!event_cfg) {
+            status = -ENOMEM;
+        }
+        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+        event_cfg->event_config_payload_size = 0;
+        event_cfg->is_register = 1;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), DEVICE_SVA, true);
+                txAifBackEnds[0].second.data(), DEVICE_SVA, (void *)event_cfg,
+                payload_size);
         dev = rm->getActiveEchoReferenceRxDevices(s);
         if (dev && !ecRefDevId) {
             status = setECRef(s, dev, true);
@@ -794,6 +807,21 @@ int SessionAlsaPcm::start(Stream * s)
             //if (status) {
             //    QAL_ERR(LOG_TAG, "pcm_prepare failed %d", status);
             //}
+            if (ResourceManager::isSpeakerProtectionEnabled) {
+                for (int i = 0; i < associatedDevices.size();i++) {
+                    status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    if (0 != status) {
+                        QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
+                        return status;
+                    }
+                    if (QAL_DEVICE_OUT_SPEAKER == dAttr.id) {
+                        if (setConfig(s, MODULE, OP_MODE) != 0) {
+                            QAL_ERR(LOG_TAG,"Setting volume failed");
+                        }
+                        break;
+                    }
+                }
+            }
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -825,6 +853,8 @@ int SessionAlsaPcm::stop(Stream * s)
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
+    struct agm_event_reg_cfg *event_cfg;
+    int payload_size = 0;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -864,8 +894,18 @@ int SessionAlsaPcm::stop(Stream * s)
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
         }
+        payload_size = sizeof(struct agm_event_reg_cfg);
+
+        event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
+        if (!event_cfg) {
+            status = -ENOMEM;
+        }
+        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+        event_cfg->event_config_payload_size = 0;
+        event_cfg->is_register = 0;
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-            txAifBackEnds[0].second.data(), DEVICE_SVA, false);
+            txAifBackEnds[0].second.data(), DEVICE_SVA, (void *) event_cfg,
+            payload_size);
     } else if (sAttr.direction == QAL_AUDIO_INPUT) {
         if (ecRefDevId) {
             status = setECRef(s, nullptr, false);

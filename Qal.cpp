@@ -89,6 +89,9 @@ int32_t qal_init(void)
         QAL_ERR(LOG_TAG, "snd monitor init failed");
         return ret;
     }
+
+    ri->init();
+
     QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }

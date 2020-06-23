@@ -35,6 +35,7 @@
 #include "plugins/codecs/bt_intf.h"
 #include "spr_api.h"
 #include <bt_intf.h>
+#include "sp_vi.h"
 
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
@@ -1510,6 +1511,8 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     struct qal_stream_attributes sAttr;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     KeyVect_t stream_config_kv;
+    struct qal_device dAttr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     status = s->getStreamAttributes(&sAttr);
@@ -1614,6 +1617,35 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
             ckv.push_back(std::make_pair(CHANNELS,
                 cap_prof->GetChannels()));
         }
+        break;
+    case SPKR_PROT_ENABLED :
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
+
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            if (dAttr.id == QAL_DEVICE_OUT_SPEAKER) {
+                if (dAttr.config.ch_info.channels > 1) {
+                    QAL_DBG(LOG_TAG, "Multi channel speaker");
+                    ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, LEFT_RIGHT));
+                }
+                else {
+                    QAL_DBG(LOG_TAG, "Mono channel speaker");
+                    ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, RIGHT_MONO));
+                }
+                break;
+            }
+        }
+        break;
+    case SPKR_PROT_DISABLED :
+        ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, SP_DISABLED));
         break;
     default:
         break;
@@ -1785,6 +1817,10 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        else
             *gsltag = TAG_DEVICE_MFC_SR;
        break;
+    case OP_MODE:
+        tkv.push_back(std::make_pair(TAG_MODULE_OP_MODE, NORMAL));
+        *gsltag = TAG_MODULE_OP_MODE;
+       break;
     default:
        QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
        break;
@@ -1792,4 +1828,58 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
 
     QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
     return status;
+}
+
+void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid, void *param)
+{
+    struct apm_module_param_data_t* header = NULL;
+    param_id_sp_th_vi_r0t0_cfg_t *spConf;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    vi_r0t0_cfg_t* r0t0 = NULL;
+
+    param_id_sp_th_vi_r0t0_cfg_t *data = NULL;
+
+    data = (param_id_sp_th_vi_r0t0_cfg_t *) param;
+
+    if (!data) {
+        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
+                  sizeof(vi_r0t0_cfg_t) * data->num_speakers;
+
+    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+    if (!payloadInfo) {
+        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+
+    header = (struct apm_module_param_data_t*) payloadInfo;
+    spConf = (param_id_sp_th_vi_r0t0_cfg_t *) (payloadInfo +
+                    sizeof(struct apm_module_param_data_t));
+    r0t0 = (vi_r0t0_cfg_t*) (payloadInfo + sizeof(struct apm_module_param_data_t)
+                             + sizeof(param_id_sp_th_vi_r0t0_cfg_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_SP_TH_VI_R0T0_CFG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+
+    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                    header->module_instance_id, header->param_id,
+                    header->error_code, header->param_size);
+
+    spConf->num_speakers = data->num_speakers;
+    for(int i = 0; i < data->num_speakers; i++) {
+        r0t0[i].r0_cali_q24 = data->vi_r0t0_cfg[i].r0_cali_q24;
+        r0t0[i].t0_cali_q6 = data->vi_r0t0_cfg[i].t0_cali_q6;
+    }
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
 }
