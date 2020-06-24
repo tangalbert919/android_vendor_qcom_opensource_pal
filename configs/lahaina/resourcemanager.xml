@@ -25,32 +25,9 @@
 <!-- OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN    -->
 <!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                             -->
 <resource_manager_info>
-    <pcm_ids>
-        <device name="QAL_DEVICE_OUT_SPEAKER" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="speaker" back_end_name="CODEC_DMA-LPAIF_WSA-RX-0"/>
-        <device name="QAL_DEVICE_OUT_HANDSET" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="handset" back_end_name="CODEC_DMA-LPAIF_WSA-RX-0"/>
-        <device name="QAL_DEVICE_OUT_WIRED_HEADPHONE" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="headphones" back_end_name="CODEC_DMA-LPAIF_RXTX-RX-0"/>
-        <device name="QAL_DEVICE_OUT_WIRED_HEADSET" pcm_id="0" hw_intf="CODEC_DMA" snd_device_name="headphones" back_end_name="CODEC_DMA-LPAIF_RXTX-RX-0"/>
-        <device name="QAL_DEVICE_OUT_BLUETOOTH_A2DP" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-RX-7"/>
-        <device name="QAL_DEVICE_OUT_BLUETOOTH_SCO" pcm_id="0" hw_intf="slim-7-rx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-RX-7"/>
-        <device name="QAL_DEVICE_OUT_AUX_DIGITAL" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
-        <device name="QAL_DEVICE_OUT_HDMI" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
-        <device name="QAL_DEVICE_OUT_USB_DEVICE" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
-        <device name="QAL_DEVICE_OUT_USB_HEADSET" pcm_id="0" hw_intf="usb_audio" snd_device_name="usb-headphones" back_end_name="USB_AUDIO-RX"/>
-        <device name="QAL_DEVICE_OUT_AUX_DIGITAL_1" pcm_id="0" hw_intf="dp-0-rx" snd_device_name="display-port" back_end_name="DISPLAY_PORT-RX"/>
-        <device name="QAL_DEVICE_OUT_PROXY" pcm_id="0" hw_intf="PCM_RT_PROXY" snd_device_name="afe-proxy" back_end_name="PCM_RT_PROXY-RX-1"/>
-        <device name="QAL_DEVICE_IN_USB_DEVICE" pcm_id="1" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
-        <device name="QAL_DEVICE_IN_USB_HEADSET" pcm_id="1" hw_intf="usb_audio" snd_device_name="usb-headset-mic" back_end_name="USB_AUDIO-TX"/>
-        <device name="QAL_DEVICE_IN_HANDSET_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="handset-mic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
-        <device name="QAL_DEVICE_IN_SPEAKER_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="speaker-tmic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
-        <device name="QAL_DEVICE_IN_WIRED_HEADSET" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="headset-mic" back_end_name="CODEC_DMA-LPAIF_RXTX-TX-3"/>
-        <device name="QAL_DEVICE_IN_HANDSET_VA_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="va-mic" back_end_name="CODEC_DMA-LPAIF_VA-TX-0"/>
-        <device name="QAL_DEVICE_IN_HEADSET_VA_MIC" pcm_id="1" hw_intf="CODEC_DMA" snd_device_name="headset-va-mic" back_end_name="CODEC_DMA-LPAIF_VA-TX-0"/>
-        <device name="QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-TX-7"/>
-        <device name="QAL_DEVICE_IN_BLUETOOTH_A2DP" pcm_id="1" hw_intf="slim-7-tx" snd_device_name="bt-a2dp" back_end_name="SLIM-DEV1-TX-7"/>
-        <device name="QAL_DEVICE_IN_PROXY" pcm_id="1" hw_intf="PCM_RT_PROXY" snd_device_name="afe-proxy" back_end_name="PCM_RT_PROXY-TX-1"/>
-    </pcm_ids>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
+        <param key="max_sessions" value="128"/>
     </config_params>
     <bt_codecs>
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
@@ -343,7 +320,90 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
-        <out_devices/>
+        <out-device>
+            <id>QAL_DEVICE_OUT_SPEAKER</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>speaker</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_HANDSET</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>handset</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_WIRED_HEADPHONE</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>headphones</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_WIRED_HEADSET</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>headphones</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-a2dp</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_BLUETOOTH_SCO</id>
+            <back_end_name>SLIM-DEV1-RX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-a2dp</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_AUX_DIGITAL</id>
+            <back_end_name>DISPLAY_PORT-RX</back_end_name>
+            <max_channels>32</max_channels>
+            <channels>2</channels>
+            <snd_device_name>display-port</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_HDMI</id>
+            <back_end_name>DISPLAY_PORT-RX</back_end_name>
+            <max_channels>32</max_channels>
+            <channels>2</channels>
+            <snd_device_name>display-port</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_USB_DEVICE</id>
+            <back_end_name>USB_AUDIO-RX</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>usb-headphones</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_USB_HEADSET</id>
+            <back_end_name>USB_AUDIO-RX</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>usb-headphones</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_AUX_DIGITAL_1</id>
+            <back_end_name>DISPLAY_PORT-RX</back_end_name>
+            <max_channels>8</max_channels>
+            <channels>2</channels>
+            <snd_device_name>display-port</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>QAL_DEVICE_OUT_PROXY</id>
+            <back_end_name>PCM_RT_PROXY-RX-1</back_end_name>
+            <max_channels>8</max_channels>
+            <channels>2</channels>
+            <snd_device_name>afe-proxy</snd_device_name>
+        </out-device>
     </device_profile>
     <in_streams>
         <in_stream>
@@ -384,7 +444,6 @@
     </in_streams>
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
-
         <common_config>
             <param max_sessions="8" />
             <param enable_failure_detection="false" />
@@ -399,8 +458,57 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
         </common_config>
-
         <capture_profile_list>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
+            </capture_profile>
+            <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW">
+                <param sample_rate="16000" />
+                <param channels="2" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- see kvh2xml.h -->
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-dmic" />
+            </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
@@ -409,6 +517,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -418,6 +527,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -427,6 +537,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-tmic" />
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -436,6 +547,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-qmic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
@@ -445,6 +557,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
@@ -454,6 +567,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
@@ -463,6 +577,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-tmic" />
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
@@ -472,14 +587,15 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
+                <param snd_name="va-mic-qmic" />
             </capture_profile>
         </capture_profile_list>
         <!-- Multiple sound_model_config tags can be listed, each with unique   -->
-        <!-- vendor_uuid. The below tag represents QTI SVA engine sound model   -->
+        <!-- vendor_uuid. The below tag represents QTI SVA sound model   -->
         <!-- configuration. ISV must use their own unique vendor_uuid.          -->
         <!-- QTI SVA -->
         <sound_model_config>
-            <param vendor_uuid="68ab2d40-e860-11e3-95ef-0002a5d5c51b" />
+            <param vendor_uuid="68ab2d40-e860-11e3-95ef-0002a5d5c51b"/>
             <param kw_start_tolerance="100" />
             <param kw_end_tolerance="100" />
             <param merge_first_stage_sound_models="false"/>
@@ -489,10 +605,36 @@
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
+            <streamConfig-metadata>
+                <!-- see kvh2xml.h -->
+                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA"/> <!-- Hotword Stream Config -->
+            </streamConfig-metadata>
             <operating_modes>
-                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_FFNS"/>
-                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_FFECNS"/>
-                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_FFECNS"/>
+                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
+                <high_performance capture_profile_handset="TRI_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+            </operating_modes>
+        </sound_model_config>
+        <!-- Hotword -->
+        <sound_model_config>
+            <param vendor_uuid="7038ddc8-30f2-11e6-b0ac-40a8f03d3f15"/>
+            <param kw_start_tolerance="100" />
+            <param kw_end_tolerance="100" />
+            <param merge_first_stage_sound_models="false"/>
+            <!-- Profile specific data which the algorithm can support -->
+            <param sample_rate="16000" />
+            <param bit_width="16" />
+            <param out_channels="1"/> <!-- Module output channels -->
+            <param capture_keyword="2000" />
+            <param client_capture_read_delay="2000" />
+            <streamConfig-metadata>
+                <!-- see kvh2xml.h -->
+                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_HW"/> <!-- Hotword Stream Config -->
+            </streamConfig-metadata>
+            <operating_modes>
+                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW"/>
+                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW"/>
+                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW"/>
             </operating_modes>
         </sound_model_config>
     </sound_trigger_platform_info>
