@@ -6,6 +6,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 adie_rtc-def += -D_ANDROID_
 #LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
+LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal

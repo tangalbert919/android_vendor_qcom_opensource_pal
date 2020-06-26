@@ -79,7 +79,7 @@ typedef struct bt_enc_payload {
 
 typedef struct bt_codec_library_s bt_codec_t;
 
-typedef struct bt_codec_library_s {
+struct bt_codec_library_s {
     const char *name;
     uint32_t codecFmt;
     codec_type direction;
@@ -88,7 +88,7 @@ typedef struct bt_codec_library_s {
     uint64_t (*plugin_get_codec_latency)(bt_codec_t *codec, uint32_t slatency);
     int (*plugin_query_num_codecs)(bt_codec_t *codec);
     void (*close_plugin) (bt_codec_t *codec);
-} bt_codec_t;
+};
 
 typedef int (*config_fn_t) (bt_codec_t *codec, void *src, void **dst);
 typedef int (*open_fn_t) (bt_codec_t **codec, uint32_t codecFmt, codec_type direction);

@@ -1,5 +1,7 @@
 LOCAL_PATH:= $(call my-dir)
 
+LOCAL_CFLAGS += -Wall -Werror
+
 #--------------------------------------------
 #          Build bt_bundle LIB
 #--------------------------------------------

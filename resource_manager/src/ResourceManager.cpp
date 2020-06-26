@@ -395,7 +395,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
 };
 
-void agmServiceCrashHandler(uint64_t cookie)
+void agmServiceCrashHandler(uint64_t cookie __unused)
 {
     QAL_ERR(LOG_TAG, "AGM service crashed :( ");
     _exit(1);
@@ -689,11 +689,11 @@ char* ResourceManager::getDeviceNameFromID(uint32_t id)
 
 int ResourceManager::init_audio()
 {
-    int ret = 0, retry = 0;
+    int retry = 0;
     bool snd_card_found = false;
-    char snd_macro[] = "snd";
+
     char *snd_card_name = NULL;
-    char *tmp = NULL;
+
     char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
     QAL_DBG(LOG_TAG, "Enter.");
@@ -1812,7 +1812,7 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetCaptureProfileByPriority(
 }
 
 bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active) {
-    int status = 0;
+
     bool backend_update = false;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
@@ -1997,7 +1997,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
 void ResourceManager::mixerEventWaitThreadLoop(
     std::shared_ptr<ResourceManager> rm) {
     int ret = 0;
-    struct snd_ctl_event mixer_event = {0};
+    struct snd_ctl_event mixer_event = {0, {.data8 = {0}}};
     struct mixer *mixer = nullptr;
 
     ret = rm->getAudioMixer(&mixer);
@@ -3272,7 +3272,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
            struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr)
 {
     bool isDeviceSwitch = false;
-    bool isVoiceCall = false;
+
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<std::shared_ptr<Device>> associatedDevices;
@@ -3830,7 +3830,7 @@ int32_t ResourceManager::a2dpResume()
     // if the stream actual device is a2dp, then switch back to a2dp
     // unmute the stream
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        int ret = 0;
+
         struct qal_device_info devinfo = {};
 
         status = (*sIter)->getStreamAttributes(&sAttr);
@@ -3869,7 +3869,7 @@ exit:
 }
 
 int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
-                     size_t *payload_size, void *query)
+                     size_t *payload_size, void *query __unused)
 {
     int status = 0;
 
@@ -4116,7 +4116,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (param_bt_a2dp->reconfigured == true) {
                     struct qal_device spkrDattr;
                     std::shared_ptr<Device> spkrDev = nullptr;
-                    struct qal_stream_attributes sAttr;
+
                     struct qal_device_info devinfo = {};
 
                     QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
@@ -4479,7 +4479,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
 
 int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
-    int listNodeIndex = -1;
+
     qal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
@@ -4527,7 +4527,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             break;
     }
 
-exit:
+
     mResourceManagerMutex.unlock();
     return status;
 
@@ -4603,7 +4603,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             break;
     }
 
-exit:
+
     mResourceManagerMutex.unlock();
     return status;
 
@@ -5009,7 +5009,7 @@ void ResourceManager::process_input_streams(struct xml_userdata *data, const XML
 {
     struct tx_ecinfo txecinfo = {};
     int type = 0;
-    int size = -1 , typesize = -1;
+    int size = -1;
 
     if (data->offs <= 0)
         return;

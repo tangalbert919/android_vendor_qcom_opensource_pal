@@ -1002,6 +1002,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             QAL_INFO(LOG_TAG, "compress format %x", audio_fmt);
             switch (audio_fmt) {
                 case QAL_AUDIO_FMT_MP3:
+                case QAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
                       break;
                 case QAL_AUDIO_FMT_DEFAULT_PCM:
                      break;

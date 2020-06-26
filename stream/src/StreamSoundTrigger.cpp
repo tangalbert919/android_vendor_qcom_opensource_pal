@@ -49,12 +49,12 @@
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 
 StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
-                                       struct qal_device *dattr,
+                                       struct qal_device *dattr __unused,
                                        uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm) {
-    int status = 0;
+
     class SoundTriggerUUID uuid;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
@@ -347,7 +347,6 @@ int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable
 
 int32_t StreamSoundTrigger::DisconnectDevice(qal_device_id_t device_id) {
     int32_t status = 0;
-    qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
     /*
@@ -371,7 +370,6 @@ int32_t StreamSoundTrigger::DisconnectDevice(qal_device_id_t device_id) {
 
 int32_t StreamSoundTrigger::ConnectDevice(qal_device_id_t device_id) {
     int32_t status = 0;
-    qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
@@ -435,7 +433,6 @@ int32_t StreamSoundTrigger::Pause() {
 
 std::shared_ptr<Device> StreamSoundTrigger::GetQalDevice(
     qal_device_id_t dev_id, struct qal_device *dev, bool use_rm_profile) {
-    int32_t status = 0;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<Device> device = nullptr;
 
@@ -1283,6 +1280,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     size_t opaque_size = 0;
     size_t event_size = 0;
     uint8_t *opaque_data = nullptr;
+    uint32_t start_index = 0, end_index = 0;
 
     QAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
@@ -1360,7 +1358,9 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         opaque_data += sizeof(struct st_param_header);
         kw_indices = (struct st_keyword_indices_info *)opaque_data;
         kw_indices->version = 0x1;
-        reader_->getIndices(&kw_indices->start_index, &kw_indices->end_index);
+        reader_->getIndices(&start_index, &end_index);
+        kw_indices->start_index = start_index;
+        kw_indices->end_index = end_index;
         opaque_data += sizeof(struct st_keyword_indices_info);
 
         /*

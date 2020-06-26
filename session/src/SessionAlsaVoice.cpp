@@ -469,13 +469,13 @@ int SessionAlsaVoice::close(Stream * s)
 
     return status;
 }
-int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id, void *payload)
+int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __unused, void *payload)
 {
     int status = 0;
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
-    uint32_t miid = 0;
+
     uint32_t tty_mode;
     qal_param_payload *QalPayload = (qal_param_payload *)payload;
 

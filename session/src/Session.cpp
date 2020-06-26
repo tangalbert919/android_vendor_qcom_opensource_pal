@@ -168,11 +168,11 @@ void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
     }
 }
 
-int Session::getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload)
+int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effectPayload)
 {
     int status = 0;
     uint8_t *ptr = NULL;
-    uint8_t *config = NULL;
+
     uint8_t *payloadData = NULL;
     size_t payloadSize = 0;
     int device = 0;

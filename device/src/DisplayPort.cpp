@@ -289,11 +289,11 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
         char *ack_str = NULL;
 
         if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_ENABLE)
-            ack_str = ACK_ENABLE;
+            ack_str = (char*) ACK_ENABLE;
         else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_CONNECT)
-            ack_str = CONNECT;
+            ack_str = (char*) CONNECT;
         else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT)
-            ack_str = DISCONNECT;
+            ack_str = (char*) DISCONNECT;
         else {
             QAL_ERR(LOG_TAG, " Invalid input parameter - 0x%x\n", node_value);
             return -EINVAL;

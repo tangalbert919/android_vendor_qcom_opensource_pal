@@ -530,7 +530,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             break;
     }
 
-exit:
+
     QAL_VERBOSE(LOG_TAG, "end, session parameter %u set with status %d", param_id, status);
     return status;
 }
@@ -586,16 +586,10 @@ int32_t  StreamCompress::setMute( bool state)
     int32_t status = 0;
 
     QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
-    switch (state) {
-        case TRUE:
-            QAL_VERBOSE(LOG_TAG,"Mute");
-            status = session->setConfig(this, MODULE, MUTE_TAG);
-            break;
-        case FALSE:
-            QAL_VERBOSE(LOG_TAG,"Unmute");
-            status = session->setConfig(this, MODULE, UNMUTE_TAG);
-            break;
-    }
+    
+    QAL_VERBOSE(LOG_TAG, state == TRUE ? "Mute" : "Unmute");
+    status = session->setConfig(this, MODULE, state == TRUE ? MUTE_TAG : UNMUTE_TAG);
+
     if (0 != status) {
        QAL_ERR(LOG_TAG,"session setConfig for mute failed with status %d",status);
        goto exit;

@@ -49,7 +49,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     Stream* stream = NULL;
     int status = 0;
     uint32_t count = 0;
-    bool isStandby = false;
+
 
     if (!sAttr || !dAttr) {
         QAL_ERR(LOG_TAG, "Invalid input paramters");
@@ -254,7 +254,7 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
         aDevices.push_back(mDevices[i]);
     }
 
-exit:
+
     return status;
 }
 
@@ -756,8 +756,8 @@ done:
 bool Stream::isGKVMatch(qal_key_vector_t* gkv)
 {
     int i = 0;
-    uint32_t key = 0;
-    uint32_t value = 0;
+    
+
     int status = 0;
     PayloadBuilder* builder = new PayloadBuilder();
     bool match = false;

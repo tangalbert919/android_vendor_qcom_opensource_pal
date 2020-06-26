@@ -117,7 +117,7 @@ CaptureProfile::CaptureProfile(const std::string name) :
 
 }
 
-void CaptureProfile::HandleCharData(const char* data) {
+void CaptureProfile::HandleCharData(const char* data __unused) {
 }
 
 void CaptureProfile::HandleEndTag(const char* tag) {
@@ -306,7 +306,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     }
 }
 
-void SoundModelConfig::HandleEndTag(const char* tag) {
+void SoundModelConfig::HandleEndTag(const char* tag __unused) {
 
     return;
 }

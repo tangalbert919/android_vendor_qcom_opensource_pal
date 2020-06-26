@@ -163,7 +163,7 @@ free_payload:
     return ret;
 }
 
-static int aac_pack_dec_config(bt_codec_t *codec, void *src __unused, void **dst __unused) {
+static int aac_pack_dec_config(bt_codec_t *codec __unused, void *src __unused, void **dst __unused) {
     return 0;
 }
 
@@ -271,7 +271,7 @@ free_payload:
     return ret;
 }
 
-static int sbc_pack_dec_config(bt_codec_t *codec, void *src __unused, void **dst __unused)
+static int sbc_pack_dec_config(bt_codec_t *codec __unused, void *src __unused, void **dst __unused)
 {
     return 0;
 }

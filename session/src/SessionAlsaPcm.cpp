@@ -963,7 +963,7 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
-    Stream *str = nullptr;
+
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -1056,7 +1056,7 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, qal_stream_type_t
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
-    Stream *str = nullptr;
+
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -1680,7 +1680,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
     unsigned int offset1 = 0;
     unsigned int frames1 = 0;
     const char *step = "enter";
-    uint32_t mmap_size,buffer_size;
+    uint32_t buffer_size;
     struct pcm_config config;
     struct qal_stream_attributes sAttr;
     int32_t status = 0;

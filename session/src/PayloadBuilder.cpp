@@ -1892,7 +1892,7 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
     struct apm_module_param_data_t* header = NULL;
     uint8_t* payloadInfo = NULL;
     uint32_t param_id = 0, val = 2;
-    size_t payloadSize = 0, padBytes = 0, customPayloadSize = 0;
+    size_t payloadSize = 0, customPayloadSize = 0;
     param_id_aptx_classic_switch_enc_pcm_input_payload_t *aptx_classic_payload;
     param_id_aptx_adaptive_enc_switch_to_mono_t *aptx_adaptive_payload;
 
@@ -2505,7 +2505,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair, bool is_lpi)
+        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair, bool is_lpi __unused)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
@@ -2666,7 +2666,7 @@ error_1:
     return status;
 }
 
-int PayloadBuilder::populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
+int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
         struct qal_volume_data **volume_data __unused)
 {
     int status = 0;
@@ -2878,7 +2878,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
        }
        break;
     case TAG_MODULE_CHANNELS:
-        if (sAttr.type = QAL_STREAM_VOICE_UI) {
+        if (sAttr.type == QAL_STREAM_VOICE_UI) {
             stream_config_kv = s->getStreamModifiers();
             if (stream_config_kv.size() == 0 ||
                 stream_config_kv[0].second != VUI_STREAM_CFG_SVA) {

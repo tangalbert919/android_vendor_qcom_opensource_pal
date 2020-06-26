@@ -45,7 +45,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
                     const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm)
 {
     mStreamMutex.lock();
-    uint32_t in_channels, out_channels = 0;
+    uint32_t in_channels = 0, out_channels = 0;
     uint32_t attribute_size = 0;
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {

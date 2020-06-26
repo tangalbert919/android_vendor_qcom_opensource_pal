@@ -1760,7 +1760,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
 freeMetaData:
     free(streamDeviceMetaData.buf);
     free(deviceMetaData.buf);
-exit:
+
     delete builder;
     return status;
 }
