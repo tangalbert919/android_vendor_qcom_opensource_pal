@@ -298,7 +298,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct mixer *mixerHandle;
     uint32_t i;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     bool is_lpi = false;
     struct qal_device_info devinfo = {};
@@ -487,7 +487,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     struct agmMetaData deviceMetaData(nullptr, 0);
     struct agmMetaData streamDeviceMetaData(nullptr, 0);
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     std::ostringstream feName;
     struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
@@ -608,7 +608,7 @@ int SessionAlsaUtils::setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandl
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     struct mixer *mixerHandle = NULL;
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
 
@@ -977,7 +977,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct mixer *mixerHandle;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t i, rxDevNum, txDevNum;
     struct qal_device_info devinfo = {};
@@ -1242,7 +1242,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct mixer *mixerHandle;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t i, rxDevNum, txDevNum;
 
@@ -1595,7 +1595,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     struct mixer_ctl *aifMdCtrl = nullptr;
     PayloadBuilder* builder = new PayloadBuilder();
     struct mixer *mixerHandle = nullptr;
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     bool is_compress = false;
     struct qal_stream_attributes sAttr;
