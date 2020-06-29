@@ -139,9 +139,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     timer_stop_waiting_ = false;
     exit_timer_thread_ = false;
 
-    event_thread_ = std::thread(EventThread, std::ref(*this));
-    exit_event_thread_ = false;
-
     QAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -157,16 +154,6 @@ StreamSoundTrigger::~StreamSoundTrigger() {
     if (timer_thread_.joinable()) {
         QAL_DBG(LOG_TAG, "Join timer thread");
         timer_thread_.join();
-    }
-
-    {
-        std::lock_guard<std::mutex> lck(event_mutex_);
-        exit_event_thread_ = true;
-        event_cond_.notify_one();
-    }
-    if (event_thread_.joinable()) {
-        QAL_DBG(LOG_TAG, "Join event thread");
-        event_thread_.join();
     }
 
     st_states_.clear();
@@ -405,10 +392,13 @@ int32_t StreamSoundTrigger::DisconnectDevice(qal_device_id_t device_id) {
     qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
-
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     std::shared_ptr<StEventConfig> ev_cfg(
         new StDeviceDisconnectedEventConfig(device_id));
-    PostEvent(ev_cfg);
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to disconnect device %d", device_id);
+    }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -420,10 +410,13 @@ int32_t StreamSoundTrigger::ConnectDevice(qal_device_id_t device_id) {
     qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
-
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     std::shared_ptr<StEventConfig> ev_cfg(
         new StDeviceConnectedEventConfig(device_id));
-    PostEvent(ev_cfg);
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to connect device %d", device_id);
+    }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -432,13 +425,17 @@ int32_t StreamSoundTrigger::ConnectDevice(qal_device_id_t device_id) {
 
 int32_t StreamSoundTrigger::UpdateChargingState(bool state) {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter, state %d", state);
 
+    QAL_DBG(LOG_TAG, "Enter, state %d", state);
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     if (charging_state_ != state) {
         charging_state_ = state;
         std::shared_ptr<StEventConfig> ev_cfg(
             new StChargingStateEventConfig(state));
-        PostEvent(ev_cfg);
+        status = cur_state_->ProcessEvent(ev_cfg);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to update charging state");
+        }
     } else {
         QAL_DBG(LOG_TAG, "No change in charging state");
         status = EINVAL;
@@ -448,82 +445,34 @@ int32_t StreamSoundTrigger::UpdateChargingState(bool state) {
     return status;
 }
 
-int32_t StreamSoundTrigger::ExternalStart() {
+int32_t StreamSoundTrigger::Resume() {
     int32_t status = 0;
-
-    QAL_DBG(LOG_TAG, "Enter");
-    std::shared_ptr<StEventConfig> ev_cfg(new StResumeEventConfig());
-    PostEvent(ev_cfg);
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-int32_t StreamSoundTrigger::ExternalStop() {
-    int32_t status = 0;
-
-    QAL_DBG(LOG_TAG, "Enter");
-    std::shared_ptr<StEventConfig> ev_cfg(new StPauseEventConfig());
-    PostEvent(ev_cfg);
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
-
-    return status;
-}
-
-void StreamSoundTrigger::EventThread(StreamSoundTrigger& st_stream) {
-    QAL_DBG(LOG_TAG, "Enter");
-
-    std::unique_lock<std::mutex> lck(st_stream.event_mutex_);
-    while (!st_stream.exit_event_thread_) {
-        st_stream.event_cond_.wait(lck);
-        if (st_stream.exit_event_thread_)
-            break;
-
-        if (st_stream.pending_event_configs_.size()) {
-            st_stream.HandleEvents();
-        }
-    }
-    QAL_DBG(LOG_TAG, "Exit");
-}
-
-void StreamSoundTrigger::PostEvent(std::shared_ptr<StEventConfig> ev_cfg) {
-    QAL_VERBOSE(LOG_TAG, "Post Event for %p", this);
-    /* NOTE: This is protected by the streamlock for
-     * both queuing and dequing events from the list.
-     */
-    std::lock_guard<std::mutex> lck(event_mutex_);
-    pending_event_configs_.push_back(ev_cfg);
-    event_cond_.notify_one();
-}
-
-void StreamSoundTrigger::HandleEvents() {
-    int32_t status = 0;
-    std::shared_ptr<StEventConfig> ev_cfg = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    for (int i = 0; i < pending_event_configs_.size(); i++) {
-        ev_cfg = pending_event_configs_[i];
-
-        switch (ev_cfg->id_) {
-            case ST_EV_DEVICE_CONNECTED:
-            case ST_EV_DEVICE_DISCONNECTED:
-            case ST_EV_CHARGING_STATE:
-            case ST_EV_PAUSE:
-            case ST_EV_RESUME:
-                status = cur_state_->ProcessEvent(ev_cfg);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to handle event %d", ev_cfg->id_);
-                }
-                break;
-            default:
-                QAL_ERR(LOG_TAG, "Unsupported pending event %d", ev_cfg->id_);
-                break;
-        }
+    std::shared_ptr<StEventConfig> ev_cfg(new StResumeEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Resume failed");
     }
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
-    pending_event_configs_.clear();
-    QAL_DBG(LOG_TAG, "Exit");
+    return status;
+}
+
+int32_t StreamSoundTrigger::Pause() {
+    int32_t status = 0;
+
+    QAL_DBG(LOG_TAG, "Enter");
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StPauseEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Pause failed");
+    }
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 std::shared_ptr<Device> StreamSoundTrigger::GetQalDevice(

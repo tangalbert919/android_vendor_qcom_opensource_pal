@@ -1562,6 +1562,21 @@ bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d)
     return is_active;
 }
 
+template <class T>
+bool isStreamActive(T s, std::vector<T> &streams)
+{
+    bool ret = false;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    typename std::vector<T>::iterator iter =
+        std::find(streams.begin(), streams.end(), s);
+    if (iter != streams.end()) {
+        ret = true;
+    }
+
+    return ret;
+}
+
 int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
                             qal_param_device_connection_t connection_state)
 {
@@ -1812,6 +1827,7 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     qal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+    StreamSoundTrigger *st_str = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
 
@@ -1846,22 +1862,31 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
         device_to_disconnect = dest_device;
     }
 
-    mResourceManagerMutex.unlock();
     for (int i = 0; i < active_streams_st.size(); i++) {
-        status = active_streams_st[i]->DisconnectDevice(device_to_disconnect);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
-                device_to_disconnect);
+        st_str = active_streams_st[i];
+        if (st_str && isStreamActive(st_str, active_streams_st)) {
+            mResourceManagerMutex.unlock();
+            status = active_streams_st[i]->DisconnectDevice(device_to_disconnect);
+            mResourceManagerMutex.lock();
+
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
+                    device_to_disconnect);
+            }
         }
     }
     for (int i = 0; i < active_streams_st.size(); i++) {
-        status = active_streams_st[i]->ConnectDevice(device_to_connect);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
-                device_to_connect);
+        st_str = active_streams_st[i];
+        if (st_str && isStreamActive(st_str, active_streams_st)) {
+            mResourceManagerMutex.unlock();
+            status = active_streams_st[i]->ConnectDevice(device_to_connect);
+            mResourceManagerMutex.lock();
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
+                    device_to_connect);
+            }
         }
     }
-    mResourceManagerMutex.lock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -2089,10 +2114,13 @@ int ResourceManager::StopOtherSVAStreams(StreamSoundTrigger *st) {
     mResourceManagerMutex.lock();
     for (int i = 0; i < active_streams_st.size(); i++) {
         st_str = active_streams_st[i];
-        if (st_str && st_str != st) {
-            status = st_str->ExternalStop();
+        if (st_str && st_str != st &&
+            isStreamActive(st_str, active_streams_st)) {
+            mResourceManagerMutex.unlock();
+            status = st_str->Pause();
+            mResourceManagerMutex.lock();
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to do external stop");
+                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
             }
         }
     }
@@ -2108,10 +2136,13 @@ int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
     mResourceManagerMutex.lock();
     for (int i = 0; i < active_streams_st.size(); i++) {
         st_str = active_streams_st[i];
-        if (st_str && st_str != st) {
-            status = st_str->ExternalStart();
+        if (st_str && st_str != st &&
+            isStreamActive(st_str, active_streams_st)) {
+            mResourceManagerMutex.unlock();
+            status = st_str->Resume();
+            mResourceManagerMutex.lock();
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to do external start");
+                QAL_ERR(LOG_TAG, "Failed to do resume SVA stream");
             }
         }
     }
@@ -3835,18 +3866,24 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         {
             qal_param_charging_state *battery_charging_state =
                 (qal_param_charging_state *)param_payload;
-
+            StreamSoundTrigger *st_str = nullptr;
             if (IsTransitToNonLPIOnChargingSupported()) {
                 if (payload_size == sizeof(qal_param_charging_state)) {
                     QAL_INFO(LOG_TAG, "Charging State = %d",
                               battery_charging_state->charging_state);
                     charging_state_ = battery_charging_state->charging_state;
                     for (int i = 0; i < active_streams_st.size(); i++) {
-                        status = active_streams_st[i]->UpdateChargingState(
-                            battery_charging_state->charging_state);
-                        if (status) {
-                            QAL_ERR(LOG_TAG,
-                                    "Failed to handling charging state\n");
+                        st_str = active_streams_st[i];
+                        if (st_str &&
+                            isStreamActive(st_str, active_streams_st)) {
+                            mResourceManagerMutex.unlock();
+                            status = active_streams_st[i]->UpdateChargingState(
+                                battery_charging_state->charging_state);
+                            mResourceManagerMutex.lock();
+                            if (status) {
+                                QAL_ERR(LOG_TAG,
+                                        "Failed to handling charging state\n");
+                            }
                         }
                     }
                 } else {
