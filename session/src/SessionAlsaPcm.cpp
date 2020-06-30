@@ -96,6 +96,11 @@ int SessionAlsaPcm::open(Stream * s)
         return status;
 
     }
+    status = rm->getAudioMixer(&mixer);
+    if (status) {
+        QAL_ERR(LOG_TAG,"mixer error");
+        return status;
+    }
     if (sAttr.direction == QAL_AUDIO_INPUT) {
         pcmDevIds = rm->allocateFrontEndIds(sAttr, 0);
         if (pcmDevIds.size() == 0) {
@@ -115,11 +120,6 @@ int SessionAlsaPcm::open(Stream * s)
             QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
             return -EINVAL;
         }
-    }
-    status = rm->getAudioMixer(&mixer);
-    if (status) {
-        QAL_ERR(LOG_TAG,"mixer error");
-        return status;
     }
     switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
@@ -883,7 +883,6 @@ int SessionAlsaPcm::close(Stream * s)
             status = SessionAlsaUtils::close(s, rm, pcmDevIds, txAifBackEnds, freeDeviceMetadata);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
-                rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
             }
             if (pcm)
                 status = pcm_close(pcm);
@@ -909,7 +908,6 @@ int SessionAlsaPcm::close(Stream * s)
             status = SessionAlsaUtils::close(s, rm, pcmDevIds, rxAifBackEnds, freeDeviceMetadata);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
-                rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
             }
             if (pcm)
                 status = pcm_close(pcm);
@@ -924,8 +922,6 @@ int SessionAlsaPcm::close(Stream * s)
                     rxAifBackEnds, txAifBackEnds);
             if (status) {
                 QAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
-                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXLOOPBACK);
-                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXLOOPBACK);
             }
             if (pcmRx)
                 status = pcm_close(pcmRx);
@@ -937,6 +933,8 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
             }
+            rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXLOOPBACK);
+            rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXLOOPBACK);
             pcmRx = NULL;
             pcmTx = NULL;
             break;
