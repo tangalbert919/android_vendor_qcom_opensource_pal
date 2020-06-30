@@ -166,9 +166,6 @@ public:
     virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
-    virtual void ConcurrentStreamStatus(qal_stream_type_t type __unused,
-                                qal_stream_direction_t dir __unused,
-                                bool active __unused) {}
     virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
     virtual int32_t ssrDownHandler() = 0;
     virtual int32_t ssrUpHandler() = 0;

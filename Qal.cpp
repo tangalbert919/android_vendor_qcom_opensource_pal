@@ -49,7 +49,9 @@ class Stream;
     __gcov_flush();
 }*/
 
-static void notify_concurrent_stream(qal_stream_type_t type, qal_stream_direction_t dir, bool active)
+static void notify_concurrent_stream(qal_stream_type_t type,
+                                     qal_stream_direction_t dir,
+                                     bool active)
 {
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -58,15 +60,9 @@ static void notify_concurrent_stream(qal_stream_type_t type, qal_stream_directio
         return;
     }
 
-    QAL_DBG(LOG_TAG, "Notify voice ui streams of concurrent stream type %d, direction %d, active %d", type, dir, active);
-    // Currently inform only to Voice UI streams.
-    if (type != QAL_STREAM_VOICE_UI) {
-        std::vector<Stream*> vui_streams;
-        rm->GetVoiceUIStreams(vui_streams);
-        for (auto& vs: vui_streams) {
-            vs->ConcurrentStreamStatus(type, dir, active);
-        }
-    }
+    QAL_DBG(LOG_TAG, "Notify concurrent stream type %d, direction %d, active %d",
+        type, dir, active);
+    rm->ConcurrentStreamStatus(type, dir, active);
 }
 
 /*

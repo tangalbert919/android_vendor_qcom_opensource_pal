@@ -316,6 +316,7 @@ std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 SndCardMonitor* ResourceManager::sndmon = NULL;
 int ResourceManager::mixerEventRegisterCount = 0;
+int ResourceManager::concurrentStreamCount = 0;
 static int max_session_num;
 
 //TODO:Needs to define below APIs so that functionality won't break
@@ -2151,6 +2152,104 @@ int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
     return status;
 }
 
+// apply for Voice UI streams only
+void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
+                                             qal_stream_direction_t dir,
+                                             bool active) {
+    int32_t status = 0;
+    bool conc_en = true;
+    StreamSoundTrigger *st_str = nullptr;
+
+    mResourceManagerMutex.lock();
+    QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+    if (dir == QAL_AUDIO_OUTPUT && type != QAL_STREAM_LOW_LATENCY) {
+        if (IsVoiceUILPISupported()) {
+            // stop/unload all sva streams
+            for (int i = 0; i < active_streams_st.size(); i++) {
+                st_str = active_streams_st[i];
+                if (st_str && isStreamActive(st_str, active_streams_st)) {
+                    mResourceManagerMutex.unlock();
+                    status = st_str->HandleConcurrentStream(type, false);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                    }
+                }
+            }
+            // load/start all sva streams
+            for (int i = 0; i < active_streams_st.size(); i++) {
+                st_str = active_streams_st[i];
+                if (st_str && isStreamActive(st_str, active_streams_st)) {
+                    mResourceManagerMutex.unlock();
+                    status = st_str->HandleConcurrentStream(type, true);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                    }
+                }
+            }
+        }
+    } else if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
+        if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
+            if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
+                 (type == QAL_STREAM_VOICE_CALL_TX ||
+                  type == QAL_STREAM_VOICE_CALL_RX_TX ||
+                  type == QAL_STREAM_VOICE_CALL)) ||
+                (!IsVoipAndVoiceUIConcurrencySupported() &&
+                 type == QAL_STREAM_VOIP_TX)) {
+                QAL_DBG(LOG_TAG, "pause on voip/voice concurrency");
+                conc_en = false;
+            }
+        } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
+                   type == QAL_STREAM_RAW || // regular audio record
+                   type == QAL_STREAM_VOICE_CALL_TX ||
+                   type == QAL_STREAM_VOICE_CALL_RX_TX ||
+                   type == QAL_STREAM_VOICE_CALL ||
+                   type == QAL_STREAM_VOIP_TX) {
+            conc_en = false;
+        }
+        if (!conc_en) {
+            if (active) {
+                ++concurrentStreamCount;
+                if (concurrentStreamCount == 1) {
+                    // pause all sva streams
+                    for (int i = 0; i < active_streams_st.size(); i++) {
+                        st_str = active_streams_st[i];
+                        if (st_str &&
+                            isStreamActive(st_str, active_streams_st)) {
+                            mResourceManagerMutex.unlock();
+                            status = st_str->Pause();
+                            mResourceManagerMutex.lock();
+                            if (status) {
+                                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
+                            }
+                        }
+                    }
+                }
+            } else {
+                --concurrentStreamCount;
+                if (concurrentStreamCount == 0) {
+                    // resume all sva streams
+                    for (int i = 0; i < active_streams_st.size(); i++) {
+                        st_str = active_streams_st[i];
+                        if (st_str &&
+                            isStreamActive(st_str, active_streams_st)) {
+                            mResourceManagerMutex.unlock();
+                            status = st_str->Resume();
+                            mResourceManagerMutex.lock();
+                            if (status) {
+                                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+}
+
 std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     Stream *tx_str)
 {
@@ -3871,14 +3970,33 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (payload_size == sizeof(qal_param_charging_state)) {
                     QAL_INFO(LOG_TAG, "Charging State = %d",
                               battery_charging_state->charging_state);
+                    if (charging_state_ ==
+                        battery_charging_state->charging_state) {
+                        QAL_DBG(LOG_TAG, "Charging state unchanged, ignore");
+                        break;
+                    }
                     charging_state_ = battery_charging_state->charging_state;
                     for (int i = 0; i < active_streams_st.size(); i++) {
                         st_str = active_streams_st[i];
                         if (st_str &&
                             isStreamActive(st_str, active_streams_st)) {
                             mResourceManagerMutex.unlock();
-                            status = active_streams_st[i]->UpdateChargingState(
-                                battery_charging_state->charging_state);
+                            status = st_str->HandleChargingStateUpdate(
+                                battery_charging_state->charging_state, false);
+                            mResourceManagerMutex.lock();
+                            if (status) {
+                                QAL_ERR(LOG_TAG,
+                                        "Failed to handling charging state\n");
+                            }
+                        }
+                    }
+                    for (int i = 0; i < active_streams_st.size(); i++) {
+                        st_str = active_streams_st[i];
+                        if (st_str &&
+                            isStreamActive(st_str, active_streams_st)) {
+                            mResourceManagerMutex.unlock();
+                            status = st_str->HandleChargingStateUpdate(
+                                battery_charging_state->charging_state, true);
                             mResourceManagerMutex.lock();
                             if (status) {
                                 QAL_ERR(LOG_TAG,

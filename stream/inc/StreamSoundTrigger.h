@@ -159,14 +159,13 @@ class StreamSoundTrigger : public Stream {
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
     int32_t DisconnectDevice(qal_device_id_t device_id);
     int32_t ConnectDevice(qal_device_id_t device_id);
-    int32_t UpdateChargingState(bool state);
+    int32_t HandleChargingStateUpdate(bool state, bool active);
     int32_t Resume();
     int32_t Pause();
     bool GetActiveState() { return active_state_; }
 
-    void ConcurrentStreamStatus(qal_stream_type_t stream_type,
-                                qal_stream_direction_t dir,
-                                bool active) override;
+    int32_t HandleConcurrentStream(qal_stream_type_t stream_type,
+                                   bool active);
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
     void TransitTo(int32_t state_id);
 
@@ -404,17 +403,19 @@ class StreamSoundTrigger : public Stream {
     };
     class StChargingStateEventConfigData : public StEventConfigData {
      public:
-        StChargingStateEventConfigData(bool charging_state)
-            : charging_state_(charging_state) {}
+        StChargingStateEventConfigData(bool charging_state, bool active)
+            : charging_state_(charging_state), is_active_(active) {}
         ~StChargingStateEventConfigData() {}
 
         bool charging_state_;
+        bool is_active_;
     };
     class StChargingStateEventConfig : public StEventConfig {
      public:
-        StChargingStateEventConfig(bool charging_state)
+        StChargingStateEventConfig(bool charging_state, bool active)
             : StEventConfig(ST_EV_CHARGING_STATE) {
-            data_ = std::make_shared<StChargingStateEventConfigData>(charging_state);
+            data_ = std::make_shared<StChargingStateEventConfigData>(
+                charging_state, active);
         }
         ~StChargingStateEventConfig() {}
     };
@@ -539,7 +540,6 @@ class StreamSoundTrigger : public Stream {
     bool exit_timer_thread_;
     bool pending_stop_;
     bool paused_;
-    int32_t conc_tx_cnt_;
 
     void AddState(StState* state);
     int32_t GetCurrentStateId();
