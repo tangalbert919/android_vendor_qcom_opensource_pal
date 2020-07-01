@@ -30,7 +30,6 @@
 #define LOG_TAG "QAL: StreamCompress"
 #include "StreamCompress.h"
 #include "Session.h"
-#include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaCompress.h"
 #include "ResourceManager.h"

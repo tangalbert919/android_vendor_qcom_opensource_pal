@@ -58,11 +58,6 @@
 
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
 
-enum qal_alsa_or_gsl {
-    ALSA = 0,
-    GSL
-};
-
 typedef enum {
     TAG_ROOT,
     TAG_CARD,
@@ -373,7 +368,6 @@ public:
     int getMixerTag(std::vector <int> &tag);
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
-    qal_alsa_or_gsl getQALConfigALSAOrGSL() const;
     const std::vector<int> allocateFrontEndIds (const struct qal_stream_attributes,
                                                 int lDirection);
     void freeFrontEndIds (const std::vector<int> f,

@@ -15,7 +15,6 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/Headphone.h \
             ./device/inc/USBAudio.h \
             ./device/inc/DeviceAlsa.h \
-            ./device/inc/DeviceGsl.h \
             ./device/inc/DeviceImpl.h \
             ./device/inc/SpeakerMic.h \
             ./device/inc/HeadsetMic.h \
@@ -59,14 +58,12 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/DeviceAlsa.cpp \
               ./device/src/SpeakerMic.cpp \
               ./device/src/Bluetooth.cpp \
-              ./device/src/DeviceGsl.cpp \
               ./device/src/HeadsetMic.cpp \
               ./device/src/HandsetMic.cpp \
               ./device/src/HandsetVaMic.cpp \
               ./device/src/Handset.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
-              ./session/src/SessionGsl.cpp \
               ./session/src/SessionAts.cpp \
               ./session/src/SessionAlsaUtils.cpp \
               ./session/src/SessionAlsaPcm.cpp \
@@ -92,7 +89,6 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/USBAudio.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/DeviceAlsa.h \
-            ${top_srcdir}/device/inc/DeviceGsl.h \
             ${top_srcdir}/device/inc/DeviceImpl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
             ${top_srcdir}/device/inc/HeadsetMic.h \
@@ -154,7 +150,6 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/DeviceAlsa.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
               ${top_srcdir}/device/src/Bluetooth.cpp \
-              ${top_srcdir}/device/src/DeviceGsl.cpp \
               ${top_srcdir}/device/src/HeadsetMic.cpp \
               ${top_srcdir}/device/src/Handset.cpp \
               ${top_srcdir}/device/src/HandsetMic.cpp \
@@ -162,7 +157,6 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/DisplayPort.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
-              ${top_srcdir}/session/src/SessionGsl.cpp \
               ${top_srcdir}/session/src/SessionAts.cpp \
               ${top_srcdir}/session/src/SessionAlsaUtils.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \

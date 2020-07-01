@@ -33,7 +33,6 @@
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
 #include "Session.h"
-#include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
 #include "Device.h"

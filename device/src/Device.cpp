@@ -32,7 +32,6 @@
 #include "Device.h"
 #include <tinyalsa/asoundlib.h>
 #include "DeviceAlsa.h"
-#include "DeviceGsl.h"
 #include "ResourceManager.h"
 #include "SessionAlsaUtils.h"
 #include "Device.h"
@@ -277,12 +276,7 @@ int Device::open()
     DeviceImpl *devImpl;
 
     if (!initialized) {
-        const qal_alsa_or_gsl alsaConf = rm->getQALConfigALSAOrGSL();
-        if (ALSA == alsaConf) {
             devImpl = new DeviceAlsa();
-        } else {
-            devImpl = new DeviceGsl();
-        }
         if (!devImpl) {
             status = -ENOMEM;
             QAL_ERR(LOG_TAG, "DeviceImpl instantiation failed status %d", status);

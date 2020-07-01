@@ -36,7 +36,6 @@
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
 #include "gsl_intf.h"
-#include "SessionGsl.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
 #include "Bluetooth.h"
@@ -137,9 +136,8 @@ static struct qal_st_properties qst_properties = {
 };
 
 /*
-To be defined in detail, if GSL is defined,
 pcm device id is directly related to device,
-else using legacy design for alsa
+using legacy design for alsa
 */
 // Will update actual value when numbers got for VT
 
@@ -444,7 +442,6 @@ ResourceManager::ResourceManager()
 {
     QAL_INFO(LOG_TAG, "Enter.");
     int ret = 0;
-    const qal_alsa_or_gsl ag = getQALConfigALSAOrGSL();
     // Init audio_route and audio_mixer
 
     na_props.rm_na_prop_enabled = false;
@@ -463,10 +460,6 @@ ResourceManager::ResourceManager()
         QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
     }
 
-    if (ag == GSL) {
-        ret = SessionGsl::init(DEFAULT_ACDB_FILES);
-    }
-
     ret = ResourceManager::XmlParser(SPFXMLFILE);
     if (ret) {
         QAL_ERR(LOG_TAG, "error in spf xml parsing ret %d", ret);
@@ -477,55 +470,53 @@ ResourceManager::ResourceManager()
         QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
 
-    if (ag == ALSA) {
-        listAllFrontEndIds.clear();
-        listFreeFrontEndIds.clear();
-        listAllPcmPlaybackFrontEnds.clear();
-        listAllPcmRecordFrontEnds.clear();
-        listAllPcmLoopbackRxFrontEnds.clear();
-        listAllPcmLoopbackTxFrontEnds.clear();
-        listAllCompressPlaybackFrontEnds.clear();
-        listAllCompressRecordFrontEnds.clear();
-        listAllPcmVoice1RxFrontEnds.clear();
-        listAllPcmVoice1TxFrontEnds.clear();
-        listAllPcmVoice2RxFrontEnds.clear();
-        listAllPcmVoice2TxFrontEnds.clear();
+    listAllFrontEndIds.clear();
+    listFreeFrontEndIds.clear();
+    listAllPcmPlaybackFrontEnds.clear();
+    listAllPcmRecordFrontEnds.clear();
+    listAllPcmLoopbackRxFrontEnds.clear();
+    listAllPcmLoopbackTxFrontEnds.clear();
+    listAllCompressPlaybackFrontEnds.clear();
+    listAllCompressRecordFrontEnds.clear();
+    listAllPcmVoice1RxFrontEnds.clear();
+    listAllPcmVoice1TxFrontEnds.clear();
+    listAllPcmVoice2RxFrontEnds.clear();
+    listAllPcmVoice2TxFrontEnds.clear();
 
-        ret = ResourceManager::XmlParser(SNDPARSER);
-        if (ret) {
-            QAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
-        }
-        for (int i=0; i < devInfo.size(); i++) {
-            if (devInfo[i].type == PCM) {
-                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
-                    listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
-                } else if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
-                    listAllPcmLoopbackTxFrontEnds.push_back(devInfo[i].deviceId);
-                } else if (devInfo[i].playback == 1 && devInfo[i].loopback == 0) {
-                    listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
-                } else if (devInfo[i].record == 1 && devInfo[i].loopback == 0) {
-                    listAllPcmRecordFrontEnds.push_back(devInfo[i].deviceId);
-                }
-            } else if (devInfo[i].type == COMPRESS) {
-                if (devInfo[i].playback == 1) {
-                    listAllCompressPlaybackFrontEnds.push_back(devInfo[i].deviceId);
-                } else if (devInfo[i].record == 1) {
-                    listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
-                }
-            } else if (devInfo[i].type == VOICE1) {
-                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
-                    listAllPcmVoice1RxFrontEnds.push_back(devInfo[i].deviceId);
-                }
-                if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
-                    listAllPcmVoice1TxFrontEnds.push_back(devInfo[i].deviceId);
-                }
-            } else if (devInfo[i].type == VOICE2) {
-                if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
-                    listAllPcmVoice2RxFrontEnds.push_back(devInfo[i].deviceId);
-                }
-                if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
-                    listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
-                }
+    ret = ResourceManager::XmlParser(SNDPARSER);
+    if (ret) {
+        QAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
+    }
+    for (int i=0; i < devInfo.size(); i++) {
+        if (devInfo[i].type == PCM) {
+            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                listAllPcmLoopbackTxFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].playback == 1 && devInfo[i].loopback == 0) {
+                listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].record == 1 && devInfo[i].loopback == 0) {
+                listAllPcmRecordFrontEnds.push_back(devInfo[i].deviceId);
+            }
+        } else if (devInfo[i].type == COMPRESS) {
+            if (devInfo[i].playback == 1) {
+                listAllCompressPlaybackFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].record == 1) {
+                listAllCompressRecordFrontEnds.push_back(devInfo[i].deviceId);
+            }
+        } else if (devInfo[i].type == VOICE1) {
+            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                listAllPcmVoice1RxFrontEnds.push_back(devInfo[i].deviceId);
+            }
+            if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                listAllPcmVoice1TxFrontEnds.push_back(devInfo[i].deviceId);
+            }
+        } else if (devInfo[i].type == VOICE2) {
+            if (devInfo[i].loopback == 1 && devInfo[i].playback == 1) {
+                listAllPcmVoice2RxFrontEnds.push_back(devInfo[i].deviceId);
+            }
+            if (devInfo[i].loopback == 1 && devInfo[i].record == 1) {
+                listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
             }
         }
     }
@@ -2642,16 +2633,11 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 
 void ResourceManager::deinit()
 {
-    const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
     card_status_t state = CARD_STATUS_NONE;
 
     mixer_close(audio_mixer);
-    if (ag == GSL) {
-        SessionGsl::deinit();
-    }
-
     if (audio_route) {
-        audio_route_free(audio_route);
+       audio_route_free(audio_route);
     }
     if (sndmon)
         delete sndmon;
@@ -2711,16 +2697,6 @@ int ResourceManager::getDevicePpTag(std::vector <int> &tag)
         tag.push_back(devicePpTag[i]);
     }
     return status;
-}
-
-qal_alsa_or_gsl ResourceManager::getQALConfigALSAOrGSL() const {
-
-//TODO move this to xml configuration
-
-   return ALSA;
-//#ifdef GSL
-   // return GSL;
-
 }
 
 int ResourceManager::getNumFEs(const qal_stream_type_t sType) const

@@ -62,7 +62,6 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/Bluetooth.cpp \
     device/src/DeviceAlsa.cpp \
     device/src/SpeakerMic.cpp \
-    device/src/DeviceGsl.cpp \
     device/src/HeadsetMic.cpp \
     device/src/HandsetMic.cpp \
     device/src/Handset.cpp \
@@ -72,7 +71,6 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/RTProxy.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
-    session/src/SessionGsl.cpp \
     session/src/SessionAlsaPcm.cpp \
     session/src/SessionAlsaUtils.cpp \
     session/src/SessionAlsaCompress.cpp \
