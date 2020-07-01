@@ -35,6 +35,7 @@
 #include "StreamPCM.h"
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
+#include "StreamInCall.h"
 #include "gsl_intf.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
@@ -102,6 +103,8 @@
 #define MAX_SESSIONS_VOICE_UI 2
 #define MAX_SESSIONS_PROXY 8
 #define DEFAULT_MAX_SESSIONS 8
+#define MAX_SESSIONS_INCALL_MUSIC 1
+#define MAX_SESSIONS_INCALL_RECORD 1
 
 static struct str_parms *configParamKVPairs;
 
@@ -272,9 +275,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "QAL_STREAM_GENERIC" },                  QAL_STREAM_GENERIC},
     {std::string{ "QAL_STREAM_RAW" },                      QAL_STREAM_RAW},
     {std::string{ "QAL_STREAM_VOICE_ACTIVATION" },         QAL_STREAM_VOICE_ACTIVATION},
-    {std::string{ "QAL_STREAM_VOICE_CALL_RX" },            QAL_STREAM_VOICE_CALL_RX},
-    {std::string{ "QAL_STREAM_VOICE_CALL_TX" },            QAL_STREAM_VOICE_CALL_TX},
-    {std::string{ "QAL_STREAM_VOICE_CALL_RX_TX" },         QAL_STREAM_VOICE_CALL_RX_TX},
+    {std::string{ "QAL_STREAM_VOICE_CALL_RECORD" },        QAL_STREAM_VOICE_CALL_RECORD},
     {std::string{ "QAL_STREAM_VOICE_CALL" },               QAL_STREAM_VOICE_CALL},
     {std::string{ "QAL_STREAM_LOOPBACK" },                 QAL_STREAM_LOOPBACK},
     {std::string{ "QAL_STREAM_TRANSCODE" },                QAL_STREAM_TRANSCODE},
@@ -309,6 +310,8 @@ std::vector <int> ResourceManager::listAllPcmVoice1RxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice1TxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice2RxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice2TxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmInCallRecordFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmInCallMusicFrontEnds = {0};
 struct audio_mixer* ResourceManager::audio_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
@@ -487,6 +490,8 @@ ResourceManager::ResourceManager()
     listAllPcmVoice1TxFrontEnds.clear();
     listAllPcmVoice2RxFrontEnds.clear();
     listAllPcmVoice2TxFrontEnds.clear();
+    listAllPcmInCallRecordFrontEnds.clear();
+    listAllPcmInCallMusicFrontEnds.clear();
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -502,6 +507,10 @@ ResourceManager::ResourceManager()
                 listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
             } else if (devInfo[i].record == 1 && devInfo[i].sess_mode == DEFAULT) {
                 listAllPcmRecordFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].sess_mode == NON_TUNNEL && devInfo[i].record == 1) {
+                listAllPcmInCallRecordFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].sess_mode == NON_TUNNEL && devInfo[i].playback == 1) {
+                listAllPcmInCallMusicFrontEnds.push_back(devInfo[i].deviceId);
             }
         } else if (devInfo[i].type == COMPRESS) {
             if (devInfo[i].playback == 1) {
@@ -1226,7 +1235,8 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     size_t cur_sessions = 0;
     size_t max_sessions = 0;
 
-    if (!attributes || !devices || !no_of_devices) {
+    if (!attributes || !devices ||
+        (!no_of_devices && attributes->type != QAL_STREAM_VOICE_CALL_MUSIC)) {
         QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
         return result;
     }
@@ -1236,9 +1246,6 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     qal_stream_type_t type = attributes->type;
     QAL_DBG(LOG_TAG, "Enter. type %d", type);
     switch (type) {
-        case QAL_STREAM_VOICE_CALL_RX:
-        case QAL_STREAM_VOICE_CALL_TX:
-        case QAL_STREAM_VOICE_CALL_RX_TX:
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_VOIP:
         case QAL_STREAM_VOIP_RX:
@@ -1257,8 +1264,6 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_COMPRESSED:
             cur_sessions = active_streams_comp.size();
             max_sessions = MAX_SESSIONS_COMPRESSED;
-            break;
-        case QAL_STREAM_VOICE_CALL_MUSIC:
             break;
         case QAL_STREAM_GENERIC:
             cur_sessions = active_streams_ulla.size();
@@ -1282,6 +1287,14 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             break;
          case QAL_STREAM_VOICE_CALL:
             break;
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+            cur_sessions = active_streams_incall_music.size();
+            max_sessions = MAX_SESSIONS_INCALL_MUSIC;
+            break;
+        case QAL_STREAM_VOICE_CALL_RECORD:
+            cur_sessions = active_streams_incall_record.size();
+            max_sessions = MAX_SESSIONS_INCALL_RECORD;
+            break;
         default:
             QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -1293,9 +1306,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
 
     // check if param supported by audio configruation
     switch (type) {
-        case QAL_STREAM_VOICE_CALL_RX:
-        case QAL_STREAM_VOICE_CALL_TX:
-        case QAL_STREAM_VOICE_CALL_RX_TX:
+        case QAL_STREAM_VOICE_CALL_RECORD:
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_ULTRA_LOW_LATENCY:
         case QAL_STREAM_DEEP_BUFFER:
@@ -1306,6 +1317,7 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
         case QAL_STREAM_PCM_OFFLOAD:
         case QAL_STREAM_LOOPBACK:
         case QAL_STREAM_PROXY:
+        case QAL_STREAM_VOICE_CALL_MUSIC:
             if (attributes->direction == QAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -1461,6 +1473,18 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sProxy, active_streams_proxy);
             break;
         }
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+        {
+            StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
+            ret = registerstream(sPCM, active_streams_incall_music);
+            break;
+        }
+        case QAL_STREAM_VOICE_CALL_RECORD:
+        {
+            StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
+            ret = registerstream(sPCM, active_streams_incall_record);
+            break;
+        }
         default:
             ret = -EINVAL;
             QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
@@ -1570,6 +1594,18 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamPCM* sProxy = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sProxy, active_streams_proxy);
+            break;
+        }
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+        {
+            StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
+            ret = deregisterstream(sPCM, active_streams_incall_music);
+            break;
+        }
+        case QAL_STREAM_VOICE_CALL_RECORD:
+        {
+            StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
+            ret = deregisterstream(sPCM, active_streams_incall_record);
             break;
         }
         default:
@@ -2269,10 +2305,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
      */
     if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
         if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
-            (type == QAL_STREAM_VOICE_CALL_RX ||
-            type == QAL_STREAM_VOICE_CALL_TX ||
-            type == QAL_STREAM_VOICE_CALL_RX_TX ||
-            type == QAL_STREAM_VOICE_CALL))) {
+            type == QAL_STREAM_VOICE_CALL)) {
             QAL_DBG(LOG_TAG, "pause on voice concurrency");
             conc_en = false;
         } else if (!IsVoipAndVoiceUIConcurrencySupported() &&
@@ -2284,9 +2317,6 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
         }
     } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
                 type == QAL_STREAM_DEEP_BUFFER || // regular audio record
-                type == QAL_STREAM_VOICE_CALL_RX ||
-                type == QAL_STREAM_VOICE_CALL_TX ||
-                type == QAL_STREAM_VOICE_CALL_RX_TX ||
                 type == QAL_STREAM_VOICE_CALL ||
                 type == QAL_STREAM_VOIP_RX ||
                 type == QAL_STREAM_VOIP_TX ||
@@ -2598,6 +2628,8 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_st);
     getActiveStreams(d, activestreams, active_streams_po);
     getActiveStreams(d, activestreams, active_streams_proxy);
+    getActiveStreams(d, activestreams, active_streams_incall_record);
+    getActiveStreams(d, activestreams, active_streams_incall_music);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -2964,6 +2996,38 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                   break;
             }
             break;
+        case QAL_STREAM_VOICE_CALL_RECORD:
+            if ( howMany > listAllPcmInCallRecordFrontEnds.size()) {
+                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                      howMany, listAllPcmInCallRecordFrontEnds.size());
+                    goto error;
+                }
+            id = (listAllPcmInCallRecordFrontEnds.size() - 1);
+            it =  (listAllPcmInCallRecordFrontEnds.begin() + id);
+            for (int i = 0; i < howMany; i++) {
+                f.push_back(listAllPcmInCallRecordFrontEnds.at(id));
+                listAllPcmInCallRecordFrontEnds.erase(it);
+                QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                it -= 1;
+                id -= 1;
+            }
+            break;
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+            if ( howMany > listAllPcmInCallMusicFrontEnds.size()) {
+                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                                      howMany, listAllPcmInCallMusicFrontEnds.size());
+                    goto error;
+                }
+            id = (listAllPcmInCallMusicFrontEnds.size() - 1);
+            it =  (listAllPcmInCallMusicFrontEnds.begin() + id);
+            for (int i = 0; i < howMany; i++) {
+                f.push_back(listAllPcmInCallMusicFrontEnds.at(id));
+                listAllPcmInCallMusicFrontEnds.erase(it);
+                QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                it -= 1;
+                id -= 1;
+            }
+            break;
         default:
             break;
     }
@@ -3080,6 +3144,23 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     QAL_ERR(LOG_TAG,"direction unsupported");
                     break;
                 }
+            break;
+        case QAL_STREAM_VOICE_CALL_RECORD:
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+            switch (sAttr.direction) {
+              case QAL_AUDIO_INPUT:
+                for (int i = 0; i < frontend.size(); i++) {
+                    listAllPcmInCallRecordFrontEnds.push_back(frontend.at(i));
+                }
+                break;
+              case QAL_AUDIO_OUTPUT:
+                for (int i = 0; i < frontend.size(); i++) {
+                    listAllPcmInCallMusicFrontEnds.push_back(frontend.at(i));
+                }
+                break;
+              default:
+                break;
+            }
             break;
         default:
             break;
@@ -3540,9 +3621,6 @@ bool ResourceManager::ifVoiceorVoipCall (const qal_stream_type_t streamType) con
        case QAL_STREAM_VOIP:
        case QAL_STREAM_VOIP_RX:
        case QAL_STREAM_VOIP_TX:
-       case QAL_STREAM_VOICE_CALL_RX:
-       case QAL_STREAM_VOICE_CALL_TX:
-       case QAL_STREAM_VOICE_CALL_RX_TX:
        case QAL_STREAM_VOICE_CALL:
            voiceOrVoipCall = true;
            break;

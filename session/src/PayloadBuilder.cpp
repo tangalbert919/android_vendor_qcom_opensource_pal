@@ -1226,7 +1226,12 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             }
             keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             break;
-
+        case QAL_STREAM_VOICE_CALL_RECORD:
+            keyVector.push_back(std::make_pair(STREAMTX,INCALL_RECORD));
+            break;
+        case QAL_STREAM_VOICE_CALL_MUSIC:
+            keyVector.push_back(std::make_pair(STREAMRX,INCALL_MUSIC));
+            break;
         default:
             status = -EINVAL;
             QAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1820,6 +1825,21 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     case OP_MODE:
         tkv.push_back(std::make_pair(TAG_MODULE_OP_MODE, NORMAL));
         *gsltag = TAG_MODULE_OP_MODE;
+    case INCALL_RECORD_UPLINK:
+       tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_UPLINK));
+       *gsltag = TAG_STREAM_MUX_DEMUX;
+       break;
+    case INCALL_RECORD_DOWNLINK:
+       tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_DOWNLINK));
+       *gsltag = TAG_STREAM_MUX_DEMUX;
+       break;
+    case INCALL_RECORD_UPLINK_DOWNLINK_MONO:
+       tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_UPLINK_DOWNLINK_MONO));
+       *gsltag = TAG_STREAM_MUX_DEMUX;
+       break;
+    case INCALL_RECORD_UPLINK_DOWNLINK_STEREO:
+       tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_UPLINK_DOWNLINK_STEREO));
+       *gsltag = TAG_STREAM_MUX_DEMUX;
        break;
     default:
        QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);

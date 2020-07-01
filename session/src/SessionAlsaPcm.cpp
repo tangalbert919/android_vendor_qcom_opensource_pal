@@ -83,19 +83,20 @@ int SessionAlsaPcm::open(Stream * s)
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         return status;
     }
+    if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
 
-    status = s->getAssociatedDevices(associatedDevices);
-    if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
-    }
+        rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
+        if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
+            status = -EINVAL;
+            QAL_ERR(LOG_TAG, "no backend specified for this stream");
+            return status;
 
-    rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
-    if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
-        status = -EINVAL;
-        QAL_ERR(LOG_TAG, "no backend specified for this stream");
-        return status;
-
+        }
     }
     status = rm->getAudioMixer(&mixer);
     if (status) {
@@ -500,6 +501,7 @@ void SessionAlsaPcm::releaseAdmFocus(Stream *s)
     if (rm->admAbandonFocusFn)
         rm->admAbandonFocusFn(rm->admData, static_cast<void *>(s));
 }
+
 int SessionAlsaPcm::start(Stream * s)
 {
     struct pcm_config config;
@@ -516,6 +518,8 @@ int SessionAlsaPcm::start(Stream * s)
     uint32_t miid;
     int payload_size = 0;
     struct agm_event_reg_cfg *event_cfg;
+    int tagId;
+
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -596,12 +600,14 @@ int SessionAlsaPcm::start(Stream * s)
                         PCM_OUT |PCM_MMAP| PCM_NOIRQ, &config);
                 }
                 else {
-                    status = SessionAlsaUtils::getModuleInstanceId(mixer,
-                             pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
-                             STREAM_SPR, &spr_miid);
-                    if (0 != status) {
-                        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-                        status = 0; //TODO: add this to some policy in qal
+                    if (sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
+                        status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                                 pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
+                                 STREAM_SPR, &spr_miid);
+                        if (0 != status) {
+                            QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
+                            status = 0; //TODO: add this to some policy in qal
+                        }
                     }
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 }
@@ -675,7 +681,8 @@ int SessionAlsaPcm::start(Stream * s)
         }
     } else if ((sAttr.direction == QAL_AUDIO_INPUT) &&
                     ((sAttr.type != QAL_STREAM_PROXY) &&
-                      (sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY)) ) {
+                     (sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY)) &&
+                     (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD)) {
         QAL_ERR(LOG_TAG, "Enter enable EC Ref");
         dev = rm->getActiveEchoReferenceRxDevices(s);
         if (dev && !ecRefDevId) {
@@ -683,7 +690,7 @@ int SessionAlsaPcm::start(Stream * s)
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
         }
-    } else if (sAttr.direction == QAL_AUDIO_OUTPUT){
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC){
         associatedDevices.clear();
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
@@ -711,15 +718,22 @@ int SessionAlsaPcm::start(Stream * s)
                 ) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                               txAifBackEnds[0].second.data(),
-                                                               TAG_STREAM_MFC_SR, &miid);
+                if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD)
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                txAifBackEnds[0].second.data(),
+                                                                TAG_STREAM_MFC_SR, &miid);
+                else
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                "ZERO", TAG_STREAM_MFC_SR, &miid);
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
                 }
-                QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
+                if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD) {
+                    QAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
                         pcmDevIds.at(0), txAifBackEnds[0].second.data());
+                } else
+                    QAL_ERR(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                 streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
@@ -739,6 +753,25 @@ int SessionAlsaPcm::start(Stream * s)
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
                 }
+                if (sAttr.type == QAL_STREAM_VOICE_CALL_RECORD) {
+                    switch (sAttr.info.voice_rec_info.record_direction) {
+                        case INCALL_RECORD_VOICE_UPLINK:
+                            tagId = INCALL_RECORD_UPLINK;
+                            break;
+                        case INCALL_RECORD_VOICE_DOWNLINK:
+                            tagId = INCALL_RECORD_DOWNLINK;
+                            break;
+                        case INCALL_RECORD_VOICE_UPLINK_DOWNLINK:
+                            if (sAttr.in_media_config.ch_info.channels == 2)
+                                tagId = INCALL_RECORD_UPLINK_DOWNLINK_STEREO;
+                            else
+                                tagId = INCALL_RECORD_UPLINK_DOWNLINK_MONO;
+                            break;
+                    }
+                    status = setConfig(s, MODULE, tagId);
+                    if (status)
+                        QAL_ERR(LOG_TAG, "Failed to set incall record params status = %d", status);
+                }
             }
             status = pcm_start(pcm);
             if (status) {
@@ -746,6 +779,8 @@ int SessionAlsaPcm::start(Stream * s)
             }
             break;
         case QAL_AUDIO_OUTPUT:
+            if (sAttr.type == QAL_STREAM_VOICE_CALL_MUSIC)
+                goto pcm_start;
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
@@ -803,6 +838,7 @@ int SessionAlsaPcm::start(Stream * s)
                     }
                 }
             }
+
             //status = pcm_prepare(pcm);
             //if (status) {
             //    QAL_ERR(LOG_TAG, "pcm_prepare failed %d", status);
@@ -822,6 +858,7 @@ int SessionAlsaPcm::start(Stream * s)
                     }
                 }
             }
+pcm_start:
             status = pcm_start(pcm);
             if (status) {
                 QAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -953,11 +990,14 @@ int SessionAlsaPcm::close(Stream * s)
         QAL_ERR(LOG_TAG,"stream get attributes failed");
         goto exit;
     }
-    status = s->getAssociatedDevices(associatedDevices);
-    if (status != 0) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
-        return status;
+    if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
     }
+
     switch (sAttr.direction) {
         case QAL_AUDIO_INPUT:
             for (auto dev: associatedDevices) {
