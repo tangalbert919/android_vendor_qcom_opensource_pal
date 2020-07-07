@@ -2083,8 +2083,11 @@ void ResourceManager::mixerEventWaitThreadLoop(
             if (ret >= 0) {
                 QAL_INFO(LOG_TAG, "Event Received %s",
                     mixer_event.data.elem.id.name);
-                ret = rm->handleMixerEvent(mixer,
-                    (char *)mixer_event.data.elem.id.name);
+                if (strstr((char *)mixer_event.data.elem.id.name, (char *)"event"))
+                    ret = rm->handleMixerEvent(mixer,
+                        (char *)mixer_event.data.elem.id.name);
+                else
+                    QAL_VERBOSE(LOG_TAG, "Unwanted event, Skipping");
             } else {
                 QAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
             }
