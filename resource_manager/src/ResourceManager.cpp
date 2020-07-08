@@ -2162,34 +2162,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
 
     mResourceManagerMutex.lock();
     QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
-    if (dir == QAL_AUDIO_OUTPUT && type != QAL_STREAM_LOW_LATENCY) {
-        if (IsVoiceUILPISupported()) {
-            // stop/unload all sva streams
-            for (int i = 0; i < active_streams_st.size(); i++) {
-                st_str = active_streams_st[i];
-                if (st_str && isStreamActive(st_str, active_streams_st)) {
-                    mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(type, false);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
-                    }
-                }
-            }
-            // load/start all sva streams
-            for (int i = 0; i < active_streams_st.size(); i++) {
-                st_str = active_streams_st[i];
-                if (st_str && isStreamActive(st_str, active_streams_st)) {
-                    mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(type, true);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
-                    }
-                }
-            }
-        }
-    } else if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
+    if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
         if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
             if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
                  (type == QAL_STREAM_VOICE_CALL_TX ||
@@ -2241,6 +2214,35 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                                 QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+    if ((dir == QAL_AUDIO_OUTPUT || dir == QAL_AUDIO_INPUT_OUTPUT) &&
+        type != QAL_STREAM_LOW_LATENCY && conc_en) {
+        if (IsVoiceUILPISupported()) {
+            // stop/unload all sva streams
+            for (int i = 0; i < active_streams_st.size(); i++) {
+                st_str = active_streams_st[i];
+                if (st_str && isStreamActive(st_str, active_streams_st)) {
+                    mResourceManagerMutex.unlock();
+                    status = st_str->HandleConcurrentStream(type, false);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                    }
+                }
+            }
+            // load/start all sva streams
+            for (int i = 0; i < active_streams_st.size(); i++) {
+                st_str = active_streams_st[i];
+                if (st_str && isStreamActive(st_str, active_streams_st)) {
+                    mResourceManagerMutex.unlock();
+                    status = st_str->HandleConcurrentStream(type, true);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
                     }
                 }
             }
