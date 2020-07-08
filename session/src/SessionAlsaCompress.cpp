@@ -184,14 +184,14 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                          ret = compress_drain(compressObj->compress);
                          QAL_ERR(LOG_TAG, "out of compress_drain, ret %d", ret);
                     }
-                    if (ret == -ENETRESET ||
-                        compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
-                        QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
-                        break;
-                    }
-                    is_drain_called = false;
-                    event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
                 }
+                if (ret == -ENETRESET ||
+                    compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Unblock drain ready event during SSR");
+                    break;
+                }
+                is_drain_called = false;
+                event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
                 QAL_ERR(LOG_TAG, "calling partial compress_drain");
                 //return compress_partial_drain(compressObj->compress);
@@ -199,7 +199,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                     ret = compress_drain(compressObj->compress);
                     QAL_ERR(LOG_TAG, "out of partial compress_drain, ret %d", ret);
                 }
-                if (ret < -ENETRESET ||
+                if (ret == -ENETRESET ||
                     compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
                     QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
                     lock.lock();
@@ -648,10 +648,12 @@ int SessionAlsaCompress::start(Stream * s)
     compress = compress_open(rm->getSndCard(), compressDevIds.at(0), COMPRESS_IN, &compress_config);
     if (!compress) {
         QAL_ERR(LOG_TAG, "compress open failed");
+        status = -EINVAL;
         goto free_feIds;
     }
     if (!is_compress_ready(compress)) {
         QAL_ERR(LOG_TAG, "compress open not ready %s", compress_get_error(compress));
+        status = -EINVAL;
         goto free_feIds;
     }
     /** set non blocking mode for writes */
@@ -736,7 +738,7 @@ int SessionAlsaCompress::start(Stream * s)
     }
 
 free_feIds:
-   return 0;
+   return status;
 }
 
 int SessionAlsaCompress::pause(Stream * s __unused)

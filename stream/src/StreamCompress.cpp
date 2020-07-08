@@ -323,20 +323,23 @@ int32_t StreamCompress::start()
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session prepare is failed with status %d",status);
                 rm->unlockGraph();
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG,"session prepare successful");
             status = session->start(this);
-            if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing rm");
-                rm->ssrHandler(CARD_STATUS_OFFLINE);
-                status = -EIO;
-                goto exit;
+            if (errno == -ENETRESET) {
+                if (rm->cardState != CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Sound card offline, informing rm");
+                    rm->ssrHandler(CARD_STATUS_OFFLINE);
+                }
+                status = 0;
+                rm->unlockGraph();
+                goto session_fail;
             }
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session start is failed with status %d",status);
                 rm->unlockGraph();
-                goto exit;
+                goto session_fail;
             }
             QAL_VERBOSE(LOG_TAG,"session start successful");
             rm->unlockGraph();
@@ -351,6 +354,7 @@ int32_t StreamCompress::start()
             rm->registerDevice(mDevices[i]);
         }
         currentState = STREAM_OPENED;
+        goto exit;
     } else if (currentState == STREAM_OPENED) {
         QAL_ERR(LOG_TAG, "Stream in already in started state, state %d", currentState);
         status = 0;
@@ -360,6 +364,9 @@ int32_t StreamCompress::start()
         status = -EINVAL;
         goto exit;
     }
+session_fail:
+    for (int32_t i=0; i < mDevices.size(); i++)
+        status = mDevices[i]->stop();
 exit:
     mStreamMutex.unlock();
     return status;
@@ -554,10 +561,8 @@ int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
     mVolumeData = (struct qal_volume_data *)calloc(1, sizeof(struct qal_volume_data) +
                  (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair)));
 
-    mStreamMutex.lock();
     memcpy (mVolumeData, volume, (sizeof(struct qal_volume_data) +
              (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
-    mStreamMutex.unlock();
     for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
        QAL_VERBOSE(LOG_TAG,"Volume payload mask:%x vol:%f\n",
                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
@@ -764,8 +769,7 @@ int32_t StreamCompress::ssrDownHandler()
     }
 
 exit :
-    currentState = STREAM_IDLE;
-    mStreamMutex.unlock();
+    currentState == STREAM_IDLE;
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

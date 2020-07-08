@@ -131,6 +131,7 @@ protected:
     size_t inBufCount;
     size_t outBufCount;
     bool standBy = false;
+    bool ssrDone = true;
     stream_state_t currentState;
     stream_state_t cachedState;
     uint32_t mInstanceID = 0; // used for Voice UI only now

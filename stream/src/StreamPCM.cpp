@@ -246,6 +246,18 @@ int32_t  StreamPCM::close()
 exit:
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
+
+    /* If sound card is offline, we need to wait for
+     * ssrDownHandler to exit for this stream so that
+     * handler thread is not blocked on anything when
+     * we delete the stream object.
+     */
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        while (!ssrDone)
+            usleep(1000);
+        QAL_INFO(LOG_TAG, "ssr done, exitng");
+    }
+
     status = rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
@@ -308,11 +320,18 @@ int32_t StreamPCM::start()
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
-            if (errno == -ENETRESET &&
-                rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
-                rm->ssrHandler(CARD_STATUS_OFFLINE);
+            if (errno == -ENETRESET) {
+                if (rm->cardState != CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                    rm->ssrHandler(CARD_STATUS_OFFLINE);
+                }
                 cachedState = STREAM_STARTED;
+                /* Returning status 0,  hal shouldn't be
+                 * informed of failure because we have cached
+                 * the state and will start from STARTED state
+                 * during SSR up Handling.
+                 */
+                status = 0;
                 rm->unlockGraph();
                 goto session_fail;
             }
@@ -349,10 +368,12 @@ int32_t StreamPCM::start()
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
-            if (errno == -ENETRESET &&
-                rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
-                rm->ssrHandler(CARD_STATUS_OFFLINE);
+            if (errno == -ENETRESET) {
+                if (rm->cardState != CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                    rm->ssrHandler(CARD_STATUS_OFFLINE);
+                }
+                status = 0;
                 cachedState = STREAM_STARTED;
                 rm->unlockGraph();
                 goto session_fail;
@@ -405,10 +426,12 @@ int32_t StreamPCM::start()
             QAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
-            if (errno == -ENETRESET &&
-                rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
-                rm->ssrHandler(CARD_STATUS_OFFLINE);
+            if (errno == -ENETRESET) {
+                if (rm->cardState != CARD_STATUS_OFFLINE) {
+                    QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                    rm->ssrHandler(CARD_STATUS_OFFLINE);
+                }
+                status = 0;
                 cachedState = STREAM_STARTED;
                 rm->unlockGraph();
                 goto session_fail;
@@ -1250,6 +1273,7 @@ int32_t StreamPCM::ssrDownHandler()
 {
     int status = 0;
 
+    ssrDone = false;
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
      * Otherwise we can assume it is updated by hal thread
@@ -1288,13 +1312,14 @@ int32_t StreamPCM::ssrDownHandler()
             goto exit;
         }
     } else {
-       QAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
-       mStreamMutex.unlock();
-       goto exit;
+        QAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
+        mStreamMutex.unlock();
+        goto exit;
     }
 
 exit :
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    ssrDone = true;
     return status;
 }
 
@@ -1322,6 +1347,13 @@ int32_t StreamPCM::ssrUpHandler()
             QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
         }
+        /* For scenario when we get SSR down while handling SSR up,
+         * status will be 0, so we need to have this additonal check
+         * to keep the cached state as STREAM_STARTED.
+         */
+        if (currentState != STREAM_STARTED) {
+            goto exit;
+        }
     } else if (cachedState == STREAM_PAUSED) {
         status = open();
         if (0 != status) {
@@ -1333,6 +1365,8 @@ int32_t StreamPCM::ssrUpHandler()
             QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
         }
+        if (currentState != STREAM_STARTED)
+            goto exit;
         status = setPause();
         if (0 != status) {
            QAL_ERR(LOG_TAG, "stream set pause failed. status %d", status);
@@ -1340,10 +1374,9 @@ int32_t StreamPCM::ssrUpHandler()
         }
     } else {
         QAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
-        goto exit;
     }
-exit :
     cachedState = STREAM_IDLE;
+exit :
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
