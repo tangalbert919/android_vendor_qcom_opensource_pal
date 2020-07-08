@@ -1808,6 +1808,8 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     qal_device_id_t device_id) {
     int32_t status = 0;
     qal_device_id_t dest_device;
+    qal_device_id_t device_to_disconnect;
+    qal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
@@ -1835,14 +1837,31 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
         SVACaptureProfile = cap_prof_priority;
     }
 
-    // handle device switch
+    // TODO: add support for other devices
+    if (connect_state && dest_device == QAL_DEVICE_IN_HEADSET_VA_MIC) {
+        device_to_connect = dest_device;
+        device_to_disconnect = QAL_DEVICE_IN_HANDSET_VA_MIC;
+    } else if (!connect_state && dest_device == QAL_DEVICE_IN_HEADSET_VA_MIC) {
+        device_to_connect = QAL_DEVICE_IN_HANDSET_VA_MIC;
+        device_to_disconnect = dest_device;
+    }
+
+    mResourceManagerMutex.unlock();
     for (int i = 0; i < active_streams_st.size(); i++) {
-        status = active_streams_st[i]->UpdateDeviceConnectionState(
-            connect_state, dest_device);
+        status = active_streams_st[i]->DisconnectDevice(device_to_disconnect);
         if (status) {
-            QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
+            QAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
+                device_to_disconnect);
         }
     }
+    for (int i = 0; i < active_streams_st.size(); i++) {
+        status = active_streams_st[i]->ConnectDevice(device_to_connect);
+        if (status) {
+            QAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
+                device_to_connect);
+        }
+    }
+    mResourceManagerMutex.lock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;

@@ -89,7 +89,8 @@ enum {
     ST_EV_STOP_BUFFERING,
     ST_EV_PAUSE,
     ST_EV_RESUME,
-    ST_EV_SET_DEVICE,
+    ST_EV_DEVICE_CONNECTED,
+    ST_EV_DEVICE_DISCONNECTED,
     ST_EV_SSR_OFFLINE,
     ST_EV_SSR_ONLINE,
     ST_EV_CONCURRENT_STREAM,
@@ -152,11 +153,12 @@ class StreamSoundTrigger : public Stream {
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
-    int32_t GetQalDevice(qal_device_id_t dev_id,
-                         struct qal_device *dev,
-                         bool use_rm_profile);
+    std::shared_ptr<Device> GetQalDevice(qal_device_id_t dev_id,
+                                         struct qal_device *dev,
+                                         bool use_rm_profile);
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
-    int32_t UpdateDeviceConnectionState(bool connect, qal_device_id_t device_id);
+    int32_t DisconnectDevice(qal_device_id_t device_id);
+    int32_t ConnectDevice(qal_device_id_t device_id);
     int32_t UpdateChargingState(bool state);
     int32_t ExternalStart();
     int32_t ExternalStop();
@@ -367,21 +369,38 @@ class StreamSoundTrigger : public Stream {
         }
         ~StECRefEventConfig() {}
     };
-    class StSetDeviceEventConfigData : public StEventConfigData {
+    class StDeviceConnectedEventConfigData : public StEventConfigData {
      public:
-        StSetDeviceEventConfigData(qal_device_id_t id)
+        StDeviceConnectedEventConfigData(qal_device_id_t id)
             : dev_id_(id) {}
-        ~StSetDeviceEventConfigData() {}
+        ~StDeviceConnectedEventConfigData() {}
 
         qal_device_id_t dev_id_;
     };
-    class StSetDeviceEventConfig : public StEventConfig {
+    class StDeviceConnectedEventConfig : public StEventConfig {
      public:
-        StSetDeviceEventConfig(qal_device_id_t id)
-            : StEventConfig(ST_EV_SET_DEVICE) {
-            data_ = std::make_shared<StSetDeviceEventConfigData>(id);
+        StDeviceConnectedEventConfig(qal_device_id_t id)
+            : StEventConfig(ST_EV_DEVICE_CONNECTED) {
+            data_ = std::make_shared<StDeviceConnectedEventConfigData>(id);
         }
-        ~StSetDeviceEventConfig() {}
+        ~StDeviceConnectedEventConfig() {}
+    };
+
+    class StDeviceDisconnectedEventConfigData : public StEventConfigData {
+     public:
+        StDeviceDisconnectedEventConfigData(qal_device_id_t id)
+            : dev_id_(id) {}
+        ~StDeviceDisconnectedEventConfigData() {}
+
+        qal_device_id_t dev_id_;
+    };
+    class StDeviceDisconnectedEventConfig : public StEventConfig {
+     public:
+        StDeviceDisconnectedEventConfig(qal_device_id_t id)
+            : StEventConfig(ST_EV_DEVICE_DISCONNECTED) {
+            data_ = std::make_shared<StDeviceDisconnectedEventConfigData>(id);
+        }
+        ~StDeviceDisconnectedEventConfig() {}
     };
     class StChargingStateEventConfigData : public StEventConfigData {
      public:
