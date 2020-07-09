@@ -27,9 +27,12 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define ATRACE_TAG (ATRACE_TAG_AUDIO | ATRACE_TAG_HAL)
 #define LOG_TAG "QAL: SoundTriggerEngineGsl"
 
 #include "SoundTriggerEngineGsl.h"
+
+#include <cutils/trace.h>
 
 #include "Session.h"
 #include "SessionGsl.h"
@@ -118,6 +121,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     uint64_t end_timestamp = 0;
     size_t start_index = 0;
     size_t end_index = 0;
+    size_t total_read_size = 0;
+    size_t ftrt_size = 0;
     bool timestamp_recorded = false;
     StreamSoundTrigger *s = nullptr;
 
@@ -140,15 +145,24 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     }
     buffer_->reset();
 
+    ftrt_size = us_to_bytes(detection_event_info_.ftrt_data_length_in_us);
+    ATRACE_BEGIN("stEngine: read FTRT data");
     while (!exit_buffering_) {
         QAL_VERBOSE(LOG_TAG, "request read %u from gsl", buf.size);
         // read data from session
         if (buffer_->getFreeSize() >= buf.size) {
+            ATRACE_BEGIN("stEngine: lab read");
             status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+            ATRACE_END();
             if (status) {
                 break;
             }
             QAL_INFO(LOG_TAG, "requested %u, read %d", buf.size, size);
+            total_read_size += size;
+            if (total_read_size >= ftrt_size) {
+                QAL_DBG(LOG_TAG, "Ftrt data read done");
+                ATRACE_END();
+            }
         }
         // write data to ring buffer
         if (size) {
@@ -639,6 +653,8 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         return;
     }
     QAL_INFO(LOG_TAG, "singal event processing thread");
+    ATRACE_BEGIN("stEngine: keyword detected");
+    ATRACE_END();
     cv_.notify_one();
 }
 
