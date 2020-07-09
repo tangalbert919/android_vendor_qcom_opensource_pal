@@ -81,14 +81,15 @@ Device(device, Rm)
 
 }
 
-DisplayPort::~DisplayPort()
-{
-    QAL_DBG(LOG_TAG, "dtor called");
-}
-
 int DisplayPort::start()
 {
     int status = 0;
+
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
 
     status = configureDpEndpoint();
     if (status != 0) {
@@ -113,14 +114,6 @@ int DisplayPort::configureDpEndpoint()
     std::shared_ptr<Device> dev = nullptr;
     std::vector<Stream*> activestreams;
     uint32_t miid = 0;
-    struct extDispState *state = NULL;
-    edidAudioInfo *info = NULL;
-
-    state = &extDisp[dp_controller][dp_stream];
-    if (state && state->edidInfo)
-    {
-        info = (edidAudioInfo*) state->edidInfo;
-    }
 
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
@@ -136,7 +129,28 @@ int DisplayPort::configureDpEndpoint()
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
         return status;
     }
-    cfg.channel_allocation = info->channelAllocation;
+    QAL_DBG(LOG_TAG, "num channels: %d", deviceAttr.config.ch_info.channels);
+    switch (deviceAttr.config.ch_info.channels) {
+        case 2:
+            cfg.channel_allocation = 0x0; break;
+        case 3:
+            cfg.channel_allocation = 0x02; break;
+        case 4:
+            cfg.channel_allocation = 0x06; break;
+        case 5:
+            cfg.channel_allocation = 0x0A; break;
+        case 6:
+            cfg.channel_allocation = 0x0B; break;
+        case 7:
+            cfg.channel_allocation = 0x12; break;
+        case 8:
+            cfg.channel_allocation = 0x13; break;
+        default:
+            cfg.channel_allocation = 0x0; break;
+            QAL_ERR(LOG_TAG, "invalid num channels: %d\n",
+                    deviceAttr.config.ch_info.channels);
+            break;
+    }
     cfg.mst_idx = dp_stream;
     cfg.dptx_idx = dp_controller;
     builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);

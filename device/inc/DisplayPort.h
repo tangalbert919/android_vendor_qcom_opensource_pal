@@ -174,7 +174,6 @@ public:
     int getExtDispSysfsNodeIndex(int ext_disp_type);
     int updateExtDispSysfsNode(int node_value, int controller, int stream);
     int updateAudioAckState(int node_value, int controller, int stream);
-    ~DisplayPort();
 };
 
 

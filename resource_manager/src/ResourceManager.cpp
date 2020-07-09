@@ -3009,6 +3009,15 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             is_ds_required = true;
         }
         break;
+    case QAL_DEVICE_OUT_AUX_DIGITAL:
+    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
+    case QAL_DEVICE_OUT_HDMI:
+        if (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)
+            is_ds_required = true;
+        else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
+                (activeDevAttr->config.bit_width < inDevAttr->config.bit_width))
+            is_ds_required = true;
+        break;
     default:
         is_ds_required = false;
         break;
