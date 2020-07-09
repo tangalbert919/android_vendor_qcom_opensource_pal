@@ -73,49 +73,6 @@ struct sessionToPayloadParam {
     void *metadata;
 };
 
-struct codecDmaConfig {
-    uint32_t intfLinkIdx;
-    uint32_t lpaifType;
-    uint32_t intfIdx;
-};
-
-struct i2sConfig {
-    uint32_t intfLinkIdx;
-    uint32_t lpaifType;
-    uint32_t intfIdx;
-    uint16_t sdLineIdx;
-    uint16_t wsSrc;
-};
-
-struct tdmConfig{
-    uint32_t intfLinkIdx;
-    uint32_t lpaifType;
-    uint32_t intfIdx;
-    uint32_t syncSrc;
-    uint32_t ctrlDataOutEnable;
-    uint32_t syncMode;
-    uint32_t ctrlInvertSyncPulse;
-    uint32_t ctrlSyncDataDelay;
-};
-
-struct auxpcmConfig{
-    uint32_t intfLinkIdx;
-    uint32_t lpaifType;
-    uint32_t intfIdx;
-    uint32_t syncSrc;
-    uint32_t ctrlDataOutEnable;
-    uint32_t slotMask;
-    uint32_t frameSetting;
-    uint32_t auxMode;
-};
-
-struct slimConfig {
-    uint32_t intfLinkIdx;
-    uint32_t dev_id;
-    uint32_t sh_mapping_idx_0;
-    uint32_t sh_mapping_idx_1;
-};
-
 struct usbAudioConfig {
     uint32_t usb_token;
     uint32_t svc_interval;
@@ -131,38 +88,6 @@ class SessionGsl;
 
 class PayloadBuilder
 {
-private:
-    static std::vector<codecDmaConfig> codecConf;
-    static std::vector<i2sConfig> i2sConf;
-    static std::vector<tdmConfig> tdmConf;
-    static std::vector<auxpcmConfig> auxpcmConf;
-    static std::vector<slimConfig> slimConf;
-    void payloadInMediaConfig(uint8_t** payload, size_t* size,
-                              struct gsl_module_id_info* moduleInfo,
-                              struct sessionToPayloadParam* data);
-    void payloadOutMediaConfig(uint8_t** payload, size_t* size,
-                               struct gsl_module_id_info* moduleInfo,
-                               struct sessionToPayloadParam* data);
-    void payloadCodecDmaConfig(uint8_t** payload, size_t* size,
-                               struct gsl_module_id_info* moduleInfo,
-                               struct sessionToPayloadParam* data,
-                               std::string epName);
-    void payloadI2sConfig(uint8_t** payload, size_t* size,
-                          struct gsl_module_id_info* moduleInfo,
-                          struct sessionToPayloadParam* data,
-                          std::string epName);
-    void payloadTdmConfig(uint8_t** payload, size_t* size,
-                          struct gsl_module_id_info* moduleInfo,
-                          struct sessionToPayloadParam* data, std::string epName);
-    void payloadAuxpcmConfig(uint8_t** payload, size_t* size,
-                             struct gsl_module_id_info* moduleInfo,
-                             struct sessionToPayloadParam* data, std::string epName);
-    void payloadHwEpConfig(uint8_t** payload, size_t* size,
-                           struct gsl_module_id_info* moduleInfo,
-                           struct sessionToPayloadParam* data);
-    void payloadSlimConfig(uint8_t** payload, size_t* size,
-                           struct gsl_module_id_info* moduleInfo,
-                           struct sessionToPayloadParam* data, std::string epName);
 public:
     void payloadUsbAudioConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
@@ -170,23 +95,9 @@ public:
     void payloadDpAudioConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct dpAudioConfig *data);
-    void payloadStreamConfig(uint8_t** payload, size_t* size,
-                             struct gsl_module_id_info* moduleInfo,
-                             int payloadTag, struct sessionToPayloadParam* data);
-    void payloadDeviceEpConfig(uint8_t** payload, size_t* size,
-                               struct gsl_module_id_info* moduleInfo,
-                               int payloadTag, struct sessionToPayloadParam* data,
-                               std::string epName);
-    void payloadDeviceConfig(uint8_t** payload, size_t* size,
-                             struct gsl_module_id_info* moduleInfo,
-                             int payloadTag, struct sessionToPayloadParam* data);
     void payloadMFCConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
                            struct sessionToPayloadParam* data);
-    void payloadVolume(uint8_t **payload, size_t *size, uint32_t moduleId,
-                       struct qal_volume_data *volumedata, int tag);
-    void payloadPause(uint8_t **payload, size_t *size, uint32_t moduleId);
-    void payloadResume(uint8_t **payload, size_t *size, uint32_t moduleId);
     int payloadCustomParam(uint8_t **alsaPayload, size_t *size,
                             uint32_t *customayload, uint32_t customPayloadSize,
                             uint32_t moduleInstanceId, uint32_t dspParamId);
@@ -228,20 +139,12 @@ public:
     int populateDevicePPKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx,
         std::vector<kvpair_info> kvpair, bool is_lpi);
-    int populateGkv(Stream *s, struct gsl_key_vector *gkv);
-    int populateCkv(Stream *s, struct gsl_key_vector *ckv, int tag, struct qal_volume_data **);
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);
-    int populateTkv(Stream *s, struct gsl_key_vector *tkv, int tag, uint32_t* gsltag);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
     void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);
     static int init();
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
-    static void processCodecInfo(const XML_Char **attr);
-    static void processI2sInfo(const XML_Char **attr);
-    static void processTdmInfo(const XML_Char **attr);
-    static void processAuxpcmInfo(const XML_Char **attr);
-    static void processSlimInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     PayloadBuilder();
     ~PayloadBuilder();
