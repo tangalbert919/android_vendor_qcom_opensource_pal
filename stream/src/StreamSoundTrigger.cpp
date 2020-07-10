@@ -1904,8 +1904,8 @@ void StreamSoundTrigger::TransitTo(int32_t state_id) {
     cur_state_ = it->second;
     auto oldState = stStateNameMap.at(prev_state_->GetStateId());
     auto newState = stStateNameMap.at(it->first);
-    QAL_DBG(LOG_TAG, "state transitioned from %s to %s",
-            oldState.c_str(), newState.c_str());
+    QAL_DBG(LOG_TAG, "Stream instance %u: state transitioned from %s to %s",
+            mInstanceID, oldState.c_str(), newState.c_str());
 }
 
 int32_t StreamSoundTrigger::ProcessInternalEvent(
@@ -1918,7 +1918,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "StIdle: handle event %d", ev_cfg->id_);
+    QAL_DBG(LOG_TAG, "StIdle: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
 
     switch (ev_cfg->id_) {
         case ST_EV_LOAD_SOUND_MODEL: {
@@ -2152,7 +2153,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "StLoaded: handle event %d", ev_cfg->id_);
+    QAL_DBG(LOG_TAG, "StLoaded: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
 
     switch (ev_cfg->id_) {
         case ST_EV_UNLOAD_SOUND_MODEL: {
@@ -2481,6 +2483,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
 
     int32_t status = 0;
 
+    QAL_DBG(LOG_TAG, "StActive: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
+
     switch (ev_cfg->id_) {
         case ST_EV_DETECTED: {
             StDetectedEventConfigData *data =
@@ -2735,7 +2740,8 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
     std::shared_ptr<StEventConfig> ev_cfg) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "StDetected: handle event %d", ev_cfg->id_);
+    QAL_DBG(LOG_TAG, "StDetected: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
 
     switch (ev_cfg->id_) {
         case ST_EV_START_RECOGNITION: {
@@ -2892,7 +2898,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
    std::shared_ptr<StEventConfig> ev_cfg) {
     int32_t status = 0;
 
-    QAL_VERBOSE(LOG_TAG, "StBuffering: handle event %d", ev_cfg->id_);
+    QAL_DBG(LOG_TAG, "StBuffering: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
 
     switch (ev_cfg->id_) {
         case ST_EV_READ_BUFFER: {
@@ -3220,7 +3227,8 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
    std::shared_ptr<StEventConfig> ev_cfg) {
     int32_t status = 0;
 
-    QAL_VERBOSE(LOG_TAG, "StSSR: handle event %d", ev_cfg->id_);
+    QAL_DBG(LOG_TAG, "StSSR: handle event %d for stream instance %u",
+        ev_cfg->id_, st_stream_.mInstanceID);
 
     switch (ev_cfg->id_) {
         case ST_EV_SSR_ONLINE: {

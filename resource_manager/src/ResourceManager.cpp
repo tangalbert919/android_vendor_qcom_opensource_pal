@@ -2186,65 +2186,82 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
 
     mResourceManagerMutex.lock();
     QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
-    if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
-        if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
-            if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
-                 (type == QAL_STREAM_VOICE_CALL_TX ||
-                  type == QAL_STREAM_VOICE_CALL_RX_TX ||
-                  type == QAL_STREAM_VOICE_CALL)) ||
-                (!IsVoipAndVoiceUIConcurrencySupported() &&
-                 type == QAL_STREAM_VOIP_TX)) {
-                QAL_DBG(LOG_TAG, "pause on voip/voice concurrency");
-                conc_en = false;
-            }
-        } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
-                   type == QAL_STREAM_RAW || // regular audio record
-                   type == QAL_STREAM_VOICE_CALL_TX ||
-                   type == QAL_STREAM_VOICE_CALL_RX_TX ||
-                   type == QAL_STREAM_VOICE_CALL ||
-                   type == QAL_STREAM_VOIP_TX) {
+
+    if (dir == QAL_AUDIO_OUTPUT && type == QAL_STREAM_LOW_LATENCY) {
+        QAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
+        mResourceManagerMutex.unlock();
+        return;
+    }
+
+    /*
+     * Generally voip/voice rx stream comes with related tx streams,
+     * so there's no need to switch to NLPI for voip/voice rx stream
+     * if corresponding voip/voice tx stream concurrency is not supported.
+     */
+    if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
+        if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
+            (type == QAL_STREAM_VOICE_CALL_RX ||
+            type == QAL_STREAM_VOICE_CALL_TX ||
+            type == QAL_STREAM_VOICE_CALL_RX_TX ||
+            type == QAL_STREAM_VOICE_CALL))) {
+            QAL_DBG(LOG_TAG, "pause on voice concurrency");
+            conc_en = false;
+        } else if (!IsVoipAndVoiceUIConcurrencySupported() &&
+            (type == QAL_STREAM_VOIP_TX ||
+            type == QAL_STREAM_VOIP_RX ||
+            type == QAL_STREAM_VOIP)) {
+            QAL_DBG(LOG_TAG, "pause on voip concurrency");
             conc_en = false;
         }
-        if (!conc_en) {
-            if (active) {
-                ++concurrentStreamCount;
-                if (concurrentStreamCount == 1) {
-                    // pause all sva streams
-                    for (int i = 0; i < active_streams_st.size(); i++) {
-                        st_str = active_streams_st[i];
-                        if (st_str &&
-                            isStreamActive(st_str, active_streams_st)) {
-                            mResourceManagerMutex.unlock();
-                            status = st_str->Pause();
-                            mResourceManagerMutex.lock();
-                            if (status) {
-                                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
-                            }
+    } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
+                type == QAL_STREAM_RAW || // regular audio record
+                type == QAL_STREAM_VOICE_CALL_RX ||
+                type == QAL_STREAM_VOICE_CALL_TX ||
+                type == QAL_STREAM_VOICE_CALL_RX_TX ||
+                type == QAL_STREAM_VOICE_CALL ||
+                type == QAL_STREAM_VOIP_RX ||
+                type == QAL_STREAM_VOIP_TX ||
+                type == QAL_STREAM_VOIP) {
+        conc_en = false;
+    }
+
+    if (!conc_en) {
+        if (active) {
+            ++concurrentStreamCount;
+            if (concurrentStreamCount == 1) {
+                // pause all sva streams
+                for (int i = 0; i < active_streams_st.size(); i++) {
+                    st_str = active_streams_st[i];
+                    if (st_str &&
+                        isStreamActive(st_str, active_streams_st)) {
+                        mResourceManagerMutex.unlock();
+                        status = st_str->Pause();
+                        mResourceManagerMutex.lock();
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
                         }
                     }
                 }
-            } else {
-                --concurrentStreamCount;
-                if (concurrentStreamCount == 0) {
-                    // resume all sva streams
-                    for (int i = 0; i < active_streams_st.size(); i++) {
-                        st_str = active_streams_st[i];
-                        if (st_str &&
-                            isStreamActive(st_str, active_streams_st)) {
-                            mResourceManagerMutex.unlock();
-                            status = st_str->Resume();
-                            mResourceManagerMutex.lock();
-                            if (status) {
-                                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
-                            }
+            }
+        } else {
+            --concurrentStreamCount;
+            if (concurrentStreamCount == 0) {
+                // resume all sva streams
+                for (int i = 0; i < active_streams_st.size(); i++) {
+                    st_str = active_streams_st[i];
+                    if (st_str &&
+                        isStreamActive(st_str, active_streams_st)) {
+                        mResourceManagerMutex.unlock();
+                        status = st_str->Resume();
+                        mResourceManagerMutex.lock();
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Failed to resume SVA stream");
                         }
                     }
                 }
             }
         }
-    }
-    if ((dir == QAL_AUDIO_OUTPUT || dir == QAL_AUDIO_INPUT_OUTPUT) &&
-        type != QAL_STREAM_LOW_LATENCY && conc_en) {
+    } else if (dir == QAL_AUDIO_OUTPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
         if (IsVoiceUILPISupported()) {
             // stop/unload all sva streams
             for (int i = 0; i < active_streams_st.size(); i++) {
@@ -2266,7 +2283,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                     status = st_str->HandleConcurrentStream(type, true);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                        QAL_ERR(LOG_TAG, "Failed to load/start SVA stream");
                     }
                 }
             }

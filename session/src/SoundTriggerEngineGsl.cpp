@@ -124,6 +124,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     size_t total_read_size = 0;
     size_t ftrt_size = 0;
     bool timestamp_recorded = false;
+    bool event_notified = false;
     StreamSoundTrigger *s = nullptr;
 
     QAL_DBG(LOG_TAG, "Enter");
@@ -152,17 +153,19 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
         // read data from session
         if (buffer_->getFreeSize() >= buf.size) {
             ATRACE_BEGIN("stEngine: lab read");
-            status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+            if (total_read_size < ftrt_size && ftrt_size - total_read_size < buf.size) {
+                buf.size = ftrt_size - total_read_size;
+                status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+                buf.size = input_buf_size * input_buf_num;
+            } else {
+                status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+            }
             ATRACE_END();
             if (status) {
                 break;
             }
             QAL_INFO(LOG_TAG, "requested %u, read %d", buf.size, size);
             total_read_size += size;
-            if (total_read_size >= ftrt_size) {
-                QAL_DBG(LOG_TAG, "Ftrt data read done");
-                ATRACE_END();
-            }
         }
         // write data to ring buffer
         if (size) {
@@ -183,12 +186,20 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
                 end_index = us_to_bytes(end_timestamp - timestamp);
                 buffer_->updateIndices(start_index, end_index);
                 timestamp_recorded = true;
-                // Notify detection to client
-                s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-                mutex_.unlock();
-                s->SetEngineDetectionState(GMM_DETECTED);
-                mutex_.lock();
             }
+        }
+
+        // notify client until ftrt data read
+        if (!event_notified && total_read_size >= ftrt_size) {
+            QAL_DBG(LOG_TAG, "Ftrt data read done");
+            ATRACE_END();
+
+            s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
+            mutex_.unlock();
+            s->SetEngineDetectionState(GMM_DETECTED);
+            mutex_.lock();
+
+            event_notified = true;
         }
     }
 
