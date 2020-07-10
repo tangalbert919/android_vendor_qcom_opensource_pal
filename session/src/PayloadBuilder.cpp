@@ -1504,6 +1504,58 @@ int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair
     return status;
 }
 
+int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector)
+{
+    int status = 0;
+    struct qal_stream_attributes *sattr = NULL;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct qal_device dAttr;
+
+    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    sattr = new struct qal_stream_attributes;
+    if (!sattr) {
+        status = -ENOMEM;
+        QAL_ERR(LOG_TAG,"sattr malloc failed %s status %d", strerror(errno), status);
+        goto exit;
+    }
+    memset (&dAttr, 0, sizeof(struct qal_device));
+    memset (sattr, 0, sizeof(struct qal_stream_attributes));
+
+    status = s->getStreamAttributes(sattr);
+    if (0 != status) {
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        goto free_sattr;
+    }
+    status = s->getAssociatedDevices(associatedDevices);
+    if (0 != status) {
+       QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+       return status;
+    }
+    for (int i = 0; i < associatedDevices.size();i++) {
+        status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
+
+        switch (sattr->type) {
+            case QAL_STREAM_VOICE_UI:
+                QAL_INFO(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
+                /* Push Channels CKV for FFNS or FFECNS channel based calibration */
+                keyVector.push_back(std::make_pair(CHANNELS,
+                                                   dAttr.config.ch_info.channels));
+                break;
+            default:
+                QAL_VERBOSE(LOG_TAG,"stream type %d doesn't support DevicePP CKV ", sattr->type);
+                goto free_sattr;
+        }
+    }
+free_sattr:
+    delete sattr;
+exit:
+    return status;
+}
+
 int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag) {
     int status = 0;
     QAL_VERBOSE(LOG_TAG,"%s: enter \n", __func__);

@@ -283,6 +283,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamCKV;
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
+    std::vector <std::pair<int, int>> devicePPCKV;
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct qal_stream_attributes sAttr;
@@ -336,11 +337,13 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         QAL_ERR(LOG_TAG, "%s: get stream KV failed %d", status);
         goto exit;
     }
-    status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
-            (struct qal_volume_data **)nullptr);
-    if (status) {
-        QAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
-        goto exit;
+    if (sAttr.type != QAL_STREAM_VOICE_UI) {
+        status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
+                (struct qal_volume_data **)nullptr);
+        if (status) {
+            QAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
+            goto exit;
+        }
     }
     if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
         getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
@@ -396,6 +399,12 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             QAL_VERBOSE(LOG_TAG, "%s: get device PP KV failed %d", status);
             status = 0; /**< ignore device PP KV failures */
         }
+        status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
+        if (status) {
+            QAL_ERR(LOG_TAG, " populateDevicePP Ckv failed %d", status);
+            status = 0; /**< ignore device PP CKV failures */
+        }
+
         status = builder->populateStreamDeviceKV(streamHandle, be->first, streamDeviceKV);
         if (status) {
             QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
@@ -427,8 +436,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 goto freeMetaData;
             }
         }
-        if (streamDeviceKV.size() > 0) {
-            getAgmMetaData(streamDeviceKV, emptyKV, (struct prop_data *)streamDevicePropId,
+        if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
+            getAgmMetaData(streamDeviceKV, devicePPCKV, (struct prop_data *)streamDevicePropId,
                     streamDeviceMetaData);
             if (!streamDeviceMetaData.size) {
                 QAL_ERR(LOG_TAG, "stream/device metadata is zero");
@@ -1587,6 +1596,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> emptyKV;
+    std::vector <std::pair<int, int>> devicePPCKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
     struct agmMetaData streamDeviceMetaData(nullptr, 0);
@@ -1685,8 +1695,14 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
             goto freeMetaData;
         }
     }
-    if (streamDeviceKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(streamDeviceKV, emptyKV,
+    status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
+    if (status) {
+        QAL_ERR(LOG_TAG, " populateDevicePP Ckv failed %d", status);
+        status = 0; /**< ignore device PP CKV failures */
+    }
+
+    if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(streamDeviceKV, devicePPCKV,
                 (struct prop_data *)streamDevicePropId,
                 streamDeviceMetaData);
         if (!streamDeviceMetaData.size) {

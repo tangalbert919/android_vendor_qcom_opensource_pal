@@ -837,12 +837,6 @@ int SessionAlsaPcm::start(Stream * s)
 
     mState = SESSION_STARTED;
 
-    if (!status && sAttr.type == QAL_STREAM_VOICE_UI) {
-        if (setConfig(s, CALIBRATION, TAG_MODULE_CHANNELS) != 0) {
-            QAL_ERR(LOG_TAG, "Set fluence calibration failed");
-        }
-    }
-
     return status;
 }
 
