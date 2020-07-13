@@ -1174,7 +1174,6 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             break;
         case QAL_STREAM_RAW:
         case QAL_STREAM_VOICE_ACTIVATION:
-        case QAL_STREAM_VOICE_CALL:
         case QAL_STREAM_LOOPBACK:
         case QAL_STREAM_TRANSCODE:
         case QAL_STREAM_VOICE_UI:
@@ -1189,11 +1188,13 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
             cur_sessions = active_streams_proxy.size();
             max_sessions = MAX_SESSIONS_PROXY;
             break;
+         case QAL_STREAM_VOICE_CALL:
+            break;
         default:
             QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
     }
-    if (cur_sessions == max_sessions) {
+    if (cur_sessions == max_sessions && type != QAL_STREAM_VOICE_CALL) {
         QAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
         return result;
     }
