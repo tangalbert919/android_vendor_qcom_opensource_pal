@@ -2894,6 +2894,9 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                                       const struct qal_stream_attributes sAttr,
                                       int lDirection)
 {
+    QAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
+             frontend.at(0));
+
     switch(sAttr.type) {
         case QAL_STREAM_LOW_LATENCY:
         case QAL_STREAM_ULTRA_LOW_LATENCY:

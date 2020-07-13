@@ -760,6 +760,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
             QAL_ERR(LOG_TAG, "session open failed with status %d", status);
             goto error;
         }
+        currentState = STREAM_INIT;
 
         status = session->prepare(this);
         if (0 != status) {
@@ -773,6 +774,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
                     status);
             goto error;
         }
+        currentState = STREAM_STARTED;
         standBy = false;
         rm->unlockGraph();
     }
@@ -1044,6 +1046,7 @@ int32_t StreamPCM::standby()
             QAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
             goto exit;
         }
+        currentState = STREAM_STOPPED;
 
         for (int i = 0; i < mDevices.size(); i++) {
             status = mDevices[i]->stop();
@@ -1069,6 +1072,7 @@ int32_t StreamPCM::standby()
             QAL_ERR(LOG_TAG, "session close failed with status %d", status);
             goto exit;
         }
+        currentState = STREAM_IDLE;
         standBy = true;
     }
 exit:
