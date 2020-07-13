@@ -160,8 +160,8 @@ class StreamSoundTrigger : public Stream {
     int32_t DisconnectDevice(qal_device_id_t device_id);
     int32_t ConnectDevice(qal_device_id_t device_id);
     int32_t UpdateChargingState(bool state);
-    int32_t ExternalStart();
-    int32_t ExternalStop();
+    int32_t Resume();
+    int32_t Pause();
     bool GetActiveState() { return active_state_; }
 
     void ConcurrentStreamStatus(qal_stream_type_t stream_type,
@@ -540,15 +540,6 @@ class StreamSoundTrigger : public Stream {
     bool pending_stop_;
     bool paused_;
     int32_t conc_tx_cnt_;
-
-    static void EventThread(StreamSoundTrigger& st_stream);
-    void PostEvent(std::shared_ptr<StEventConfig> ev_cfg);
-    void HandleEvents();
-    std::thread event_thread_;
-    std::mutex event_mutex_;
-    std::condition_variable event_cond_;
-    bool exit_event_thread_;
-    std::vector<std::shared_ptr<StEventConfig>> pending_event_configs_;
 
     void AddState(StState* state);
     int32_t GetCurrentStateId();
