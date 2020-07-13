@@ -103,11 +103,6 @@ void SoundTriggerEngineGsl::EventProcessingThread(
     QAL_DBG(LOG_TAG, "Exit");
 }
 
-static uint32_t us_to_bytes(uint64_t input_us) {
-    return (CNN_SAMPLE_RATE * CNN_BITWIDTH * CNN_CHANNELS * input_us /
-            (BITS_PER_BYTE * US_PER_SEC));
-}
-
 int32_t SoundTriggerEngineGsl::StartBuffering() {
     int32_t status = 0;
     int32_t size = 0;
@@ -146,7 +141,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     }
     buffer_->reset();
 
-    ftrt_size = us_to_bytes(detection_event_info_.ftrt_data_length_in_us);
+    ftrt_size = UsToBytes(detection_event_info_.ftrt_data_length_in_us);
     ATRACE_BEGIN("stEngine: read FTRT data");
     while (!exit_buffering_) {
         QAL_VERBOSE(LOG_TAG, "request read %u from gsl", buf.size);
@@ -182,8 +177,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
                 end_timestamp =
                     (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
                     ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
-                start_index = us_to_bytes(start_timestamp - timestamp);
-                end_index = us_to_bytes(end_timestamp - timestamp);
+                start_index = UsToBytes(start_timestamp - timestamp);
+                end_index = UsToBytes(end_timestamp - timestamp);
                 buffer_->updateIndices(start_index, end_index);
                 timestamp_recorded = true;
             }
@@ -328,12 +323,12 @@ exit:
 SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     Stream *s,
     uint32_t id,
-    uint32_t stage_id) {
+    listen_model_indicator_enum type) {
 
     struct qal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
     engine_id_ = id;
-    stage_id_ = stage_id;
+    engine_type_ = type;
     exit_thread_ = false;
     exit_buffering_ = false;
     capture_requested_ = false;
@@ -346,13 +341,20 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
     QAL_DBG(LOG_TAG, "Enter");
+    StreamSoundTrigger *st_str = dynamic_cast<StreamSoundTrigger *>(s);
+    int32_t status = st_str->GetEngineConfig(sample_rate_,
+        bit_width_, channels_, type);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get engine config");
+        throw std::runtime_error("Failed to get engine config");
+    }
     // Create session
     rm = ResourceManager::getInstance();
     if (!rm) {
         QAL_ERR(LOG_TAG, "Failed to get ResourceManager instance");
         throw std::runtime_error("Failed to get ResourceManager instance");
     }
-    s->getStreamAttributes(&sAttr);
+    stream_handle_->getStreamAttributes(&sAttr);
     session_ = Session::makeSession(rm, &sAttr);
     if (!session_) {
         QAL_ERR(LOG_TAG, "Failed to create session");

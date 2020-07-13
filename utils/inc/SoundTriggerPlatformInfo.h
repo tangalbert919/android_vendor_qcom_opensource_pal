@@ -35,6 +35,7 @@
 #include <memory>
 #include <string>
 #include "QalDefs.h"
+#include "SoundTriggerEngine.h"
 
 #define CAPTURE_PROFILE_PRIORITY_HIGH 1
 #define CAPTURE_PROFILE_PRIORITY_LOW -1
@@ -112,6 +113,30 @@ class CaptureProfile : public SoundTriggerXml {
 using st_cap_profile_map_t =
     std::map<std::string, std::shared_ptr<CaptureProfile>>;
 
+class SecondStageConfig : public SoundTriggerXml {
+ public:
+    SecondStageConfig();
+
+    void HandleStartTag(const char *tag, const char **attribs) override;
+    void HandleEndTag(const char *tag) override;
+    void HandleCharData(const char *data) override;
+
+    st_sound_model_type_t GetDetectionType() const { return detection_type_; }
+    uint32_t GetSoundModelID() const { return sm_id_; }
+    std::string GetLibName() const { return module_lib_; }
+    uint32_t GetSampleRate() const { return sample_rate_; }
+    uint32_t GetBitWidth() const { return bit_width_; }
+    uint32_t GetChannels() const { return channels_; }
+
+ private:
+    st_sound_model_type_t detection_type_;
+    uint32_t sm_id_;
+    std::string module_lib_;
+    uint32_t sample_rate_;
+    uint32_t bit_width_;
+    uint32_t channels_;
+};
+
 class SoundModelConfig : public SoundTriggerXml {
  public:
     /*
@@ -131,11 +156,15 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t GetOutChannels() const { return out_channels_; }
     uint32_t GetKwDuration() const { return capture_keyword_; }
     uint32_t GetCaptureReadDelay() const { return client_capture_read_delay_; }
+    uint32_t GetKwStartTolerance() const { return kw_start_tolerance_; }
+    uint32_t GetKwEndTolerance() const { return kw_end_tolerance_; }
     std::pair<uint32_t,uint32_t> GetStreamConfig() const { return stream_config_; }
     std::shared_ptr<CaptureProfile> GetCaptureProfile(
         std::pair<StOperatingModes, StInputModes> mode_pair) const {
         return op_modes_.at(mode_pair);
     }
+    std::shared_ptr<SecondStageConfig> GetSecondStageConfig(
+        const uint32_t& sm_id) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
@@ -153,10 +182,13 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t out_channels_;
     uint32_t capture_keyword_;
     uint32_t client_capture_read_delay_;
+    uint32_t kw_start_tolerance_;
+    uint32_t kw_end_tolerance_;
     std::pair<uint32_t,uint32_t> stream_config_;
     const st_cap_profile_map_t& cap_profile_map_;
     std::map<std::pair<StOperatingModes, StInputModes>, std::shared_ptr<CaptureProfile>> op_modes_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
+    std::map<uint32_t, std::shared_ptr<SecondStageConfig>> ss_config_list_;
 };
 
 class SoundTriggerPlatformInfo : public SoundTriggerXml {

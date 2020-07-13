@@ -1896,6 +1896,83 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     return cap_prof;
 }
 
+uint32_t StreamSoundTrigger::GetKwStartTolerance() {
+    uint32_t start_tolerance = 0;
+
+    if (sm_info_) {
+        start_tolerance = sm_info_->GetKwStartTolerance() * 1000;
+    }
+
+    QAL_DBG(LOG_TAG, "start tolerance %u us", start_tolerance);
+    return start_tolerance;
+}
+
+uint32_t StreamSoundTrigger::GetKwEndTolerance() {
+    uint32_t end_tolerance = 0;
+
+    if (sm_info_) {
+        end_tolerance = sm_info_->GetKwEndTolerance() * 1000;
+    }
+
+    QAL_DBG(LOG_TAG, "end tolerance %u us", end_tolerance);
+    return end_tolerance;
+}
+
+int32_t StreamSoundTrigger::GetEngineConfig(uint32_t &sample_rate,
+    uint32_t &bit_width, uint32_t &channels, listen_model_indicator_enum type) {
+    uint32_t sm_id = static_cast<uint32_t>(type);
+
+    if (sm_info_) {
+        if (type == ST_SM_ID_SVA_GMM) {
+            sample_rate = sm_info_->GetSampleRate();
+            bit_width = sm_info_->GetBitWidth();
+            channels = sm_info_->GetOutChannels();
+        } else if (type == ST_SM_ID_SVA_CNN ||
+                    type == ST_SM_ID_SVA_VOP ||
+                    type == ST_SM_ID_SVA_RNN) {
+            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            if (!ss_config) {
+                QAL_ERR(LOG_TAG, "No matching second stage config");
+                return -EINVAL;
+            }
+            sample_rate = ss_config->GetSampleRate();
+            bit_width = ss_config->GetBitWidth();
+            channels = ss_config->GetChannels();
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+int32_t StreamSoundTrigger::GetSecondStageConfig(
+    st_sound_model_type_t &detection_type,
+    std::string &lib_name,
+    listen_model_indicator_enum type) {
+    uint32_t sm_id = static_cast<uint32_t>(type);
+
+    if (sm_info_) {
+        if (type == ST_SM_ID_SVA_CNN ||
+            type == ST_SM_ID_SVA_VOP ||
+            type == ST_SM_ID_SVA_RNN) {
+            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            if (!ss_config) {
+                QAL_ERR(LOG_TAG, "No matching second stage config");
+                return -EINVAL;
+            }
+            detection_type = ss_config->GetDetectionType();
+            lib_name = ss_config->GetLibName();
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
 void StreamSoundTrigger::AddState(StState* state) {
    st_states_.insert(std::make_pair(state->GetStateId(), state));
 }

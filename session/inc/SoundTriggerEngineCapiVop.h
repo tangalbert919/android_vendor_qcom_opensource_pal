@@ -41,7 +41,8 @@ class Stream;
 
 class SoundTriggerEngineCapiVop : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineCapiVop(Stream *s, uint32_t id, uint32_t stage_id);
+    SoundTriggerEngineCapiVop(Stream *s, uint32_t id,
+        listen_model_indicator_enum type);
     ~SoundTriggerEngineCapiVop();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -93,10 +94,12 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine {
     int32_t StartDetection();
     static void BufferThreadLoop(SoundTriggerEngineCapiVop *vop_engine);
 
+    std::string lib_name_;
     capi_v2_t *capi_handle_;
     void* capi_lib_handle_;
     capi_v2_init_f  capi_init_;
 
+    st_sound_model_type_t detection_type_;
     bool processing_started_;
     bool keyword_detected_;
     int32_t confidence_threshold_;
@@ -111,5 +114,7 @@ class SoundTriggerEngineCapiVop : public SoundTriggerEngine {
     uint64_t kw_end_timestamp_;
     uint32_t bytes_processed_;
     uint32_t confidence_score_;
+    uint32_t kw_start_tolerance_;
+    uint32_t kw_end_tolerance_;
 };
 #endif  // SOUNDTRIGGERENGINECAPIVOP_H

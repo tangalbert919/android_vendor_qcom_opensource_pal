@@ -194,13 +194,27 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
     return readSize;
 }
 
-size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize __unused)
+size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
 {
+    size_t size_advanced = 0;
+
     std::lock_guard<std::mutex> lock(ringBuffer_->mutex_);
 
     /* add code to advance the offset here*/
+    if (unreadSize_ < advanceSize) {
+        QAL_ERR(LOG_TAG, "Cannot advance read offset greater than unread size");
+        return size_advanced;
+    }
 
-    return 0;
+    unreadSize_ -= advanceSize;
+    if (readOffset_ + advanceSize < ringBuffer_->bufferEnd_) {
+        readOffset_ += advanceSize;
+    } else {
+        readOffset_ = readOffset_ + advanceSize - ringBuffer_->bufferEnd_;
+    }
+    size_advanced += advanceSize;
+
+    return size_advanced;
 }
 
 void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
@@ -219,6 +233,7 @@ void QalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
 
 size_t QalRingBufferReader::getUnreadSize()
 {
+    QAL_DBG(LOG_TAG, "unread size %u", unreadSize_);
     return unreadSize_;
 }
 

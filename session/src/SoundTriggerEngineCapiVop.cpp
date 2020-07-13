@@ -91,13 +91,6 @@ void SoundTriggerEngineCapiVop::BufferThreadLoop(
     QAL_DBG(LOG_TAG, "Exit");
 }
 
-
-static uint32_t us_to_bytes(uint64_t input_us)
-{
-    return (CNN_SAMPLE_RATE * CNN_BITWIDTH * CNN_CHANNELS * input_us /
-            (BITS_PER_BYTE * US_PER_SEC));
-}
-
 int32_t SoundTriggerEngineCapiVop::StartDetection()
 {
     int32_t status = 0;
@@ -109,6 +102,7 @@ int32_t SoundTriggerEngineCapiVop::StartDetection()
     voiceprint2_sva_uv_score_t *uv_cfg_ptr = nullptr;
     int32_t read_size = 0;
     capi_v2_buf_t capi_result;
+    bool buffer_advanced = false;
 
     QAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
@@ -117,6 +111,23 @@ int32_t SoundTriggerEngineCapiVop::StartDetection()
         QAL_ERR(LOG_TAG, "Invalid ring buffer reader");
         goto exit;
     }
+
+    reader_->getIndices(&buffer_start_, &buffer_end_);
+    if (buffer_start_ >= buffer_end_) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG, "Invalid keyword indices");
+        goto exit;
+    }
+
+    // calculate start and end index including tolerance
+    if (buffer_start_ > UsToBytes(kw_start_tolerance_)) {
+        buffer_start_ -= UsToBytes(kw_start_tolerance_);
+    } else {
+        buffer_start_ = 0;
+    }
+
+    buffer_end_ += UsToBytes(kw_end_tolerance_);
+    buffer_size_ = buffer_start_ - buffer_end_;
 
     memset(&capi_uv_ptr, 0, sizeof(capi_uv_ptr));
     memset(&capi_result, 0, sizeof(capi_result));
@@ -176,10 +187,10 @@ int32_t SoundTriggerEngineCapiVop::StartDetection()
     }
 
     if (kw_end_timestamp_ > 0)
-        buffer_end_ = us_to_bytes(kw_end_timestamp_);
+        buffer_end_ = UsToBytes(kw_end_timestamp_);
 
     if (kw_start_timestamp_ > 0)
-        buffer_start_ = us_to_bytes(kw_start_timestamp_);
+        buffer_start_ = UsToBytes(kw_start_timestamp_);
 
     bytes_processed_ = 0;
 
@@ -189,8 +200,13 @@ int32_t SoundTriggerEngineCapiVop::StartDetection()
         /* need to take into consideration the start and end buffer*/
 
         /* advance the offset to ensure we are reading at the right place */
-        if (buffer_start_ > 0)
-            reader_->advanceReadOffset(buffer_start_);
+        if (!buffer_advanced && buffer_start_ > 0) {
+            if (reader_->advanceReadOffset(buffer_start_)) {
+                buffer_advanced = true;
+            } else {
+                continue;
+            }
+        }
 
         if (reader_->getUnreadSize() < buffer_size_)
             continue;
@@ -265,12 +281,11 @@ exit:
 SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     Stream *s,
     uint32_t id,
-    uint32_t stage_id)
+    listen_model_indicator_enum type)
 {
     int32_t status = 0;
-    const char *lib = "libcapiv2vop.so";
     engine_id_ = id;
-    stage_id_ = stage_id;
+    engine_type_ = type;
     processing_started_ = false;
     keyword_detected_ = false;
     sm_data_ = nullptr;
@@ -278,12 +293,31 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
     exit_buffering_ = false;
     buffer_size_ = CNN_BUFFER_SIZE;  // 480ms of 16k 16bit mono worth;
     kw_start_timestamp_ = 0;
-    kw_end_timestamp_ = CNN_DURATION_US;
+    kw_end_timestamp_ = 0;
     buffer_start_ = 0;
     buffer_end_ = 0;
     bytes_processed_ = 0;
     reader_ = nullptr;
     buffer_ = nullptr;
+    stream_handle_ = s;
+
+    StreamSoundTrigger *st_str = dynamic_cast<StreamSoundTrigger *>(s);
+    status = st_str->GetEngineConfig(sample_rate_,
+        bit_width_, channels_, type);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get engine config");
+        throw std::runtime_error("Failed to get engine config");
+    }
+
+    status = st_str->GetSecondStageConfig(detection_type_,
+        lib_name_, type);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to get ss engine config");
+        throw std::runtime_error("Failed to get ss engine config");
+    }
+
+    kw_start_tolerance_ = st_str->GetKwStartTolerance();
+    kw_end_tolerance_ = st_str->GetKwEndTolerance();
 
     capi_handle_ =
         (capi_v2_t *)calloc(1, sizeof(capi_v2_t) + (3 * sizeof(char *)));
@@ -295,7 +329,7 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
         goto err_exit;
     }
 
-    capi_lib_handle_ = dlopen(lib, RTLD_NOW);
+    capi_lib_handle_ = dlopen(lib_name_.c_str(), RTLD_NOW);
     if (!capi_lib_handle_) {
         status = -ENOMEM;
         QAL_ERR(LOG_TAG, "failed to open capi so = %d", status);
@@ -312,8 +346,6 @@ SoundTriggerEngineCapiVop::SoundTriggerEngineCapiVop(
         /* handle here */
         goto err_exit;
     }
-
-    stream_handle_ = s;
 
     return;
 err_exit:
@@ -344,6 +376,9 @@ SoundTriggerEngineCapiVop::~SoundTriggerEngineCapiVop()
 int32_t SoundTriggerEngineCapiVop::StartSoundEngine()
 {
     int32_t status = 0;
+    processing_started_ = false;
+    exit_thread_ = false;
+    exit_buffering_ = false;
 
     QAL_DBG(LOG_TAG, "Enter");
     capi_v2_err_t rc = CAPI_V2_EOK;

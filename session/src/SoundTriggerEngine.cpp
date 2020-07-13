@@ -52,19 +52,19 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
 
     switch (type) {
     case ST_SM_ID_SVA_GMM:
-        st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, id);
+        st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
         if (!st_engine)
             QAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
         break;
 
     case ST_SM_ID_SVA_CNN:
-        st_engine = std::make_shared<SoundTriggerEngineCapiCnn>(s, id, id);
+        st_engine = std::make_shared<SoundTriggerEngineCapiCnn>(s, id, type);
         if (!st_engine)
             QAL_ERR(LOG_TAG, "SoundTriggerEngine CNN creation failed");
         break;
 
     case ST_SM_ID_SVA_VOP:
-        st_engine = std::make_shared<SoundTriggerEngineCapiVop>(s, id, id);
+        st_engine = std::make_shared<SoundTriggerEngineCapiVop>(s, id, type);
         if (!st_engine)
             QAL_ERR(LOG_TAG, "SoundTriggerEngine VOP creation failed");
         break;
@@ -142,4 +142,13 @@ int32_t SoundTriggerEngine::SetBufferReader(QalRingBufferReader *reader)
     reader_ = reader;
 
     return status;
+}
+
+uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
+    uint32_t bytes = 0;
+
+    bytes = sample_rate_ * bit_width_ * channels_ * input_us /
+        (BITS_PER_BYTE * US_PER_SEC);
+
+    return bytes;
 }

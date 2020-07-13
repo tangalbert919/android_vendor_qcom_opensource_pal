@@ -33,13 +33,15 @@
 
 #include "SoundTriggerEngine.h"
 #include "QalRingBuffer.h"
+#include "Session.h"
 
 class Session;
 class Stream;
 
 class SoundTriggerEngineGsl : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineGsl(Stream *s, uint32_t id, uint32_t stage_id);
+    SoundTriggerEngineGsl(Stream *s, uint32_t id,
+        listen_model_indicator_enum type);
     ~SoundTriggerEngineGsl();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -90,6 +92,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data,
                                       uint32_t event_size);
 
+    Session *session_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_generic_event_cfg event_config_;
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
