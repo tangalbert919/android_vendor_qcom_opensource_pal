@@ -638,7 +638,6 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
-    mStreamMutex.lock();
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
        /* calculate sleep time based on buf->size, sleep and return buf->size */
         uint32_t streamSize;
@@ -690,11 +689,9 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
         goto exit;
     }
     QAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
-    mStreamMutex.unlock();
     return size;
 exit :
     QAL_DBG(LOG_TAG, "session read failed status %d", status);
-    mStreamMutex.unlock();
     return status;
 }
 
