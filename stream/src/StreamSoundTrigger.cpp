@@ -66,7 +66,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     rec_config_ = nullptr;
     paused_ = false;
     pending_stop_ = false;
-    conc_tx_cnt_ = 0;
     active_state_ = false;
 
     // Setting default volume to unity
@@ -309,60 +308,19 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     return status;
 }
 
-void StreamSoundTrigger::ConcurrentStreamStatus(qal_stream_type_t type,
-                                                qal_stream_direction_t dir,
-                                                bool active) {
+int32_t StreamSoundTrigger::HandleConcurrentStream(qal_stream_type_t type,
+                                                   bool active) {
     int32_t status = 0;
-    bool conc_en = true;
 
-    QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
-    if (dir == QAL_AUDIO_OUTPUT && type != QAL_STREAM_LOW_LATENCY) {
-        if (rm->IsVoiceUILPISupported()) {
-            std::lock_guard<std::mutex> lck(mStreamMutex);
-            std::shared_ptr<StEventConfig> ev_cfg(
-                new StConcurrentStreamEventConfig(type, active));
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    QAL_DBG(LOG_TAG, "Enter");
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StConcurrentStreamEventConfig(type, active));
+    status = cur_state_->ProcessEvent(ev_cfg);
 
-            status = cur_state_->ProcessEvent(ev_cfg);
-        }
-    } else if (dir == QAL_AUDIO_INPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
-        if (rm->IsAudioCaptureAndVoiceUIConcurrencySupported()) {
-            if ((!rm->IsVoiceCallAndVoiceUIConcurrencySupported() &&
-                 (type == QAL_STREAM_VOICE_CALL_TX ||
-                  type == QAL_STREAM_VOICE_CALL_RX_TX ||
-                  type == QAL_STREAM_VOICE_CALL)) ||
-                (!rm->IsVoipAndVoiceUIConcurrencySupported() &&
-                 type == QAL_STREAM_VOIP_TX)) {
-                QAL_DBG(LOG_TAG, "pause on voip/voice concurrency");
-                conc_en = false;
-            }
-        } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
-                   type == QAL_STREAM_RAW || // regular audio record
-                   type == QAL_STREAM_VOICE_CALL_TX ||
-                   type == QAL_STREAM_VOICE_CALL_RX_TX ||
-                   type == QAL_STREAM_VOICE_CALL ||
-                   type == QAL_STREAM_VOIP_TX) {
-            conc_en = false;
-        }
-        if (!conc_en) {
-            std::lock_guard<std::mutex> lck(mStreamMutex);
-            if (active) {
-                ++conc_tx_cnt_;
-                if (conc_tx_cnt_ == 1) {
-                    std::shared_ptr<StEventConfig> ev_cfg(
-                       new StPauseEventConfig());
-                    status = cur_state_->ProcessEvent(ev_cfg);
-                }
-            } else {
-                --conc_tx_cnt_;
-                if (conc_tx_cnt_ == 0) {
-                    std::shared_ptr<StEventConfig> ev_cfg(
-                        new StResumeEventConfig());
-                    status = cur_state_->ProcessEvent(ev_cfg);
-                }
-            }
-        }
-    }
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable) {
@@ -392,7 +350,13 @@ int32_t StreamSoundTrigger::DisconnectDevice(qal_device_id_t device_id) {
     qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
+    /*
+     * NOTE: mStreamMutex will be unlocked after ConnectDevice handled
+     * because device disconnect/connect should be handled sequencely,
+     * and no other commands from client should be handled between
+     * device disconnect and connect.
+     */
+    mStreamMutex.lock();
     std::shared_ptr<StEventConfig> ev_cfg(
         new StDeviceDisconnectedEventConfig(device_id));
     status = cur_state_->ProcessEvent(ev_cfg);
@@ -410,35 +374,29 @@ int32_t StreamSoundTrigger::ConnectDevice(qal_device_id_t device_id) {
     qal_device_id_t curr_device;
 
     QAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     std::shared_ptr<StEventConfig> ev_cfg(
         new StDeviceConnectedEventConfig(device_id));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to connect device %d", device_id);
     }
-
+    mStreamMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
-int32_t StreamSoundTrigger::UpdateChargingState(bool state) {
+int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
     int32_t status = 0;
 
     QAL_DBG(LOG_TAG, "Enter, state %d", state);
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    if (charging_state_ != state) {
-        charging_state_ = state;
-        std::shared_ptr<StEventConfig> ev_cfg(
-            new StChargingStateEventConfig(state));
-        status = cur_state_->ProcessEvent(ev_cfg);
-        if (status) {
-            QAL_ERR(LOG_TAG, "Failed to update charging state");
-        }
-    } else {
-        QAL_DBG(LOG_TAG, "No change in charging state");
-        status = EINVAL;
+
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StChargingStateEventConfig(state, active));
+    status = cur_state_->ProcessEvent(ev_cfg);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to update charging state");
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -2113,6 +2071,67 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             delete qal_dev;
             break;
         }
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE: {
+            std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
+            bool active = false;
+
+            if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
+                StConcurrentStreamEventConfigData *data =
+                    (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
+                StChargingStateEventConfigData *data =
+                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            }
+            new_cap_prof = st_stream_.GetCurrentCaptureProfile();
+            if (st_stream_.cap_prof_ != new_cap_prof) {
+                QAL_DBG(LOG_TAG,
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    st_stream_.cap_prof_->GetName().c_str(),
+                    st_stream_.cap_prof_->GetDevId(),
+                    st_stream_.cap_prof_->GetChannels(),
+                    st_stream_.cap_prof_->GetSampleRate());
+                QAL_DBG(LOG_TAG,
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    new_cap_prof->GetName().c_str(),
+                    new_cap_prof->GetDevId(),
+                    new_cap_prof->GetChannels(),
+                    new_cap_prof->GetSampleRate());
+                if (active) {
+                    if (st_stream_.sm_config_) {
+                        std::shared_ptr<StEventConfig> ev_cfg1(
+                            new StLoadEventConfig(st_stream_.sm_config_));
+                        status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
+                            break;
+                        }
+                    }
+                    if (st_stream_.rec_config_) {
+                        status = st_stream_.SendRecognitionConfig(
+                            st_stream_.rec_config_);
+                        if (0 != status) {
+                            QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                                    status);
+                            break;
+                        }
+                    }
+                    if (st_stream_.GetActiveState()) {
+                        std::shared_ptr<StEventConfig> ev_cfg2(
+                            new StStartRecognitionEventConfig(false));
+                        status = st_stream_.ProcessInternalEvent(ev_cfg2);
+                        if (status) {
+                            QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                        }
+                    }
+                }
+            } else {
+              QAL_INFO(LOG_TAG,"no action needed, same capture profile");
+            }
+            break;
+        }
         case ST_EV_SSR_OFFLINE:
             if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
                 st_stream_.state_for_restore_ = ST_STATE_IDLE;
@@ -2398,7 +2417,17 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
+            bool active = false;
 
+            if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
+                StConcurrentStreamEventConfigData *data =
+                    (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
+                StChargingStateEventConfigData *data =
+                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (st_stream_.cap_prof_ != new_cap_prof) {
                 QAL_DBG(LOG_TAG,
@@ -2413,28 +2442,17 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
                     new_cap_prof->GetSampleRate());
-                std::shared_ptr<StEventConfig> ev_cfg1(
-                    new StUnloadEventConfig());
-                status = st_stream_.ProcessInternalEvent(ev_cfg1);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-                    break;
-                }
-                std::shared_ptr<StEventConfig> ev_cfg2(
-                    new StLoadEventConfig(st_stream_.sm_config_));
-                status = st_stream_.ProcessInternalEvent(ev_cfg2);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to load, status %d", status);
-                    break;
-                }
-                if (st_stream_.rec_config_) {
-                    status = st_stream_.SendRecognitionConfig(
-                        st_stream_.rec_config_);
-                    if (0 != status) {
-                        QAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
-                                status);
+                if (!active) {
+                    std::shared_ptr<StEventConfig> ev_cfg1(
+                        new StUnloadEventConfig());
+                    status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
                         break;
                     }
+                } else {
+                    QAL_ERR(LOG_TAG, "Invalid operation");
+                    status = -EINVAL;
                 }
             } else {
               QAL_INFO(LOG_TAG,"no action needed, same capture profile");
@@ -2643,7 +2661,17 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE: {
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
+            bool active = false;
 
+            if (ev_cfg->id_ == ST_EV_CONCURRENT_STREAM) {
+                StConcurrentStreamEventConfigData *data =
+                    (StConcurrentStreamEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            } else if (ev_cfg->id_ == ST_EV_CHARGING_STATE) {
+                StChargingStateEventConfigData *data =
+                    (StChargingStateEventConfigData *)ev_cfg->data_.get();
+                active = data->is_active_;
+            }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (st_stream_.cap_prof_ != new_cap_prof) {
                 QAL_DBG(LOG_TAG,
@@ -2658,39 +2686,23 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
                     new_cap_prof->GetSampleRate());
-                std::shared_ptr<StEventConfig> ev_cfg1(
-                    new StStopRecognitionEventConfig(false));
-                status = st_stream_.ProcessInternalEvent(ev_cfg1);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
-                    break;
-                }
-                std::shared_ptr<StEventConfig> ev_cfg2(new StUnloadEventConfig());
-                status = st_stream_.ProcessInternalEvent(ev_cfg2);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-                    break;
-                }
-                std::shared_ptr<StEventConfig> ev_cfg3(
-                    new StLoadEventConfig(st_stream_.sm_config_));
-                status = st_stream_.ProcessInternalEvent(ev_cfg3);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to Load, status %d", status);
-                    break;
-                }
-                status =
-                    st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
-                if (0 != status) {
-                    QAL_ERR(LOG_TAG,
-                        "Failed to send recognition config, status %d",
-                        status);
-                    break;
-                }
-                std::shared_ptr<StEventConfig> ev_cfg4(
-                    new StStartRecognitionEventConfig(false));
-                status = st_stream_.ProcessInternalEvent(ev_cfg4);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                if (!active) {
+                    std::shared_ptr<StEventConfig> ev_cfg1(
+                        new StStopRecognitionEventConfig(false));
+                    status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
+                        break;
+                    }
+                    std::shared_ptr<StEventConfig> ev_cfg2(new StUnloadEventConfig());
+                    status = st_stream_.ProcessInternalEvent(ev_cfg2);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
+                        break;
+                    }
+                } else {
+                    QAL_ERR(LOG_TAG, "Invalid operation");
+                    status = -EINVAL;
                 }
             } else {
               QAL_INFO(LOG_TAG,"no action needed, same capture profile");
@@ -2828,7 +2840,30 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         }
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
-            // No need to handle as new device will be used after deferred stop
+            st_stream_.CancelDelayedStop();
+            for (auto& eng: st_stream_.engines_) {
+                QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            if (st_stream_.mDevices.size() > 0){
+                auto& dev = st_stream_.mDevices[0];
+                QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
+                        dev->getQALDeviceName().c_str());
+                status = dev->stop();
+                if (status)
+                    QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+                st_stream_.rm->deregisterDevice(dev);
+            }
+            TransitTo(ST_STATE_LOADED);
+            status = st_stream_.ProcessInternalEvent(ev_cfg);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
+                        status);
+            }
             break;
         }
         case ST_EV_SSR_OFFLINE: {
@@ -3126,7 +3161,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 }
             }
             if (st_stream_.reader_) {
-              st_stream_.reader_->reset();
+                st_stream_.reader_->reset();
             }
 
             for (auto& eng: st_stream_.engines_) {

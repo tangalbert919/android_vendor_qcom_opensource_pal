@@ -746,7 +746,7 @@ int SessionAlsaPcm::start(Stream * s)
 
     mState = SESSION_STARTED;
 
-    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+    if (!status && sAttr.type == QAL_STREAM_VOICE_UI) {
         status = rm->registerMixerEventCallback(pcmDevIds,
             sessionCb, cbCookie, true);
         if (status != 0) {

@@ -291,6 +291,7 @@ protected:
     static SndCardMonitor *sndmon;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     static int mixerEventRegisterCount;
+    static int concurrentStreamCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
     std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
@@ -400,6 +401,9 @@ public:
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
     int StopOtherSVAStreams(StreamSoundTrigger *st);
     int StartOtherSVAStreams(StreamSoundTrigger *st);
+    void ConcurrentStreamStatus(qal_stream_type_t type,
+                                qal_stream_direction_t dir,
+                                bool active);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices_l(Stream *tx_str);
     std::vector<Stream*> getConcurrentTxStream(
