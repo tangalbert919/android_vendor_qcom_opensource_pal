@@ -665,8 +665,8 @@ int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
                               int32_t min_size_frames,
                               struct qal_mmap_buffer *info)
 {
-   Stream *s = NULL;
-   int status;
+    Stream *s = NULL;
+    int status;
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
@@ -681,4 +681,18 @@ int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
     }
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
+}
+
+int32_t qal_register_global_callback(qal_global_callback cb, void *cookie)
+{
+    std::shared_ptr<ResourceManager> rm = NULL;
+
+    QAL_DBG(LOG_TAG, "Enter. global callback %pK, cookie %pK", cb, cookie);
+    rm = ResourceManager::getInstance();
+
+    if (cb != NULL) {
+        rm->globalCb = cb;
+        rm->cookie = cookie;
+    }
+    return 0;
 }

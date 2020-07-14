@@ -50,6 +50,7 @@
 #include "SndCardMonitor.h"
 #include "agm_api.h"
 #include <unistd.h>
+#include <mutex>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -296,7 +297,6 @@ std::vector <int> ResourceManager::devicePpTag = {0};
 std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mResourceManagerMutex;
 std::mutex ResourceManager::mGraphMutex;
-std::mutex ResourceManager::ssrMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -315,6 +315,10 @@ int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 SndCardMonitor* ResourceManager::sndmon = NULL;
+std::mutex ResourceManager::cvMutex;
+std::queue<card_status_t> ResourceManager::msgQ;
+std::condition_variable ResourceManager::cv;
+std::thread ResourceManager::workerThread;
 int ResourceManager::mixerEventRegisterCount = 0;
 int ResourceManager::concurrentStreamCount = 0;
 static int max_session_num;
@@ -566,9 +570,89 @@ ResourceManager::~ResourceManager()
     deviceLinkName.clear();
 }
 
+void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
+{
+    card_status_t state;
+    card_status_t prevState = CARD_STATUS_ONLINE;
+    std::unique_lock<std::mutex> lock(rm->cvMutex);
+    int ret = 0;
+    uint32_t eventData;
+    qal_global_callback_event_t event;
+
+    QAL_INFO(LOG_TAG,"ssr Handling thread started");
+
+    while(1) {
+        if (rm->msgQ.empty())
+            rm->cv.wait(lock);
+        if (!rm->msgQ.empty()) {
+            state = rm->msgQ.front();
+            rm->msgQ.pop();
+            lock.unlock();
+            QAL_INFO(LOG_TAG, "state %d, prev state %d size %d",
+                               state, prevState, rm->mActiveStreams.size());
+            if (state == CARD_STATUS_NONE)
+                break;
+
+            rm->cardState = state;
+            mResourceManagerMutex.lock();
+            if (state != prevState) {
+                if (rm->globalCb) {
+                    QAL_DBG(LOG_TAG, "Notifying client about sound card state %d global cb %pK",
+                                      rm->cardState, rm->globalCb);
+                    eventData = (int)rm->cardState;
+                    event = QAL_SND_CARD_STATE;
+                    QAL_DBG(LOG_TAG, "eventdata %d", eventData);
+                    rm->globalCb(event, &eventData, cookie);
+                }
+            }
+
+            if (rm->mActiveStreams.empty()) {
+                QAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
+                prevState = state;
+            } else if (state == prevState) {
+                QAL_INFO(LOG_TAG, "%d state already handled", state);
+            } else if (state == CARD_STATUS_OFFLINE) {
+                for (auto str: rm->mActiveStreams) {
+                    mResourceManagerMutex.unlock();
+                    auto iter = std::find(mActiveStreams.begin(), mActiveStreams.end(), str);
+                    if (iter != mActiveStreams.end()) {
+                        ret = str->ssrDownHandler();
+                        if (0 != ret) {
+                            QAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
+                                          str, ret);
+                        }
+                    }
+                    mResourceManagerMutex.lock();
+                }
+                prevState = state;
+            } else if (state == CARD_STATUS_ONLINE) {
+                for (auto str: rm->mActiveStreams) {
+                    mResourceManagerMutex.unlock();
+                    auto iter = std::find(mActiveStreams.begin(), mActiveStreams.end(), str);
+                    if (iter != mActiveStreams.end()) {
+                        ret = str->ssrUpHandler();
+                        if (0 != ret) {
+                            QAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
+                                          str, ret);
+                        }
+                    }
+                    mResourceManagerMutex.lock();
+                }
+                prevState = state;
+            } else {
+                QAL_ERR(LOG_TAG, "Invalid state. state %d", state);
+            }
+            mResourceManagerMutex.unlock();
+            lock.lock();
+        }
+    }
+    QAL_INFO(LOG_TAG, "ssr Handling thread exited");
+}
+
 int ResourceManager::initSndMonitor()
 {
     int ret = 0;
+    workerThread = std::thread(&ResourceManager::ssrHandlingLoop, this, rm);
     sndmon = new SndCardMonitor(snd_card);
     if (!sndmon) {
         ret = -EINVAL;
@@ -581,66 +665,14 @@ int ResourceManager::initSndMonitor()
     }
 }
 
-int ResourceManager::ssrHandler(card_status_t state)
+void ResourceManager::ssrHandler(card_status_t state)
 {
-    int ret = 0;
-
-    QAL_DBG(LOG_TAG, "Enter. %d ssrStarted %d size %d rm %p",
-            state, ssrStarted, mActiveStreams.size(), this);
-
-    cardState = state;
-    mResourceManagerMutex.lock();
-    if (rm->mActiveStreams.empty()) {
-        QAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
-        goto exit;
-    }
-
-    if (state == CARD_STATUS_OFFLINE) {
-        std::lock_guard<std::mutex> lock(ResourceManager::ssrMutex);
-        if (!ssrStarted) {
-            ssrStarted = true;
-            for (auto& str: mActiveStreams) {
-                mResourceManagerMutex.unlock();
-                ret = str->ssrDownHandler();
-                if (0 != ret) {
-                    QAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
-                            str, ret);
-                }
-                mResourceManagerMutex.lock();
-            }
-            ssrStarted = false;
-            /* Returning 0 even if we fail to close some streams
-             * as sound card monitor will not be handling the
-             * failures.
-             */
-            ret = 0;
-            goto exit;
-        } else {
-            QAL_INFO(LOG_TAG, "SSR down handling already started");
-            goto exit;
-        }
-    } else if (state == CARD_STATUS_ONLINE) {
-        std::lock_guard<std::mutex> lock(ResourceManager::ssrMutex);
-        for (auto& str: mActiveStreams) {
-            mResourceManagerMutex.unlock();
-            ret = str->ssrUpHandler();
-            if (0 != ret) {
-                QAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
-                        str, ret);
-            }
-            mResourceManagerMutex.lock();
-        }
-        ret = 0;
-        goto exit;
-    } else {
-        ret = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid state. state %d", state);
-        goto exit;
-    }
-
-exit:
-    mResourceManagerMutex.unlock();
-    return ret;
+    QAL_DBG(LOG_TAG, "Enter. state %d", state);
+    cvMutex.lock();
+    msgQ.push(state);
+    cvMutex.unlock();
+    cv.notify_all();
+    return;
 }
 
 char* ResourceManager::getDeviceNameFromID(uint32_t id)
@@ -2611,19 +2643,29 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 void ResourceManager::deinit()
 {
     const qal_alsa_or_gsl ag = rm->getQALConfigALSAOrGSL();
-    rm = nullptr;
+    card_status_t state = CARD_STATUS_NONE;
+
     mixer_close(audio_mixer);
     if (ag == GSL) {
         SessionGsl::deinit();
     }
-    if (audio_route)
-    {
+
+    if (audio_route) {
         audio_route_free(audio_route);
     }
-
     if (sndmon)
         delete sndmon;
 
+    cvMutex.lock();
+    msgQ.push(state);
+    cvMutex.unlock();
+    cv.notify_all();
+
+    workerThread.join();
+    while (!msgQ.empty())
+        msgQ.pop();
+
+    rm = nullptr;
 }
 
 int ResourceManager::getStreamTag(std::vector <int> &tag)

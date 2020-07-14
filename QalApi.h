@@ -488,6 +488,19 @@ int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
 int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
                               struct qal_mmap_position *position);
 
+/**
+  * \brief Register global callback to qal.
+  *        This can be used to inform client about any information
+  *        needed even before stream is created.
+  *
+  * \param[in] cb - Valid callback.
+  * \param[in] cookie - client data. This cookie will be
+  *       returned back in the callback function.
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t qal_register_global_callback(qal_global_callback cb, void *cookie);
+
 extern void  __gcov_flush();
 
 /**

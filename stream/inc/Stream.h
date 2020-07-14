@@ -133,8 +133,6 @@ protected:
     bool standBy = false;
     stream_state_t currentState;
     stream_state_t cachedState;
-    uint32_t cachedNumDev;
-    struct qal_device* cachedDev;
     uint32_t mInstanceID = 0; // used for Voice UI only now
 public:
     virtual ~Stream() {};

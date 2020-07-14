@@ -30,11 +30,7 @@
 #ifndef SNDCARD_MONITOR_H
 #define SNDCARD_MONITOR_H
 #include <list>
-
-typedef enum card_status_t {
-    CARD_STATUS_OFFLINE = 0,
-    CARD_STATUS_ONLINE
-} card_status_t;
+#include "QalDefs.h"
 
 typedef struct {
     int card;

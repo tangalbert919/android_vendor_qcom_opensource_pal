@@ -35,7 +35,6 @@
 #include <sys/poll.h>
 #include <list>
 #include "ResourceManager.h"
-#include "QalDefs.h"
 #include "QalCommon.h"
 #include "SndCardMonitor.h"
 
@@ -159,7 +158,6 @@ int SndCardMonitor::addNewSndCard(int card, int fd)
 void SndCardMonitor::monitorThreadLoop()
 {
     int i = 1;
-    int ret = 0;
     std::list<sndcard_t *>::iterator it;
     card_status_t status;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
@@ -223,9 +221,7 @@ void SndCardMonitor::monitorThreadLoop()
                 sndcard_t *snd = *it;
                 status = static_cast<card_status_t>(onSndcardStateUpdate(snd));
                 QAL_INFO(LOG_TAG, "rm %p status %d", rm.get(), status);
-                ret = rm->ssrHandler(status);
-                if (0 != ret)
-                    QAL_ERR(LOG_TAG, "Invalid state, ret %d", ret);
+                rm->ssrHandler(status);
             } else if (ERROR_IN_FD(&pfd[i])) {
                 /* do not consider for poll again
                  * POLLERR - can this happen as we are reading from a fs?

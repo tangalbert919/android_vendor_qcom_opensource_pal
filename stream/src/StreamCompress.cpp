@@ -328,6 +328,12 @@ int32_t StreamCompress::start()
             }
             QAL_VERBOSE(LOG_TAG,"session prepare successful");
             status = session->start(this);
+            if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing rm");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                status = -EIO;
+                goto exit;
+            }
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session start is failed with status %d",status);
                 rm->unlockGraph();
@@ -446,13 +452,14 @@ int32_t StreamCompress::write(struct qal_buffer *buf)
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "session write failed with status %d", status);
-            //TODO: Simply return error code after GSL fix
-            if (rm->cardState == CARD_STATUS_OFFLINE) {
-                status = -ENETRESET;
-                QAL_ERR(LOG_TAG, "Sound card offline, can not write, status %d",
-                        status);
-                return status;
+            if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
+                QAL_ERR(LOG_TAG, "Sound card offline, informing rm");
+                rm->ssrHandler(CARD_STATUS_OFFLINE);
+                return errno;
+            } else if (rm->cardState == CARD_STATUS_OFFLINE) {
+                return errno;
             } else
+                status = errno;
                 return status;
         }
         if (currentState != STREAM_STARTED)
@@ -737,30 +744,35 @@ int32_t StreamCompress::ssrDownHandler()
 {
     int status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK cached State %d", session, cachedState);
+    mStreamMutex.lock();
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, currentState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED || currentState == STREAM_OPENED) {
+        mStreamMutex.unlock();
         status = close();
         if (status) {
            QAL_ERR(LOG_TAG, "stream close failed. status %d", status);
             goto exit;
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = stop();
-       if (status)
-           QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
-       status = close();
-       if (status) {
+        if (status)
+            QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
+        status = close();
+        if (status) {
             QAL_ERR(LOG_TAG, "session close failed. status %d", status);
-           goto exit;
+            goto exit;
         }
     } else {
+       mStreamMutex.unlock();
        QAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
        goto exit;
     }
 
 exit :
     currentState = STREAM_IDLE;
+    mStreamMutex.unlock();
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
