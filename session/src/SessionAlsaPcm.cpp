@@ -149,6 +149,14 @@ int SessionAlsaPcm::open(Stream * s)
             QAL_ERR(LOG_TAG,"unsupported direction");
             break;
     }
+
+    if (!status && sAttr.type == QAL_STREAM_VOICE_UI) {
+        status = rm->registerMixerEventCallback(pcmDevIds,
+            sessionCb, cbCookie, true);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG, "Failed to register callback to rm");
+        }
+    }
     return status;
 }
 
@@ -802,12 +810,6 @@ int SessionAlsaPcm::start(Stream * s)
     mState = SESSION_STARTED;
 
     if (!status && sAttr.type == QAL_STREAM_VOICE_UI) {
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, true);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG, "Failed to register callback to rm");
-        }
-
         if (setConfig(s, CALIBRATION, TAG_MODULE_CHANNELS) != 0) {
             QAL_ERR(LOG_TAG, "Set fluence calibration failed");
         }
@@ -861,11 +863,6 @@ int SessionAlsaPcm::stop(Stream * s)
             status = setECRef(s, nullptr, false);
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-        }
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, false);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             txAifBackEnds[0].second.data(), DEVICE_SVA, false);
@@ -1002,6 +999,14 @@ int SessionAlsaPcm::close(Stream * s)
     }
 
     mState = SESSION_IDLE;
+
+    if (sAttr.type == QAL_STREAM_VOICE_UI) {
+        status = rm->registerMixerEventCallback(pcmDevIds,
+            sessionCb, cbCookie, false);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
+        }
+    }
 
     if (customPayload) {
         free(customPayload);
