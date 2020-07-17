@@ -61,7 +61,6 @@ LOCAL_SRC_FILES        := Qal.cpp\
     device/src/Device.cpp \
     device/src/Speaker.cpp \
     device/src/Bluetooth.cpp \
-    device/src/DeviceAlsa.cpp \
     device/src/SpeakerMic.cpp \
     device/src/HeadsetMic.cpp \
     device/src/HandsetMic.cpp \

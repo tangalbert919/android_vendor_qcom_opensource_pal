@@ -31,7 +31,6 @@
 
 #include "Device.h"
 #include <tinyalsa/asoundlib.h>
-#include "DeviceAlsa.h"
 #include "ResourceManager.h"
 #include "SessionAlsaUtils.h"
 #include "Device.h"
@@ -39,7 +38,6 @@
 #include "Headphone.h"
 #include "USBAudio.h"
 #include "SpeakerMic.h"
-#include "DeviceImpl.h"
 #include "Stream.h"
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
@@ -273,24 +271,8 @@ int Device::open()
     mDeviceMutex.lock();
     QAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
         deviceCount, this->deviceAttr.id, initialized);
-    DeviceImpl *devImpl;
 
     if (!initialized) {
-            devImpl = new DeviceAlsa();
-        if (!devImpl) {
-            status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "DeviceImpl instantiation failed status %d", status);
-            goto exit;
-        }
-        status = devImpl->open(&(this->deviceAttr), rm);
-        if (0!= status) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG,"Failed to open the device");
-            delete devImpl;
-            goto exit;
-        }
-
-        deviceHandle = static_cast<void *>(devImpl);
         mQALDeviceName = rm->getQALDeviceName(this->deviceAttr.id);
         initialized = true;
         QAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
@@ -306,67 +288,25 @@ int Device::open()
     devObj = Device::getInstance(&deviceAttr, rm);
 
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-exit:
     mDeviceMutex.unlock();
     return status;
 }
 
 int Device::close()
 {
-    int status = 0;
-    mDeviceMutex.lock();
-    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
-    if (deviceCount == 0 && initialized) {
-        DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
-        if (!dev) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
-            goto exit;
-        }
-        status = dev->close();
-        if (0 != status) {
-            status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "Failed to close the device status %d", status);
-        }
-        delete dev;
-        initialized = false;
-        deviceHandle = nullptr;
-    }
-    QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-exit :
-    mDeviceMutex.unlock();
-    return status;
+    return 0;
 }
 
 int Device::prepare()
 {
-    int status = 0;
-    mDeviceMutex.lock();
-    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
-    if (deviceCount == 0 && initialized) {
-        DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
-         if (!dev) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
-            goto exit;
-        }
-        status = dev->prepare();
-        if (0 != status) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Device Prepare failed status %d", status);
-            goto exit;
-        }
-    }
-    QAL_DBG(LOG_TAG, "%s: Exit. device count %d", deviceCount);
-exit :
-    mDeviceMutex.unlock();
-    return status;
+    return 0;
 }
 
 int Device::start()
 {
     int status = 0;
     std::string backEndName;
+
     mDeviceMutex.lock();
 
     QAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
@@ -410,24 +350,6 @@ int Device::start()
                  goto disable_dev;
             }
         }
-
-        DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
-        if (!dev) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
-            goto disable_dev;
-        }
-        status = dev->prepare();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to prepare the device status %d", status);
-            goto disable_dev;
-        }
-        status = dev->start();
-        if (0 != status)
-        {
-            QAL_ERR(LOG_TAG,"%s: Failed to start the device", __func__);
-            goto disable_dev;
-        }
     }
     deviceCount += 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
@@ -447,21 +369,9 @@ int Device::stop()
     QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
     if (deviceCount == 1 && initialized) {
         disableDevice(audioRoute, mSndDeviceName);
-        DeviceImpl *dev = static_cast<DeviceImpl *>(deviceHandle);
-        if (!dev) {
-            status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid device handle status %d", status);
-            goto exit;
-        }
-        status = dev->stop();
-        if (0 != status) {
-            QAL_ERR(LOG_TAG, "Device Stop failed status %d", status);
-            goto exit;
-        }
     }
     deviceCount -= 1;
     QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-exit :
     mDeviceMutex.unlock();
     return status;
 }
