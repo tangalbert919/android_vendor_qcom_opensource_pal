@@ -142,7 +142,7 @@ public:
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, sidetone_mode_t sidetoneMode);
     int populateDevicePPKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx,
-        std::vector<kvpair_info> kvpair, bool is_lpi);
+        std::vector<kvpair_info> kvpair);
     int populateDevicePPCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);

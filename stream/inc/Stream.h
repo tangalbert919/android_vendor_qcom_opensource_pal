@@ -174,6 +174,7 @@ public:
     virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
+    virtual int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable) = 0;
     virtual int32_t ssrDownHandler() = 0;
     virtual int32_t ssrUpHandler() = 0;
     virtual int32_t createMmapBuffer(int32_t min_size_frames __unused,
@@ -209,6 +210,7 @@ public:
     bool checkStreamMatch(qal_device_id_t qal_device_id,
                                 qal_stream_type_t qal_stream_type);
     int32_t getEffectParameters(void *effect_query);
+    bool isActive() { return currentState == STREAM_STARTED; }
 };
 
 #endif//STREAM_H_

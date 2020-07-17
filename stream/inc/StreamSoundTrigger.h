@@ -162,11 +162,11 @@ class StreamSoundTrigger : public Stream {
     int32_t HandleChargingStateUpdate(bool state, bool active);
     int32_t Resume();
     int32_t Pause();
-    bool GetActiveState() { return active_state_; }
 
-    int32_t HandleConcurrentStream(qal_stream_type_t stream_type,
-                                   bool active);
+    int32_t HandleConcurrentStream(bool active);
+    int32_t EnableLPI(bool is_enable);
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
+    int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable) override;
     void TransitTo(int32_t state_id);
 
     friend class QalRingBufferReader;
@@ -321,12 +321,20 @@ class StreamSoundTrigger : public Stream {
 
     class StConcurrentStreamEventConfigData : public StEventConfigData {
      public:
-        StConcurrentStreamEventConfigData(int32_t type, bool active)
-            : stream_type_(type), is_active_(active) {}
+        StConcurrentStreamEventConfigData(bool active)
+            : is_active_(active) {}
         ~StConcurrentStreamEventConfigData() {}
 
-        int32_t stream_type_;
         bool is_active_;
+    };
+
+    class StConcurrentStreamEventConfig : public StEventConfig {
+     public:
+        StConcurrentStreamEventConfig (bool active)
+            : StEventConfig(ST_EV_CONCURRENT_STREAM) {
+            data_ = std::make_shared<StConcurrentStreamEventConfigData>(active);
+        }
+        ~StConcurrentStreamEventConfig () {}
     };
 
     class StPauseEventConfig : public StEventConfig {
@@ -339,16 +347,6 @@ class StreamSoundTrigger : public Stream {
      public:
         StResumeEventConfig() : StEventConfig(ST_EV_RESUME) { }
         ~StResumeEventConfig() {}
-    };
-
-    class StConcurrentStreamEventConfig : public StEventConfig {
-     public:
-        StConcurrentStreamEventConfig (int32_t type, bool active)
-            : StEventConfig(ST_EV_CONCURRENT_STREAM) {
-            data_ = std::make_shared<StConcurrentStreamEventConfigData>(type,
-                                                                        active);
-        }
-        ~StConcurrentStreamEventConfig () {}
     };
 
     class StECRefEventConfigData : public StEventConfigData {
@@ -572,7 +570,7 @@ class StreamSoundTrigger : public Stream {
     st_state_id_t state_for_restore_;
     std::map<uint32_t, StState*> st_states_;
     bool charging_state_;
-    bool active_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;
+    bool use_lpi_;
 };
 #endif // STREAMSOUNDTRIGGER_H_
