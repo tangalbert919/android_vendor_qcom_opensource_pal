@@ -117,11 +117,11 @@ int USB::configureUsb()
     stream->getAssociatedSession(&session);
     if (deviceAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
         tagId = DEVICE_HW_ENDPOINT_TX;
-        cfg.usb_token = (1<<16)|0x1;
+        cfg.usb_token = (deviceAttr.address.card_id << 16)|0x1;
         cfg.svc_interval = 0;
     } else{
         tagId = DEVICE_HW_ENDPOINT_RX;
-        cfg.usb_token = 1<<16;
+        cfg.usb_token = deviceAttr.address.card_id << 16;
         cfg.svc_interval = 0;
     }
     status = session->getMIID(backEndName.c_str(), tagId, &miid);
