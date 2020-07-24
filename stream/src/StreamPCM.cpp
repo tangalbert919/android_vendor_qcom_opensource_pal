@@ -278,7 +278,7 @@ exit:
 //TBD: move this to Stream, why duplicate code?
 int32_t StreamPCM::start()
 {
-    int32_t status = 0;
+    int32_t status = 0, devStatus = 0;
 
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -465,8 +465,11 @@ int32_t StreamPCM::start()
     QAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     goto exit;
 session_fail:
-    for (int32_t i=0; i < mDevices.size(); i++)
-        status = mDevices[i]->stop();
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        devStatus = mDevices[i]->stop();
+        if (devStatus)
+            status = devStatus;
+    }
 exit:
     mStreamMutex.unlock();
     return status;

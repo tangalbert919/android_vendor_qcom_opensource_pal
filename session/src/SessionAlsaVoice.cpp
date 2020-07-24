@@ -319,6 +319,7 @@ int SessionAlsaVoice::start(Stream * s)
 
     if (!pcm_is_ready(pcmRx)) {
         QAL_ERR(LOG_TAG, "pcm-rx open not ready");
+        pcmRx = NULL;
         return -EINVAL;
     }
 
@@ -341,6 +342,7 @@ int SessionAlsaVoice::start(Stream * s)
 
     if (!pcm_is_ready(pcmTx)) {
         QAL_ERR(LOG_TAG, "pcm-tx open not ready");
+        pcmTx = NULL;
         return -EINVAL;
     }
 
@@ -403,7 +405,6 @@ int SessionAlsaVoice::start(Stream * s)
     status = pcm_start(pcmTx);
     if (status) {
         QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
-        pcm_close(pcmRx);
         goto exit;
     }
 
@@ -430,14 +431,18 @@ int SessionAlsaVoice::stop(Stream * s __unused)
             QAL_ERR(LOG_TAG,"%s: disabling sidetone failed \n", __func__);
         }
     }
-
-    status = pcm_stop(pcmRx);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
+    if (pcmRx) {
+        status = pcm_stop(pcmRx);
+        if (status) {
+            QAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
+        }
     }
-    status = pcm_stop(pcmTx);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
+
+    if (pcmTx) {
+        status = pcm_stop(pcmTx);
+        if (status) {
+            QAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
+        }
     }
 
     return status;
@@ -453,14 +458,18 @@ int SessionAlsaVoice::close(Stream * s)
         return status;
     }
 
-    status = pcm_close(pcmRx);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
+    if (pcmRx) {
+        status = pcm_close(pcmRx);
+        if (status) {
+            QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
+        }
     }
     rm->freeFrontEndIds(pcmDevRxIds, sAttr, 0);
-    status = pcm_close(pcmTx);
-    if (status) {
-        QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
+    if (pcmTx) {
+        status = pcm_close(pcmTx);
+        if (status) {
+            QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
+        }
     }
     rm->freeFrontEndIds(pcmDevTxIds, sAttr, 1);
     pcmRx = NULL;
