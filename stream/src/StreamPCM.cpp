@@ -203,26 +203,16 @@ int32_t  StreamPCM::close()
     int32_t status = 0;
     mStreamMutex.lock();
 
+    if (currentState == STREAM_IDLE) {
+        QAL_INFO(LOG_TAG, "Stream is already closed");
+        mStreamMutex.unlock();
+        return status;
+    }
+
     QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %d state %d",
             session, mDevices.size(), currentState);
 
-    if (currentState == STREAM_IDLE) {
-        /* If current state is STREAM_IDLE, that means :
-         * 1. SSR down has happened
-         * Session is already closed as part of ssr handling, so just
-         * close device and destroy the objects.
-         * 2. Stream created but opened failed.
-         * No need to call session close for this case too.
-         */
-        for (int32_t i=0; i < mDevices.size(); i++) {
-            status = mDevices[i]->close();
-            if (0 != status) {
-                QAL_ERR(LOG_TAG, "device close is failed with status %d", status);
-            }
-        }
-        QAL_VERBOSE(LOG_TAG, "closed the devices successfully");
-        goto exit;
-    } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+    if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         status = stop();
         if (0 != status)
             QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
@@ -243,22 +233,25 @@ int32_t  StreamPCM::close()
         QAL_ERR(LOG_TAG, "session close failed with status %d", status);
     }
 
-exit:
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
 
-    /* If sound card is offline, we need to wait for
-     * ssrDownHandler to exit for this stream so that
-     * handler thread is not blocked on anything when
-     * we delete the stream object.
-     */
+    QAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
+             currentState, status);
+    return status;
+}
+
+StreamPCM::~StreamPCM()
+{
+    cachedState = STREAM_IDLE;
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         while (!ssrDone)
             usleep(1000);
         QAL_INFO(LOG_TAG, "ssr done, exitng");
     }
 
-    status = rm->deregisterStream(this);
+    mStreamMutex.lock();
+    rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
@@ -268,11 +261,11 @@ exit:
         free(mVolumeData);
         mVolumeData = (struct qal_volume_data *)NULL;
     }
+
+    mDevices.clear();
     delete session;
     session = nullptr;
-    QAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
-             currentState, status);
-    return status;
+    mStreamMutex.unlock();
 }
 
 //TBD: move this to Stream, why duplicate code?
@@ -298,9 +291,7 @@ int32_t StreamPCM::start()
             QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
                             mDevices.size());
             for (int32_t i=0; i < mDevices.size(); i++) {
-                mStreamMutex.unlock();
                 status = mDevices[i]->start();
-                mStreamMutex.lock();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
                             status);
@@ -392,9 +383,7 @@ int32_t StreamPCM::start()
                 int32_t dev_id = mDevices[i]->getSndDeviceId();
                 if (dev_id <= QAL_DEVICE_OUT_MIN || dev_id >= QAL_DEVICE_OUT_MAX)
                     continue;
-                mStreamMutex.unlock();
                 status = mDevices[i]->start();
-                mStreamMutex.lock();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
                             status);
@@ -1297,15 +1286,10 @@ int32_t StreamPCM::ssrDownHandler()
             session, cachedState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
-        //Not calling stream close here, as we don't want to delete the session
-        //and device objects.
-        rm->lockGraph();
-        status = session->close(this);
-        rm->unlockGraph();
-        currentState = STREAM_IDLE;
         mStreamMutex.unlock();
+        status = close();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session close failed. status %d", status);
+            QAL_ERR(LOG_TAG, "stream close failed. status %d", status);
             goto exit;
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
@@ -1313,14 +1297,9 @@ int32_t StreamPCM::ssrDownHandler()
         status = stop();
         if (0 != status)
             QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
-        mStreamMutex.lock();
-        rm->lockGraph();
-        status = session->close(this);
-        rm->unlockGraph();
-        currentState = STREAM_IDLE;
-        mStreamMutex.unlock();
+        status = close();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session close failed. status %d", status);
+            QAL_ERR(LOG_TAG, "stream close failed. status %d", status);
             goto exit;
         }
     } else {
@@ -1331,6 +1310,7 @@ int32_t StreamPCM::ssrDownHandler()
 
 exit :
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    currentState = STREAM_IDLE;
     ssrDone = true;
     return status;
 }
@@ -1339,16 +1319,20 @@ int32_t StreamPCM::ssrUpHandler()
 {
     int status = 0;
 
+    ssrDone = false;
+    mStreamMutex.lock();
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
             session, cachedState);
 
     if (cachedState == STREAM_INIT) {
+        mStreamMutex.unlock();
         status = open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
     } else if (cachedState == STREAM_STARTED) {
+        mStreamMutex.unlock();
         status = open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
@@ -1367,6 +1351,7 @@ int32_t StreamPCM::ssrUpHandler()
             goto exit;
         }
     } else if (cachedState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = open();
         if (0 != status) {
             QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
@@ -1385,10 +1370,12 @@ int32_t StreamPCM::ssrUpHandler()
             goto exit;
         }
     } else {
+        mStreamMutex.unlock();
         QAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
     }
     cachedState = STREAM_IDLE;
 exit :
+    ssrDone = true;
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
