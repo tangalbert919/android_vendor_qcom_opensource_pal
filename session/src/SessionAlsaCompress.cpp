@@ -703,6 +703,7 @@ int SessionAlsaCompress::start(Stream * s)
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info.channels;
                 deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+                deviceData.ch_info = nullptr;
                 if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
                     (2 == dAttr.config.ch_info.channels)) {
                     // Stereo Speakers. Check for the rotation type

@@ -315,6 +315,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
                 deviceData.sampleRate = dAttr.config.sample_rate;
                 deviceData.numChannel = dAttr.config.ch_info.channels;
                 deviceData.rotation_type = rotation_type;
+                deviceData.ch_info = nullptr;
                 builder->payloadMFCConfig((uint8_t **)&alsaParamData,
                                            &alsaPayloadSize, miid, &deviceData);
 

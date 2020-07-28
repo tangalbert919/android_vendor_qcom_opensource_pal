@@ -271,6 +271,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
     deviceData.bitWidth = dAttr.config.bit_width;
     deviceData.sampleRate = dAttr.config.sample_rate;
     deviceData.numChannel = dAttr.config.ch_info.channels;
+    deviceData.ch_info = nullptr;
     builder->payloadMFCConfig((uint8_t**)payload, payloadSize, miid, &deviceData);
 
     return status;

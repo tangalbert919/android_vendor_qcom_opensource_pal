@@ -71,6 +71,9 @@ struct sessionToPayloadParam {
     int native;
     int rotation_type;
     void *metadata;
+    sessionToPayloadParam():sampleRate(48000),bitWidth(16),
+    numChannel(2),ch_info(nullptr), direction(0),
+    native(0),rotation_type(0),metadata(nullptr) {}
 };
 
 struct usbAudioConfig {

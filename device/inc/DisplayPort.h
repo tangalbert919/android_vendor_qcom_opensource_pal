@@ -162,9 +162,11 @@ public:
     static void dumpSpeakerAllocation(edidAudioInfo* info);
     static void updateChannelAllocation(edidAudioInfo* info);
     static void updateChannelMapLpass(edidAudioInfo* info);
+    static void retrieveChannelMapLpass(int ca, uint8_t *ch_map, int ch_map_size);
     static void updateChannelMask(edidAudioInfo* info);
     static void dumpEdidData(edidAudioInfo *info);
     static bool getSinkCaps(edidAudioInfo* info, char *edidData);
+    static int getDeviceChannelAllocation(int num_channels);
     bool isSupportedSR(edidAudioInfo* info, int sr);
     int getMaxChannel();
     bool isSupportedBps(edidAudioInfo* info, int bps);
@@ -174,6 +176,7 @@ public:
     int getExtDispSysfsNodeIndex(int ext_disp_type);
     int updateExtDispSysfsNode(int node_value, int controller, int stream);
     int updateAudioAckState(int node_value, int controller, int stream);
+    int getDeviceAttributes (struct qal_device *dattr) override;
 };
 
 

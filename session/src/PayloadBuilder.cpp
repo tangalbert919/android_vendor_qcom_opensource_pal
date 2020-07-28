@@ -300,7 +300,13 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     mfcConf->sampling_rate = data->sampleRate;
     mfcConf->bit_width = data->bitWidth;
     mfcConf->num_channels = data->numChannel;
-    populateChannelMap(pcmChannel, data->numChannel);
+    if (data->ch_info) {
+        for (int i = 0; i < data->numChannel; ++i) {
+            pcmChannel[i] = (uint16_t) data->ch_info->ch_map[i];
+        }
+    } else {
+        populateChannelMap(pcmChannel, data->numChannel);
+    }
 
     if ((2 == data->numChannel) && (QAL_SPEAKER_ROTATION_RL == data->rotation_type))
     {

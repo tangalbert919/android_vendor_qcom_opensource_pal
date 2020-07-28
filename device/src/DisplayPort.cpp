@@ -81,6 +81,58 @@ Device(device, Rm)
 
 }
 
+int DisplayPort::getDeviceChannelAllocation(int num_channels)
+{
+    int channel_allocation = 0;
+
+    switch (num_channels) {
+        case 2:
+            channel_allocation = 0x0; break;
+        case 3:
+            channel_allocation = 0x02; break;
+        case 4:
+            channel_allocation = 0x06; break;
+        case 5:
+            channel_allocation = 0x0A; break;
+        case 6:
+            channel_allocation = 0x0B; break;
+        case 7:
+            channel_allocation = 0x12; break;
+        case 8:
+            channel_allocation = 0x13; break;
+        default:
+            channel_allocation = 0x0; break;
+            QAL_ERR(LOG_TAG, "invalid num channels: %d\n",
+                    num_channels);
+            break;
+    }
+
+    QAL_DBG(LOG_TAG, "num channels: %d, ca: 0x%x", num_channels,
+            channel_allocation);
+
+    return channel_allocation;
+}
+
+int DisplayPort::getDeviceAttributes(struct qal_device *dattr)
+{
+    int status = 0;
+    int channel_allocation = 0;
+
+    if (!dattr) {
+        status = -EINVAL;
+        QAL_ERR(LOG_TAG,"Invalid device attributes %d", status);
+        return status;
+    }
+    ar_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+
+    channel_allocation = getDeviceChannelAllocation(deviceAttr.config.ch_info.channels);
+
+    retrieveChannelMapLpass(channel_allocation, &dattr->config.ch_info.ch_map[0],
+            QAL_MAX_CHANNELS_SUPPORTED);
+
+    return status;
+}
+
 int DisplayPort::start()
 {
     int status = 0;
@@ -129,28 +181,7 @@ int DisplayPort::configureDpEndpoint()
         QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
         return status;
     }
-    QAL_DBG(LOG_TAG, "num channels: %d", deviceAttr.config.ch_info.channels);
-    switch (deviceAttr.config.ch_info.channels) {
-        case 2:
-            cfg.channel_allocation = 0x0; break;
-        case 3:
-            cfg.channel_allocation = 0x02; break;
-        case 4:
-            cfg.channel_allocation = 0x06; break;
-        case 5:
-            cfg.channel_allocation = 0x0A; break;
-        case 6:
-            cfg.channel_allocation = 0x0B; break;
-        case 7:
-            cfg.channel_allocation = 0x12; break;
-        case 8:
-            cfg.channel_allocation = 0x13; break;
-        default:
-            cfg.channel_allocation = 0x0; break;
-            QAL_ERR(LOG_TAG, "invalid num channels: %d\n",
-                    deviceAttr.config.ch_info.channels);
-            break;
-    }
+    cfg.channel_allocation = getDeviceChannelAllocation(deviceAttr.config.ch_info.channels);
     cfg.mst_idx = dp_stream;
     cfg.dptx_idx = dp_controller;
     builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);
@@ -1025,274 +1056,287 @@ void DisplayPort::updateChannelAllocation(edidAudioInfo* info)
     info->channelAllocation = ca;
 }
 
-void DisplayPort::updateChannelMapLpass(edidAudioInfo* info)
+void DisplayPort::retrieveChannelMapLpass(int ca, uint8_t *ch_map, int ch_map_size)
 {
-    if (!info)
+    if (!ch_map)
         return;
-    if (((info->channelAllocation < 0) ||
-         (info->channelAllocation > 0x1f)) &&
-         (info->channelAllocation != 0x2f)) {
+
+    if (((ca < 0) || (ca > 0x1f)) &&
+         (ca != 0x2f)) {
         QAL_ERR(LOG_TAG,"Channel allocation out of supported range");
         return;
     }
-    QAL_VERBOSE(LOG_TAG,"channelAllocation 0x%x", info->channelAllocation);
-    memset(info->channelMap, 0, MAX_CHANNELS_SUPPORTED);
-    switch(info->channelAllocation) {
+    QAL_VERBOSE(LOG_TAG,"channelAllocation 0x%x", ca);
+
+    if (ch_map_size < MAX_CHANNELS_SUPPORTED)
+        return;
+
+    memset(ch_map, 0, MAX_CHANNELS_SUPPORTED);
+
+    switch(ca) {
     case 0x0:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
         break;
     case 0x1:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
         break;
     case 0x2:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
         break;
     case 0x3:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
         break;
     case 0x4:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_CS;
         break;
     case 0x5:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_CS;
         break;
     case 0x6:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_CS;
         break;
     case 0x7:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_CS;
         break;
     case 0x8:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LS;
-        info->channelMap[3] = PCM_CHANNEL_RS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LS;
+        ch_map[3] = PCM_CHANNEL_RS;
         break;
     case 0x9:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
         break;
     case 0xa:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
         break;
     case 0xb:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_LS;
-        info->channelMap[5] = PCM_CHANNEL_RS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_LS;
+        ch_map[5] = PCM_CHANNEL_RS;
         break;
     case 0xc:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LS;
-        info->channelMap[3] = PCM_CHANNEL_RS;
-        info->channelMap[4] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LS;
+        ch_map[3] = PCM_CHANNEL_RS;
+        ch_map[4] = PCM_CHANNEL_CS;
         break;
     case 0xd:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_CS;
         break;
     case 0xe:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_CS;
         break;
     case 0xf:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_LS;
-        info->channelMap[5] = PCM_CHANNEL_RS;
-        info->channelMap[6] = PCM_CHANNEL_CS;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_LS;
+        ch_map[5] = PCM_CHANNEL_RS;
+        ch_map[6] = PCM_CHANNEL_CS;
         break;
     case 0x10:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LS;
-        info->channelMap[3] = PCM_CHANNEL_RS;
-        info->channelMap[4] = PCM_CHANNEL_LB;
-        info->channelMap[5] = PCM_CHANNEL_RB;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LS;
+        ch_map[3] = PCM_CHANNEL_RS;
+        ch_map[4] = PCM_CHANNEL_LB;
+        ch_map[5] = PCM_CHANNEL_RB;
         break;
     case 0x11:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_LB;
-        info->channelMap[6] = PCM_CHANNEL_RB;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_LB;
+        ch_map[6] = PCM_CHANNEL_RB;
         break;
     case 0x12:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_LB;
-        info->channelMap[6] = PCM_CHANNEL_RB;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_LB;
+        ch_map[6] = PCM_CHANNEL_RB;
         break;
     case 0x13:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_LS;
-        info->channelMap[5] = PCM_CHANNEL_RS;
-        info->channelMap[6] = PCM_CHANNEL_LB;
-        info->channelMap[7] = PCM_CHANNEL_RB;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_LS;
+        ch_map[5] = PCM_CHANNEL_RS;
+        ch_map[6] = PCM_CHANNEL_LB;
+        ch_map[7] = PCM_CHANNEL_RB;
         break;
     case 0x14:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FLC;
-        info->channelMap[3] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FLC;
+        ch_map[3] = PCM_CHANNEL_FRC;
         break;
     case 0x15:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FLC;
-        info->channelMap[4] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FLC;
+        ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x16:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_FLC;
-        info->channelMap[4] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_FLC;
+        ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x17:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_FLC;
-        info->channelMap[5] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_FLC;
+        ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x18:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_CS;
-        info->channelMap[3] = PCM_CHANNEL_FLC;
-        info->channelMap[4] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_CS;
+        ch_map[3] = PCM_CHANNEL_FLC;
+        ch_map[4] = PCM_CHANNEL_FRC;
         break;
     case 0x19:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_CS;
-        info->channelMap[4] = PCM_CHANNEL_FLC;
-        info->channelMap[5] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_CS;
+        ch_map[4] = PCM_CHANNEL_FLC;
+        ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1a:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_CS;
-        info->channelMap[4] = PCM_CHANNEL_FLC;
-        info->channelMap[5] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_CS;
+        ch_map[4] = PCM_CHANNEL_FLC;
+        ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1b:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_CS;
-        info->channelMap[5] = PCM_CHANNEL_FLC;
-        info->channelMap[6] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_CS;
+        ch_map[5] = PCM_CHANNEL_FLC;
+        ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1c:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LS;
-        info->channelMap[3] = PCM_CHANNEL_RS;
-        info->channelMap[4] = PCM_CHANNEL_FLC;
-        info->channelMap[5] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LS;
+        ch_map[3] = PCM_CHANNEL_RS;
+        ch_map[4] = PCM_CHANNEL_FLC;
+        ch_map[5] = PCM_CHANNEL_FRC;
         break;
     case 0x1d:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_FLC;
-        info->channelMap[6] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_FLC;
+        ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1e:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_FC;
-        info->channelMap[3] = PCM_CHANNEL_LS;
-        info->channelMap[4] = PCM_CHANNEL_RS;
-        info->channelMap[5] = PCM_CHANNEL_FLC;
-        info->channelMap[6] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_FC;
+        ch_map[3] = PCM_CHANNEL_LS;
+        ch_map[4] = PCM_CHANNEL_RS;
+        ch_map[5] = PCM_CHANNEL_FLC;
+        ch_map[6] = PCM_CHANNEL_FRC;
         break;
     case 0x1f:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_LS;
-        info->channelMap[5] = PCM_CHANNEL_RS;
-        info->channelMap[6] = PCM_CHANNEL_FLC;
-        info->channelMap[7] = PCM_CHANNEL_FRC;
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_LS;
+        ch_map[5] = PCM_CHANNEL_RS;
+        ch_map[6] = PCM_CHANNEL_FLC;
+        ch_map[7] = PCM_CHANNEL_FRC;
         break;
     case 0x2f:
-        info->channelMap[0] = PCM_CHANNEL_FL;
-        info->channelMap[1] = PCM_CHANNEL_FR;
-        info->channelMap[2] = PCM_CHANNEL_LFE;
-        info->channelMap[3] = PCM_CHANNEL_FC;
-        info->channelMap[4] = PCM_CHANNEL_LS;
-        info->channelMap[5] = PCM_CHANNEL_RS;
-        info->channelMap[6] = 0; // PCM_CHANNEL_TFL; but not defined by LPASS
-        info->channelMap[7] = 0; // PCM_CHANNEL_TFR; but not defined by LPASS
+        ch_map[0] = PCM_CHANNEL_FL;
+        ch_map[1] = PCM_CHANNEL_FR;
+        ch_map[2] = PCM_CHANNEL_LFE;
+        ch_map[3] = PCM_CHANNEL_FC;
+        ch_map[4] = PCM_CHANNEL_LS;
+        ch_map[5] = PCM_CHANNEL_RS;
+        ch_map[6] = 0; // PCM_CHANNEL_TFL; but not defined by LPASS
+        ch_map[7] = 0; // PCM_CHANNEL_TFR; but not defined by LPASS
         break;
     default:
         break;
     }
     QAL_DBG(LOG_TAG," channel map updated to [%d %d %d %d %d %d %d %d ]",
-          info->channelMap[0], info->channelMap[1], info->channelMap[2],
-          info->channelMap[3], info->channelMap[4], info->channelMap[5],
-          info->channelMap[6], info->channelMap[7]);
+          ch_map[0], ch_map[1], ch_map[2],
+          ch_map[3], ch_map[4], ch_map[5],
+          ch_map[6], ch_map[7]);
 }
 
+void DisplayPort::updateChannelMapLpass(edidAudioInfo* info)
+{
+    if (!info)
+        return;
+
+    retrieveChannelMapLpass(info->channelAllocation, (uint8_t *)&info->channelMap[0],
+            MAX_CHANNELS_SUPPORTED);
+}
 
 void DisplayPort::updateChannelMask(edidAudioInfo* info)
 {
