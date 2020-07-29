@@ -66,6 +66,9 @@
 //TODO : remove this and add proper file
 #define EVENT_ID_VI_CALIBRATION 0x0800119F
 
+#define NORMAL_MODE 0
+#define CALIBRATION_MODE 1
+
 std::thread SpeakerProtection::mCalThread;
 std::condition_variable SpeakerProtection::cv;
 std::mutex SpeakerProtection::cvMutex;
@@ -110,117 +113,6 @@ void SpeakerProtection::spkrProtSetSpkrStatus(bool enable)
     }
 }
 
-// TODO: Move this fucntion to SessionAlsa
-int SpeakerProtection::setConfig(int type, int tag, int value, int devId, const char *aif)
-{
-    int status = 0;
-    uint32_t tagsent;
-    struct agm_tag_config* tagConfig = NULL;
-    const char *setParamTagControl = "setParamTag";
-    const char *stream = "PCM";
-    const char *setCalibrationControl = "setCalibration";
-    struct mixer_ctl *ctl;
-    struct agm_cal_config *calConfig = NULL;
-    std::ostringstream tagCntrlName;
-    std::ostringstream calCntrlName;
-    std::ostringstream cntrlString;
-    int tkv_size = 0;
-    int ckv_size = 0;
-    std::vector <std::pair<int, int>> ckv;
-    std::vector <std::pair<int, int>> tkv;
-
-    QAL_DBG(LOG_TAG, "Key %x Value %x Backend Name %s", tag, value, aif);
-
-    switch(type) {
-    case TKV:
-        tkv.clear();
-        tkv.push_back(std::make_pair(tag, value));
-        tagsent = tag;
-        QAL_DBG(LOG_TAG, "TAG %x\n", tagsent);
-
-        tagConfig = (struct agm_tag_config*)calloc (1, sizeof(struct agm_tag_config) +
-                                (tkv.size() * sizeof(agm_key_value)));
-        if (!tagConfig) {
-            status = -EINVAL;
-            goto exit;
-        }
-
-        status = SessionAlsaUtils::getTagMetadata(tagsent, tkv, tagConfig);
-        if (0 != status) {
-            goto exit;
-        }
-
-        SessionAlsaUtils::setStreamMetadataType(mixer, devId, aif);
-
-        tagCntrlName<<stream<<devId<<" "<<setParamTagControl;
-        ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
-        if (!ctl) {
-            QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-            status = -ENOENT;
-            goto exit;
-        }
-        QAL_DBG(LOG_TAG, "mixer control: %s\n", tagCntrlName.str().data());
-
-        tkv_size = tkv.size()*sizeof(struct agm_key_value);
-        status = mixer_ctl_set_array(ctl, tagConfig,
-                                sizeof(struct agm_tag_config) + tkv_size);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG,"failed to set the tag %d tag %x", status, tag);
-            goto exit;
-        }
-        ctl = NULL;
-        tkv.clear();
-    break;
-    case CKV:
-        ckv.clear();
-        ckv.push_back(std::make_pair(tag, value));
-
-        if (ckv.size() == 0) {
-            goto exit;
-        }
-        calConfig = (struct agm_cal_config*)calloc (1, sizeof(struct agm_cal_config) +
-                                (ckv.size() * sizeof(agm_key_value)));
-        if (!calConfig) {
-            status = -EINVAL;
-            goto exit;
-        }
-        status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
-        SessionAlsaUtils::setStreamMetadataType(mixer, devId, aif);
-        calCntrlName<<stream<<devId<<" "<<setCalibrationControl;
-        ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
-        if (!ctl) {
-            QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
-            status = -ENOENT;
-            goto exit;
-        }
-        ckv_size = ckv.size()*sizeof(struct agm_key_value);
-
-        QAL_DBG(LOG_TAG, "Final Cal data Key %x Value %x", calConfig->kv[0].key, calConfig->kv[0].value);
-
-        status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
-        if (status != 0) {
-            QAL_ERR(LOG_TAG,"failed to set the tag %d tag %x", status, tag);
-            goto exit;
-        }
-        ctl = NULL;
-    break;
-    default :
-        QAL_ERR(LOG_TAG,"Wrong type value is used for setConfig");
-    }
-
-exit:
-    if (tagConfig)
-        free(tagConfig);
-    if (calConfig)
-        free(calConfig);
-
-    tkv.clear();
-    ckv.clear();
-
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
-    return status;
-}
-
 // Callback from DSP for the R0 value
 void SpeakerProtection::mixer_ctl_callback (void *hdl, uint32_t event_id,
                                             void *event_data, uint32_t event_size)
@@ -228,7 +120,7 @@ void SpeakerProtection::mixer_ctl_callback (void *hdl, uint32_t event_id,
     param_id_sp_th_vi_calib_res_cfg_t *param_data = nullptr;
     hdl = NULL;
 
-    QAL_DBG(LOG_TAG, "Got event from DSP %d", event_id);
+    QAL_DBG(LOG_TAG, "Got event from DSP %x", event_id);
 
     if (event_id == EVENT_ID_VI_CALIBRATION) {
         param_data = (param_id_sp_th_vi_calib_res_cfg_t *) event_data;
@@ -288,11 +180,15 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
 int SpeakerProtection::spkrStartCalibration()
 {
     int ret = 0, dir;
+    int i = 0;
+    int j = 0;
+    FILE *fp;
     struct qal_device device;
     struct qal_device deviceRx;
     struct qal_channel_info ch_info;
     struct qal_stream_attributes sAttr;
-    std::string backEndName;
+    std::string backEndNameTx;
+    std::string backEndNameRx;
     std::vector <std::pair<int, int>> keyVector;
     std::vector <std::pair<int, int>> calVector;
     std::vector<int> pcmDevIdsRx;
@@ -303,9 +199,10 @@ int SpeakerProtection::spkrStartCalibration()
     std::ostringstream connectCtrlName;
     std::ostringstream connectCtrlNameRx;
     std::ostringstream connectCtrlNameBe;
+    std::ostringstream connectCtrlNameBeVI;
     int flags;
-    char mSndDeviceName[128] = {0};
-    struct audio_route *audioRoute_vi = NULL;
+    char mSndDeviceName_rx[128] = {0};
+    struct audio_route *audioRoute = NULL;
     char mSndDeviceName_vi[128] = {0};
     struct agm_event_reg_cfg *event_cfg;
     int payload_size = 0;
@@ -313,12 +210,25 @@ int SpeakerProtection::spkrStartCalibration()
     struct agmMetaData deviceMetaData(nullptr, 0);
     uint32_t devicePropId[] = {0x08000010, 1, 0x2};
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+    PayloadBuilder* builder = new PayloadBuilder();
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    param_id_sp_vi_op_mode_cfg_t modeConfg;
+    param_id_sp_vi_channel_map_cfg_t viChannelMapConfg;
+    param_id_sp_op_mode_t spModeConfg;
+    param_id_sp_ex_vi_mode_cfg_t viExModeConfg;
+    uint32_t miid = 0;
 
     memset(&device, 0, sizeof(device));
     memset(&deviceRx, 0, sizeof(deviceRx));
     memset(&sAttr, 0, sizeof(sAttr));
     memset(&config, 0, sizeof(config));
+    memset(&modeConfg, 0, sizeof(modeConfg));
+    memset(&viChannelMapConfg, 0, sizeof(viChannelMapConfg));
+    memset(&spModeConfg, 0, sizeof(spModeConfg));
+    memset(&viExModeConfg, 0, sizeof(viExModeConfg));
 
+    sessionCb = mixer_ctl_callback;
 
     // Configure device attribute
     if (totalSpeakers > 1) {
@@ -337,7 +247,7 @@ int SpeakerProtection::spkrStartCalibration()
     device.config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
 
     // Setup TX path
-    ret = rm->getAudioRoute(&audioRoute_vi);
+    ret = rm->getAudioRoute(&audioRoute);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, "Failed to get the audio_route name status %d", ret);
         goto done;
@@ -352,18 +262,44 @@ int SpeakerProtection::spkrStartCalibration()
 
     QAL_DBG(LOG_TAG, "got the audio_route name %s", mSndDeviceName_vi);
 
+    rm->getBackendName(device.id, backEndNameTx);
 
-    rm->getBackendName(device.id, backEndName);
+    keyVector.clear();
+    calVector.clear();
 
     keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
 
-    ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "setDeviceMetadata for feedback device failed");
-        goto done;
+    // Enable the VI module
+    calVector.push_back(std::make_pair(SPK_PRO_VI_STATE, VI_ENABLED));
+
+    SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
+                    (struct prop_data *)devicePropId, deviceMetaData);
+    if (!deviceMetaData.size) {
+        QAL_ERR(LOG_TAG, "VI device metadata is zero");
+        ret = -ENOMEM;
+        goto free_fe;
+    }
+    connectCtrlNameBeVI<< backEndNameTx << " metadata";
+    beMetaDataMixerCtrl = mixer_get_ctl_by_name(mixer, connectCtrlNameBeVI.str().data());
+    if (!beMetaDataMixerCtrl) {
+        QAL_ERR(LOG_TAG, "invalid mixer control for VI : %s", backEndNameTx.c_str());
+        ret = -EINVAL;
+        goto free_fe;
     }
 
-    ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &device);
+    if (deviceMetaData.size) {
+        ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                    deviceMetaData.size);
+        free(deviceMetaData.buf);
+        deviceMetaData.buf = nullptr;
+    }
+    else {
+        QAL_ERR(LOG_TAG, "Device Metadata not set for TX path");
+        ret = -EINVAL;
+        goto free_fe;
+    }
+
+    ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndNameTx, &device);
     if (ret) {
         QAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
         goto done;
@@ -384,10 +320,10 @@ int SpeakerProtection::spkrStartCalibration()
         QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
         goto free_fe;
     }
-    ret = mixer_ctl_set_enum_by_string(connectCtrl, backEndName.c_str());
+    ret = mixer_ctl_set_enum_by_string(connectCtrl, backEndNameTx.c_str());
     if (ret) {
         QAL_ERR(LOG_TAG, "Mixer control %s set with %s failed: %d",
-        connectCtrlName.str().data(), backEndName.c_str(), ret);
+        connectCtrlName.str().data(), backEndNameTx.c_str(), ret);
         goto free_fe;
     }
 
@@ -405,6 +341,71 @@ int SpeakerProtection::spkrStartCalibration()
 
     flags = PCM_IN;
 
+    // Setting the mode of VI module
+    modeConfg.num_speakers = totalSpeakers;
+    modeConfg.th_operation_mode = CALIBRATION_MODE;
+    if (minIdleTime > 0 && minIdleTime < MIN_SPKR_IDLE_SEC) {
+        // Quick calibration set
+        modeConfg.th_quick_calib_flag = 1;
+    }
+    else
+        modeConfg.th_quick_calib_flag = 0;
+
+    ret = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIdsTx.at(0),
+                                                backEndNameTx.c_str(),
+                                                MODULE_VI, &miid);
+    if (0 != ret) {
+        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_VI, ret);
+    }
+
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
+        }
+    }
+
+    // Setting Channel Map configuration for VI module
+    viChannelMapConfg.num_ch = totalSpeakers * 2;
+    payloadSize = 0;
+
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
+        }
+    }
+
+    // Setting Excursion mode
+    viExModeConfg.operation_mode = 0; // Normal Mode
+    payloadSize = 0;
+
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
+        }
+    }
+
+    // Setting the values for VI module
+    if (customPayloadSize) {
+        ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndNameTx,
+                    customPayload, customPayloadSize);
+        if (ret) {
+            QAL_ERR(LOG_TAG, "Unable to set custom param for mode");
+            goto free_fe;
+        }
+    }
+
     txPcm = pcm_open(rm->getSndCard(), pcmDevIdsTx.at(0), flags, &config);
     if (!txPcm) {
         QAL_ERR(LOG_TAG, "txPcm open failed");
@@ -415,12 +416,6 @@ int SpeakerProtection::spkrStartCalibration()
         QAL_ERR(LOG_TAG, "txPcm open not ready");
         goto err_pcm_open;
     }
-
-    //Setting the TKVs for VI module
-    if (minIdleTime > 0 && minIdleTime < MIN_SPKR_IDLE_SEC)
-    setConfig(TKV, TAG_MODULE_OP_MODE, QUICK_CAL, pcmDevIdsTx.at(0), backEndName.c_str());
-    else
-    setConfig(TKV, TAG_MODULE_OP_MODE, CALIB, pcmDevIdsTx.at(0), backEndName.c_str());
 
     //Register to Mixture control for VI module
     QAL_DBG(LOG_TAG, "registering event for VI module");
@@ -437,7 +432,7 @@ int SpeakerProtection::spkrStartCalibration()
     event_cfg->is_register = 1;
 
     ret = SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIdsTx.at(0),
-                      backEndName.c_str(), MODULE_VI, (void *)event_cfg,
+                      backEndNameTx.c_str(), MODULE_VI, (void *)event_cfg,
                       payload_size);
     if (ret) {
         QAL_ERR(LOG_TAG, "Unable to register event to DSP");
@@ -445,7 +440,7 @@ int SpeakerProtection::spkrStartCalibration()
 
     // Setup RX path
     deviceRx.id = QAL_DEVICE_OUT_SPEAKER;
-    ret = rm->getSndDeviceName(deviceRx.id, mSndDeviceName);
+    ret = rm->getSndDeviceName(deviceRx.id, mSndDeviceName_rx);
     if (0 != ret) {
         QAL_ERR(LOG_TAG, "Failed to obtain the rx snd device name");
         goto done;
@@ -464,16 +459,16 @@ int SpeakerProtection::spkrStartCalibration()
     deviceRx.config.bit_width = BITWIDTH_16;
     deviceRx.config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
 
-    rm->getBackendName(deviceRx.id, backEndName);
+    rm->getBackendName(deviceRx.id, backEndNameRx);
 
     keyVector.clear();
     calVector.clear();
     keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
     // Enable the SP module
     if (totalSpeakers > 1)
-        calVector.push_back(std::make_pair(SPK_PRO_CH_MAP, LEFT_RIGHT));
+        calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
     else
-        calVector.push_back(std::make_pair(SPK_PRO_CH_MAP, RIGHT_MONO));
+        calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
 
     SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
                     (struct prop_data *)devicePropId, deviceMetaData);
@@ -483,11 +478,11 @@ int SpeakerProtection::spkrStartCalibration()
         goto free_fe;
     }
 
-    connectCtrlNameBe<< backEndName << " metadata";
+    connectCtrlNameBe<< backEndNameRx << " metadata";
 
     beMetaDataMixerCtrl = mixer_get_ctl_by_name(mixer, connectCtrlNameBe.str().data());
     if (!beMetaDataMixerCtrl) {
-        QAL_ERR(LOG_TAG, "invalid mixer control: %s", backEndName.c_str());
+        QAL_ERR(LOG_TAG, "invalid mixer control: %s", backEndNameRx.c_str());
         ret = -EINVAL;
         goto free_fe;
     }
@@ -504,7 +499,7 @@ int SpeakerProtection::spkrStartCalibration()
         goto free_fe;
     }
 
-    ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &deviceRx);
+    ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndNameRx, &deviceRx);
     if (ret) {
         QAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
         goto done;
@@ -528,10 +523,10 @@ int SpeakerProtection::spkrStartCalibration()
         ret = -ENOSYS;
         goto free_fe;
     }
-    ret = mixer_ctl_set_enum_by_string(connectCtrl, backEndName.c_str());
+    ret = mixer_ctl_set_enum_by_string(connectCtrl, backEndNameRx.c_str());
     if (ret) {
         QAL_ERR(LOG_TAG, "Mixer control %s set with %s failed: %d",
-        connectCtrlNameRx.str().data(), backEndName.c_str(), ret);
+        connectCtrlNameRx.str().data(), backEndNameRx.c_str(), ret);
         goto free_fe;
     }
 
@@ -549,6 +544,43 @@ int SpeakerProtection::spkrStartCalibration()
 
     flags = PCM_OUT;
 
+    // Set the operation mode for SP module
+    spModeConfg.operation_mode = CALIBRATION_MODE;
+    ret = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIdsRx.at(0),
+                                                backEndNameRx.c_str(),
+                                                MODULE_SP, &miid);
+    if (0 != ret) {
+        QAL_ERR(LOG_TAG, "Failed to get miid info %x, status = %d", MODULE_SP, ret);
+    }
+
+    payloadSize = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
+    if (payloadSize) {
+        if (customPayload) {
+            free(customPayload);
+            customPayloadSize = 0;
+        }
+
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+
+    // Setting the values for SP module
+    if (customPayloadSize) {
+        ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndNameRx,
+                    customPayload, customPayloadSize);
+        if (ret) {
+            QAL_ERR(LOG_TAG, "Unable to set custom param for SP mode");
+            free(customPayload);
+            customPayloadSize = 0;
+            goto free_fe;
+        }
+    }
+
     rxPcm = pcm_open(rm->getSndCard(), pcmDevIdsRx.at(0), flags, &config);
     if (!rxPcm) {
         QAL_ERR(LOG_TAG, "pcm open failed for RX path");
@@ -563,10 +595,7 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
 
-    setConfig(TKV, TAG_MODULE_OP_MODE, CALIB, pcmDevIdsRx.at(0), backEndName.c_str());
-
     // Register to mixtureControlEvents and wait for the R0T0 values
-    sessionCb = mixer_ctl_callback;
 
     ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
                     sessionCb, (void*)this, true);
@@ -574,25 +603,58 @@ int SpeakerProtection::spkrStartCalibration()
         QAL_ERR(LOG_TAG, "Failed to register callback to rm");
     }
 
-    enableDevice(audioRoute_vi, mSndDeviceName_vi);
+    enableDevice(audioRoute, mSndDeviceName_vi);
     QAL_DBG(LOG_TAG, "pcm start for TX path");
     if (pcm_start(txPcm) < 0) {
         QAL_ERR(LOG_TAG, "pcm start failed for TX path");
         ret = -ENOSYS;
+        disableDevice(audioRoute, mSndDeviceName_vi);
         goto err_pcm_open;
     }
-    disableDevice(audioRoute_vi, mSndDeviceName_vi);
 
-    enableDevice(audioRoute_vi, mSndDeviceName);
+    enableDevice(audioRoute, mSndDeviceName_rx);
     QAL_DBG(LOG_TAG, "pcm start for RX path");
     if (pcm_start(rxPcm) < 0) {
         QAL_ERR(LOG_TAG, "pcm start failed for RX path");
         ret = -ENOSYS;
+        disableDevice(audioRoute, mSndDeviceName_vi);
+        disableDevice(audioRoute, mSndDeviceName_rx);
         goto err_pcm_open;
     }
-    disableDevice(audioRoute_vi, mSndDeviceName);
 
-    goto free_fe;
+    spkrCalState = SPKR_CALIB_IN_PROGRESS;
+    while(!mDspCallbackRcvd && !isSpkrInUse) {
+        QAL_DBG(LOG_TAG, "Waiting for the event from DSP or QAL");
+        spkrCalibrateWait();
+    }
+
+    // Store the R0T0 values
+    if (mDspCallbackRcvd) {
+        QAL_DBG(LOG_TAG, "Calibration is done");
+        fp = fopen(QAL_SP_TEMP_PATH, "wb");
+        if (!fp) {
+            QAL_ERR(LOG_TAG, "Unable to open file for write");
+        } else {
+            QAL_DBG(LOG_TAG, "Write the R0T0 value to file");
+            for (i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
+                if (spkerTempList[i] < 0)
+                    continue;
+
+                fwrite(&callback_data->r0_cali_q24[j],
+                            sizeof(callback_data->r0_cali_q24[j]), 1, fp);
+                fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
+                j++;
+            }
+            free(callback_data);
+            fclose(fp);
+        }
+        spkrCalState = SPKR_CALIBRATED;
+    }
+    else {
+        QAL_DBG(LOG_TAG, "Calibration is not done. Speaker in use");
+        ret = -EINVAL;
+    }
+
 
 err_pcm_open :
     if (txPcm) {
@@ -615,6 +677,14 @@ free_fe:
     pcmDevIdsTx.clear();
 
 done:
+    disableDevice(audioRoute, mSndDeviceName_vi);
+    disableDevice(audioRoute, mSndDeviceName_rx);
+    ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
+                    sessionCb, (void*)this, false);
+    if (ret != 0) {
+        QAL_ERR(LOG_TAG, "Failed to register callback to rm");
+    }
+
     QAL_DBG(LOG_TAG, "Exiting %s %d", __func__, __LINE__);
     return ret;
 }
@@ -641,12 +711,11 @@ void SpeakerProtection::getSpeakerTemperatureList()
 
 void SpeakerProtection::spkrCalibrationThread()
 {
-    FILE *fp;
     unsigned long sec = 0;
     bool proceed = false;
-    int i = 0;
-    int j = 0;
     std::string line;
+    FILE *fp;
+    int i;
 
     fp = fopen(QAL_SP_TEMP_PATH, "rb");
     if (fp) {
@@ -728,43 +797,14 @@ void SpeakerProtection::spkrCalibrationThread()
             QAL_DBG(LOG_TAG, "Speaker not in use, start calibration");
             int startCalRet = spkrStartCalibration();
             if (!startCalRet) {
-                spkrCalState = SPKR_CALIB_IN_PROGRESS;
-                while(!mDspCallbackRcvd && !isSpkrInUse) {
-                    QAL_DBG(LOG_TAG, "Waiting for the event from DSP or QAL");
-                    spkrCalibrateWait();
-                }
-            }
-            // Send the CKVs and store the R0T0 values
-            if (mDspCallbackRcvd) {
-                QAL_DBG(LOG_TAG, "Calibration is done");
-                fp = fopen(QAL_SP_TEMP_PATH, "wb");
-                if (!fp) {
-                    QAL_ERR(LOG_TAG, "Unable to open file for write");
-                } else {
-                    QAL_DBG(LOG_TAG, "Write the R0T0 value to file");
-                    for (i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
-                        if (spkerTempList[i] < 0)
-                            continue;
-
-                        fwrite(&callback_data->r0_cali_q24[j],
-                                sizeof(callback_data->r0_cali_q24[j]), 1, fp);
-                        fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
-                        j++;
-                    }
-                    free(callback_data);
-                    fclose(fp);
-                }
                 threadExit = true;
-            }
-            else {
-                QAL_DBG(LOG_TAG, "Calibration is not done. Speaker in use");
-                continue;
             }
         }
         else {
             continue;
         }
     }
+    QAL_DBG(LOG_TAG, "Calibration done, exiting the thread");
 }
 
 SpeakerProtection::SpeakerProtection(struct qal_device *device,
@@ -772,8 +812,6 @@ SpeakerProtection::SpeakerProtection(struct qal_device *device,
 {
     int status = 0;
     struct qal_device_info devinfo = {};
-    device = nullptr;
-
 
     if (ResourceManager::spQuickCalTime > 0 &&
         ResourceManager::spQuickCalTime < MIN_SPKR_IDLE_SEC)
@@ -782,6 +820,9 @@ SpeakerProtection::SpeakerProtection(struct qal_device *device,
         minIdleTime = MIN_SPKR_IDLE_SEC;
 
     rm = Rm;
+
+    memset(&mDeviceAttr, 0, sizeof(struct qal_device));
+    memcpy(&mDeviceAttr, device, sizeof(struct qal_device));
 
     threadExit = false;
     calThrdCreated = false;
@@ -835,8 +876,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     struct qal_stream_attributes sAttr;
     std::string backEndName;
     std::vector <std::pair<int, int>> keyVector;
-    std::vector<int> pcmDevIds;
+    std::vector <std::pair<int, int>> calVector;
+    std::vector<int> pcmDevIdTx;
     std::shared_ptr<ResourceManager> rm;
+    std::ostringstream connectCtrlNameBeVI;
     struct pcm_config config;
     struct mixer_ctl *connectCtrl = NULL;
     std::ostringstream connectCtrlName;
@@ -844,11 +887,22 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     char mSndDeviceName_vi[128] = {0};
     int flags;
     struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
-    param_id_sp_th_vi_r0t0_cfg_t confg;
+    param_id_sp_th_vi_r0t0_cfg_t spR0T0confg;
+    param_id_sp_vi_op_mode_cfg_t modeConfg;
+    param_id_sp_vi_channel_map_cfg_t viChannelMapConfg;
+    param_id_sp_op_mode_t spModeConfg;
+    param_id_sp_ex_vi_mode_cfg_t viExModeConfg;
     uint32_t miid = 0;
     FILE *fp;
+    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+    std::shared_ptr<Device> dev = nullptr;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    std::vector<Stream*> activeStreams;
 
-    QAL_DBG(LOG_TAG, "Enter %s Line %d Flag %d", __func__, __LINE__, flag);
+    QAL_DBG(LOG_TAG, "Processing mode flag %d", flag);
     spkrProtSetSpkrStatus(flag);
 
     if (flag) {
@@ -869,7 +923,19 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         memset(&device, 0, sizeof(device));
         memset(&sAttr, 0, sizeof(sAttr));
         memset(&config, 0, sizeof(config));
-        memset(&confg, 0, sizeof(confg));
+        memset(&spR0T0confg, 0, sizeof(spR0T0confg));
+        memset(&modeConfg, 0, sizeof(modeConfg));
+        memset(&viChannelMapConfg, 0, sizeof(viChannelMapConfg));
+        memset(&viExModeConfg, 0, sizeof(viExModeConfg));
+        memset(&spModeConfg, 0, sizeof(spModeConfg));
+
+        keyVector.clear();
+        calVector.clear();
+
+        if (customPayload) {
+            free(customPayload);
+            customPayloadSize = 0;
+        }
 
         // Configure device attribute
        if (totalSpeakers > 1) {
@@ -897,17 +963,41 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
-        enableDevice(audioRoute_vi, mSndDeviceName_vi);
 
-        QAL_ERR(LOG_TAG, "get the audio_route address %s", mSndDeviceName_vi);
+        QAL_DBG(LOG_TAG, "get the audio route %s", mSndDeviceName_vi);
 
         rm->getBackendName(device.id, backEndName);
 
         keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
 
-        ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
-        if (ret) {
-            QAL_ERR(LOG_TAG, "setDeviceMetadata for feedback device failed");
+        // Enable the VI module
+        calVector.push_back(std::make_pair(SPK_PRO_VI_STATE, VI_ENABLED));
+
+        SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
+                (struct prop_data *)devicePropId, deviceMetaData);
+        if (!deviceMetaData.size) {
+            QAL_ERR(LOG_TAG, "VI device metadata is zero");
+            ret = -ENOMEM;
+            goto done;
+        }
+        connectCtrlNameBeVI<< backEndName << " metadata";
+        beMetaDataMixerCtrl = mixer_get_ctl_by_name(mixer,
+                                    connectCtrlNameBeVI.str().data());
+        if (!beMetaDataMixerCtrl) {
+            QAL_ERR(LOG_TAG, "invalid mixer control for VI : %s", backEndName.c_str());
+            ret = -EINVAL;
+            goto done;
+        }
+
+        if (deviceMetaData.size) {
+            ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                        deviceMetaData.size);
+            free(deviceMetaData.buf);
+            deviceMetaData.buf = nullptr;
+        }
+        else {
+            QAL_ERR(LOG_TAG, "Device Metadata not set for TX path");
+            ret = -EINVAL;
             goto done;
         }
 
@@ -921,13 +1011,13 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         sAttr.type = QAL_STREAM_LOW_LATENCY;
         sAttr.direction = QAL_AUDIO_INPUT_OUTPUT;
         dir = TXLOOPBACK;
-        pcmDevIds = rm->allocateFrontEndIds(sAttr, dir);
-        if (pcmDevIds.size() == 0) {
+        pcmDevIdTx = rm->allocateFrontEndIds(sAttr, dir);
+        if (pcmDevIdTx.size() == 0) {
             QAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
             ret = -ENOSYS;
             goto done;
         }
-        connectCtrlName << "PCM" << pcmDevIds.at(0) << " connect";
+        connectCtrlName << "PCM" << pcmDevIdTx.at(0) << " connect";
         connectCtrl = mixer_get_ctl_by_name(mixer, connectCtrlName.str().data());
         if (!connectCtrl) {
             QAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
@@ -954,24 +1044,55 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         flags = PCM_IN;
 
-        txPcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), flags, &config);
-        if (!txPcm) {
-            QAL_ERR(LOG_TAG, "txPcm open failed");
-            goto free_fe;
+        // Setting the mode of VI module
+        modeConfg.num_speakers = totalSpeakers;
+        modeConfg.th_operation_mode = NORMAL_MODE;
+        modeConfg.th_quick_calib_flag = 0;
+
+        ret = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIdTx.at(0),
+                        backEndName.c_str(), MODULE_VI, &miid);
+        if (0 != ret) {
+            QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_VI, ret);
+        }
+        builder->payloadSPConfig(&payload, &payloadSize, miid,
+                PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
+        if (payloadSize) {
+            ret = updateCustomPayload(payload, payloadSize);
+            delete payload;
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
+            }
         }
 
-        if (!pcm_is_ready(txPcm)) {
-            QAL_ERR(LOG_TAG, "txPcm open not ready");
-            goto err_pcm_open;
-        }
-        setConfig(TKV, TAG_MODULE_OP_MODE, CALIB, pcmDevIds.at(0), backEndName.c_str());
+        // Setting Channel Map configuration for VI module
+        viChannelMapConfg.num_ch = totalSpeakers * 2;
+        payloadSize = 0;
 
-        QAL_DBG(LOG_TAG, "pcm start for TX");
-        if (pcm_start(txPcm) < 0) {
-            QAL_ERR(LOG_TAG, "pcm start failed for TX path");
-            goto err_pcm_open;
+        builder->payloadSPConfig(&payload, &payloadSize, miid,
+                PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
+        if (payloadSize) {
+            ret = updateCustomPayload(payload, payloadSize);
+            delete payload;
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
+            }
         }
 
+        // Setting Excursion mode
+        viExModeConfg.operation_mode = 0; // Normal Mode
+        payloadSize = 0;
+
+        builder->payloadSPConfig(&payload, &payloadSize, miid,
+                PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
+        if (payloadSize) {
+            ret = updateCustomPayload(payload, payloadSize);
+            delete payload;
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
+            }
+        }
+
+        // Setting the R0T0 values
         if (spkrCalState == SPKR_CALIBRATED) {
             QAL_DBG(LOG_TAG, "Speaker calibrated. Read from the file");
             fp = fopen(QAL_SP_TEMP_PATH, "rb");
@@ -991,20 +1112,15 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 r0t0Array[i].t0_cali_q6 = SAFE_SPKR_TEMP_Q6;
             }
         }
-        confg.num_speakers = numberOfChannels;
+        spR0T0confg.num_speakers = numberOfChannels;
 
         for(int i = 0; i < numberOfChannels; i++) {
-            confg.vi_r0t0_cfg[i].r0_cali_q24 = r0t0Array[i].r0_cali_q24;
-            confg.vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
+            spR0T0confg.vi_r0t0_cfg[i].r0_cali_q24 = r0t0Array[i].r0_cali_q24;
+            spR0T0confg.vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
         }
 
-        ret = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                    backEndName.c_str(),
-                                                    MODULE_VI, &miid);
-        if (0 != ret) {
-            QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_VI, ret);
-        }
-        builder->payloadSPConfig(&payload, &payloadSize, miid, (void *)&confg);
+        builder->payloadSPConfig(&payload, &payloadSize, miid,
+                PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)&spR0T0confg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
             delete payload;
@@ -1012,6 +1128,69 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
         }
+
+        // Setting the values for VI module
+        if (customPayloadSize) {
+            ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
+                            customPayload, customPayloadSize);
+            if (ret) {
+                QAL_ERR(LOG_TAG, "Unable to set custom param for mode");
+                goto free_fe;
+            }
+        }
+
+        txPcm = pcm_open(rm->getSndCard(), pcmDevIdTx.at(0), flags, &config);
+        if (!txPcm) {
+            QAL_ERR(LOG_TAG, "txPcm open failed");
+            goto free_fe;
+        }
+
+        if (!pcm_is_ready(txPcm)) {
+            QAL_ERR(LOG_TAG, "txPcm open not ready");
+            goto err_pcm_open;
+        }
+
+        // Setting up SP mode
+        rm->getBackendName(mDeviceAttr.id, backEndName);
+        dev = Device::getInstance(&mDeviceAttr, rm);
+        ret = rm->getActiveStream_l(dev, activeStreams);
+        if ((0 != ret) || (activeStreams.size() == 0)) {
+            QAL_ERR(LOG_TAG, " no active stream available");
+            return -EINVAL;
+        }
+        stream = static_cast<Stream *>(activeStreams[0]);
+        stream->getAssociatedSession(&session);
+        ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
+        if (ret) {
+            QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
+            return ret;
+        }
+
+        // Set the operation mode for SP module
+        spModeConfg.operation_mode = NORMAL_MODE;
+        payloadSize = 0;
+        builder->payloadSPConfig(&payload, &payloadSize, miid,
+                PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
+        if (payloadSize) {
+            if (customPayload) {
+                free(customPayload);
+                customPayloadSize = 0;
+            }
+            ret = updateCustomPayload(payload, payloadSize);
+            delete payload;
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+            }
+        }
+
+        enableDevice(audioRoute_vi, mSndDeviceName_vi);
+        QAL_DBG(LOG_TAG, "pcm start for TX");
+        if (pcm_start(txPcm) < 0) {
+            QAL_ERR(LOG_TAG, "pcm start failed for TX path");
+            disableDevice(audioRoute_vi, mSndDeviceName_vi);
+            goto err_pcm_open;
+        }
+        disableDevice(audioRoute_vi, mSndDeviceName_vi);
 
         // Free up the local variables
         goto free_fe;
@@ -1034,8 +1213,8 @@ err_pcm_open :
     }
 
 free_fe:
-    rm->freeFrontEndIds(pcmDevIds, sAttr, dir);
-    pcmDevIds.clear();
+    rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
+    pcmDevIdTx.clear();
 done:
     return ret;
 }

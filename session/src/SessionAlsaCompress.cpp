@@ -738,21 +738,6 @@ int SessionAlsaCompress::start(Stream * s)
             break;
     }
 
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        for (int i = 0; i < associatedDevices.size();i++) {
-            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-                return status;
-            }
-            if (QAL_DEVICE_OUT_SPEAKER == dAttr.id) {
-                if (setConfig(s, MODULE, OP_MODE) != 0) {
-                    QAL_ERR(LOG_TAG,"Setting OP mode failed");
-                }
-                break;
-            }
-        }
-    }
     // Setting the volume as no default volume is set now in stream open
     if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
             QAL_ERR(LOG_TAG,"Setting volume failed");

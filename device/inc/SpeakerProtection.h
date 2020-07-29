@@ -32,6 +32,7 @@
 
 #include "Speaker.h"
 #include "sp_vi.h"
+#include "sp_rx.h"
 #include <tinyalsa/asoundlib.h>
 #include <mutex>
 #include <condition_variable>
@@ -88,6 +89,7 @@ protected :
     static int numberOfChannels;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
+    struct qal_device mDeviceAttr;
 
 private :
 

@@ -36,6 +36,7 @@
 #include "spr_api.h"
 #include <bt_intf.h>
 #include "sp_vi.h"
+#include "sp_rx.h"
 
 #define QAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
 #define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
@@ -1728,18 +1729,15 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
             if (dAttr.id == QAL_DEVICE_OUT_SPEAKER) {
                 if (dAttr.config.ch_info.channels > 1) {
                     QAL_DBG(LOG_TAG, "Multi channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, LEFT_RIGHT));
+                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
                 }
                 else {
                     QAL_DBG(LOG_TAG, "Mono channel speaker");
-                    ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, RIGHT_MONO));
+                    ckv.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
                 }
                 break;
             }
         }
-        break;
-    case SPKR_PROT_DISABLED :
-        ckv.push_back(std::make_pair(SPK_PRO_CH_MAP, SP_DISABLED));
         break;
     default:
         break;
@@ -1911,9 +1909,6 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        else
             *gsltag = TAG_DEVICE_MFC_SR;
        break;
-    case OP_MODE:
-        tkv.push_back(std::make_pair(TAG_MODULE_OP_MODE, NORMAL));
-        *gsltag = TAG_MODULE_OP_MODE;
     case INCALL_RECORD_UPLINK:
        tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_UPLINK));
        *gsltag = TAG_STREAM_MUX_DEMUX;
@@ -1939,55 +1934,179 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     return status;
 }
 
-void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid, void *param)
+void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid,
+                int param_id, void *param)
 {
     struct apm_module_param_data_t* header = NULL;
-    param_id_sp_th_vi_r0t0_cfg_t *spConf;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0, padBytes = 0;
-    vi_r0t0_cfg_t* r0t0 = NULL;
 
-    param_id_sp_th_vi_r0t0_cfg_t *data = NULL;
-
-    data = (param_id_sp_th_vi_r0t0_cfg_t *) param;
-
-    if (!data) {
+    if (!param) {
         QAL_ERR(LOG_TAG, "Invalid input parameters");
         return;
     }
 
-    payloadSize = sizeof(struct apm_module_param_data_t) +
-                  sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
-                  sizeof(vi_r0t0_cfg_t) * data->num_speakers;
 
-    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    switch(param_id) {
+        case PARAM_ID_SP_TH_VI_R0T0_CFG :
+            {
+                param_id_sp_th_vi_r0t0_cfg_t *spConf;
+                param_id_sp_th_vi_r0t0_cfg_t *data = NULL;
+                vi_r0t0_cfg_t* r0t0 = NULL;
+                data = (param_id_sp_th_vi_r0t0_cfg_t *) param;
 
-    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
-    if (!payloadInfo) {
-        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-        return;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                              sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
+                              sizeof(vi_r0t0_cfg_t) * data->num_speakers;
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_sp_th_vi_r0t0_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                r0t0 = (vi_r0t0_cfg_t*) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t)
+                                + sizeof(param_id_sp_th_vi_r0t0_cfg_t));
+
+                spConf->num_speakers = data->num_speakers;
+                for(int i = 0; i < data->num_speakers; i++) {
+                    r0t0[i].r0_cali_q24 = data->vi_r0t0_cfg[i].r0_cali_q24;
+                    r0t0[i].t0_cali_q6 = data->vi_r0t0_cfg[i].t0_cali_q6;
+                }
+            }
+        break;
+        case PARAM_ID_SP_VI_OP_MODE_CFG :
+            {
+                param_id_sp_vi_op_mode_cfg_t *spConf;
+                param_id_sp_vi_op_mode_cfg_t *data;
+                uint32_t *channelMap;
+
+                data = (param_id_sp_vi_op_mode_cfg_t *) param;
+
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                              sizeof(param_id_sp_vi_op_mode_cfg_t) +
+                              sizeof(uint32_t) * data->num_speakers;
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_sp_vi_op_mode_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+
+                channelMap = (uint32_t *) (payloadInfo +
+                                    sizeof(struct apm_module_param_data_t)
+                                    + sizeof(param_id_sp_vi_op_mode_cfg_t));
+
+                spConf->num_speakers = data->num_speakers;
+                spConf->th_operation_mode = data->th_operation_mode;
+                spConf->th_quick_calib_flag = data->th_quick_calib_flag;
+                for(int i = 0; i < data->num_speakers; i++) {
+                    if (spConf->th_operation_mode == 0) {
+                        channelMap[i] = 0;
+                    }
+                    else if (spConf->th_operation_mode == 1) {
+                        channelMap[i] = 0;
+                    }
+                }
+            }
+        break;
+        case PARAM_ID_SP_VI_CHANNEL_MAP_CFG :
+            {
+                param_id_sp_vi_channel_map_cfg_t *spConf;
+                param_id_sp_vi_channel_map_cfg_t *data;
+                int32_t *channelMap;
+
+                data = (param_id_sp_vi_channel_map_cfg_t *) param;
+
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_sp_vi_channel_map_cfg_t) +
+                                    (sizeof(int32_t) * data->num_ch);
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_sp_vi_channel_map_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                channelMap = (int32_t *) (payloadInfo +
+                                    sizeof(struct apm_module_param_data_t)
+                                    + sizeof(param_id_sp_vi_channel_map_cfg_t));
+
+                spConf->num_ch = data->num_ch;
+                for (int i = 0; i < data->num_ch; i++) {
+                    channelMap[i] = i+1;
+                }
+            }
+        break;
+        case PARAM_ID_SP_OP_MODE :
+            {
+                param_id_sp_op_mode_t *spConf;
+                param_id_sp_op_mode_t *data;
+
+                data = (param_id_sp_op_mode_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_sp_op_mode_t);
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_sp_op_mode_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+
+                spConf->operation_mode = data->operation_mode;
+            }
+        break;
+        case PARAM_ID_SP_EX_VI_MODE_CFG :
+            {
+                param_id_sp_ex_vi_mode_cfg_t *spConf;
+                param_id_sp_ex_vi_mode_cfg_t *data;
+
+                data = (param_id_sp_ex_vi_mode_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_sp_ex_vi_mode_cfg_t);
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+
+                spConf = (param_id_sp_ex_vi_mode_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+
+                spConf->operation_mode = data->operation_mode;
+            }
+        break;
     }
-
-    header = (struct apm_module_param_data_t*) payloadInfo;
-    spConf = (param_id_sp_th_vi_r0t0_cfg_t *) (payloadInfo +
-                    sizeof(struct apm_module_param_data_t));
-    r0t0 = (vi_r0t0_cfg_t*) (payloadInfo + sizeof(struct apm_module_param_data_t)
-                             + sizeof(param_id_sp_th_vi_r0t0_cfg_t));
 
     header->module_instance_id = miid;
-    header->param_id = PARAM_ID_SP_TH_VI_R0T0_CFG;
+    header->param_id = param_id;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-
-    QAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
-                    header->module_instance_id, header->param_id,
-                    header->error_code, header->param_size);
-
-    spConf->num_speakers = data->num_speakers;
-    for(int i = 0; i < data->num_speakers; i++) {
-        r0t0[i].r0_cali_q24 = data->vi_r0t0_cfg[i].r0_cali_q24;
-        r0t0[i].t0_cali_q6 = data->vi_r0t0_cfg[i].t0_cali_q6;
-    }
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
