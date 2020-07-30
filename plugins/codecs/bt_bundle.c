@@ -65,8 +65,8 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     audio_aac_encoder_config_t *aac_bt_cfg = NULL;
     bt_enc_payload_t *enc_payload = NULL;
     struct aac_enc_cfg_t *aac_enc_cfg = NULL;
-    int num_blks = 4, i = 0, ret = 0;
-    custom_block_t *blk[4] = {NULL};
+    int num_blks = 5, i = 0, ret = 0;
+    custom_block_t *blk[5] = {NULL};
 
     ALOGV("%s", __func__);
 
@@ -137,15 +137,27 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     /* populate payload for PARAM_ID_ENC_FRAME_SIZE_CONTROL */
     ret = bt_aac_populate_enc_frame_size_ctrl(blk[3], aac_bt_cfg->frame_ctl.ctl_type,
                                               aac_bt_cfg->frame_ctl.ctl_value);
-
     if (ret)
         goto free_payload;
 
+    /* populate payload for PARAM_ID_ENC_FRAME_SIZE_CONTROL specially for bit rate mode */
+    if (aac_bt_cfg->frame_ctl_ptr != NULL) {
+        ALOGD("%s: AAC VBR ctl_type %d, ctl_value %d", __func__,
+                aac_bt_cfg->frame_ctl_ptr->ctl_type, aac_bt_cfg->frame_ctl_ptr->ctl_value);
+        ret = bt_aac_populate_enc_frame_size_ctrl(blk[4],
+                                                  aac_bt_cfg->frame_ctl_ptr->ctl_type,
+                                                  aac_bt_cfg->frame_ctl_ptr->ctl_value);
+    } else {
+        ret = bt_aac_populate_enc_frame_size_ctrl(blk[4], BIT_RATE_MODE, 0 /* VBR DISABLED */);
+    }
+    if (ret)
+        goto free_payload;
 
     enc_payload->blocks[0] = blk[0];
     enc_payload->blocks[1] = blk[1];
     enc_payload->blocks[2] = blk[2];
     enc_payload->blocks[3] = blk[3];
+    enc_payload->blocks[4] = blk[4];
     *dst = enc_payload;
     codec->payload = enc_payload;
 
