@@ -2691,7 +2691,7 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
 
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
-    QAL_INFO(LOG_TAG, "Enter.");
+    QAL_DBG(LOG_TAG, "Enter.");
     if(!rm) {
         std::lock_guard<std::mutex> lock(ResourceManager::mResourceManagerMutex);
         if (!rm) {
@@ -2699,7 +2699,7 @@ std::shared_ptr<ResourceManager> ResourceManager::getInstance()
             rm = sp;
         }
     }
-    QAL_INFO(LOG_TAG, "Exit.");
+    QAL_DBG(LOG_TAG, "Exit.");
     return rm;
 }
 

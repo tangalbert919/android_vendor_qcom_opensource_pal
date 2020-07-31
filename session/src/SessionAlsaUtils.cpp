@@ -995,6 +995,10 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct vsid_info vsidinfo = {};
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
 
+    if (RxDevIds.empty() || TxDevIds.empty()) {
+        QAL_ERR(LOG_TAG, "RX and TX FE Dev Ids are empty");
+        return -EINVAL;
+    }
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
@@ -1007,7 +1011,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         return status;
     }
     if (associatedDevices.size() != 2) {
-        QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
+        QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:%d",__func__,
                 associatedDevices.size());
         return status;
     }
@@ -1262,7 +1266,6 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
         goto exit;
     }
-
     if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
         status = streamHandle->getAssociatedDevices(associatedDevices);
         if (0 != status) {
@@ -1270,7 +1273,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             goto exit;
         }
         if (associatedDevices.size() != 2) {
-            QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
+            QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:%d",__func__,
                     associatedDevices.size());
             goto exit;
         }
