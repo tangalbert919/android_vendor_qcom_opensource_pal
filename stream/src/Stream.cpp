@@ -768,7 +768,8 @@ bool Stream::checkStreamMatch(qal_device_id_t qal_device_id,
         return false;
     }
 
-    if (qal_stream_type == mStreamAttr->type)
+    if (qal_stream_type == mStreamAttr->type ||
+            qal_stream_type == QAL_STREAM_GENERIC)
         match = true;
     else
         return false;
@@ -780,10 +781,10 @@ bool Stream::checkStreamMatch(qal_device_id_t qal_device_id,
           QAL_ERR(LOG_TAG,"%s: getDeviceAttributes Failed \n", __func__);
           return false;
        }
-       if (qal_device_id == dAttr.id) {
-              match = true;
-            // as long as one device matches, it is enough.
-            break;
+       if (qal_device_id == dAttr.id || qal_device_id == QAL_DEVICE_NONE) {
+           match = true;
+           // as long as one device matches, it is enough.
+           break;
        }
     }
 
