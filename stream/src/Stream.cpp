@@ -30,6 +30,7 @@
 #define LOG_TAG "QAL: Stream"
 #include "Stream.h"
 #include "StreamPCM.h"
+#include "StreamInCall.h"
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
 #include "Session.h"
@@ -70,6 +71,8 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         QAL_ERR(LOG_TAG, "mQalDevice not created");
         goto exit;
     }
+    if (sAttr->type == QAL_STREAM_VOICE_CALL_MUSIC)
+        goto stream_create;
     for (int i = 0; i < noOfDevices; i++) {
         struct qal_device_info devinfo = {};
 
@@ -103,6 +106,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
     if (!count)
         goto exit;
 
+stream_create:
     if (rm->isStreamSupported(sAttr, mQalDevice, count)) {
         switch (sAttr->type) {
             case QAL_STREAM_LOW_LATENCY:
@@ -125,6 +129,11 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
                 break;
             case QAL_STREAM_VOICE_UI:
                 stream = new StreamSoundTrigger(sAttr, mQalDevice, count, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case QAL_STREAM_VOICE_CALL_RECORD:
+            case QAL_STREAM_VOICE_CALL_MUSIC:
+                stream = new StreamInCall(sAttr, mQalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:

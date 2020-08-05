@@ -287,7 +287,7 @@ typedef enum {
     QAL_STREAM_GENERIC,              /**< :generic playback audio*/
     QAL_STREAM_RAW,                  /**< pcm no post processing*/
     QAL_STREAM_VOICE_ACTIVATION,     /**< voice activation*/
-    QAL_STREAM_VOICE_CALL_RX,        /**< incall record, downlink */
+    QAL_STREAM_VOICE_CALL_RECORD,    /**< incall record */
     QAL_STREAM_VOICE_CALL_TX,        /**< incall record, uplink */
     QAL_STREAM_VOICE_CALL_RX_TX,     /**< incall record, uplink & Downlink */
 
@@ -459,10 +459,16 @@ struct qal_stream_info {
     //qal_audio_attributes_t usage;       /** Not sure if we make use of this */
 };
 
+typedef enum {
+    INCALL_RECORD_VOICE_UPLINK = 1,
+    INCALL_RECORD_VOICE_DOWNLINK,
+    INCALL_RECORD_VOICE_UPLINK_DOWNLINK,
+} qal_incall_record_direction;
+
 struct qal_voice_record_info {
     int64_t version;                    /** version of structure*/
     int64_t size;                       /** size of structure*/
-    uint32_t record_direction;         /** use direction enum to indicate content to be record */
+    qal_incall_record_direction record_direction;         /** use direction enum to indicate content to be record */
 };
 
 struct qal_voice_call_info {

@@ -109,6 +109,7 @@ public:
     void deRegisterAdmStream(Stream *s);
     void requestAdmFocus(Stream *s, long ns);
     void releaseAdmFocus(Stream *s);
+
 };
 
 #endif //SESSION_ALSAPCM_H

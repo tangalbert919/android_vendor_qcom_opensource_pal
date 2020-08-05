@@ -310,10 +310,12 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         return status;
     }
 
-    status = streamHandle->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        return status;
+    if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
+        status = streamHandle->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
     }
 
     if (sAttr.type == QAL_STREAM_VOICE_UI) {
@@ -1261,15 +1263,17 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         goto exit;
     }
 
-    status = streamHandle->getAssociatedDevices(associatedDevices);
-    if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-        goto exit;
-    }
-    if (associatedDevices.size() != 2) {
-        QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
-                associatedDevices.size());
-        goto exit;
+    if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
+        status = streamHandle->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG, "%s: getAssociatedDevices Failed \n", __func__);
+            goto exit;
+        }
+        if (associatedDevices.size() != 2) {
+            QAL_ERR(LOG_TAG, "%s: Loopback num devices expected 2, given:$d",
+                    associatedDevices.size());
+            goto exit;
+        }
     }
     status = rmHandle->getAudioMixer(&mixerHandle);
 

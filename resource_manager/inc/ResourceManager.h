@@ -210,6 +210,7 @@ class Stream;
 class StreamPCM;
 class StreamCompress;
 class StreamSoundTrigger;
+class StreamInCall;
 class SoundTriggerEngine;
 class SndCardMonitor;
 
@@ -268,6 +269,8 @@ protected:
     std::vector <StreamPCM*> active_streams_db;
     std::vector <StreamPCM*> active_streams_po;
     std::vector <StreamPCM*> active_streams_proxy;
+    std::vector <StreamInCall*> active_streams_incall_record;
+    std::vector <StreamInCall*> active_streams_incall_music;
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <SoundTriggerEngine*> active_engines_st;
@@ -303,6 +306,8 @@ protected:
     static std::vector<int> listAllPcmVoice1TxFrontEnds;
     static std::vector<int> listAllPcmVoice2RxFrontEnds;
     static std::vector<int> listAllPcmVoice2TxFrontEnds;
+    static std::vector<int> listAllPcmInCallRecordFrontEnds;
+    static std::vector<int> listAllPcmInCallMusicFrontEnds;
     static std::vector<std::pair<int32_t, std::string>> listAllBackEndIds;
     static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
     static std::vector<deviceCap> devInfo;

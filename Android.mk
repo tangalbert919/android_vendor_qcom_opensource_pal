@@ -55,6 +55,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     stream/src/Stream.cpp\
     stream/src/StreamCompress.cpp\
     stream/src/StreamPCM.cpp\
+    stream/src/StreamInCall.cpp\
     stream/src/StreamSoundTrigger.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
