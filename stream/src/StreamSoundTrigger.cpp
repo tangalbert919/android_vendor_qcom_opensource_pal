@@ -2513,21 +2513,20 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             [[fallthrough]];
         }
         case ST_EV_STOP_RECOGNITION: {
-            if (st_stream_.paused_ == true) {
-                bool backend_update = false;
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, false);
-                if (backend_update) {
-                    status = rm->StopOtherSVAStreams(&st_stream_);
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
-                    }
+            bool backend_update = false;
+            backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, false);
+            if (backend_update) {
+                status = rm->StopOtherSVAStreams(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
+                }
 
-                    status = rm->StartOtherSVAStreams(&st_stream_);
-                    if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
-                    }
+                status = rm->StartOtherSVAStreams(&st_stream_);
+                if (status) {
+                    QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                 }
             }
+
             for (auto& eng: st_stream_.engines_) {
                 QAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->StopRecognition(&st_stream_);

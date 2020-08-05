@@ -283,6 +283,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamCKV;
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
+    std::vector <std::pair<int, int>> devicePPCKV;
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct qal_stream_attributes sAttr;
@@ -298,7 +299,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct mixer *mixerHandle;
     uint32_t i;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     bool is_lpi = false;
     struct qal_device_info devinfo = {};
@@ -336,11 +337,13 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         QAL_ERR(LOG_TAG, "%s: get stream KV failed %d", status);
         goto exit;
     }
-    status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
-            (struct qal_volume_data **)nullptr);
-    if (status) {
-        QAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
-        goto exit;
+    if (sAttr.type != QAL_STREAM_VOICE_UI) {
+        status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
+                (struct qal_volume_data **)nullptr);
+        if (status) {
+            QAL_ERR(LOG_TAG, "get stream ckv failed %d", status);
+            goto exit;
+        }
     }
     if ((streamKV.size() > 0) || (streamCKV.size() > 0)) {
         getAgmMetaData(streamKV, streamCKV, (struct prop_data *)streamPropId,
@@ -396,6 +399,12 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             QAL_VERBOSE(LOG_TAG, "%s: get device PP KV failed %d", status);
             status = 0; /**< ignore device PP KV failures */
         }
+        status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
+        if (status) {
+            QAL_ERR(LOG_TAG, " populateDevicePP Ckv failed %d", status);
+            status = 0; /**< ignore device PP CKV failures */
+        }
+
         status = builder->populateStreamDeviceKV(streamHandle, be->first, streamDeviceKV);
         if (status) {
             QAL_VERBOSE(LOG_TAG, "get stream device KV failed %d", status);
@@ -427,8 +436,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 goto freeMetaData;
             }
         }
-        if (streamDeviceKV.size() > 0) {
-            getAgmMetaData(streamDeviceKV, emptyKV, (struct prop_data *)streamDevicePropId,
+        if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
+            getAgmMetaData(streamDeviceKV, devicePPCKV, (struct prop_data *)streamDevicePropId,
                     streamDeviceMetaData);
             if (!streamDeviceMetaData.size) {
                 QAL_ERR(LOG_TAG, "stream/device metadata is zero");
@@ -487,7 +496,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     struct agmMetaData deviceMetaData(nullptr, 0);
     struct agmMetaData streamDeviceMetaData(nullptr, 0);
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     std::ostringstream feName;
     struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
@@ -608,7 +617,7 @@ int SessionAlsaUtils::setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandl
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     struct mixer *mixerHandle = NULL;
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
 
@@ -977,7 +986,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct mixer *mixerHandle;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t i, rxDevNum, txDevNum;
     struct qal_device_info devinfo = {};
@@ -1242,7 +1251,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct mixer *mixerHandle;
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t i, rxDevNum, txDevNum;
 
@@ -1501,6 +1510,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             deviceData.bitWidth = dAttr.config.bit_width;
             deviceData.sampleRate = dAttr.config.sample_rate;
             deviceData.numChannel = dAttr.config.ch_info.channels;
+            deviceData.ch_info = nullptr;
             builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
             if (!payloadSize) {
                 QAL_ERR(LOG_TAG,"%s payloadMFCConfig failed\n", __func__);
@@ -1587,6 +1597,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> emptyKV;
+    std::vector <std::pair<int, int>> devicePPCKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
     struct agmMetaData streamDeviceMetaData(nullptr, 0);
@@ -1595,7 +1606,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     struct mixer_ctl *aifMdCtrl = nullptr;
     PayloadBuilder* builder = new PayloadBuilder();
     struct mixer *mixerHandle = nullptr;
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     bool is_compress = false;
     struct qal_stream_attributes sAttr;
@@ -1685,8 +1696,14 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
             goto freeMetaData;
         }
     }
-    if (streamDeviceKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(streamDeviceKV, emptyKV,
+    status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
+    if (status) {
+        QAL_ERR(LOG_TAG, " populateDevicePP Ckv failed %d", status);
+        status = 0; /**< ignore device PP CKV failures */
+    }
+
+    if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
+        SessionAlsaUtils::getAgmMetaData(streamDeviceKV, devicePPCKV,
                 (struct prop_data *)streamDevicePropId,
                 streamDeviceMetaData);
         if (!streamDeviceMetaData.size) {

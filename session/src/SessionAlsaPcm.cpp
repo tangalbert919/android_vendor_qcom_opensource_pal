@@ -724,6 +724,7 @@ int SessionAlsaPcm::start(Stream * s)
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
                 streamData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+                streamData.ch_info = nullptr;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
@@ -774,6 +775,7 @@ int SessionAlsaPcm::start(Stream * s)
                     deviceData.sampleRate = dAttr.config.sample_rate;
                     deviceData.numChannel = dAttr.config.ch_info.channels;
                     deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+                    deviceData.ch_info = nullptr;
 
                     if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
                         (2 == dAttr.config.ch_info.channels)) {
@@ -784,6 +786,11 @@ int SessionAlsaPcm::start(Stream * s)
                             deviceData.rotation_type = QAL_SPEAKER_ROTATION_RL;
                         }
                     }
+                    if (dAttr.id == QAL_DEVICE_OUT_AUX_DIGITAL ||
+                        dAttr.id == QAL_DEVICE_OUT_AUX_DIGITAL_1 ||
+                        dAttr.id == QAL_DEVICE_OUT_HDMI)
+                        deviceData.ch_info = &dAttr.config.ch_info;
+
                     builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
                     if (payloadSize) {
                         status = updateCustomPayload(payload, payloadSize);
@@ -836,12 +843,6 @@ int SessionAlsaPcm::start(Stream * s)
     }
 
     mState = SESSION_STARTED;
-
-    if (!status && sAttr.type == QAL_STREAM_VOICE_UI) {
-        if (setConfig(s, CALIBRATION, TAG_MODULE_CHANNELS) != 0) {
-            QAL_ERR(LOG_TAG, "Set fluence calibration failed");
-        }
-    }
 
     return status;
 }
