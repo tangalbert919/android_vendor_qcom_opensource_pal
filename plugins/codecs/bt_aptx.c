@@ -423,10 +423,11 @@ static int aptx_ad_speech_pack_enc_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
-    enc_payload->sample_rate   = SAMPLING_RATE_32K;
-    enc_payload->channel_count = CH_MONO;
-    enc_payload->num_blks      = num_blks;
+    enc_payload->bit_format     = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->sample_rate    = SAMPLING_RATE_32K;
+    enc_payload->channel_count  = CH_MONO;
+    enc_payload->num_blks       = num_blks;
+    enc_payload->is_abr_enabled = true;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
@@ -494,10 +495,11 @@ static int aptx_ad_speech_pack_dec_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
-    enc_payload->sample_rate   = SAMPLING_RATE_32K;
-    enc_payload->channel_count = CH_MONO;
-    enc_payload->num_blks      = num_blks;
+    enc_payload->bit_format     = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->sample_rate    = SAMPLING_RATE_32K;
+    enc_payload->channel_count  = CH_MONO;
+    enc_payload->num_blks       = num_blks;
+    enc_payload->is_abr_enabled = true;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));

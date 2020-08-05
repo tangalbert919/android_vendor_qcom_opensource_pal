@@ -88,22 +88,26 @@ protected:
     bool                    is_handoff_in_progress;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
-              bt_enc_payload_t **out_buf, void *codec_info, codec_type ctype);
+                         bt_enc_payload_t **out_buf, void *codec_info,
+                         codec_type ctype);
     int configureA2dpEncoderDecoder(void *codec_info);
     int updateDeviceMetadata(void);
     void updateDeviceAttributes(void);
     bool isPlaceholderEncoder(void);
-    bool isAbrEnabled;
-    bool isTwsMonoModeOn;
-    int bt_swb_speech_mode;
-    struct pcm *fbPcm;
-    std::vector<int> fbpcmDevIds;
-    int abrRefCnt;
-    std::mutex mAbrMutex;
+
+    bool                       isAbrEnabled;
+    bool                       isTwsMonoModeOn;
+    int                        bt_swb_speech_mode;
+    struct pcm                 *fbPcm;
+    std::vector<int>           fbpcmDevIds;
+    std::shared_ptr<Bluetooth> fbDev;
+    int                        abrRefCnt;
+    std::mutex                 mAbrMutex;
     void startAbr();
     void stopAbr();
+
 public:
-    int getDeviceAttributes (struct qal_device *dattr) override;
+    int getDeviceAttributes(struct qal_device *dattr) override;
     virtual ~Bluetooth();
 };
 
@@ -113,8 +117,8 @@ protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
     BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    virtual int close_audio_source();
     qal_param_bta2dp_t param_bt_a2dp;
+
 private:
     /* BT IPC related members */
     static void                                 *bt_lib_source_handle;
@@ -140,18 +144,18 @@ private:
 
     /* member variables */
     uint8_t         a2dp_role;  // source or sink
-
     enum A2DP_STATE bt_state;
     bool            is_a2dp_offload_supported;
     int             total_active_session_requests;
-    int       startPlayback();
-    int       stopPlayback();
-    int       startCapture();
-    int       stopCapture();
+    int startPlayback();
+    int stopPlayback();
+    int startCapture();
+    int stopCapture();
 
     /* common member funtions */
     void init_a2dp_source();
     void open_a2dp_source();
+    int close_audio_source();
 
     void init_a2dp_sink();
     bool a2dp_send_sink_setup_complete(void);
@@ -161,8 +165,7 @@ private:
 public:
     int start();
     int stop();
-
-    bool      isDeviceReady() override;
+    bool isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     int32_t getDeviceParameter(uint32_t param_id, void **param) override;
 
@@ -182,15 +185,17 @@ protected:
     bool bt_sco_on;
     bool bt_wb_speech_enabled;
     int startSwb();
+
 public:
-    static std::shared_ptr<Device> getObject(qal_device_id_t id);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
-                                               std::shared_ptr<ResourceManager> Rm);
     int start();
     int stop();
     bool isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     void updateSampleRate(uint32_t *sampleRate);
+
+    static std::shared_ptr<Device> getObject(qal_device_id_t id);
+    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
     virtual ~BtSco();
     DISALLOW_COPY_AND_ASSIGN(BtSco);
 };

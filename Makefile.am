@@ -14,8 +14,6 @@ h_sources = ./stream/inc/Stream.h \
             ./plugins/codecs/bt_plugin_intf.h \
             ./device/inc/Headphone.h \
             ./device/inc/USBAudio.h \
-            ./device/inc/DeviceAlsa.h \
-            ./device/inc/DeviceImpl.h \
             ./device/inc/SpeakerMic.h \
             ./device/inc/HeadsetMic.h \
             ./device/inc/Handset.h \
@@ -24,7 +22,6 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
-            ./session/inc/SessionAts.h \
             ./session/inc/SessionAlsaUtils.h \
             ./session/inc/SessionAlsaPcm.h \
             ./session/inc/SessionAlsaCompress.h \
@@ -55,7 +52,6 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/Speaker.cpp \
               ./device/src/Headphone.cpp \
               ./device/inc/USBAudio.cpp \
-              ./device/src/DeviceAlsa.cpp \
               ./device/src/SpeakerMic.cpp \
               ./device/src/Bluetooth.cpp \
               ./device/src/HeadsetMic.cpp \
@@ -64,7 +60,6 @@ qal_sources = ./stream/src/Stream.cpp \
               ./device/src/Handset.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
-              ./session/src/SessionAts.cpp \
               ./session/src/SessionAlsaUtils.cpp \
               ./session/src/SessionAlsaPcm.cpp \
               ./session/src/SessionAlsaCompress.cpp\
@@ -88,8 +83,6 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/plugins/codecs/bt_plugin_intf.h \
             ${top_srcdir}/device/inc/USBAudio.h \
             ${top_srcdir}/device/inc/Device.h \
-            ${top_srcdir}/device/inc/DeviceAlsa.h \
-            ${top_srcdir}/device/inc/DeviceImpl.h \
             ${top_srcdir}/device/inc/SpeakerMic.h \
             ${top_srcdir}/device/inc/HeadsetMic.h \
             ${top_srcdir}/device/inc/Handset.h \
@@ -99,7 +92,6 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
-            ${top_srcdir}/session/inc/SessionAts.h \
             ${top_srcdir}/session/inc/SessionAlsaPcm.h \
             ${top_srcdir}/session/inc/SessionAlsaCompress.h \
             ${top_srcdir}/session/inc/SessionAlsaVoice.h \
@@ -147,7 +139,6 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/Speaker.cpp \
               ${top_srcdir}/device/src/Headphone.cpp \
-              ${top_srcdir}/device/src/DeviceAlsa.cpp \
               ${top_srcdir}/device/src/SpeakerMic.cpp \
               ${top_srcdir}/device/src/Bluetooth.cpp \
               ${top_srcdir}/device/src/HeadsetMic.cpp \
@@ -157,7 +148,6 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/DisplayPort.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
-              ${top_srcdir}/session/src/SessionAts.cpp \
               ${top_srcdir}/session/src/SessionAlsaUtils.cpp \
               ${top_srcdir}/session/src/SessionAlsaPcm.cpp \
               ${top_srcdir}/session/src/SessionAlsaCompress.cpp \

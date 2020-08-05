@@ -386,8 +386,6 @@ public:
     static void updateLinkName(int32_t deviceId, std::string linkName);
     static void updateSndName(int32_t deviceId, std::string sndName);
     static void updateBackEndName(int32_t deviceId, std::string backEndName);
-    static void updateStreamTag(int32_t tagId);
-    static void updateDeviceTag(int32_t tagId);
     static void updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value);
     static std::string getBtCodecLib(uint32_t codecFormat, std::string codecType);
 
@@ -472,7 +470,6 @@ public:
     static void process_kvinfo(const XML_Char **attr);
     static void process_voicemode_info(const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
-    static void processTagInfo(const XML_Char **attr);
     static void processBTCodecInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);

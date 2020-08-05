@@ -48,9 +48,15 @@
 #define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
 
 Bluetooth::Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
-    : Device(device, Rm)
+    : Device(device, Rm),
+      codecFormat(CODEC_TYPE_INVALID),
+      is_configured(false),
+      is_handoff_in_progress(false),
+      isAbrEnabled(false),
+      isTwsMonoModeOn(false),
+      bt_swb_speech_mode(SPEECH_MODE_INVALID),
+      abrRefCnt(0)
 {
-    isAbrEnabled = false;
 }
 
 Bluetooth::~Bluetooth()
@@ -403,7 +409,6 @@ void Bluetooth::startAbr()
 {
     int ret = 0, dir;
     struct qal_device fbDevice;
-    std::shared_ptr<BtSco> fbDev = nullptr;
     struct qal_channel_info ch_info;
     struct qal_stream_attributes sAttr;
     std::string backEndName;
@@ -514,25 +519,6 @@ void Bluetooth::startAbr()
         QAL_ERR(LOG_TAG, "Failed to set BT usecase");
         goto free_fe;
     }
-    config.rate = SAMPLINGRATE_8K;
-    config.format = PCM_FORMAT_S16_LE;
-    config.channels = CHANNELS_1;
-    config.period_size = 240;
-    config.period_count = 2;
-    config.start_threshold = 0;
-    config.stop_threshold = 0;
-    config.silence_threshold = 0;
-
-    fbPcm = pcm_open(rm->getSndCard(), fbpcmDevIds.at(0), flags, &config);
-    if (!fbPcm) {
-        QAL_ERR(LOG_TAG, "pcm open failed");
-        goto free_fe;
-    }
-
-    if (!pcm_is_ready(fbPcm)) {
-        QAL_ERR(LOG_TAG, "pcm open not ready");
-        goto err_pcm_open;
-    }
 
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         uint32_t codecTagId = 0, miid = 0;
@@ -550,8 +536,10 @@ void Bluetooth::startAbr()
             goto err_pcm_open;
         }
 
-        if (fbDev->is_configured == true)
+        if (fbDev->is_configured == true) {
+            QAL_INFO(LOG_TAG, "feedback path is already configured");
             goto start_pcm;
+        }
 
         codecTagId = (type == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
         ret = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
@@ -569,6 +557,10 @@ void Bluetooth::startAbr()
         }
 
         /* SWB Encoder/Decoder has only 1 param, read block 0 */
+        if (out_buf->num_blks != 1) {
+            QAL_ERR(LOG_TAG, "incorrect block size %d", out_buf->num_blks);
+            goto err_pcm_open;
+        }
         fbDev->codecConfig.sample_rate = out_buf->sample_rate;
         fbDev->codecConfig.bit_width = out_buf->bit_format;
         fbDev->codecConfig.ch_info.channels = out_buf->channel_count;
@@ -588,6 +580,7 @@ void Bluetooth::startAbr()
 
         ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                                     paramData, paramSize);
+        free(paramData);
         if (ret) {
              QAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
                                fbDevice.id);
@@ -596,20 +589,42 @@ void Bluetooth::startAbr()
     }
 
 start_pcm:
+    config.rate = SAMPLINGRATE_8K;
+    config.format = PCM_FORMAT_S16_LE;
+    config.channels = CHANNELS_1;
+    config.period_size = 240;
+    config.period_count = 2;
+    config.start_threshold = 0;
+    config.stop_threshold = 0;
+    config.silence_threshold = 0;
+    fbPcm = pcm_open(rm->getSndCard(), fbpcmDevIds.at(0), flags, &config);
+    if (!fbPcm) {
+        QAL_ERR(LOG_TAG, "pcm open failed");
+        goto free_fe;
+    }
+
+    if (!pcm_is_ready(fbPcm)) {
+        QAL_ERR(LOG_TAG, "pcm open not ready");
+        goto err_pcm_open;
+    }
+
     ret = pcm_start(fbPcm);
     if (ret) {
         QAL_ERR(LOG_TAG, "pcm_start rx failed %d", ret);
         goto err_pcm_open;
     }
 
-    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         fbDev->is_configured = true;
+        fbDev->deviceCount++;
+    }
 
     abrRefCnt++;
     QAL_INFO(LOG_TAG, "Feedback Device started successfully");
     goto done;
 err_pcm_open:
     pcm_close(fbPcm);
+    fbPcm = NULL;
 free_fe:
     rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
     fbpcmDevIds.clear();
@@ -627,11 +642,13 @@ void Bluetooth::stopAbr()
 
     mAbrMutex.lock();
     if (!fbPcm) {
+        QAL_ERR(LOG_TAG, "fbPcm is null");
         mAbrMutex.unlock();
         return;
     }
 
     if (--abrRefCnt != 0) {
+        QAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
     }
@@ -658,12 +675,19 @@ void Bluetooth::stopAbr()
         QAL_ERR(LOG_TAG, "Failed to reset BT usecase");
     }
 
+    if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) && fbDev) {
+        if (--fbDev->deviceCount == 0) {
+            fbDev->is_configured = false;
+        }
+    }
+
 free_fe:
     dir = ((type == DEC) ? RXLOOPBACK : TXLOOPBACK);
     if (fbpcmDevIds.size()) {
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
     }
+    isAbrEnabled = false;
     mAbrMutex.unlock();
 }
 
@@ -700,15 +724,12 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
     a2dp_role = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
     type = (device->id == QAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
-    codecFormat = CODEC_TYPE_INVALID;
     pluginHandler = NULL;
     pluginCodec = NULL;
 
     init();
     param_bt_a2dp.reconfigured = false;
     param_bt_a2dp.a2dp_suspended = false;
-    is_handoff_in_progress = false;
-    isTwsMonoModeOn = false;
     is_a2dp_offload_supported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
@@ -717,7 +738,6 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
             is_a2dp_offload_supported);
     param_bt_a2dp.reconfig_supported = is_a2dp_offload_supported;
     param_bt_a2dp.latency = 0;
-    is_configured = false;
 }
 
 BtA2dp::~BtA2dp()
@@ -760,6 +780,7 @@ int BtA2dp::close_audio_source()
     total_active_session_requests = 0;
     param_bt_a2dp.a2dp_suspended = false;
     param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.latency = 0;
     bt_state = A2DP_STATE_DISCONNECTED;
 
     return 0;
@@ -867,9 +888,8 @@ int BtA2dp::start()
         return status;
 
     status = Device::start();
-    if (!status)
-        if (isAbrEnabled)
-            startAbr();
+    if (!status && isAbrEnabled)
+        startAbr();
 
     return status;
 }
@@ -882,7 +902,6 @@ int BtA2dp::stop()
         stopAbr();
 
     Device::stop();
-
     status = (a2dp_role == SOURCE) ? stopPlayback() : stopCapture();
 
     return status;
@@ -1260,15 +1279,14 @@ BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> 
 }
 
 /* Scope of BtScoRX/Tx class */
-
 std::shared_ptr<Device> BtSco::objRx = nullptr;
 std::shared_ptr<Device> BtSco::objTx = nullptr;
 
 BtSco::BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
-    : Bluetooth(device, Rm)
+    : Bluetooth(device, Rm),
+      bt_sco_on(false),
+      bt_wb_speech_enabled(false)
 {
-    bt_sco_on = false;
-    bt_wb_speech_enabled = false;
     type = (device->id == QAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
 }
 
@@ -1302,10 +1320,11 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
     case QAL_PARAM_ID_BT_SCO_WB:
         bt_wb_speech_enabled = param_bt_sco->bt_wb_speech_enabled;
         deviceAttr.config.sample_rate = bt_wb_speech_enabled ? SAMPLINGRATE_16K : SAMPLINGRATE_8K;
-        QAL_ERR(LOG_TAG, "received wbs = %d, updated sr = %d\n", bt_wb_speech_enabled, deviceAttr.config.sample_rate);
+        QAL_DBG(LOG_TAG, "received wbs = %d, updated sr = %d\n", bt_wb_speech_enabled, deviceAttr.config.sample_rate);
         break;
     case QAL_PARAM_ID_BT_SCO_SWB:
         bt_swb_speech_mode = param_bt_sco->bt_swb_speech_mode;
+        QAL_DBG(LOG_TAG, "bt_swb_speech_mode %d", bt_swb_speech_mode);
         break;
     default:
         return -EINVAL;
@@ -1328,26 +1347,19 @@ int BtSco::start()
 {
     int status = 0;
 
-    isAbrEnabled = false;
-    if (bt_swb_speech_mode != SPEECH_MODE_INVALID) {
+    if (bt_swb_speech_mode != SPEECH_MODE_INVALID)
         codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
-        isAbrEnabled = true;
-    }
 
     updateDeviceMetadata();
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         status = startSwb();
         if (status)
             return status;
-    } else {
-        is_configured = false;
     }
 
     status = Device::start();
-    if (!status) {
-        if (isAbrEnabled)
-            startAbr();
-    }
+    if (!status && isAbrEnabled)
+        startAbr();
 
     return status;
 }
@@ -1359,7 +1371,21 @@ int BtSco::stop()
     if (isAbrEnabled)
         stopAbr();
 
+    if (pluginCodec) {
+        pluginCodec->close_plugin(pluginCodec);
+        pluginCodec = NULL;
+    }
+    if (pluginHandler) {
+        dlclose(pluginHandler);
+        pluginHandler = NULL;
+    }
+
     Device::stop();
+    if (isAbrEnabled == false)
+        codecFormat = CODEC_TYPE_INVALID;
+    if (deviceCount == 0)
+        is_configured = false;
+
     return status;
 }
 

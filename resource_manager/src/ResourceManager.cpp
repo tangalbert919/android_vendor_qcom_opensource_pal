@@ -67,7 +67,6 @@
 #define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/etc/resourcemanager.xml"
 #define RMNGR_XMLFILE_BASE_STRING  "/etc/resourcemanager"
-#define SPFXMLFILE "/etc/kvh2xml.xml"
 #define SNDPARSER "/etc/card-defs.xml"
 #define STXMLFILE "/etc/sound_trigger_platform_info.xml"
 #else
@@ -76,7 +75,6 @@
 #define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
 #define XMLFILE "/vendor/etc/resourcemanager.xml"
 #define RMNGR_XMLFILE_BASE_STRING  "/vendor/etc/resourcemanager"
-#define SPFXMLFILE "/vendor/etc/kvh2xml.xml"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
 #define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
 #endif
@@ -463,11 +461,6 @@ ResourceManager::ResourceManager()
     QAL_INFO(LOG_TAG, "Enter.");
     if (ret) {
         QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
-    }
-
-    ret = ResourceManager::XmlParser(SPFXMLFILE);
-    if (ret) {
-        QAL_ERR(LOG_TAG, "error in spf xml parsing ret %d", ret);
     }
 
     ret = ResourceManager::XmlParser(rmngr_xml_file);
@@ -3791,16 +3784,6 @@ int convertCharToHex(std::string num)
     return (int32_t) hexNum;
 }
 
-void ResourceManager::updateStreamTag(int32_t tagId)
-{
-    streamTag.push_back(tagId);
-}
-
-void ResourceManager::updateDeviceTag(int32_t tagId)
-{
-    deviceTag.push_back(tagId);
-}
-
 // must be called with mResourceManagerMutex held
 int32_t ResourceManager::a2dpSuspend()
 {
@@ -4890,37 +4873,6 @@ bool ResourceManager::isDpDevice(qal_device_id_t id) {
         return false;
 }
 
-void ResourceManager::processTagInfo(const XML_Char **attr)
-{
-    int32_t tagId;
-    int32_t found = 0;
-    if (strcmp(attr[0], "id" ) !=0 ) {
-        QAL_ERR(LOG_TAG, " 'id' not found");
-        return;
-    }
-    std::string tagCh(attr[1]);
-
-    tagId = convertCharToHex(tagCh);
-    if (strcmp(attr[2], "name") != 0) {
-        QAL_ERR(LOG_TAG, " 'name' not found");
-        return;
-    }
-
-    std::string name(attr[3]);
-    std::string String("stream");
-    found = name.find(String);
-    if (found != std::string::npos) {
-        updateStreamTag(tagId);
-        QAL_ERR(LOG_TAG,"%s:%d    %x", __func__, __LINE__, tagId);
-    }
-    found = 0;
-    found = name.find(std::string("device"));
-    if (found != std::string::npos) {
-        updateDeviceTag(tagId);
-    }
-
-}
-
 void ResourceManager::processConfigParams(const XML_Char **attr)
 {
     if (strcmp(attr[0], "key") != 0) {
@@ -5233,12 +5185,6 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     }
 
     if (strcmp(tag_name, "device") == 0) {
-        return;
-    } else if (strcmp(tag_name, "Tag") == 0) {
-        processTagInfo(attr);
-        return;
-    } else if (strcmp(tag_name, "TAG") == 0) {
-        processTagInfo(attr);
         return;
     } else if(strcmp(tag_name, "param") == 0) {
         processConfigParams(attr);
