@@ -351,6 +351,9 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>speaker</snd_device_name>
+            <speaker_protection_enabled>0</speaker_protection_enabled>
+            <quick_cal_time>0</quick_cal_time> <!-- Time in seconds for Quick cal. Set 0 to disable -->
+            <ras_enabled>0</ras_enabled> <!-- RAS should be enabled with speaker protection always -->
         </out-device>
         <out-device>
             <id>QAL_DEVICE_OUT_HANDSET</id>

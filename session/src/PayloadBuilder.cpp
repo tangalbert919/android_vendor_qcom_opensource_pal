@@ -1521,6 +1521,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
     struct qal_stream_attributes *sattr = NULL;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     QAL_DBG(LOG_TAG,"%s: enter", __func__);
     sattr = new struct qal_stream_attributes;
@@ -1555,6 +1556,36 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 /* Push Channels CKV for FFNS or FFECNS channel based calibration */
                 keyVector.push_back(std::make_pair(CHANNELS,
                                                    dAttr.config.ch_info.channels));
+                break;
+            case QAL_STREAM_LOW_LATENCY:
+            case QAL_STREAM_DEEP_BUFFER:
+            case QAL_STREAM_PCM_OFFLOAD:
+            case QAL_STREAM_COMPRESSED:
+                QAL_INFO(LOG_TAG,"SpeakerProt Status[%d], RAS Status[%d] device id[%d]\n",
+                  rm->isSpeakerProtectionEnabled, rm->isRasEnabled, dAttr.id );
+                if(rm->isSpeakerProtectionEnabled == true &&
+                   rm->isRasEnabled == true &&
+                   dAttr.id == QAL_DEVICE_OUT_SPEAKER)
+                {
+                  if(dAttr.config.ch_info.channels == 2)
+                  {
+                    QAL_INFO(LOG_TAG,"Enabling RAS - device channels[%d]\n",
+                      dAttr.config.ch_info.channels);
+                    keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_ON));
+                  }
+                  else
+                  {
+                    QAL_INFO(LOG_TAG,"Disabling RAS - device channels[%d] \n",
+                      dAttr.config.ch_info.channels);
+                    keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_OFF));
+                  }
+                }  else {
+                    QAL_VERBOSE(LOG_TAG,"stream type[%d] dev_id[%d] doesn't require DevicePP CKV ",
+                      sattr->type, dAttr.id);
+                }
+                /* TBD: Push Channels for these types once Channels are added */
+                //keyVector.push_back(std::make_pair(CHANNELS,
+                //                                   dAttr.config.ch_info.channels));
                 break;
             default:
                 QAL_VERBOSE(LOG_TAG,"stream type %d doesn't support DevicePP CKV ", sattr->type);

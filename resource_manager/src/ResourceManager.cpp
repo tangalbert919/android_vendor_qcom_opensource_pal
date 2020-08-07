@@ -325,6 +325,7 @@ int ResourceManager::concurrentRxStreamCount = 0;
 int ResourceManager::concurrentTxStreamCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled;
+bool ResourceManager::isRasEnabled = false;
 int ResourceManager::spQuickCalTime;
 
 //TODO:Needs to define below APIs so that functionality won't break
@@ -5293,6 +5294,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                 isSpeakerProtectionEnabled = true;
         } else if (!strcmp(tag_name, "quick_cal_time")) {
             spQuickCalTime = atoi(data->data_buf);
+        }else if (!strcmp(tag_name, "ras_enabled")) {
+            if (atoi(data->data_buf))
+                isRasEnabled = true;
         }
     } else if (data->tag == TAG_USECASE) {
         if (!strcmp(tag_name, "name")) {

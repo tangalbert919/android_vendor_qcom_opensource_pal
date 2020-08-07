@@ -277,28 +277,26 @@ typedef enum {
 
 /** Audio stream types */
 typedef enum {
-    QAL_STREAM_LOW_LATENCY = 1,      /**< :low latency, higher power*/
-    QAL_STREAM_DEEP_BUFFER,          /**< :low power, higher latency*/
-    QAL_STREAM_COMPRESSED,           /**< :compresssed audio*/
-    QAL_STREAM_VOIP,                 /**< :pcm voip audio*/
-    QAL_STREAM_VOIP_RX,              /**< :pcm voip audio downlink*/
-    QAL_STREAM_VOIP_TX,              /**< :pcm voip audio uplink*/
-    QAL_STREAM_VOICE_CALL_MUSIC,     /**< :incall music */
-    QAL_STREAM_GENERIC,              /**< :generic playback audio*/
-    QAL_STREAM_RAW,                  /**< pcm no post processing*/
-    QAL_STREAM_VOICE_ACTIVATION,     /**< voice activation*/
-    QAL_STREAM_VOICE_CALL_RECORD,    /**< incall record */
-    QAL_STREAM_VOICE_CALL_TX,        /**< incall record, uplink */
-    QAL_STREAM_VOICE_CALL_RX_TX,     /**< incall record, uplink & Downlink */
-
-    QAL_STREAM_VOICE_CALL,           /**< voice call */
-
-    QAL_STREAM_LOOPBACK,             /**< loopback */
-    QAL_STREAM_TRANSCODE,            /**< audio transcode */
-    QAL_STREAM_VOICE_UI,             /**< voice ui */
-    QAL_STREAM_PCM_OFFLOAD,          /**< pcm offload audio */
-    QAL_STREAM_ULTRA_LOW_LATENCY,    /**< pcm ULL audio */
-    QAL_STREAM_PROXY,                /**< pcm proxy audio */
+    QAL_STREAM_LOW_LATENCY = 1,           /**< :low latency, higher power*/
+    QAL_STREAM_DEEP_BUFFER = 2,           /**< :low power, higher latency*/
+    QAL_STREAM_COMPRESSED = 3,            /**< :compresssed audio*/
+    QAL_STREAM_VOIP = 4,                  /**< :pcm voip audio*/
+    QAL_STREAM_VOIP_RX = 5,               /**< :pcm voip audio downlink*/
+    QAL_STREAM_VOIP_TX = 6,               /**< :pcm voip audio uplink*/
+    QAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
+    QAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
+    QAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
+    QAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    QAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
+    QAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
+    QAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
+    QAL_STREAM_VOICE_CALL = 14,           /**< voice call */
+    QAL_STREAM_LOOPBACK = 15,             /**< loopback */
+    QAL_STREAM_TRANSCODE = 16,            /**< audio transcode */
+    QAL_STREAM_VOICE_UI = 17,             /**< voice ui */
+    QAL_STREAM_PCM_OFFLOAD = 18,          /**< pcm offload audio */
+    QAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
+    QAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
 } qal_stream_type_t;
 
 /** Audio devices available for enabling streams */
@@ -650,31 +648,32 @@ typedef enum {
 } qal_drain_type_t;
 
 typedef enum {
-    QAL_PARAM_ID_LOAD_SOUND_MODEL,
-    QAL_PARAM_ID_RECOGNITION_CONFIG,
-    QAL_PARAM_ID_FLUENCE_ON_OFF,
-    QAL_PARAM_ID_DIRECTION_OF_ARRIVAL,
-    QAL_PARAM_ID_UIEFFECT,
-    QAL_PARAM_ID_STOP_BUFFERING,
-    QAL_PARAM_ID_CODEC_CONFIGURATION,
+    QAL_PARAM_ID_LOAD_SOUND_MODEL = 0,
+    QAL_PARAM_ID_RECOGNITION_CONFIG = 1,
+    QAL_PARAM_ID_FLUENCE_ON_OFF = 2,
+    QAL_PARAM_ID_DIRECTION_OF_ARRIVAL = 3,
+    QAL_PARAM_ID_UIEFFECT = 4,
+    QAL_PARAM_ID_STOP_BUFFERING = 5,
+    QAL_PARAM_ID_CODEC_CONFIGURATION = 6,
     /* Non-Stream Specific Parameters*/
-    QAL_PARAM_ID_DEVICE_CONNECTION,
-    QAL_PARAM_ID_SCREEN_STATE,
-    QAL_PARAM_ID_CHARGING_STATE,
-    QAL_PARAM_ID_DEVICE_ROTATION,
-    QAL_PARAM_ID_BT_SCO,
-    QAL_PARAM_ID_BT_SCO_WB,
-    QAL_PARAM_ID_BT_SCO_SWB,
-    QAL_PARAM_ID_BT_A2DP_RECONFIG,
-    QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED,
-    QAL_PARAM_ID_BT_A2DP_SUSPENDED,
-    QAL_PARAM_ID_BT_A2DP_TWS_CONFIG,
-    QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY,
-    QAL_PARAM_ID_DEVICE_CAPABILITY,
-    QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES,
-    QAL_PARAM_ID_TTY_MODE,
-    QAL_PARAM_ID_VOLUME_BOOST,
-    QAL_PARAM_ID_SLOW_TALK,
+    QAL_PARAM_ID_DEVICE_CONNECTION = 7,
+    QAL_PARAM_ID_SCREEN_STATE = 8,
+    QAL_PARAM_ID_CHARGING_STATE = 9,
+    QAL_PARAM_ID_DEVICE_ROTATION = 10,
+    QAL_PARAM_ID_BT_SCO = 11,
+    QAL_PARAM_ID_BT_SCO_WB = 12,
+    QAL_PARAM_ID_BT_SCO_SWB = 13,
+    QAL_PARAM_ID_BT_A2DP_RECONFIG = 14,
+    QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED = 15,
+    QAL_PARAM_ID_BT_A2DP_SUSPENDED = 16,
+    QAL_PARAM_ID_BT_A2DP_TWS_CONFIG = 17,
+    QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY = 18,
+    QAL_PARAM_ID_DEVICE_CAPABILITY = 19,
+    QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES = 20,
+    QAL_PARAM_ID_TTY_MODE = 21,
+    QAL_PARAM_ID_VOLUME_BOOST = 22,
+    QAL_PARAM_ID_SLOW_TALK = 23,
+    QAL_PARAM_ID_SPEAKER_RAS = 24,
 }qal_param_id_type_t;
 
 /** HDMI/DP */
