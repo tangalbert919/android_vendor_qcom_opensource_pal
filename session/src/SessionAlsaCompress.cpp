@@ -568,6 +568,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
             //todo calibration
@@ -604,6 +606,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
             }
             ctl = NULL;
+            if (calConfig)
+                free(calConfig);
             ckv.clear();
             break;
         default:

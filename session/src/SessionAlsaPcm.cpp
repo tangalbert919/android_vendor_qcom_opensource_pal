@@ -212,6 +212,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
                 goto exit;
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
         default:
@@ -315,6 +317,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
             //todo calibration
@@ -357,6 +361,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
             ctl = NULL;
+            if (calConfig)
+                free(calConfig);
             ckv.clear();
             break;
         default:
