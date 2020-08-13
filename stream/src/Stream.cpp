@@ -497,7 +497,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, qal_device_id_t d
                 QAL_ERR(LOG_TAG, "device stop failed with status %d", status);
                 goto error_1;
             }
-            rm->deregisterDevice(mDevices[i]);
+            rm->deregisterDevice(mDevices[i], this);
 
             status = mDevices[i]->close();
             if (0 != status) {
@@ -566,7 +566,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
         goto error_1;
     }
 
-    rm->registerDevice(dev);
+    rm->registerDevice(dev, this);
 
     status = dev->start();
     if (0 != status) {
@@ -584,7 +584,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
 
 error_2:
     mDevices.pop_back();
-    rm->deregisterDevice(dev);
+    rm->deregisterDevice(dev, this);
     dev->close();
 error_1:
     return status;
@@ -768,7 +768,8 @@ bool Stream::checkStreamMatch(qal_device_id_t qal_device_id,
         return false;
     }
 
-    if (qal_stream_type == mStreamAttr->type)
+    if (qal_stream_type == mStreamAttr->type ||
+            qal_stream_type == QAL_STREAM_GENERIC)
         match = true;
     else
         return false;
@@ -780,10 +781,10 @@ bool Stream::checkStreamMatch(qal_device_id_t qal_device_id,
           QAL_ERR(LOG_TAG,"%s: getDeviceAttributes Failed \n", __func__);
           return false;
        }
-       if (qal_device_id == dAttr.id) {
-              match = true;
-            // as long as one device matches, it is enough.
-            break;
+       if (qal_device_id == dAttr.id || qal_device_id == QAL_DEVICE_NONE) {
+           match = true;
+           // as long as one device matches, it is enough.
+           break;
        }
     }
 

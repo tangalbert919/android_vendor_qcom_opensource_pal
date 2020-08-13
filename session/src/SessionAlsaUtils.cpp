@@ -287,7 +287,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct qal_stream_attributes sAttr;
-    struct qal_device dAttr;
     struct agmMetaData streamMetaData(nullptr, 0);
     struct agmMetaData deviceMetaData(nullptr, 0);
     struct agmMetaData streamDeviceMetaData(nullptr, 0);
@@ -301,7 +300,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t streamPropId[] = {0x08000010, 1, 0x1}; /** gsl_subgraph_platform_driver_props.xml */
     uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
-    bool is_lpi = false;
     struct qal_device_info devinfo = {};
 
     status = streamHandle->getStreamAttributes(&sAttr);
@@ -315,21 +313,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         if (0 != status) {
             QAL_ERR(LOG_TAG, "%s: getAssociatedDevices Failed \n", __func__);
             return status;
-        }
-    }
-
-    if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        if (associatedDevices.size() > 0) {
-            associatedDevices.at(0)->getDeviceAttributes(&dAttr);
-            if (dAttr.id != QAL_DEVICE_IN_HANDSET_MIC &&
-                rmHandle->IsVoiceUILPISupported() &&
-                !rmHandle->CheckForActiveConcurrentNonLPIStream()) {
-                QAL_INFO(LOG_TAG,"lpi true");
-                is_lpi = true;
-            }
-        } else {
-            QAL_ERR(LOG_TAG, "associated device size is 0");
-            return -EINVAL;
         }
     }
 
@@ -387,7 +370,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
         if (sAttr.direction == QAL_AUDIO_OUTPUT)
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
-                    emptyKV, devinfo.kvpair, is_lpi);
+                    emptyKV, devinfo.kvpair);
         else {
             rmHandle->getDeviceInfo((qal_device_id_t)be->first, sAttr.type, &devinfo);
             if (devinfo.kvpair.size() == 0) {
@@ -395,7 +378,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                         be->first, sAttr.type);
             }
             status = builder->populateDevicePPKV(streamHandle, 0, emptyKV, be->first,
-                     streamDeviceKV, devinfo.kvpair, is_lpi);
+                     streamDeviceKV, devinfo.kvpair);
         }
         if (status != 0) {
             QAL_VERBOSE(LOG_TAG, "%s: get device PP KV failed %d", status);
@@ -1068,7 +1051,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
      // get devicePP
     if ((status = builder->populateDevicePPKV(streamHandle,
                     rxBackEnds[0].first, streamDeviceRxKV, txBackEnds[0].first,
-                    streamDeviceTxKV,devinfo.kvpair, false))!= 0) {
+                    streamDeviceTxKV,devinfo.kvpair))!= 0) {
         QAL_ERR(LOG_TAG, "%s: get device KV failed %d", status);
         goto exit;
     }
@@ -1620,7 +1603,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     int sub = 1;
     struct qal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
-    bool is_lpi = false;
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
 
     status = rmHandle->getAudioMixer(&mixerHandle);
@@ -1649,15 +1631,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
         }
     }
 
-    if (sAttr.type == QAL_STREAM_VOICE_UI) {
-        if (dAttr.id != QAL_DEVICE_IN_HANDSET_MIC &&
-            rmHandle->IsVoiceUILPISupported() &&
-            !rmHandle->CheckForActiveConcurrentNonLPIStream()) {
-            QAL_INFO(LOG_TAG,"lpi true");
-            is_lpi = true;
-        }
-    }
-
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateStreamDeviceKV(streamHandle,
             aifBackEndsToConnect[0].first, streamDeviceKV, 0, emptyKV, vsidinfo,
@@ -1679,7 +1652,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateDevicePPKV(streamHandle,
                 aifBackEndsToConnect[0].first, streamDeviceKV,
-                0, emptyKV,devinfo.kvpair, false);
+                0, emptyKV,devinfo.kvpair);
     else {
         rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
         if (devinfo.kvpair.size() == 0) {
@@ -1687,7 +1660,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, qal_stream_type_t
                     dAttr.id, streamType);
          }
         status = builder->populateDevicePPKV(streamHandle, 0, emptyKV,
-                aifBackEndsToConnect[0].first, streamDeviceKV, devinfo.kvpair, is_lpi);
+                aifBackEndsToConnect[0].first, streamDeviceKV, devinfo.kvpair);
     }
     if (status != 0) {
         QAL_ERR(LOG_TAG, "%s: get device PP KV failed %d", status);

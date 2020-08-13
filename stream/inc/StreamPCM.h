@@ -65,6 +65,7 @@ public:
    int32_t getParameters(uint32_t param_id, void **payload) override;
    int32_t setParameters(uint32_t param_id, void *payload) override;
    int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
+   int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable) override;
    int32_t ssrDownHandler() override;
    int32_t ssrUpHandler() override;
    int32_t createMmapBuffer(int32_t min_size_frames,

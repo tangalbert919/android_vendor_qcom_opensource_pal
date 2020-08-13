@@ -1397,7 +1397,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair, bool is_lpi __unused)
+        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair)
 {
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;

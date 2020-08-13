@@ -241,6 +241,9 @@ int32_t StreamCompress::stop()
         QAL_VERBOSE(LOG_TAG,"Enter. state %d", currentState);
         QAL_VERBOSE(LOG_TAG,"stop session handle - %p mStreamAttr->direction - %d",
                     session, mStreamAttr->direction);
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
             QAL_VERBOSE(LOG_TAG,"In QAL_AUDIO_OUTPUT case, device count - %d", mDevices.size());
@@ -265,9 +268,6 @@ int32_t StreamCompress::stop()
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "invalid direction %d", mStreamAttr->direction);
             break;
-        }
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i]);
         }
         currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
@@ -349,9 +349,8 @@ int32_t StreamCompress::start()
             QAL_ERR(LOG_TAG, "direction %d not supported for compress streams", mStreamAttr->direction);
             break;
         }
-
         for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i]);
+            rm->registerDevice(mDevices[i], this);
         }
         currentState = STREAM_OPENED;
         goto exit;
@@ -732,10 +731,32 @@ int32_t StreamCompress::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*en
 
 int32_t StreamCompress::setECRef(std::shared_ptr<Device> dev, bool is_enable)
 {
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    status = setECRef_l(dev, is_enable);
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t StreamCompress::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
     if (!session)
         return -EINVAL;
 
-    return session->setECRef(this, dev, is_enable);
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+
+    status = session->setECRef(this, dev, is_enable);
+    if (status) {
+        QAL_ERR(LOG_TAG, "Failed to set ec ref in session");
+    }
+
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+
+    return status;
 }
 
 int32_t StreamCompress::ssrDownHandler()

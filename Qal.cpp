@@ -120,8 +120,7 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
     uint64_t *stream = NULL;
     Stream *s = NULL;
     int status;
-    qal_stream_type_t type;
-    qal_stream_direction_t dir;
+
     if (!attributes) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
@@ -152,10 +151,6 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
         return status;
     }
 
-    s->getStreamType(&type);
-    s->getStreamDirection(&dir);
-    notify_concurrent_stream(type, dir, true);
-
     if (cb)
        s->registerCallBack(cb, cookie);
     stream = reinterpret_cast<uint64_t *>(s);
@@ -168,8 +163,7 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
-    qal_stream_type_t type;
-    qal_stream_direction_t dir;
+
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -178,18 +172,11 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s = reinterpret_cast<Stream *>(stream_handle);
 
-    // store stream type/direction as stream attribute is released after close
-    s->getStreamType(&type);
-    s->getStreamDirection(&dir);
-
     status = s->close();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
-        notify_concurrent_stream(type, dir, false);
         return status;
     }
-
-    notify_concurrent_stream(type, dir, false);
 
     delete s;
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -200,6 +187,8 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
+    qal_stream_type_t type;
+    qal_stream_direction_t dir;
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -214,6 +203,10 @@ int32_t qal_stream_start(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
         return status;
     }
+
+    s->getStreamType(&type);
+    s->getStreamDirection(&dir);
+    notify_concurrent_stream(type, dir, true);
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
@@ -222,6 +215,8 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
+    qal_stream_type_t type;
+    qal_stream_direction_t dir;
     if (!stream_handle) {
         status = -EINVAL;
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -229,11 +224,17 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
     }
     QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
+    s->getStreamType(&type);
+    s->getStreamDirection(&dir);
+
     status = s->stop();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
+        notify_concurrent_stream(type, dir, false);
         return status;
     }
+
+    notify_concurrent_stream(type, dir, false);
 
     QAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;

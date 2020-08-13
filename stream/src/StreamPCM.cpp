@@ -309,7 +309,6 @@ int32_t StreamPCM::start()
                 }
             }
             QAL_VERBOSE(LOG_TAG, "devices started successfully");
-
             status = session->prepare(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
@@ -358,7 +357,6 @@ int32_t StreamPCM::start()
                 }
             }
             QAL_VERBOSE(LOG_TAG, "devices started successfully");
-
             status = session->prepare(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
@@ -404,7 +402,6 @@ int32_t StreamPCM::start()
                 }
             }
             QAL_VERBOSE(LOG_TAG, "output devices started successfully");
-
             // start input device
             for (int32_t i=0; i < mDevices.size(); i++) {
                 int32_t dev_id = mDevices[i]->getSndDeviceId();
@@ -448,7 +445,7 @@ int32_t StreamPCM::start()
             break;
         }
         for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i]);
+            rm->registerDevice(mDevices[i], this);
         }
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
@@ -469,6 +466,7 @@ session_fail:
         devStatus = mDevices[i]->stop();
         if (devStatus)
             status = devStatus;
+        rm->deregisterDevice(mDevices[i], this);
     }
 exit:
     mStreamMutex.unlock();
@@ -485,6 +483,9 @@ int32_t StreamPCM::stop()
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
             QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %d",
@@ -562,9 +563,6 @@ int32_t StreamPCM::stop()
             status = -EINVAL;
             QAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
             break;
-        }
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i]);
         }
         currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
@@ -1104,7 +1102,7 @@ int32_t StreamPCM::standby()
                 goto exit;
             }
 
-            rm->deregisterDevice(mDevices[i]);
+            rm->deregisterDevice(mDevices[i], this);
 
             status = mDevices[i]->close();
             if (0 != status) {
@@ -1257,16 +1255,27 @@ int32_t StreamPCM::setECRef(std::shared_ptr<Device> dev, bool is_enable)
 {
     int32_t status = 0;
 
+    mStreamMutex.lock();
+    status = setECRef_l(dev, is_enable);
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t StreamPCM::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
     if (!session)
         return -EINVAL;
 
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    mStreamMutex.lock();
+
     status = session->setECRef(this, dev, is_enable);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to set ec ref in session");
     }
-    mStreamMutex.unlock();
+
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;

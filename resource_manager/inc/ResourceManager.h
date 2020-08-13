@@ -274,7 +274,7 @@ protected:
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <SoundTriggerEngine*> active_engines_st;
-    std::vector <std::shared_ptr<Device>> active_devices;
+    std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
     std::vector <qal_device_id_t> avail_devices_;
     bool bOverwriteFlag;
@@ -324,7 +324,8 @@ protected:
     static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     static int mixerEventRegisterCount;
-    static int concurrentStreamCount;
+    static int concurrentRxStreamCount;
+    static int concurrentTxStreamCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
     std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
@@ -365,15 +366,15 @@ public:
     void getChannelMap(uint8_t *channel_map, int channels);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
-    int registerDevice(std::shared_ptr<Device> d);
-    int deregisterDevice(std::shared_ptr<Device> d);
-    int registerDevice_l(std::shared_ptr<Device> d);
-    int deregisterDevice_l(std::shared_ptr<Device> d);
+    int registerDevice(std::shared_ptr<Device> d, Stream *s);
+    int deregisterDevice(std::shared_ptr<Device> d, Stream *s);
+    int registerDevice_l(std::shared_ptr<Device> d, Stream *s);
+    int deregisterDevice_l(std::shared_ptr<Device> d, Stream *s);
     int registerMixerEventCallback(const std::vector<int> &DevIds,
                                    session_callback callback,
                                    void *cookie, bool is_register);
-    bool isDeviceActive(std::shared_ptr<Device> d);
-    bool isDeviceActive_l(std::shared_ptr<Device> d);
+    bool isDeviceActive(std::shared_ptr<Device> d, Stream *s);
+    bool isDeviceActive_l(std::shared_ptr<Device> d, Stream *s);
     int addPlugInDevice(std::shared_ptr<Device> d,
                         qal_param_device_connection_t connection_state);
     int removePlugInDevice(qal_device_id_t device_id,
@@ -443,7 +444,6 @@ public:
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct qal_st_properties *qstp);
-    void GetVoiceUIStreams(std::vector<Stream*> &vui_streams);
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(
         StreamSoundTrigger *s);
     bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);

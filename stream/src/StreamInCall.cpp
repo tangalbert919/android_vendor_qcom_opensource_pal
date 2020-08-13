@@ -851,16 +851,27 @@ int32_t StreamInCall::setECRef(std::shared_ptr<Device> dev, bool is_enable)
 {
     int32_t status = 0;
 
+    mStreamMutex.lock();
+    status = setECRef_l(dev, is_enable);
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t StreamInCall::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
     if (!session)
         return -EINVAL;
 
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    mStreamMutex.lock();
+
     status = session->setECRef(this, dev, is_enable);
     if (status) {
         QAL_ERR(LOG_TAG, "Failed to set ec ref in session");
     }
-    mStreamMutex.unlock();
+
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;

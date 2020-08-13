@@ -321,7 +321,8 @@ std::queue<card_status_t> ResourceManager::msgQ;
 std::condition_variable ResourceManager::cv;
 std::thread ResourceManager::workerThread;
 int ResourceManager::mixerEventRegisterCount = 0;
-int ResourceManager::concurrentStreamCount = 0;
+int ResourceManager::concurrentRxStreamCount = 0;
+int ResourceManager::concurrentTxStreamCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled;
 int ResourceManager::spQuickCalTime;
@@ -1594,6 +1595,11 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = deregisterstream(sST, active_streams_st);
+            // reset concurrency count when all st streams deregistered
+            if (active_streams_st.size() == 0) {
+                concurrentTxStreamCount = 0;
+                concurrentRxStreamCount = 0;
+            }
             break;
         }
         case QAL_STREAM_ULTRA_LOW_LATENCY:
@@ -1632,78 +1638,6 @@ int ResourceManager::deregisterStream(Stream *s)
     return ret;
 }
 
-int ResourceManager::registerDevice_l(std::shared_ptr<Device> d)
-{
-    QAL_DBG(LOG_TAG, "Enter.");
-    active_devices.push_back(d);
-    QAL_DBG(LOG_TAG, "Exit.");
-    return 0;
-}
-
-int ResourceManager::registerDevice(std::shared_ptr<Device> d)
-{
-    QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
-    registerDevice_l(d);
-    mResourceManagerMutex.unlock();
-    return 0;
-}
-
-int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d)
-{
-    int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
-
-    auto iter = std::find(active_devices.begin(), active_devices.end(), d);
-    if (iter != active_devices.end())
-        active_devices.erase(iter);
-    else {
-        ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
-                d->getSndDeviceId(), ret);
-    }
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
-    return ret;
-}
-
-int ResourceManager::deregisterDevice(std::shared_ptr<Device> d)
-{
-    int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
-    deregisterDevice_l(d);
-    mResourceManagerMutex.unlock();
-    return ret;
-}
-
-bool ResourceManager::isDeviceActive(std::shared_ptr<Device> d)
-{
-    bool is_active = false;
-
-    QAL_DBG(LOG_TAG, "Enter.");
-    mResourceManagerMutex.lock();
-    is_active = isDeviceActive_l(d);
-    mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit.");
-    return is_active;
-}
-
-bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d)
-{
-    bool is_active = false;
-    int deviceId = d->getSndDeviceId();
-
-    QAL_DBG(LOG_TAG, "Enter.");
-    typename std::vector<std::shared_ptr<Device>>::iterator iter =
-        std::find(active_devices.begin(), active_devices.end(), d);
-    if (iter != active_devices.end()) {
-        is_active = true;
-    }
-
-    QAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
-    return is_active;
-}
-
 template <class T>
 bool isStreamActive(T s, std::vector<T> &streams)
 {
@@ -1717,6 +1651,169 @@ bool isStreamActive(T s, std::vector<T> &streams)
     }
 
     return ret;
+}
+
+int ResourceManager::registerDevice_l(std::shared_ptr<Device> d, Stream *s)
+{
+    QAL_DBG(LOG_TAG, "Enter.");
+    active_devices.push_back(std::make_pair(d, s));
+    QAL_DBG(LOG_TAG, "Exit.");
+    return 0;
+}
+
+int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
+{
+    int status = 0;
+    struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+    registerDevice_l(d, s);
+    if (sAttr.direction == QAL_AUDIO_INPUT &&
+        sAttr.type != QAL_STREAM_PROXY &&
+        sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY) {
+        dev = getActiveEchoReferenceRxDevices_l(s);
+        if (dev) {
+            // use setECRef_l to avoid deadlock
+            mResourceManagerMutex.unlock();
+            status = s->setECRef_l(dev, true);
+            mResourceManagerMutex.lock();
+            if (status)
+                QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+        }
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
+
+        for (auto dev: associatedDevices) {
+            str_list = getConcurrentTxStream_l(s, dev);
+            for (auto str: str_list) {
+                QAL_DBG(LOG_TAG, "Enter enable EC Ref");
+                if (str && isStreamActive(str, mActiveStreams)) {
+                    mResourceManagerMutex.unlock();
+                    status = str->setECRef(dev, true);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    }
+                }
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
+{
+    int ret = 0;
+    QAL_DBG(LOG_TAG, "Enter.");
+
+    auto iter = std::find(active_devices.begin(),
+        active_devices.end(), std::make_pair(d, s));
+    if (iter != active_devices.end())
+        active_devices.erase(iter);
+    else {
+        ret = -ENOENT;
+        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
+                d->getSndDeviceId(), ret);
+    }
+    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    return ret;
+}
+
+int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
+{
+    int status = 0;
+    struct qal_stream_attributes sAttr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<Stream*> str_list;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
+
+    mResourceManagerMutex.lock();
+    deregisterDevice_l(d, s);
+    if (sAttr.direction == QAL_AUDIO_INPUT) {
+        mResourceManagerMutex.unlock();
+        status = s->setECRef_l(nullptr, false);
+        mResourceManagerMutex.lock();
+        if (status)
+            QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            return status;
+        }
+
+        for (auto dev: associatedDevices) {
+            str_list = getConcurrentTxStream_l(s, dev);
+            for (auto str: str_list) {
+                /*
+                 * NOTE: this check works based on sequence that
+                 * Rx stream stops device after stopping session
+                 */
+                if (dev->getDeviceCount() != 1) {
+                    QAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
+                } else if (str && isStreamActive(str, mActiveStreams)) {
+                    mResourceManagerMutex.unlock();
+                    status = str->setECRef(dev, false);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+                    }
+                }
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+    return status;
+}
+
+bool ResourceManager::isDeviceActive(std::shared_ptr<Device> d, Stream *s)
+{
+    bool is_active = false;
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    is_active = isDeviceActive_l(d, s);
+    mResourceManagerMutex.unlock();
+    QAL_DBG(LOG_TAG, "Exit.");
+    return is_active;
+}
+
+bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d, Stream *s)
+{
+    bool is_active = false;
+    int deviceId = d->getSndDeviceId();
+
+    QAL_DBG(LOG_TAG, "Enter.");
+    auto iter = std::find(active_devices.begin(),
+        active_devices.end(), std::make_pair(d, s));
+    if (iter != active_devices.end()) {
+        is_active = true;
+    }
+
+    QAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
+    return is_active;
 }
 
 int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
@@ -1762,9 +1859,8 @@ int ResourceManager::getActiveDevices(std::vector<std::shared_ptr<Device>> &devi
 {
     int ret = 0;
     mResourceManagerMutex.lock();
-    typename std::vector<std::shared_ptr<Device>>::iterator iter;
-    for (iter = active_devices.begin(); iter != active_devices.end(); iter++)
-        deviceList.push_back(*iter);
+    for (int i = 0; i < active_devices.size(); i++)
+        deviceList.push_back(active_devices[i].first);
     mResourceManagerMutex.unlock();
     return ret;
 }
@@ -1807,15 +1903,6 @@ void ResourceManager::GetVoiceUIProperties(struct qal_st_properties *qstp)
     }
 }
 
-void ResourceManager::GetVoiceUIStreams(std::vector<Stream*> &vui_streams) {
-
-    mResourceManagerMutex.lock();
-    for (auto& st: active_streams_st) {
-        vui_streams.push_back(st);
-    }
-    mResourceManagerMutex.unlock();
-}
-
 bool ResourceManager::IsVoiceUILPISupported() {
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
@@ -1827,17 +1914,37 @@ bool ResourceManager::IsVoiceUILPISupported() {
     }
 }
 
+// this should only be called when LPI supported by platform
 bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
+    bool has_nlpi_concurrency = false;
     qal_stream_attributes st_attr;
 
+    mResourceManagerMutex.lock();
+    if (concurrentRxStreamCount > 0) {
+        QAL_DBG(LOG_TAG, "Existing streams for NLPI concurrency");
+        mResourceManagerMutex.unlock();
+        return true;
+    }
+
     for (auto& s: mActiveStreams) {
+        if (!s->isActive()) {
+            continue;
+        }
         s->getStreamAttributes(&st_attr);
+        // TODO: check Tx concurrency also
         if (st_attr.direction != QAL_AUDIO_INPUT &&
             st_attr.type != QAL_STREAM_LOW_LATENCY) {
-                return true;
+                concurrentRxStreamCount++;
         }
     }
-    return false;
+
+    if (concurrentRxStreamCount > 0) {
+        QAL_DBG(LOG_TAG, "Found streams for NLPI concurrency");
+        has_nlpi_concurrency = true;
+    }
+    mResourceManagerMutex.unlock();
+
+    return has_nlpi_concurrency;
 }
 
 bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
@@ -1903,7 +2010,7 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetCaptureProfileByPriority(
          * 1. sound model loaded but not started by sthal
          * 2. stop recognition called by sthal
          */
-        if (!active_streams_st[i]->GetActiveState())
+        if (!active_streams_st[i]->isActive())
             continue;
 
         cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
@@ -2302,6 +2409,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                                              bool active) {
     int32_t status = 0;
     bool conc_en = true;
+    bool do_switch = false;
     StreamSoundTrigger *st_str = nullptr;
 
     mResourceManagerMutex.lock();
@@ -2309,6 +2417,12 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
 
     if (dir == QAL_AUDIO_OUTPUT && type == QAL_STREAM_LOW_LATENCY) {
         QAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
+        mResourceManagerMutex.unlock();
+        return;
+    }
+
+    if (active_streams_st.size() == 0) {
+        QAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
         mResourceManagerMutex.unlock();
         return;
     }
@@ -2330,19 +2444,20 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
             QAL_DBG(LOG_TAG, "pause on voip concurrency");
             conc_en = false;
         }
-    } else if (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
+    } else if (dir != QAL_AUDIO_OUTPUT &&
+                (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
                 type == QAL_STREAM_DEEP_BUFFER || // regular audio record
                 type == QAL_STREAM_VOICE_CALL ||
                 type == QAL_STREAM_VOIP_RX ||
                 type == QAL_STREAM_VOIP_TX ||
-                type == QAL_STREAM_VOIP) {
+                type == QAL_STREAM_VOIP)) {
         conc_en = false;
     }
 
     if (!conc_en) {
         if (active) {
-            ++concurrentStreamCount;
-            if (concurrentStreamCount == 1) {
+            ++concurrentTxStreamCount;
+            if (concurrentTxStreamCount == 1) {
                 // pause all sva streams
                 for (int i = 0; i < active_streams_st.size(); i++) {
                     st_str = active_streams_st[i];
@@ -2358,8 +2473,8 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                 }
             }
         } else {
-            --concurrentStreamCount;
-            if (concurrentStreamCount == 0) {
+            --concurrentTxStreamCount;
+            if (concurrentTxStreamCount == 0) {
                 // resume all sva streams
                 for (int i = 0; i < active_streams_st.size(); i++) {
                     st_str = active_streams_st[i];
@@ -2376,25 +2491,54 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
             }
         }
     } else if (dir == QAL_AUDIO_OUTPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
-        if (IsVoiceUILPISupported()) {
-            // stop/unload all sva streams
+        if (!IsVoiceUILPISupported()) {
+            QAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
+        } else if (active) {
+            if (++concurrentRxStreamCount == 1) {
+                do_switch = true;
+            }
+        } else {
+            if (--concurrentRxStreamCount == 0) {
+                do_switch = true;
+            }
+        }
+
+        if (do_switch) {
+            // reset SVA capture profile
+            SVACaptureProfile = nullptr;
+
+            // update use_lpi_ for all sva streams
             for (int i = 0; i < active_streams_st.size(); i++) {
                 st_str = active_streams_st[i];
                 if (st_str && isStreamActive(st_str, active_streams_st)) {
                     mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(type, false);
+                    status = st_str->EnableLPI(!active);
                     mResourceManagerMutex.lock();
                     if (status) {
                         QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
                     }
                 }
             }
+
+            // stop/unload all sva streams
+            for (int i = 0; i < active_streams_st.size(); i++) {
+                st_str = active_streams_st[i];
+                if (st_str && isStreamActive(st_str, active_streams_st)) {
+                    mResourceManagerMutex.unlock();
+                    status = st_str->HandleConcurrentStream(false);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                    }
+                }
+            }
+
             // load/start all sva streams
             for (int i = 0; i < active_streams_st.size(); i++) {
                 st_str = active_streams_st[i];
                 if (st_str && isStreamActive(st_str, active_streams_st)) {
                     mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(type, true);
+                    status = st_str->HandleConcurrentStream(true);
                     mResourceManagerMutex.lock();
                     if (status) {
                         QAL_ERR(LOG_TAG, "Failed to load/start SVA stream");
@@ -2449,7 +2593,7 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
             }
             rx_str->getAssociatedDevices(rx_device_list);
             for (int i = 0; i < rx_device_list.size(); i++) {
-                if (!isDeviceActive_l(rx_device_list[i]))
+                if (!isDeviceActive_l(rx_device_list[i], rx_str))
                     continue;
                 deviceId = rx_device_list[i]->getSndDeviceId();
                 if (deviceId > QAL_DEVICE_OUT_MIN &&
@@ -2521,7 +2665,7 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
             }
             tx_str->getAssociatedDevices(tx_device_list);
             for (int i = 0; i < tx_device_list.size(); i++) {
-                if (!isDeviceActive_l(tx_device_list[i]))
+                if (!isDeviceActive_l(tx_device_list[i], tx_str))
                     continue;
                 deviceId = tx_device_list[i]->getSndDeviceId();
                 if (deviceId > QAL_DEVICE_IN_MIN &&
@@ -2576,6 +2720,8 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
         (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
          tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC) ||
         (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
+         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADPHONE &&
          tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
         (rx_dev_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP &&
          tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
@@ -4517,8 +4663,8 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
     /**Get the active device list and check if speaker is present.
      */
     for (int i = 0; i < active_devices.size(); i++) {
-        int deviceId = active_devices[i]->getSndDeviceId();
-        status = active_devices[i]->getDeviceAttributes(&dattr);
+        int deviceId = active_devices[i].first->getSndDeviceId();
+        status = active_devices[i].first->getDeviceAttributes(&dattr);
         if(0 != status) {
            QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
            goto error;
@@ -4530,7 +4676,7 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
 
             QAL_INFO(LOG_TAG, "Device is Stereo Speaker");
             std::vector <Stream *> activeStreams;
-            getActiveStream_l(active_devices[i], activeStreams);
+            getActiveStream_l(active_devices[i].first, activeStreams);
             for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
                 status = (*sIter)->getStreamType(&streamType);
                 if(0 != status) {

@@ -66,7 +66,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     rec_config_ = nullptr;
     paused_ = false;
     pending_stop_ = false;
-    active_state_ = false;
+    currentState = STREAM_IDLE;
 
     // Setting default volume to unity
     mVolumeData = (struct qal_volume_data *)malloc(sizeof(struct qal_volume_data)
@@ -133,6 +133,14 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     cur_state_ = st_idle_;
     prev_state_ = nullptr;
     state_for_restore_ = ST_STATE_NONE;
+
+    // check if lpi should be used
+    if (rm->IsVoiceUILPISupported() &&
+        !rm->CheckForActiveConcurrentNonLPIStream()) {
+        use_lpi_ = true;
+    } else {
+        use_lpi_ = false;
+    }
 
     timer_thread_ = std::thread(TimerThread, std::ref(*this));
     timer_stop_waiting_ = false;
@@ -204,7 +212,7 @@ int32_t StreamSoundTrigger::start() {
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (!status) {
-        active_state_ = true;
+        currentState = STREAM_STARTED;
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -221,7 +229,7 @@ int32_t StreamSoundTrigger::stop() {
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (!status) {
-        active_state_ = false;
+        currentState == STREAM_STOPPED;
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -308,14 +316,13 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     return status;
 }
 
-int32_t StreamSoundTrigger::HandleConcurrentStream(qal_stream_type_t type,
-                                                   bool active) {
+int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     QAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
-        new StConcurrentStreamEventConfig(type, active));
+        new StConcurrentStreamEventConfig(active));
     status = cur_state_->ProcessEvent(ev_cfg);
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -323,16 +330,46 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(qal_stream_type_t type,
     return status;
 }
 
+int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (!rm->IsVoiceUILPISupported()) {
+        QAL_DBG(LOG_TAG, "Ignore as LPI not supported");
+    }
+    use_lpi_ = is_enable;
+
+    return 0;
+}
+
 int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable) {
     int32_t status = 0;
 
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (use_lpi_) {
+        QAL_DBG(LOG_TAG, "EC ref will be handled in LPI/NLPI switch");
+        return status;
+    }
+    status = setECRef_l(dev, is_enable);
+
+    return status;
+}
+
+int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enable) {
+    int32_t status = 0;
+
     QAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
-    if (!dev) {
-        QAL_ERR(LOG_TAG, "Invalid device");
-        return -EINVAL;
+
+    if (mDevPpModifiers.size() == 0 ||
+        (mDevPpModifiers[0].first == DEVICEPP_TX &&
+        mDevPpModifiers[0].second == DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)) {
+        QAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
+        return status;
     }
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (dev && !rm->checkECRef(dev, mDevices[0])) {
+        QAL_DBG(LOG_TAG, "No need to set ec ref for unmatching rx device");
+        return status;
+    }
+
     std::shared_ptr<StEventConfig> ev_cfg(
         new StECRefEventConfig(dev, is_enable));
     status = cur_state_->ProcessEvent(ev_cfg);
@@ -1817,54 +1854,37 @@ void StreamSoundTrigger::AddEngine(std::shared_ptr<EngineCfg> engine_cfg) {
 
 std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    bool is_lpi = false;
     bool is_transit_to_nlpi = false;
-
-    /* initialize if we shoud come up in lpi or non-lpi state */
-    if (rm->IsVoiceUILPISupported() &&
-        !rm->CheckForActiveConcurrentNonLPIStream())
-        is_lpi = true;
-    else
-        is_lpi = false;
 
     is_transit_to_nlpi = rm->CheckForForcedTransitToNonLPI();
 
-    if (is_transit_to_nlpi)
-        is_lpi = false;
-
     if (GetAvailCaptureDevice() == QAL_DEVICE_IN_HEADSET_VA_MIC) {
-        if (is_lpi)
+        if (is_transit_to_nlpi) {
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
+                    ST_INPUT_MODE_HEADSET));
+        } else if (use_lpi_) {
             cap_prof = sm_info_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HEADSET));
-        else {
-            if (is_transit_to_nlpi) {
-                cap_prof = sm_info_->GetCaptureProfile(
-                                std::make_pair(
-                                    ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
-                                    ST_INPUT_MODE_HEADSET));
-            } else {
-                cap_prof = sm_info_->GetCaptureProfile(
-                                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
-                                    ST_INPUT_MODE_HEADSET));
-            }
+        } else {
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                    ST_INPUT_MODE_HEADSET));
         }
     } else {
-        if (is_lpi)
+        if (is_transit_to_nlpi) {
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
+                    ST_INPUT_MODE_HANDSET));
+        } else if (use_lpi_) {
             cap_prof = sm_info_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HANDSET));
-        else {
-            if (is_transit_to_nlpi) {
-                cap_prof = sm_info_->GetCaptureProfile(
-                                std::make_pair(
-                                    ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
-                                    ST_INPUT_MODE_HANDSET));
-            } else {
-                cap_prof = sm_info_->GetCaptureProfile(
-                                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
-                                    ST_INPUT_MODE_HANDSET));
-            }
+        } else {
+            cap_prof = sm_info_->GetCaptureProfile(
+                std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
+                    ST_INPUT_MODE_HANDSET));
         }
     }
 
@@ -2119,7 +2139,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                             break;
                         }
                     }
-                    if (st_stream_.GetActiveState()) {
+                    if (st_stream_.isActive()) {
                         std::shared_ptr<StEventConfig> ev_cfg2(
                             new StStartRecognitionEventConfig(false));
                         status = st_stream_.ProcessInternalEvent(ev_cfg2);
@@ -2129,7 +2149,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                     }
                 }
             } else {
-              QAL_INFO(LOG_TAG,"no action needed, same capture profile");
+                QAL_INFO(LOG_TAG,"no action needed, same capture profile");
             }
             break;
         }
@@ -2274,7 +2294,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     QAL_ERR(LOG_TAG, "Device start failed, status %d", status);
                     break;
                 } else {
-                    st_stream_.rm->registerDevice(dev);
+                    st_stream_.rm->registerDevice(dev, &st_stream_);
                 }
                 QAL_DBG(LOG_TAG, "device started");
             }
@@ -2303,7 +2323,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 eng->StopRecognition(&st_stream_);
 
             if (st_stream_.mDevices.size() > 0) {
-                st_stream_.rm->deregisterDevice(st_stream_.mDevices[0]);
+                st_stream_.rm->deregisterDevice(st_stream_.mDevices[0], &st_stream_);
                 st_stream_.mDevices[0]->stop();
             }
 
@@ -2392,14 +2412,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            if (st_stream_.GetActiveState()) {
+            if (st_stream_.isActive()) {
                 status = dev->start();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG, "device %d start failed with status %d",
                         dev->getSndDeviceId(), status);
                     goto connect_err;
                 }
-                st_stream_.rm->registerDevice(dev);
+                st_stream_.rm->registerDevice(dev, &st_stream_);
             }
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
@@ -2470,6 +2490,17 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             TransitTo(ST_STATE_SSR);
             break;
         }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
+            break;
+        }
         default: {
             QAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -2536,16 +2567,19 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 }
             }
             if (st_stream_.mDevices.size() > 0) {
-              auto& dev = st_stream_.mDevices[0];
+                auto& dev = st_stream_.mDevices[0];
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
-                if (status) {
+                if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                }
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             break;
         }
         case ST_EV_EC_REF: {
@@ -2590,7 +2624,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     goto disconnect_err;
                 }
 
-                st_stream_.rm->deregisterDevice(device);
+                st_stream_.rm->deregisterDevice(device, &st_stream_);
 
                 status = device->close();
                 if (0 != status) {
@@ -2647,7 +2681,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     dev->getSndDeviceId(), status);
                 goto connect_err;
             }
-            st_stream_.rm->registerDevice(dev);
+            st_stream_.rm->registerDevice(dev, &st_stream_);
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
                 st_stream_.mStreamAttr->type, dev);
@@ -2780,16 +2814,20 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                             eng->GetEngineId(), status);
                 }
             }
-            if (st_stream_.mDevices.size() > 0){
+            if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
                 if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
@@ -2812,12 +2850,15 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
-                if (status) {
+                if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                }
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
@@ -2854,16 +2895,20 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                             eng->GetEngineId(), status);
                 }
             }
-            if (st_stream_.mDevices.size() > 0){
+            if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
                 if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
@@ -3004,12 +3049,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
-                if (status) {
+                if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                }
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
@@ -3053,12 +3101,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
-                if (status) {
+                if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                }
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             break;
         }
         case ST_EV_DETECTED: {
@@ -3178,16 +3229,20 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                             eng->GetEngineId(), status);
                 }
             }
-            for (auto& dev: st_stream_.mDevices) {
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
                 QAL_DBG(LOG_TAG, "Stop device %d-%s", dev->getSndDeviceId(),
                         dev->getQALDeviceName().c_str());
                 status = dev->stop();
-                if (status) {
+                if (status)
                     QAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
-                }
-                st_stream_.rm->deregisterDevice(dev);
             }
             TransitTo(ST_STATE_LOADED);
+            // make sure disable ec ref handled in LOADED/ACTIVE state
+            if (st_stream_.mDevices.size() > 0) {
+                auto& dev = st_stream_.mDevices[0];
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 QAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",

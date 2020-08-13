@@ -53,12 +53,19 @@
  * BT IPC library to configure DSP encoder
  */
 /* Structure to control frame size of AAC encoded frames. */
+enum {
+    MTU_SIZE = 0,
+    PEAK_BIT_RATE,
+    BIT_RATE_MODE,
+};
+
 struct aac_frame_size_control_t {
     /* Type of frame size control: MTU_SIZE / PEAK_BIT_RATE*/
     uint32_t ctl_type;
     /* Control value
      * MTU_SIZE: MTU size in bytes
      * PEAK_BIT_RATE: Peak bitrate in bits per second.
+     * BIT_RATE_MODE: Bit rate mode such as CBR or VBR
      */
     uint32_t ctl_value;
 };
@@ -71,6 +78,8 @@ typedef struct audio_aac_encoder_config_s {
     uint32_t bitrate;
     uint32_t bits_per_sample;
     struct aac_frame_size_control_t frame_ctl;
+    uint8_t size_control_struct;
+    struct aac_frame_size_control_t* frame_ctl_ptr;
 } audio_aac_encoder_config_t;
 
 /* Information about BT SBC encoder configuration
