@@ -28,6 +28,7 @@
  */
 
 #define LOG_TAG "QAL: RTProxy"
+#define LOG_TAG_OUT "QAL: RTProxyOut"
 #include "RTProxy.h"
 #include "ResourceManager.h"
 #include "Device.h"
@@ -149,3 +150,58 @@ error:
     delete builder;
     return status;
 }
+
+std::shared_ptr<Device> RTProxyOut::obj = nullptr;
+
+std::shared_ptr<Device> RTProxyOut::getInstance(struct qal_device *device,
+                                                     std::shared_ptr<ResourceManager> Rm)
+{
+    if (!obj) {
+        std::shared_ptr<Device> sp(new RTProxyOut(device, Rm));
+        obj = sp;
+    }
+    return obj;
+}
+
+RTProxyOut::RTProxyOut(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+    Device(device, Rm)
+{
+    rm = Rm;
+    memset(&mDeviceAttr, 0, sizeof(struct qal_device));
+    memcpy(&mDeviceAttr, device, sizeof(struct qal_device));
+}
+
+int32_t RTProxyOut::isSampleRateSupported(uint32_t sampleRate)
+{
+    QAL_DBG(LOG_TAG_OUT, "sampleRate %u", sampleRate);
+
+    /* ProxyOut supports all sample rates, accept by default */
+    return 0;
+}
+
+int32_t RTProxyOut::isChannelSupported(uint32_t numChannels)
+{
+    QAL_DBG(LOG_TAG_OUT, "numChannels %u", numChannels);
+
+    /* ProxyOut supports all channels */
+    return 0;
+}
+
+int32_t RTProxyOut::isBitWidthSupported(uint32_t bitWidth)
+{
+    QAL_DBG(LOG_TAG_OUT, "bitWidth %u", bitWidth);
+
+    /* ProxyOut supports all bitWidth configurations */
+    return 0;
+}
+
+int RTProxyOut::start() {
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
+
+    return Device::start();
+}
+

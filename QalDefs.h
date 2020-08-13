@@ -448,6 +448,11 @@ typedef enum {
     QAL_STREAM_LOOPBACK_COMPRESS,
 } qal_stream_loopback_type_t;
 
+typedef enum {
+    QAL_STREAM_PROXY_TX_VISUALIZER,
+    QAL_STREAM_PROXY_TX_WFD,
+} qal_stream_proxy_tx_type_t;
+
 struct qal_stream_info {
     int64_t version;                    /** version of structure*/
     int64_t size;                       /** size of structure*/
@@ -456,6 +461,7 @@ struct qal_stream_info {
     bool is_streaming;                  /** true if streaming, false if local playback */
     int32_t loopback_type;              /** used only if stream_type is LOOPBACK. One of the */
                                         /** enums defined in enum qal_stream_loopback_type */
+    int32_t tx_proxy_type;   /** enums defined in enum qal_stream_proxy_tx_types */
     //qal_audio_attributes_t usage;       /** Not sure if we make use of this */
 };
 

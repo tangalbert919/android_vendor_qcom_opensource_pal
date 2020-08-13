@@ -107,6 +107,8 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
         QAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
         return HeadsetVaMic::getInstance(device, Rm);
     case QAL_DEVICE_OUT_PROXY:
+        QAL_VERBOSE(LOG_TAG, "RTProxyOut device");
+        return RTProxyOut::getInstance(device, Rm);
     case QAL_DEVICE_IN_PROXY:
         QAL_VERBOSE(LOG_TAG, "RTProxy device");
         return RTProxy::getInstance(device, Rm);

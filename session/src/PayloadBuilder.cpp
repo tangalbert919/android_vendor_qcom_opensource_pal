@@ -1173,6 +1173,10 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                 QAL_ERR(LOG_TAG, "Invalid direction status %d", status);
                 goto free_sattr;
             }
+            if (sattr->direction == QAL_AUDIO_INPUT) {
+                if (sattr->info.opt_stream_info.tx_proxy_type == QAL_STREAM_PROXY_TX_WFD)
+                    keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_WFD));
+            }
             break;
         case QAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == QAL_AUDIO_OUTPUT) {
@@ -1279,7 +1283,7 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateDeviceKV(Stream* s __unused, int32_t beDevId,
+int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         std::vector <std::pair<int,int>> &keyVector)
 {
     int status = 0;
@@ -1341,7 +1345,16 @@ int PayloadBuilder::populateDeviceKV(Stream* s __unused, int32_t beDevId,
             keyVector.push_back(std::make_pair(DEVICETX, HEADSETMIC_VA));
             break;
         case QAL_DEVICE_IN_PROXY:
-            keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
+            {
+                struct qal_stream_attributes sAttr;
+                int32_t status = 0;
+                keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
+                status = s->getStreamAttributes(&sAttr);
+                if (status == 0) {
+                    if (sAttr.info.opt_stream_info.tx_proxy_type == QAL_STREAM_PROXY_TX_WFD)
+                        keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_WFD));
+                }
+            }
             break;
         case QAL_DEVICE_OUT_PROXY:
             keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
