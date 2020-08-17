@@ -58,6 +58,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     class SoundTriggerUUID uuid;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
+    notification_state_ = ENGINE_IDLE;
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
     inBufCount = NO_OF_BUF;
@@ -610,7 +611,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
 
     QAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
-    if ((det_type < GMM_DETECTED) || (det_type > VOP_REJECTED)) {
+    if ((det_type < GMM_DETECTED) || (det_type > USER_VERIFICATION_REJECT)) {
         QAL_ERR(LOG_TAG, "Invalid detection type %d", det_type);
         return -EINVAL;
     }
@@ -853,6 +854,12 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         QAL_ERR(LOG_TAG, "Loading model to engine type %d"
                                 "failed, status %d", big_sm->type, status);
                         goto error_exit;
+                    }
+
+                    if (big_sm->type & ST_SM_ID_SVA_KWD) {
+                        notification_state_ |= KEYWORD_DETECTION_SUCCESS;
+                    } else if (big_sm->type == ST_SM_ID_SVA_VOP) {
+                        notification_state_ |= USER_VERIFICATION_SUCCESS;
                     }
 
                     std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
@@ -2290,7 +2297,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
                 st_stream_.mInstanceID);
-
+            st_stream_.notification_state_ = ENGINE_IDLE;
 
             TransitTo(ST_STATE_IDLE);
             break;
@@ -3205,8 +3212,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 break;
             }
             // If second stage has rejected, stop buffering and restart recognition
-            if (data->det_type_ == CNN_REJECTED ||
-                data->det_type_ == VOP_REJECTED) {
+            if (data->det_type_ == KEYWORD_DETECTION_REJECT ||
+                data->det_type_ == USER_VERIFICATION_REJECT) {
                 QAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
                 st_stream_.detection_state_ = ENGINE_IDLE;
@@ -3239,8 +3246,12 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 }
                 break;
             }
-            st_stream_.detection_state_ |=  data->det_type_;
-            if (st_stream_.detection_state_ & (CNN_DETECTED | VOP_DETECTED)) {
+            if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
+                data->det_type_ == USER_VERIFICATION_SUCCESS) {
+                st_stream_.detection_state_ |=  data->det_type_;
+            }
+            // notify client until both keyword detection/user verification done
+            if (st_stream_.detection_state_ == st_stream_.notification_state_) {
                 QAL_DBG(LOG_TAG, "Second stage detected");
                 st_stream_.detection_state_ = ENGINE_IDLE;
                 if (!st_stream_.rec_config_->capture_requested) {

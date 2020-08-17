@@ -32,8 +32,7 @@
 #include "SoundTriggerEngine.h"
 
 #include "SoundTriggerEngineGsl.h"
-#include "SoundTriggerEngineCapiCnn.h"
-#include "SoundTriggerEngineCapiVop.h"
+#include "SoundTriggerEngineCapi.h"
 #include "Stream.h"
 
 std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
@@ -58,15 +57,11 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
         break;
 
     case ST_SM_ID_SVA_CNN:
-        st_engine = std::make_shared<SoundTriggerEngineCapiCnn>(s, id, type);
-        if (!st_engine)
-            QAL_ERR(LOG_TAG, "SoundTriggerEngine CNN creation failed");
-        break;
-
+    case ST_SM_ID_SVA_RNN:
     case ST_SM_ID_SVA_VOP:
-        st_engine = std::make_shared<SoundTriggerEngineCapiVop>(s, id, type);
+        st_engine = std::make_shared<SoundTriggerEngineCapi>(s, id, type);
         if (!st_engine)
-            QAL_ERR(LOG_TAG, "SoundTriggerEngine VOP creation failed");
+            QAL_ERR(LOG_TAG, "SoundTriggerEngine capi creation failed");
         break;
 
     default:

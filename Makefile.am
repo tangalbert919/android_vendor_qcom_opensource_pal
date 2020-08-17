@@ -28,8 +28,7 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/SessionAlsaVoice.h \
             ./session/inc/SoundTriggerEngine.h \
             ./session/inc/SoundTriggerEngineGsl.h \
-            ./session/inc/SoundTriggerEngineCapiCnn.h \
-            ./session/inc/SoundTriggerEngineCapiVop.h \
+            ./session/inc/SoundTriggerEngineCapi.h \
             ./resource_manager/inc/ResourceManager.h \
             ./QalDefs.h \
             ./QalApi.h \
@@ -66,8 +65,7 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/SessionAlsaVoice.cpp\
               ./session/src/SoundTriggerEngine.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
-              ./session/src/SoundTriggerEngineCapiCnn.cpp \
-              ./session/src/SoundTriggerEngineCapiVop.cpp \
+              ./session/src/SoundTriggerEngineCapi.cpp \
               ./resource_manager/src/ResourceManager.cpp \
               ./Qal.cpp \
               ./utils/src/QalRingBuffer.cpp
@@ -98,8 +96,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/session/inc/SessionAlsaUtils.h \
             ${top_srcdir}/session/inc/SoundTriggerEngine.h \
             ${top_srcdir}/session/inc/SoundTriggerEngineGsl.h \
-            ${top_srcdir}/session/inc/SoundTriggerEngineCapiCnn.h \
-            ${top_srcdir}/session/inc/SoundTriggerEngineCapiVop.h \
+            ${top_srcdir}/session/inc/SoundTriggerEngineCapi.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_events.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_extn.h \
@@ -154,8 +151,7 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SessionAlsaVoice.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngine.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
-              ${top_srcdir}/session/src/SoundTriggerEngineCapiCnn.cpp \
-              ${top_srcdir}/session/src/SoundTriggerEngineCapiVop.cpp \
+              ${top_srcdir}/session/src/SoundTriggerEngineCapi.cpp \
               ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
               ${top_srcdir}/Qal.cpp \
               ${top_srcdir}/utils/src/QalRingBuffer.cpp

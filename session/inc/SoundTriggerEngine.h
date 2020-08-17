@@ -340,7 +340,6 @@ protected:
     uint32_t channels_;
 
     std::thread buffer_thread_handler_;
-    std::mutex event_mutex_;
     std::mutex mutex_;
     std::condition_variable cv_;
     bool exit_thread_;
