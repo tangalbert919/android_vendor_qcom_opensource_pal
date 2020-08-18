@@ -2101,6 +2101,40 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 spConf->operation_mode = data->operation_mode;
             }
         break;
+        case PARAM_ID_SP_TH_VI_FTM_CFG | PARAM_ID_SP_TH_VI_V_VALI_CFG :
+            {
+                param_id_sp_th_vi_ftm_cfg_t *spConf;
+                param_id_sp_th_vi_ftm_cfg_t *data;
+                vi_th_ftm_cfg_t *ftmCfg;
+                std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+                data = (param_id_sp_th_vi_ftm_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_sp_th_vi_ftm_cfg_t) +
+                                    sizeof(vi_th_ftm_cfg_t) * data->num_ch;
+
+                padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+                spConf = (param_id_sp_th_vi_ftm_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                ftmCfg = (vi_th_ftm_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t)
+                                + sizeof(param_id_sp_th_vi_ftm_cfg_t));
+
+                spConf->num_ch = data->num_ch;
+                for (int i = 0; i < data->num_ch; i++) {
+                    ftmCfg[i].wait_time_ms =
+                            rm->mSpkrProtModeValue.spkrHeatupTime;
+                    ftmCfg[i].ftm_time_ms =
+                            rm->mSpkrProtModeValue.operationModeRunTime;
+                }
+            }
+        break;
     }
 
     header->module_instance_id = miid;

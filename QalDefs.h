@@ -190,6 +190,26 @@ typedef struct effect_qal_payload_s {
     uint32_t  payload[]; /* TKV uses qal_key_vector_t, while nonTKV uses qal_effect_custom_payload_t */
 } effect_qal_payload_t;
 
+/* Type of Modes for Speaker Protection */
+typedef enum {
+    QAL_SP_MODE_DYNAMIC_CAL = 1,
+    QAL_SP_MODE_FACTORY_TEST,
+    QAL_SP_MODE_V_VALIDATION,
+} qal_spkr_prot_mode;
+
+/* Payload For ID: QAL_PARAM_ID_SP_SET_MODE
+ * Description   : Values for Speaker protection modes
+ */
+typedef struct qal_spkr_prot_payload {
+    uint32_t spkrHeatupTime;         /* Wait time in mili seconds to heat up the
+                                      * speaker before collecting statistics  */
+
+    uint32_t operationModeRunTime;   /* Time period in  milli seconds when
+                                      * statistics are collected */
+
+    qal_spkr_prot_mode operationMode;/* Type of mode for which request is raised */
+} qal_spkr_prot_payload;
+
 typedef enum {
     GEF_PARAM_READ = 0,
     GEF_PARAM_WRITE,
@@ -674,6 +694,7 @@ typedef enum {
     QAL_PARAM_ID_VOLUME_BOOST = 22,
     QAL_PARAM_ID_SLOW_TALK = 23,
     QAL_PARAM_ID_SPEAKER_RAS = 24,
+    QAL_PARAM_ID_SP_SET_MODE = 25,
 }qal_param_id_type_t;
 
 /** HDMI/DP */

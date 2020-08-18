@@ -53,13 +53,8 @@ typedef enum speaker_prot_proc_state {
 }spkr_prot_proc_state;
 
 enum {
-    WSA_SPKR_LEFT = 0, /* Left Speaker */
     WSA_SPKR_RIGHT,    /* Right Speaker */
-};
-
-enum {
-    TKV,
-    CKV,
+    WSA_SPKR_LEFT,     /* Left Speaker */
 };
 
 struct agmMetaData {
@@ -83,13 +78,15 @@ protected :
     static bool isSpkrInUse;
     static struct timespec spkrLastTimeUsed;
     static struct mixer *mixer;
-    static int totalSpeakers;
     static struct pcm *rxPcm;
     static struct pcm *txPcm;
     static int numberOfChannels;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
     struct qal_device mDeviceAttr;
+    std::vector<int> pcmDevIdTx;
+    static int calibrationCallbackStatus;
+    static int numberOfRequest;
 
 private :
 
@@ -97,6 +94,8 @@ public:
     static std::thread mCalThread;
     static std::condition_variable cv;
     static std::mutex cvMutex;
+    std::mutex deviceMutex;
+    static std::mutex calibrationMutex;
     void spkrCalibrationThread();
     int getSpeakerTemperature(int spkr_pos);
     void spkrCalibrateWait();
@@ -113,7 +112,7 @@ public:
 
     ~SpeakerProtection();
 
-    int32_t spkrProtProcessingMode(bool flag);
+    int32_t spkrProtProcessingMode(std::shared_ptr<Device> devObj, bool flag);
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
     static void mixer_ctl_callback (void *hdl, uint32_t event_id, void *event_data,
                              uint32_t event_size);
