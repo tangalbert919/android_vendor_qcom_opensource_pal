@@ -1671,6 +1671,9 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
+    std::vector <Stream *> activeStreams;
+    int rxdevcount = 0;
+    struct pal_stream_attributes rx_attr;
 
     PAL_DBG(LOG_TAG, "Enter.");
     status = s->getStreamAttributes(&sAttr);
@@ -1688,10 +1691,30 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         if (dev) {
             // use setECRef_l to avoid deadlock
             mResourceManagerMutex.unlock();
+            getActiveStream_l(dev, activeStreams);
+            for (auto& rx_str: activeStreams) {
+                 rx_str->getStreamAttributes(&rx_attr);
+                 if (rx_attr.direction != PAL_AUDIO_INPUT) {
+                     if (getEcRefStatus(sAttr.type, rx_attr.type)) {
+                         rxdevcount++;
+                     } else {
+                         PAL_DBG(LOG_TAG, "rx stream is disabled for ec ref %d", rx_attr.type);
+                         continue;
+                     }
+                 } else {
+                     PAL_DBG(LOG_TAG, "Not rx stream type %d", rx_attr.type);
+                     continue;
+                 }
+            }
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
-            if (status)
+            if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+            } else {
+               for (int i = 0; i < rxdevcount; i++) {
+                    dev->setEcRefDevCount(true, false);
+               }
+            }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
         sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
@@ -1711,6 +1734,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    } else if (dev) {
+                       dev->setEcRefDevCount(true, false);
                     }
                 }
             }
@@ -1754,13 +1779,16 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     }
 
     mResourceManagerMutex.lock();
-    deregisterDevice_l(d, s);
     if (sAttr.direction == PAL_AUDIO_INPUT) {
+        dev = getActiveEchoReferenceRxDevices_l(s);
         mResourceManagerMutex.unlock();
-        status = s->setECRef_l(nullptr, false);
+        status = s->setECRef_l(dev, false);
         mResourceManagerMutex.lock();
-        if (status)
+        if (status) {
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+        } else if (dev) {
+           dev->setEcRefDevCount(false, true);
+        }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
@@ -1775,7 +1803,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                  * NOTE: this check works based on sequence that
                  * Rx stream stops device after stopping session
                  */
-                if (dev->getDeviceCount() != 1) {
+                if (dev->getEcRefDevCount() > 1) {
                     PAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
@@ -1783,11 +1811,14 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+                    } else if (dev) {
+                          dev->setEcRefDevCount(false, false);
                     }
                 }
             }
         }
     }
+    deregisterDevice_l(d, s);
     mResourceManagerMutex.unlock();
     return status;
 }
@@ -2724,6 +2755,8 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     tx_dev_id = tx_dev->getSndDeviceId();
     // TODO: address all possible combinations
     if ((rx_dev_id == PAL_DEVICE_OUT_SPEAKER) ||
+        (rx_dev_id == PAL_DEVICE_OUT_SPEAKER &&
+         tx_dev_id == PAL_DEVICE_IN_SPEAKER_MIC) ||
         (rx_dev_id == PAL_DEVICE_OUT_HANDSET &&
          tx_dev_id == PAL_DEVICE_IN_HANDSET_MIC) ||
         (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADSET &&

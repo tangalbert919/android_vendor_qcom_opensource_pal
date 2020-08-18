@@ -574,8 +574,6 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto error_1;
     }
 
-    rm->registerDevice(dev, this);
-
     status = dev->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
@@ -587,7 +585,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
         goto error_2;
     }
-
+    rm->registerDevice(dev, this);
     goto error_1;
 
 error_2:

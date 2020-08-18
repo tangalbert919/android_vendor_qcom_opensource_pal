@@ -1590,7 +1590,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
             backendNames[0].c_str());
         if (status) {
-            PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+            PAL_ERR(LOG_TAG, "Failed to enable EC Ref, status %d", status);
             return status;
         }
         ecRefDevId = static_cast<pal_device_id_t>(rx_dev->getSndDeviceId());
@@ -1598,7 +1598,6 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         PAL_ERR(LOG_TAG, "Invalid operation");
         return -EINVAL;
     }
-
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
