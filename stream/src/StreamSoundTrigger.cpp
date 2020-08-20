@@ -2257,16 +2257,20 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
             std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-            backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, true);
-            if (backend_update) {
-                status = rm->StopOtherSVAStreams(&st_stream_);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
-                }
+            // Do not update capture profile when resuming stream
+            if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
+                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                    &st_stream_, true);
+                if (backend_update) {
+                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
+                    }
 
-                status = rm->StartOtherSVAStreams(&st_stream_);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                    }
                 }
             }
 
@@ -2544,17 +2548,21 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             [[fallthrough]];
         }
         case ST_EV_STOP_RECOGNITION: {
-            bool backend_update = false;
-            backend_update = st_stream_.rm->UpdateSVACaptureProfile(&st_stream_, false);
-            if (backend_update) {
-                status = rm->StopOtherSVAStreams(&st_stream_);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
-                }
+            // Do not update capture profile when pausing stream
+            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
+                bool backend_update = false;
+                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                    &st_stream_, false);
+                if (backend_update) {
+                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
+                    }
 
-                status = rm->StartOtherSVAStreams(&st_stream_);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    if (status) {
+                        QAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                    }
                 }
             }
 

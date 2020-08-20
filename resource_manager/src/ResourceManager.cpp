@@ -2039,8 +2039,7 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
         if (!cap_prof_priority) {
             QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
             SVACaptureProfile = nullptr;
-        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
-                   CAPTURE_PROFILE_PRIORITY_HIGH) {
+        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) != 0) {
             SVACaptureProfile = cap_prof_priority;
             backend_update = true;
         }
