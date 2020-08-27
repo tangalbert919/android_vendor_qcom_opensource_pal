@@ -39,7 +39,6 @@
 #include <mutex>
 #include <fstream>
 
-
 void SessionAlsaCompress::getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr)
 {
     struct qal_media_config *config = &sAttr.out_media_config;
@@ -173,10 +172,12 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 break; // exit the thread
 
             if (msg->cmd == OFFLOAD_CMD_WAIT_FOR_BUFFER) {
-                QAL_VERBOSE(LOG_TAG, "calling compress_wait");
-                ret = compress_wait(compressObj->compress, -1);
-                QAL_VERBOSE(LOG_TAG, "out of compress_wait, ret %d", ret);
-                event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
+                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                    QAL_VERBOSE(LOG_TAG, "calling compress_wait");
+                    ret = compress_wait(compressObj->compress, -1);
+                    QAL_VERBOSE(LOG_TAG, "out of compress_wait, ret %d", ret);
+                    event_id = QAL_STREAM_CBK_EVENT_WRITE_READY;
+                }
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called && compressObj->playback_started) {
                     QAL_ERR(LOG_TAG, "calling compress_drain");
@@ -185,10 +186,10 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                          QAL_ERR(LOG_TAG, "out of compress_drain, ret %d", ret);
                     }
                 }
-                if (ret == -ENETRESET ||
-                    compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
-                    QAL_ERR(LOG_TAG, "Unblock drain ready event during SSR");
-                    break;
+                if (ret == -ENETRESET) {
+                    QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
+                    lock.lock();
+                    continue;
                 }
                 is_drain_called = false;
                 event_id = QAL_STREAM_CBK_EVENT_DRAIN_READY;
@@ -199,8 +200,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                     ret = compress_drain(compressObj->compress);
                     QAL_ERR(LOG_TAG, "out of partial compress_drain, ret %d", ret);
                 }
-                if (ret == -ENETRESET ||
-                    compressObj->rm->cardState == CARD_STATUS_OFFLINE) {
+                if (ret == -ENETRESET) {
                     QAL_ERR(LOG_TAG, "Block drain ready event during SSR");
                     lock.lock();
                     continue;
@@ -568,6 +568,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
             //todo calibration
@@ -604,6 +606,8 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
                 QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
             }
             ctl = NULL;
+            if (calConfig)
+                free(calConfig);
             ckv.clear();
             break;
         default:
@@ -734,21 +738,6 @@ int SessionAlsaCompress::start(Stream * s)
             break;
     }
 
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        for (int i = 0; i < associatedDevices.size();i++) {
-            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-            if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
-                return status;
-            }
-            if (QAL_DEVICE_OUT_SPEAKER == dAttr.id) {
-                if (setConfig(s, MODULE, OP_MODE) != 0) {
-                    QAL_ERR(LOG_TAG,"Setting OP mode failed");
-                }
-                break;
-            }
-        }
-    }
     // Setting the volume as no default volume is set now in stream open
     if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
             QAL_ERR(LOG_TAG,"Setting volume failed");
@@ -796,8 +785,15 @@ int SessionAlsaCompress::close(Stream * s)
     struct qal_stream_attributes sAttr;
     std::ostringstream disconnectCtrlName;
     s->getStreamAttributes(&sAttr);
-    if (!compress)
+    if (!compress) {
+        if (compressDevIds.size() != 0)
+            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
+        if (rm->cardState == CARD_STATUS_OFFLINE) {
+            if (sessionCb)
+                sessionCb(cbCookie, QAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
+        }
         return -EINVAL;
+    }
     disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
     disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
     if (!disconnectCtrl) {
@@ -821,7 +817,8 @@ int SessionAlsaCompress::close(Stream * s)
         std::lock_guard<std::mutex> lock(cv_mutex_);
         msg_queue_.push(msg);
         cv_.notify_all();
-    } else {
+    }
+    {
         std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
         std::lock_guard<std::mutex> lock(cv_mutex_);
         msg_queue_.push(msg);

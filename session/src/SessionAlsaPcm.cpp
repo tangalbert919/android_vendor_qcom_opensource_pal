@@ -212,6 +212,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
                 goto exit;
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
         default:
@@ -315,6 +317,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
             ctl = NULL;
+            if (tagConfig)
+                free(tagConfig);
             tkv.clear();
             break;
             //todo calibration
@@ -357,6 +361,8 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
             ctl = NULL;
+            if (calConfig)
+                free(calConfig);
             ckv.clear();
             break;
         default:
@@ -811,21 +817,6 @@ int SessionAlsaPcm::start(Stream * s)
             //if (status) {
             //    QAL_ERR(LOG_TAG, "pcm_prepare failed %d", status);
             //}
-            if (ResourceManager::isSpeakerProtectionEnabled) {
-                for (int i = 0; i < associatedDevices.size();i++) {
-                    status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-                    if (0 != status) {
-                        QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
-                        return status;
-                    }
-                    if (QAL_DEVICE_OUT_SPEAKER == dAttr.id) {
-                        if (setConfig(s, MODULE, OP_MODE) != 0) {
-                            QAL_ERR(LOG_TAG,"Setting volume failed");
-                        }
-                        break;
-                    }
-                }
-            }
 pcm_start:
             status = pcm_start(pcm);
             if (status) {

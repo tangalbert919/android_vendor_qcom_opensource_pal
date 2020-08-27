@@ -458,6 +458,12 @@ int32_t Stream::getTimestamp(struct qal_session_time *stime)
     status = session->getTimestamp(stime);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "Failed to get session timestamp status %d", status);
+        if (errno == -ENETRESET &&
+            rm->cardState != CARD_STATUS_OFFLINE) {
+            QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+            rm->ssrHandler(CARD_STATUS_OFFLINE);
+            status = -EINVAL;
+        }
     }
 exit:
     return status;

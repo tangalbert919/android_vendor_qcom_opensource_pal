@@ -340,19 +340,19 @@ public:
     qal_global_callback globalCb = NULL;
     void *cookie;
     int initSndMonitor();
-    adm_init_t admInitFn;
-    adm_deinit_t admDeInitFn;
-    adm_register_output_stream_t admRegisterOutputStreamFn;
-    adm_register_input_stream_t admRegisterInputStreamFn;
-    adm_deregister_stream_t admDeregisterStreamFn;
-    adm_request_focus_t admRequestFocusFn;
-    adm_abandon_focus_t admAbandonFocusFn;
-    adm_set_config_t admSetConfigFn;
-    adm_request_focus_v2_t admRequestFocusV2Fn;
-    adm_on_routing_change_t admOnRoutingChangeFn;
-    adm_request_focus_v2_1_t  admRequestFocus_v2_1Fn;
-    void *admData;
-    void *admLibHdl;
+    adm_init_t admInitFn = NULL;
+    adm_deinit_t admDeInitFn = NULL;
+    adm_register_output_stream_t admRegisterOutputStreamFn = NULL;
+    adm_register_input_stream_t admRegisterInputStreamFn = NULL;
+    adm_deregister_stream_t admDeregisterStreamFn = NULL;
+    adm_request_focus_t admRequestFocusFn = NULL;
+    adm_abandon_focus_t admAbandonFocusFn = NULL;
+    adm_set_config_t admSetConfigFn = NULL;
+    adm_request_focus_v2_t admRequestFocusV2Fn = NULL;
+    adm_on_routing_change_t admOnRoutingChangeFn = NULL;
+    adm_request_focus_v2_1_t  admRequestFocus_v2_1Fn = NULL;
+    void *admData = NULL;
+    void *admLibHdl = NULL;
 
     /* checks config for both stream and device */
     bool isStreamSupported(struct qal_stream_attributes *attributes,

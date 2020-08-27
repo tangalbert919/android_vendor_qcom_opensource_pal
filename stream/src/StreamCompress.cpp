@@ -209,11 +209,18 @@ int32_t StreamCompress::close()
     rm->unlockGraph();
     if (0 != status) {
         QAL_ERR(LOG_TAG,"session close failed with status %d",status);
-        goto exit;
     }
-exit:
-    status = rm->deregisterStream(this);
 
+    currentState = STREAM_IDLE;
+    mStreamMutex.unlock();
+    QAL_VERBOSE(LOG_TAG,"%d status - %d",__LINE__,status);
+    return status;
+}
+
+StreamCompress::~StreamCompress()
+{
+    mStreamMutex.lock();
+    rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct qal_stream_attributes *)NULL;
@@ -223,13 +230,12 @@ exit:
         free(mVolumeData);
         mVolumeData = (struct qal_volume_data *)NULL;
     }
-
-    delete session;
-    session = nullptr;
-    currentState = STREAM_IDLE;
+    mDevices.clear();
+    if (session) {
+        delete session;
+        session = nullptr;
+    }
     mStreamMutex.unlock();
-    QAL_VERBOSE(LOG_TAG,"%d status - %d",__LINE__,status);
-    return status;
 }
 
 int32_t StreamCompress::stop()
@@ -309,9 +315,7 @@ int32_t StreamCompress::start()
                 QAL_ERR(LOG_TAG, "device %d name %s, going to start",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
-                mStreamMutex.unlock();
                 status = mDevices[i]->start();
-                mStreamMutex.lock();
                 if (0 != status) {
                     QAL_ERR(LOG_TAG,"Rx device start failed with status %d", status);
                     rm->unlockGraph();
@@ -660,6 +664,10 @@ exit:
 
 int32_t StreamCompress::drain(qal_drain_type_t type)
 {
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        QAL_ERR(LOG_TAG, "Sound card offline or session is null");
+        return -EINVAL;
+    }
     return session->drain(type);
 }
 
@@ -669,7 +677,8 @@ int32_t StreamCompress::flush()
         QAL_DBG(LOG_TAG, "Flush called while stream is not Paused");
         return 0;
     }
-    if (currentState == STREAM_STOPPED) {
+    if (currentState == STREAM_STOPPED ||
+        currentState == STREAM_IDLE) {
         QAL_ERR(LOG_TAG, "Session already flushed, state %d",
                currentState);
         return 0;

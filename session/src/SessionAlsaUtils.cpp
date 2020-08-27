@@ -401,16 +401,12 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = builder->populateCalKeyVector(streamHandle, emptyKV, SPKR_PROT_ENABLED);
             if (status != 0) {
                 QAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                status = 0; /**< ignore device SPP CKV failures */
+                status = 0; /**< ignore device SP CKV failures */
             }
         }
         else {
+            // Not setting CKV as SP will be disable by default.
             QAL_DBG(LOG_TAG, "Speaker protection disabled");
-            status = builder->populateCalKeyVector(streamHandle, emptyKV, SPKR_PROT_DISABLED);
-            if (status != 0) {
-                QAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                status = 0; /**< ignore device SPP CKV failures */
-            }
         }
         if (deviceKV.size() > 0) {
             getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
