@@ -701,7 +701,9 @@ typedef enum {
     PAL_PARAM_ID_SLOW_TALK = 23,
     PAL_PARAM_ID_SPEAKER_RAS = 24,
     PAL_PARAM_ID_SP_SET_MODE = 25,
-}pal_param_id_type_t;
+    PAL_PARAM_ID_GAIN_LVL_MAP = 26,
+    PAL_PARAM_ID_GAIN_LVL_CAL = 27,
+} pal_param_id_type_t;
 
 /** HDMI/DP */
 // START: MST ==================================================
@@ -726,6 +728,12 @@ typedef union {
     struct pal_usb_device_address usb_addr;
 } pal_device_config_t;
 
+struct pal_amp_db_and_gain_table {
+    float    amp;
+    float    db;
+    uint32_t level;
+};
+
 /* Payload For ID: PAL_PARAM_ID_DEVICE_CONNECTION
  * Description   : Device Connection
 */
@@ -733,7 +741,23 @@ typedef struct pal_param_device_connection {
     pal_device_id_t   id;
     bool              connection_state;
     pal_device_config_t device_config;
-}pal_param_device_connection_t;
+} pal_param_device_connection_t;
+
+/* Payload For ID: PAL_PARAM_ID_GAIN_LVL_MAP
+ * Description   : get gain level mapping
+*/
+typedef struct pal_param_gain_lvl_map {
+    struct pal_amp_db_and_gain_table *mapping_tbl;
+    int                              table_size;
+    int                              filled_size;
+} pal_param_gain_lvl_map_t;
+
+/* Payload For ID: PAL_PARAM_ID_GAIN_LVL_CAL
+ * Description   : set gain level calibration
+*/
+typedef struct pal_param_gain_lvl_cal {
+    int level;
+} pal_param_gain_lvl_cal_t;
 
 /* Payload For ID: PAL_PARAM_ID_DEVICE_CAPABILITY
  * Description   : get Device Capability
@@ -743,7 +767,7 @@ typedef struct pal_param_device_connection {
   struct pal_usb_device_address addr;
   bool              is_playback;
   struct dynamic_media_config *config;
-}pal_param_device_capability_t;
+} pal_param_device_capability_t;
 
 /* Payload For ID: PAL_PARAM_ID_SCREEN_STATE
  * Description   : Screen State

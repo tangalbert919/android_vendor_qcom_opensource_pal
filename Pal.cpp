@@ -609,7 +609,6 @@ int32_t pal_set_param(uint32_t param_id, void *param_payload,
     std::shared_ptr<ResourceManager> rm = NULL;
 
     rm = ResourceManager::getInstance();
-
     if (rm) {
         status = rm->setParameter(param_id, param_payload, payload_size);
         if (0 != status) {

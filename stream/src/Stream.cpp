@@ -262,7 +262,7 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t  Stream::getAssociatedSession(Session **s)
+int32_t Stream::getAssociatedSession(Session **s)
 {
     int32_t status = 0;
 
@@ -277,7 +277,7 @@ exit:
     return status;
 }
 
-int32_t  Stream::getVolumeData(struct pal_volume_data *vData)
+int32_t Stream::getVolumeData(struct pal_volume_data *vData)
 {
     int32_t status = 0;
 
@@ -305,6 +305,7 @@ int32_t  Stream::getVolumeData(struct pal_volume_data *vData)
 exit:
     return status;
 }
+
 int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
                            size_t *out_buf_size, size_t out_buf_count)
 {

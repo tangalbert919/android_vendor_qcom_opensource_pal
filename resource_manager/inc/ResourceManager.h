@@ -90,6 +90,8 @@ typedef enum {
     TAG_CONFIG_VOICE,
     TAG_CONFIG_MODE_MAP,
     TAG_CONFIG_MODE_PAIR,
+    TAG_GAIN_LEVEL_MAP,
+    TAG_GAIN_LEVEL_PAIR,
     TAG_INSTREAMS,
     TAG_INSTREAM,
     TAG_POLICIES,
@@ -112,10 +114,12 @@ struct xml_userdata {
     bool card_parsed;
     bool resourcexml_parsed;
     bool voice_info_parsed;
+    bool gain_lvl_parsed;
     snd_card_defs_xml_tags_t current_tag;
     bool is_parsing_sound_trigger;
     resource_xml_tags_t tag;
 };
+
 typedef enum {
     DEFAULT = 0,
     HOSTLESS,
@@ -315,6 +319,7 @@ protected:
     static std::vector<deviceIn> deviceInfo;
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
+    static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
     /* condition variable for which ssrHandlerLoop will wait */
     static std::condition_variable cv;
@@ -395,6 +400,7 @@ public:
     static void updateBackEndName(int32_t deviceId, std::string backEndName);
     static void updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value);
     static std::string getBtCodecLib(uint32_t codecFormat, std::string codecType);
+    int getGainLevelMapping(struct pal_amp_db_and_gain_table *mapTbl, int tblSize);
 
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size);
@@ -475,6 +481,7 @@ public:
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_kvinfo(const XML_Char **attr);
     static void process_voicemode_info(const XML_Char **attr);
+    static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
     static void processBTCodecInfo(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);

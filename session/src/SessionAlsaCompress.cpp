@@ -656,12 +656,7 @@ exit:
     PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
-/*
-int SessionAlsaCompress::getConfig(Stream * s)
-{
-   return 0;
-}
-*/
+
 int SessionAlsaCompress::start(Stream * s)
 {
     struct compr_config compress_config;

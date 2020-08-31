@@ -56,6 +56,7 @@ StreamInCall::StreamInCall(const struct pal_stream_attributes *sattr, struct pal
     }
 
     session = NULL;
+    mGainLevel = -1;
     mStreamAttr = (struct pal_stream_attributes *)nullptr;
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;

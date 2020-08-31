@@ -375,12 +375,6 @@ exit:
     PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
-/*
-int SessionAlsaPcm::getConfig(Stream * s)
-{
-   return 0;
-}
-*/
 
 int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_pal_payload_t *effectPayload)
 {

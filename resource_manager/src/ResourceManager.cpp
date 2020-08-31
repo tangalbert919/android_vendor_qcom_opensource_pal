@@ -347,7 +347,7 @@ void str_parms_destroy(struct str_parms *str_parms){return;}
 std::vector<deviceIn> ResourceManager::deviceInfo;
 std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
-
+std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 
 #define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
@@ -4214,6 +4214,17 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             }
             break;
         }
+        case PAL_PARAM_ID_GAIN_LVL_MAP:
+        {
+            pal_param_gain_lvl_map_t *param_gain_lvl_map =
+                (pal_param_gain_lvl_map_t *)param_payload;
+
+            param_gain_lvl_map->filled_size =
+                getGainLevelMapping(param_gain_lvl_map->mapping_tbl,
+                                    param_gain_lvl_map->table_size);
+            *payload_size = sizeof(pal_param_gain_lvl_map_t);
+            break;
+        }
         case PAL_PARAM_ID_DEVICE_CAPABILITY:
         {
             pal_param_device_capability_t *param_device_capability = (pal_param_device_capability_t *)(*param_payload);
@@ -4607,6 +4618,49 @@ setdevparam:
                 if (status) {
                     PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                     goto exit;
+                }
+            }
+        }
+        break;
+        case PAL_PARAM_ID_GAIN_LVL_CAL:
+        {
+            struct pal_device dattr;
+            Stream *stream = NULL;
+            std::vector<Stream*> activestreams;
+            Session *session = NULL;
+
+            pal_param_gain_lvl_cal_t *gain_lvl_cal = (pal_param_gain_lvl_cal_t *) param_payload;
+            if (payload_size != sizeof(pal_param_gain_lvl_cal_t)) {
+                PAL_ERR(LOG_TAG, "incorrect payload size : expected (%d), received(%d)",
+                      sizeof(pal_param_gain_lvl_cal_t), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+
+            for (int i = 0; i < active_devices.size(); i++) {
+                int deviceId = active_devices[i].first->getSndDeviceId();
+                status = active_devices[i].first->getDeviceAttributes(&dattr);
+                if (0 != status) {
+                   PAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+                   goto exit;
+                }
+                if ((PAL_DEVICE_OUT_SPEAKER == deviceId) ||
+                    (PAL_DEVICE_OUT_WIRED_HEADSET == deviceId) ||
+                    (PAL_DEVICE_OUT_WIRED_HEADPHONE == deviceId)) {
+                    status = getActiveStream_l(active_devices[i].first, activestreams);
+                    if ((0 != status) || (activestreams.size() == 0)) {
+                       PAL_ERR(LOG_TAG, "no other active streams found");
+                       status = -EINVAL;
+                       goto exit;
+                    }
+                    stream = static_cast<Stream *>(activestreams[0]);
+                    stream->setGainLevel(gain_lvl_cal->level);
+                    stream->getAssociatedSession(&session);
+                    status = session->setConfig(stream, CALIBRATION, TAG_DEVICE_PP_MBDRC);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+                        goto exit;
+                    }
                 }
             }
         }
@@ -5252,6 +5306,63 @@ void ResourceManager::processDeviceCapability(struct xml_userdata *data, const X
     }
 }
 
+void ResourceManager::process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr)
+{
+    struct pal_amp_db_and_gain_table tbl_entry;
+
+    if (data->gain_lvl_parsed)
+        return;
+
+    if ((strcmp(attr[0], "db") != 0) ||
+        (strcmp(attr[2], "level") != 0)) {
+        PAL_ERR(LOG_TAG, "invalid attribute passed  %s %sexpected amp db level", attr[0], attr[2]);
+        goto done;
+    }
+
+    tbl_entry.db = atof(attr[1]);
+    tbl_entry.amp = exp(tbl_entry.db * 0.115129f);
+    tbl_entry.level = atoi(attr[3]);
+
+    // custome level should be > 0. Level 0 is fixed for default
+    if (tbl_entry.level <= 0) {
+        PAL_ERR(LOG_TAG, "amp [%f]  db [%f] level [%d]",
+               tbl_entry.amp, tbl_entry.db, tbl_entry.level);
+        goto done;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "amp [%f]  db [%f] level [%d]",
+           tbl_entry.amp, tbl_entry.db, tbl_entry.level);
+
+    if (!gainLvlMap.empty() && (gainLvlMap.back().amp >= tbl_entry.amp)) {
+        PAL_ERR(LOG_TAG, "value not in ascending order .. rejecting custom mapping");
+        gainLvlMap.clear();
+        data->gain_lvl_parsed = true;
+    }
+
+    gainLvlMap.push_back(tbl_entry);
+
+done:
+    return;
+}
+
+int ResourceManager::getGainLevelMapping(struct pal_amp_db_and_gain_table *mapTbl, int tblSize)
+{
+    int size = 0;
+
+    if (gainLvlMap.empty()) {
+        PAL_DBG(LOG_TAG, "empty or currupted gain_mapping_table");
+        return 0;
+    }
+
+    for (; size < gainLvlMap.size() && size <= tblSize; size++) {
+        mapTbl[size] = gainLvlMap.at(size);
+        PAL_VERBOSE(LOG_TAG, "added amp[%f] db[%f] level[%d]",
+                mapTbl[size].amp, mapTbl[size].db, mapTbl[size].level);
+    }
+
+    return size;
+}
+
 void ResourceManager::snd_reset_data_buf(struct xml_userdata *data)
 {
     data->offs = 0;
@@ -5509,6 +5620,11 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "modepair")) {
         data->tag = TAG_CONFIG_MODE_PAIR;
         process_voicemode_info(attr);
+    } else if (!strcmp(tag_name, "gain_db_to_level_mapping")) {
+        data->tag = TAG_GAIN_LEVEL_MAP;
+    } else if (!strcmp(tag_name, "gain_level_map")) {
+        data->tag = TAG_GAIN_LEVEL_PAIR;
+        process_gain_db_to_level_map(data, attr);
     } else if (!strcmp(tag_name, "device_profile")) {
         data->tag = TAG_DEVICE_PROFILE;
     } else if (!strcmp(tag_name, "in-device")) {

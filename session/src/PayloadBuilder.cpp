@@ -1524,7 +1524,7 @@ int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair
      * TODO: Decide what to send as ckv in graph open
      */
     keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-    PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_0);
+    PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
 
     return status;
 }
@@ -1576,27 +1576,28 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
             case PAL_STREAM_PCM_OFFLOAD:
             case PAL_STREAM_COMPRESSED:
                 PAL_INFO(LOG_TAG,"SpeakerProt Status[%d], RAS Status[%d] device id[%d]\n",
-                  rm->isSpeakerProtectionEnabled, rm->isRasEnabled, dAttr.id );
-                if(rm->isSpeakerProtectionEnabled == true &&
-                   rm->isRasEnabled == true &&
-                   dAttr.id == PAL_DEVICE_OUT_SPEAKER)
-                {
-                  if(dAttr.config.ch_info.channels == 2)
-                  {
-                    PAL_INFO(LOG_TAG,"Enabling RAS - device channels[%d]\n",
-                      dAttr.config.ch_info.channels);
-                    keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_ON));
-                  }
-                  else
-                  {
-                    PAL_INFO(LOG_TAG,"Disabling RAS - device channels[%d] \n",
-                      dAttr.config.ch_info.channels);
-                    keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_OFF));
-                  }
-                }  else {
-                    PAL_VERBOSE(LOG_TAG,"stream type[%d] dev_id[%d] doesn't require DevicePP CKV ",
-                      sattr->type, dAttr.id);
+                        rm->isSpeakerProtectionEnabled, rm->isRasEnabled, dAttr.id);
+                if (rm->isSpeakerProtectionEnabled == true &&
+                    rm->isRasEnabled == true &&
+                    dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
+                    if (dAttr.config.ch_info.channels == 2) {
+                        PAL_INFO(LOG_TAG,"Enabling RAS - device channels[%d]\n",
+                                dAttr.config.ch_info.channels);
+                        keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_ON));
+                    } else {
+                        PAL_INFO(LOG_TAG,"Disabling RAS - device channels[%d] \n",
+                                dAttr.config.ch_info.channels);
+                        keyVector.push_back(std::make_pair(RAS_SWITCH, RAS_OFF));
+                    }
                 }
+
+                if ((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
+                    (dAttr.id == PAL_DEVICE_OUT_WIRED_HEADSET) ||
+                    (dAttr.id == PAL_DEVICE_OUT_WIRED_HEADPHONE)) {
+                    PAL_INFO(LOG_TAG, "Entered default %x %x", GAIN, GAIN_0);
+                    keyVector.push_back(std::make_pair(GAIN, GAIN_0));
+                }
+
                 /* TBD: Push Channels for these types once Channels are added */
                 //keyVector.push_back(std::make_pair(CHANNELS,
                 //                                   dAttr.config.ch_info.channels));
@@ -1620,6 +1621,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     KeyVect_t stream_config_kv;
     struct pal_device dAttr;
+    int level = -1;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -1649,58 +1651,63 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
 
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
-       if (voldB == 0.0f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
-       }
-       else if (voldB < 0.002172f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
-       }
-       else if (voldB < 0.004660f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
-       }
-       else if (voldB < 0.01f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
-       }
-       else if (voldB < 0.014877f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
-       }
-       else if (voldB < 0.023646f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
-       }
-       else if (voldB < 0.037584f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
-       }
-       else if (voldB < 0.055912f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
-       }
-       else if (voldB < 0.088869f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
-       }
-       else if (voldB < 0.141254f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
-       }
-       else if (voldB < 0.189453f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
-       }
-       else if (voldB < 0.266840f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
-       }
-       else if (voldB < 0.375838f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
-       }
-       else if (voldB < 0.504081f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
-       }
-       else if (voldB < 0.709987f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
-       }
-       else if (voldB < 0.9f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
-       }
-       else if (voldB <= 1.0f) {
-          ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
-       }
-       break;
+        if (voldB == 0.0f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
+        }
+        else if (voldB < 0.002172f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
+        }
+        else if (voldB < 0.004660f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
+        }
+        else if (voldB < 0.01f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
+        }
+        else if (voldB < 0.014877f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
+        }
+        else if (voldB < 0.023646f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
+        }
+        else if (voldB < 0.037584f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
+        }
+        else if (voldB < 0.055912f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
+        }
+        else if (voldB < 0.088869f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
+        }
+        else if (voldB < 0.141254f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
+        }
+        else if (voldB < 0.189453f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
+        }
+        else if (voldB < 0.266840f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
+        }
+        else if (voldB < 0.375838f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
+        }
+        else if (voldB < 0.504081f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
+        }
+        else if (voldB < 0.709987f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
+        }
+        else if (voldB < 0.9f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
+        }
+        else if (voldB <= 1.0f) {
+            ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
+        }
+        break;
+    case TAG_DEVICE_PP_MBDRC:
+        level = s->getGainLevel();
+        if (level != -1)
+            ckv.push_back(std::make_pair(GAIN, level));
+        break;
     case TAG_MODULE_CHANNELS:
         if (sAttr.type == PAL_STREAM_VOICE_UI) {
             stream_config_kv = s->getStreamModifiers();

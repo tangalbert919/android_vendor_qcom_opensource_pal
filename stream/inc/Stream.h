@@ -124,6 +124,7 @@ protected:
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
     struct pal_volume_data* mVolumeData = NULL;
+    int mGainLevel;
     std::mutex mStreamMutex;
     static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
     static std::shared_ptr<ResourceManager> rm;
@@ -154,7 +155,7 @@ public:
     virtual int32_t prepare() = 0;
     virtual int32_t drain(pal_drain_type_t type __unused) {return 0;}
     virtual int32_t setStreamAttributes(struct pal_stream_attributes *sattr) = 0;
-    virtual int32_t setVolume( struct pal_volume_data *volume) = 0;
+    virtual int32_t setVolume(struct pal_volume_data *volume) = 0;
     virtual int32_t mute(bool state) = 0;
     virtual int32_t pause() = 0;
     virtual int32_t resume() = 0;
@@ -189,6 +190,8 @@ public:
     int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                        size_t *out_buf_size, size_t *out_buf_count);
     int32_t getVolumeData(struct pal_volume_data *vData);
+    void setGainLevel(int level) { mGainLevel = level; };
+    int getGainLevel() { return mGainLevel; };
     /* static so that this method can be accessed wihtout object */
     static Stream* create(struct pal_stream_attributes *sattr, struct pal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);

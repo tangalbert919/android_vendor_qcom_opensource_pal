@@ -67,6 +67,7 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     bool isDeviceConfigUpdated = false;
 
     session = nullptr;
+    mGainLevel = -1;
     inBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     outBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
