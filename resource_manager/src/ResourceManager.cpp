@@ -329,6 +329,7 @@ int ResourceManager::concurrentTxStreamCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled;
 bool ResourceManager::isRasEnabled = false;
+bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
 
@@ -4314,6 +4315,19 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             *payload_size = sizeof(pal_st_properties);
             break;
         }
+        case PAL_PARAM_ID_SP_MODE:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for FTM mode");
+            std::shared_ptr<Device> dev = nullptr;
+            struct pal_device dattr;
+            dattr.id = PAL_DEVICE_OUT_SPEAKER;
+            dev = Device::getInstance(&dattr , rm);
+            if (dev) {
+                *payload_size = dev->getParameter(PAL_PARAM_ID_SP_MODE,
+                                    param_payload);
+            }
+        }
+        break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
@@ -4396,7 +4410,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
         }
         break;
-        case PAL_PARAM_ID_SP_SET_MODE:
+        case PAL_PARAM_ID_SP_MODE:
         {
             pal_spkr_prot_payload *spModeval =
                     (pal_spkr_prot_payload *) param_payload;
@@ -4405,11 +4419,23 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 switch(spModeval->operationMode) {
                     case PAL_SP_MODE_DYNAMIC_CAL:
                     {
+                        struct pal_device dattr;
+                        dattr.id = PAL_DEVICE_OUT_SPEAKER;
+                        std::shared_ptr<Device> dev = nullptr;
+
                         memset (&mSpkrProtModeValue, 0,
                                         sizeof(pal_spkr_prot_payload));
                         mSpkrProtModeValue.operationMode =
                                 PAL_SP_MODE_DYNAMIC_CAL;
 
+                        dev = Device::getInstance(&dattr , rm);
+                        if (dev) {
+                            PAL_DBG(LOG_TAG, "Got Speaker instance");
+                            dev->setParameter(PAL_SP_MODE_DYNAMIC_CAL, nullptr);
+                        }
+                        else {
+                            PAL_DBG(LOG_TAG, "Unable to get speaker instance");
+                        }
                     }
                     break;
                     case PAL_SP_MODE_FACTORY_TEST:
@@ -5541,6 +5567,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "speaker_protection_enabled")) {
             if (atoi(data->data_buf))
                 isSpeakerProtectionEnabled = true;
+        } else if (!strcmp(tag_name, "speaker_mono_right")) {
+            if (atoi(data->data_buf))
+                isMainSpeakerRight = true;
         } else if (!strcmp(tag_name, "quick_cal_time")) {
             spQuickCalTime = atoi(data->data_buf);
         }else if (!strcmp(tag_name, "ras_enabled")) {

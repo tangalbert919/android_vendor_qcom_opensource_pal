@@ -338,10 +338,17 @@ public:
     ~ResourceManager();
     enum card_status_t cardState;
     bool ssrStarted = false;
+    /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
+    /* Variable to store whether main speaker is right one not.
+     * Valid for Stereo case only
+     */
+    static bool isMainSpeakerRight;
+    /* Variable to store Quick calibration time for Speaker protection */
     static int spQuickCalTime;
+    /* Variable to store the mode request for Speaker protection */
     pal_spkr_prot_payload mSpkrProtModeValue;
     pal_global_callback globalCb = NULL;
     void *cookie;

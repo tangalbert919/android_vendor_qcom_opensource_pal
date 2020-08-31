@@ -84,7 +84,9 @@ public:
     static std::shared_ptr<Device> getObject(pal_device_id_t dev_id);
     int updateCustomPayload(void *payload, size_t size);
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
+    virtual int32_t setParameter(uint32_t param_id, void *param);
     virtual int32_t getDeviceParameter(uint32_t param_id, void **param);
+    virtual int32_t getParameter(uint32_t param_id, void **param);
     virtual bool isDeviceReady() { return true;}
     void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
     virtual ~Device();

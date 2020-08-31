@@ -152,15 +152,13 @@ void SpeakerProtection::mixer_ctl_callback (void *hdl, uint32_t event_id,
             cv.notify_all();
         }
     }
-
-
 }
 
 void SpeakerProtection::spkrCalibrateWait()
 {
     std::unique_lock<std::mutex> lock(cvMutex);
     cv.wait_for(lock,
-        std::chrono::milliseconds(WAKEUP_MIN_IDLE_CHECK));
+            std::chrono::milliseconds(WAKEUP_MIN_IDLE_CHECK));
 }
 
 int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
@@ -176,8 +174,12 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
 
     switch(spkr_pos)
     {
-        case WSA_SPKR_RIGHT: mixer_ctl_name = SPKR_RIGHT_WSA_TEMP; break;
-        case WSA_SPKR_LEFT: mixer_ctl_name = SPKR_LEFT_WSA_TEMP; break;
+        case WSA_SPKR_RIGHT:
+            mixer_ctl_name = SPKR_RIGHT_WSA_TEMP;
+        break;
+        case WSA_SPKR_LEFT:
+            mixer_ctl_name = SPKR_LEFT_WSA_TEMP;
+        break;
     }
 
     PAL_DBG(LOG_TAG, "audio_mixer %pK", mixer);
@@ -254,6 +256,11 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
     sessionCb = mixer_ctl_callback;
+
+    if (customPayloadSize) {
+        free(customPayload);
+        customPayloadSize = 0;
+    }
 
     // Configure device attribute
     if (numberOfChannels > 1) {
@@ -603,7 +610,7 @@ int SpeakerProtection::spkrStartCalibration()
     builder->payloadSPConfig(&payload, &payloadSize, miid,
             PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
     if (payloadSize) {
-        if (customPayload) {
+        if (customPayloadSize) {
             free(customPayload);
             customPayloadSize = 0;
         }
@@ -697,6 +704,11 @@ err_pcm_open :
             }
             free (event_cfg);
         }
+        status = (ResourceManager::getInstance())->registerMixerEventCallback (
+                    pcmDevIdsTx, sessionCb, (void*)this, false);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
+        }
         disableDevice(audioRoute, mSndDeviceName_vi);
         pcm_stop(txPcm);
         pcm_close(txPcm);
@@ -715,12 +727,6 @@ free_fe:
     }
 
     if (pcmDevIdsTx.size() != 0) {
-        status = (ResourceManager::getInstance())->registerMixerEventCallback (
-                    pcmDevIdsTx, sessionCb, (void*)this, false);
-        if (status != 0) {
-            PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
-        }
-
         rm->freeFrontEndIds(pcmDevIdsTx, sAttr, TXLOOPBACK);
     }
     pcmDevIdsRx.clear();
@@ -918,8 +924,7 @@ SpeakerProtection::~SpeakerProtection()
  * true - Start Processing Mode
  * false - Stop Processing Mode
  */
-int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj,
-                                                  bool flag)
+int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 {
     int ret = 0, dir = TXLOOPBACK;
     PayloadBuilder* builder = new PayloadBuilder();
@@ -938,7 +943,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
     std::ostringstream connectCtrlName;
     struct audio_route *audioRoute = NULL;
     char mSndDeviceName_vi[128] = {0};
-    int flags;
+    int flags, viParamId = 0;
     struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
     param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
     param_id_sp_vi_op_mode_cfg_t modeConfg;
@@ -994,6 +999,11 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
 
         keyVector.clear();
         calVector.clear();
+
+        if (customPayloadSize) {
+            free(customPayload);
+            customPayloadSize = 0;
+        }
 
         // Configure device attribute
        if (numberOfChannels > 1) {
@@ -1114,6 +1124,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
             case PAL_SP_MODE_V_VALIDATION:
                 modeConfg.th_operation_mode = V_VALIDATION_MODE;
             break;
+            case PAL_SP_MODE_DYNAMIC_CAL:
             default:
                 PAL_ERR(LOG_TAG, "Normal mode being used");
                 modeConfg.th_operation_mode = NORMAL_MODE;
@@ -1169,14 +1180,22 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
             param_id_sp_th_vi_ftm_cfg_t viFtmConfg;
             viFtmConfg.num_ch = numberOfChannels;
             payloadSize = 0;
+            switch (rm->mSpkrProtModeValue.operationMode) {
+                case PAL_SP_MODE_FACTORY_TEST:
+                    viParamId = PARAM_ID_SP_TH_VI_FTM_CFG;
+                break;
+                case PAL_SP_MODE_V_VALIDATION:
+                    viParamId = PARAM_ID_SP_TH_VI_V_VALI_CFG;
+                break;
+                case PAL_SP_MODE_DYNAMIC_CAL:
+                    PAL_ERR(LOG_TAG, "Dynamic cal in Processing mode!!");
+                break;
+            }
             builder->payloadSPConfig (&payload, &payloadSize, miid,
-                    PARAM_ID_SP_TH_VI_FTM_CFG | PARAM_ID_SP_TH_VI_V_VALI_CFG,
-                    (void *) &viFtmConfg);
+                    viParamId, (void *) &viFtmConfg);
             if (payloadSize) {
                 ret = updateCustomPayload(payload, payloadSize);
                 delete payload;
-                memset(&(rm->mSpkrProtModeValue), 0,
-                        sizeof(pal_spkr_prot_payload));
                 if (0 != ret) {
                     PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
                 }
@@ -1261,6 +1280,8 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
         }
 
         // Set the operation mode for SP module
+        PAL_DBG(LOG_TAG, "Operation mode for SP %d",
+                        rm->mSpkrProtModeValue.operationMode);
         switch (rm->mSpkrProtModeValue.operationMode) {
             case PAL_SP_MODE_FACTORY_TEST:
                 spModeConfg.operation_mode = FACTORY_TEST_MODE;
@@ -1277,7 +1298,11 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
         builder->payloadSPConfig(&payload, &payloadSize, miid,
                 PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
         if (payloadSize) {
-            ret = devObj->updateCustomPayload(payload, payloadSize);
+            if (customPayloadSize) {
+                free (customPayload);
+                customPayloadSize = 0;
+            }
+            ret = updateCustomPayload(payload, payloadSize);
             delete payload;
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
@@ -1339,4 +1364,207 @@ free_fe:
 done:
     deviceMutex.unlock();
     return ret;
+}
+
+
+int SpeakerProtection::speakerProtectionDynamicCal()
+{
+    int ret = 0;
+
+    PAL_DBG(LOG_TAG, "Trigger Dynamic Cal");
+
+    if (spkrCalState == SPKR_CALIB_IN_PROGRESS) {
+        PAL_DBG(LOG_TAG, "Calibration already running");
+        return ret;
+    }
+
+    threadExit = false;
+    spkrCalState = SPKR_NOT_CALIBRATED;
+
+    calibrationCallbackStatus = 0;
+    mDspCallbackRcvd = false;
+
+    mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
+                        this);
+    return ret;
+}
+
+int SpeakerProtection::start()
+{
+    PAL_DBG(LOG_TAG, "Inside Speaker Protection start");
+    spkrProtProcessingMode(true);
+    Device::start();
+    return 0;
+}
+
+int SpeakerProtection::stop()
+{
+    PAL_DBG(LOG_TAG, "Inside Speaker Protection stop");
+    Device::stop();
+    spkrProtProcessingMode(false);
+    return 0;
+}
+
+
+int32_t SpeakerProtection::setParameter(uint32_t param_id, void *param)
+{
+    PAL_DBG(LOG_TAG, "Inside Speaker Protection Set parameters");
+    (void ) param;
+    if (param_id == PAL_SP_MODE_DYNAMIC_CAL)
+        speakerProtectionDynamicCal();
+    return 0;
+}
+
+int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
+{
+    int size = 0, status = 0 ;
+    const char *getParamControl = "getParam";
+    std::ostringstream cntrlName;
+    std::ostringstream resString;
+    std::string backendName;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    char *pcmDeviceName = NULL;
+    struct mixer_ctl *ctl;
+    uint32_t miid = 0;
+    param_id_sp_th_vi_ftm_params_t ftm;
+    param_id_sp_th_vi_v_vali_params_t v_val;
+    PayloadBuilder* builder = new PayloadBuilder();
+    vi_th_ftm_params_t ftm_ret[numberOfChannels];
+    vi_th_v_vali_params_t v_vali_ret[numberOfChannels];
+    param_id_sp_th_vi_v_vali_params_t *v_valValue;
+    param_id_sp_th_vi_ftm_params_t *ftmValue;
+    int spkr1_status = 0;
+    int spkr2_status = 0;
+
+    memset(&ftm_ret, 0,sizeof(vi_th_ftm_params_t)*numberOfChannels);
+    memset(&v_vali_ret, 0,sizeof(vi_th_v_vali_params_t)*numberOfChannels);
+
+    if (param_id != PAL_PARAM_ID_SP_MODE)
+        return size;
+
+    pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
+    cntrlName<<pcmDeviceName<<" "<<getParamControl;
+
+    ctl = mixer_get_ctl_by_name(mixer, cntrlName.str().data());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", cntrlName.str().data());
+        return -ENOENT;
+    }
+    rm->getBackendName(PAL_DEVICE_IN_VI_FEEDBACK, backendName);
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIdTx.at(0),
+                        backendName.c_str(), MODULE_VI, &miid);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_VI, status);
+    }
+
+    ftm.num_ch = numberOfChannels;
+    builder->payloadSPConfig (&payload, &payloadSize, miid,
+            PARAM_ID_SP_TH_VI_FTM_PARAMS, &ftm);
+
+    status = mixer_ctl_set_array(ctl, payload, payloadSize);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Set failed status = %d", status);
+        goto exit;
+    }
+
+    memset(payload, 0, payloadSize);
+
+    status = mixer_ctl_get_array(ctl, payload, payloadSize);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Get failed status = %d", status);
+    }
+    else {
+
+        ftmValue = (param_id_sp_th_vi_ftm_params_t *) (payload +
+                        sizeof(struct apm_module_param_data_t));
+
+        for (int i = 0; i < numberOfChannels; i++) {
+            ftm_ret[i].ftm_dc_res_q24 = ftmValue->vi_th_ftm_params[i].ftm_dc_res_q24;
+            ftm_ret[i].ftm_temp_q22 = ftmValue->vi_th_ftm_params[i].ftm_temp_q22;
+            ftm_ret[i].status = ftmValue->vi_th_ftm_params[i].status;
+        }
+    }
+
+    PAL_DBG(LOG_TAG, "Got FTM value with status %d", ftm_ret[0].status);
+
+    if (payload) {
+        delete payload;
+        payloadSize = 0;
+        payload = NULL;
+    }
+
+    v_val.num_ch = numberOfChannels;
+    builder->payloadSPConfig (&payload, &payloadSize, miid,
+            PARAM_ID_SP_TH_VI_V_VALI_PARAMS, &v_val);
+
+    status = mixer_ctl_set_array(ctl, payload, payloadSize);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Set failed status = %d", status);
+        goto exit;
+    }
+
+    memset(payload, 0, payloadSize);
+
+    status = mixer_ctl_get_array(ctl, payload, payloadSize);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Get failed status = %d", status);
+    }
+    else {
+        v_valValue = (param_id_sp_th_vi_v_vali_params_t *) (payload +
+                            sizeof(struct apm_module_param_data_t));
+
+        for (int i = 0; i < numberOfChannels; i++) {
+            v_vali_ret[i].vrms_q24 = v_valValue->vi_th_v_vali_params[i].vrms_q24;
+            v_vali_ret[i].status = v_valValue->vi_th_v_vali_params[i].status;
+        }
+    }
+    PAL_DBG(LOG_TAG, "Got V-Val value with status %d", v_vali_ret[0].status);
+
+    if (payload) {
+        delete payload;
+        payloadSize = 0;
+        payload = NULL;
+    }
+
+    switch(numberOfChannels) {
+        case 1 :
+            if (v_vali_ret[0].status == 1 || ftm_ret[0].status == 4)
+                spkr1_status = 1;
+            resString << "SpkrParamStatus: " << spkr1_status << "; Rdc: "
+                    << ((ftm_ret[0].ftm_dc_res_q24)/(1<<24)) << "; Temp: "
+                    << ((ftm_ret[0].ftm_temp_q22)/(1<<22)) << "; Rms: "
+                    << ((v_vali_ret[0].vrms_q24)/(1<<24));
+        break;
+        case 2 :
+            if (v_vali_ret[0].status == 1 || ftm_ret[0].status == 4)
+                spkr1_status = 1;
+            if (v_vali_ret[1].status == 1 || ftm_ret[1].status == 4)
+                spkr2_status = 1;
+            resString << "SpkrParamStatus: " << spkr1_status <<", "<< spkr2_status
+                    << "; Rdc: " << ((ftm_ret[0].ftm_dc_res_q24)/(1<<24)) << ", "
+                    << ((ftm_ret[1].ftm_dc_res_q24)/(1<<24)) << "; Temp: "
+                    << ((ftm_ret[0].ftm_temp_q22)/(1<<22)) << ", "
+                    << ((ftm_ret[1].ftm_temp_q22)/(1<<22)) <<"; Rms: "
+                    << ((v_vali_ret[0].vrms_q24)/(1<<24)) << ", "
+                    << ((v_vali_ret[1].vrms_q24)/(1<<24));
+        break;
+        default :
+            PAL_ERR(LOG_TAG, "No support for Speakers > 2");
+        break;
+    }
+
+    PAL_DBG(LOG_TAG, "Get param value %s", resString.str().c_str());
+    if (resString.str().length() > 0) {
+        memcpy((char *) (param), resString.str().c_str(),
+                resString.str().length());
+        size = resString.str().length();
+
+        // Get is done now, we will clear up the stored mode now
+        memset(&(rm->mSpkrProtModeValue), 0, sizeof(pal_spkr_prot_payload));
+    }
+
+exit :
+    return size;
 }

@@ -35,7 +35,6 @@
 #include "kvh2xml.h"
 
 std::shared_ptr<Device> Speaker::obj = nullptr;
-std::shared_ptr<Speaker> Speaker::objSP = nullptr;
 
 std::shared_ptr<Device> Speaker::getObject()
 {
@@ -47,8 +46,14 @@ std::shared_ptr<Device> Speaker::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
-        std::shared_ptr<Device> sp(new Speaker(device, Rm));
-        obj = sp;
+        if (ResourceManager::isSpeakerProtectionEnabled) {
+            std::shared_ptr<Device> sp(new SpeakerProtection(device, Rm));
+            obj = sp;
+        }
+        else {
+            std::shared_ptr<Device> sp(new Speaker(device, Rm));
+            obj = sp;
+        }
     }
     return obj;
 }
@@ -57,10 +62,6 @@ std::shared_ptr<Device> Speaker::getInstance(struct pal_device *device,
 Speaker::Speaker(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        std::shared_ptr<Speaker> ob(new SpeakerProtection(device, Rm));
-        objSP = ob;
-    }
 }
 
 Speaker::Speaker()
@@ -123,28 +124,4 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
             break;
     }
     return rc;
-}
-
-int Speaker::start()
-{
-    PAL_DBG(LOG_TAG, "Inside Speaker start");
-    std::shared_ptr<SpeakerProtection> speakerProt;
-    speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        speakerProt->spkrProtProcessingMode(obj, true);
-    }
-    Device::start();
-    return 0;
-}
-
-int Speaker::stop()
-{
-    PAL_DBG(LOG_TAG, "Inside Speaker stop");
-    std::shared_ptr<SpeakerProtection> speakerProt;
-    speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
-    Device::stop();
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        speakerProt->spkrProtProcessingMode(obj, false);
-    }
-    return 0;
 }

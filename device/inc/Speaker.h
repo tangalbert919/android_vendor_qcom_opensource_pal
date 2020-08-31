@@ -37,7 +37,6 @@ class Speaker : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;
-    static std::shared_ptr<Speaker> objSP;
     Speaker(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     static std::shared_ptr<Device> getInstance(struct pal_device *device,
@@ -46,8 +45,6 @@ public:
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static std::shared_ptr<Device> getObject();
-    int start();
-    int stop();
     Speaker();
     virtual ~Speaker();
 };

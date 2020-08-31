@@ -408,3 +408,13 @@ int32_t Device::getDeviceParameter(uint32_t param_id __unused, void **param __un
 {
     return 0;
 }
+
+int32_t Device::setParameter(uint32_t param_id __unused, void *param __unused)
+{
+    return 0;
+}
+
+int32_t Device::getParameter(uint32_t param_id __unused, void **param __unused)
+{
+    return 0;
+}

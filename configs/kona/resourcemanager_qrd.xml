@@ -368,8 +368,18 @@
             <channels>1</channels>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
-            <quick_cal_time>0</quick_cal_time> <!-- Time in seconds for quick calibration. Set 0 to disable -->
-            <ras_enabled>0</ras_enabled> <!-- RAS should be enabled with speaker protection always -->
+            <speaker_mono_right>1</speaker_mono_right>
+            <!-- RAS should be enabled with speaker protection always -->
+            <ras_enabled>0</ras_enabled>
+            <!-- Flag to specify speaker in case Voice call is switched from
+                 handset to speaker with only 1 speaker.
+                 Values: Both speaker : 0
+                         Right speaker: 1
+                         Left speaker : 2
+            -->
+            <speaker_mono_right>0</speaker_mono_right>
+            <!-- Time in seconds for Quick cal. Set 0 to disable -->
+            <quick_cal_time>0</quick_cal_time>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>

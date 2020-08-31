@@ -38,6 +38,7 @@
 #include <condition_variable>
 #include <thread>
 #include<vector>
+#include "apm_api.h"
 
 class Speaker;
 
@@ -112,7 +113,14 @@ public:
 
     ~SpeakerProtection();
 
-    int32_t spkrProtProcessingMode(std::shared_ptr<Device> devObj, bool flag);
+    int32_t start();
+    int32_t stop();
+
+    int32_t setParameter(uint32_t param_id, void *param) override;
+    int32_t getParameter(uint32_t param_id, void **param) override;
+
+    int32_t spkrProtProcessingMode(bool flag);
+    int speakerProtectionDynamicCal();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
     static void mixer_ctl_callback (void *hdl, uint32_t event_id, void *event_data,
                              uint32_t event_size);

@@ -197,7 +197,7 @@ typedef enum {
     PAL_SP_MODE_V_VALIDATION,
 } pal_spkr_prot_mode;
 
-/* Payload For ID: PAL_PARAM_ID_SP_SET_MODE
+/* Payload For ID: PAL_PARAM_ID_SP_MODE
  * Description   : Values for Speaker protection modes
  */
 typedef struct pal_spkr_prot_payload {
@@ -701,7 +701,7 @@ typedef enum {
     PAL_PARAM_ID_VOLUME_BOOST = 22,
     PAL_PARAM_ID_SLOW_TALK = 23,
     PAL_PARAM_ID_SPEAKER_RAS = 24,
-    PAL_PARAM_ID_SP_SET_MODE = 25,
+    PAL_PARAM_ID_SP_MODE = 25,
     PAL_PARAM_ID_GAIN_LVL_MAP = 26,
     PAL_PARAM_ID_GAIN_LVL_CAL = 27,
     PAL_PARAM_ID_GAPLESS_MDATA = 28,
