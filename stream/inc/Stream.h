@@ -101,7 +101,7 @@ typedef enum {
  * not continously try to open a session if it fails
  * during SSR.
  */
-#define SSR_RECOVERY 50000
+#define SSR_RECOVERY 10000
 
 /* Soft pause has to wait for ramp period to ensure volume stepping finishes.
  * This period of time was previously consumed in elite before acknowleging
