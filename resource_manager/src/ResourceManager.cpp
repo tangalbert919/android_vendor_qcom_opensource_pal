@@ -2077,7 +2077,6 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     pal_device_id_t dest_device;
     pal_device_id_t device_to_disconnect;
     pal_device_id_t device_to_connect;
-    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
     StreamSoundTrigger *st_str = nullptr;
 
@@ -2094,7 +2093,6 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
         return status;
     }
 
-    SVACaptureProfile = nullptr;
     cap_prof_priority = GetCaptureProfileByPriority(nullptr);
 
     if (!cap_prof_priority) {
@@ -2414,6 +2412,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     bool conc_en = true;
     bool do_switch = false;
     StreamSoundTrigger *st_str = nullptr;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     mResourceManagerMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
@@ -2507,9 +2506,6 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
 
         if (do_switch) {
-            // reset SVA capture profile
-            SVACaptureProfile = nullptr;
-
             // update use_lpi_ for all sva streams
             for (int i = 0; i < active_streams_st.size(); i++) {
                 st_str = active_streams_st[i];
@@ -2521,6 +2517,18 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                         PAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
                     }
                 }
+            }
+
+            // update common SVA capture profile
+            SVACaptureProfile = nullptr;
+            cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+            if (!cap_prof_priority) {
+                PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
+                SVACaptureProfile = nullptr;
+            } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
+                    CAPTURE_PROFILE_PRIORITY_HIGH) {
+                SVACaptureProfile = cap_prof_priority;
             }
 
             // stop/unload all sva streams

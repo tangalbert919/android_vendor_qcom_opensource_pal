@@ -2518,6 +2518,9 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+            } else {
+                PAL_DBG(LOG_TAG, "Update capture profile after device switch");
+                st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             }
 
         connect_err:
@@ -2782,6 +2785,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+            } else {
+                PAL_DBG(LOG_TAG, "Update capture profile after device switch");
+                st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             }
 
         connect_err:
