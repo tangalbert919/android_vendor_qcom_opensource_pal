@@ -2058,8 +2058,7 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
         if (!cap_prof_priority) {
             QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
             SVACaptureProfile = nullptr;
-        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
-                   CAPTURE_PROFILE_PRIORITY_HIGH) {
+        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) != 0) {
             SVACaptureProfile = cap_prof_priority;
             backend_update = true;
         }
@@ -4312,6 +4311,54 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 status = -EINVAL;
             }
 
+        }
+        break;
+        case QAL_PARAM_ID_SP_SET_MODE:
+        {
+            qal_spkr_prot_payload *spModeval =
+                    (qal_spkr_prot_payload *) param_payload;
+
+            if (payload_size == sizeof(qal_spkr_prot_payload)) {
+                switch(spModeval->operationMode) {
+                    case QAL_SP_MODE_DYNAMIC_CAL:
+                    {
+                        memset (&mSpkrProtModeValue, 0,
+                                        sizeof(qal_spkr_prot_payload));
+                        mSpkrProtModeValue.operationMode =
+                                QAL_SP_MODE_DYNAMIC_CAL;
+
+                    }
+                    break;
+                    case QAL_SP_MODE_FACTORY_TEST:
+                    {
+                        memset (&mSpkrProtModeValue, 0,
+                                        sizeof(qal_spkr_prot_payload));
+                        mSpkrProtModeValue.operationMode =
+                                QAL_SP_MODE_FACTORY_TEST;
+                        mSpkrProtModeValue.spkrHeatupTime =
+                                spModeval->spkrHeatupTime;
+                        mSpkrProtModeValue.operationModeRunTime =
+                                spModeval->operationModeRunTime;
+                    }
+                    break;
+                    case QAL_SP_MODE_V_VALIDATION:
+                    {
+                        memset (&mSpkrProtModeValue, 0,
+                                        sizeof(qal_spkr_prot_payload));
+                        mSpkrProtModeValue.operationMode =
+                                QAL_SP_MODE_V_VALIDATION;
+                        mSpkrProtModeValue.spkrHeatupTime =
+                                spModeval->spkrHeatupTime;
+                        mSpkrProtModeValue.operationModeRunTime =
+                                spModeval->operationModeRunTime;
+                    }
+                    break;
+                }
+            } else {
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                        sizeof(qal_param_device_rotation_t), payload_size);
+                status = -EINVAL;
+            }
         }
         break;
         case QAL_PARAM_ID_DEVICE_CONNECTION:

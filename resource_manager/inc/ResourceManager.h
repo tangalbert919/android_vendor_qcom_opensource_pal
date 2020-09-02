@@ -337,6 +337,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isRasEnabled;
     static int spQuickCalTime;
+    qal_spkr_prot_payload mSpkrProtModeValue;
     qal_global_callback globalCb = NULL;
     void *cookie;
     int initSndMonitor();

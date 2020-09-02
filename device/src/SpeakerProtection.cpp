@@ -47,8 +47,8 @@
 #define MIN_SPKR_IDLE_SEC (120)
 #define WAKEUP_MIN_IDLE_CHECK (1000 * 30)
 
-#define SPKR_LEFT_WSA_TEMP "SpkrLeft WSA Temp"
 #define SPKR_RIGHT_WSA_TEMP "SpkrRight WSA Temp"
+#define SPKR_LEFT_WSA_TEMP "SpkrLeft WSA Temp"
 
 #define TZ_TEMP_MIN_THRESHOLD    (5)
 #define TZ_TEMP_MAX_THRESHOLD    (45)
@@ -59,7 +59,6 @@
 
 #define MIN_RESISTANCE_SPKR_Q24 (2 * (1 << 24))
 
-#define MAX_NUMBER_OF_SPEAKERS 2
 #define DEFAULT_PERIOD_SIZE 256
 #define DEFAULT_PERIOD_COUNT 4
 
@@ -68,10 +67,16 @@
 
 #define NORMAL_MODE 0
 #define CALIBRATION_MODE 1
+#define FACTORY_TEST_MODE 2
+#define V_VALIDATION_MODE 3
+
+#define CALIBRATION_STATUS_SUCCESS 4
+#define CALIBRATION_STATUS_FAILURE 5
 
 std::thread SpeakerProtection::mCalThread;
 std::condition_variable SpeakerProtection::cv;
 std::mutex SpeakerProtection::cvMutex;
+std::mutex SpeakerProtection::calibrationMutex;
 
 bool SpeakerProtection::isSpkrInUse;
 struct timespec SpeakerProtection::spkrLastTimeUsed;
@@ -80,8 +85,9 @@ speaker_prot_cal_state SpeakerProtection::spkrCalState;
 struct pcm * SpeakerProtection::rxPcm;
 struct pcm * SpeakerProtection::txPcm;
 struct param_id_sp_th_vi_calib_res_cfg_t * SpeakerProtection::callback_data;
-int SpeakerProtection::totalSpeakers;
 int SpeakerProtection::numberOfChannels;
+int SpeakerProtection::calibrationCallbackStatus;
+int SpeakerProtection::numberOfRequest;
 bool SpeakerProtection::mDspCallbackRcvd;
 
 bool SpeakerProtection::isSpeakerInUse(unsigned long *sec)
@@ -124,15 +130,26 @@ void SpeakerProtection::mixer_ctl_callback (void *hdl, uint32_t event_id,
 
     if (event_id == EVENT_ID_VI_CALIBRATION) {
         param_data = (param_id_sp_th_vi_calib_res_cfg_t *) event_data;
-        if (param_data->state == 4) {
+        QAL_DBG(LOG_TAG, "Calibration state %d", param_data->state);
+        if (param_data->state == CALIBRATION_STATUS_SUCCESS) {
             // TODO : Add a lock
             QAL_DBG(LOG_TAG, "Calibration is successfull");
             callback_data = (param_id_sp_th_vi_calib_res_cfg_t *) calloc(1, event_size);
             callback_data->num_ch = param_data->num_ch;
             callback_data->state = param_data->state;
-            memcpy(callback_data->r0_cali_q24, param_data->r0_cali_q24,
-                    sizeof(int32_t)* param_data->num_ch);
+            for (int i = 0; i < callback_data->num_ch; i++) {
+                callback_data->r0_cali_q24[i] = param_data->r0_cali_q24[i];
+            }
             mDspCallbackRcvd = true;
+            calibrationCallbackStatus = CALIBRATION_STATUS_SUCCESS;
+            cv.notify_all();
+        }
+        else if (param_data->state == CALIBRATION_STATUS_FAILURE) {
+            QAL_DBG(LOG_TAG, "Calibration is unsuccessfull");
+            // Restart the calibration and abort current fetch
+            mDspCallbackRcvd = true;
+            calibrationCallbackStatus = CALIBRATION_STATUS_FAILURE;
+            cv.notify_all();
         }
     }
 
@@ -151,15 +168,17 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
     struct mixer_ctl *ctl;
     const char *mixer_ctl_name;
     int status = 0;
-
+    /**
+     * It is assumed that for Mono speakers only right speaker will be there.
+     * Thus we will get the Temperature just for right speaker.
+     */
     QAL_DBG(LOG_TAG, "Enter Speaker Get Temperature %d", spkr_pos);
 
     switch(spkr_pos)
     {
-        case WSA_SPKR_LEFT: mixer_ctl_name = SPKR_LEFT_WSA_TEMP; break;
         case WSA_SPKR_RIGHT: mixer_ctl_name = SPKR_RIGHT_WSA_TEMP; break;
+        case WSA_SPKR_LEFT: mixer_ctl_name = SPKR_LEFT_WSA_TEMP; break;
     }
-
 
     QAL_DBG(LOG_TAG, "audio_mixer %pK", mixer);
 
@@ -179,9 +198,8 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
 
 int SpeakerProtection::spkrStartCalibration()
 {
-    int ret = 0, dir;
+    int ret = 0, status = 0, dir;
     int i = 0;
-    int j = 0;
     FILE *fp;
     struct qal_device device;
     struct qal_device deviceRx;
@@ -204,7 +222,7 @@ int SpeakerProtection::spkrStartCalibration()
     char mSndDeviceName_rx[128] = {0};
     struct audio_route *audioRoute = NULL;
     char mSndDeviceName_vi[128] = {0};
-    struct agm_event_reg_cfg *event_cfg;
+    struct agm_event_reg_cfg *event_cfg = NULL;
     int payload_size = 0;
     session_callback sessionCb;
     struct agmMetaData deviceMetaData(nullptr, 0);
@@ -219,6 +237,8 @@ int SpeakerProtection::spkrStartCalibration()
     param_id_sp_ex_vi_mode_cfg_t viExModeConfg;
     uint32_t miid = 0;
 
+    std::unique_lock<std::mutex> calLock(calibrationMutex);
+
     memset(&device, 0, sizeof(device));
     memset(&deviceRx, 0, sizeof(deviceRx));
     memset(&sAttr, 0, sizeof(sAttr));
@@ -231,7 +251,7 @@ int SpeakerProtection::spkrStartCalibration()
     sessionCb = mixer_ctl_callback;
 
     // Configure device attribute
-    if (totalSpeakers > 1) {
+    if (numberOfChannels > 1) {
         ch_info.channels = CHANNELS_2;
         ch_info.ch_map[0] = QAL_CHMAP_CHANNEL_FL;
         ch_info.ch_map[1] = QAL_CHMAP_CHANNEL_FR;
@@ -270,7 +290,10 @@ int SpeakerProtection::spkrStartCalibration()
     keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
 
     // Enable the VI module
-    calVector.push_back(std::make_pair(SPK_PRO_VI_STATE, VI_ENABLED));
+    if (numberOfChannels > 1)
+        calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+    else
+        calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
 
     SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
                     (struct prop_data *)devicePropId, deviceMetaData);
@@ -329,7 +352,7 @@ int SpeakerProtection::spkrStartCalibration()
 
     config.rate = SAMPLINGRATE_48K;
     config.format = PCM_FORMAT_S16_LE;
-    if (totalSpeakers > 1)
+    if (numberOfChannels > 1)
         config.channels = CHANNELS_2;
     else
         config.channels = CHANNELS_1;
@@ -342,7 +365,7 @@ int SpeakerProtection::spkrStartCalibration()
     flags = PCM_IN;
 
     // Setting the mode of VI module
-    modeConfg.num_speakers = totalSpeakers;
+    modeConfg.num_speakers = numberOfChannels;
     modeConfg.th_operation_mode = CALIBRATION_MODE;
     if (minIdleTime > 0 && minIdleTime < MIN_SPKR_IDLE_SEC) {
         // Quick calibration set
@@ -369,7 +392,7 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
     // Setting Channel Map configuration for VI module
-    viChannelMapConfg.num_ch = totalSpeakers * 2;
+    viChannelMapConfg.num_ch = numberOfChannels * 2;
     payloadSize = 0;
 
     builder->payloadSPConfig(&payload, &payloadSize, miid,
@@ -423,6 +446,7 @@ int SpeakerProtection::spkrStartCalibration()
 
     event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
     if (!event_cfg) {
+        QAL_ERR (LOG_TAG, "Unable to allocate memory for DSP event");
         ret = -ENOMEM;
         goto free_fe;
     }
@@ -446,7 +470,7 @@ int SpeakerProtection::spkrStartCalibration()
         goto done;
     }
 
-    if (totalSpeakers > 1) {
+    if (numberOfChannels > 1) {
         deviceRx.config.ch_info.channels = CHANNELS_2;
         deviceRx.config.ch_info.ch_map[0] = QAL_CHMAP_CHANNEL_FL;
         deviceRx.config.ch_info.ch_map[1] = QAL_CHMAP_CHANNEL_FR;
@@ -464,8 +488,9 @@ int SpeakerProtection::spkrStartCalibration()
     keyVector.clear();
     calVector.clear();
     keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
+
     // Enable the SP module
-    if (totalSpeakers > 1)
+    if (numberOfChannels > 1)
         calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
     else
         calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
@@ -532,7 +557,7 @@ int SpeakerProtection::spkrStartCalibration()
 
     config.rate = SAMPLINGRATE_48K;
     config.format = PCM_FORMAT_S16_LE;
-    if (totalSpeakers > 1)
+    if (numberOfChannels > 1)
         config.channels = CHANNELS_2;
     else
         config.channels = CHANNELS_1;
@@ -608,7 +633,6 @@ int SpeakerProtection::spkrStartCalibration()
     if (pcm_start(txPcm) < 0) {
         QAL_ERR(LOG_TAG, "pcm start failed for TX path");
         ret = -ENOSYS;
-        disableDevice(audioRoute, mSndDeviceName_vi);
         goto err_pcm_open;
     }
 
@@ -617,51 +641,65 @@ int SpeakerProtection::spkrStartCalibration()
     if (pcm_start(rxPcm) < 0) {
         QAL_ERR(LOG_TAG, "pcm start failed for RX path");
         ret = -ENOSYS;
-        disableDevice(audioRoute, mSndDeviceName_vi);
-        disableDevice(audioRoute, mSndDeviceName_rx);
         goto err_pcm_open;
     }
 
     spkrCalState = SPKR_CALIB_IN_PROGRESS;
-    while(!mDspCallbackRcvd && !isSpkrInUse) {
-        QAL_DBG(LOG_TAG, "Waiting for the event from DSP or QAL");
-        spkrCalibrateWait();
-    }
+
+    QAL_DBG(LOG_TAG, "Waiting for the event from DSP or QAL");
+
+    // TODO: Make this to wait in While loop
+    cv.wait(calLock);
 
     // Store the R0T0 values
     if (mDspCallbackRcvd) {
-        QAL_DBG(LOG_TAG, "Calibration is done");
-        fp = fopen(QAL_SP_TEMP_PATH, "wb");
-        if (!fp) {
-            QAL_ERR(LOG_TAG, "Unable to open file for write");
-        } else {
-            QAL_DBG(LOG_TAG, "Write the R0T0 value to file");
-            for (i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
-                if (spkerTempList[i] < 0)
-                    continue;
-
-                fwrite(&callback_data->r0_cali_q24[j],
-                            sizeof(callback_data->r0_cali_q24[j]), 1, fp);
-                fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
-                j++;
+        if (calibrationCallbackStatus == CALIBRATION_STATUS_SUCCESS) {
+            QAL_DBG(LOG_TAG, "Calibration is done");
+            fp = fopen(QAL_SP_TEMP_PATH, "wb");
+            if (!fp) {
+                QAL_ERR(LOG_TAG, "Unable to open file for write");
+            } else {
+                QAL_DBG(LOG_TAG, "Write the R0T0 value to file");
+                for (i = 0; i < numberOfChannels; i++) {
+                    fwrite(&callback_data->r0_cali_q24[i],
+                                sizeof(callback_data->r0_cali_q24[i]), 1, fp);
+                    fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
+                }
+                free(callback_data);
+                fclose(fp);
             }
-            free(callback_data);
-            fclose(fp);
+            spkrCalState = SPKR_CALIBRATED;
         }
-        spkrCalState = SPKR_CALIBRATED;
+        else if (calibrationCallbackStatus == CALIBRATION_STATUS_FAILURE) {
+            QAL_DBG(LOG_TAG, "Calibration is not done");
+            spkrCalState = SPKR_NOT_CALIBRATED;
+            // reset the timer for retry
+            clock_gettime(CLOCK_BOOTTIME, &spkrLastTimeUsed);
+            ret = -EINVAL;
+        }
     }
-    else {
-        QAL_DBG(LOG_TAG, "Calibration is not done. Speaker in use");
-        ret = -EINVAL;
-    }
-
 
 err_pcm_open :
     if (txPcm) {
+        if (event_cfg != NULL) {
+            event_cfg->is_register = 0;
+
+            status = SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIdsTx.at(0),
+                        backEndNameTx.c_str(), MODULE_VI, (void *)event_cfg,
+                        payload_size);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Unable to deregister event to DSP");
+            }
+            free (event_cfg);
+        }
+        disableDevice(audioRoute, mSndDeviceName_vi);
+        pcm_stop(txPcm);
         pcm_close(txPcm);
         txPcm = NULL;
     }
     if (rxPcm) {
+        disableDevice(audioRoute, mSndDeviceName_rx);
+        pcm_stop(rxPcm);
         pcm_close(rxPcm);
         rxPcm = NULL;
     }
@@ -670,19 +708,25 @@ free_fe:
     if (pcmDevIdsRx.size() != 0) {
         rm->freeFrontEndIds(pcmDevIdsRx, sAttr, RXLOOPBACK);
     }
+
     if (pcmDevIdsTx.size() != 0) {
+        status = (ResourceManager::getInstance())->registerMixerEventCallback (
+                    pcmDevIdsTx, sessionCb, (void*)this, false);
+        if (status != 0) {
+            QAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
+        }
+
         rm->freeFrontEndIds(pcmDevIdsTx, sAttr, TXLOOPBACK);
     }
     pcmDevIdsRx.clear();
     pcmDevIdsTx.clear();
 
 done:
-    disableDevice(audioRoute, mSndDeviceName_vi);
-    disableDevice(audioRoute, mSndDeviceName_rx);
-    ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
-                    sessionCb, (void*)this, false);
-    if (ret != 0) {
-        QAL_ERR(LOG_TAG, "Failed to register callback to rm");
+
+    if (!mDspCallbackRcvd) {
+        // the lock is unlocked due to processing mode. It will be waiting
+        // for the unlock. So notify it.
+        cv.notify_all();
     }
 
     QAL_DBG(LOG_TAG, "Exiting %s %d", __func__, __LINE__);
@@ -692,8 +736,8 @@ done:
 /**
   * This function sets the temperature of each speakers.
   * Currently values are supported like:
-  * spkerTempList[0] - Left Speaker Temperature
-  * spkerTempList[1] - Right Speaker Temperature
+  * spkerTempList[0] - Right Speaker Temperature
+  * spkerTempList[1] - Left Speaker Temperature
   */
 void SpeakerProtection::getSpeakerTemperatureList()
 {
@@ -701,7 +745,7 @@ void SpeakerProtection::getSpeakerTemperatureList()
     int value;
     QAL_DBG(LOG_TAG, "Enter Speaker Get Temperature List");
 
-    for(i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
+    for(i = 0; i < numberOfChannels; i++) {
          value = getSpeakerTemperature(i);
          QAL_DBG(LOG_TAG, "Temperature %d ", value);
          spkerTempList[i] = value;
@@ -719,11 +763,16 @@ void SpeakerProtection::spkrCalibrationThread()
 
     fp = fopen(QAL_SP_TEMP_PATH, "rb");
     if (fp) {
+        QAL_DBG(LOG_TAG, "Cal File exists. Reading from it");
         struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
         for (i = 0; i < numberOfChannels; i++) {
             fread(&r0t0Array[i].r0_cali_q24, sizeof(r0t0Array[i].r0_cali_q24), 1, fp);
             fread(&r0t0Array[i].t0_cali_q6, sizeof(r0t0Array[i].t0_cali_q6), 1, fp);
+            QAL_DBG(LOG_TAG, "R0 %d T0 %d ", r0t0Array[i].r0_cali_q24,
+                    r0t0Array[i].t0_cali_q6);
         }
+        spkrCalState = SPKR_CALIBRATED;
+        threadExit = true;
     }
 
     while (!threadExit) {
@@ -747,10 +796,10 @@ void SpeakerProtection::spkrCalibrationThread()
         }
 
         if (proceed) {
-            QAL_DBG(LOG_TAG, "Getting temperature of speakers");
+            QAL_DBG(LOG_TAG, "Gettingtemperature of speakers");
             getSpeakerTemperatureList();
 
-            for (i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
+            for (i = 0; i < numberOfChannels; i++) {
                 if ((spkerTempList[i] >= 0) &&
                     (spkerTempList[i] < TZ_TEMP_MIN_THRESHOLD ||
                      spkerTempList[i] > TZ_TEMP_MAX_THRESHOLD)) {
@@ -759,12 +808,10 @@ void SpeakerProtection::spkrCalibrationThread()
                     continue;
                 }
             }
-            totalSpeakers = 0;
-            for (i = 0; i < MAX_NUMBER_OF_SPEAKERS; i++) {
+            for (i = 0; i < numberOfChannels; i++) {
                 // Converting to Q6 format
                 if (spkerTempList[i] >= 0) {
                     spkerTempList[i] = (spkerTempList[i]*(1<<6));
-                    totalSpeakers++;
                 }
             }
         }
@@ -795,8 +842,8 @@ void SpeakerProtection::spkrCalibrationThread()
         if (proceed) {
             // Start calibrating the speakers.
             QAL_DBG(LOG_TAG, "Speaker not in use, start calibration");
-            int startCalRet = spkrStartCalibration();
-            if (!startCalRet) {
+            spkrStartCalibration();
+            if (spkrCalState == SPKR_CALIBRATED) {
                 threadExit = true;
             }
         }
@@ -837,7 +884,7 @@ SpeakerProtection::SpeakerProtection(struct qal_device *device,
     numberOfChannels = devinfo.channels;
     QAL_DBG(LOG_TAG, "Number of Channels %d", numberOfChannels);
 
-    spkerTempList = new int [MAX_NUMBER_OF_SPEAKERS];
+    spkerTempList = new int [numberOfChannels];
     // Get current time
     clock_gettime(CLOCK_BOOTTIME, &spkrLastTimeUsed);
 
@@ -847,12 +894,13 @@ SpeakerProtection::SpeakerProtection(struct qal_device *device,
         QAL_ERR(LOG_TAG,"mixer error %d", status);
     }
 
+    calibrationCallbackStatus = 0;
+    mDspCallbackRcvd = false;
 
     mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
                         this);
 
     calThrdCreated = true;
-    mDspCallbackRcvd = false;
 }
 
 SpeakerProtection::~SpeakerProtection()
@@ -865,7 +913,8 @@ SpeakerProtection::~SpeakerProtection()
  * true - Start Processing Mode
  * false - Stop Processing Mode
  */
-int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
+int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj,
+                                                  bool flag)
 {
     int ret = 0, dir = TXLOOPBACK;
     PayloadBuilder* builder = new PayloadBuilder();
@@ -877,13 +926,12 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     std::string backEndName;
     std::vector <std::pair<int, int>> keyVector;
     std::vector <std::pair<int, int>> calVector;
-    std::vector<int> pcmDevIdTx;
     std::shared_ptr<ResourceManager> rm;
     std::ostringstream connectCtrlNameBeVI;
     struct pcm_config config;
     struct mixer_ctl *connectCtrl = NULL;
     std::ostringstream connectCtrlName;
-    struct audio_route *audioRoute_vi = NULL;
+    struct audio_route *audioRoute = NULL;
     char mSndDeviceName_vi[128] = {0};
     int flags;
     struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
@@ -901,22 +949,28 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activeStreams;
+    std::unique_lock<std::mutex> lock(calibrationMutex);
 
     QAL_DBG(LOG_TAG, "Processing mode flag %d", flag);
-    spkrProtSetSpkrStatus(flag);
+    deviceMutex.lock();
 
     if (flag) {
         if (spkrCalState == SPKR_CALIB_IN_PROGRESS) {
             // Close the Graphs
-            if (rxPcm)
-                pcm_close(rxPcm);
-            if (txPcm)
-                pcm_close(txPcm);
+            cv.notify_all();
+            // Wait for cleanup
+            cv.wait(lock);
             spkrCalState = SPKR_NOT_CALIBRATED;
             txPcm = NULL;
             rxPcm = NULL;
             QAL_DBG(LOG_TAG, "Stopping the calibration mode");
         }
+        numberOfRequest++;
+        if (numberOfRequest > 1) {
+            // R0T0 already set, we don't need to process the request.
+            goto done;
+        }
+        spkrProtSetSpkrStatus(flag);
         // Speaker in use. Start the Processing Mode
         rm = ResourceManager::getInstance();
 
@@ -932,13 +986,8 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         keyVector.clear();
         calVector.clear();
 
-        if (customPayload) {
-            free(customPayload);
-            customPayloadSize = 0;
-        }
-
         // Configure device attribute
-       if (totalSpeakers > 1) {
+       if (numberOfChannels > 1) {
             ch_info.channels = CHANNELS_2;
             ch_info.ch_map[0] = QAL_CHMAP_CHANNEL_FL;
             ch_info.ch_map[1] = QAL_CHMAP_CHANNEL_FR;
@@ -956,7 +1005,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         // Setup TX path
         device.id = QAL_DEVICE_IN_VI_FEEDBACK;
 
-        ret = rm->getAudioRoute(&audioRoute_vi);
+        ret = rm->getAudioRoute(&audioRoute);
         if (0 != ret) {
             QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", ret);
             goto done;
@@ -971,7 +1020,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
 
         // Enable the VI module
-        calVector.push_back(std::make_pair(SPK_PRO_VI_STATE, VI_ENABLED));
+        if (numberOfChannels > 1)
+            calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+        else
+            calVector.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
 
         SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
                 (struct prop_data *)devicePropId, deviceMetaData);
@@ -1032,7 +1084,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         config.rate = SAMPLINGRATE_48K;
         config.format = PCM_FORMAT_S16_LE;
-        if (totalSpeakers > 1)
+        if (numberOfChannels > 1)
             config.channels = CHANNELS_2;
         else
             config.channels = CHANNELS_1;
@@ -1045,8 +1097,18 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         flags = PCM_IN;
 
         // Setting the mode of VI module
-        modeConfg.num_speakers = totalSpeakers;
-        modeConfg.th_operation_mode = NORMAL_MODE;
+        modeConfg.num_speakers = numberOfChannels;
+        switch (rm->mSpkrProtModeValue.operationMode) {
+            case QAL_SP_MODE_FACTORY_TEST:
+                modeConfg.th_operation_mode = FACTORY_TEST_MODE;
+            break;
+            case QAL_SP_MODE_V_VALIDATION:
+                modeConfg.th_operation_mode = V_VALIDATION_MODE;
+            break;
+            default:
+                QAL_ERR(LOG_TAG, "Normal mode being used");
+                modeConfg.th_operation_mode = NORMAL_MODE;
+        }
         modeConfg.th_quick_calib_flag = 0;
 
         ret = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIdTx.at(0),
@@ -1065,7 +1127,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         // Setting Channel Map configuration for VI module
-        viChannelMapConfg.num_ch = totalSpeakers * 2;
+        viChannelMapConfg.num_ch = numberOfChannels * 2;
         payloadSize = 0;
 
         builder->payloadSPConfig(&payload, &payloadSize, miid,
@@ -1089,6 +1151,26 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             delete payload;
             if (0 != ret) {
                 QAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
+            }
+        }
+
+        if (rm->mSpkrProtModeValue.operationMode) {
+            QAL_DBG(LOG_TAG, "Operation mode %d",
+                    rm->mSpkrProtModeValue.operationMode);
+            param_id_sp_th_vi_ftm_cfg_t viFtmConfg;
+            viFtmConfg.num_ch = numberOfChannels;
+            payloadSize = 0;
+            builder->payloadSPConfig (&payload, &payloadSize, miid,
+                    PARAM_ID_SP_TH_VI_FTM_CFG | PARAM_ID_SP_TH_VI_V_VALI_CFG,
+                    (void *) &viFtmConfg);
+            if (payloadSize) {
+                ret = updateCustomPayload(payload, payloadSize);
+                delete payload;
+                memset(&(rm->mSpkrProtModeValue), 0,
+                        sizeof(qal_spkr_prot_payload));
+                if (0 != ret) {
+                    QAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
+                }
             }
         }
 
@@ -1119,6 +1201,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             spR0T0confg.vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
         }
 
+        payloadSize = 0;
         builder->payloadSPConfig(&payload, &payloadSize, miid,
                 PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)&spR0T0confg);
         if (payloadSize) {
@@ -1167,43 +1250,68 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         // Set the operation mode for SP module
-        spModeConfg.operation_mode = NORMAL_MODE;
+        switch (rm->mSpkrProtModeValue.operationMode) {
+            case QAL_SP_MODE_FACTORY_TEST:
+                spModeConfg.operation_mode = FACTORY_TEST_MODE;
+            break;
+            case QAL_SP_MODE_V_VALIDATION:
+                spModeConfg.operation_mode = V_VALIDATION_MODE;
+            break;
+            default:
+                QAL_ERR(LOG_TAG, "Normal mode being used");
+                spModeConfg.operation_mode = NORMAL_MODE;
+        }
+
         payloadSize = 0;
         builder->payloadSPConfig(&payload, &payloadSize, miid,
                 PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
         if (payloadSize) {
-            if (customPayload) {
-                free(customPayload);
-                customPayloadSize = 0;
-            }
-            ret = updateCustomPayload(payload, payloadSize);
+            ret = devObj->updateCustomPayload(payload, payloadSize);
             delete payload;
             if (0 != ret) {
                 QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
         }
 
-        enableDevice(audioRoute_vi, mSndDeviceName_vi);
+        enableDevice(audioRoute, mSndDeviceName_vi);
         QAL_DBG(LOG_TAG, "pcm start for TX");
         if (pcm_start(txPcm) < 0) {
             QAL_ERR(LOG_TAG, "pcm start failed for TX path");
-            disableDevice(audioRoute_vi, mSndDeviceName_vi);
+            disableDevice(audioRoute, mSndDeviceName_vi);
             goto err_pcm_open;
         }
-        disableDevice(audioRoute_vi, mSndDeviceName_vi);
 
         // Free up the local variables
-        goto free_fe;
+        goto done;
     }
     else {
+        numberOfRequest--;
+        if (numberOfRequest > 0) {
+            // R0T0 already set, we don't need to process the request.
+            goto done;
+        }
+        spkrProtSetSpkrStatus(flag);
         // Speaker not in use anymore. Stop the processing mode
         QAL_DBG(LOG_TAG, "Closing the VI path");
         if (txPcm) {
+            rm = ResourceManager::getInstance();
+            device.id = QAL_DEVICE_IN_VI_FEEDBACK;
+
+            ret = rm->getAudioRoute(&audioRoute);
+            if (0 != ret) {
+                QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", ret);
+                goto done;
+            }
+
+            ret = rm->getSndDeviceName(device.id , mSndDeviceName_vi);
+            disableDevice(audioRoute, mSndDeviceName_vi);
+            pcm_stop(txPcm);
             pcm_close(txPcm);
             txPcm = NULL;
-            goto done;
+            sAttr.type = QAL_STREAM_LOW_LATENCY;
+            sAttr.direction = QAL_AUDIO_INPUT_OUTPUT;
+            goto free_fe;
         }
-
     }
 
 err_pcm_open :
@@ -1213,8 +1321,11 @@ err_pcm_open :
     }
 
 free_fe:
-    rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
-    pcmDevIdTx.clear();
+    if (pcmDevIdTx.size() != 0) {
+        rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
+        pcmDevIdTx.clear();
+    }
 done:
+    deviceMutex.unlock();
     return ret;
 }

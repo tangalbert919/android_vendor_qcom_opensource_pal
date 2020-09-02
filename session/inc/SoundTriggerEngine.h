@@ -182,12 +182,12 @@ struct __attribute__((__packed__)) st_param_header
 struct __attribute__((__packed__)) st_user_levels
 {
     uint32_t user_id;
-    uint8_t level;
+    uint32_t level;
 };
 
 struct __attribute__((__packed__)) st_keyword_levels
 {
-    uint8_t kw_level;
+    uint32_t kw_level;
     uint32_t num_user_levels;
     struct st_user_levels user_levels[ST_MAX_USERS];
 };
@@ -257,7 +257,7 @@ struct __attribute__((__packed__)) st_timestamp_info
 struct __attribute__((__packed__)) st_det_perf_mode_info
 {
     uint32_t version; /* value: 0x01 */
-    uint8_t mode; /* 0 -Low Power, 1 -High performance */
+    uint32_t mode; /* 0 -Low Power, 1 -High performance */
 };
 
 struct detection_event_info

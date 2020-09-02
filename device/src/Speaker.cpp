@@ -131,7 +131,7 @@ int Speaker::start()
     std::shared_ptr<SpeakerProtection> speakerProt;
     speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
     if (ResourceManager::isSpeakerProtectionEnabled) {
-        speakerProt->spkrProtProcessingMode(true);
+        speakerProt->spkrProtProcessingMode(obj, true);
     }
     Device::start();
     return 0;
@@ -144,7 +144,7 @@ int Speaker::stop()
     speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
     Device::stop();
     if (ResourceManager::isSpeakerProtectionEnabled) {
-        speakerProt->spkrProtProcessingMode(false);
+        speakerProt->spkrProtProcessingMode(obj, false);
     }
     return 0;
 }

@@ -47,7 +47,7 @@ LOCAL_CFLAGS   += -Wno-macro-redefined
 LOCAL_CFLAGS   += -Wall -Werror
 LOCAL_CFLAGS   += -DCONFIG_GSL
 LOCAL_CFLAGS   += -D_GNU_SOURCE
-LOCAL_CFLAGS   += -DQAL_SP_TEMP_PATH=\"/data/misc/audio/audio.cal\"
+LOCAL_CFLAGS   += -DQAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
 LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
