@@ -240,8 +240,6 @@ private:
 
     bool shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
          const qal_stream_attributes* sIncomingAttr) const;
-    bool isDeviceSwitchRequired(struct qal_device *activeDevAttr,
-         struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
     bool ifVoiceorVoipCall (qal_stream_type_t streamType) const;
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const qal_stream_attributes* sAttr) const;
@@ -499,6 +497,8 @@ public:
     int32_t a2dpSuspend();
     int32_t a2dpResume();
     bool isPluginDevice(qal_device_id_t id);
+    bool isDeviceSwitchRequired(struct qal_device *activeDevAttr,
+         struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr);
     bool isDpDevice(qal_device_id_t id);
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };

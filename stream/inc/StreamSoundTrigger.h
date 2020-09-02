@@ -50,10 +50,10 @@
 enum {
     ENGINE_IDLE  = 0x0,
     GMM_DETECTED = 0x1,
-    CNN_DETECTED = 0x2,
-    CNN_REJECTED = 0x4,
-    VOP_DETECTED = 0x8,
-    VOP_REJECTED = 0x10,
+    KEYWORD_DETECTION_SUCCESS = 0x2,
+    KEYWORD_DETECTION_REJECT = 0x4,
+    USER_VERIFICATION_SUCCESS = 0x8,
+    USER_VERIFICATION_REJECT = 0x10,
 };
 
 typedef enum {
@@ -168,6 +168,13 @@ class StreamSoundTrigger : public Stream {
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
     int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable) override;
     void TransitTo(int32_t state_id);
+
+    uint32_t GetKwStartTolerance();
+    uint32_t GetKwEndTolerance();
+    int32_t GetEngineConfig(uint32_t &sample_rate, uint32_t &bit_width,
+        uint32_t &channels, listen_model_indicator_enum type);
+    int32_t GetSecondStageConfig(st_sound_model_type_t &detection_type,
+        std::string &lib_name, listen_model_indicator_enum type);
 
     friend class QalRingBufferReader;
 

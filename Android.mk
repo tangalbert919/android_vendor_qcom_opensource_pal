@@ -78,8 +78,7 @@ LOCAL_SRC_FILES        := Qal.cpp\
     session/src/SessionAlsaCompress.cpp \
     session/src/SessionAlsaVoice.cpp \
     session/src/SoundTriggerEngine.cpp \
-    session/src/SoundTriggerEngineCapiCnn.cpp \
-    session/src/SoundTriggerEngineCapiVop.cpp \
+    session/src/SoundTriggerEngineCapi.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \

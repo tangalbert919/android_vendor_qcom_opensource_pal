@@ -39,18 +39,13 @@
 #include "QalDefs.h"
 #include "QalCommon.h"
 #include "QalRingBuffer.h"
-#include "Session.h"
 #include "Device.h"
 
 // TODO: Move to sound trigger xml files
-#define CNN_SAMPLE_RATE 16000
-#define CNN_BITWIDTH 16
-#define CNN_CHANNELS 1
 #define BITS_PER_BYTE 8
 #define US_PER_SEC 1000000
-#define CNN_DURATION_US 2500000
 #define CNN_BUFFER_SIZE 15360
-#define RING_BUFFER_DURATION 3
+#define CNN_FRAME_SIZE 320
 #define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
 #define CONF_LEVELS_INTF_VERSION_0002 0x02
 
@@ -260,6 +255,14 @@ struct __attribute__((__packed__)) st_det_perf_mode_info
     uint32_t mode; /* 0 -Low Power, 1 -High performance */
 };
 
+typedef enum st_sound_model_type {
+    ST_SM_TYPE_NONE,
+    ST_SM_TYPE_KEYWORD_DETECTION,
+    ST_SM_TYPE_USER_VERIFICATION,
+    ST_SM_TYPE_CUSTOM_DETECTION,
+    ST_SM_TYPE_MAX
+}st_sound_model_type_t;
+
 struct detection_event_info
 {
     uint16_t status;
@@ -321,20 +324,22 @@ public:
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<QalRingBufferReader *> &reader_list);
     int32_t SetBufferReader(QalRingBufferReader *reader);
+    uint32_t UsToBytes(uint64_t input_us);
 
 protected:
     uint32_t engine_id_;
+    listen_model_indicator_enum engine_type_;
     uint8_t *sm_data_;
     uint32_t sm_data_size_;
-    int stage_id_;
     bool capture_requested_;
-    Session *session_;
     Stream *stream_handle_;
     QalRingBuffer *buffer_;
     QalRingBufferReader *reader_;
+    uint32_t sample_rate_;
+    uint32_t bit_width_;
+    uint32_t channels_;
 
     std::thread buffer_thread_handler_;
-    std::mutex event_mutex_;
     std::mutex mutex_;
     std::condition_variable cv_;
     bool exit_thread_;

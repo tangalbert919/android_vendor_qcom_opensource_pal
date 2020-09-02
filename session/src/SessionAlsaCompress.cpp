@@ -309,13 +309,35 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, qal_strea
             txAifBackEndsToDisconnect);
     deviceToDisconnect->getDeviceAttributes(&dAttr);
 
-    if (!rxAifBackEndsToDisconnect.empty())
+    if (!rxAifBackEndsToDisconnect.empty()) {
+        int cnt = 0;
+
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToDisconnect);
 
-    if (!txAifBackEndsToDisconnect.empty())
+        for (const auto &elem : rxAifBackEnds) {
+            cnt++;
+            for (const auto &disConnectElem : rxAifBackEndsToDisconnect) {
+                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                    rxAifBackEnds.erase(rxAifBackEnds.begin() + cnt - 1, rxAifBackEnds.begin() + cnt);
+            }
+        }
+    }
+
+    if (!txAifBackEndsToDisconnect.empty()) {
+        int cnt = 0;
+
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToDisconnect);
+
+        for (const auto &elem : txAifBackEnds) {
+            cnt++;
+            for (const auto &disConnectElem : txAifBackEndsToDisconnect) {
+                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                    txAifBackEnds.erase(txAifBackEnds.begin() + cnt - 1, txAifBackEnds.begin() + cnt);
+            }
+        }
+    }
 
     return status;
 }
@@ -359,13 +381,20 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, qal_stream_t
             txAifBackEndsToConnect);
     deviceToConnect->getDeviceAttributes(&dAttr);
 
-    if (!rxAifBackEndsToConnect.empty())
+    if (!rxAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToConnect);
 
-    if (!txAifBackEndsToConnect.empty())
+        for (const auto &elem : rxAifBackEndsToConnect)
+            rxAifBackEnds.push_back(elem);
+    }
+
+    if (!txAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToConnect);
+        for (const auto &elem : txAifBackEndsToConnect)
+            txAifBackEnds.push_back(elem);
+    }
 
     return status;
 }
@@ -728,6 +757,12 @@ int SessionAlsaCompress::start(Stream * s)
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
                                                              customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+
                 if (status != 0) {
                     QAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;

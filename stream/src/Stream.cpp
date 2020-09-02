@@ -596,17 +596,71 @@ error_1:
     return status;
 }
 
+/*
+  legend:
+  s1 - current stream
+  s2 - existing stream
+  d1, d11, d2 - QAL_DEVICE enums
+  B1, B2 - backend strings
+
+case 1
+  a) s1:  d1(B1) ->  d2(B2)
+     OR
+  b) s1:  d1(B1) ->  d2(B1)
+
+  resolution: tear down d1 and setup d2.
+
+case 2
+  s1:  d1(B1) ->  d1(B1) , d2(B2)
+
+  resolution: check if d1 needs device switch by calling isDeviceSwitchRequired.
+    If needed, tear down and setup d1 again. Also setup d2.
+
+case 3:
+  s1:  d1(B1), d2(B2) ->  d1(B1)
+
+  resolution: check if d1 needs device switch by calling isDeviceSwitchRequired.
+    If needed, tear down and setup d1 again. Also teardown d2.
+
+case 4
+  s2->dev d1(B1)
+  s1: d2(B2) -> d1(B1)
+
+  resolution: check if s2 is voice call stream, then use same device attribute
+    for s1. Else check if isDeviceSwitchRequired() returns true for s2 d1.
+    If yes, tear down and setup d1 again for s2. Also, setup d1 for s2.
+
+case 5
+  s2->dev d2(B1)
+  s1: d11(B2) -> d1(B1)
+  resolution: If s2 is voice call stream, then setup d2 for s1 instead of d1
+    and do nothing for s2. Else, tear down d2 from s2 and setup d1 for both
+    s1 and s2.
+
+case 6
+  s2->dev d2(B2)
+  s1: d2(B2) -> d1(B2)
+  resolution: same handling as case 5
+
+case 7
+  s2->dev d1(B1), d2(B2)
+  s1: d1(B1) -> d2(B2)
+
+  resolution: nothing to be done for s2+d1. For s2+d2, it is
+    same as case 4.
+
+*/
 int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_device *newDevices)
 {
     int32_t status = 0;
-    int32_t count = 0;
+    int32_t connectCount = 0, disconnectCount = 0;
     bool isNewDeviceA2dp = false;
     bool isCurDeviceA2dp = false;
-    uint32_t deviceSlots[QAL_DEVICE_IN_MAX];
+    bool matchFound = false;
+    uint32_t curDeviceSlots[QAL_DEVICE_IN_MAX], newDeviceSlots[QAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
     struct qal_device dAttr;
-    int32_t ret = 0;
 
     mStreamMutex.lock();
 
@@ -620,33 +674,39 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         QAL_ERR(LOG_TAG, "Sound card offline");
         goto done;
     }
-    ret = mDevices[0]->getDeviceAttributes(&dAttr);
-
-    if (ret) {
-        QAL_ERR(LOG_TAG, "device attributes invalid");
-        status = -EINVAL;
-        goto done;
-    }
-
-    if ((mDevices[0]->getSndDeviceId() == newDevices[0].id) &&
-        (dAttr.config.sample_rate == newDevices[0].config.sample_rate) &&
-        (dAttr.config.bit_width == newDevices[0].config.bit_width) &&
-        (dAttr.config.ch_info.channels == newDevices[0].config.ch_info.channels)) {
-        QAL_ERR(LOG_TAG, "same device, no need to switch %d", mDevices[0]->getSndDeviceId());
-        goto done;
-    }
-
-    for (int i = 0; i < numDev; i++) {
-        if (newDevices[i].id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-            isNewDeviceA2dp = true;
-            break;
-        }
-    }
 
     for (int i = 0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getSndDeviceId() == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        qal_device_id_t curDevId = (qal_device_id_t)mDevices[i]->getSndDeviceId();
+        uint32_t tmp = numDev;
+
+        mDevices[i]->getDeviceAttributes(&dAttr);
+        if (curDevId == QAL_DEVICE_OUT_BLUETOOTH_A2DP)
             isCurDeviceA2dp = true;
-            break;
+
+        /* If stream is currently running on same device, then check if
+         * it needs device switch. If not needed, then do not add it to
+         * streamDevConnect and streamDevDisconnect list. This handles case 2,3.
+         */
+        matchFound = false;
+        for (int j = 0; j < tmp; j++) {
+            if (curDevId == newDevices[j].id) {
+                matchFound = true;
+                if (rm->isDeviceSwitchRequired(&dAttr, &newDevices[j], mStreamAttr)) {
+                    curDeviceSlots[disconnectCount] = i;
+                    disconnectCount++;
+                } else {
+                    for (int k = j; k < (numDev - 1); k++)
+                        newDevices[k] = newDevices[k+1];
+
+                    numDev--;
+                }
+            }
+        }
+        /* If mDevice[i] does not match with any of new device,
+           then update disconnect list */
+        if (matchFound == false) {
+            curDeviceSlots[disconnectCount] = i;
+            disconnectCount++;
         }
     }
 
@@ -659,7 +719,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
          * (3sec). As BT is turned off, the write gets blocked.
          * Avoid this by routing audio to speaker until standby.
          */
-        if ((newDevices[i].id == QAL_DEVICE_NONE) &&   /* This assumes that QAL_DEVICE_NODE comes as single device */
+        if ((newDevices[i].id == QAL_DEVICE_NONE) &&   /* This assumes that QAL_DEVICE_NONE comes as single device */
             (isCurDeviceA2dp == true) && !rm->isDeviceReady(QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
             newDevices[i].id = QAL_DEVICE_OUT_SPEAKER;
 
@@ -678,13 +738,16 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         if (!rm->isDeviceReady(newDevices[i].id)) {
             QAL_ERR(LOG_TAG, "Device %d is not ready\n", newDevices[i].id);
         } else {
-            deviceSlots[count] = i;
-            count++;
+            newDeviceSlots[connectCount] = i;
+            connectCount++;
+
+            if (newDevices[i].id == QAL_DEVICE_OUT_BLUETOOTH_A2DP)
+                isNewDeviceA2dp = true;
         }
     }
 
     /*  No new device is ready */
-    if (count == 0) {
+    if ((numDev != 0) && (connectCount == 0)) {
         QAL_ERR(LOG_TAG, "No new device is ready to connect");
         status = -ENODEV;
         goto done;
@@ -696,37 +759,92 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         a2dp_compress_mute = false;
     }
 
-    QAL_INFO(LOG_TAG, "number of active devices %d, new devices %d", mDevices.size(), count);
+    QAL_INFO(LOG_TAG, "number of active devices %d, new devices %d", mDevices.size(), connectCount);
 
-    /* created stream device disconnect list */
+    /* created stream device connect and disconnect list */
     streamDevDisconnect.clear();
-    for (int i = 0; i < count; i++) {
+    StreamDevConnect.clear();
+
+    for (int i = 0; i < connectCount; i++) {
+        std::vector <Stream *> activeStreams;
+        std::shared_ptr<Device> dev = nullptr;
+
         sharedBEStreamDev.clear();
         // get active stream device pairs sharing the same backend with new devices.
-        rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDevices[deviceSlots[i]].id);
-        if (sharedBEStreamDev.size() <= 0) {
-            for (const auto &device : mDevices) {
-                // check to make sure device direction is the same
-                if (rm->matchDevDir(device->getSndDeviceId(), newDevices[deviceSlots[i]].id))
-                    streamDevDisconnect.push_back({streamHandle, device->getSndDeviceId()});
-            }
-        } else {
+        rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDevices[newDeviceSlots[i]].id);
+
+	/* This can result in below situation:
+         * 1) No matching SharedBEStreamDev (handled in else part).
+         *    e.g. - case 1a, 2.
+         * 2) sharedBEStreamDev having same stream as current stream but different device id.
+         *    e.g. case 1b.
+         * 3) sharedBEStreamDev having different stream from current but same id as current id.
+         *    e.g. - case 4,7.
+         * 4) sharedBEStreamDev having different stream from current and different device id.
+         *    e.g. case 5,6.
+         * 5) sharedBEStreamDev having same stream as current stream and same device id.
+         *    e.g. spkr -> spkr + hs. This will only come in list if speaker needs device switch.
+         * This list excludes same stream and same id which does not need device switch as it
+         * is removed above.
+         */
+        if (sharedBEStreamDev.size() > 0) {
             for (const auto &elem : sharedBEStreamDev) {
-                streamDevDisconnect.push_back(elem);
+                struct qal_stream_attributes sAttr;
+                Stream *sharedStream = std::get<0>(elem);
+                struct qal_device curDevAttr;
+                std::shared_ptr<Device> curDev = nullptr;
+
+                curDevAttr.id = (qal_device_id_t)std::get<1>(elem);
+                curDev = Device::getInstance(&curDevAttr, rm);
+                if (!curDev) {
+                    QAL_ERR(LOG_TAG, "Getting Device instance failed");
+                    continue;
+                }
+                curDev->getDeviceAttributes(&curDevAttr);
+
+                /* If stream is currently running on same device, then
+                 * check if it needs device switch. If not needed, then do not
+                 * add it to streamDevConnect and streamDevDisconnect list and
+                 * continue for next streamDev.
+                 */
+                if (curDevAttr.id == newDevices[newDeviceSlots[i]].id) {
+                    if (!rm->isDeviceSwitchRequired(&curDevAttr,
+                                &newDevices[newDeviceSlots[i]], mStreamAttr))
+                        continue;
+                }
+
+                sharedStream->getStreamAttributes(&sAttr);
+                /* Check here for stream handle too along with stream type.
+                 * In case of voice call switch from speaker to handset,
+                 * spkr needs to be disconnected and hanset needs to be
+                 * connected and not just update its attributes.
+                 */
+                if ((QAL_STREAM_VOICE_CALL == sAttr.type) &&
+                                 (sharedStream != streamHandle)) {
+                    QAL_INFO(LOG_TAG, "Active voice stream running on %d, Force switch",
+                                      curDevAttr.id);
+                    curDev->getDeviceAttributes(&newDevices[newDeviceSlots[i]]);
+                } else {
+                    streamDevDisconnect.push_back(elem);
+                    StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
+                }
             }
         }
+        /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
+        for (int j = 0; j < disconnectCount; j++) {
+            // check to make sure device direction is the same
+            if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDevices[newDeviceSlots[i]].id))
+                streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
+        }
+        StreamDevConnect.push_back({streamHandle, &newDevices[newDeviceSlots[i]]});
     }
 
-    /* created stream device connect list */
-    StreamDevConnect.clear();
-    for (int i = 0; i < count; i++) {
-        if (streamDevDisconnect.size() == 0) {
-            StreamDevConnect.push_back({streamHandle, &newDevices[deviceSlots[i]]});
-        }
-        for (const auto &elem : streamDevDisconnect) {
-            // check to make sure device direction is the same
-            if (rm->matchDevDir(newDevices[deviceSlots[i]].id, std::get<1>(elem)))
-                StreamDevConnect.push_back({std::get<0>(elem), &newDevices[deviceSlots[i]]});
+    /* Handle scenario when there is only device to disconnect.
+       e.g. case 3 : device switch from spkr+hs to spkr */
+    if (connectCount == 0) {
+        for (int j = 0; j < disconnectCount; j++) {
+            if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDevices[0].id))
+                streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
         }
     }
 
@@ -749,7 +867,14 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         QAL_DBG(LOG_TAG, "connectList: stream handler 0x%p, device id %d",
                 std::get<0>(elem), std::get<1>(elem)->id);
 
+    /* Check if there is device to disconnect or connect */
+    if (!streamDevDisconnect.size() && !StreamDevConnect.size()) {
+        QAL_INFO(LOG_TAG, "No device to switch, returning");
+        goto done;
+    }
+
     mStreamMutex.unlock();
+
     status = rm->streamDevSwitch(streamDevDisconnect, StreamDevConnect);
     if (status) {
         QAL_ERR(LOG_TAG, "Device switch failed");

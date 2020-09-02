@@ -641,6 +641,31 @@
                 <high_performance capture_profile_handset="TRI_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
                 <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
             </operating_modes>
+            <arm_ss_usecase>
+                <!-- Options are "KEYWORD_DETECTION", "USER_VERIFICATION", "CUSTOM_DETECTION"  -->
+                <param sm_detection_type= "KEYWORD_DETECTION" />
+                <param sm_id="0x2" />
+                <param module_lib="libcapiv2svacnn.so"/>
+                <param sample_rate="16000"/>
+                <param bit_wdith="16"/>
+                <param channel_count="1"/>
+            </arm_ss_usecase>
+            <arm_ss_usecase>
+                <param sm_detection_type= "USER_VERIFICATION" />
+                <param sm_id="0x4" />
+                <param module_lib="libcapiv2vop.so"/>
+                <param sample_rate="16000"/>
+                <param bit_wdith="16"/>
+                <param channel_count="1"/>
+            </arm_ss_usecase>
+            <arm_ss_usecase>
+                <param sm_detection_type= "KEYWORD_DETECTION" />
+                <param sm_id="0x8" />
+                <param module_lib="libcapiv2svarnn.so"/>
+                <param sample_rate="16000"/>
+                <param bit_wdith="16"/>
+                <param channel_count="1"/>
+            </arm_ss_usecase>
         </sound_model_config>
         <!-- Hotword -->
         <sound_model_config>

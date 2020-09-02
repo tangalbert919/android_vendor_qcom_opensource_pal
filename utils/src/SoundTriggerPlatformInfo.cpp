@@ -178,7 +178,7 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
             ++i; /* move to next attribute */
         }
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %d", (char *)tag);
+        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
     }
 }
 
@@ -210,6 +210,55 @@ int32_t CaptureProfile::ComparePriority(std::shared_ptr<CaptureProfile> cap_prof
     return priority_check;
 }
 
+SecondStageConfig::SecondStageConfig() :
+    detection_type_(ST_SM_TYPE_NONE),
+    sm_id_(0),
+    module_lib_(""),
+    sample_rate_(16000),
+    bit_width_(16),
+    channels_(1)
+{
+}
+
+void SecondStageConfig::HandleStartTag(const char *tag, const char **attribs) {
+    QAL_DBG(LOG_TAG, "Got tag %s", tag);
+
+    if (!strcmp(tag, "param")) {
+        uint32_t i = 0;
+        while (attribs[i]) {
+            if (!strcmp(attribs[i], "sm_detection_type")) {
+                i++;
+                if (!strcmp(attribs[i], "KEYWORD_DETECTION")) {
+                    detection_type_ = ST_SM_TYPE_KEYWORD_DETECTION;
+                } else if (!strcmp(attribs[i], "USER_VERIFICATION")) {
+                    detection_type_ = ST_SM_TYPE_USER_VERIFICATION;
+                } else if (!strcmp(attribs[i], "CUSTOM_DETECTION")) {
+                    detection_type_ = ST_SM_TYPE_CUSTOM_DETECTION;
+                }
+            } else if (!strcmp(attribs[i], "sm_id")) {
+                sm_id_ = std::strtoul(attribs[++i], nullptr, 16);
+            } else if (!strcmp(attribs[i], "module_lib")) {
+                module_lib_ = attribs[++i];
+            } else if (!strcmp(attribs[i], "sample_rate")) {
+                sample_rate_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "bit_wdith")) {
+                bit_width_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "channel_count")) {
+                channels_ = std::stoi(attribs[++i]);
+            }
+            ++i;
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+    }
+}
+
+void SecondStageConfig::HandleEndTag(const char *tag __unused) {
+}
+
+void SecondStageConfig::HandleCharData(const char *data __unused) {
+}
+
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),
@@ -239,11 +288,32 @@ void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
     }
 }
 
+std::shared_ptr<SecondStageConfig> SoundModelConfig::GetSecondStageConfig(
+    const uint32_t& sm_id) const {
+    auto ss_config = ss_config_list_.find(sm_id);
+    if (ss_config != ss_config_list_.end())
+        return ss_config->second;
+    else
+        return nullptr;
+}
+
 void SoundModelConfig::HandleCharData(const char* data __unused) {
 }
 
 void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     QAL_DBG(LOG_TAG, "Got tag %s", tag);
+
+    /* Delegate to child element if currently active */
+    if (curr_child_) {
+        curr_child_->HandleStartTag(tag, attribs);
+        return;
+    }
+
+    if (!strcmp(tag, "arm_ss_usecase")) {
+        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
+            std::make_shared<SecondStageConfig>());
+        return;
+    }
 
     if (!strcmp(tag, "param")) {
         uint32_t i = 0;
@@ -264,6 +334,10 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                 client_capture_read_delay_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "capture_keyword")) {
                 capture_keyword_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "kw_start_tolerance")) {
+                kw_start_tolerance_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "kw_end_tolerance")) {
+                kw_end_tolerance_ = std::stoi(attribs[++i]);
             } else {
                 QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
@@ -302,11 +376,25 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     } else if (!strcmp(tag, "high_performance_and_charging")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {
-          QAL_ERR(LOG_TAG, "Invalid tag %d", (char *)tag);
+          QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
     }
 }
 
 void SoundModelConfig::HandleEndTag(const char* tag __unused) {
+    QAL_DBG(LOG_TAG, "Got end tag %s", tag);
+
+    if (!strcmp(tag, "arm_ss_usecase")) {
+        std::shared_ptr<SecondStageConfig> ss_cfg(
+            std::static_pointer_cast<SecondStageConfig>(curr_child_));
+        const auto res = ss_config_list_.insert(
+            std::make_pair(ss_cfg->GetSoundModelID(), ss_cfg));
+        if (!res.second)
+            QAL_ERR(LOG_TAG, "Failed to insert to map");
+        curr_child_ = nullptr;
+    }
+
+    if (curr_child_)
+        curr_child_->HandleEndTag(tag);
 
     return;
 }

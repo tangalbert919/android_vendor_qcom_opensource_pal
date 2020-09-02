@@ -28,8 +28,8 @@
  */
 
 
-#ifndef SOUNDTRIGGERENGINECAPICNN_H
-#define SOUNDTRIGGERENGINECAPICNN_H
+#ifndef SOUNDTRIGGERENGINECAPI_H
+#define SOUNDTRIGGERENGINECAPI_H
 
 #include "capi_v2.h"
 #include "capi_v2_extn.h"
@@ -39,10 +39,11 @@
 
 class Stream;
 
-class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
+class SoundTriggerEngineCapi : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineCapiCnn(Stream *s, uint32_t id, uint32_t stage_id);
-    ~SoundTriggerEngineCapiCnn();
+    SoundTriggerEngineCapi(Stream *s, uint32_t id,
+        listen_model_indicator_enum type);
+    ~SoundTriggerEngineCapi();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
@@ -90,13 +91,17 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
  private:
     int32_t StartSoundEngine();
     int32_t StopSoundEngine();
-    int32_t StartDetection();
-    static void BufferThreadLoop(SoundTriggerEngineCapiCnn *cnn_engine);
+    int32_t StartKeywordDetection();
+    int32_t StartUserVerification();
+    static void BufferThreadLoop(SoundTriggerEngineCapi *capi_engine);
 
+    std::string lib_name_;
     capi_v2_t *capi_handle_;
     void* capi_lib_handle_;
-    capi_v2_init_f  capi_init_;
+    capi_v2_init_f capi_init_;
 
+    std::mutex event_mutex_;
+    st_sound_model_type_t detection_type_;
     bool processing_started_;
     bool keyword_detected_;
     int32_t confidence_threshold_;
@@ -110,6 +115,9 @@ class SoundTriggerEngineCapiCnn : public SoundTriggerEngine {
     uint64_t kw_start_timestamp_;  // input from 1st stage
     uint64_t kw_end_timestamp_;
     uint32_t bytes_processed_;
+    uint32_t confidence_score_;  // used by Vop engine
+    uint32_t kw_start_tolerance_;
+    uint32_t kw_end_tolerance_;
 };
-#endif  // SOUNDTRIGGERENGINECAPICNN_H
+#endif  // SOUNDTRIGGERENGINECAPI_H
 

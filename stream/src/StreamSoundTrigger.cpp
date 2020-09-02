@@ -58,6 +58,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
     class SoundTriggerUUID uuid;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
+    notification_state_ = ENGINE_IDLE;
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
     inBufCount = NO_OF_BUF;
@@ -610,7 +611,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
 
     QAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
-    if ((det_type < GMM_DETECTED) || (det_type > VOP_REJECTED)) {
+    if ((det_type < GMM_DETECTED) || (det_type > USER_VERIFICATION_REJECT)) {
         QAL_ERR(LOG_TAG, "Invalid detection type %d", det_type);
         return -EINVAL;
     }
@@ -853,6 +854,12 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         QAL_ERR(LOG_TAG, "Loading model to engine type %d"
                                 "failed, status %d", big_sm->type, status);
                         goto error_exit;
+                    }
+
+                    if (big_sm->type & ST_SM_ID_SVA_KWD) {
+                        notification_state_ |= KEYWORD_DETECTION_SUCCESS;
+                    } else if (big_sm->type == ST_SM_ID_SVA_VOP) {
+                        notification_state_ |= USER_VERIFICATION_SUCCESS;
                     }
 
                     std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
@@ -1896,6 +1903,83 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     return cap_prof;
 }
 
+uint32_t StreamSoundTrigger::GetKwStartTolerance() {
+    uint32_t start_tolerance = 0;
+
+    if (sm_info_) {
+        start_tolerance = sm_info_->GetKwStartTolerance() * 1000;
+    }
+
+    QAL_DBG(LOG_TAG, "start tolerance %u us", start_tolerance);
+    return start_tolerance;
+}
+
+uint32_t StreamSoundTrigger::GetKwEndTolerance() {
+    uint32_t end_tolerance = 0;
+
+    if (sm_info_) {
+        end_tolerance = sm_info_->GetKwEndTolerance() * 1000;
+    }
+
+    QAL_DBG(LOG_TAG, "end tolerance %u us", end_tolerance);
+    return end_tolerance;
+}
+
+int32_t StreamSoundTrigger::GetEngineConfig(uint32_t &sample_rate,
+    uint32_t &bit_width, uint32_t &channels, listen_model_indicator_enum type) {
+    uint32_t sm_id = static_cast<uint32_t>(type);
+
+    if (sm_info_) {
+        if (type == ST_SM_ID_SVA_GMM) {
+            sample_rate = sm_info_->GetSampleRate();
+            bit_width = sm_info_->GetBitWidth();
+            channels = sm_info_->GetOutChannels();
+        } else if (type == ST_SM_ID_SVA_CNN ||
+                    type == ST_SM_ID_SVA_VOP ||
+                    type == ST_SM_ID_SVA_RNN) {
+            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            if (!ss_config) {
+                QAL_ERR(LOG_TAG, "No matching second stage config");
+                return -EINVAL;
+            }
+            sample_rate = ss_config->GetSampleRate();
+            bit_width = ss_config->GetBitWidth();
+            channels = ss_config->GetChannels();
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+int32_t StreamSoundTrigger::GetSecondStageConfig(
+    st_sound_model_type_t &detection_type,
+    std::string &lib_name,
+    listen_model_indicator_enum type) {
+    uint32_t sm_id = static_cast<uint32_t>(type);
+
+    if (sm_info_) {
+        if (type == ST_SM_ID_SVA_CNN ||
+            type == ST_SM_ID_SVA_VOP ||
+            type == ST_SM_ID_SVA_RNN) {
+            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            if (!ss_config) {
+                QAL_ERR(LOG_TAG, "No matching second stage config");
+                return -EINVAL;
+            }
+            detection_type = ss_config->GetDetectionType();
+            lib_name = ss_config->GetLibName();
+        }
+    } else {
+        QAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
 void StreamSoundTrigger::AddState(StState* state) {
    st_states_.insert(std::make_pair(state->GetStateId(), state));
 }
@@ -2213,7 +2297,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
                 st_stream_.mInstanceID);
-
+            st_stream_.notification_state_ = ENGINE_IDLE;
 
             TransitTo(ST_STATE_IDLE);
             break;
@@ -3128,8 +3212,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 break;
             }
             // If second stage has rejected, stop buffering and restart recognition
-            if (data->det_type_ == CNN_REJECTED ||
-                data->det_type_ == VOP_REJECTED) {
+            if (data->det_type_ == KEYWORD_DETECTION_REJECT ||
+                data->det_type_ == USER_VERIFICATION_REJECT) {
                 QAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
                 st_stream_.detection_state_ = ENGINE_IDLE;
@@ -3162,8 +3246,12 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 }
                 break;
             }
-            st_stream_.detection_state_ |=  data->det_type_;
-            if (st_stream_.detection_state_ & (CNN_DETECTED | VOP_DETECTED)) {
+            if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
+                data->det_type_ == USER_VERIFICATION_SUCCESS) {
+                st_stream_.detection_state_ |=  data->det_type_;
+            }
+            // notify client until both keyword detection/user verification done
+            if (st_stream_.detection_state_ == st_stream_.notification_state_) {
                 QAL_DBG(LOG_TAG, "Second stage detected");
                 st_stream_.detection_state_ = ENGINE_IDLE;
                 if (!st_stream_.rec_config_->capture_requested) {
