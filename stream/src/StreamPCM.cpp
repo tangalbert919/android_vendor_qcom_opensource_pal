@@ -886,7 +886,6 @@ int32_t StreamPCM::getParameters(uint32_t /*param_id*/, void ** /*payload*/)
 int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
-    bool fluence_flag;
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
@@ -902,23 +901,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
-        case PAL_PARAM_ID_FLUENCE_ON_OFF:
-        {
-            param_payload = (pal_param_payload *)payload;
-            if (param_payload->payload_size > sizeof(bool)) {
-                PAL_ERR(LOG_TAG, "Invalid payload size %d", param_payload->payload_size);
-                status = -EINVAL;
-                break;
-            }
-            fluence_flag = *((bool *)param_payload->payload);
-            PAL_DBG(LOG_TAG,"fluence flag is %d",fluence_flag);
-            uint32_t fluenceTag = fluence_flag ? FLUENCE_ON_TAG : FLUENCE_OFF_TAG;
-            status = session->setConfig(this, MODULE, fluenceTag);
-            if (status)
-               PAL_ERR(LOG_TAG, "setConfig for fluence %s failed with %d",
-                       (fluence_flag ? "ON" : "OFF"), status);
-            break;
-        }
         case PAL_PARAM_ID_UIEFFECT:
         {
             param_payload = (pal_param_payload *)payload;
@@ -1211,18 +1193,20 @@ int32_t StreamPCM::addRemoveEffect(pal_audio_effect_t effect, bool enable)
 {
     int32_t status = 0;
     int32_t tag = 0;
+
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mStreamMutex.lock();
-
     if (!enable) {
-        tag = FLUENCE_OFF_TAG;
+        if (PAL_AUDIO_EFFECT_ECNS == effect) {
+           tag = ECNS_OFF_TAG;
+        }
     } else {
         if (PAL_AUDIO_EFFECT_EC == effect) {
-            tag = FLUENCE_EC_TAG;
+            tag = EC_ON_TAG;
         } else if (PAL_AUDIO_EFFECT_NS == effect) {
-            tag = FLUENCE_NS_TAG;
+            tag = NS_ON_TAG;
         } else if (PAL_AUDIO_EFFECT_ECNS == effect) {
-            tag = FLUENCE_ON_TAG;
+            tag = ECNS_ON_TAG;
         } else {
             PAL_ERR(LOG_TAG, "Invalid effect ID %d", effect);
             status = -EINVAL;

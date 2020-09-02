@@ -290,8 +290,8 @@ typedef enum {
 
 /** Audio Voip TX Effect enumeration */
 typedef enum {
-    PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation*/
-    PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression*/
+    PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation ie., EC_ON_NS_OFF*/
+    PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression ie., NS_ON_EC_OFF*/
     PAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
 } pal_audio_effect_t;
 
@@ -676,7 +676,7 @@ typedef enum {
 typedef enum {
     PAL_PARAM_ID_LOAD_SOUND_MODEL = 0,
     PAL_PARAM_ID_RECOGNITION_CONFIG = 1,
-    PAL_PARAM_ID_FLUENCE_ON_OFF = 2,
+    PAL_PARAM_ID_ECNS_ON_OFF = 2,
     PAL_PARAM_ID_DIRECTION_OF_ARRIVAL = 3,
     PAL_PARAM_ID_UIEFFECT = 4,
     PAL_PARAM_ID_STOP_BUFFERING = 5,

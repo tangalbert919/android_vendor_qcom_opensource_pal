@@ -1864,21 +1864,21 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        else
             *gsltag = TAG_DEVICE_MFC_SR;
        break;
-    case FLUENCE_ON_TAG:
-       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_ON));
-       *gsltag = TAG_FLUENCE;
+    case ECNS_ON_TAG:
+       tkv.push_back(std::make_pair(ECNS,ECNS_ON));
+       *gsltag = TAG_ECNS;
        break;
-    case FLUENCE_OFF_TAG:
-       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_OFF));
-       *gsltag = TAG_FLUENCE;
+    case ECNS_OFF_TAG:
+       tkv.push_back(std::make_pair(ECNS,ECNS_OFF));
+       *gsltag = TAG_ECNS;
        break;
-    case FLUENCE_EC_TAG:
-       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_EC));
-       *gsltag = TAG_FLUENCE;
+    case EC_ON_TAG:
+       tkv.push_back(std::make_pair(ECNS,EC_ON));
+       *gsltag = TAG_ECNS;
        break;
-    case FLUENCE_NS_TAG:
-       tkv.push_back(std::make_pair(FLUENCE,FLUENCE_NS));
-       *gsltag = TAG_FLUENCE;
+    case NS_ON_TAG:
+       tkv.push_back(std::make_pair(ECNS,NS_ON));
+       *gsltag = TAG_ECNS;
        break;
     case CHS_1:
        tkv.push_back(std::make_pair(CHANNELS, CHANNELS_1));

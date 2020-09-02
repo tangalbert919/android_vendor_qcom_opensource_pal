@@ -700,7 +700,7 @@ int32_t SoundTriggerEngineGsl::GetParameters(uint32_t param_id,
     PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
       case PAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
-          status = session_->getParameters(stream_handle_, TAG_FLUENCE,
+          status = session_->getParameters(stream_handle_, TAG_ECNS,
                                          param_id, payload);
           break;
       default:

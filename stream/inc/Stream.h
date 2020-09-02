@@ -72,10 +72,10 @@ typedef enum {
 #define MFC_SR_96K 9
 #define MFC_SR_192K 10
 #define MFC_SR_384K 11
-#define FLUENCE_ON_TAG 12
-#define FLUENCE_OFF_TAG 13
-#define FLUENCE_EC_TAG 14
-#define FLUENCE_NS_TAG 15
+#define ECNS_ON_TAG 12
+#define ECNS_OFF_TAG 13
+#define EC_ON_TAG 14
+#define NS_ON_TAG 15
 #define CHS_1 16
 #define CHS_2 17
 #define CHS_3 18
