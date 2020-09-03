@@ -246,7 +246,7 @@ int Session::updateCustomPayload(void *payload, size_t size)
 
     memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
     customPayloadSize += size;
-    QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+    QAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     return 0;
 }
 
@@ -281,14 +281,14 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
     if (QAL_AUDIO_OUTPUT== sAttr.direction) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
              status = associatedDevices[i]->getDeviceAttributes(&dAttr);
              if (0 != status) {
-                 QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
+                 QAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
                  return status;
              }
 
@@ -323,7 +323,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
                     delete alsaParamData;
                     if (0 != status) {
-                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         return status;
                     }
                 }

@@ -71,7 +71,7 @@ StreamCompress::StreamCompress(const struct qal_stream_attributes *sattr, struct
     outBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     outBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
-    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    QAL_VERBOSE(LOG_TAG,"enter");
 
     //TBD handle modifiers later
     mNoOfModifiers = 0; //no_of_modifiers;
@@ -140,7 +140,7 @@ int32_t StreamCompress::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        QAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %d state %d",
+        QAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %zu state %d",
                        session, mDevices.size(), currentState);
         status = session->open(this);
         if (0 != status) {
@@ -185,7 +185,7 @@ int32_t StreamCompress::close()
         return status;
     }
 
-    QAL_VERBOSE(LOG_TAG,"start, session handle - %p mDevices count - %d state %d",
+    QAL_VERBOSE(LOG_TAG,"start, session handle - %p mDevices count - %zu state %d",
                 session, mDevices.size(), currentState);
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         status = stop();
@@ -252,7 +252,7 @@ int32_t StreamCompress::stop()
         }
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG,"In QAL_AUDIO_OUTPUT case, device count - %d", mDevices.size());
+            QAL_VERBOSE(LOG_TAG,"In QAL_AUDIO_OUTPUT case, device count - %zu", mDevices.size());
             status = session->stop(this);
             if (0 != status) {
                 QAL_ERR(LOG_TAG,"Rx session stop failed with status %d",status);
@@ -309,7 +309,7 @@ int32_t StreamCompress::start()
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
             rm->lockGraph();
-            QAL_VERBOSE(LOG_TAG,"Inside QAL_AUDIO_OUTPUT device count - %d", mDevices.size());
+            QAL_VERBOSE(LOG_TAG,"Inside QAL_AUDIO_OUTPUT device count - %zu", mDevices.size());
             for (int32_t i=0; i < mDevices.size(); i++) {
 
                 QAL_ERR(LOG_TAG, "device %d name %s, going to start",
@@ -385,7 +385,7 @@ int32_t StreamCompress::prepare()
        QAL_ERR(LOG_TAG,"session prepare failed with status = %d", status);
 
     mStreamMutex.unlock();
-    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    QAL_VERBOSE(LOG_TAG,"Exit, status - %d", status);
     return status;
 }
 
@@ -393,14 +393,14 @@ int32_t StreamCompress::pause()
 {
     int32_t status = 0;
 
-    QAL_VERBOSE(LOG_TAG, "%s: Enter, session handle - %p", __func__,  session);
+    QAL_VERBOSE(LOG_TAG, "Enter, session handle - %p",  session);
     mStreamMutex.lock();
     status = session->pause(this);
     if (status)
        QAL_ERR(LOG_TAG,"session pause failed with status = %d", status);
 
     mStreamMutex.unlock();
-    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    QAL_VERBOSE(LOG_TAG,"Exit, status - %d", status);
     return status;
 }
 
@@ -408,14 +408,14 @@ int32_t StreamCompress::resume()
 {
     int32_t status = 0;
 
-    QAL_VERBOSE(LOG_TAG, "%s: Enter, session handle - %p", __func__, session);
+    QAL_VERBOSE(LOG_TAG, "Enter, session handle - %p", session);
     mStreamMutex.lock();
     status = session->resume(this);
     if (status)
        QAL_ERR(LOG_TAG,"session resume failed with status = %d", status);
 
     mStreamMutex.unlock();
-    QAL_VERBOSE(LOG_TAG,"%s: Exit, status - %d", __func__, status);
+    QAL_VERBOSE(LOG_TAG,"Exit, status - %d", status);
     return status;
 }
 
@@ -550,7 +550,7 @@ int32_t  StreamCompress::setVolume(struct qal_volume_data *volume)
 
     QAL_VERBOSE(LOG_TAG, "start, session handle - %p", session);
     if (!volume|| volume->no_of_volpair == 0) {
-       QAL_ERR(LOG_TAG,"%s: Invalid arguments", __func__);
+       QAL_ERR(LOG_TAG,"Invalid arguments");
        status = -EINVAL;
        goto exit;
     }
@@ -594,7 +594,7 @@ int32_t  StreamCompress::setMute( bool state)
 
     QAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
     
-    QAL_VERBOSE(LOG_TAG, state == TRUE ? "Mute" : "Unmute");
+    QAL_VERBOSE(LOG_TAG,"%s", state == TRUE ? "Mute" : "Unmute");
     status = session->setConfig(this, MODULE, state == TRUE ? MUTE_TAG : UNMUTE_TAG);
 
     if (0 != status) {
@@ -734,7 +734,7 @@ int32_t StreamCompress::isBitWidthSupported(uint32_t bitWidth)
 
 int32_t StreamCompress::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*enable*/)
 {
-    QAL_ERR(LOG_TAG, " Function not supported");
+    QAL_ERR(LOG_TAG, "Function not supported");
     return -ENOSYS;
 }
 

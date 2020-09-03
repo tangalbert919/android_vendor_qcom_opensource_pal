@@ -90,7 +90,7 @@ StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal
     attribute_size = sizeof(struct qal_stream_attributes);
     mStreamAttr = (struct qal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
-        QAL_ERR(LOG_TAG, "%s: malloc for stream attributes failed %s", __func__, strerror(errno));
+        QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
@@ -109,7 +109,7 @@ StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);
     if (!session) {
-        QAL_ERR(LOG_TAG, "%s: session creation failed", __func__);
+        QAL_ERR(LOG_TAG, "session creation failed");
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
@@ -136,7 +136,7 @@ int32_t  StreamInCall::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
+        QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
                 mDevices.size());
         status = session->open(this);
         if (0 != status) {
@@ -168,7 +168,7 @@ int32_t  StreamInCall::close()
     int32_t status = 0;
     mStreamMutex.lock();
 
-    QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %d state %d",
+    QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
             session, mDevices.size(), currentState);
 
     if (currentState == STREAM_IDLE) {
@@ -233,7 +233,7 @@ int32_t StreamInCall::start()
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
             rm->lockGraph();
-            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
+            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %zu",
                             mDevices.size());
 
             status = session->prepare(this);
@@ -265,8 +265,8 @@ int32_t StreamInCall::start()
             break;
 
         case QAL_AUDIO_INPUT:
-            QAL_VERBOSE(LOG_TAG, "%s: Inside QAL_AUDIO_INPUT device count - %d",
-                        __func__, mDevices.size());
+            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_INPUT device count - %zu",
+                        mDevices.size());
 
             status = session->prepare(this);
             if (0 != status) {
@@ -328,7 +328,7 @@ int32_t StreamInCall::stop()
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %d",
+            QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %zu",
                         mDevices.size());
 
             status = session->stop(this);
@@ -339,7 +339,7 @@ int32_t StreamInCall::stop()
             break;
 
         case QAL_AUDIO_INPUT:
-            QAL_ERR(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %d",
+            QAL_ERR(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %zu",
                         mDevices.size());
 
             status = session->stop(this);
@@ -397,7 +397,7 @@ int32_t  StreamInCall::setStreamAttributes(struct qal_stream_attributes *sattr)
 
     if (!sattr)
     {
-        QAL_ERR(LOG_TAG, "%s: NULL stream attributes sent %d", __func__);
+        QAL_ERR(LOG_TAG, "NULL stream attributes sent");
         goto exit;
     }
     memset(mStreamAttr, 0, sizeof(struct qal_stream_attributes));
@@ -422,7 +422,7 @@ int32_t  StreamInCall::setVolume(struct qal_volume_data *volume)
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     if (!volume || volume->no_of_volpair == 0) {
-        QAL_ERR(LOG_TAG, "%s: Error no of vol pair is %d", __func__, (volume->no_of_volpair));
+        QAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
         goto exit;
     }
@@ -674,7 +674,7 @@ int32_t  StreamInCall::setParameters(uint32_t param_id, void *payload)
         goto error;
     }
 
-    QAL_DBG(LOG_TAG, "%s: start, set parameter %u, session handle - %p", __func__, param_id, session);
+    QAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
@@ -931,7 +931,7 @@ exit :
 
 int32_t StreamInCall::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*enable*/)
 {
-    QAL_ERR(LOG_TAG, " Function not supported");
+    QAL_ERR(LOG_TAG, "Function not supported");
     return -ENOSYS;
 }
 

@@ -171,34 +171,33 @@ int Bluetooth::getPluginPayload(void **libHandle, bt_codec_t **btCodec,
 
     lib_path = rm->getBtCodecLib(codecFormat, (ctype == ENC ? "enc" : "dec"));
     if (lib_path.empty()) {
-        QAL_ERR(LOG_TAG, "%s: fail to get BT codec library", __func__);
+        QAL_ERR(LOG_TAG, "fail to get BT codec library");
         return -ENOSYS;
     }
 
     handle = dlopen(lib_path.c_str(), RTLD_NOW);
     if (handle == NULL) {
-        QAL_ERR(LOG_TAG, "%s: failed to dlopen lib %s", __func__, lib_path.c_str());
+        QAL_ERR(LOG_TAG, "failed to dlopen lib %s", lib_path.c_str());
         return -EINVAL;
     }
 
     dlerror();
     plugin_open_fn = (open_fn_t)dlsym(handle, "plugin_open");
     if (!plugin_open_fn) {
-        QAL_ERR(LOG_TAG, "%s: dlsym to open fn failed, err = '%s'\n",
-                __func__, dlerror());
+        QAL_ERR(LOG_TAG, "dlsym to open fn failed, err = '%s'\n", dlerror());
         status = -EINVAL;
         goto error;
     }
 
     status = plugin_open_fn(&codec, codecFormat, ctype);
     if (status) {
-        QAL_ERR(LOG_TAG, "%s: failed to open plugin %d", __func__, status);
+        QAL_ERR(LOG_TAG, "failed to open plugin %d", status);
         goto error;
     }
 
     status = codec->plugin_populate_payload(codec, codec_info, (void **)out_buf);
     if (status != 0) {
-        QAL_ERR(LOG_TAG, "%s: fail to pack the encoder config %d", __func__, status);
+        QAL_ERR(LOG_TAG, "fail to pack the encoder config %d", status);
         goto error;
     }
     *btCodec = codec;
@@ -237,12 +236,12 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        QAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
-    QAL_INFO(LOG_TAG, "%s: choose BT codec format %d", __func__, codecFormat);
+    QAL_INFO(LOG_TAG, "choose BT codec format %d", codecFormat);
 
 
     /* Retrieve plugin library from resource manager.
@@ -329,7 +328,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid RAT module param size", __func__);
+        QAL_ERR(LOG_TAG, "Invalid RAT module param size");
         goto error;
     }
 
@@ -349,7 +348,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid PCM CNV module param size", __func__);
+        QAL_ERR(LOG_TAG, "Invalid PCM CNV module param size");
         goto error;
     }
 
@@ -373,7 +372,7 @@ int Bluetooth::configureA2dpEncoderDecoder(void *codec_info)
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid COP module param size", __func__);
+        QAL_ERR(LOG_TAG, "Invalid COP module param size");
         goto error;
     }
     /* End COP Packetizer configuration */
@@ -734,7 +733,7 @@ BtA2dp::BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
 
-    QAL_DBG(LOG_TAG, "%s: A2DP offload supported = %d", __func__,
+    QAL_DBG(LOG_TAG, "A2DP offload supported = %d",
             is_a2dp_offload_supported);
     param_bt_a2dp.reconfig_supported = is_a2dp_offload_supported;
     param_bt_a2dp.latency = 0;
@@ -765,7 +764,7 @@ void BtA2dp::open_a2dp_source()
 
 int BtA2dp::close_audio_source()
 {
-    QAL_VERBOSE(LOG_TAG, "%s\n", __func__);
+    QAL_VERBOSE(LOG_TAG, "Enter\n");
 
     if (!(bt_lib_source_handle && audio_source_close)) {
         QAL_ERR(LOG_TAG, "a2dp source handle is not identified, Ignoring close request");
@@ -793,7 +792,7 @@ void BtA2dp::init_a2dp_source()
         QAL_DBG(LOG_TAG, "Requesting for BT lib handle");
         bt_lib_source_handle = dlopen(BT_IPC_SOURCE_LIB, RTLD_NOW);
         if (bt_lib_source_handle == nullptr) {
-            QAL_ERR(LOG_TAG, "%s: dlopen failed for %s", __func__, BT_IPC_SOURCE_LIB);
+            QAL_ERR(LOG_TAG, "dlopen failed for %s", BT_IPC_SOURCE_LIB);
             return;
         }
     }
@@ -838,7 +837,7 @@ void BtA2dp::init_a2dp_sink()
         bt_lib_sink_handle = dlopen(BT_IPC_SINK_LIB, RTLD_NOW);
 
         if (bt_lib_sink_handle == nullptr) {
-            QAL_ERR(LOG_TAG, "%s: DLOPEN failed for %s", __func__, BT_IPC_SINK_LIB);
+            QAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
         } else {
             audio_sink_start = (audio_sink_start_t)
                           dlsym(bt_lib_sink_handle, "audio_sink_start_capture");
@@ -941,7 +940,7 @@ int BtA2dp::startPlayback()
         QAL_DBG(LOG_TAG, "configure_a2dp_encoder_format start");
         codec_info = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
         if (codec_info == NULL || codecFormat == CODEC_TYPE_INVALID) {
-            QAL_ERR(LOG_TAG, "%s: invalid encoder config", __func__);
+            QAL_ERR(LOG_TAG, "invalid encoder config");
             audio_source_stop();
             return -EINVAL;
         }
@@ -983,7 +982,7 @@ int BtA2dp::stopPlayback()
     if (total_active_session_requests > 0)
         total_active_session_requests--;
     else
-        QAL_ERR(LOG_TAG, "%s: No active playback session requests on A2DP", __func__);
+        QAL_ERR(LOG_TAG, "No active playback session requests on A2DP");
 
     if (bt_state == A2DP_STATE_STARTED && !total_active_session_requests) {
         QAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
@@ -1060,7 +1059,7 @@ int BtA2dp::startCapture()
 
         codec_info = audio_get_dec_config(&codecFormat);
         if (codec_info == NULL || codecFormat == CODEC_TYPE_INVALID) {
-            QAL_ERR(LOG_TAG, "%s: invalid encoder config", __func__);
+            QAL_ERR(LOG_TAG, "invalid encoder config");
             return -EINVAL;
         }
 
@@ -1203,7 +1202,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             dev = Device::getInstance(&deviceAttr, rm);
             status = rm->getActiveStream_l(dev, activestreams);
             if ((0 != status) || (activestreams.size() == 0)) {
-                QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+                QAL_ERR(LOG_TAG, "no active stream available");
                 return -EINVAL;
             }
             stream = static_cast<Stream *>(activestreams[0]);
@@ -1263,14 +1262,14 @@ BtA2dp::getInstance(struct qal_device *device, std::shared_ptr<ResourceManager> 
 {
     if (device->id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
         if (!objRx) {
-            QAL_INFO(LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
+            QAL_INFO(LOG_TAG, "creating instance for  %d\n", device->id);
             std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
             objRx = sp;
         }
         return objRx;
     } else {
         if (!objTx) {
-            QAL_INFO(LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
+            QAL_INFO(LOG_TAG, "creating instance for  %d\n", device->id);
             std::shared_ptr<Device> sp(new BtA2dp(device, Rm));
             objTx = sp;
         }
@@ -1408,7 +1407,7 @@ std::shared_ptr<Device> BtSco::getInstance(struct qal_device *device,
         return objRx;
     } else {
         if (!objTx) {
-            QAL_ERR( LOG_TAG, "%s creating instance for  %d\n", __func__, device->id);
+            QAL_ERR(LOG_TAG,  "creating instance for  %d\n", device->id);
             std::shared_ptr<Device> sp(new BtSco(device, Rm));
             objTx = sp;
         }

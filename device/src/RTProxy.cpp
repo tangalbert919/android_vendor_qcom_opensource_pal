@@ -117,7 +117,7 @@ int RTProxy::start() {
 
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        QAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
@@ -125,7 +125,7 @@ int RTProxy::start() {
 
     status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
     if (status) {
-        QAL_ERR(LOG_TAG,
+        QAL_INFO(LOG_TAG,
          "Failed to get tag info %x Skipping RAT Configuration Setup, status = %d",
           RAT_RENDER, status);
         //status = -EINVAL;
@@ -141,7 +141,7 @@ int RTProxy::start() {
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid RAT module param size", __func__);
+        QAL_ERR(LOG_TAG, "Invalid RAT module param size");
         goto error;
     }
 start:
@@ -173,7 +173,7 @@ RTProxyOut::RTProxyOut(struct qal_device *device, std::shared_ptr<ResourceManage
 
 int32_t RTProxyOut::isSampleRateSupported(uint32_t sampleRate)
 {
-    QAL_DBG(LOG_TAG_OUT, "sampleRate %u", sampleRate);
+    QAL_DBG(LOG_TAG,"sampleRate %u", sampleRate);
 
     /* ProxyOut supports all sample rates, accept by default */
     return 0;
@@ -181,7 +181,7 @@ int32_t RTProxyOut::isSampleRateSupported(uint32_t sampleRate)
 
 int32_t RTProxyOut::isChannelSupported(uint32_t numChannels)
 {
-    QAL_DBG(LOG_TAG_OUT, "numChannels %u", numChannels);
+    QAL_DBG(LOG_TAG,"numChannels %u", numChannels);
 
     /* ProxyOut supports all channels */
     return 0;
@@ -189,7 +189,7 @@ int32_t RTProxyOut::isChannelSupported(uint32_t numChannels)
 
 int32_t RTProxyOut::isBitWidthSupported(uint32_t bitWidth)
 {
-    QAL_DBG(LOG_TAG_OUT, "bitWidth %u", bitWidth);
+    QAL_DBG(LOG_TAG,"bitWidth %u", bitWidth);
 
     /* ProxyOut supports all bitWidth configurations */
     return 0;

@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "bt_aptx"
+#define LOG_TAG "QAL: bt_aptx"
 //#define LOG_NDEBUG 0
 
 #include <log/log.h>

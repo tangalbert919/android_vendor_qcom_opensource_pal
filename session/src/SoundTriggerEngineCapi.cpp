@@ -231,7 +231,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
                 buffer_start_;
             end_idx = (result_cfg_ptr->end_position * CNN_FRAME_SIZE) +
                 buffer_start_;
-            QAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %u, end index %u",
+            QAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
         }
     }
@@ -395,7 +395,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
-        QAL_VERBOSE(LOG_TAG, "Calling Capi Process\n", __func__);
+        QAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
 
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
             &stream_input, nullptr);

@@ -147,7 +147,7 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
         return BtSco::getObject(dev_id);
     case QAL_DEVICE_OUT_PROXY:
     case QAL_DEVICE_IN_PROXY:
-        QAL_VERBOSE(LOG_TAG, "RTProxy device %d");
+        QAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();
     default:
         QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
@@ -162,7 +162,7 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
 
     channels = device->config.ch_info.channels;
     if (channels > MAX_CHANNEL_SUPPORTED) {
-        QAL_ERR(LOG_TAG, "channels %d are greater,reset to MAX", channels);
+        QAL_INFO(LOG_TAG, "channels %d are greater,reset to MAX", channels);
         channels = MAX_CHANNEL_SUPPORTED;
     } else
        QAL_DBG(LOG_TAG, "channels %d", channels);
@@ -174,7 +174,7 @@ Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
     mQALDeviceName.clear();
     customPayload = NULL;
     customPayloadSize = 0;
-    QAL_ERR(LOG_TAG,"device instance for id %d created", device->id);
+    QAL_DBG(LOG_TAG,"device instance for id %d created", device->id);
 
 }
 
@@ -191,7 +191,7 @@ Device::~Device()
 
     customPayload = NULL;
     customPayloadSize = 0;
-    QAL_ERR(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
+    QAL_DBG(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
 }
 
 int Device::getDeviceAttributes(struct qal_device *dattr)
@@ -240,7 +240,7 @@ int Device::updateCustomPayload(void *payload, size_t size)
 
     memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
     customPayloadSize += size;
-    QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+    QAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     return 0;
 }
 
@@ -252,7 +252,7 @@ int Device::getSndDeviceId()
 
 std::string Device::getQALDeviceName()
 {
-    QAL_VERBOSE(LOG_TAG, "%s: Device name %s acquired", __func__, mQALDeviceName.c_str());
+    QAL_VERBOSE(LOG_TAG, "Device name %s acquired", mQALDeviceName.c_str());
     return mQALDeviceName;
 }
 
@@ -321,12 +321,12 @@ int Device::start()
         status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
 
         if (!UpdatedSndName.empty()) {
-            QAL_DBG(LOG_TAG,"%s: Update sndName %s, currently %s",__func__,
+            QAL_DBG(LOG_TAG,"Update sndName %s, currently %s",
                     UpdatedSndName.c_str(), mSndDeviceName);
             strlcpy(mSndDeviceName, UpdatedSndName.c_str(), DEVICE_NAME_MAX_SIZE);
         }
 
-        QAL_VERBOSE(LOG_TAG, "%s: audio_route %pK SND device name %s", __func__, audioRoute, mSndDeviceName);
+        QAL_VERBOSE(LOG_TAG, "audio_route %pK SND device name %s", audioRoute, mSndDeviceName);
         if (0 != status) {
             QAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
             goto exit;

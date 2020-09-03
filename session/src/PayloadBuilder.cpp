@@ -210,13 +210,13 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_USB_AUDIO_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
-                     __func__, header->module_instance_id, header->param_id,
+    QAL_ERR(LOG_TAG,"header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                     header->module_instance_id, header->param_id,
                      header->error_code, header->param_size);
 
     usbConfig->usb_token = data->usb_token;
     usbConfig->svc_interval = data->svc_interval;
-    QAL_VERBOSE(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_VERBOSE(LOG_TAG,"customPayload address %pK and size %zu", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
@@ -226,7 +226,7 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
 void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     uint32_t miid, struct dpAudioConfig *data)
 {
-    QAL_DBG(LOG_TAG, "%s Enter:", __func__);
+    QAL_DBG(LOG_TAG, "Enter:");
     struct apm_module_param_data_t* header;
     struct dpAudioConfig *dpConfig;
     uint8_t* payloadInfo = NULL;
@@ -246,18 +246,18 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     header->param_id = PARAM_ID_DISPLAY_PORT_INTF_CFG;
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    QAL_ERR(LOG_TAG,"%s: header params \n IID:%x param_id:%x error_code:%d param_size:%d",
-                      __func__, header->module_instance_id, header->param_id,
+    QAL_ERR(LOG_TAG,"header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
                       header->error_code, header->param_size);
 
     dpConfig->channel_allocation = data->channel_allocation;
     dpConfig->mst_idx = data->mst_idx;
     dpConfig->dptx_idx = data->dptx_idx;
-    QAL_ERR(LOG_TAG,"customPayload address %p and size %d", payloadInfo, payloadSize);
+    QAL_ERR(LOG_TAG,"customPayload address %pK and size %zu", payloadInfo, payloadSize);
 
     *size = payloadSize;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "%s Exit:", __func__);
+    QAL_DBG(LOG_TAG, "Exit:");
 }
 
 void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
@@ -321,7 +321,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "sample_rate:%d bit_width:%d num_channels:%d Miid:%d",
                       mfcConf->sampling_rate, mfcConf->bit_width,
                       mfcConf->num_channels, header->module_instance_id);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }
 
@@ -437,7 +437,7 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
                   header->error_code, header->param_size);
     *size = payloadSize + padBytes;;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
@@ -468,7 +468,7 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     *size = alsaPayloadSize;
     *alsaPayload = payloadInfo;
 
-    QAL_DBG(LOG_TAG, "ALSA payload %u size %d", *alsaPayload, *size);
+    QAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 
     return 0;
 }
@@ -505,7 +505,7 @@ void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
     ar_mem_cpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
@@ -565,7 +565,7 @@ void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size,
@@ -602,7 +602,7 @@ void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *siz
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *size,
@@ -640,7 +640,7 @@ void PayloadBuilder::payloadSVAStreamSetupDuration(uint8_t **payload, size_t *si
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
@@ -677,7 +677,7 @@ void PayloadBuilder::payloadSVAEventConfig(uint8_t **payload, size_t *size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
@@ -703,7 +703,7 @@ void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 
@@ -756,7 +756,7 @@ void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t mo
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_DBG(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
@@ -872,7 +872,7 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
     QAL_DBG(LOG_TAG, "sample_rate:%d bits_per_sample:%d q_factor:%d data_format:%d num_channels:%d",
                       ratConf->sample_rate, ratConf->bits_per_sample, ratConf->q_factor,
                       ratConf->data_format, ratConf->num_channels);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }
 
@@ -958,7 +958,7 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
     *size = (payloadSize + padBytes);
     *payload = payloadInfo;
 
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }
 
@@ -1011,7 +1011,7 @@ void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
     *payload = payloadInfo;
     QAL_DBG(LOG_TAG, "sample_rate:%d bits_per_sample:%d num_channels:%d",
                       copPack->sampling_rate, copPack->bits_per_sample, copPack->num_channels);
-    QAL_DBG(LOG_TAG, "customPayload address %pK and size %d", payloadInfo,
+    QAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
 }
 
@@ -1022,7 +1022,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     sattr = new struct qal_stream_attributes();
     if (!sattr) {
         QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
@@ -1031,7 +1031,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
         goto free_sattr;
     }
 
@@ -1082,7 +1082,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
     int status = 0;
     struct qal_stream_attributes *sattr = NULL;
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     sattr = new struct qal_stream_attributes();
     if (!sattr) {
         QAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
@@ -1091,7 +1091,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n",status);
         goto free_sattr;
     }
 
@@ -1117,7 +1117,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
     uint32_t instance_id = 0;
     struct qal_stream_attributes *sattr = NULL;
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     sattr = new struct qal_stream_attributes;
     if (!sattr) {
         status = -ENOMEM;
@@ -1128,7 +1128,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
 
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
         goto free_sattr;
     }
 
@@ -1204,7 +1204,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             break;
         case QAL_STREAM_COMPRESSED:
            if (sattr->direction == QAL_AUDIO_OUTPUT) {
-               QAL_VERBOSE(LOG_TAG,"%s: Stream compressed \n", __func__);
+               QAL_VERBOSE(LOG_TAG,"Stream compressed \n");
                keyVector.push_back(std::make_pair(STREAMRX, COMPRESSED_OFFLOAD_PLAYBACK));
                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
            }
@@ -1261,7 +1261,7 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s __unused, int32_t beDevId _
 {
     int status = 0;
 
-    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    QAL_VERBOSE(LOG_TAG,"enter");
     return status;
 }
 
@@ -1272,7 +1272,7 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t rxBeDevId,
 {
     int status = 0;
 
-    QAL_VERBOSE(LOG_TAG,"%s: enter", __func__);
+    QAL_VERBOSE(LOG_TAG,"enter");
     status = populateStreamKV(s, keyVectorRx, keyVectorTx, vsidinfo);
     if (status)
         goto exit;
@@ -1289,7 +1289,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
 {
     int status = 0;
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     //todo move the keys to a to an xml  of device type to key
     //something like device_type=DEVICETX, key=SPEAKER
     //from there create a map and retrieve the right keys
@@ -1361,7 +1361,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
             break;
         default:
-            QAL_DBG(LOG_TAG,"%s: Invalid device id %d\n", __func__,beDevId);
+            QAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
             break;
     }
 
@@ -1376,11 +1376,11 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
     int status = 0;
     struct qal_stream_attributes sAttr;
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
 
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
@@ -1404,7 +1404,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
     struct qal_stream_attributes *sattr = NULL;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct qal_device dAttr;
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     sattr = new struct qal_stream_attributes;
     if (!sattr) {
         status = -ENOMEM;
@@ -1416,18 +1416,18 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
 
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
         goto free_sattr;
     }
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
-       QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+       QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
        return status;
     }
     for (int i = 0; i < associatedDevices.size();i++) {
        status = associatedDevices[i]->getDeviceAttributes(&dAttr);
        if (0 != status) {
-          QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+          QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
           return status;
        }
        if ((dAttr.id == rxBeDevId) || (dAttr.id == txBeDevId)) {
@@ -1537,7 +1537,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
     struct qal_device dAttr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
     sattr = new struct qal_stream_attributes;
     if (!sattr) {
         status = -ENOMEM;
@@ -1549,18 +1549,18 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
 
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", __func__, status);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n",status);
         goto free_sattr;
     }
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
-       QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+       QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
        return status;
     }
     for (int i = 0; i < associatedDevices.size();i++) {
         status = associatedDevices[i]->getDeviceAttributes(&dAttr);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
             return status;
         }
 
@@ -1614,7 +1614,7 @@ exit:
 
 int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag) {
     int status = 0;
-    QAL_VERBOSE(LOG_TAG,"%s: enter \n", __func__);
+    QAL_VERBOSE(LOG_TAG,"enter \n");
     std::vector <std::pair<int,int>> keyVector;
     struct qal_stream_attributes sAttr;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
@@ -1640,11 +1640,11 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
 
     status = s->getVolumeData(voldata);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getVolumeData Failed \n");
         goto error_1;
     }
 
-    QAL_VERBOSE(LOG_TAG,"%s: volume sent:%f \n",__func__, (voldata->volume_pair[0].vol));
+    QAL_VERBOSE(LOG_TAG,"volume sent:%f \n",(voldata->volume_pair[0].vol));
     voldB = (voldata->volume_pair[0].vol);
 
     switch (static_cast<uint32_t>(tag)) {
@@ -1729,14 +1729,14 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     case SPKR_PROT_ENABLED :
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
             return status;
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
             status = associatedDevices[i]->getDeviceAttributes(&dAttr);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
                 return status;
             }
             if (dAttr.id == QAL_DEVICE_OUT_SPEAKER) {
@@ -1756,7 +1756,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         break;
     }
 
-    QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
+    QAL_VERBOSE(LOG_TAG,"exit status- %d", status);
 error_1:
     free(voldata);
 exit:
@@ -1766,7 +1766,7 @@ exit:
 int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag)
 {
     int status = 0;
-    QAL_VERBOSE(LOG_TAG,"%s: enter, tag 0x%x", __func__, tag);
+    QAL_VERBOSE(LOG_TAG,"enter, tag 0x%x", tag);
     struct qal_stream_attributes sAttr;
 
     status = s->getStreamAttributes(&sAttr);
@@ -1939,11 +1939,11 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        *gsltag = TAG_STREAM_MUX_DEMUX;
        break;
     default:
-       QAL_ERR(LOG_TAG,"%s: Tag not supported \n", __func__);
+       QAL_ERR(LOG_TAG,"Tag not supported \n");
        break;
     }
 
-    QAL_VERBOSE(LOG_TAG,"%s: exit status- %d", __func__, status);
+    QAL_VERBOSE(LOG_TAG,"exit status- %d", status);
     return status;
 }
 

@@ -148,7 +148,7 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
             } else if (!strcmp(attribs[i], "snd_name")) {
                 snd_name_ = attribs[++i];
             } else {
-                QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
+                QAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
             ++i; /* move to next attribute */
         }
@@ -178,7 +178,7 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
             ++i; /* move to next attribute */
         }
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+        QAL_INFO(LOG_TAG, "Invalid tag %s", (char *)tag);
     }
 }
 
@@ -249,7 +249,7 @@ void SecondStageConfig::HandleStartTag(const char *tag, const char **attribs) {
             ++i;
         }
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+        QAL_INFO(LOG_TAG, "Invalid tag %s", tag);
     }
 }
 
@@ -339,7 +339,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             } else if (!strcmp(attribs[i], "kw_end_tolerance")) {
                 kw_end_tolerance_ = std::stoi(attribs[++i]);
             } else {
-                QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
+                QAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
             ++i; /* move to next attribute */
         }
@@ -361,7 +361,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                     QAL_ERR(LOG_TAG, "could not find value %s in lookup table",
                         attribs[i]);
                 } else {
-                    QAL_ERR(LOG_TAG, "LUT Value %d in lookup table",
+                    QAL_DBG(LOG_TAG, "LUT Value %d in lookup table",
                         valItr->second);
                     value = valItr->second;
                 }
@@ -376,7 +376,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     } else if (!strcmp(tag, "high_performance_and_charging")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {
-          QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+          QAL_INFO(LOG_TAG, "Invalid tag %s", (char *)tag);
     }
 }
 
@@ -467,7 +467,7 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                     std::make_shared<CaptureProfile>(attribs[1]));
             return;
         } else {
-            QAL_ERR("missing name attrib for tag %s", tag);
+            QAL_ERR(LOG_TAG,"missing name attrib for tag %s", tag);
             return;
         }
     }
@@ -476,7 +476,7 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
         uint32_t i = 0;
         while (attribs[i]) {
             if (!attribs[i]) {
-                QAL_ERR("missing attrib value for tag %s", tag);
+                QAL_ERR(LOG_TAG,"missing attrib value for tag %s", tag);
             } else if (!strcmp(attribs[i], "version")) {
                 version_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "enable_failure_detection")) {
@@ -515,12 +515,12 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                 concurrent_voip_call_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else {
-                QAL_ERR(LOG_TAG, "Invalid attribute %s", attribs[i++]);
+                QAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
             ++i; /* move to next attribute */
         }
     } else {
-        QAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+        QAL_INFO(LOG_TAG, "Invalid tag %s", tag);
     }
 }
 

@@ -734,7 +734,7 @@ done:
         cv.notify_all();
     }
 
-    QAL_DBG(LOG_TAG, "Exiting %s %d", __func__, __LINE__);
+    QAL_DBG(LOG_TAG, "Exiting");
     return ret;
 }
 
@@ -792,7 +792,7 @@ void SpeakerProtection::spkrCalibrationThread()
         else {
             QAL_DBG(LOG_TAG, "Speaker not in use, let's check for idle time");
             if (sec < minIdleTime) {
-                QAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %d", sec);
+                QAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %lu", sec);
                 spkrCalibrateWait();
                 QAL_DBG(LOG_TAG, "Waited for speaker to be idle for min time");
                 continue;
@@ -836,7 +836,7 @@ void SpeakerProtection::spkrCalibrationThread()
         else {
             QAL_DBG(LOG_TAG, "Speaker not in use, let's check for idle time");
             if (sec < minIdleTime) {
-                QAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %d", sec);
+                QAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %lu", sec);
                 spkrCalibrateWait();
                 QAL_DBG(LOG_TAG, "Waited for speaker to be idle for min time");
                 continue;

@@ -171,7 +171,7 @@ int DisplayPort::configureDpEndpoint()
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, " no active stream available");
+        QAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
@@ -226,7 +226,7 @@ int DisplayPort::getExtDispSysfsNodeIndex(int ext_disp_type)
                    ((strncmp(fbvalue, "dp panel", strlen("dp panel")) == 0) &&
                     (ext_disp_type == EXT_DISPLAY_TYPE_DP))) {
                     node_index = i;
-                    QAL_DBG(LOG_TAG, " Ext Disp:%d is at fb%d", ext_disp_type, i);
+                    QAL_DBG(LOG_TAG, "Ext Disp:%d is at fb%d", ext_disp_type, i);
                     fclose(ext_disp_fd);
                     return node_index;
                 }
@@ -234,7 +234,7 @@ int DisplayPort::getExtDispSysfsNodeIndex(int ext_disp_type)
             fclose(ext_disp_fd);
             i++;
         } else {
-            QAL_ERR(LOG_TAG, " Scanned till end of fbs or Failed to open fb node %d", i);
+            QAL_ERR(LOG_TAG, "Scanned till end of fbs or Failed to open fb node %d", i);
             break;
         }
     }
@@ -259,7 +259,7 @@ int DisplayPort::updateExtDispSysfsNode(int node_value, int controller, int stre
 
     ext_disp_type = getExtDispType(mixer, controller, stream);
     if (ext_disp_type < 0) {
-        QAL_ERR(LOG_TAG, " Unable to get the external display type, err:%d", ext_disp_type);
+        QAL_ERR(LOG_TAG, "Unable to get the external display type, err:%d", ext_disp_type);
         return -EINVAL;
     }
 
@@ -297,7 +297,7 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
 
     ctl_index = getDisplayPortCtlIndex(controller, stream);
     if (-EINVAL == ctl_index) {
-        QAL_ERR(LOG_TAG, " Unknown controller/stream %d/%d",
+        QAL_ERR(LOG_TAG, "Unknown controller/stream %d/%d",
                 controller, stream);
         return -EINVAL;
     }
@@ -309,11 +309,11 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
         snprintf(mixer_ctl_name, sizeof(mixer_ctl_name),
                  "%s%d %s", ctl_prefix, ctl_index, ctl_suffix);
 
-    QAL_DBG(LOG_TAG, " mixer ctl name: %s", mixer_ctl_name);
+    QAL_DBG(LOG_TAG, "mixer ctl name: %s", mixer_ctl_name);
     ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
     /* If no mixer command support, fall back to sysfs node approach */
     if (!ctl) {
-        QAL_DBG(LOG_TAG, " could not get ctl for mixer cmd(%s), use sysfs node instead\n",
+        QAL_DBG(LOG_TAG, "could not get ctl for mixer cmd(%s), use sysfs node instead\n",
               mixer_ctl_name);
         ret = updateExtDispSysfsNode(node_value, controller, stream);
     } else {
@@ -326,13 +326,13 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
         else if (node_value == EXT_DISPLAY_PLUG_STATUS_NOTIFY_DISCONNECT)
             ack_str = (char*) DISCONNECT;
         else {
-            QAL_ERR(LOG_TAG, " Invalid input parameter - 0x%x\n", node_value);
+            QAL_ERR(LOG_TAG, "Invalid input parameter - 0x%x\n", node_value);
             return -EINVAL;
         }
 
         ret = mixer_ctl_set_enum_by_string(ctl, ack_str);
         if (ret)
-            QAL_ERR(LOG_TAG, " Could not set ctl for mixer cmd - %s ret %d\n",
+            QAL_ERR(LOG_TAG, "Could not set ctl for mixer cmd - %s ret %d\n",
                    mixer_ctl_name, ret);
     }
     return ret;
@@ -629,7 +629,7 @@ void DisplayPort::cacheEdid(struct audio_mixer *mixer, int controller, int strea
 int32_t DisplayPort::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_ERR(LOG_TAG, "%s: sampleRate %d", __func__, sampleRate);
+    QAL_ERR(LOG_TAG, "sampleRate %d", sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -686,7 +686,7 @@ int32_t DisplayPort::isBitWidthSupported(uint32_t bitWidth)
 int32_t DisplayPort::checkAndUpdateBitWidth(uint32_t *bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    QAL_DBG(LOG_TAG, "bitWidth %u", *bitWidth);
     switch (*bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -713,7 +713,7 @@ int32_t DisplayPort::checkAndUpdateSampleRate(uint32_t *sampleRate)
     else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate <= SAMPLINGRATE_384K)
         *sampleRate = SAMPLINGRATE_384K;
 
-    QAL_DBG(LOG_TAG, " sampleRate %d", *sampleRate);
+    QAL_DBG(LOG_TAG, "sampleRate %d", *sampleRate);
 
     return rc;
 }

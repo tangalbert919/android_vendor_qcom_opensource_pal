@@ -80,13 +80,13 @@ int SessionAlsaPcm::open(Stream * s)
 
     status = s->getStreamAttributes(&sAttr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
     if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
             return status;
         }
 
@@ -282,7 +282,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             tkv.clear();
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: Failed to set the tag configuration\n", __func__);
+                QAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
                 goto exit;
             }
 
@@ -325,7 +325,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
         case CALIBRATION:
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: Failed to set the calibration data\n", __func__);
+                QAL_ERR(LOG_TAG,"Failed to set the calibration data\n");
                 goto exit;
             }
 
@@ -366,13 +366,13 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             ckv.clear();
             break;
         default:
-            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            QAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
             goto exit;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 /*
@@ -441,13 +441,13 @@ int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_qal_payl
             break;
         }
         default:
-            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            QAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
             goto exit;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     if (tagConfig) {
         free(tagConfig);
         tagConfig = nullptr;
@@ -708,7 +708,7 @@ int SessionAlsaPcm::start(Stream * s)
                     status = updateCustomPayload(payload, payloadSize);
                     delete payload;
                     if (0 != status) {
-                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         return status;
                     }
                 }
@@ -753,13 +753,13 @@ int SessionAlsaPcm::start(Stream * s)
                 goto pcm_start;
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+                QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
                 return status;
             }
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAttributes(&dAttr);
                 if (0 != status) {
-                    QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
+                    QAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
                     return status;
                 }
 
@@ -800,7 +800,7 @@ int SessionAlsaPcm::start(Stream * s)
                         status = updateCustomPayload(payload, payloadSize);
                         delete payload;
                         if (0 != status) {
-                            QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                            QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                             return status;
                         }
                     }
@@ -971,7 +971,7 @@ int SessionAlsaPcm::close(Stream * s)
     if (sAttr.type != QAL_STREAM_VOICE_CALL_RECORD && sAttr.type != QAL_STREAM_VOICE_CALL_MUSIC) {
         status = s->getAssociatedDevices(associatedDevices);
         if (status != 0) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
     }
@@ -981,9 +981,9 @@ int SessionAlsaPcm::close(Stream * s)
             for (auto dev: associatedDevices) {
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
-                QAL_ERR(LOG_TAG, "backendname %s", backendname.c_str());
+                QAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
                 if (dev->getDeviceCount() != 0) {
-                    QAL_DBG(LOG_TAG, "Tx dev still active\n")
+                    QAL_DBG(LOG_TAG, "Tx dev still active\n");
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
                 } else {
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 1));
@@ -1009,7 +1009,7 @@ int SessionAlsaPcm::close(Stream * s)
             for (auto dev: associatedDevices) {
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
-                QAL_ERR(LOG_TAG, "backendname %s", backendname.c_str());
+                QAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
                 if (dev->getDeviceCount() != 0) {
                     QAL_DBG(LOG_TAG, "Rx dev still active");
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
@@ -1217,7 +1217,7 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct qal_buffer *buf, in
         }
 
         if ((0 != status) || (pcmReadSize == 0)) {
-            QAL_ERR(LOG_TAG,"%s: Failed to read data %d bytes read %d", __func__, status, pcmReadSize);
+            QAL_ERR(LOG_TAG,"Failed to read data %d bytes read %d", status, pcmReadSize);
             break;
         }
 
@@ -1240,13 +1240,13 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct qal_buffer *buf, in
             buf->ts->tv_sec = timestamp / 1000000;
             buf->ts->tv_nsec = (timestamp - buf->ts->tv_sec * 1000000) * 1000;
             QAL_VERBOSE(LOG_TAG, "Timestamp %llu, tv_sec = %ld, tv_nsec = %ld",
-                        timestamp, buf->ts->tv_sec, buf->ts->tv_nsec);
+                       (long long)timestamp, buf->ts->tv_sec, buf->ts->tv_nsec);
         }
         bytesRead += pcmReadSize;
     }
 exit:
     *size = bytesRead;
-    QAL_DBG(LOG_TAG,"%s: exit bytesRead:%d status:%d ", __func__, bytesRead, status);
+    QAL_DBG(LOG_TAG,"exit bytesRead:%d status:%d ", bytesRead, status);
     return status;
 }
 
@@ -1258,7 +1258,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
     struct qal_stream_attributes sAttr;
 
 
-    QAL_DBG(LOG_TAG,"%s: enter buf:%p tag:%d flag:%d", __func__, buf, tag, flag);
+    QAL_VERBOSE(LOG_TAG,"enter buf:%p tag:%d flag:%d", buf, tag, flag);
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -1299,7 +1299,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         }
 
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: Failed to write the data", __func__);
+            QAL_ERR(LOG_TAG,"Failed to write the data");
             return status;
         }
         bytesWritten += sizeWritten;
@@ -1513,7 +1513,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+    QAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
     if (param_id != PARAM_ID_DETECTION_ENGINE_RESET &&
         param_id != QAL_PARAM_ID_UIEFFECT) {
@@ -1531,7 +1531,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
 
         memcpy((uint8_t *)customPayload + customPayloadSize, paramData, paramSize);
         customPayloadSize += paramSize;
-        QAL_INFO(LOG_TAG, "customPayloadSize = %d", customPayloadSize);
+        QAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     }
 
     QAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -1750,8 +1750,8 @@ void SessionAlsaPcm::adjustMmapPeriodCount(struct pcm_config *config, int32_t mi
                                / config->period_size;
     int periodCount = SESSION_ALSA_MMAP_PERIOD_COUNT_MIN;
 
-    QAL_VERBOSE(LOG_TAG, "%s original config.period_size = %d config.period_count = %d",
-          __func__, config->period_size, config->period_count);
+    QAL_VERBOSE(LOG_TAG, "original config.period_size = %d config.period_count = %d",
+                config->period_size, config->period_count);
 
     while (periodCount < periodCountRequested &&
         (periodCount * 2) < SESSION_ALSA_MMAP_PERIOD_COUNT_MAX) {
@@ -1759,8 +1759,8 @@ void SessionAlsaPcm::adjustMmapPeriodCount(struct pcm_config *config, int32_t mi
     }
     config->period_count = periodCount;
 
-    QAL_VERBOSE(LOG_TAG, "%s requested config.period_count = %d",
-        __func__, config->period_count);
+    QAL_VERBOSE(LOG_TAG, "requested config.period_count = %d",
+                config->period_count);
 
 }
 
@@ -1789,14 +1789,14 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
     }
 
     if (info == NULL || !(min_size_frames > 0 && min_size_frames < INT32_MAX)) {
-        QAL_ERR(LOG_TAG, "%s: info = %p, min_size_frames = %d",
-            __func__, info, min_size_frames);
+        QAL_ERR(LOG_TAG, "info = %p, min_size_frames = %d",
+                info, min_size_frames);
         return -EINVAL;
     }
 
     if (!((sAttr.type == QAL_STREAM_ULTRA_LOW_LATENCY) &&
                     (sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ))) {
-         QAL_ERR(LOG_TAG, "%s: called on stream type [%d] flags[%d]", __func__,
+         QAL_ERR(LOG_TAG, "called on stream type [%d] flags[%d]",
             sAttr.type, sAttr.flags);
          return -ENOSYS;
      }
@@ -1851,8 +1851,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
         this->adjustMmapPeriodCount(&config, min_size_frames);
 
-        QAL_DBG(LOG_TAG, "%s: Opening PCM device card_id(%d) device_id(%d), channels %d",
-               __func__, rm->getSndCard(), pcmDevIds.at(0), config.channels);
+        QAL_DBG(LOG_TAG, "Opening PCM device card_id(%d) device_id(%d), channels %d",
+                rm->getSndCard(), pcmDevIds.at(0), config.channels);
 
         pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
                              pcm_flags, &config);
@@ -1921,18 +1921,18 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
         //TODO
         //out->mmap_time_offset_nanos = get_mmap_out_time_offset();
-        QAL_DBG(LOG_TAG, "%s: got mmap buffer address %pK info->buffer_size_frames %d",
-               __func__, info->buffer, info->buffer_size_frames);
+        QAL_DBG(LOG_TAG, "got mmap buffer address %pK info->buffer_size_frames %d",
+                info->buffer, info->buffer_size_frames);
         mState = SESSION_OPENED;
     }
 
  exit:
      if (status < 0) {
          if (pcm == NULL) {
-             QAL_ERR(LOG_TAG,"%s: %s - %d", __func__,step, status);
+             QAL_ERR(LOG_TAG,"%s - %d",step, status);
          } else {
              //status = -errno;
-             QAL_ERR(LOG_TAG,"%s: %s - %d", __func__,step, status);
+             QAL_ERR(LOG_TAG,"%s - %d",step, status);
              if (pcm) {
                  pcm_close(pcm);
                  pcm = NULL;
@@ -1950,7 +1950,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
     struct qal_stream_attributes sAttr;
     struct timespec ts = { 0, 0 };
 
-    QAL_DBG(LOG_TAG,"%s: enter", __func__);
+    QAL_DBG(LOG_TAG,"enter");
 
     if (pcm == NULL) {
         return -ENOSYS;
@@ -1968,7 +1968,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
      if (!((sAttr.type == QAL_STREAM_ULTRA_LOW_LATENCY) &&
                     (sAttr.flags & QAL_STREAM_FLAG_MMAP_NO_IRQ))) {
-         QAL_ERR(LOG_TAG, "%s: called on stream type [%d] flags[%d]", __func__,
+         QAL_ERR(LOG_TAG, "called on stream type [%d] flags[%d]",
             sAttr.type, sAttr.flags);
          return -ENOSYS;
      }
@@ -1976,7 +1976,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
      status = pcm_mmap_get_hw_ptr(pcm, (unsigned int *)&position->position_frames, &ts);
      if (status < 0) {
          status = -errno;
-         QAL_ERR(LOG_TAG, "%s: %s", __func__, status);
+         QAL_ERR(LOG_TAG, "%d", status);
          return status;
      }
      position->time_nanoseconds = ts.tv_sec*1000000000LL + ts.tv_nsec

@@ -104,6 +104,9 @@
 #define MAX_SESSIONS_INCALL_MUSIC 1
 #define MAX_SESSIONS_INCALL_RECORD 1
 
+/*this can be over written by the config file settings*/
+uint32_t qal_log_lvl = (QAL_LOG_ERR|QAL_LOG_INFO);
+
 static struct str_parms *configParamKVPairs;
 
 char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
@@ -403,7 +406,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
 
 void agmServiceCrashHandler(uint64_t cookie __unused)
 {
-    QAL_ERR(LOG_TAG, "AGM service crashed :( ");
+    QAL_ERR(LOG_TAG,"AGM service crashed :( ");
     _exit(1);
 }
 
@@ -419,27 +422,27 @@ void ResourceManager::split_snd_card(const char* in_snd_card_name)
     char *form_factor = NULL;
 
     if (in_snd_card_name == NULL) {
-        QAL_ERR(LOG_TAG, "%s: snd_card_name passed is NULL", __func__);
+        QAL_ERR(LOG_TAG,"snd_card_name passed is NULL");
         goto err;
     }
     snd_card_name = strdup(in_snd_card_name);
 
     device = strtok_r(snd_card_name, "-", &tmp);
     if (device == NULL) {
-        QAL_ERR(LOG_TAG, "%s: called on invalid snd card name", __func__);
+        QAL_ERR(LOG_TAG,"called on invalid snd card name");
         goto err;
     }
     strlcpy(cur_snd_card_split.device, device, HW_INFO_ARRAY_MAX_SIZE);
 
     form_factor = strtok_r(NULL, "-", &tmp);
     if (form_factor == NULL) {
-        QAL_ERR(LOG_TAG, "%s: called on invalid snd card name", __func__);
+        QAL_ERR(LOG_TAG, "called on invalid snd card name");
         goto err;
     }
     strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
 
-    QAL_ERR(LOG_TAG, "%s: snd_card_name(%s) device(%s) form_factor(%s)",
-               __func__, in_snd_card_name, device, form_factor);
+    QAL_INFO(LOG_TAG, "snd_card_name(%s) device(%s) form_factor(%s)",
+             in_snd_card_name, device, form_factor);
 
 err:
     if (snd_card_name)
@@ -584,7 +587,7 @@ void ResourceManager::loadAdmLib()
     if (access(ADM_LIBRARY_PATH, R_OK) == 0) {
         admLibHdl = dlopen(ADM_LIBRARY_PATH, RTLD_NOW);
         if (admLibHdl == NULL) {
-            QAL_ERR(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
+            QAL_INFO(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
         } else {
             QAL_INFO(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
             admInitFn = (adm_init_t)
@@ -635,7 +638,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
             state = rm->msgQ.front();
             rm->msgQ.pop();
             lock.unlock();
-            QAL_INFO(LOG_TAG, "state %d, prev state %d size %d",
+            QAL_INFO(LOG_TAG, "state %d, prev state %d size %zu",
                                state, prevState, rm->mActiveStreams.size());
             if (state == CARD_STATUS_NONE)
                 break;
@@ -821,7 +824,7 @@ int ResourceManager::init_audio()
     }
     // audio_route init success
 
-    QAL_ERR(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
 }
@@ -839,7 +842,7 @@ int ResourceManager::init()
         QAL_DBG(LOG_TAG, "Speaker instance created");
     }
     else
-        QAL_ERR(LOG_TAG, "Speaker instance not created");
+        QAL_INFO(LOG_TAG, "Speaker instance not created");
 
     return 0;
 }
@@ -988,7 +991,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
     int32_t status = 0;
     struct qal_channel_info dev_ch_info;
 
-    QAL_ERR(LOG_TAG, "deviceattr->id %d", deviceattr->id);
+    QAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
         case QAL_DEVICE_IN_SPEAKER_MIC:
             dev_ch_info.channels = channel;
@@ -1146,7 +1149,6 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             {
             std::shared_ptr<Device> dev = nullptr;
             struct qal_device proxyIn_dattr;
-
             proxyIn_dattr.id = QAL_DEVICE_IN_PROXY;
             dev = Device::getInstance(&proxyIn_dattr, rm);
             if (dev) {
@@ -1501,7 +1503,7 @@ int ResourceManager::registerStream(Stream *s)
         }
         default:
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, " Invalid stream type = %d ret %d", type, ret);
+            QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
             break;
     }
     mActiveStreams.push_back(s);
@@ -1510,7 +1512,7 @@ int ResourceManager::registerStream(Stream *s)
     s->getStreamAttributes(&incomingStreamAttr);
     int incomingPriority = getStreamAttrPriority(incomingStreamAttr);
     if (incomingPriority > mPriorityHighestPriorityActiveStream) {
-        QAL_INFO(LOG_TAG, "%s: Added new stream with highest priority %d", __func__, incomingPriority);
+        QAL_INFO(LOG_TAG, "Added new stream with highest priority %d", incomingPriority);
         mPriorityHighestPriorityActiveStream = incomingPriority;
         mHighestPriorityActiveStream = s;
     }
@@ -1547,7 +1549,7 @@ int ResourceManager::deregisterStream(Stream *s)
     QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
     ret = s->getStreamType(&type);
     if (0 != ret) {
-        QAL_ERR(LOG_TAG, " getStreamType failed with status = %d", ret);
+        QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
         return ret;
     }
 #if 0
@@ -1555,7 +1557,7 @@ int ResourceManager::deregisterStream(Stream *s)
     get priority from remaining streams and find highest priority stream
     and store in mHighestPriorityActiveStream
 #endif
-    QAL_ERR(LOG_TAG, "stream type %d", type);
+    QAL_INFO(LOG_TAG, "stream type %d", type);
     mResourceManagerMutex.lock();
     switch (type) {
         case QAL_STREAM_LOW_LATENCY:
@@ -1694,7 +1696,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
@@ -1761,7 +1763,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
@@ -2794,7 +2796,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
 
     if (activestreams.empty()) {
         ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
+        QAL_INFO(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
     }
 
     return ret;
@@ -2902,7 +2904,7 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 {
     int pcm_device_id = -1;
     if (!isValidDevId(deviceId)) {
-        QAL_ERR(LOG_TAG, " Invalid device id %d", deviceId);
+        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
 
@@ -3018,7 +3020,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmRecordFrontEnds.size());
                         goto error;
                     }
@@ -3034,7 +3036,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     break;
                 case QAL_AUDIO_OUTPUT:
                     if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
                         goto error;
                     }
@@ -3051,7 +3053,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                 case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
                     if (lDirection == RXLOOPBACK) {
                         if ( howMany > listAllPcmLoopbackRxFrontEnds.size()) {
-                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmLoopbackRxFrontEnds.size());
                             goto error;
                         }
@@ -3066,7 +3068,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                         }
                     } else {
                         if ( howMany > listAllPcmLoopbackTxFrontEnds.size()) {
-                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmLoopbackTxFrontEnds.size());
                             goto error;
                         }
@@ -3090,7 +3092,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             switch (sAttr.direction) {
                 case QAL_AUDIO_INPUT:
                     if ( howMany > listAllCompressRecordFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressRecordFrontEnds.size());
                         goto error;
                     }
@@ -3106,7 +3108,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     break;
                 case QAL_AUDIO_OUTPUT:
                     if ( howMany > listAllCompressPlaybackFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressPlaybackFrontEnds.size());
                         goto error;
                     }
@@ -3159,7 +3161,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             break;
         case QAL_STREAM_VOICE_CALL_RECORD:
             if ( howMany > listAllPcmInCallRecordFrontEnds.size()) {
-                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallRecordFrontEnds.size());
                     goto error;
                 }
@@ -3175,7 +3177,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             break;
         case QAL_STREAM_VOICE_CALL_MUSIC:
             if ( howMany > listAllPcmInCallMusicFrontEnds.size()) {
-                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %d error",
+                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallMusicFrontEnds.size());
                     goto error;
                 }
@@ -3205,7 +3207,7 @@ const std::vector<int> ResourceManager::allocateVoiceFrontEndIds(std::vector<int
     int id = 0;
     std::vector<int>::iterator it;
     if ( howMany > listAllPcmVoiceFrontEnds.size()) {
-        QAL_ERR(LOG_TAG, "allocate voice FrontEndIds: requested for %d front ends, have only %d error",
+        QAL_ERR(LOG_TAG, "allocate voice FrontEndIds: requested for %d front ends, have only %zu error",
                 howMany, listAllPcmVoiceFrontEnds.size());
         return f;
     }
@@ -3343,7 +3345,7 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
             dev = Device::getObject((qal_device_id_t) i);
             if(dev) {
                 getActiveStream_l(dev, activeStreams);
-                QAL_DBG(LOG_TAG, "got dev %d active streams on dev is %d", i, activeStreams.size() );
+                QAL_DBG(LOG_TAG, "got dev %d active streams on dev is %zu", i, activeStreams.size() );
                 for (int j=0; j < activeStreams.size(); j++) {
                     activeStreamsDevices.push_back({activeStreams[j], i});
                     QAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
@@ -3406,9 +3408,9 @@ void ResourceManager::getBackEndNames(
     }
 
     for (int i = 0; i < rxBackEndNames.size(); i++)
-        QAL_ERR(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
+        QAL_DBG(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
     for (int i = 0; i < txBackEndNames.size(); i++)
-        QAL_ERR(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
+        QAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
 }
 #if 0
 const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
@@ -3691,7 +3693,7 @@ done:
 
 const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
 {
-    QAL_DBG(LOG_TAG, "%s: id %d", __func__, id);
+    QAL_DBG(LOG_TAG, "id %d", id);
     if (isValidDevId(id)) {
         return deviceNameLUT.at(id);
     } else {
@@ -3826,7 +3828,7 @@ int ResourceManager::setNativeAudioSupport(int na_mode)
         || NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == na_mode) {
         na_props.rm_na_prop_enabled = na_props.ui_na_prop_enabled = true;
         na_props.na_mode = na_mode;
-        QAL_ERR(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
+        QAL_DBG(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
               ((na_mode == NATIVE_AUDIO_MODE_SRC)?"SRC":
                (na_mode == NATIVE_AUDIO_MODE_TRUE_44_1)?"True":
                (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC)?"Multiple_Mix_Codec":"Multiple_Mix_DSP"));
@@ -3875,7 +3877,7 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
         goto done;
     }
 
-    QAL_ERR(LOG_TAG," enter: %s", kv_pairs);
+    QAL_DBG(LOG_TAG," enter: %s", kv_pairs);
 
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
@@ -3885,10 +3887,32 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
         goto done;
     }
     ret = setNativeAudioParams(parms, value, len);
+
+    ret = setLoggingLevelParams(parms, value, len);
 done:
     QAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
     if(value != NULL)
         free(value);
+    return ret;
+}
+
+int ResourceManager::setLoggingLevelParams(struct str_parms *parms,
+                                          char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_LOG_LEVEL,
+                                value, len);
+    if (ret >= 0) {
+        qal_log_lvl = std::stoi(value,0,16);
+        QAL_INFO(LOG_TAG, "qal logging level is set to 0x%x",
+                 qal_log_lvl);
+        ret = 0;
+
+    }
     return ret;
 }
 
@@ -4043,7 +4067,7 @@ int32_t ResourceManager::a2dpSuspend()
             if (!((*sIter)->a2dp_compress_mute)) {
                 struct qal_device speakerDattr;
 
-                QAL_DBG(LOG_TAG, "%s: selecting speaker and muting stream", __func__);
+                QAL_DBG(LOG_TAG, "selecting speaker and muting stream");
                 (*sIter)->pause(); // compress_pause
                 (*sIter)->setMute(true); // mute the stream, unmute during a2dp_resume
                 (*sIter)->a2dp_compress_mute = true;
@@ -4106,7 +4130,7 @@ int32_t ResourceManager::a2dpResume()
 
         status = (*sIter)->getStreamAttributes(&sAttr);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
             goto exit;
         }
         if (sAttr.type == QAL_STREAM_COMPRESSED &&
@@ -4114,7 +4138,7 @@ int32_t ResourceManager::a2dpResume()
             struct qal_device a2dpDattr;
 
             a2dpDattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
-            QAL_DBG(LOG_TAG, "%s: restoring A2dp and unmuting stream", __func__);
+            QAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
 
             getDeviceInfo(a2dpDattr.id, sAttr.type, &devinfo);
             if ((devinfo.channels == 0) ||
@@ -4144,7 +4168,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
         case QAL_PARAM_ID_UIEFFECT:
@@ -4229,7 +4253,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
         case QAL_PARAM_ID_UIEFFECT:
@@ -4261,7 +4285,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "%s param_id=%d", __func__, param_id);
+    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
@@ -4272,7 +4296,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             if (payload_size == sizeof(qal_param_screen_state_t)) {
                 status = handleScreenStatusChange(*param_screen_st);
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
                         sizeof(qal_param_screen_state_t), payload_size);
                 status = -EINVAL;
             }
@@ -4286,7 +4310,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             if (payload_size == sizeof(qal_param_device_rotation_t)) {
                 status = handleDeviceRotationChange(*param_device_rot);
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
                         sizeof(qal_param_device_rotation_t), payload_size);
                 status = -EINVAL;
             }
@@ -4335,7 +4359,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     break;
                 }
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
                         sizeof(qal_param_device_rotation_t), payload_size);
                 status = -EINVAL;
             }
@@ -4366,7 +4390,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     }
                 }
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%d), received(%d)",
+                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
                       sizeof(qal_param_device_connection_t), payload_size);
                 status = -EINVAL;
             }
@@ -4417,7 +4441,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     }
                 } else {
                     QAL_ERR(LOG_TAG,
-                            "Incorrect size : expected (%d), received(%d)",
+                            "Incorrect size : expected (%zu), received(%zu)",
                             sizeof(qal_param_charging_state), payload_size);
                     status = -EINVAL;
                 }
@@ -4516,8 +4540,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
             a2dp_dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (!isDeviceAvailable(a2dp_dattr.id)) {
-                QAL_ERR(LOG_TAG, "%s device %d is inactive, set param %d failed\n",
-                                  __func__, a2dp_dattr.id,  param_id);
+                QAL_ERR(LOG_TAG, "device %d is inactive, set param %d failed\n",
+                                  a2dp_dattr.id,  param_id);
                 status = -EIO;
                 goto exit;
             }
@@ -4624,7 +4648,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "%s xsang param_id=%d", __func__, param_id);
+    QAL_INFO(LOG_TAG, "xsang param_id=%d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
@@ -4639,8 +4663,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (match) {
                     status = (*sIter)->setParameters(param_id, param_payload);
                     if (status) {
-                        QAL_ERR(LOG_TAG, "%s: failed to set param for qal_device_id=%x stream_type=%x",
-                                    __func__, qal_device_id, qal_stream_type);
+                        QAL_ERR(LOG_TAG, "failed to set param for qal_device_id=%x stream_type=%x",
+                                qal_device_id, qal_stream_type);
                     }
                 }
             }
@@ -4666,7 +4690,7 @@ int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_st
         }
         else {
             /* have appropriate streams transition out of LPI */
-            QAL_ERR(LOG_TAG, "Screen State printout");
+            QAL_VERBOSE(LOG_TAG, "Screen State printout");
         }
         screen_state_ = screen_state.screen_state;
         /* update
@@ -4782,7 +4806,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
     std::shared_ptr<Device> dev = nullptr;
     struct qal_device_info devinfo = {};
 
-    QAL_DBG(LOG_TAG, "%s Enter", __func__);
+    QAL_DBG(LOG_TAG, "Enter");
     memset(&conn_device, 0, sizeof(struct qal_device));
     if (is_connected && !device_available) {
         if (isPluginDevice(device_id)) {
@@ -4866,7 +4890,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
                 is_connected, device_available);
     }
 
-    QAL_DBG(LOG_TAG, "%s Exit, status %d", __func__, status);
+    QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -4879,7 +4903,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     status = str->getStreamAttributes(&StrAttr);
 
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
@@ -4890,7 +4914,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             streamConfigModifierKV = str->getStreamModifiers();
 
             if (streamConfigModifierKV.size() == 0) {
-                QAL_DBG(LOG_TAG, "%s: no streamConfigModifierKV");
+                QAL_DBG(LOG_TAG, "no streamConfigModifierKV");
                 break;
             }
 
@@ -4936,7 +4960,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
     status = str->getStreamAttributes(&StrAttr);
 
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
@@ -4944,12 +4968,12 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
 
     switch (StrAttr.type) {
         case QAL_STREAM_VOICE_UI:
-            QAL_DBG(LOG_TAG,"STInstancesLists.size (%d)", STInstancesLists.size());
+            QAL_DBG(LOG_TAG,"STInstancesLists.size (%zu)", STInstancesLists.size());
 
             streamConfigModifierKV = str->getStreamModifiers();
 
             if (streamConfigModifierKV.size() == 0) {
-                QAL_DBG(LOG_TAG, "%s: no streamConfigModifierKV");
+                QAL_DBG(LOG_TAG, "no streamConfigModifierKV");
                 break;
             }
 
@@ -5158,7 +5182,7 @@ void ResourceManager::processConfigParams(const XML_Char **attr)
         QAL_ERR(LOG_TAG,"'value' not found");
         goto done;
     }
-    QAL_VERBOSE(LOG_TAG, " String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
+    QAL_VERBOSE(LOG_TAG, "String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
     configParamKVPairs = str_parms_create();
     str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
     setConfigParams(configParamKVPairs);

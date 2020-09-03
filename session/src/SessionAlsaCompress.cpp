@@ -277,7 +277,7 @@ int SessionAlsaCompress::open(Stream * s)
     }
     for (int i = 0; i < compressDevIds.size(); i++) {
         //compressDevIds[i] = 5;
-        QAL_DBG(LOG_TAG, "devid size %d, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
+        QAL_DBG(LOG_TAG, "devid size %zu, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, emptyBackEnds);
     status = rm->getAudioMixer(&mixer);
@@ -463,13 +463,13 @@ int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_qal
             break;
         }
         default:
-            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            QAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
             goto exit;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     if (tagConfig) {
         free(tagConfig);
         tagConfig = nullptr;
@@ -561,7 +561,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
         case MODULE:
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: Failed to set the tag configuration\n", __func__);
+                QAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
                 goto exit;
             }
 
@@ -605,7 +605,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
         case CALIBRATION:
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: Failed to set the calibration data\n", __func__);
+                QAL_ERR(LOG_TAG,"Failed to set the calibration data\n");
                 goto exit;
             }
             if (ckv.size() == 0) {
@@ -640,13 +640,13 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             ckv.clear();
             break;
         default:
-            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            QAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
             break;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 /*
@@ -696,7 +696,7 @@ int SessionAlsaCompress::start(Stream * s)
         case QAL_AUDIO_OUTPUT:
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
                 return status;
             }
             rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
@@ -717,7 +717,7 @@ int SessionAlsaCompress::start(Stream * s)
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAttributes(&dAttr);
                 if(0 != status) {
-                    QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                    QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
                     return status;
                 }
 
@@ -751,7 +751,7 @@ int SessionAlsaCompress::start(Stream * s)
                     status = updateCustomPayload(payload, payloadSize);
                     delete payload;
                     if(0 != status) {
-                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         return status;
                     }
                 }
@@ -899,16 +899,16 @@ int SessionAlsaCompress::write(Stream *s __unused, int tag __unused, struct qal_
     int status;
     bool non_blocking = (!!ioMode);
     if (!buf || !(buf->buffer) || !(buf->size)) {
-        QAL_VERBOSE(LOG_TAG, "%s: buf: %pK, size: %d",
-            __func__, buf, (buf ? buf->size : 0));
+        QAL_VERBOSE(LOG_TAG, "buf: %pK, size: %zu",
+                    buf, (buf ? buf->size : 0));
         return -EINVAL;
     }
     if (!compress) {
         QAL_ERR(LOG_TAG, "NULL pointer access,compress is invalid");
         return -EINVAL;
     }
-    QAL_DBG(LOG_TAG, "%s: buf->size is %d buf->buffer is %pK ",
-            __func__, buf->size, buf->buffer);
+    QAL_DBG(LOG_TAG, "buf->size is %zu buf->buffer is %pK ",
+            buf->size, buf->buffer);
 
     bytes_written = compress_write(compress, buf->buffer, buf->size);
 

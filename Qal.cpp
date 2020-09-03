@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL:"
+#define LOG_TAG "QAL: API"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -56,7 +56,7 @@ static void notify_concurrent_stream(qal_stream_type_t type,
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     if (!rm) {
-        QAL_ERR(LOG_TAG, "%s: Resource manager unavailable", __func__);
+        QAL_ERR(LOG_TAG,"Resource manager unavailable");
         return;
     }
 
@@ -75,7 +75,7 @@ static void notify_concurrent_stream(qal_stream_type_t type,
  */
 int32_t qal_init(void)
 {
-    QAL_INFO(LOG_TAG, "Enter.");
+    QAL_DBG(LOG_TAG, "Enter.");
     int32_t ret = 0;
     std::shared_ptr<ResourceManager> ri = NULL;
     try {
@@ -92,7 +92,7 @@ int32_t qal_init(void)
 
     ri->init();
 
-    QAL_INFO(LOG_TAG, "Exit. ret : %d ", ret);
+    QAL_DBG(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }
 
@@ -155,7 +155,7 @@ int32_t qal_stream_open(struct qal_stream_attributes *attributes,
        s->registerCallBack(cb, cookie);
     stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
-    QAL_DBG(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
+    QAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
 }
 
@@ -169,7 +169,7 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s = reinterpret_cast<Stream *>(stream_handle);
 
     status = s->close();
@@ -179,7 +179,7 @@ int32_t qal_stream_close(qal_stream_handle_t *stream_handle)
     }
 
     delete s;
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -222,7 +222,7 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
@@ -236,7 +236,7 @@ int32_t qal_stream_stop(qal_stream_handle_t *stream_handle)
 
     notify_concurrent_stream(type, dir, false);
 
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -269,14 +269,14 @@ ssize_t qal_stream_read(qal_stream_handle_t *stream_handle, struct qal_buffer *b
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->read(buf);
     if (status < 0) {
         QAL_ERR(LOG_TAG, "stream read failed status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -290,14 +290,14 @@ int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
         QAL_ERR(LOG_TAG,  "Invalid input parameters status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getParameters(param_id, (void **)param_payload);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "get parameters failed status %d param_id %u", status, param_id);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -311,14 +311,14 @@ int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle, uint32_t param_
         QAL_ERR(LOG_TAG,  "Invalid stream handle, status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setParameters(param_id, (void *)param_payload);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -332,14 +332,14 @@ int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle,
         QAL_ERR(LOG_TAG,"Invalid input parameters status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setVolume(volume);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "setVolume failed with status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -352,14 +352,14 @@ int32_t qal_stream_set_mute(qal_stream_handle_t *stream_handle, bool state)
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setMute(state);
     if (0 != status) {
         QAL_ERR(LOG_TAG, "setMute failed with status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -372,14 +372,14 @@ int32_t qal_stream_pause(qal_stream_handle_t *stream_handle)
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setPause();
     if (0 != status) {
         QAL_ERR(LOG_TAG, "qal_stream_pause failed with status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -390,7 +390,7 @@ int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
 
     if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        QAL_DBG(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
 
@@ -403,7 +403,7 @@ int32_t qal_stream_resume(qal_stream_handle_t *stream_handle)
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -418,7 +418,7 @@ int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t ty
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->drain(type);
@@ -427,7 +427,7 @@ int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t ty
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -442,7 +442,7 @@ int32_t qal_stream_flush(qal_stream_handle_t *stream_handle)
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->flush();
@@ -451,7 +451,7 @@ int32_t qal_stream_flush(qal_stream_handle_t *stream_handle)
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -487,7 +487,7 @@ int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle,
         QAL_ERR(LOG_TAG, "Invalid input parameters status %d\n", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK\n", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK\n", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getTimestamp(stime);
     if (0 != status) {
@@ -497,7 +497,7 @@ int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle,
     QAL_VERBOSE(LOG_TAG, "stime->session_time.value_lsw = %u, stime->session_time.value_msw = %u \n", stime->session_time.value_lsw, stime->session_time.value_msw);
     QAL_VERBOSE(LOG_TAG, "stime->absolute_time.value_lsw = %u, stime->absolute_time.value_msw = %u \n", stime->absolute_time.value_lsw, stime->absolute_time.value_msw);
     QAL_VERBOSE(LOG_TAG, "stime->timestamp.value_lsw = %u, stime->timestamp.value_msw = %u \n", stime->timestamp.value_lsw, stime->timestamp.value_msw);
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -513,7 +513,7 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle,
         QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    QAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
 
     status = s->getStreamType(&type);
     if (0 != status) {
@@ -528,7 +528,7 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle,
             return status;
         }
     }
-    QAL_INFO(LOG_TAG, "Exit. status %d", status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 
 }
@@ -543,19 +543,21 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 
     if (!stream_handle) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid stream handle status %d", __func__, status);
+        QAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
 
+    QAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+
     if (!devices) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "%s: Invalid device status %d", __func__, status);
+        QAL_ERR(LOG_TAG, "Invalid device status %d", status);
         return status;
     }
 
     rm = ResourceManager::getInstance();
     if (!rm) {
-        QAL_ERR(LOG_TAG, "%s: Invalid resource manager", __func__);
+        QAL_ERR(LOG_TAG, "Invalid resource manager");
         return status;
     }
 
@@ -567,7 +569,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     // device switch will be handled in global param setting for SVA
     if (sattr.type == QAL_STREAM_VOICE_UI) {
         QAL_DBG(LOG_TAG,
-            "Device switch handles in global param set, skip here");
+                "Device switch handles in global param set, skip here");
         return status;
     }
 
@@ -585,16 +587,16 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
     }
     // TODO: Check with RM if the same device is being used by other stream with different
     // configuration then update corresponding stream device configuration also based on priority.
-    QAL_ERR(LOG_TAG, "%s: Stream handle :%pK no_of_devices %d first_device id %d", __func__,
+    QAL_DBG(LOG_TAG, "Stream handle :%pK no_of_devices %d first_device id %d",
             stream_handle, no_of_devices, devices[0].id);
 
     status = s->switchDevice(s, no_of_devices, devices);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "%s: failed with status %d", __func__, status);
+        QAL_ERR(LOG_TAG, "failed with status %d", status);
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "%s: Exit. status %d", __func__, status);
+    QAL_DBG(LOG_TAG, "Exit. status %d", status);
 
     return status;
 }
@@ -602,7 +604,7 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
 int32_t qal_set_param(uint32_t param_id, void *param_payload,
                       size_t payload_size)
 {
-    QAL_DBG(LOG_TAG, "%s: Enter:", __func__);
+    QAL_DBG(LOG_TAG, "Enter:");
     int status = 0;
     std::shared_ptr<ResourceManager> rm = NULL;
 
@@ -615,11 +617,11 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload,
                     param_id, status);
         }
     } else {
-        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        QAL_ERR(LOG_TAG, "Qal has not been initialized yet");
         status = -EINVAL;
     }
-    QAL_DBG(LOG_TAG, "%s: Exit:", __func__);
-  return status;
+    QAL_DBG(LOG_TAG, "Exit:");
+    return status;
 }
 
 int32_t qal_get_param(uint32_t param_id, void **param_payload,
@@ -630,6 +632,8 @@ int32_t qal_get_param(uint32_t param_id, void **param_payload,
 
     rm = ResourceManager::getInstance();
 
+    QAL_DBG(LOG_TAG, "Enter:");
+
     if (rm) {
         status = rm->getParameter(param_id, param_payload, payload_size, query);
         if (0 != status) {
@@ -637,10 +641,10 @@ int32_t qal_get_param(uint32_t param_id, void **param_payload,
                     param_id, status);
         }
     } else {
-        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        QAL_ERR(LOG_TAG, "Qal has not been initialized yet");
         status = -EINVAL;
     }
-
+    QAL_DBG(LOG_TAG, "Exit: %d", status);
     return status;
 }
 
@@ -710,6 +714,8 @@ int32_t qal_gef_rw_param(uint32_t param_id, void *param_payload,
 
     rm = ResourceManager::getInstance();
 
+    QAL_DBG(LOG_TAG, "Enter.");
+
     if (rm) {
         if (GEF_PARAM_WRITE == dir) {
             status = rm->setParameter(param_id, param_payload, payload_size,
@@ -727,10 +733,10 @@ int32_t qal_gef_rw_param(uint32_t param_id, void *param_payload,
             }
         }
     } else {
-        QAL_ERR(LOG_TAG, "%s: Qal has not been initialized yet", __func__);
+        QAL_ERR(LOG_TAG, "Qal has not been initialized yet");
         status = -EINVAL;
     }
-    QAL_DBG(LOG_TAG, "%s: Exit:", __func__);
+    QAL_DBG(LOG_TAG, "Exit:");
 
     return status;
 }

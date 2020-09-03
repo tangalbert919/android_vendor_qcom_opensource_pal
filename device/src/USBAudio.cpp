@@ -110,7 +110,7 @@ int USB::configureUsb()
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "%s: no active stream available", __func__);
+        QAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
@@ -134,7 +134,7 @@ int USB::configureUsb()
         status = updateCustomPayload(payload, payloadSize);
         delete payload;
         if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
         return status;
         }
     }
@@ -144,7 +144,7 @@ int USB::configureUsb()
 int32_t USB::isSampleRateSupported(unsigned int sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, sampleRate);
+    QAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -395,10 +395,10 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     while (str_start != NULL) {
         str_start = strstr(str_start, "Altset");
         if ((str_start == NULL) || (check  && (str_start >= str_end))) {
-            QAL_VERBOSE("done parsing %s\n", str_start);
+            QAL_VERBOSE(LOG_TAG,"done parsing %s\n", str_start);
             break;
         }
-        QAL_VERBOSE("remaining string %s\n", str_start);
+        QAL_VERBOSE(LOG_TAG,"remaining string %s\n", str_start);
         str_start += sizeof("Altset");
         std::shared_ptr<USBDeviceConfig> usb_device_info(new USBDeviceConfig());
         if (!usb_device_info) {
@@ -844,7 +844,7 @@ int USBDeviceConfig::getServiceInterval(const char *interval_str_start)
     } else if (!strcmp(time_unit, "s")) {
         multiplier = 1000000;
     } else {
-        QAL_ERR(LOG_TAG, "unknown time_unit %s, assume default", __func__, time_unit);
+        QAL_ERR(LOG_TAG, "unknown time_unit %s, assume default", time_unit);
         interval = DEFAULT_SERVICE_INTERVAL_US;
         multiplier = 1;
     }

@@ -27,14 +27,37 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ar_osal_types.h"
-#include "ar_osal_log.h"
 #include "ar_osal_mem_op.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#ifdef FEATURE_IPQ_OPENWRT
+#include <audio_utils/log.h>
+#else
+#include <log/log.h>
+#endif
 
-#define QAL_ERR(...)  AR_LOG_ERR(__VA_ARGS__)
-#define QAL_DBG(...)  AR_LOG_DEBUG(__VA_ARGS__)
-#define QAL_INFO(...) AR_LOG_INFO(__VA_ARGS__)
-#define QAL_VERBOSE(...) AR_LOG_VERBOSE(__VA_ARGS__)
+#define QAL_LOG_ERR             (0x1) /**< error message, represents code bugs that should be debugged and fixed.*/
+#define QAL_LOG_INFO            (0x2) /**< info message, additional info to support debug */
+#define QAL_LOG_DBG             (0x4) /**< debug message, required at minimum for debug.*/
+#define QAL_LOG_VERBOSE         (0x8)/**< verbose message, useful primarily to help developers debug low-level code */
+
+extern uint32_t qal_log_lvl;
+
+
+#define QAL_ERR(log_tag, arg,...)                                          \
+    if (qal_log_lvl & QAL_LOG_ERR) {                              \
+        ALOGE("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
+    }
+#define QAL_DBG(log_tag,arg,...)                                           \
+    if (qal_log_lvl & QAL_LOG_DBG) {                               \
+        ALOGD("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__); \
+    }
+#define QAL_INFO(log_tag,arg,...)                                         \
+    if (qal_log_lvl & QAL_LOG_INFO) {                             \
+        ALOGI("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
+    }
+#define QAL_VERBOSE(log_tag,arg,...)                                      \
+    if (qal_log_lvl & QAL_LOG_VERBOSE) {                          \
+        ALOGV("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
+    }

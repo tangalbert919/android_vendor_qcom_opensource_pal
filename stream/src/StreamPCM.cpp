@@ -91,7 +91,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
     attribute_size = sizeof(struct qal_stream_attributes);
     mStreamAttr = (struct qal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
-        QAL_ERR(LOG_TAG, "%s: malloc for stream attributes failed %s", __func__, strerror(errno));
+        QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
@@ -110,7 +110,7 @@ StreamPCM::StreamPCM(const struct qal_stream_attributes *sattr, struct qal_devic
     QAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);
     if (!session) {
-        QAL_ERR(LOG_TAG, "%s: session creation failed", __func__);
+        QAL_ERR(LOG_TAG, "session creation failed");
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
@@ -164,7 +164,7 @@ int32_t  StreamPCM::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %d", session,
+        QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
                 mDevices.size());
         status = session->open(this);
         if (0 != status) {
@@ -209,8 +209,8 @@ int32_t  StreamPCM::close()
         return status;
     }
 
-    QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %d state %d",
-            session, mDevices.size(), currentState);
+    QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
+             session, mDevices.size(), currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         status = stop();
@@ -288,7 +288,7 @@ int32_t StreamPCM::start()
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
             rm->lockGraph();
-            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %d",
+            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %zu",
                             mDevices.size());
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
@@ -336,8 +336,8 @@ int32_t StreamPCM::start()
             break;
 
         case QAL_AUDIO_INPUT:
-            QAL_VERBOSE(LOG_TAG, "%s: Inside QAL_AUDIO_INPUT device count - %d",
-                        __func__, mDevices.size());
+            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_INPUT device count - %zu",
+                        mDevices.size());
 
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
@@ -375,7 +375,7 @@ int32_t StreamPCM::start()
             QAL_VERBOSE(LOG_TAG, "session start successful");
             break;
         case QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT:
-            QAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %d",
+            QAL_VERBOSE(LOG_TAG, "Inside Loopback case device count - %zu",
                         mDevices.size());
             // start output device
             for (int32_t i=0; i < mDevices.size(); i++)
@@ -468,7 +468,7 @@ int32_t StreamPCM::stop()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    QAL_ERR(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+    QAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
@@ -477,7 +477,7 @@ int32_t StreamPCM::stop()
         }
         switch (mStreamAttr->direction) {
         case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %d",
+            QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %zu",
                         mDevices.size());
 
             status = session->stop(this);
@@ -496,7 +496,7 @@ int32_t StreamPCM::stop()
             break;
 
         case QAL_AUDIO_INPUT:
-            QAL_ERR(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %d",
+            QAL_ERR(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %zu",
                         mDevices.size());
 
             for (int32_t i=0; i < mDevices.size(); i++) {
@@ -516,7 +516,7 @@ int32_t StreamPCM::stop()
             break;
 
         case QAL_AUDIO_OUTPUT | QAL_AUDIO_INPUT:
-            QAL_VERBOSE(LOG_TAG, "In LOOPBACK case, device count - %d", mDevices.size());
+            QAL_VERBOSE(LOG_TAG, "In LOOPBACK case, device count - %zu", mDevices.size());
 
             for (int32_t i=0; i < mDevices.size(); i++) {
                 int32_t dev_id = mDevices[i]->getSndDeviceId();
@@ -595,7 +595,7 @@ int32_t  StreamPCM::setStreamAttributes(struct qal_stream_attributes *sattr)
 
     if (!sattr)
     {
-        QAL_ERR(LOG_TAG, "%s: NULL stream attributes sent", __func__);
+        QAL_ERR(LOG_TAG, "NULL stream attributes sent");
         goto exit;
     }
     memset(mStreamAttr, 0, sizeof(struct qal_stream_attributes));
@@ -620,7 +620,7 @@ int32_t  StreamPCM::setVolume(struct qal_volume_data *volume)
     int32_t status = 0;
     QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     if (!volume || volume->no_of_volpair == 0) {
-        QAL_ERR(LOG_TAG, "%s: Error no of vol pair is %d", __func__, (volume->no_of_volpair));
+        QAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
         goto exit;
     }
@@ -673,7 +673,7 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
@@ -725,7 +725,7 @@ int32_t  StreamPCM::read(struct qal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
+    QAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
     QAL_DBG(LOG_TAG, "session read failed status %d", status);
@@ -744,7 +744,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
     uint32_t sampleRate = 0;
     uint32_t channelCount = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     mStreamMutex.lock();
@@ -845,7 +845,7 @@ int32_t StreamPCM::write(struct qal_buffer* buf)
                 goto exit;
             }
          }
-         QAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
+         QAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
          return size;
     } else {
         QAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
@@ -863,7 +863,7 @@ error:
     rm->unlockGraph();
     mStreamMutex.unlock();
 exit :
-    QAL_DBG(LOG_TAG, "session write failed status %d", status);
+    QAL_ERR(LOG_TAG, "session write failed status %d", status);
     return status;
 }
 
@@ -896,7 +896,7 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         goto error;
     }
 
-    QAL_DBG(LOG_TAG, "%s: start, set parameter %u, session handle - %p", __func__, param_id, session);
+    QAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
@@ -1223,7 +1223,7 @@ int32_t StreamPCM::addRemoveEffect(qal_audio_effect_t effect, bool enable)
         } else if (QAL_AUDIO_EFFECT_ECNS == effect) {
             tag = FLUENCE_ON_TAG;
         } else {
-            QAL_ERR(LOG_TAG, "Invalid effect ID %d");
+            QAL_ERR(LOG_TAG, "Invalid effect ID %d", effect);
             status = -EINVAL;
             goto exit;
         }

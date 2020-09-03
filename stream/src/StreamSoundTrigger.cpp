@@ -43,7 +43,7 @@
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS
 #ifdef ST_DBG_LOGS
-#define QAL_DBG(...)  QAL_INFO(__VA_ARGS__)
+#define QAL_DBG(LOG_TAG,...)  QAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
@@ -108,7 +108,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct qal_stream_attributes *sattr,
         std::string err;
         err = "incorrect number of devices expected 1, got " +
             std::to_string(no_of_devices);
-        QAL_ERR(LOG_TAG, err.c_str());
+        QAL_ERR(LOG_TAG, "%s", err.c_str());
         free(mStreamAttr);
         throw std::runtime_error(err);
     }
@@ -713,7 +713,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             QAL_ERR(LOG_TAG, "Invalid phrase sound model params data size=%d, "
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
-                   phrase_sm->num_phrases, status);
+                   phrase_sm->common.type, phrase_sm->num_phrases, status);
             return -EINVAL;
         }
         common_sm = (struct qal_st_sound_model*)&phrase_sm->common;
@@ -953,7 +953,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
             QAL_ERR(LOG_TAG, "Invalid phrase sound model params data size=%d, "
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
-                   phrase_sm->num_phrases, status);
+                   phrase_sm->common.type,phrase_sm->num_phrases, status);
             return -EINVAL;
         }
         common_sm = (struct qal_st_sound_model*)&phrase_sm->common;
@@ -2330,7 +2330,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             StStartRecognitionEventConfigData *data =
                 (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
             if (!st_stream_.rec_config_) {
-                QAL_ERR(LOG_TAG, "Recognition config not set", data->restart_);
+                QAL_ERR(LOG_TAG, "Recognition config not set %d", data->restart_);
                 status = -EINVAL;
                 break;
             }
@@ -3471,8 +3471,7 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                 StStartRecognitionEventConfigData *data =
                     (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
                 if (!st_stream_.rec_config_) {
-                    QAL_ERR(LOG_TAG, "Recognition config not set",
-                        data->restart_);
+                    QAL_ERR(LOG_TAG, "Recognition config not set %d", data->restart_);
                     status = -EINVAL;
                     break;
                 }

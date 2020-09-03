@@ -55,7 +55,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         QAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Enter. %s", __func__);
+    QAL_DBG(LOG_TAG, "Enter.");
     /* get RM instance */
     if (!rm) {
         rm = ResourceManager::getInstance();
@@ -64,7 +64,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
             goto exit;
         }
     }
-    QAL_VERBOSE(LOG_TAG, "get RM instance success and noOfDevices %d \n", noOfDevices);
+    QAL_VERBOSE(LOG_TAG,"get RM instance success and noOfDevices %d \n", noOfDevices);
 
     mQalDevice = new qal_device [noOfDevices];
     if (!mQalDevice) {
@@ -107,6 +107,7 @@ Stream* Stream::create(struct qal_stream_attributes *sAttr, struct qal_device *d
         goto exit;
 
 stream_create:
+    QAL_DBG(LOG_TAG, "stream type 0x%x", sAttr->type);
     if (rm->isStreamSupported(sAttr, mQalDevice, count)) {
         switch (sAttr->type) {
             case QAL_STREAM_LOW_LATENCY:
@@ -153,7 +154,7 @@ exit:
         QAL_ERR(LOG_TAG, "stream creation failed");
     }
 
-    QAL_ERR(LOG_TAG, "stream %pK created", stream);
+    QAL_DBG(LOG_TAG, "stream %pK created", stream);
     return stream;
 }
 
@@ -252,7 +253,7 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
 {
     int32_t status = 0;
 
-    QAL_ERR(LOG_TAG, "no. of devices %d", mDevices.size());
+    QAL_DBG(LOG_TAG, "no. of devices %zu", mDevices.size());
     for (int32_t i=0; i < mDevices.size(); i++) {
         aDevices.push_back(mDevices[i]);
     }
@@ -282,7 +283,7 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
 
     if (!vData) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
+        QAL_INFO(LOG_TAG, "Volume Data not set yet");
         goto exit;
     }
 
@@ -294,7 +295,7 @@ int32_t  Stream::getVolumeData(struct qal_volume_data *vData)
 
         QAL_DBG(LOG_TAG, "num config %x", (mVolumeData->no_of_volpair));
         for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
-            QAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
+            QAL_VERBOSE(LOG_TAG,"Volume payload mask:%x vol:%f",
                 (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
         }
     } else {
@@ -318,12 +319,12 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
     }
 
     if (!in_buf_size)
-        QAL_DBG(LOG_TAG, "%s: In Buffer size %d, In Buffer count %d",
-            __func__, *in_buf_size, in_buf_count);
+        QAL_DBG(LOG_TAG, "In Buffer size %zu, In Buffer count %zu",
+                *in_buf_size, in_buf_count);
 
     if (!out_buf_size)
-        QAL_DBG(LOG_TAG, "%s: Out Buffer size %d and Out Buffer count %d",
-        __func__, *out_buf_size, out_buf_count);
+        QAL_DBG(LOG_TAG, "Out Buffer size %zu and Out Buffer count %zu",
+                *out_buf_size, out_buf_count);
     inBufCount = in_buf_count;
     outBufCount = out_buf_count;
 
@@ -337,7 +338,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         outBufSize = *out_buf_size;
         nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
                       (sattr->out_media_config.ch_info.channels);
-        QAL_ERR(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
+        QAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
@@ -371,7 +372,7 @@ int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
         outBufSize = *out_buf_size;
         nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
                       (sattr->out_media_config.ch_info.channels);
-        QAL_DBG(LOG_TAG, "no of buf %d and send buf %x", outBufCount, outBufSize);
+        QAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
 
         //If the read size is not a multiple of BlockAlign;
         //Make sure we read blockaligned bytes from the file.
@@ -411,12 +412,12 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
         *out_buf_count = outBufCount;
 
     if (!in_buf_size)
-        QAL_DBG(LOG_TAG, "%s: In Buffer size %d, In Buffer count %d",
-        __func__, *in_buf_size, in_buf_count);
+        QAL_DBG(LOG_TAG, "In Buffer size %zu, In Buffer count %zu",
+                *in_buf_size, *in_buf_count);
 
     if (!out_buf_size)
-        QAL_DBG(LOG_TAG, "%s: Out Buffer size %d and Out Buffer count %d",
-        __func__, *out_buf_size, out_buf_count);
+        QAL_DBG(LOG_TAG, "Out Buffer size %zu and Out Buffer count %zu",
+                *out_buf_size, *out_buf_count);
 
     return status;
 }
@@ -489,7 +490,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, qal_device_id_t d
 
     for (int i = 0; i < mDevices.size(); i++) {
         if (dev_id == mDevices[i]->getSndDeviceId()) {
-            QAL_ERR(LOG_TAG, "device %d name %s, going to stop",
+            QAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getQALDeviceName().c_str());
 
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
@@ -552,7 +553,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct qal_device *d
      */
     dev->setDeviceAttributes(*dattr);
 
-    QAL_ERR(LOG_TAG, "device %d name %s, going to start",
+    QAL_DBG(LOG_TAG, "device %d name %s, going to start",
         dev->getSndDeviceId(), dev->getQALDeviceName().c_str());
 
     status = dev->open();
@@ -759,7 +760,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
         a2dp_compress_mute = false;
     }
 
-    QAL_INFO(LOG_TAG, "number of active devices %d, new devices %d", mDevices.size(), connectCount);
+    QAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
 
     /* created stream device connect and disconnect list */
     streamDevDisconnect.clear();
@@ -858,7 +859,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct qal_d
             std::unique(StreamDevConnect.begin(), StreamDevConnect.end()),
             StreamDevConnect.end());
 
-    QAL_DBG(LOG_TAG, "disconnectList size is %d, connectList size is %d",
+    QAL_DBG(LOG_TAG, "disconnectList size is %zu, connectList size is %zu",
             streamDevDisconnect.size(), StreamDevConnect.size());
     for (const auto &elem : streamDevDisconnect)
         QAL_DBG(LOG_TAG, "disconnectList: stream handler 0x%p, device id %d",
@@ -909,7 +910,7 @@ bool Stream::checkStreamMatch(qal_device_id_t qal_device_id,
     for (int i = 0; i < mDevices.size();i++) {
        status = mDevices[i]->getDeviceAttributes(&dAttr);
        if (0 != status) {
-          QAL_ERR(LOG_TAG,"%s: getDeviceAttributes Failed \n", __func__);
+          QAL_ERR(LOG_TAG,"getDeviceAttributes Failed \n");
           return false;
        }
        if (qal_device_id == dAttr.id || qal_device_id == QAL_DEVICE_NONE) {

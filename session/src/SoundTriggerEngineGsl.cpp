@@ -44,7 +44,7 @@
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS
 #ifdef ST_DBG_LOGS
-#define QAL_DBG(...)  QAL_INFO(__VA_ARGS__)
+#define QAL_DBG(LOG_TAG,...)  QAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
 // TODO: Move to sound trigger xml files
@@ -144,7 +144,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     ftrt_size = UsToBytes(detection_event_info_.ftrt_data_length_in_us);
     ATRACE_BEGIN("stEngine: read FTRT data");
     while (!exit_buffering_) {
-        QAL_VERBOSE(LOG_TAG, "request read %u from gsl", buf.size);
+        QAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
         if (buffer_->getFreeSize() >= buf.size) {
             ATRACE_BEGIN("stEngine: lab read");
@@ -159,13 +159,13 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
             if (status) {
                 break;
             }
-            QAL_INFO(LOG_TAG, "requested %u, read %d", buf.size, size);
+            QAL_INFO(LOG_TAG, "requested %zu, read %d", buf.size, size);
             total_read_size += size;
         }
         // write data to ring buffer
         if (size) {
             size_t ret = buffer_->write(buf.buffer, size);
-            QAL_INFO(LOG_TAG, "%u written to ring buffer", ret);
+            QAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
 
             if (!timestamp_recorded) {
                 timestamp = ((uint64_t)buf.ts->tv_sec * 1000000000 +

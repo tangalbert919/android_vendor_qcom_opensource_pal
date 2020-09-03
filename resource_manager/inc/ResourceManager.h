@@ -54,6 +54,7 @@
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
+#define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
 #define MAX_PCM_NAME_SIZE 50
 #if LINUX_ENABLED
 #if defined(__LP64__)
@@ -485,6 +486,7 @@ public:
     static void getNativeAudioParams(struct str_parms *query,struct str_parms *reply,char *value, int len);
     static int setConfigParams(struct str_parms *parms);
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
+    static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);
     static bool isOutputDevId(int deviceId);

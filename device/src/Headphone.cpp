@@ -60,7 +60,7 @@ QAL_ERR(LOG_TAG, "dtor called");
 int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, sampleRate);
+    QAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -116,7 +116,7 @@ int32_t Headphone::isBitWidthSupported(uint32_t bitWidth)
 int32_t Headphone::checkAndUpdateBitWidth(uint32_t *bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    QAL_DBG(LOG_TAG, "bitWidth %u", *bitWidth);
     switch (*bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -146,7 +146,7 @@ int32_t Headphone::checkAndUpdateSampleRate(uint32_t *sampleRate)
     else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate <= SAMPLINGRATE_384K)
         *sampleRate = SAMPLINGRATE_384K;
 
-    QAL_DBG(LOG_TAG, "%s: sampleRate %d", __func__, *sampleRate);
+    QAL_DBG(LOG_TAG, "sampleRate %d", *sampleRate);
 
     return rc;
 }

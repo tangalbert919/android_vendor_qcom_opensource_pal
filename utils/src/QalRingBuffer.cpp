@@ -65,7 +65,7 @@ void QalRingBuffer::updateUnReadSize(size_t writtenSize)
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++) {
         if ((*(it))->state_ == READER_ENABLED) {
             (*(it))->unreadSize_ += writtenSize;
-            QAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%d)", i, (*(it))->unreadSize_);
+            QAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%zu)", i, (*(it))->unreadSize_);
         }
     }
 }
@@ -86,7 +86,7 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
     int32_t i = 0;
     size_t sizeToCopy = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. freeSize(%d), writeOffset(%d)", freeSize, writeOffset_);
+    QAL_DBG(LOG_TAG, "Enter. freeSize(%zu), writeOffset(%zu)", freeSize, writeOffset_);
 
     if (writeSize <= freeSize)
         sizeToCopy = writeSize;
@@ -114,7 +114,7 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
     }
     updateUnReadSize(writtenSize);
     writeOffset_ = writeOffset_ % bufferEnd_;
-    QAL_DBG(LOG_TAG, "Exit. writeOffset(%d)", writeOffset_);
+    QAL_DBG(LOG_TAG, "Exit. writeOffset(%zu)", writeOffset_);
     mutex_.unlock();
     return writtenSize;
 }
@@ -233,7 +233,7 @@ void QalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
 
 size_t QalRingBufferReader::getUnreadSize()
 {
-    QAL_DBG(LOG_TAG, "unread size %u", unreadSize_);
+    QAL_DBG(LOG_TAG, "unread size %zu", unreadSize_);
     return unreadSize_;
 }
 

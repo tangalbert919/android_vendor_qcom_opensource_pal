@@ -75,7 +75,7 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
         device = pcmDevRxIds.at(0);
         break;
     default:
-        QAL_ERR(LOG_TAG, "Unsupported tag info %x",tagId);
+        QAL_INFO(LOG_TAG, "Unsupported tag info %x",tagId);
         return -EINVAL;
     }
 
@@ -102,19 +102,18 @@ int SessionAlsaVoice::open(Stream * s)
 
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getStreamAttributes Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         goto exit;
     }
 
     if (sAttr.direction != (QAL_AUDIO_INPUT|QAL_AUDIO_OUTPUT)) {
-        QAL_ERR(LOG_TAG,"%s: Voice session dir must be input and output  \n"
-        , __func__);
+        QAL_ERR(LOG_TAG,"Voice session dir must be input and output");
         goto exit;
     }
 
@@ -156,21 +155,21 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
         pcmId = pcmDevRxIds.at(0);
         status = populate_rx_mfc_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: populating vsid payload for RX Failed:%d \n", __func__);
+            QAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
 
         // populate_vsid_payload, appends to the existing payload
         status = populate_vsid_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: populating vsid payload for RX Failed:%d \n", __func__, status);
+            QAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
     } else {
         pcmId = pcmDevTxIds.at(0);
         status = populate_vsid_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"%s: populating vsid payload for TX Failed:%d \n", __func__, status);
+            QAL_ERR(LOG_TAG,"populating vsid payload for TX Failed:%d", status);
             goto exit;
         }
     }
@@ -178,8 +177,8 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmId,
                                                  payload, payloadSize);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"%s: setMixerParameter failed:%d for dir:%s",
-                __func__, status, (dir == RXDIR)?"RX":"TX");
+        QAL_ERR(LOG_TAG,"setMixerParameter failed:%d for dir:%s",
+                status, (dir == RXDIR)?"RX":"TX");
         goto exit;
     }
 
@@ -242,7 +241,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
 
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         return status;
     }
 
@@ -381,7 +380,7 @@ int SessionAlsaVoice::start(Stream * s)
     } else {
         status = setSidetone(txDevId,s,1);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: enabling sidetone failed \n", __func__);
+            QAL_ERR(LOG_TAG,"enabling sidetone failed \n");
         }
     }
 
@@ -429,7 +428,7 @@ int SessionAlsaVoice::stop(Stream * s __unused)
     } else {
         status = setSidetone(txDevId,s,0);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: disabling sidetone failed \n", __func__);
+            QAL_ERR(LOG_TAG,"disabling sidetone failed");
         }
     }
     if (pcmRx) {
@@ -540,24 +539,24 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"%s: Failed unsupported tag type %d \n", __func__,
+            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d \n",
                     static_cast<uint32_t>(tagId));
             status = -EINVAL;
             break;
     }
 
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
+        QAL_ERR(LOG_TAG,"Failed to set config data");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+    QAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 
 }
@@ -594,22 +593,22 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"%s: Failed unsupported tag type %d \n", __func__, static_cast<uint32_t>(tag));
+            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
             status = -EINVAL;
             break;
     }
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
+        QAL_ERR(LOG_TAG,"Failed to set config data");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+    QAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -650,22 +649,22 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"%s: Failed unsupported tag type %d \n", __func__, static_cast<uint32_t>(tag));
+            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
             status = -EINVAL;
             break;
     }
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"%s: Failed to set config data\n", __func__);
+        QAL_ERR(LOG_TAG,"Failed to set config data\n");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%x - payload and %d size", paramData , paramSize);
+    QAL_VERBOSE(LOG_TAG, "%x - payload and %zu size", *paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -684,7 +683,7 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             tkv.clear();
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"%s: Failed to set the tag configuration\n", __func__);
+                QAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
                 goto exit;
             }
 
@@ -725,12 +724,12 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             }
             break;
         default:
-            QAL_ERR(LOG_TAG,"%s: invalid type ", __func__);
+            QAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"%s: exit status:%d ", __func__, status);
+    QAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -790,11 +789,11 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     }
     status = s->getVolumeData(voldata);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getVolumeData Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getVolumeData Failed");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG,"%s: volume sent:%f \n",__func__, (voldata->volume_pair[0].vol));
+    QAL_VERBOSE(LOG_TAG,"volume sent:%f", (voldata->volume_pair[0].vol));
     volume = (voldata->volume_pair[0].vol);
 
     payloadSize = sizeof(apm_module_param_data_t) +
@@ -846,7 +845,7 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_VERBOSE(LOG_TAG, "payload %u size %d", *payload, *size);
+    QAL_VERBOSE(LOG_TAG, "payload %pK size %zu", *payload, *size);
 
 exit:
     if (voldata) {
@@ -936,7 +935,7 @@ int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
                 set = true;
                 break;
             default:
-                QAL_DBG(LOG_TAG,"%s: codec sidetone not supported on device %d",__func__,associatedDevices[i]->getSndDeviceId());
+                QAL_DBG(LOG_TAG,"codec sidetone not supported on device %d",associatedDevices[i]->getSndDeviceId());
                 break;
 
         }
@@ -967,7 +966,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
                                                             dAttr, pcmDevRxIds,
                                                             rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on RX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"disconnectSessionDevice on RX Failed \n");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
@@ -978,7 +977,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
         } else {
             status = setSidetone(txDevId,streamHandle,0);
             if(0 != status) {
-                QAL_ERR(LOG_TAG,"%s: disabling sidetone failed \n", __func__);
+                QAL_ERR(LOG_TAG,"disabling sidetone failed");
             }
         }
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
@@ -986,7 +985,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
                                                             dAttr, pcmDevTxIds,
                                                             txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: disconnectSessionDevice on TX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"disconnectSessionDevice on TX Failed");
         }
     }
 
@@ -1012,7 +1011,7 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
                                                        rm, dAttr, pcmDevRxIds,
                                                        rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: setupSessionDevice on RX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"setupSessionDevice on RX Failed");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
@@ -1026,13 +1025,13 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
             status = setSidetone(txDevId,streamHandle,1);
         }
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: enabling sidetone failed \n", __func__);
+            QAL_ERR(LOG_TAG,"enabling sidetone failed");
         }
         status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
                                                        rm, dAttr, pcmDevTxIds,
                                                        txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: setupSessionDevice on TX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"setupSessionDevice on TX Failed");
         }
     }
     return status;
@@ -1057,7 +1056,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
                                                          dAttr, pcmDevRxIds,
                                                          rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: connectSessionDevice on RX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"connectSessionDevice on RX Failed");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
@@ -1067,7 +1066,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
                                                          dAttr, pcmDevTxIds,
                                                          txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"%s: connectSessionDevice on TX Failed \n", __func__);
+            QAL_ERR(LOG_TAG,"connectSessionDevice on TX Failed");
         }
     }
     return status;
@@ -1151,7 +1150,7 @@ int SessionAlsaVoice::getTXDeviceId(Stream *s, int *id)
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
         return status;
     }
 
