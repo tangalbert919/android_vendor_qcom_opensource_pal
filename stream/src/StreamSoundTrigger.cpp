@@ -826,7 +826,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                        engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
                     AddEngine(engine_cfg);
-                } else {
+                } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload +
                         sizeof(SML_GlobalHeaderType) +

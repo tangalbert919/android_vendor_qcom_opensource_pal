@@ -108,6 +108,8 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     size_t end_idx = 0;
     capi_v2_buf_t capi_result;
     bool buffer_advanced = false;
+    size_t lab_buffer_size = 0;
+    bool first_buffer_processed = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -129,6 +131,14 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     } else {
         buffer_start_ = 0;
     }
+
+    lab_buffer_size = buffer_size_;
+    buffer_size_ = buffer_end_ - buffer_start_;
+    /*
+     * As per requirement in PDK, input buffer size for
+     * second stage should be in multiple of 10 ms(10000us).
+     */
+    buffer_size_ -= buffer_size_ % (UsToBytes(10000));
 
     buffer_end_ += UsToBytes(kw_end_tolerance_);
     PAL_DBG(LOG_TAG, "buffer_start_: %u, buffer_end_: %u",
@@ -233,6 +243,11 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
                 buffer_start_;
             PAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
+        }
+
+        if (!first_buffer_processed) {
+            buffer_size_ = lab_buffer_size;
+            first_buffer_processed = true;
         }
     }
 
