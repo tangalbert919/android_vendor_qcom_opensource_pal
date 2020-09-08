@@ -340,6 +340,7 @@ public:
     bool ssrStarted = false;
     static bool isSpeakerProtectionEnabled;
     static bool isRasEnabled;
+    static bool isGaplessEnabled;
     static int spQuickCalTime;
     pal_spkr_prot_payload mSpkrProtModeValue;
     pal_global_callback globalCb = NULL;
@@ -523,6 +524,7 @@ public:
                             sidetone_mode_t *mode);
     int getStreamInstanceID(Stream *str);
     int resetStreamInstanceID(Stream *str, uint32_t sInstanceID);
+    static void setGaplessMode(const XML_Char **attr);
 };
 
 #endif

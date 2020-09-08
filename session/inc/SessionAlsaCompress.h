@@ -45,6 +45,8 @@
 #include <sound/compress_params.h>
 #include <tinycompress/tinycompress.h>
 
+#define EARLY_EOS_DELAY_MS 150
+
 class Stream;
 class Session;
 
@@ -90,7 +92,9 @@ private:
     int fileWrite(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag);
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
-
+    bool isGaplessFmt = false;
+    bool isGaplessFormat(pal_audio_fmt_t fmt);
+    int configureEarlyEOSDelay(void);
 public:
     SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAlsaCompress();

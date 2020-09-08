@@ -330,6 +330,7 @@ static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled;
 bool ResourceManager::isRasEnabled = false;
 int ResourceManager::spQuickCalTime;
+bool ResourceManager::isGaplessEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -5621,6 +5622,22 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
     }
 }
 
+void ResourceManager::setGaplessMode(const XML_Char **attr)
+{
+    if (strcmp(attr[0], "key") != 0) {
+        PAL_ERR(LOG_TAG, "key not found");
+        return;
+    }
+    if (strcmp(attr[2], "value") != 0) {
+        PAL_ERR(LOG_TAG, "value not found");
+        return;
+    }
+    if (atoi(attr[3])) {
+       isGaplessEnabled = true;
+       return;
+    }
+}
+
 void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     const XML_Char **attr)
 {
@@ -5645,6 +5662,9 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         processConfigParams(attr);
     } else if (strcmp(tag_name, "codec") == 0) {
         processBTCodecInfo(attr);
+        return;
+    } else if (strcmp(tag_name, "config_gapless") == 0) {
+        setGaplessMode(attr);
         return;
     }
 

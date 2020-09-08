@@ -34,6 +34,7 @@
 #include "Stream.h"
 #include "ResourceManager.h"
 #include "media_fmt_api.h"
+#include "gapless_api.h"
 #include <agm_api.h>
 #include <sstream>
 #include <mutex>
@@ -99,6 +100,47 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
     }
 
     return id;
+}
+
+bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
+{
+    bool isSupported = false;
+
+    /* If platform doesn't support Gapless,
+     * then return false for all formats.
+     */
+    if (!(rm->isGaplessEnabled)) {
+        return isSupported;
+    }
+    switch (fmt) {
+        case PAL_AUDIO_FMT_DEFAULT_COMPRESSED:
+        case PAL_AUDIO_FMT_AAC:
+        case PAL_AUDIO_FMT_AAC_ADTS:
+        case PAL_AUDIO_FMT_AAC_ADIF:
+        case PAL_AUDIO_FMT_AAC_LATM:
+            isSupported = true;
+            break;
+        case PAL_AUDIO_FMT_WMA_STD:
+            break;
+        case PAL_AUDIO_FMT_DEFAULT_PCM:
+            break;
+        case PAL_AUDIO_FMT_ALAC:
+            break;
+        case PAL_AUDIO_FMT_APE:
+            break;
+        case PAL_AUDIO_FMT_WMA_PRO:
+            break;
+        case PAL_AUDIO_FMT_FLAC:
+        case PAL_AUDIO_FMT_FLAC_OGG:
+            break;
+        case PAL_AUDIO_FMT_VORBIS:
+            break;
+        default:
+            break;
+    }
+    PAL_DBG(LOG_TAG, "format %x, gapless supported %d", audio_fmt,
+                      isSupported);
+    return isSupported;
 }
 
 int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
@@ -187,10 +229,10 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 }
             } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called && compressObj->playback_started) {
-                    PAL_ERR(LOG_TAG, "calling compress_drain");
+                    PAL_INFO(LOG_TAG, "calling compress_drain");
                     if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
                          ret = compress_drain(compressObj->compress);
-                         PAL_ERR(LOG_TAG, "out of compress_drain, ret %d", ret);
+                         PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
                     }
                 }
                 if (ret == -ENETRESET) {
@@ -201,19 +243,35 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
-                PAL_ERR(LOG_TAG, "calling partial compress_drain");
-                //return compress_partial_drain(compressObj->compress);
-                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
-                    ret = compress_drain(compressObj->compress);
-                    PAL_ERR(LOG_TAG, "out of partial compress_drain, ret %d", ret);
+                if (compressObj->playback_started) {
+                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                        if (compressObj->isGaplessFmt) {
+                            PAL_DBG(LOG_TAG, "calling partial compress_drain");
+                            ret = compress_next_track(compressObj->compress);
+                            PAL_INFO(LOG_TAG, "out of compress next track, ret %d", ret);
+                            if (ret == 0) {
+                                ret = compress_partial_drain(compressObj->compress);
+                                PAL_INFO(LOG_TAG, "out of partial compress_drain, ret %d", ret);
+                            }
+                            event_id = PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY;
+                        } else {
+                            PAL_DBG(LOG_TAG, "calling compress_drain");
+                            ret = compress_drain(compressObj->compress);
+                            PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
+                            is_drain_called = true;
+                            event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
+                        }
+                    }
+                } else {
+                    PAL_ERR(LOG_TAG, "Playback not started yet");
+                    event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
+                    is_drain_called = true;
                 }
                 if (ret == -ENETRESET) {
                     PAL_ERR(LOG_TAG, "Block drain ready event during SSR");
                     lock.lock();
                     continue;
                 }
-                is_drain_called = true;
-                event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             }  else if (msg->cmd == OFFLOAD_CMD_ERROR) {
                 PAL_ERR(LOG_TAG, "Sending error to PAL client");
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
@@ -298,7 +356,7 @@ int SessionAlsaCompress::open(Stream * s)
         rm->freeFrontEndIds(compressDevIds, sAttr, 0);
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
-
+    isGaplessFmt = isGaplessFormat(audio_fmt);
     return status;
 }
 
@@ -657,6 +715,50 @@ exit:
     return status;
 }
 
+int SessionAlsaCompress::configureEarlyEOSDelay(void)
+{
+    int32_t status = 0;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                    compressDevIds.at(0), rxAifBackEnds[0].second.data(),
+                    MODULE_GAPLESS, &miid);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
+        return status;
+    }
+    param_id_gapless_early_eos_delay_t  *early_eos_delay = nullptr;
+    early_eos_delay = (struct param_id_gapless_early_eos_delay_t *)
+                            malloc(sizeof(struct param_id_gapless_early_eos_delay_t));
+    if (!early_eos_delay) {
+        PAL_ERR(LOG_TAG, "failed to allocate memory");
+        return -ENOMEM;
+    }
+    early_eos_delay->early_eos_delay_ms = EARLY_EOS_DELAY_MS;
+
+    status = builder->payloadCustomParam(&payload, &payloadSize,
+                                        (uint32_t *)early_eos_delay,
+                                        sizeof(struct param_id_gapless_early_eos_delay_t),
+                                        miid, PARAM_ID_EARLY_EOS_DELAY);
+    free(early_eos_delay);
+    if (status) {
+        PAL_ERR(LOG_TAG,"payloadCustomParam failed status = %d", status);
+        return status;
+    }
+    if (payloadSize) {
+        status = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if(0 != status) {
+            PAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+            return status;
+        }
+    }
+    return status;
+}
+
 int SessionAlsaCompress::start(Stream * s)
 {
     struct compr_config compress_config;
@@ -757,6 +859,10 @@ int SessionAlsaCompress::start(Stream * s)
                         return status;
                     }
                 }
+                if (isGaplessFmt) {
+                    status = configureEarlyEOSDelay();
+                }
+
                 status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 if (customPayload) {
@@ -989,6 +1095,8 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     uint32_t miid = 0;
     pal_snd_dec_t *pal_snd_dec = nullptr;
     effect_pal_payload_t *effectPalPayload = nullptr;
+    struct compr_gapless_mdata mdata;
+    struct pal_compr_gapless_mdata *gaplessMdata = NULL;
 
     switch (param_id) {
         case PAL_PARAM_ID_DEVICE_ROTATION:
@@ -1288,6 +1396,27 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                     break;
             }
         break;
+    case PAL_PARAM_ID_GAPLESS_MDATA:
+         if (!compress) {
+             PAL_ERR(LOG_TAG, "Compress is invalid");
+             return -EINVAL;
+         }
+         if (isGaplessFmt) {
+             gaplessMdata = (pal_compr_gapless_mdata*)param_payload->payload;
+             PAL_DBG(LOG_TAG, "Setting gapless metadata %d %d",
+                               gaplessMdata->encoderDelay, gaplessMdata->encoderPadding);
+             mdata.encoder_delay = gaplessMdata->encoderDelay;
+             mdata.encoder_padding = gaplessMdata->encoderPadding;
+             status = compress_set_gapless_metadata(compress, &mdata);
+             if (status != 0) {
+                 PAL_ERR(LOG_TAG, "set gapless metadata failed");
+                 return status;
+             }
+             } else {
+                 PAL_ERR(LOG_TAG, "audio fmt %x is not gapless", audio_fmt);
+                 return -EINVAL;
+         }
+         break;
     default:
         PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;
