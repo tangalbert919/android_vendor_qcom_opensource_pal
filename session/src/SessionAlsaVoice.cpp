@@ -74,6 +74,12 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
     case DEVICE_HW_ENDPOINT_RX:
         device = pcmDevRxIds.at(0);
         break;
+    case RAT_RENDER:
+        if(strstr(backendName,"TX"))
+            device = pcmDevTxIds.at(0);
+        else
+            device = pcmDevRxIds.at(0);
+        break;
     default:
         PAL_INFO(LOG_TAG, "Unsupported tag info %x",tagId);
         return -EINVAL;
