@@ -329,6 +329,13 @@
             <channels>1</channels>
             <snd_device_name>vi-feedback-mono-2</snd_device_name>
         </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
+            <back_end_name>SLIM-DEV1-TX-7</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>bt-a2dp</snd_device_name>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
