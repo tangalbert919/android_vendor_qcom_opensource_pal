@@ -109,6 +109,7 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
     uint32_t miid;
 
     if (audio_fmt == PAL_AUDIO_FMT_VORBIS) {
+        payload_media_fmt_vorbis_t* media_fmt_vorbis = NULL;
         // set config for vorbis, as it cannot be upstreamed.
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
                     compressDevIds.at(0), rxAifBackEnds[0].second.data(),
@@ -128,7 +129,10 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
         media_fmt_hdr->data_format = DATA_FORMAT_RAW_COMPRESSED ;
         media_fmt_hdr->fmt_id = MEDIA_FMT_ID_VORBIS;
         media_fmt_hdr->payload_size = sizeof(struct pal_snd_dec_vorbis);
-        ar_mem_cpy(media_fmt_hdr->payload,
+        media_fmt_vorbis = (payload_media_fmt_vorbis_t*)(((uint8_t*)media_fmt_hdr) +
+            sizeof(struct media_format_t));
+
+        ar_mem_cpy(media_fmt_vorbis,
                             sizeof(struct pal_snd_dec_vorbis),
                             &codec.format,
                             sizeof(struct pal_snd_dec_vorbis));
