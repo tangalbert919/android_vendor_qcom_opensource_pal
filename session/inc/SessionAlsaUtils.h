@@ -76,13 +76,13 @@ class SessionAlsaUtils
 {
 private:
     SessionAlsaUtils() {};
-    static bool isRxDevice(uint32_t devId);
     static struct mixer_ctl *getFeMixerControl(struct mixer *am, std::string feName,
         uint32_t idx);
     static struct mixer_ctl *getBeMixerControl(struct mixer *am, std::string beName,
         uint32_t idx);
 public:
     ~SessionAlsaUtils();
+    static bool isRxDevice(uint32_t devId);
     static int setMixerCtlData(struct mixer_ctl *ctl, MixerCtlType id, void *data, int size);
     static int getTagMetadata(int32_t tagsent, std::vector <std::pair<int, int>> &tkv, struct agm_tag_config *tagConfig);
     static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);

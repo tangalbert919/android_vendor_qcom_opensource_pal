@@ -642,10 +642,6 @@ int SessionAlsaPcm::start(Stream * s)
                     QAL_ERR(LOG_TAG, "pcm-rx open not ready");
                     return -EINVAL;
                 }
-                status = pcm_start(pcmRx);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
-                }
                 pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
                 if (!pcmTx) {
                     QAL_ERR(LOG_TAG, "pcm-tx open failed");
@@ -655,10 +651,6 @@ int SessionAlsaPcm::start(Stream * s)
                 if (!pcm_is_ready(pcmTx)) {
                     QAL_ERR(LOG_TAG, "pcm-tx open not ready");
                     return -EINVAL;
-                }
-                status = pcm_start(pcmTx);
-                if (status) {
-                    QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
                 }
                 break;
         }
@@ -809,7 +801,6 @@ int SessionAlsaPcm::start(Stream * s)
                         delete payload;
                         if (0 != status) {
                             QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
-                            QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
                             return status;
                         }
                     }
@@ -839,7 +830,64 @@ pcm_start:
             }
             break;
         case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
-            break;
+            status = s->getAssociatedDevices(associatedDevices);
+            if (0 != status) {
+                QAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed\n", __func__);
+                return status;
+            }
+            for (int i = 0; i < associatedDevices.size(); i++) {
+                if (!SessionAlsaUtils::isRxDevice(
+                            associatedDevices[i]->getSndDeviceId()))
+                    continue;
+
+                status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+                if (0 != status) {
+                    QAL_ERR(LOG_TAG,"%s: get Device Attributes Failed\n", __func__);
+                    return status;
+                }
+
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
+                        rxAifBackEnds[0].second.data(),
+                        TAG_DEVICE_MFC_SR, &miid);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    status = 0;
+                    goto pcm_start_loopback;
+                }
+                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                        pcmDevRxIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
+                deviceData.bitWidth = dAttr.config.bit_width;
+                deviceData.sampleRate = dAttr.config.sample_rate;
+                deviceData.numChannel = dAttr.config.ch_info.channels;
+                deviceData.rotation_type = QAL_SPEAKER_ROTATION_LR;
+                deviceData.ch_info = nullptr;
+
+                builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
+                if (payloadSize) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    delete payload;
+                    if (0 != status) {
+                        QAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
+                        return status;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
+                        customPayload, customPayloadSize);
+                if (status != 0) {
+                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    return status;
+                }
+           }
+pcm_start_loopback:
+            status = pcm_start(pcmRx);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+            }
+            status = pcm_start(pcmTx);
+            if (status) {
+                QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+            }
+           break;
     }
     // Setting the volume as in stream open, no default volume is set.
     if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
