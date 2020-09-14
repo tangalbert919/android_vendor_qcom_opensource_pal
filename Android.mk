@@ -35,8 +35,8 @@ LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/spf/api/vcpm
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/acdbdata/
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
-LOCAL_C_INCLUDES += $(TOP)/external/tinyalsa/include
-LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
+LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinyalsa/include
+LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinycompress/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/agm
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
@@ -97,8 +97,8 @@ LOCAL_SHARED_LIBRARIES := \
     liblx-osal\
     libaudioroute\
     libcutils \
-    libtinyalsa \
-    libtinycompress\
+    libqti-tinyalsa \
+    libqti-tinycompress\
     libagmclient
 
 LOCAL_HEADER_LIBRARIES := \
