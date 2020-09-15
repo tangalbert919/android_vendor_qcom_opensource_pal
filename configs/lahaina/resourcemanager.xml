@@ -345,6 +345,13 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
+        <in-device>
+            <id>QAL_DEVICE_IN_VI_FEEDBACK</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+            <snd_device_name>vi-feedback</snd_device_name>
+        </in-device>
         <out-device>
             <id>QAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>

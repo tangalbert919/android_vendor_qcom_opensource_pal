@@ -248,6 +248,11 @@ int SpeakerProtection::spkrStartCalibration()
     memset(&spModeConfg, 0, sizeof(spModeConfg));
     memset(&viExModeConfg, 0, sizeof(viExModeConfg));
 
+    if (customPayloadSize) {
+        free(customPayload);
+        customPayloadSize = 0;
+    }
+
     sessionCb = mixer_ctl_callback;
 
     // Configure device attribute
@@ -351,7 +356,7 @@ int SpeakerProtection::spkrStartCalibration()
     }
 
     config.rate = SAMPLINGRATE_48K;
-    config.format = PCM_FORMAT_S16_LE;
+    config.format = PCM_FORMAT_S32_LE;
     if (numberOfChannels > 1)
         config.channels = CHANNELS_2;
     else
@@ -665,10 +670,10 @@ int SpeakerProtection::spkrStartCalibration()
                                 sizeof(callback_data->r0_cali_q24[i]), 1, fp);
                     fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
                 }
+                spkrCalState = SPKR_CALIBRATED;
                 free(callback_data);
                 fclose(fp);
             }
-            spkrCalState = SPKR_CALIBRATED;
         }
         else if (calibrationCallbackStatus == CALIBRATION_STATUS_FAILURE) {
             QAL_DBG(LOG_TAG, "Calibration is not done");
@@ -935,7 +940,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
     char mSndDeviceName_vi[128] = {0};
     int flags;
     struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
-    param_id_sp_th_vi_r0t0_cfg_t spR0T0confg;
+    param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
     param_id_sp_vi_op_mode_cfg_t modeConfg;
     param_id_sp_vi_channel_map_cfg_t viChannelMapConfg;
     param_id_sp_op_mode_t spModeConfg;
@@ -970,6 +975,11 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
             // R0T0 already set, we don't need to process the request.
             goto done;
         }
+
+        if (customPayloadSize) {
+            free(customPayload);
+            customPayloadSize = 0;
+        }
         spkrProtSetSpkrStatus(flag);
         // Speaker in use. Start the Processing Mode
         rm = ResourceManager::getInstance();
@@ -977,7 +987,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
         memset(&device, 0, sizeof(device));
         memset(&sAttr, 0, sizeof(sAttr));
         memset(&config, 0, sizeof(config));
-        memset(&spR0T0confg, 0, sizeof(spR0T0confg));
         memset(&modeConfg, 0, sizeof(modeConfg));
         memset(&viChannelMapConfg, 0, sizeof(viChannelMapConfg));
         memset(&viExModeConfg, 0, sizeof(viExModeConfg));
@@ -1194,19 +1203,21 @@ int32_t SpeakerProtection::spkrProtProcessingMode(std::shared_ptr<Device> devObj
                 r0t0Array[i].t0_cali_q6 = SAFE_SPKR_TEMP_Q6;
             }
         }
-        spR0T0confg.num_speakers = numberOfChannels;
+        spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
+                            sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
+                            sizeof(vi_r0t0_cfg_t) * numberOfChannels);
+        spR0T0confg->num_speakers = numberOfChannels;
 
-        for(int i = 0; i < numberOfChannels; i++) {
-            spR0T0confg.vi_r0t0_cfg[i].r0_cali_q24 = r0t0Array[i].r0_cali_q24;
-            spR0T0confg.vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
-        }
+        memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
+                numberOfChannels);
 
         payloadSize = 0;
         builder->payloadSPConfig(&payload, &payloadSize, miid,
-                PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)&spR0T0confg);
+                PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
             delete payload;
+            free(spR0T0confg);
             if (0 != ret) {
                 QAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
