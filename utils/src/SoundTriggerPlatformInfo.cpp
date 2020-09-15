@@ -241,7 +241,7 @@ void SecondStageConfig::HandleStartTag(const char *tag, const char **attribs) {
                 module_lib_ = attribs[++i];
             } else if (!strcmp(attribs[i], "sample_rate")) {
                 sample_rate_ = std::stoi(attribs[++i]);
-            } else if (!strcmp(attribs[i], "bit_wdith")) {
+            } else if (!strcmp(attribs[i], "bit_width")) {
                 bit_width_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "channel_count")) {
                 channels_ = std::stoi(attribs[++i]);
