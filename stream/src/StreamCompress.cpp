@@ -799,7 +799,7 @@ int32_t StreamCompress::ssrDownHandler()
     }
 
 exit :
-    currentState == STREAM_IDLE;
+    currentState = STREAM_IDLE;
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

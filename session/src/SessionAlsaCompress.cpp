@@ -85,12 +85,15 @@ int SessionAlsaCompress::getSndCodecId(qal_audio_fmt_t fmt)
         case QAL_AUDIO_FMT_WMA_PRO:
             id = SND_AUDIOCODEC_WMA_PRO;
             break;
-       case QAL_AUDIO_FMT_FLAC:
-       case QAL_AUDIO_FMT_FLAC_OGG:
+        case QAL_AUDIO_FMT_FLAC:
+        case QAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
             break;
         case QAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
+            break;
+        default:
+            QAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
 #endif
     }
@@ -1280,6 +1283,9 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
 #endif
                 case QAL_AUDIO_FMT_VORBIS:
                     codec.format = qal_snd_dec->vorbis_dec.bit_stream_fmt;
+                    break;
+                default:
+                    QAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
                     break;
             }
         break;
