@@ -59,7 +59,7 @@ private:
     std::vector <std::pair<int, int>> tkv;
     std::thread threadHandler;
     uint32_t vsid = 0x11C0500; /*defualt*/
-    float default_volume = 0.5;
+    float default_volume = 0.4;
     uint32_t ttyMode = QAL_TTY_OFF;
     bool volume_boost = vol_boost_disable;
     bool slow_talk = false;

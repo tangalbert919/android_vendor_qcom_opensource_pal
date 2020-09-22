@@ -361,7 +361,12 @@ int SessionAlsaVoice::start(Stream * s)
         volume->no_of_volpair = 1;
         volume->volume_pair[0].channel_mask = 1;
         volume->volume_pair[0].vol = default_volume;
+        /*call will cache the volume but not apply it as stream has not moved to start state*/
         s->setVolume(volume);
+        /*call to apply volume*/
+        setConfig(s, CALIBRATION, TAG_STREAM_VOLUME, RXDIR);
+
+
     };
 
     /*set tty mode*/
@@ -620,6 +625,24 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
     size_t paramSize = 0;
 
     switch (static_cast<uint32_t>(tag)) {
+
+       case TAG_STREAM_VOLUME:
+            device = pcmDevRxIds.at(0);
+            status = payloadCalKeys(s, &paramData, &paramSize);
+            status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
+                                                              paramData,
+                                                              paramSize,
+                                                              dir);
+            if (status) {
+                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                        status);
+            }
+            if (!paramData) {
+                status = -ENOMEM;
+                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
+            break;
 
         case MUTE_TAG:
         case UNMUTE_TAG:
