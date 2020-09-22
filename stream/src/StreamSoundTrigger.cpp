@@ -230,7 +230,7 @@ int32_t StreamSoundTrigger::stop() {
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (!status) {
-        currentState == STREAM_STOPPED;
+        currentState = STREAM_STOPPED;
     }
 
     QAL_DBG(LOG_TAG, "Exit, status %d", status);
