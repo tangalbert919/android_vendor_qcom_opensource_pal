@@ -1693,7 +1693,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             if (status)
                 QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
         }
-    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+    } else if (sAttr.direction == QAL_AUDIO_OUTPUT &&
+        sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");

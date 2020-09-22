@@ -1317,22 +1317,27 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct qal_buffer *buf, int * size
         mState = SESSION_STARTED;
     }
     data = static_cast<char *>(data) + offset;
-    if (SessionAlsaUtils::isMmapUsecase(sAttr) && sizeWritten)
-    {
-        long ns = 0;
-        if (sAttr.out_media_config.sample_rate)
-            ns = pcm_bytes_to_frames(pcm, sizeWritten)*1000000000LL/
-                sAttr.out_media_config.sample_rate;
-        QAL_DBG(LOG_TAG,"2.bufsize:%u ns:%ld", sizeWritten, ns);
-        requestAdmFocus(s, ns);
-        status =  pcm_mmap_write(pcm, data,  sizeWritten);
-        releaseAdmFocus(s);
+    if (SessionAlsaUtils::isMmapUsecase(sAttr)) {
+        if (sizeWritten) {
+            long ns = 0;
+            if (sAttr.out_media_config.sample_rate)
+                ns = pcm_bytes_to_frames(pcm, sizeWritten)*1000000000LL/
+                    sAttr.out_media_config.sample_rate;
+            QAL_DBG(LOG_TAG,"2.bufsize:%u ns:%ld", sizeWritten, ns);
+            requestAdmFocus(s, ns);
+            status =  pcm_mmap_write(pcm, data,  sizeWritten);
+            releaseAdmFocus(s);
+            if (status != 0) {
+                QAL_ERR(LOG_TAG,"Error! pcm_mmap_write failed");
+                return status;
+            }
+        }
     } else {
         status =  pcm_write(pcm, data,  sizeWritten);
-    }
-    if (status != 0) {
-        QAL_ERR(LOG_TAG,"Error! pcm_write failed");
-        return status;
+        if (status != 0) {
+            QAL_ERR(LOG_TAG,"Error! pcm_write failed");
+            return status;
+        }
     }
     bytesWritten += sizeWritten;
     *size = bytesWritten;
