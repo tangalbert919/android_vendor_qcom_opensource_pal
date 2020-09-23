@@ -911,10 +911,20 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     return status;
 
 error_exit:
+    /*
+     * Free sm_data allocated for engine which fails
+     * to create or load sound model first, and then
+     * release other engines which created or loaded
+     * successfully.
+     */
+    if (sm_data) {
+        free(sm_data);
+    }
     for (auto &eng: engines_) {
         if (eng->sm_data_) {
             free(eng->sm_data_);
         }
+        eng->GetEngine()->UnloadSoundModel(this);
     }
     engines_.clear();
     gsl_engine_.reset();
