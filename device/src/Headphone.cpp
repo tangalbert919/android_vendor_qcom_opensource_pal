@@ -45,6 +45,14 @@ std::shared_ptr<Device> Headphone::getInstance(struct qal_device *device,
     return obj;
 }
 
+std::shared_ptr<Device> Headphone::getObject(qal_device_id_t id)
+{
+    if (obj) {
+        if (obj->getSndDeviceId() == id)
+            return obj;
+    }
+    return NULL;
+}
 
 Headphone::Headphone(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)

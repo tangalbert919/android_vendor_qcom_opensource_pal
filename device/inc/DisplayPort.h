@@ -141,6 +141,7 @@ public:
     int deinit(qal_param_device_connection_t device_conn);
     static std::shared_ptr<Device> getInstance(struct qal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
+    static std::shared_ptr<Device> getObject();
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);

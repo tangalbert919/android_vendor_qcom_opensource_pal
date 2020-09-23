@@ -66,6 +66,23 @@ std::shared_ptr<Device> USB::getInstance(struct qal_device *device,
     return NULL;
 }
 
+std::shared_ptr<Device> USB::getObject(qal_device_id_t id)
+{
+    if ((id == QAL_DEVICE_OUT_USB_DEVICE) ||
+        (id == QAL_DEVICE_OUT_USB_HEADSET)) {
+        if (objRx) {
+            if (objRx->getSndDeviceId() == id)
+                return objRx;
+        }
+    } else if ((id == QAL_DEVICE_IN_USB_DEVICE) ||
+               (id == QAL_DEVICE_IN_USB_HEADSET)) {
+        if (objTx) {
+            if (objTx->getSndDeviceId() == id)
+                return objTx;
+        }
+    }
+    return NULL;
+}
 
 USB::USB(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)

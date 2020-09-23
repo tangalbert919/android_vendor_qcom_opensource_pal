@@ -101,7 +101,7 @@ std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
     case QAL_DEVICE_OUT_AUX_DIGITAL:
     case QAL_DEVICE_OUT_AUX_DIGITAL_1:
     case QAL_DEVICE_OUT_HDMI:
-        QAL_ERR(LOG_TAG, "Display Port device");
+        QAL_VERBOSE(LOG_TAG, "Display Port device");
         return DisplayPort::getInstance(device, Rm);
     case QAL_DEVICE_IN_HEADSET_VA_MIC:
         QAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
@@ -128,6 +128,19 @@ std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
     case QAL_DEVICE_OUT_SPEAKER:
         QAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getObject();
+    case QAL_DEVICE_OUT_WIRED_HEADSET:
+    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
+        QAL_VERBOSE(LOG_TAG, "headphone device");
+        return Headphone::getObject(dev_id);
+    case QAL_DEVICE_OUT_USB_DEVICE:
+    case QAL_DEVICE_OUT_USB_HEADSET:
+        QAL_VERBOSE(LOG_TAG, "USB device");
+        return USB::getObject(dev_id);
+    case QAL_DEVICE_OUT_AUX_DIGITAL:
+    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
+    case QAL_DEVICE_OUT_HDMI:
+        QAL_VERBOSE(LOG_TAG, "Display Port device");
+        return DisplayPort::getObject();
     case QAL_DEVICE_IN_HANDSET_MIC:
         QAL_VERBOSE(LOG_TAG, "handset mic device");
         return HandsetMic::getObject();

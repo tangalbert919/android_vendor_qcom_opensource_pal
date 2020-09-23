@@ -136,6 +136,7 @@ public:
     static int32_t checkAndUpdateBitWidth(unsigned int *bitWidth);
     static int32_t checkAndUpdateSampleRate(unsigned int *sampleRate);
     static bool isUSBOutDevice(qal_device_id_t);
+    static std::shared_ptr<Device> getObject(qal_device_id_t id);
     ~USB();
 };
 

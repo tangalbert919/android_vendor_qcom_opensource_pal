@@ -74,6 +74,10 @@ std::shared_ptr<Device> DisplayPort::getInstance(struct qal_device *device,
     return obj;
 }
 
+std::shared_ptr<Device> DisplayPort::getObject()
+{
+    return obj;
+}
 
 DisplayPort::DisplayPort(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
