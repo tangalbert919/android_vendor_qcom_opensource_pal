@@ -467,6 +467,22 @@ int SpeakerProtection::spkrStartCalibration()
         PAL_ERR(LOG_TAG, "Unable to register event to DSP");
     }
 
+    // Register to mixtureControlEvents and wait for the R0T0 values
+
+    ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
+                    sessionCb, (void*)this, true);
+    if (ret != 0) {
+        PAL_ERR(LOG_TAG, "Failed to register callback to rm");
+    }
+
+    enableDevice(audioRoute, mSndDeviceName_vi);
+    PAL_DBG(LOG_TAG, "pcm start for TX path");
+    if (pcm_start(txPcm) < 0) {
+        PAL_ERR(LOG_TAG, "pcm start failed for TX path");
+        ret = -ENOSYS;
+        goto err_pcm_open;
+    }
+
     // Setup RX path
     deviceRx.id = PAL_DEVICE_OUT_SPEAKER;
     ret = rm->getSndDeviceName(deviceRx.id, mSndDeviceName_rx);
@@ -624,22 +640,6 @@ int SpeakerProtection::spkrStartCalibration()
         goto err_pcm_open;
     }
 
-
-    // Register to mixtureControlEvents and wait for the R0T0 values
-
-    ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
-                    sessionCb, (void*)this, true);
-    if (ret != 0) {
-        PAL_ERR(LOG_TAG, "Failed to register callback to rm");
-    }
-
-    enableDevice(audioRoute, mSndDeviceName_vi);
-    PAL_DBG(LOG_TAG, "pcm start for TX path");
-    if (pcm_start(txPcm) < 0) {
-        PAL_ERR(LOG_TAG, "pcm start failed for TX path");
-        ret = -ENOSYS;
-        goto err_pcm_open;
-    }
 
     enableDevice(audioRoute, mSndDeviceName_rx);
     PAL_DBG(LOG_TAG, "pcm start for RX path");
