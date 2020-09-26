@@ -4069,8 +4069,8 @@ int32_t ResourceManager::a2dpSuspend()
                 struct pal_device speakerDattr;
 
                 PAL_DBG(LOG_TAG, "selecting speaker and muting stream");
-                (*sIter)->pause(); // compress_pause
-                (*sIter)->setMute(true); // mute the stream, unmute during a2dp_resume
+                (*sIter)->pause();
+                (*sIter)->mute(true); // mute the stream, unmute during a2dp_resume
                 (*sIter)->a2dp_compress_mute = true;
                 // force switch to speaker
                 speakerDattr.id = PAL_DEVICE_OUT_SPEAKER;
@@ -4086,7 +4086,7 @@ int32_t ResourceManager::a2dpSuspend()
                 mResourceManagerMutex.unlock();
                 forceDeviceSwitch(dev, &speakerDattr);
                 mResourceManagerMutex.lock();
-                (*sIter)->resume(); //compress_resume
+                (*sIter)->resume();
                 /* backup actual device name in stream class */
                 (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             }
@@ -4155,7 +4155,7 @@ int32_t ResourceManager::a2dpResume()
             mResourceManagerMutex.lock();
             (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
             if ((*sIter)->a2dp_compress_mute) {
-                (*sIter)->setMute(false);
+                (*sIter)->mute(false);
                 (*sIter)->a2dp_compress_mute = false;
             }
         }

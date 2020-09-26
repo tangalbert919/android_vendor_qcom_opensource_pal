@@ -52,9 +52,9 @@ public:
    int32_t prepare() override;
    int32_t setStreamAttributes( struct pal_stream_attributes *sattr) override;
    int32_t setVolume( struct pal_volume_data *volume) override;
-   int32_t setMute( bool state) override;
-   int32_t setPause() override;
-   int32_t setResume() override;
+   int32_t mute(bool state) override;
+   int32_t pause() override;
+   int32_t resume() override;
    int32_t flush();
    int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) override;
    int32_t read(struct pal_buffer *buf) override;

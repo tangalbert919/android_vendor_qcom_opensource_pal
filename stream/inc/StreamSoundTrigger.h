@@ -124,9 +124,9 @@ class StreamSoundTrigger : public Stream {
     }
 
     int32_t setVolume(struct pal_volume_data * volume __unused) { return 0; }
-    int32_t setMute(bool state __unused) override { return 0; }
-    int32_t setPause() override { return 0; }
-    int32_t setResume() override { return 0; }
+    int32_t mute(bool state __unused) override { return 0; }
+    int32_t pause() override { return 0; }
+    int32_t resume() override { return 0; }
 
     int32_t read(struct pal_buffer *buf) override;
 

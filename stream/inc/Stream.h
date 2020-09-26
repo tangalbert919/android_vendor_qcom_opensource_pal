@@ -152,14 +152,12 @@ public:
     virtual int32_t start() = 0;
     virtual int32_t stop() = 0;
     virtual int32_t prepare() = 0;
-    virtual int32_t pause() {return 0;}
-    virtual int32_t resume() {return 0;}
     virtual int32_t drain(pal_drain_type_t type __unused) {return 0;}
     virtual int32_t setStreamAttributes(struct pal_stream_attributes *sattr) = 0;
     virtual int32_t setVolume( struct pal_volume_data *volume) = 0;
-    virtual int32_t setMute( bool state) = 0;
-    virtual int32_t setPause() = 0;
-    virtual int32_t setResume()= 0;
+    virtual int32_t mute(bool state) = 0;
+    virtual int32_t pause() = 0;
+    virtual int32_t resume() = 0;
     virtual int32_t flush() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
     virtual int32_t standby() {return 0;};

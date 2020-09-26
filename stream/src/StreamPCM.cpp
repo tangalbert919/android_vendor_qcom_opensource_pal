@@ -997,7 +997,7 @@ error:
     return status;
 }
 
-int32_t  StreamPCM::setMute( bool state)
+int32_t StreamPCM::mute(bool state)
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
@@ -1018,7 +1018,7 @@ exit:
     return status;
 }
 
-int32_t  StreamPCM::setPause()
+int32_t StreamPCM::pause()
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
@@ -1045,7 +1045,7 @@ exit:
     return status;
 }
 
-int32_t  StreamPCM::setResume()
+int32_t StreamPCM::resume()
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
@@ -1364,7 +1364,7 @@ int32_t StreamPCM::ssrUpHandler()
         }
         if (currentState != STREAM_STARTED)
             goto exit;
-        status = setPause();
+        status = pause();
         if (0 != status) {
            PAL_ERR(LOG_TAG, "stream set pause failed. status %d", status);
             goto exit;

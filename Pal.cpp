@@ -354,9 +354,9 @@ int32_t pal_stream_set_mute(pal_stream_handle_t *stream_handle, bool state)
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->setMute(state);
+    status = s->mute(state);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "setMute failed with status %d", status);
+        PAL_ERR(LOG_TAG, "mute failed with status %d", status);
         return status;
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -374,7 +374,7 @@ int32_t pal_stream_pause(pal_stream_handle_t *stream_handle)
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->setPause();
+    status = s->pause();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "pal_stream_pause failed with status %d", status);
         return status;
@@ -397,7 +397,7 @@ int32_t pal_stream_resume(pal_stream_handle_t *stream_handle)
     PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
 
-    status = s->setResume();
+    status = s->resume();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "resume failed with status %d", status);
         return status;
