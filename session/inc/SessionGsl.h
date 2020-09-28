@@ -54,7 +54,7 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Stream.h"
-#include "QalCommon.h"
+#include "PalCommon.h"
 
 /* Param ID definitions */
 #define PARAM_ID_MEDIA_FORMAT 0x0800100C
@@ -141,10 +141,10 @@ private:
     struct gsl_key_vector *ckv;
     struct gsl_key_vector *tkv;
 
-    int fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag);
-    int fileRead(Stream *s, int tag, struct qal_buffer *buf, int * size);
+    int fileWrite(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag);
+    int fileRead(Stream *s, int tag, struct pal_buffer *buf, int * size);
     int setCalibration(Stream *s, int tag);
-    int populateSVASoundModel(int tagId, void* graphHandle, struct qal_st_sound_model *pSoundModel);
+    int populateSVASoundModel(int tagId, void* graphHandle, struct pal_st_sound_model *pSoundModel);
     int populateSVAWakeUpConfig(int tagId, void* graphHandle, struct detection_engine_config_voice_wakeup *pWakeUpConfig);
     int populateSVAWakeUpBufferConfig(int tagId, void* graphHandle, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig);
     int populateSVAStreamSetupDuration(int tagId, void* graphHandle, struct audio_dam_downstream_setup_duration *pSetupDuration);
@@ -159,7 +159,7 @@ public:
     static void deinit();
     int open(Stream * s) override;
     int prepare(Stream * s) override;
-    int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
+    int setTKV(Stream * s, configType type, effect_pal_payload_t *payload) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
     int setConfig(Stream * s, configType type, uint32_t tag1,
             uint32_t tag2, uint32_t tag3) override;
@@ -170,20 +170,20 @@ public:
     int close(Stream * s) override;
     int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
-    int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
+    int read(Stream *s, int tag, struct pal_buffer *buf, int * size) override;
+    int write(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag) override;
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
-    int getTimestamp(struct qal_session_time *stime) override;
+    int getTimestamp(struct pal_session_time *stime) override;
     int registerCallBack(session_callback cb, void *cookie) override;
-    int drain(qal_drain_type_t type) override;
-    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int drain(pal_drain_type_t type) override;
+    int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int connectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused,  uint32_t *miid __unused) {return 0;};
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;

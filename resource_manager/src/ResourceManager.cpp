@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: ResourceManager"
+#define LOG_TAG "PAL: ResourceManager"
 #include "ResourceManager.h"
 #include "Session.h"
 #include "Device.h"
@@ -105,7 +105,7 @@
 #define MAX_SESSIONS_INCALL_RECORD 1
 
 /*this can be over written by the config file settings*/
-uint32_t qal_log_lvl = (QAL_LOG_ERR|QAL_LOG_INFO);
+uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 
 static struct str_parms *configParamKVPairs;
 
@@ -122,7 +122,7 @@ static struct snd_card_split cur_snd_card_split{
 };
 
 // default properties which will be updated based on platform configuration
-static struct qal_st_properties qst_properties = {
+static struct pal_st_properties qst_properties = {
         "QUALCOMM Technologies, Inc",  // implementor
         "Sound Trigger HAL",  // description
         1,  // version
@@ -131,8 +131,8 @@ static struct qal_st_properties qst_properties = {
         8,  // max_sound_models
         10,  // max_key_phrases
         10,  // max_users
-        QAL_RECOGNITION_MODE_VOICE_TRIGGER |
-        QAL_RECOGNITION_MODE_GENERIC_TRIGGER,  // recognition_modes
+        PAL_RECOGNITION_MODE_VOICE_TRIGGER |
+        PAL_RECOGNITION_MODE_GENERIC_TRIGGER,  // recognition_modes
         true,  // capture_transition
         0,  // max_capture_ms
         false,  // concurrent_capture
@@ -147,142 +147,142 @@ using legacy design for alsa
 // Will update actual value when numbers got for VT
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
-    {QAL_DEVICE_OUT_MIN,                  {std::string{ "none" }}},
-    {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
-    {QAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
-    {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
+    {PAL_DEVICE_OUT_MIN,                  {std::string{ "none" }}},
+    {PAL_DEVICE_NONE,                     {std::string{ "none" }}},
+    {PAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
+    {PAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
+    {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
-    {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
-    {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
-    {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
+    {PAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "tdm-pri" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
+    {PAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
+    {PAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
 };
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
-    {QAL_DEVICE_OUT_MIN,                  0},
-    {QAL_DEVICE_NONE,                     0},
-    {QAL_DEVICE_OUT_HANDSET,              1},
-    {QAL_DEVICE_OUT_SPEAKER,              1},
-    {QAL_DEVICE_OUT_WIRED_HEADSET,        1},
-    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      1},
-    {QAL_DEVICE_OUT_LINE,                 0},
-    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        0},
-    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       0},
-    {QAL_DEVICE_OUT_AUX_DIGITAL,          0},
-    {QAL_DEVICE_OUT_HDMI,                 0},
-    {QAL_DEVICE_OUT_USB_DEVICE,           0},
-    {QAL_DEVICE_OUT_USB_HEADSET,          0},
-    {QAL_DEVICE_OUT_SPDIF,                0},
-    {QAL_DEVICE_OUT_FM,                   0},
-    {QAL_DEVICE_OUT_AUX_LINE,             0},
-    {QAL_DEVICE_OUT_PROXY,                0},
-    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
-    {QAL_DEVICE_OUT_MAX,                  0},
+    {PAL_DEVICE_OUT_MIN,                  0},
+    {PAL_DEVICE_NONE,                     0},
+    {PAL_DEVICE_OUT_HANDSET,              1},
+    {PAL_DEVICE_OUT_SPEAKER,              1},
+    {PAL_DEVICE_OUT_WIRED_HEADSET,        1},
+    {PAL_DEVICE_OUT_WIRED_HEADPHONE,      1},
+    {PAL_DEVICE_OUT_LINE,                 0},
+    {PAL_DEVICE_OUT_BLUETOOTH_SCO,        0},
+    {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       0},
+    {PAL_DEVICE_OUT_AUX_DIGITAL,          0},
+    {PAL_DEVICE_OUT_HDMI,                 0},
+    {PAL_DEVICE_OUT_USB_DEVICE,           0},
+    {PAL_DEVICE_OUT_USB_HEADSET,          0},
+    {PAL_DEVICE_OUT_SPDIF,                0},
+    {PAL_DEVICE_OUT_FM,                   0},
+    {PAL_DEVICE_OUT_AUX_LINE,             0},
+    {PAL_DEVICE_OUT_PROXY,                0},
+    {PAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
+    {PAL_DEVICE_OUT_MAX,                  0},
 
-    {QAL_DEVICE_IN_HANDSET_MIC,           0},
-    {QAL_DEVICE_IN_SPEAKER_MIC,           0},
-    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
-    {QAL_DEVICE_IN_WIRED_HEADSET,         0},
-    {QAL_DEVICE_IN_AUX_DIGITAL,           0},
-    {QAL_DEVICE_IN_HDMI,                  0},
-    {QAL_DEVICE_IN_USB_ACCESSORY,         0},
-    {QAL_DEVICE_IN_USB_DEVICE,            0},
-    {QAL_DEVICE_IN_USB_HEADSET,           0},
-    {QAL_DEVICE_IN_FM_TUNER,              0},
-    {QAL_DEVICE_IN_LINE,                  0},
-    {QAL_DEVICE_IN_SPDIF,                 0},
-    {QAL_DEVICE_IN_PROXY,                 0},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        0},
-    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        0},
+    {PAL_DEVICE_IN_HANDSET_MIC,           0},
+    {PAL_DEVICE_IN_SPEAKER_MIC,           0},
+    {PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, 0},
+    {PAL_DEVICE_IN_WIRED_HEADSET,         0},
+    {PAL_DEVICE_IN_AUX_DIGITAL,           0},
+    {PAL_DEVICE_IN_HDMI,                  0},
+    {PAL_DEVICE_IN_USB_ACCESSORY,         0},
+    {PAL_DEVICE_IN_USB_DEVICE,            0},
+    {PAL_DEVICE_IN_USB_HEADSET,           0},
+    {PAL_DEVICE_IN_FM_TUNER,              0},
+    {PAL_DEVICE_IN_LINE,                  0},
+    {PAL_DEVICE_IN_SPDIF,                 0},
+    {PAL_DEVICE_IN_PROXY,                 0},
+    {PAL_DEVICE_IN_HANDSET_VA_MIC,        0},
+    {PAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
+    {PAL_DEVICE_IN_HEADSET_VA_MIC,        0},
 };
 
 // To be defined in detail
 std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
-    {QAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
-    {QAL_DEVICE_NONE,                     {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
-    {QAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
-    {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
+    {PAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
+    {PAL_DEVICE_NONE,                     {std::string{ "none" }}},
+    {PAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPEAKER,              {std::string{ "" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
+    {PAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
+    {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
-    {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
-    {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}}
+    {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
+    {PAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
+    {PAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}}
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
-    {std::string{ "QAL_STREAM_LOW_LATENCY" },              QAL_STREAM_LOW_LATENCY},
-    {std::string{ "QAL_STREAM_DEEP_BUFFER" },              QAL_STREAM_DEEP_BUFFER},
-    {std::string{ "QAL_STREAM_COMPRESSED" },               QAL_STREAM_COMPRESSED},
-    {std::string{ "QAL_STREAM_VOIP" },                     QAL_STREAM_VOIP},
-    {std::string{ "QAL_STREAM_VOIP_RX" },                  QAL_STREAM_VOIP_RX},
-    {std::string{ "QAL_STREAM_VOIP_TX" },                  QAL_STREAM_VOIP_TX},
-    {std::string{ "QAL_STREAM_VOICE_CALL_MUSIC" },         QAL_STREAM_VOICE_CALL_MUSIC},
-    {std::string{ "QAL_STREAM_GENERIC" },                  QAL_STREAM_GENERIC},
-    {std::string{ "QAL_STREAM_RAW" },                      QAL_STREAM_RAW},
-    {std::string{ "QAL_STREAM_VOICE_ACTIVATION" },         QAL_STREAM_VOICE_ACTIVATION},
-    {std::string{ "QAL_STREAM_VOICE_CALL_RECORD" },        QAL_STREAM_VOICE_CALL_RECORD},
-    {std::string{ "QAL_STREAM_VOICE_CALL" },               QAL_STREAM_VOICE_CALL},
-    {std::string{ "QAL_STREAM_LOOPBACK" },                 QAL_STREAM_LOOPBACK},
-    {std::string{ "QAL_STREAM_TRANSCODE" },                QAL_STREAM_TRANSCODE},
-    {std::string{ "QAL_STREAM_VOICE_UI" },                 QAL_STREAM_VOICE_UI},
-    {std::string{ "QAL_STREAM_ULTRA_LOW_LATENCY" },        QAL_STREAM_ULTRA_LOW_LATENCY},
-    {std::string{ "QAL_STREAM_PROXY" },                    QAL_STREAM_PROXY},
+    {std::string{ "PAL_STREAM_LOW_LATENCY" },              PAL_STREAM_LOW_LATENCY},
+    {std::string{ "PAL_STREAM_DEEP_BUFFER" },              PAL_STREAM_DEEP_BUFFER},
+    {std::string{ "PAL_STREAM_COMPRESSED" },               PAL_STREAM_COMPRESSED},
+    {std::string{ "PAL_STREAM_VOIP" },                     PAL_STREAM_VOIP},
+    {std::string{ "PAL_STREAM_VOIP_RX" },                  PAL_STREAM_VOIP_RX},
+    {std::string{ "PAL_STREAM_VOIP_TX" },                  PAL_STREAM_VOIP_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" },         PAL_STREAM_VOICE_CALL_MUSIC},
+    {std::string{ "PAL_STREAM_GENERIC" },                  PAL_STREAM_GENERIC},
+    {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
+    {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
+    {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
+    {std::string{ "PAL_STREAM_VOICE_CALL" },               PAL_STREAM_VOICE_CALL},
+    {std::string{ "PAL_STREAM_LOOPBACK" },                 PAL_STREAM_LOOPBACK},
+    {std::string{ "PAL_STREAM_TRANSCODE" },                PAL_STREAM_TRANSCODE},
+    {std::string{ "PAL_STREAM_VOICE_UI" },                 PAL_STREAM_VOICE_UI},
+    {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
+    {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
 };
 
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
@@ -365,48 +365,48 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
 };
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
-    {QAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
-    {QAL_DEVICE_NONE,                     {std::string{ "" }}},
-    {QAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPEAKER,              {std::string{ "none" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
-    {QAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
-    {QAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
-    {QAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
-    {QAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
-    {QAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
-    {QAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
+    {PAL_DEVICE_OUT_MIN,                  {std::string{ "" }}},
+    {PAL_DEVICE_NONE,                     {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HANDSET,              {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPEAKER,              {std::string{ "none" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADSET,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_WIRED_HEADPHONE,      {std::string{ "" }}},
+    {PAL_DEVICE_OUT_LINE,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_SCO,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HDMI,                 {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_DEVICE,           {std::string{ "" }}},
+    {PAL_DEVICE_OUT_USB_HEADSET,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_SPDIF,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_FM,                   {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
+    {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
-    {QAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
-    {QAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "none" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
-    {QAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
-    {QAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
-    {QAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
-    {QAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
-    {QAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
-    {QAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
-    {QAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
-    {QAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
-    {QAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
+    {PAL_DEVICE_IN_SPEAKER_MIC,           {std::string{ "none" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, {std::string{ "" }}},
+    {PAL_DEVICE_IN_WIRED_HEADSET,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_AUX_DIGITAL,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_HDMI,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_ACCESSORY,         {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_DEVICE,            {std::string{ "" }}},
+    {PAL_DEVICE_IN_USB_HEADSET,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_FM_TUNER,              {std::string{ "" }}},
+    {PAL_DEVICE_IN_LINE,                  {std::string{ "" }}},
+    {PAL_DEVICE_IN_SPDIF,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_PROXY,                 {std::string{ "" }}},
+    {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "none" }}},
+    {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
+    {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
 };
 
 void agmServiceCrashHandler(uint64_t cookie __unused)
 {
-    QAL_ERR(LOG_TAG,"AGM service crashed :( ");
+    PAL_ERR(LOG_TAG,"AGM service crashed :( ");
     _exit(1);
 }
 
@@ -422,26 +422,26 @@ void ResourceManager::split_snd_card(const char* in_snd_card_name)
     char *form_factor = NULL;
 
     if (in_snd_card_name == NULL) {
-        QAL_ERR(LOG_TAG,"snd_card_name passed is NULL");
+        PAL_ERR(LOG_TAG,"snd_card_name passed is NULL");
         goto err;
     }
     snd_card_name = strdup(in_snd_card_name);
 
     device = strtok_r(snd_card_name, "-", &tmp);
     if (device == NULL) {
-        QAL_ERR(LOG_TAG,"called on invalid snd card name");
+        PAL_ERR(LOG_TAG,"called on invalid snd card name");
         goto err;
     }
     strlcpy(cur_snd_card_split.device, device, HW_INFO_ARRAY_MAX_SIZE);
 
     form_factor = strtok_r(NULL, "-", &tmp);
     if (form_factor == NULL) {
-        QAL_ERR(LOG_TAG, "called on invalid snd card name");
+        PAL_ERR(LOG_TAG, "called on invalid snd card name");
         goto err;
     }
     strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
 
-    QAL_INFO(LOG_TAG, "snd_card_name(%s) device(%s) form_factor(%s)",
+    PAL_INFO(LOG_TAG, "snd_card_name(%s) device(%s) form_factor(%s)",
              in_snd_card_name, device, form_factor);
 
 err:
@@ -451,7 +451,7 @@ err:
 
 ResourceManager::ResourceManager()
 {
-    QAL_INFO(LOG_TAG, "Enter.");
+    PAL_INFO(LOG_TAG, "Enter.");
     int ret = 0;
     // Init audio_route and audio_mixer
 
@@ -466,14 +466,14 @@ ResourceManager::ResourceManager()
     btCodecMap.clear();
 
     ret = ResourceManager::init_audio();
-    QAL_INFO(LOG_TAG, "Enter.");
+    PAL_INFO(LOG_TAG, "Enter.");
     if (ret) {
-        QAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+        PAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
     }
 
     ret = ResourceManager::XmlParser(rmngr_xml_file);
     if (ret) {
-        QAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
+        PAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
 
     listAllFrontEndIds.clear();
@@ -493,7 +493,7 @@ ResourceManager::ResourceManager()
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
-        QAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
+        PAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
     }
     for (int i=0; i < devInfo.size(); i++) {
         if (devInfo[i].type == PCM) {
@@ -536,12 +536,12 @@ ResourceManager::ResourceManager()
     ret = agm_register_service_crash_callback(&agmServiceCrashHandler,
                                                (uint64_t)this);
     if (ret) {
-        QAL_ERR(LOG_TAG, "AGM service not up%d", ret);
+        PAL_ERR(LOG_TAG, "AGM service not up%d", ret);
     }
 
     ResourceManager::loadAdmLib();
 
-    QAL_INFO(LOG_TAG, "Exit. ret %d", ret);
+    PAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
 ResourceManager::~ResourceManager()
@@ -587,9 +587,9 @@ void ResourceManager::loadAdmLib()
     if (access(ADM_LIBRARY_PATH, R_OK) == 0) {
         admLibHdl = dlopen(ADM_LIBRARY_PATH, RTLD_NOW);
         if (admLibHdl == NULL) {
-            QAL_INFO(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
+            PAL_INFO(LOG_TAG, "DLOPEN failed for %s", ADM_LIBRARY_PATH);
         } else {
-            QAL_INFO(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
+            PAL_INFO(LOG_TAG, "DLOPEN successful for %s", ADM_LIBRARY_PATH);
             admInitFn = (adm_init_t)
                 dlsym(admLibHdl, "adm_init");
             admDeInitFn = (adm_deinit_t)
@@ -627,9 +627,9 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
     std::unique_lock<std::mutex> lock(rm->cvMutex);
     int ret = 0;
     uint32_t eventData;
-    qal_global_callback_event_t event;
+    pal_global_callback_event_t event;
 
-    QAL_INFO(LOG_TAG,"ssr Handling thread started");
+    PAL_INFO(LOG_TAG,"ssr Handling thread started");
 
     while(1) {
         if (rm->msgQ.empty())
@@ -638,7 +638,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
             state = rm->msgQ.front();
             rm->msgQ.pop();
             lock.unlock();
-            QAL_INFO(LOG_TAG, "state %d, prev state %d size %zu",
+            PAL_INFO(LOG_TAG, "state %d, prev state %d size %zu",
                                state, prevState, rm->mActiveStreams.size());
             if (state == CARD_STATUS_NONE)
                 break;
@@ -647,20 +647,20 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
             mResourceManagerMutex.lock();
             if (state != prevState) {
                 if (rm->globalCb) {
-                    QAL_DBG(LOG_TAG, "Notifying client about sound card state %d global cb %pK",
+                    PAL_DBG(LOG_TAG, "Notifying client about sound card state %d global cb %pK",
                                       rm->cardState, rm->globalCb);
                     eventData = (int)rm->cardState;
-                    event = QAL_SND_CARD_STATE;
-                    QAL_DBG(LOG_TAG, "eventdata %d", eventData);
+                    event = PAL_SND_CARD_STATE;
+                    PAL_DBG(LOG_TAG, "eventdata %d", eventData);
                     rm->globalCb(event, &eventData, cookie);
                 }
             }
 
             if (rm->mActiveStreams.empty()) {
-                QAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
+                PAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
                 prevState = state;
             } else if (state == prevState) {
-                QAL_INFO(LOG_TAG, "%d state already handled", state);
+                PAL_INFO(LOG_TAG, "%d state already handled", state);
             } else if (state == CARD_STATUS_OFFLINE) {
                 for (auto str: rm->mActiveStreams) {
                     mResourceManagerMutex.unlock();
@@ -668,7 +668,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     if (iter != mActiveStreams.end()) {
                         ret = str->ssrDownHandler();
                         if (0 != ret) {
-                            QAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
+                            PAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
                                           str, ret);
                         }
                     }
@@ -682,7 +682,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     if (iter != mActiveStreams.end()) {
                         ret = str->ssrUpHandler();
                         if (0 != ret) {
-                            QAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
+                            PAL_ERR(LOG_TAG, "Ssr up handling failed for %pK ret %d",
                                           str, ret);
                         }
                     }
@@ -690,13 +690,13 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                 }
                 prevState = state;
             } else {
-                QAL_ERR(LOG_TAG, "Invalid state. state %d", state);
+                PAL_ERR(LOG_TAG, "Invalid state. state %d", state);
             }
             mResourceManagerMutex.unlock();
             lock.lock();
         }
     }
-    QAL_INFO(LOG_TAG, "ssr Handling thread exited");
+    PAL_INFO(LOG_TAG, "ssr Handling thread exited");
 }
 
 int ResourceManager::initSndMonitor()
@@ -706,18 +706,18 @@ int ResourceManager::initSndMonitor()
     sndmon = new SndCardMonitor(snd_card);
     if (!sndmon) {
         ret = -EINVAL;
-        QAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
+        PAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
         return ret;
     } else {
         cardState = CARD_STATUS_ONLINE;
-        QAL_INFO(LOG_TAG, "Sound monitor initialized");
+        PAL_INFO(LOG_TAG, "Sound monitor initialized");
         return ret;
     }
 }
 
 void ResourceManager::ssrHandler(card_status_t state)
 {
-    QAL_DBG(LOG_TAG, "Enter. state %d", state);
+    PAL_DBG(LOG_TAG, "Enter. state %d", state);
     cvMutex.lock();
     msgQ.push(state);
     cvMutex.unlock();
@@ -729,7 +729,7 @@ char* ResourceManager::getDeviceNameFromID(uint32_t id)
 {
     for (int i=0; i < devInfo.size(); i++) {
         if (devInfo[i].deviceId == id) {
-            QAL_DBG(LOG_TAG, "pcm id name is %s ", devInfo[i].name);
+            PAL_DBG(LOG_TAG, "pcm id name is %s ", devInfo[i].name);
             return devInfo[i].name;
         }
     }
@@ -746,7 +746,7 @@ int ResourceManager::init_audio()
 
     char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
 
     do {
         /* Look for only default codec sound card */
@@ -758,18 +758,18 @@ int ResourceManager::init_audio()
             if (tmp_mixer) {
                 snd_card_name = strdup(mixer_get_name(tmp_mixer));
                 if (!snd_card_name) {
-                    QAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
+                    PAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
                     mixer_close(tmp_mixer);
                     return -EINVAL;
                 }
-                QAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s, am:%p",
+                PAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s, am:%p",
                 snd_card, snd_card_name, rm->audio_mixer);
 
                 /* TODO: Needs to extend for new targets */
                 if (strstr(snd_card_name, "kona") ||
                     strstr(snd_card_name, "sm8150")||
                     strstr(snd_card_name, "lahaina") ) {
-                    QAL_VERBOSE(LOG_TAG, "Found Codec sound card");
+                    PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_mixer = tmp_mixer;
                     break;
@@ -785,13 +785,13 @@ int ResourceManager::init_audio()
         }
 
         if (!snd_card_found) {
-            QAL_INFO(LOG_TAG, "No audio mixer, retry %d", retry++);
+            PAL_INFO(LOG_TAG, "No audio mixer, retry %d", retry++);
             sleep(1);
         }
     } while (!snd_card_found && retry <= MAX_RETRY_CNT);
 
     if (snd_card >= MAX_SND_CARD || !audio_mixer) {
-        QAL_ERR(LOG_TAG, "audio mixer open failure");
+        PAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
     }
 
@@ -814,9 +814,9 @@ int ResourceManager::init_audio()
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
     audio_route = audio_route_init(snd_card, mixer_xml_file);
-    QAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
+    PAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
     if (!audio_route) {
-        QAL_ERR(LOG_TAG, "audio route init failed");
+        PAL_ERR(LOG_TAG, "audio route init failed");
         mixer_close(audio_mixer);
         if (snd_card_name)
             free(snd_card_name);
@@ -824,7 +824,7 @@ int ResourceManager::init_audio()
     }
     // audio_route init success
 
-    QAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+    PAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
 }
@@ -834,24 +834,24 @@ int ResourceManager::init()
     std::shared_ptr<Speaker> dev = nullptr;
 
     // Initialize Speaker Protection calibration mode
-    struct qal_device dattr;
+    struct pal_device dattr;
     // Get the speaker instance and activate speaker protection
-    dattr.id = QAL_DEVICE_OUT_SPEAKER;
+    dattr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
     if (!dev) {
-        QAL_DBG(LOG_TAG, "Speaker instance created");
+        PAL_DBG(LOG_TAG, "Speaker instance created");
     }
     else
-        QAL_INFO(LOG_TAG, "Speaker instance not created");
+        PAL_INFO(LOG_TAG, "Speaker instance not created");
 
     return 0;
 }
 
-bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_type_t rx_streamtype)
+bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype)
 {
     bool ecref_status = true;
-    if (tx_streamtype == QAL_STREAM_LOW_LATENCY) {
-       QAL_DBG(LOG_TAG, "no need to enable ec for tx stream %d", tx_streamtype);
+    if (tx_streamtype == PAL_STREAM_LOW_LATENCY) {
+       PAL_DBG(LOG_TAG, "no need to enable ec for tx stream %d", tx_streamtype);
        return false;
     }
     for (int i = 0; i < txEcInfo.size(); i++) {
@@ -860,7 +860,7 @@ bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_
                   rx_type != txEcInfo[i].disabled_rx_streams.end(); rx_type++) {
                if (rx_streamtype == *rx_type) {
                    ecref_status = false;
-                   QAL_DBG(LOG_TAG, "given rx %d disabled %d status %d",rx_streamtype, *rx_type, ecref_status);
+                   PAL_DBG(LOG_TAG, "given rx %d disabled %d status %d",rx_streamtype, *rx_type, ecref_status);
                    break;
                }
             }
@@ -869,8 +869,8 @@ bool ResourceManager::getEcRefStatus(qal_stream_type_t tx_streamtype,qal_stream_
     return ecref_status;
 }
 
-void ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t type,
-                                         struct qal_device_info *devinfo)
+void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type,
+                                         struct pal_device_info *devinfo)
 {
     struct kvpair_info kv = {};
 
@@ -893,8 +893,8 @@ void ResourceManager::getDeviceInfo(qal_device_id_t deviceId, qal_stream_type_t 
      }
 }
 
-int32_t ResourceManager::getSidetoneMode(qal_device_id_t deviceId,
-                                         qal_stream_type_t type,
+int32_t ResourceManager::getSidetoneMode(pal_device_id_t deviceId,
+                                         pal_stream_type_t type,
                                          sidetone_mode_t *mode){
     int32_t status = 0;
 
@@ -904,7 +904,7 @@ int32_t ResourceManager::getSidetoneMode(qal_device_id_t deviceId,
             for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
                 if (type == deviceInfo[size1].usecase[size2].type) {
                     *mode = deviceInfo[size1].usecase[size2].sidetoneMode;
-                    QAL_DBG(LOG_TAG, "found sidetoneMode %d for dev %d", *mode, deviceId);
+                    PAL_DBG(LOG_TAG, "found sidetoneMode %d for dev %d", *mode, deviceId);
                     break;
                 }
             }
@@ -931,156 +931,156 @@ void ResourceManager::getChannelMap(uint8_t *channel_map, int channels)
 {
     switch (channels) {
     case CHANNELS_1:
-       channel_map[0] = QAL_CHMAP_CHANNEL_C;
+       channel_map[0] = PAL_CHMAP_CHANNEL_C;
        break;
     case CHANNELS_2:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
        break;
     case CHANNELS_3:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_C;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_C;
        break;
     case CHANNELS_4:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_LB;
-       channel_map[3] = QAL_CHMAP_CHANNEL_RB;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_LB;
+       channel_map[3] = PAL_CHMAP_CHANNEL_RB;
        break;
     case CHANNELS_5:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_C;
-       channel_map[3] = QAL_CHMAP_CHANNEL_LB;
-       channel_map[4] = QAL_CHMAP_CHANNEL_RB;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_C;
+       channel_map[3] = PAL_CHMAP_CHANNEL_LB;
+       channel_map[4] = PAL_CHMAP_CHANNEL_RB;
        break;
     case CHANNELS_6:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_C;
-       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
-       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
-       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_C;
+       channel_map[3] = PAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = PAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = PAL_CHMAP_CHANNEL_RB;
        break;
     case CHANNELS_7:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_C;
-       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
-       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
-       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
-       channel_map[6] = QAL_CHMAP_CHANNEL_RC;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_C;
+       channel_map[3] = PAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = PAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = PAL_CHMAP_CHANNEL_RB;
+       channel_map[6] = PAL_CHMAP_CHANNEL_RC;
        break;
     case CHANNELS_8:
-       channel_map[0] = QAL_CHMAP_CHANNEL_FL;
-       channel_map[1] = QAL_CHMAP_CHANNEL_FR;
-       channel_map[2] = QAL_CHMAP_CHANNEL_C;
-       channel_map[3] = QAL_CHMAP_CHANNEL_LFE;
-       channel_map[4] = QAL_CHMAP_CHANNEL_LB;
-       channel_map[5] = QAL_CHMAP_CHANNEL_RB;
-       channel_map[6] = QAL_CHMAP_CHANNEL_LS;
-       channel_map[7] = QAL_CHMAP_CHANNEL_RS;
+       channel_map[0] = PAL_CHMAP_CHANNEL_FL;
+       channel_map[1] = PAL_CHMAP_CHANNEL_FR;
+       channel_map[2] = PAL_CHMAP_CHANNEL_C;
+       channel_map[3] = PAL_CHMAP_CHANNEL_LFE;
+       channel_map[4] = PAL_CHMAP_CHANNEL_LB;
+       channel_map[5] = PAL_CHMAP_CHANNEL_RB;
+       channel_map[6] = PAL_CHMAP_CHANNEL_LS;
+       channel_map[7] = PAL_CHMAP_CHANNEL_RS;
        break;
    }
 }
 
-int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
-                                         struct qal_stream_attributes *sAttr, int32_t channel)
+int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
+                                         struct pal_stream_attributes *sAttr, int32_t channel)
 {
     int32_t status = 0;
-    struct qal_channel_info dev_ch_info;
+    struct pal_channel_info dev_ch_info;
 
-    QAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
+    PAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
-        case QAL_DEVICE_IN_SPEAKER_MIC:
+        case PAL_DEVICE_IN_SPEAKER_MIC:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-        case QAL_DEVICE_IN_HANDSET_MIC:
+        case PAL_DEVICE_IN_HANDSET_MIC:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-        case QAL_DEVICE_IN_WIRED_HEADSET:
+        case PAL_DEVICE_IN_WIRED_HEADSET:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             status = (HeadsetMic::checkAndUpdateBitWidth(&deviceattr->config.bit_width) |
                 HeadsetMic::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
             if (status) {
-                QAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
+                PAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
                 status = -EINVAL;
             }
-            QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            PAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
-        case QAL_DEVICE_OUT_HANDSET:
+        case PAL_DEVICE_OUT_HANDSET:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-        case QAL_DEVICE_OUT_SPEAKER:
+        case PAL_DEVICE_OUT_SPEAKER:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-        case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        case QAL_DEVICE_OUT_WIRED_HEADSET:
+        case PAL_DEVICE_OUT_WIRED_HEADPHONE:
+        case PAL_DEVICE_OUT_WIRED_HEADSET:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             status = (Headphone::checkAndUpdateBitWidth(&deviceattr->config.bit_width) |
                 Headphone::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
             if (status) {
-                QAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
+                PAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
                 status = -EINVAL;
             }
-            QAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            PAL_DBG(LOG_TAG, "device samplerate %d, bitwidth %d", deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
-        case QAL_DEVICE_IN_HANDSET_VA_MIC:
-        case QAL_DEVICE_IN_HEADSET_VA_MIC:
+        case PAL_DEVICE_IN_HANDSET_VA_MIC:
+        case PAL_DEVICE_IN_HEADSET_VA_MIC:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            QAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
-        case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        case QAL_DEVICE_IN_BLUETOOTH_A2DP:
+        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_44K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_COMPRESSED;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
             break;
-        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
-        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
         {
             std::shared_ptr<BtSco> scoDev;
 
@@ -1089,100 +1089,100 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             scoDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(deviceattr, rm));
             if (!scoDev) {
-                QAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
+                PAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
                 return -EINVAL;
             }
             scoDev->updateSampleRate(&deviceattr->config.sample_rate);
-            QAL_DBG(LOG_TAG, "BT SCO device samplerate %d, bitwidth %d",
+            PAL_DBG(LOG_TAG, "BT SCO device samplerate %d, bitwidth %d",
                   deviceattr->config.sample_rate, deviceattr->config.bit_width);
         }
             break;
-        case QAL_DEVICE_OUT_USB_DEVICE:
-        case QAL_DEVICE_OUT_USB_HEADSET:
+        case PAL_DEVICE_OUT_USB_DEVICE:
+        case PAL_DEVICE_OUT_USB_HEADSET:
             {
                 deviceattr->config.sample_rate = SAMPLINGRATE_44K;//SAMPLINGRATE_48K;
                 deviceattr->config.bit_width = BITWIDTH_16;
-                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+                deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
                 // config.ch_info memory is allocated in selectBestConfig below
                 std::shared_ptr<USB> USB_out_device;
                 USB_out_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
                 if (!USB_out_device) {
-                    QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
+                    PAL_ERR(LOG_TAG, "failed to get USB singleton object.");
                     return -EINVAL;
                 }
                 status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
-                QAL_ERR(LOG_TAG, "device samplerate %d, bitwidth %d, ch %d", deviceattr->config.sample_rate, deviceattr->config.bit_width,
+                PAL_ERR(LOG_TAG, "device samplerate %d, bitwidth %d, ch %d", deviceattr->config.sample_rate, deviceattr->config.bit_width,
                         deviceattr->config.ch_info.channels);
             }
             break;
-        case QAL_DEVICE_IN_USB_DEVICE:
-        case QAL_DEVICE_IN_USB_HEADSET:
+        case PAL_DEVICE_IN_USB_DEVICE:
+        case PAL_DEVICE_IN_USB_HEADSET:
             {
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             std::shared_ptr<USB> USB_in_device;
             USB_in_device = std::dynamic_pointer_cast<USB>(USB::getInstance(deviceattr, rm));
             if (!USB_in_device) {
-                QAL_ERR(LOG_TAG, "failed to get USB singleton object.");
+                PAL_ERR(LOG_TAG, "failed to get USB singleton object.");
                 return -EINVAL;
             }
             USB_in_device->selectBestConfig(deviceattr, sAttr, false);
             }
             break;
-        case QAL_DEVICE_IN_PROXY:
+        case PAL_DEVICE_IN_PROXY:
             {
-            /* For QAL_DEVICE_IN_PROXY, copy all config from stream attributes */
+            /* For PAL_DEVICE_IN_PROXY, copy all config from stream attributes */
             deviceattr->config.ch_info =sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-            QAL_DBG(LOG_TAG, "QAL_DEVICE_IN_PROXY sample rate %d bitwidth %d",
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_IN_PROXY sample rate %d bitwidth %d",
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
             break;
-        case QAL_DEVICE_OUT_PROXY:
+        case PAL_DEVICE_OUT_PROXY:
             {
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device proxyIn_dattr;
-            proxyIn_dattr.id = QAL_DEVICE_IN_PROXY;
+            struct pal_device proxyIn_dattr;
+            proxyIn_dattr.id = PAL_DEVICE_IN_PROXY;
             dev = Device::getInstance(&proxyIn_dattr, rm);
             if (dev) {
                 status = dev->getDeviceAttributes(&proxyIn_dattr);
                 if (status) {
-                    QAL_ERR(LOG_TAG, "OUT_PROXY getDeviceAttributes failed %d", status);
+                    PAL_ERR(LOG_TAG, "OUT_PROXY getDeviceAttributes failed %d", status);
                     break;
                 }
                 deviceattr->config.ch_info = proxyIn_dattr.config.ch_info;
                 deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
                 deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
-                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
-                QAL_DBG(LOG_TAG, "QAL_DEVICE_OUT_PROXY samplereate %d bitwidth %d",
+                deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY samplereate %d bitwidth %d",
                         deviceattr->config.sample_rate, deviceattr->config.bit_width);
             } else {
                 deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
                 deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
                 deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
-                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+                deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-                QAL_DBG(LOG_TAG, "QAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
+                PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
                         deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
             }
             break;
-        case QAL_DEVICE_OUT_AUX_DIGITAL:
-        case QAL_DEVICE_OUT_AUX_DIGITAL_1:
-        case QAL_DEVICE_OUT_HDMI:
+        case PAL_DEVICE_OUT_AUX_DIGITAL:
+        case PAL_DEVICE_OUT_AUX_DIGITAL_1:
+        case PAL_DEVICE_OUT_HDMI:
             {
                 std::shared_ptr<DisplayPort> dp_device;
                 dp_device = std::dynamic_pointer_cast<DisplayPort>
                                     (DisplayPort::getInstance(deviceattr, rm));
                 if (!dp_device) {
-                    QAL_ERR(LOG_TAG, "Failed to get DisplayPort object.");
+                    PAL_ERR(LOG_TAG, "Failed to get DisplayPort object.");
                     return -EINVAL;
                 }
                 /**
@@ -1200,7 +1200,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
 
                 getChannelMap(&(dev_ch_info.ch_map[0]), channels);
                 deviceattr->config.ch_info = dev_ch_info;
-                QAL_DBG(LOG_TAG, "Channel map set for %d", channels);
+                PAL_DBG(LOG_TAG, "Channel map set for %d", channels);
 
                 if (dp_device->isSupportedSR(NULL,
                             sAttr->out_media_config.sample_rate)) {
@@ -1214,7 +1214,7 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                         deviceattr->config.sample_rate = SAMPLINGRATE_48K;
                 }
 
-                QAL_DBG(LOG_TAG, "SR %d", deviceattr->config.sample_rate);
+                PAL_DBG(LOG_TAG, "SR %d", deviceattr->config.sample_rate);
 
                 if (DisplayPort::isBitWidthSupported(
                             sAttr->out_media_config.bit_width)) {
@@ -1227,13 +1227,13 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
                     else
                         deviceattr->config.bit_width = BITWIDTH_16;
                 }
-                QAL_DBG(LOG_TAG, "Bit Width %d", deviceattr->config.bit_width);
+                PAL_DBG(LOG_TAG, "Bit Width %d", deviceattr->config.bit_width);
 
-                deviceattr->config.aud_fmt_id = QAL_AUDIO_FMT_DEFAULT_PCM;
+                deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             }
             break;
         default:
-            QAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
+            PAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
             //do nothing for rest of the devices
             break;
@@ -1241,8 +1241,8 @@ int32_t ResourceManager::getDeviceConfig(struct qal_device *deviceattr,
     return status;
 }
 
-bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes,
-                                        struct qal_device *devices, int no_of_devices)
+bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes,
+                                        struct pal_device *devices, int no_of_devices)
 {
     bool result = false;
     uint16_t channels;
@@ -1252,89 +1252,89 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
     size_t max_sessions = 0;
 
     if (!attributes || !devices ||
-        (!no_of_devices && attributes->type != QAL_STREAM_VOICE_CALL_MUSIC)) {
-        QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
+        (!no_of_devices && attributes->type != PAL_STREAM_VOICE_CALL_MUSIC)) {
+        PAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
         return result;
     }
 
     // check if stream type is supported
     // and new stream session is allowed
-    qal_stream_type_t type = attributes->type;
-    QAL_DBG(LOG_TAG, "Enter. type %d", type);
+    pal_stream_type_t type = attributes->type;
+    PAL_DBG(LOG_TAG, "Enter. type %d", type);
     switch (type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_VOIP:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
             cur_sessions = active_streams_ll.size();
             max_sessions = MAX_SESSIONS_LOW_LATENCY;
             break;
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
             cur_sessions = active_streams_ull.size();
             max_sessions = MAX_SESSIONS_ULTRA_LOW_LATENCY;
             break;
-        case QAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_DEEP_BUFFER:
             cur_sessions = active_streams_db.size();
             max_sessions = MAX_SESSIONS_DEEP_BUFFER;
             break;
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
             cur_sessions = active_streams_comp.size();
             max_sessions = MAX_SESSIONS_COMPRESSED;
             break;
-        case QAL_STREAM_GENERIC:
+        case PAL_STREAM_GENERIC:
             cur_sessions = active_streams_ulla.size();
             max_sessions = MAX_SESSIONS_GENERIC;
             break;
-        case QAL_STREAM_RAW:
-        case QAL_STREAM_VOICE_ACTIVATION:
-        case QAL_STREAM_LOOPBACK:
-        case QAL_STREAM_TRANSCODE:
-        case QAL_STREAM_VOICE_UI:
+        case PAL_STREAM_RAW:
+        case PAL_STREAM_VOICE_ACTIVATION:
+        case PAL_STREAM_LOOPBACK:
+        case PAL_STREAM_TRANSCODE:
+        case PAL_STREAM_VOICE_UI:
             cur_sessions = active_streams_st.size();
             max_sessions = MAX_SESSIONS_VOICE_UI;
             break;
-        case QAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_PCM_OFFLOAD:
             cur_sessions = active_streams_po.size();
             max_sessions = MAX_SESSIONS_PCM_OFFLOAD;
             break;
-        case QAL_STREAM_PROXY:
+        case PAL_STREAM_PROXY:
             cur_sessions = active_streams_proxy.size();
             max_sessions = MAX_SESSIONS_PROXY;
             break;
-         case QAL_STREAM_VOICE_CALL:
+         case PAL_STREAM_VOICE_CALL:
             break;
-        case QAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
             cur_sessions = active_streams_incall_music.size();
             max_sessions = MAX_SESSIONS_INCALL_MUSIC;
             break;
-        case QAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_VOICE_CALL_RECORD:
             cur_sessions = active_streams_incall_record.size();
             max_sessions = MAX_SESSIONS_INCALL_RECORD;
             break;
         default:
-            QAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
+            PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
     }
-    if (cur_sessions == max_sessions && type != QAL_STREAM_VOICE_CALL) {
-        QAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
+    if (cur_sessions == max_sessions && type != PAL_STREAM_VOICE_CALL) {
+        PAL_ERR(LOG_TAG, "no new session allowed for stream %d", type);
         return result;
     }
 
     // check if param supported by audio configruation
     switch (type) {
-        case QAL_STREAM_VOICE_CALL_RECORD:
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
-        case QAL_STREAM_DEEP_BUFFER:
-        case QAL_STREAM_GENERIC:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_PCM_OFFLOAD:
-        case QAL_STREAM_LOOPBACK:
-        case QAL_STREAM_PROXY:
-        case QAL_STREAM_VOICE_CALL_MUSIC:
-            if (attributes->direction == QAL_AUDIO_INPUT) {
+        case PAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_GENERIC:
+        case PAL_STREAM_VOIP:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
+        case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOOPBACK:
+        case PAL_STREAM_PROXY:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
+            if (attributes->direction == PAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
                 bitwidth = attributes->in_media_config.bit_width;
@@ -1347,14 +1347,14 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                   StreamPCM::isSampleRateSupported(samplerate) |
                   StreamPCM::isChannelSupported(channels));
             if (0 != rc) {
-               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            QAL_INFO(LOG_TAG, "config suppported");
+            PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
-        case QAL_STREAM_COMPRESSED:
-            if (attributes->direction == QAL_AUDIO_INPUT) {
+        case PAL_STREAM_COMPRESSED:
+            if (attributes->direction == PAL_AUDIO_INPUT) {
                channels = attributes->in_media_config.ch_info.channels;
                samplerate = attributes->in_media_config.sample_rate;
                bitwidth = attributes->in_media_config.bit_width;
@@ -1367,14 +1367,14 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                   StreamCompress::isSampleRateSupported(samplerate) |
                   StreamCompress::isChannelSupported(channels));
             if (0 != rc) {
-               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            QAL_INFO(LOG_TAG, "config suppported");
+            PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
-        case QAL_STREAM_VOICE_UI:
-            if (attributes->direction == QAL_AUDIO_INPUT) {
+        case PAL_STREAM_VOICE_UI:
+            if (attributes->direction == PAL_AUDIO_INPUT) {
                channels = attributes->in_media_config.ch_info.channels;
                samplerate = attributes->in_media_config.sample_rate;
                bitwidth = attributes->in_media_config.bit_width;
@@ -1387,13 +1387,13 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                   StreamSoundTrigger::isSampleRateSupported(samplerate) |
                   StreamSoundTrigger::isChannelSupported(channels));
             if (0 != rc) {
-               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            QAL_INFO(LOG_TAG, "config suppported");
+            PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_VOICE_CALL:
             channels = attributes->out_media_config.ch_info.channels;
             samplerate = attributes->out_media_config.sample_rate;
             bitwidth = attributes->out_media_config.bit_width;
@@ -1401,18 +1401,18 @@ bool ResourceManager::isStreamSupported(struct qal_stream_attributes *attributes
                   StreamPCM::isSampleRateSupported(samplerate) |
                   StreamPCM::isChannelSupported(channels));
             if (0 != rc) {
-               QAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            QAL_INFO(LOG_TAG, "config suppported");
+            PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
 
         default:
-            QAL_ERR(LOG_TAG, "unknown type");
+            PAL_ERR(LOG_TAG, "unknown type");
             return false;
     }
-    QAL_DBG(LOG_TAG, "Exit. result %d", result);
+    PAL_DBG(LOG_TAG, "Exit. result %d", result);
     return result;
 }
 
@@ -1427,75 +1427,75 @@ int registerstream(T s, std::vector<T> &streams)
 int ResourceManager::registerStream(Stream *s)
 {
     int ret = 0;
-    qal_stream_type_t type;
-    QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
+    pal_stream_type_t type;
+    PAL_DBG(LOG_TAG, "Enter. stream %pK", s);
     ret = s->getStreamType(&type);
     if (0 != ret) {
-        QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+        PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
         return ret;
     }
-    QAL_DBG(LOG_TAG, "stream type %d", type);
+    PAL_DBG(LOG_TAG, "stream type %d", type);
     mResourceManagerMutex.lock();
     switch (type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
+        case PAL_STREAM_VOICE_CALL:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sPCM, active_streams_ll);
             break;
         }
-        case QAL_STREAM_PCM_OFFLOAD:
-        case QAL_STREAM_LOOPBACK:
+        case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOOPBACK:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sPCM, active_streams_po);
             break;
         }
-        case QAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_DEEP_BUFFER:
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sDB, active_streams_db);
             break;
         }
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
         {
             StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
             ret = registerstream(sComp, active_streams_comp);
             break;
         }
-        case QAL_STREAM_GENERIC:
+        case PAL_STREAM_GENERIC:
         {
             StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sULLA, active_streams_ulla);
             break;
         }
-        case QAL_STREAM_VOICE_UI:
+        case PAL_STREAM_VOICE_UI:
         {
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = registerstream(sST, active_streams_st);
             break;
         }
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
         {
             StreamPCM* sULL = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sULL, active_streams_ull);
             break;
         }
-        case QAL_STREAM_PROXY:
+        case PAL_STREAM_PROXY:
         {
             StreamPCM* sProxy = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sProxy, active_streams_proxy);
             break;
         }
-        case QAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
         {
             StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
             ret = registerstream(sPCM, active_streams_incall_music);
             break;
         }
-        case QAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_VOICE_CALL_RECORD:
         {
             StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
             ret = registerstream(sPCM, active_streams_incall_record);
@@ -1503,7 +1503,7 @@ int ResourceManager::registerStream(Stream *s)
         }
         default:
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
+            PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
             break;
     }
     mActiveStreams.push_back(s);
@@ -1512,7 +1512,7 @@ int ResourceManager::registerStream(Stream *s)
     s->getStreamAttributes(&incomingStreamAttr);
     int incomingPriority = getStreamAttrPriority(incomingStreamAttr);
     if (incomingPriority > mPriorityHighestPriorityActiveStream) {
-        QAL_INFO(LOG_TAG, "Added new stream with highest priority %d", incomingPriority);
+        PAL_INFO(LOG_TAG, "Added new stream with highest priority %d", incomingPriority);
         mPriorityHighestPriorityActiveStream = incomingPriority;
         mHighestPriorityActiveStream = s;
     }
@@ -1522,7 +1522,7 @@ int ResourceManager::registerStream(Stream *s)
 #endif
 
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -1545,11 +1545,11 @@ int deregisterstream(T s, std::vector<T> &streams)
 int ResourceManager::deregisterStream(Stream *s)
 {
     int ret = 0;
-    qal_stream_type_t type;
-    QAL_DBG(LOG_TAG, "Enter. stream %pK", s);
+    pal_stream_type_t type;
+    PAL_DBG(LOG_TAG, "Enter. stream %pK", s);
     ret = s->getStreamType(&type);
     if (0 != ret) {
-        QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+        PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
         return ret;
     }
 #if 0
@@ -1557,44 +1557,44 @@ int ResourceManager::deregisterStream(Stream *s)
     get priority from remaining streams and find highest priority stream
     and store in mHighestPriorityActiveStream
 #endif
-    QAL_INFO(LOG_TAG, "stream type %d", type);
+    PAL_INFO(LOG_TAG, "stream type %d", type);
     mResourceManagerMutex.lock();
     switch (type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
+        case PAL_STREAM_VOICE_CALL:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sPCM, active_streams_ll);
             break;
         }
-        case QAL_STREAM_PCM_OFFLOAD:
-        case QAL_STREAM_LOOPBACK:
+        case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOOPBACK:
         {
             StreamPCM* sPCM = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sPCM, active_streams_po);
             break;
         }
-        case QAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_DEEP_BUFFER:
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sDB, active_streams_db);
             break;
         }
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
         {
             StreamCompress* sComp = dynamic_cast<StreamCompress*>(s);
             ret = deregisterstream(sComp, active_streams_comp);
             break;
         }
-        case QAL_STREAM_GENERIC:
+        case PAL_STREAM_GENERIC:
         {
             StreamPCM* sULLA = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sULLA, active_streams_ulla);
             break;
         }
-        case QAL_STREAM_VOICE_UI:
+        case PAL_STREAM_VOICE_UI:
         {
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = deregisterstream(sST, active_streams_st);
@@ -1605,25 +1605,25 @@ int ResourceManager::deregisterStream(Stream *s)
             }
             break;
         }
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
         {
             StreamPCM* sULL = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sULL, active_streams_ull);
             break;
         }
-        case QAL_STREAM_PROXY:
+        case PAL_STREAM_PROXY:
         {
             StreamPCM* sProxy = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sProxy, active_streams_proxy);
             break;
         }
-        case QAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
         {
             StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
             ret = deregisterstream(sPCM, active_streams_incall_music);
             break;
         }
-        case QAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_VOICE_CALL_RECORD:
         {
             StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
             ret = deregisterstream(sPCM, active_streams_incall_record);
@@ -1631,13 +1631,13 @@ int ResourceManager::deregisterStream(Stream *s)
         }
         default:
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
+            PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
             break;
     }
 
     deregisterstream(s, mActiveStreams);
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -1646,7 +1646,7 @@ bool isStreamActive(T s, std::vector<T> &streams)
 {
     bool ret = false;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     typename std::vector<T>::iterator iter =
         std::find(streams.begin(), streams.end(), s);
     if (iter != streams.end()) {
@@ -1658,32 +1658,32 @@ bool isStreamActive(T s, std::vector<T> &streams)
 
 int ResourceManager::registerDevice_l(std::shared_ptr<Device> d, Stream *s)
 {
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     active_devices.push_back(std::make_pair(d, s));
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return 0;
 }
 
 int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
 {
     int status = 0;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
 
     mResourceManagerMutex.lock();
     registerDevice_l(d, s);
-    if (sAttr.direction == QAL_AUDIO_INPUT &&
-        sAttr.type != QAL_STREAM_PROXY &&
-        sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY) {
+    if (sAttr.direction == PAL_AUDIO_INPUT &&
+        sAttr.type != PAL_STREAM_PROXY &&
+        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev) {
             // use setECRef_l to avoid deadlock
@@ -1691,26 +1691,26 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
             if (status)
-                QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
         }
-    } else if (sAttr.direction == QAL_AUDIO_OUTPUT &&
-        sAttr.type != QAL_STREAM_ULTRA_LOW_LATENCY) {
+    } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
+        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
         for (auto dev: associatedDevices) {
             str_list = getConcurrentTxStream_l(s, dev);
             for (auto str: str_list) {
-                QAL_DBG(LOG_TAG, "Enter enable EC Ref");
+                PAL_DBG(LOG_TAG, "Enter enable EC Ref");
                 if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
                     status = str->setECRef(dev, true);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
                     }
                 }
             }
@@ -1723,7 +1723,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
 int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
 {
     int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
 
     auto iter = std::find(active_devices.begin(),
         active_devices.end(), std::make_pair(d, s));
@@ -1731,40 +1731,40 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
         active_devices.erase(iter);
     else {
         ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
+        PAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
                 d->getSndDeviceId(), ret);
     }
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
 {
     int status = 0;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
 
     mResourceManagerMutex.lock();
     deregisterDevice_l(d, s);
-    if (sAttr.direction == QAL_AUDIO_INPUT) {
+    if (sAttr.direction == PAL_AUDIO_INPUT) {
         mResourceManagerMutex.unlock();
         status = s->setECRef_l(nullptr, false);
         mResourceManagerMutex.lock();
         if (status)
-            QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-    } else if (sAttr.direction == QAL_AUDIO_OUTPUT) {
+            PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+    } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
@@ -1776,13 +1776,13 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                  * Rx stream stops device after stopping session
                  */
                 if (dev->getDeviceCount() != 1) {
-                    QAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
+                    PAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
                     status = str->setECRef(dev, false);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+                        PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
                     }
                 }
             }
@@ -1796,11 +1796,11 @@ bool ResourceManager::isDeviceActive(std::shared_ptr<Device> d, Stream *s)
 {
     bool is_active = false;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
     is_active = isDeviceActive_l(d, s);
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return is_active;
 }
 
@@ -1809,25 +1809,25 @@ bool ResourceManager::isDeviceActive_l(std::shared_ptr<Device> d, Stream *s)
     bool is_active = false;
     int deviceId = d->getSndDeviceId();
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     auto iter = std::find(active_devices.begin(),
         active_devices.end(), std::make_pair(d, s));
     if (iter != active_devices.end()) {
         is_active = true;
     }
 
-    QAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
+    PAL_DBG(LOG_TAG, "Exit. device %d is active %d", deviceId, is_active);
     return is_active;
 }
 
 int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
-                            qal_param_device_connection_t connection_state)
+                            pal_param_device_connection_t connection_state)
 {
     int ret = 0;
 
     ret = d->init(connection_state);
     if (ret) {
-        QAL_ERR(LOG_TAG, "failed to init deivce.");
+        PAL_ERR(LOG_TAG, "failed to init deivce.");
         return ret;
     }
 
@@ -1835,11 +1835,11 @@ int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
     return 0;
 }
 
-int ResourceManager::removePlugInDevice(qal_device_id_t device_id,
-                            qal_param_device_connection_t connection_state)
+int ResourceManager::removePlugInDevice(pal_device_id_t device_id,
+                            pal_param_device_connection_t connection_state)
 {
     int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     typename std::vector<std::shared_ptr<Device>>::iterator iter;
 
     for (iter = plugin_devices_.begin(); iter != plugin_devices_.end(); iter++) {
@@ -1852,10 +1852,10 @@ int ResourceManager::removePlugInDevice(qal_device_id_t device_id,
         plugin_devices_.erase(iter);
     } else {
         ret = -ENOENT;
-        QAL_ERR(LOG_TAG, "no device %d found in plugin device list ret %d",
+        PAL_ERR(LOG_TAG, "no device %d found in plugin device list ret %d",
                 device_id, ret);
     }
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -1872,26 +1872,26 @@ int ResourceManager::getActiveDevices(std::vector<std::shared_ptr<Device>> &devi
 int ResourceManager::getAudioRoute(struct audio_route** ar)
 {
     if (!audio_route) {
-        QAL_ERR(LOG_TAG, "no audio route found");
+        PAL_ERR(LOG_TAG, "no audio route found");
         return -ENOENT;
     }
     *ar = audio_route;
-    QAL_DBG(LOG_TAG, "ar %pK audio_route %pK", ar, audio_route);
+    PAL_DBG(LOG_TAG, "ar %pK audio_route %pK", ar, audio_route);
     return 0;
 }
 
 int ResourceManager::getAudioMixer(struct audio_mixer ** am)
 {
     if (!audio_mixer || !am) {
-        QAL_ERR(LOG_TAG, "no audio mixer found");
+        PAL_ERR(LOG_TAG, "no audio mixer found");
         return -ENOENT;
     }
     *am = audio_mixer;
-    QAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
+    PAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
     return 0;
 }
 
-void ResourceManager::GetVoiceUIProperties(struct qal_st_properties *qstp)
+void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
 {
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
@@ -1900,7 +1900,7 @@ void ResourceManager::GetVoiceUIProperties(struct qal_st_properties *qstp)
         return;
     }
 
-    memcpy(qstp, &qst_properties, sizeof(struct qal_st_properties));
+    memcpy(qstp, &qst_properties, sizeof(struct pal_st_properties));
 
     if (st_info) {
         qstp->concurrent_capture = st_info->GetConcurrentCaptureEnable();
@@ -1921,11 +1921,11 @@ bool ResourceManager::IsVoiceUILPISupported() {
 // this should only be called when LPI supported by platform
 bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
     bool has_nlpi_concurrency = false;
-    qal_stream_attributes st_attr;
+    pal_stream_attributes st_attr;
 
     mResourceManagerMutex.lock();
     if (concurrentRxStreamCount > 0) {
-        QAL_DBG(LOG_TAG, "Existing streams for NLPI concurrency");
+        PAL_DBG(LOG_TAG, "Existing streams for NLPI concurrency");
         mResourceManagerMutex.unlock();
         return true;
     }
@@ -1936,14 +1936,14 @@ bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
         }
         s->getStreamAttributes(&st_attr);
         // TODO: check Tx concurrency also
-        if (st_attr.direction != QAL_AUDIO_INPUT &&
-            st_attr.type != QAL_STREAM_LOW_LATENCY) {
+        if (st_attr.direction != PAL_AUDIO_INPUT &&
+            st_attr.type != PAL_STREAM_LOW_LATENCY) {
                 concurrentRxStreamCount++;
         }
     }
 
     if (concurrentRxStreamCount > 0) {
-        QAL_DBG(LOG_TAG, "Found streams for NLPI concurrency");
+        PAL_DBG(LOG_TAG, "Found streams for NLPI concurrency");
         has_nlpi_concurrency = true;
     }
     mResourceManagerMutex.unlock();
@@ -2019,7 +2019,7 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetCaptureProfileByPriority(
 
         cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
         if (!cap_prof) {
-            QAL_ERR(LOG_TAG, "Failed to get capture profile");
+            PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
         } else if (cap_prof->ComparePriority(cap_prof_priority) ==
                    CAPTURE_PROFILE_PRIORITY_HIGH) {
@@ -2037,7 +2037,7 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     if (!s) {
-        QAL_ERR(LOG_TAG, "Invalid stream");
+        PAL_ERR(LOG_TAG, "Invalid stream");
         return false;
     }
 
@@ -2045,7 +2045,7 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
     if (is_active) {
         cap_prof = s->GetCurrentCaptureProfile();
         if (!cap_prof) {
-            QAL_ERR(LOG_TAG, "Failed to get capture profile");
+            PAL_ERR(LOG_TAG, "Failed to get capture profile");
             return false;
         }
 
@@ -2059,7 +2059,7 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
         cap_prof_priority = GetCaptureProfileByPriority(s);
 
         if (!cap_prof_priority) {
-            QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
+            PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
             SVACaptureProfile = nullptr;
         } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) != 0) {
             SVACaptureProfile = cap_prof_priority;
@@ -2072,25 +2072,25 @@ bool ResourceManager::UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_act
 }
 
 int ResourceManager::SwitchSVADevices(bool connect_state,
-    qal_device_id_t device_id) {
+    pal_device_id_t device_id) {
     int32_t status = 0;
-    qal_device_id_t dest_device;
-    qal_device_id_t device_to_disconnect;
-    qal_device_id_t device_to_connect;
+    pal_device_id_t dest_device;
+    pal_device_id_t device_to_disconnect;
+    pal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
     StreamSoundTrigger *st_str = nullptr;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
 
     // TODO: add support for other devices
-    if (device_id == QAL_DEVICE_IN_HANDSET_MIC ||
-        device_id == QAL_DEVICE_IN_SPEAKER_MIC) {
-        dest_device = QAL_DEVICE_IN_HANDSET_VA_MIC;
-    } else if (device_id == QAL_DEVICE_IN_WIRED_HEADSET) {
-        dest_device = QAL_DEVICE_IN_HEADSET_VA_MIC;
+    if (device_id == PAL_DEVICE_IN_HANDSET_MIC ||
+        device_id == PAL_DEVICE_IN_SPEAKER_MIC) {
+        dest_device = PAL_DEVICE_IN_HANDSET_VA_MIC;
+    } else if (device_id == PAL_DEVICE_IN_WIRED_HEADSET) {
+        dest_device = PAL_DEVICE_IN_HEADSET_VA_MIC;
     } else {
-        QAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
+        PAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
         return status;
     }
 
@@ -2098,7 +2098,7 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     cap_prof_priority = GetCaptureProfileByPriority(nullptr);
 
     if (!cap_prof_priority) {
-        QAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
+        PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
         SVACaptureProfile = nullptr;
     } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
                CAPTURE_PROFILE_PRIORITY_HIGH) {
@@ -2106,11 +2106,11 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     }
 
     // TODO: add support for other devices
-    if (connect_state && dest_device == QAL_DEVICE_IN_HEADSET_VA_MIC) {
+    if (connect_state && dest_device == PAL_DEVICE_IN_HEADSET_VA_MIC) {
         device_to_connect = dest_device;
-        device_to_disconnect = QAL_DEVICE_IN_HANDSET_VA_MIC;
-    } else if (!connect_state && dest_device == QAL_DEVICE_IN_HEADSET_VA_MIC) {
-        device_to_connect = QAL_DEVICE_IN_HANDSET_VA_MIC;
+        device_to_disconnect = PAL_DEVICE_IN_HANDSET_VA_MIC;
+    } else if (!connect_state && dest_device == PAL_DEVICE_IN_HEADSET_VA_MIC) {
+        device_to_connect = PAL_DEVICE_IN_HANDSET_VA_MIC;
         device_to_disconnect = dest_device;
     }
 
@@ -2122,7 +2122,7 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
             mResourceManagerMutex.lock();
 
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
+                PAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
                     device_to_disconnect);
             }
         }
@@ -2134,12 +2134,12 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
             status = active_streams_st[i]->ConnectDevice(device_to_connect);
             mResourceManagerMutex.lock();
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
+                PAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
                     device_to_connect);
             }
         }
     }
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -2160,12 +2160,12 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
     std::map<int, std::pair<session_callback, void *>>::iterator it;
 
     if (!callback || DevIds.size() <= 0) {
-        QAL_ERR(LOG_TAG, "Invalid callback or pcm ids");
+        PAL_ERR(LOG_TAG, "Invalid callback or pcm ids");
         return -EINVAL;
     }
 
     if (mixerEventRegisterCount == 0 && !is_register) {
-        QAL_ERR(LOG_TAG, "Cannot deregister unregistered callback");
+        PAL_ERR(LOG_TAG, "Cannot deregister unregistered callback");
         return -EINVAL;
     }
 
@@ -2173,7 +2173,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
         for (int i = 0; i < DevIds.size(); i++) {
             it = mixerEventCallbackMap.find(DevIds[i]);
             if (it != mixerEventCallbackMap.end()) {
-                QAL_DBG(LOG_TAG, "callback exists for pcm id %d, overwrite",
+                PAL_DBG(LOG_TAG, "callback exists for pcm id %d, overwrite",
                     DevIds[i]);
                 mixerEventCallbackMap.erase(it);
             }
@@ -2182,30 +2182,30 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
 
         }
         if (mixerEventRegisterCount++ == 0) {
-            QAL_DBG(LOG_TAG, "Creating mixer event thread");
+            PAL_DBG(LOG_TAG, "Creating mixer event thread");
             mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
         }
     } else {
         for (int i = 0; i < DevIds.size(); i++) {
             it = mixerEventCallbackMap.find(DevIds[i]);
             if (it != mixerEventCallbackMap.end()) {
-                QAL_DBG(LOG_TAG, "callback found for pcm id %d, remove",
+                PAL_DBG(LOG_TAG, "callback found for pcm id %d, remove",
                     DevIds[i]);
                 if (callback == it->second.first) {
                     mixerEventCallbackMap.erase(it);
                 } else {
-                    QAL_ERR(LOG_TAG, "No matching callback found for pcm id %d",
+                    PAL_ERR(LOG_TAG, "No matching callback found for pcm id %d",
                         DevIds[i]);
                 }
             } else {
-                QAL_ERR(LOG_TAG, "No callback found for pcm id %d", DevIds[i]);
+                PAL_ERR(LOG_TAG, "No callback found for pcm id %d", DevIds[i]);
             }
         }
         if (mixerEventRegisterCount-- == 1) {
             if (mixerEventTread.joinable()) {
                 mixerEventTread.join();
             }
-            QAL_DBG(LOG_TAG, "Mixer event thread joined");
+            PAL_DBG(LOG_TAG, "Mixer event thread joined");
         }
     }
 
@@ -2220,42 +2220,42 @@ void ResourceManager::mixerEventWaitThreadLoop(
 
     ret = rm->getAudioMixer(&mixer);
     if (ret) {
-        QAL_ERR(LOG_TAG, "Failed to get audio mxier");
+        PAL_ERR(LOG_TAG, "Failed to get audio mxier");
         return;
     }
 
-    QAL_VERBOSE(LOG_TAG, "subscribing for event");
+    PAL_VERBOSE(LOG_TAG, "subscribing for event");
     mixer_subscribe_events(mixer, 1);
 
     while (1) {
-        QAL_VERBOSE(LOG_TAG, "going to wait for event");
+        PAL_VERBOSE(LOG_TAG, "going to wait for event");
         /* TODO: set timeout here to avoid stuck during stop
          * Better if AGM side can provide one event indicating stop
          */
         ret = mixer_wait_event(mixer, 1000);
-        QAL_VERBOSE(LOG_TAG, "mixer_wait_event returns %d", ret);
+        PAL_VERBOSE(LOG_TAG, "mixer_wait_event returns %d", ret);
         if (ret <= 0) {
-            QAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
+            PAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
         } else if (ret > 0) {
             ret = mixer_read_event(mixer, &mixer_event);
             if (ret >= 0) {
-                QAL_INFO(LOG_TAG, "Event Received %s",
+                PAL_INFO(LOG_TAG, "Event Received %s",
                     mixer_event.data.elem.id.name);
                 if (strstr((char *)mixer_event.data.elem.id.name, (char *)"event"))
                     ret = rm->handleMixerEvent(mixer,
                         (char *)mixer_event.data.elem.id.name);
                 else
-                    QAL_VERBOSE(LOG_TAG, "Unwanted event, Skipping");
+                    PAL_VERBOSE(LOG_TAG, "Unwanted event, Skipping");
             } else {
-                QAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
+                PAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
             }
         }
         if (!rm->isCallbackRegistered()) {
-            QAL_VERBOSE(LOG_TAG, "Exit thread as no session registered");
+            PAL_VERBOSE(LOG_TAG, "Exit thread as no session registered");
             break;
         }
     }
-    QAL_VERBOSE(LOG_TAG, "unsubscribing for event");
+    PAL_VERBOSE(LOG_TAG, "unsubscribing for event");
     mixer_subscribe_events(mixer, 0);
 }
 
@@ -2278,37 +2278,37 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     struct agm_event_cb_params *params = nullptr;
     std::map<int, std::pair<session_callback, void *>>::iterator it;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
-        QAL_ERR(LOG_TAG, "Invalid mixer control: %s", mixer_str);
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s", mixer_str);
         status = -EINVAL;
         goto exit;
     }
 
     // parse event payload
     num_values = mixer_ctl_get_num_values(ctl);
-    QAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
+    PAL_VERBOSE(LOG_TAG, "num_values: %d", num_values);
     buf = (char *)calloc(1, num_values);
     if (!buf) {
-        QAL_ERR(LOG_TAG, "Failed to allocate buf");
+        PAL_ERR(LOG_TAG, "Failed to allocate buf");
         status = -ENOMEM;
         goto exit;
     }
 
     status = mixer_ctl_get_array(ctl, buf, num_values);
     if (status < 0) {
-        QAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
+        PAL_ERR(LOG_TAG, "Failed to mixer_ctl_get_array");
         goto exit;
     }
 
     params = (struct agm_event_cb_params *)buf;
-    QAL_DBG(LOG_TAG, "source module id %x, event id %d, payload size %d",
+    PAL_DBG(LOG_TAG, "source module id %x, event id %d, payload size %d",
             params->source_module_id, params->event_id,
             params->event_payload_size);
 
     if (!params->source_module_id || !params->event_payload_size) {
-        QAL_ERR(LOG_TAG, "Invalid source module id or payload size");
+        PAL_ERR(LOG_TAG, "Invalid source module id or payload size");
         goto exit;
     }
 
@@ -2317,7 +2317,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     if (prefix_idx == event_str.npos) {
         prefix_idx = event_str.find(compress_prefix);
         if (prefix_idx == event_str.npos) {
-            QAL_ERR(LOG_TAG, "Invalid mixer event");
+            PAL_ERR(LOG_TAG, "Invalid mixer event");
             status = -EINVAL;
             goto exit;
         } else {
@@ -2329,7 +2329,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
 
     suffix_idx = event_str.find(event_suffix);
     if (suffix_idx == event_str.npos || suffix_idx - prefix_idx <= 1) {
-        QAL_ERR(LOG_TAG, "Invalid mixer event");
+        PAL_ERR(LOG_TAG, "Invalid mixer event");
         status = -EINVAL;
         goto exit;
     }
@@ -2346,7 +2346,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
 
     if (!session_cb) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid session callback");
+        PAL_ERR(LOG_TAG, "Invalid session callback");
         goto exit;
     }
 
@@ -2357,7 +2357,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
 exit:
     if (buf)
         free(buf);
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -2375,7 +2375,7 @@ int ResourceManager::StopOtherSVAStreams(StreamSoundTrigger *st) {
             status = st_str->Pause();
             mResourceManagerMutex.lock();
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
+                PAL_ERR(LOG_TAG, "Failed to pause SVA stream");
             }
         }
     }
@@ -2397,7 +2397,7 @@ int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
             status = st_str->Resume();
             mResourceManagerMutex.lock();
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to do resume SVA stream");
+                PAL_ERR(LOG_TAG, "Failed to do resume SVA stream");
             }
         }
     }
@@ -2407,8 +2407,8 @@ int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
 }
 
 // apply for Voice UI streams only
-void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
-                                             qal_stream_direction_t dir,
+void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
+                                             pal_stream_direction_t dir,
                                              bool active) {
     int32_t status = 0;
     bool conc_en = true;
@@ -2416,16 +2416,16 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
     StreamSoundTrigger *st_str = nullptr;
 
     mResourceManagerMutex.lock();
-    QAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+    PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
 
-    if (dir == QAL_AUDIO_OUTPUT && type == QAL_STREAM_LOW_LATENCY) {
-        QAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
+    if (dir == PAL_AUDIO_OUTPUT && type == PAL_STREAM_LOW_LATENCY) {
+        PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
         mResourceManagerMutex.unlock();
         return;
     }
 
     if (active_streams_st.size() == 0) {
-        QAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
+        PAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
         mResourceManagerMutex.unlock();
         return;
     }
@@ -2437,23 +2437,23 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
      */
     if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
         if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
-            type == QAL_STREAM_VOICE_CALL)) {
-            QAL_DBG(LOG_TAG, "pause on voice concurrency");
+            type == PAL_STREAM_VOICE_CALL)) {
+            PAL_DBG(LOG_TAG, "pause on voice concurrency");
             conc_en = false;
         } else if (!IsVoipAndVoiceUIConcurrencySupported() &&
-            (type == QAL_STREAM_VOIP_TX ||
-            type == QAL_STREAM_VOIP_RX ||
-            type == QAL_STREAM_VOIP)) {
-            QAL_DBG(LOG_TAG, "pause on voip concurrency");
+            (type == PAL_STREAM_VOIP_TX ||
+            type == PAL_STREAM_VOIP_RX ||
+            type == PAL_STREAM_VOIP)) {
+            PAL_DBG(LOG_TAG, "pause on voip concurrency");
             conc_en = false;
         }
-    } else if (dir != QAL_AUDIO_OUTPUT &&
-                (type == QAL_STREAM_LOW_LATENCY || // LL or mmap record
-                type == QAL_STREAM_DEEP_BUFFER || // regular audio record
-                type == QAL_STREAM_VOICE_CALL ||
-                type == QAL_STREAM_VOIP_RX ||
-                type == QAL_STREAM_VOIP_TX ||
-                type == QAL_STREAM_VOIP)) {
+    } else if (dir != PAL_AUDIO_OUTPUT &&
+                (type == PAL_STREAM_LOW_LATENCY || // LL or mmap record
+                type == PAL_STREAM_DEEP_BUFFER || // regular audio record
+                type == PAL_STREAM_VOICE_CALL ||
+                type == PAL_STREAM_VOIP_RX ||
+                type == PAL_STREAM_VOIP_TX ||
+                type == PAL_STREAM_VOIP)) {
         conc_en = false;
     }
 
@@ -2470,7 +2470,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                         status = st_str->Pause();
                         mResourceManagerMutex.lock();
                         if (status) {
-                            QAL_ERR(LOG_TAG, "Failed to pause SVA stream");
+                            PAL_ERR(LOG_TAG, "Failed to pause SVA stream");
                         }
                     }
                 }
@@ -2487,15 +2487,15 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                         status = st_str->Resume();
                         mResourceManagerMutex.lock();
                         if (status) {
-                            QAL_ERR(LOG_TAG, "Failed to resume SVA stream");
+                            PAL_ERR(LOG_TAG, "Failed to resume SVA stream");
                         }
                     }
                 }
             }
         }
-    } else if (dir == QAL_AUDIO_OUTPUT || dir == QAL_AUDIO_INPUT_OUTPUT) {
+    } else if (dir == PAL_AUDIO_OUTPUT || dir == PAL_AUDIO_INPUT_OUTPUT) {
         if (!IsVoiceUILPISupported()) {
-            QAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
+            PAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
         } else if (active) {
             if (++concurrentRxStreamCount == 1) {
                 do_switch = true;
@@ -2518,7 +2518,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                     status = st_str->EnableLPI(!active);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                        PAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
                     }
                 }
             }
@@ -2531,7 +2531,7 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                     status = st_str->HandleConcurrentStream(false);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                        PAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
                     }
                 }
             }
@@ -2544,14 +2544,14 @@ void ResourceManager::ConcurrentStreamStatus(qal_stream_type_t type,
                     status = st_str->HandleConcurrentStream(true);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to load/start SVA stream");
+                        PAL_ERR(LOG_TAG, "Failed to load/start SVA stream");
                     }
                 }
             }
         }
     }
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 }
 
 std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
@@ -2561,19 +2561,19 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     int deviceId = 0;
     std::shared_ptr<Device> rx_device = nullptr;
     std::shared_ptr<Device> tx_device = nullptr;
-    struct qal_stream_attributes tx_attr;
-    struct qal_stream_attributes rx_attr;
+    struct pal_stream_attributes tx_attr;
+    struct pal_stream_attributes rx_attr;
     std::vector <std::shared_ptr<Device>> tx_device_list;
     std::vector <std::shared_ptr<Device>> rx_device_list;
 
     // check stream direction
     status = tx_str->getStreamAttributes(&tx_attr);
     if (status) {
-        QAL_ERR(LOG_TAG, "stream get attributes failed");
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
         goto exit;
     }
-    if (tx_attr.direction != QAL_AUDIO_INPUT) {
-        QAL_ERR(LOG_TAG, "invalid stream direction %d", tx_attr.direction);
+    if (tx_attr.direction != PAL_AUDIO_INPUT) {
+        PAL_ERR(LOG_TAG, "invalid stream direction %d", tx_attr.direction);
         status = -EINVAL;
         goto exit;
     }
@@ -2581,16 +2581,16 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     // get associated device list
     status = tx_str->getAssociatedDevices(tx_device_list);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
+        PAL_ERR(LOG_TAG, "Failed to get associated device, status %d", status);
         goto exit;
     }
 
     for (auto& rx_str: mActiveStreams) {
         rx_str->getStreamAttributes(&rx_attr);
         rx_device_list.clear();
-        if (rx_attr.direction != QAL_AUDIO_INPUT) {
+        if (rx_attr.direction != PAL_AUDIO_INPUT) {
             if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
-                QAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
+                PAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
                         rx_attr.type, tx_attr.type);
                 continue;
             }
@@ -2599,8 +2599,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
                 if (!isDeviceActive_l(rx_device_list[i], rx_str))
                     continue;
                 deviceId = rx_device_list[i]->getSndDeviceId();
-                if (deviceId > QAL_DEVICE_OUT_MIN &&
-                    deviceId < QAL_DEVICE_OUT_MAX)
+                if (deviceId > PAL_DEVICE_OUT_MIN &&
+                    deviceId < PAL_DEVICE_OUT_MAX)
                     rx_device = rx_device_list[i];
                 else
                     rx_device = nullptr;
@@ -2617,7 +2617,7 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return rx_device;
 }
 
@@ -2625,11 +2625,11 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices(
     Stream *tx_str)
 {
     std::shared_ptr<Device> rx_device = nullptr;
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
     rx_device = getActiveEchoReferenceRxDevices_l(tx_str);
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return rx_device;
 }
 
@@ -2640,19 +2640,19 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     int deviceId = 0;
     int status = 0;
     std::vector<Stream*> tx_stream_list;
-    struct qal_stream_attributes tx_attr;
-    struct qal_stream_attributes rx_attr;
+    struct pal_stream_attributes tx_attr;
+    struct pal_stream_attributes rx_attr;
     std::shared_ptr<Device> tx_device = nullptr;
     std::vector <std::shared_ptr<Device>> tx_device_list;
 
     // check stream direction
     status = rx_str->getStreamAttributes(&rx_attr);
     if (status) {
-        QAL_ERR(LOG_TAG, "stream get attributes failed");
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
         goto exit;
     }
-    if (rx_attr.direction != QAL_AUDIO_OUTPUT) {
-        QAL_ERR(LOG_TAG, "Invalid stream direction %d", rx_attr.direction);
+    if (rx_attr.direction != PAL_AUDIO_OUTPUT) {
+        PAL_ERR(LOG_TAG, "Invalid stream direction %d", rx_attr.direction);
         status = -EINVAL;
         goto exit;
     }
@@ -2660,9 +2660,9 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     for (auto& tx_str: mActiveStreams) {
         tx_device_list.clear();
         tx_str->getStreamAttributes(&tx_attr);
-        if (tx_attr.direction == QAL_AUDIO_INPUT) {
+        if (tx_attr.direction == PAL_AUDIO_INPUT) {
             if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
-                QAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
+                PAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
                         rx_attr.type, tx_attr.type);
                 continue;
             }
@@ -2671,8 +2671,8 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
                 if (!isDeviceActive_l(tx_device_list[i], tx_str))
                     continue;
                 deviceId = tx_device_list[i]->getSndDeviceId();
-                if (deviceId > QAL_DEVICE_IN_MIN &&
-                    deviceId < QAL_DEVICE_IN_MAX)
+                if (deviceId > PAL_DEVICE_IN_MIN &&
+                    deviceId < PAL_DEVICE_IN_MAX)
                     tx_device = tx_device_list[i];
                 else
                     tx_device = nullptr;
@@ -2685,7 +2685,7 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
         }
     }
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return tx_stream_list;
 }
 
@@ -2694,11 +2694,11 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream(
     std::shared_ptr<Device> rx_device)
 {
     std::vector<Stream*> tx_stream_list;
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
     tx_stream_list = getConcurrentTxStream_l(rx_str, rx_device);
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return tx_stream_list;
 }
 
@@ -2715,24 +2715,24 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     rx_dev_id = rx_dev->getSndDeviceId();
     tx_dev_id = tx_dev->getSndDeviceId();
     // TODO: address all possible combinations
-    if ((rx_dev_id == QAL_DEVICE_OUT_SPEAKER) ||
-        (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
-         tx_dev_id == QAL_DEVICE_IN_HANDSET_MIC) ||
-        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
-         tx_dev_id == QAL_DEVICE_IN_WIRED_HEADSET) ||
-        (rx_dev_id == QAL_DEVICE_OUT_HANDSET &&
-         tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC) ||
-        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADSET &&
-         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == QAL_DEVICE_OUT_WIRED_HEADPHONE &&
-         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP &&
-         tx_dev_id == QAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP &&
-         tx_dev_id == QAL_DEVICE_IN_HANDSET_VA_MIC))
+    if ((rx_dev_id == PAL_DEVICE_OUT_SPEAKER) ||
+        (rx_dev_id == PAL_DEVICE_OUT_HANDSET &&
+         tx_dev_id == PAL_DEVICE_IN_HANDSET_MIC) ||
+        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADSET &&
+         tx_dev_id == PAL_DEVICE_IN_WIRED_HEADSET) ||
+        (rx_dev_id == PAL_DEVICE_OUT_HANDSET &&
+         tx_dev_id == PAL_DEVICE_IN_HANDSET_VA_MIC) ||
+        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADSET &&
+         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADPHONE &&
+         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP &&
+         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
+        (rx_dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP &&
+         tx_dev_id == PAL_DEVICE_IN_HANDSET_VA_MIC))
         result = true;
 
-    QAL_DBG(LOG_TAG, "EC Ref: %d, rx dev: %d, tx dev: %d",
+    PAL_DBG(LOG_TAG, "EC Ref: %d, rx dev: %d, tx dev: %d",
         result, rx_dev_id, tx_dev_id);
 
     return result;
@@ -2745,7 +2745,7 @@ void ResourceManager::getHigherPriorityActiveStreams(const int inComingStreamPri
                       std::vector<T> sourcestreams)
 {
     int existingStreamPriority = 0;
-    qal_stream_attributes sAttr;
+    pal_stream_attributes sAttr;
 
 
     typename std::vector<T>::iterator iter = sourcestreams.begin();
@@ -2797,7 +2797,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
 
     if (activestreams.empty()) {
         ret = -ENOENT;
-        QAL_INFO(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
+        PAL_INFO(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
     }
 
     return ret;
@@ -2807,20 +2807,20 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
                                      std::vector<Stream*> &activestreams)
 {
     int ret = 0;
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
     ret = getActiveStream_l(d, activestreams);
     mResourceManagerMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 /*blsUpdated - to specify if the config is updated by rm*/
-int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* blsUpdated)
+int ResourceManager::checkAndGetDeviceConfig(struct pal_device *device, bool* blsUpdated)
 {
     int ret = -EINVAL;
     if (!device || !blsUpdated) {
-        QAL_ERR(LOG_TAG, "Invalid input parameter ret %d", ret);
+        PAL_ERR(LOG_TAG, "Invalid input parameter ret %d", ret);
         return ret;
     }
     //TODO:check if device config is supported
@@ -2830,7 +2830,7 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
     uint32_t samplerate = device->config.sample_rate;
     uint32_t bitwidth = device->config.bit_width;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     //TODO: check and rewrite params if needed
     // only compare with default value for now
     // because no config file parsed in init
@@ -2853,13 +2853,13 @@ int ResourceManager::checkAndGetDeviceConfig(struct qal_device *device, bool* bl
         ret = 0;
         dev_supported = true;
     }
-    QAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     if(!rm) {
         std::lock_guard<std::mutex> lock(ResourceManager::mResourceManagerMutex);
         if (!rm) {
@@ -2867,7 +2867,7 @@ std::shared_ptr<ResourceManager> ResourceManager::getInstance()
             rm = sp;
         }
     }
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return rm;
 }
 
@@ -2882,7 +2882,7 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;
@@ -2893,7 +2893,7 @@ int ResourceManager::getDeviceEpName(int deviceId, std::string &epName)
     if (isValidDevId(deviceId)) {
         epName.assign(deviceLinkName[deviceId].second);
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;
@@ -2905,7 +2905,7 @@ int ResourceManager::getPcmDeviceId(int deviceId)
 {
     int pcm_device_id = -1;
     if (!isValidDevId(deviceId)) {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
 
@@ -2981,13 +2981,13 @@ int ResourceManager::getDevicePpTag(std::vector <int> &tag)
     return status;
 }
 
-int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
+int ResourceManager::getNumFEs(const pal_stream_type_t sType) const
 {
     int n = 1;
 
     switch (sType) {
-        case QAL_STREAM_LOOPBACK:
-        case QAL_STREAM_TRANSCODE:
+        case PAL_STREAM_LOOPBACK:
+        case PAL_STREAM_TRANSCODE:
             n = 1;
             break;
         default:
@@ -2998,7 +2998,7 @@ int ResourceManager::getNumFEs(const qal_stream_type_t sType) const
     return n;
 }
 
-const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_stream_attributes sAttr, int lDirection)
+const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_stream_attributes sAttr, int lDirection)
 {
     //TODO: lock resource manager
     std::vector<int> f;
@@ -3008,20 +3008,20 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
     std::vector<int>::iterator it;
 
     switch(sAttr.type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
-        case QAL_STREAM_DEEP_BUFFER:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOICE_UI:
-        case QAL_STREAM_PCM_OFFLOAD:
-        case QAL_STREAM_LOOPBACK:
-        case QAL_STREAM_PROXY:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_VOIP:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOOPBACK:
+        case PAL_STREAM_PROXY:
             switch (sAttr.direction) {
-                case QAL_AUDIO_INPUT:
+                case PAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmRecordFrontEnds.size());
                         goto error;
                     }
@@ -3030,14 +3030,14 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllPcmRecordFrontEnds.at(id));
                         listAllPcmRecordFrontEnds.erase(it);
-                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                         it -= 1;
                         id -= 1;
                     }
                     break;
-                case QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_OUTPUT:
                     if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
                         goto error;
                     }
@@ -3046,15 +3046,15 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllPcmPlaybackFrontEnds.at(id));
                         listAllPcmPlaybackFrontEnds.erase(it);
-                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                         it -= 1;
                         id -= 1;
                     }
                     break;
-                case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RXLOOPBACK) {
                         if ( howMany > listAllPcmLoopbackRxFrontEnds.size()) {
-                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                            PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmLoopbackRxFrontEnds.size());
                             goto error;
                         }
@@ -3063,13 +3063,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmLoopbackRxFrontEnds.at(id));
                            listAllPcmLoopbackRxFrontEnds.erase(it);
-                           QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                           PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                            it -= 1;
                            id -= 1;
                         }
                     } else {
                         if ( howMany > listAllPcmLoopbackTxFrontEnds.size()) {
-                            QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                            PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmLoopbackTxFrontEnds.size());
                             goto error;
                         }
@@ -3078,22 +3078,22 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmLoopbackTxFrontEnds.at(id));
                            listAllPcmLoopbackTxFrontEnds.erase(it);
-                           QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                           PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                            it -= 1;
                            id -= 1;
                         }
                     }
                     break;
                 default:
-                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    PAL_ERR(LOG_TAG,"direction unsupported");
                     break;
             }
             break;
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
             switch (sAttr.direction) {
-                case QAL_AUDIO_INPUT:
+                case PAL_AUDIO_INPUT:
                     if ( howMany > listAllCompressRecordFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressRecordFrontEnds.size());
                         goto error;
                     }
@@ -3102,14 +3102,14 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressRecordFrontEnds.at(id));
                         listAllCompressRecordFrontEnds.erase(it);
-                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                         it -= 1;
                         id -= 1;
                     }
                     break;
-                case QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_OUTPUT:
                     if ( howMany > listAllCompressPlaybackFrontEnds.size()) {
-                        QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressPlaybackFrontEnds.size());
                         goto error;
                     }
@@ -3118,19 +3118,19 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressPlaybackFrontEnds.at(id));
                         listAllCompressPlaybackFrontEnds.erase(it);
-                        QAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                        PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                         it -= 1;
                         id -= 1;
                     }
                     break;
                 default:
-                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    PAL_ERR(LOG_TAG,"direction unsupported");
                     break;
                 }
                 break;
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_VOICE_CALL:
             switch (sAttr.direction) {
-              case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+              case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RXLOOPBACK) {
                         if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
                             sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
@@ -3139,7 +3139,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                             sAttr.info.voice_call_info.VSID == VOICELBMMODE2){
                             f = allocateVoiceFrontEndIds(listAllPcmVoice2RxFrontEnds, howMany);
                         } else {
-                            QAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
+                            PAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
                                     sAttr.info.voice_call_info.VSID);
                         }
                     } else {
@@ -3150,19 +3150,19 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
                             sAttr.info.voice_call_info.VSID == VOICELBMMODE2){
                             f = allocateVoiceFrontEndIds(listAllPcmVoice2TxFrontEnds, howMany);
                         } else {
-                            QAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
+                            PAL_ERR(LOG_TAG,"invalid VSID 0x%x provided",
                                     sAttr.info.voice_call_info.VSID);
                         }
                     }
                     break;
               default:
-                  QAL_ERR(LOG_TAG,"direction unsupported voice must be RX and TX");
+                  PAL_ERR(LOG_TAG,"direction unsupported voice must be RX and TX");
                   break;
             }
             break;
-        case QAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_VOICE_CALL_RECORD:
             if ( howMany > listAllPcmInCallRecordFrontEnds.size()) {
-                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                    PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallRecordFrontEnds.size());
                     goto error;
                 }
@@ -3171,14 +3171,14 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallRecordFrontEnds.at(id));
                 listAllPcmInCallRecordFrontEnds.erase(it);
-                QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                 it -= 1;
                 id -= 1;
             }
             break;
-        case QAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
             if ( howMany > listAllPcmInCallMusicFrontEnds.size()) {
-                    QAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                    PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallMusicFrontEnds.size());
                     goto error;
                 }
@@ -3187,7 +3187,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct qal_str
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallMusicFrontEnds.at(id));
                 listAllPcmInCallMusicFrontEnds.erase(it);
-                QAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                 it -= 1;
                 id -= 1;
             }
@@ -3208,7 +3208,7 @@ const std::vector<int> ResourceManager::allocateVoiceFrontEndIds(std::vector<int
     int id = 0;
     std::vector<int>::iterator it;
     if ( howMany > listAllPcmVoiceFrontEnds.size()) {
-        QAL_ERR(LOG_TAG, "allocate voice FrontEndIds: requested for %d front ends, have only %zu error",
+        PAL_ERR(LOG_TAG, "allocate voice FrontEndIds: requested for %d front ends, have only %zu error",
                 howMany, listAllPcmVoiceFrontEnds.size());
         return f;
     }
@@ -3217,7 +3217,7 @@ const std::vector<int> ResourceManager::allocateVoiceFrontEndIds(std::vector<int
     for (int i = 0; i < howMany; i++) {
         f.push_back(listAllPcmVoiceFrontEnds.at(id));
         listAllPcmVoiceFrontEnds.erase(it);
-        QAL_INFO(LOG_TAG, "allocate VoiceFrontEndIds: front end %d", f[i]);
+        PAL_INFO(LOG_TAG, "allocate VoiceFrontEndIds: front end %d", f[i]);
         it -= 1;
         id -= 1;
     }
@@ -3225,34 +3225,34 @@ const std::vector<int> ResourceManager::allocateVoiceFrontEndIds(std::vector<int
     return f;
 }
 void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
-                                      const struct qal_stream_attributes sAttr,
+                                      const struct pal_stream_attributes sAttr,
                                       int lDirection)
 {
-    QAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
+    PAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
              frontend.at(0));
 
     switch(sAttr.type) {
-        case QAL_STREAM_LOW_LATENCY:
-        case QAL_STREAM_ULTRA_LOW_LATENCY:
-        case QAL_STREAM_PROXY:
-        case QAL_STREAM_DEEP_BUFFER:
-        case QAL_STREAM_VOIP:
-        case QAL_STREAM_VOIP_RX:
-        case QAL_STREAM_VOIP_TX:
-        case QAL_STREAM_VOICE_UI:
-        case QAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_LOW_LATENCY:
+        case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_PROXY:
+        case PAL_STREAM_DEEP_BUFFER:
+        case PAL_STREAM_VOIP:
+        case PAL_STREAM_VOIP_RX:
+        case PAL_STREAM_VOIP_TX:
+        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_PCM_OFFLOAD:
             switch (sAttr.direction) {
-                case QAL_AUDIO_INPUT:
+                case PAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllPcmRecordFrontEnds.push_back(frontend.at(i));
                     }
                     break;
-                case QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllPcmPlaybackFrontEnds.push_back(frontend.at(i));
                     }
                     break;
-                case QAL_AUDIO_INPUT | QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RXLOOPBACK) {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmLoopbackRxFrontEnds.push_back(frontend.at(i));
@@ -3264,12 +3264,12 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     }
                     break;
                 default:
-                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    PAL_ERR(LOG_TAG,"direction unsupported");
                     break;
             }
             break;
 
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_VOICE_CALL:
             if (lDirection == RXLOOPBACK) {
                 for (int i = 0; i < frontend.size(); i++) {
                     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
@@ -3292,32 +3292,32 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             }
             break;
 
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
             switch (sAttr.direction) {
-                case QAL_AUDIO_INPUT:
+                case PAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressRecordFrontEnds.push_back(frontend.at(i));
                     }
                     break;
-                case QAL_AUDIO_OUTPUT:
+                case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressPlaybackFrontEnds.push_back(frontend.at(i));
                     }
                     break;
                 default:
-                    QAL_ERR(LOG_TAG,"direction unsupported");
+                    PAL_ERR(LOG_TAG,"direction unsupported");
                     break;
                 }
             break;
-        case QAL_STREAM_VOICE_CALL_RECORD:
-        case QAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_VOICE_CALL_RECORD:
+        case PAL_STREAM_VOICE_CALL_MUSIC:
             switch (sAttr.direction) {
-              case QAL_AUDIO_INPUT:
+              case PAL_AUDIO_INPUT:
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallRecordFrontEnds.push_back(frontend.at(i));
                 }
                 break;
-              case QAL_AUDIO_OUTPUT:
+              case PAL_AUDIO_OUTPUT:
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallMusicFrontEnds.push_back(frontend.at(i));
                 }
@@ -3339,17 +3339,17 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
     std::shared_ptr<Device> dev;
     std::vector <Stream *> activeStreams;
 
-    if (isValidDevId(dev_id) && (dev_id != QAL_DEVICE_NONE))
+    if (isValidDevId(dev_id) && (dev_id != PAL_DEVICE_NONE))
         backEndName = listAllBackEndIds[dev_id].second;
-    for (int i = QAL_DEVICE_OUT_MIN; i < QAL_DEVICE_IN_MAX; i++) {
+    for (int i = PAL_DEVICE_OUT_MIN; i < PAL_DEVICE_IN_MAX; i++) {
         if (backEndName == listAllBackEndIds[i].second) {
-            dev = Device::getObject((qal_device_id_t) i);
+            dev = Device::getObject((pal_device_id_t) i);
             if(dev) {
                 getActiveStream_l(dev, activeStreams);
-                QAL_DBG(LOG_TAG, "got dev %d active streams on dev is %zu", i, activeStreams.size() );
+                PAL_DBG(LOG_TAG, "got dev %d active streams on dev is %zu", i, activeStreams.size() );
                 for (int j=0; j < activeStreams.size(); j++) {
                     activeStreamsDevices.push_back({activeStreams[j], i});
-                    QAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
+                    PAL_DBG(LOG_TAG, "found shared BE stream %pK with dev %d", activeStreams[j], i );
                 }
             }
             activeStreams.clear();
@@ -3368,17 +3368,17 @@ const std::vector<std::string> ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
-        QAL_ERR(LOG_TAG, "device id %d", dev_id);
+        PAL_ERR(LOG_TAG, "device id %d", dev_id);
         if (isValidDevId(dev_id)) {
             epname.assign(listAllBackEndIds[dev_id].second);
             backEndNames.push_back(epname);
         } else {
-            QAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
+            PAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
         }
     }
 
     for (int i = 0; i < backEndNames.size(); i++) {
-        QAL_ERR(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
+        PAL_ERR(LOG_TAG, "getBackEndNames: going to return %s", backEndNames[i].c_str());
     }
 
     return backEndNames;
@@ -3397,25 +3397,25 @@ void ResourceManager::getBackEndNames(
 
     for (int i = 0; i < deviceList.size(); i++) {
         dev_id = deviceList[i]->getSndDeviceId();
-        if (dev_id > QAL_DEVICE_OUT_MIN && dev_id < QAL_DEVICE_OUT_MAX) {
+        if (dev_id > PAL_DEVICE_OUT_MIN && dev_id < PAL_DEVICE_OUT_MAX) {
             epname.assign(listAllBackEndIds[dev_id].second);
             rxBackEndNames.push_back(std::make_pair(dev_id, epname));
-        } else if (dev_id > QAL_DEVICE_IN_MIN && dev_id < QAL_DEVICE_IN_MAX) {
+        } else if (dev_id > PAL_DEVICE_IN_MIN && dev_id < PAL_DEVICE_IN_MAX) {
             epname.assign(listAllBackEndIds[dev_id].second);
             txBackEndNames.push_back(std::make_pair(dev_id, epname));
         } else {
-            QAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
+            PAL_ERR(LOG_TAG, "Invalid device id %d", dev_id);
         }
     }
 
     for (int i = 0; i < rxBackEndNames.size(); i++)
-        QAL_DBG(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
+        PAL_DBG(LOG_TAG, "getBackEndNames (RX): %s", rxBackEndNames[i].second.c_str());
     for (int i = 0; i < txBackEndNames.size(); i++)
-        QAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
+        PAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
 }
 #if 0
-const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExistingAttr,
-    const qal_stream_attributes* sIncomingAttr) const {
+const bool ResourceManager::shouldDeviceSwitch(const pal_stream_attributes* sExistingAttr,
+    const pal_stream_attributes* sIncomingAttr) const {
 
     bool dSwitch = false;
     int existingPriority = 0;
@@ -3430,7 +3430,7 @@ const bool ResourceManager::shouldDeviceSwitch(const qal_stream_attributes* sExi
 
     dSwitch = (incomingPriority > existingPriority);
 
-    QAL_VERBOSE(LOG_TAG, "should Device switch or not %d, incoming Stream priority %d, existing stream priority %d",
+    PAL_VERBOSE(LOG_TAG, "should Device switch or not %d, incoming Stream priority %d, existing stream priority %d",
         dSwitch, incomingPriority, existingPriority);
 
 error:
@@ -3438,33 +3438,33 @@ error:
 }
 #endif
 
-bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
-         struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr)
+bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
+         struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr)
 {
     bool is_ds_required = false;
     /*  This API may need stream attributes also to decide the priority like voice call has high priority */
     /* Right now assume all playback streams are same priority and decide based on Active Device config */
 
     if (!activeDevAttr || !inDevAttr || !inStrAttr) {
-        QAL_ERR(LOG_TAG, "Invalid input parameter ");
+        PAL_ERR(LOG_TAG, "Invalid input parameter ");
         return is_ds_required;
     }
 
     switch (inDevAttr->id) {
     /* speaker is always at 48k, 16 bit, 2 ch */
-    case QAL_DEVICE_OUT_SPEAKER:
+    case PAL_DEVICE_OUT_SPEAKER:
         is_ds_required = false;
         break;
-    case QAL_DEVICE_OUT_USB_HEADSET:
-    case QAL_DEVICE_OUT_USB_DEVICE:
+    case PAL_DEVICE_OUT_USB_HEADSET:
+    case PAL_DEVICE_OUT_USB_DEVICE:
         if ((activeDevAttr->config.sample_rate == SAMPLINGRATE_44K) &&
-            (inStrAttr->type == QAL_STREAM_LOW_LATENCY) ) {
-            QAL_INFO(LOG_TAG, "active stream is at 44.1kHz.");
+            (inStrAttr->type == PAL_STREAM_LOW_LATENCY) ) {
+            PAL_INFO(LOG_TAG, "active stream is at 44.1kHz.");
             is_ds_required = false;
-        } else if ((QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+        } else if ((PAL_AUDIO_OUTPUT == inStrAttr->direction) &&
             (inDevAttr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
             //Native Audio usecase
-            QAL_ERR(LOG_TAG, "1 inDevAttr->config.sample_rate = %d  ", inDevAttr->config.sample_rate);
+            PAL_ERR(LOG_TAG, "1 inDevAttr->config.sample_rate = %d  ", inDevAttr->config.sample_rate);
             is_ds_required = true;
         } else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width < inDevAttr->config.bit_width) ||
@@ -3472,15 +3472,15 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             is_ds_required = true;
         }
         break;
-    case QAL_DEVICE_OUT_WIRED_HEADSET:
-    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        if ((QAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
+    case PAL_DEVICE_OUT_WIRED_HEADSET:
+    case PAL_DEVICE_OUT_WIRED_HEADPHONE:
+        if ((PAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
             (activeDevAttr->config.bit_width != inDevAttr->config.bit_width) ||
             (activeDevAttr->config.ch_info.channels != inDevAttr->config.ch_info.channels))) {
             is_ds_required = true;
-        } else if ((QAL_STREAM_COMPRESSED == inStrAttr->type || QAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
+        } else if ((PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
-            (QAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+            (PAL_AUDIO_OUTPUT == inStrAttr->direction) &&
             (inStrAttr->out_media_config.sample_rate % SAMPLINGRATE_44K == 0)) {
 
             //Native Audio usecase
@@ -3494,9 +3494,9 @@ bool ResourceManager::isDeviceSwitchRequired(struct qal_device *activeDevAttr,
             is_ds_required = true;
         }
         break;
-    case QAL_DEVICE_OUT_AUX_DIGITAL:
-    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
-    case QAL_DEVICE_OUT_HDMI:
+    case PAL_DEVICE_OUT_AUX_DIGITAL:
+    case PAL_DEVICE_OUT_AUX_DIGITAL_1:
+    case PAL_DEVICE_OUT_HDMI:
         if (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)
             is_ds_required = true;
         else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
@@ -3517,13 +3517,13 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
 
     /* disconnect active list from the current devices they are attached to */
     for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
-        status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (qal_device_id_t)std::get<1>(*sIter));
+        status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
         if (status) {
-            QAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
+            PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
                     std::get<0>(*sIter), std::get<1>(*sIter));
             goto error;
         } else {
-            QAL_DBG(LOG_TAG, "disconnect stream %pK from device %d",
+            PAL_DBG(LOG_TAG, "disconnect stream %pK from device %d",
                     std::get<0>(*sIter), std::get<1>(*sIter));
         }
     }
@@ -3531,19 +3531,19 @@ error:
     return status;
 }
 
-int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList){
+int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList){
     int status = 0;
-    std::vector <std::tuple<Stream *, struct qal_device *>>::iterator sIter;
+    std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter;
 
     /* connect active list from the current devices they are attached to */
     for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
         status = std::get<0>(*sIter)->connectStreamDevice(std::get<0>(*sIter), std::get<1>(*sIter));
         if (status) {
-            QAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
+            PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
                     std::get<0>(*sIter), (std::get<1>(*sIter))->id);
             goto error;
         } else {
-            QAL_DBG(LOG_TAG,"connected stream %pK from device %d",
+            PAL_DBG(LOG_TAG,"connected stream %pK from device %d",
                     std::get<0>(*sIter), (std::get<1>(*sIter))->id);
         }
     }
@@ -3553,17 +3553,17 @@ error:
 
 
 int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
-                                         std::vector <std::tuple<Stream *, struct qal_device *>> streamDevConnectList)
+                                         std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList)
 {
     int status = 0;
     status = streamDevDisconnect(streamDevDisconnectList);
     if (status) {
-        QAL_ERR(LOG_TAG,"disconnect failed");
+        PAL_ERR(LOG_TAG,"disconnect failed");
         goto error;
     }
     status = streamDevConnect(streamDevConnectList);
     if (status) {
-        QAL_ERR(LOG_TAG,"Connect failed");
+        PAL_ERR(LOG_TAG,"Connect failed");
     }
 error:
     return status;
@@ -3576,7 +3576,7 @@ error:
 //stream is a higher priority stream. Priority defined in ResourceManager.h
 //(details below)
 bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
-           struct qal_device *inDevAttr, const qal_stream_attributes* inStrAttr __unused)
+           struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr __unused)
 {
     bool isDeviceSwitch = false;
 
@@ -3585,7 +3585,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::shared_ptr<Device> inDevice = nullptr;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
-    std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
 
     if (!inDev || !inDevAttr) {
         goto error;
@@ -3606,22 +3606,22 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     getSharedBEActiveStreamDevs(sharedBEStreamDev, inDevAttr->id);
     if (sharedBEStreamDev.size() > 0) {
         for (const auto &elem : sharedBEStreamDev) {
-            struct qal_stream_attributes sAttr;
+            struct pal_stream_attributes sAttr;
             Stream *sharedStream = std::get<0>(elem);
-            struct qal_device curDevAttr;
+            struct pal_device curDevAttr;
             std::shared_ptr<Device> curDev = nullptr;
 
-            curDevAttr.id = (qal_device_id_t)std::get<1>(elem);
+            curDevAttr.id = (pal_device_id_t)std::get<1>(elem);
             curDev = Device::getInstance(&curDevAttr, rm);
             if (!curDev) {
-                QAL_ERR(LOG_TAG, "Getting Device instance failed");
+                PAL_ERR(LOG_TAG, "Getting Device instance failed");
                 continue;
             }
             curDev->getDeviceAttributes(&curDevAttr);
             sharedStream->getStreamAttributes(&sAttr);
 
-            if ((QAL_STREAM_VOICE_CALL == sAttr.type)) {
-                QAL_INFO(LOG_TAG, "Active voice stream running on %d, Force switch",
+            if ((PAL_STREAM_VOICE_CALL == sAttr.type)) {
+                PAL_INFO(LOG_TAG, "Active voice stream running on %d, Force switch",
                                   curDevAttr.id);
                 curDev->getDeviceAttributes(inDevAttr);
                 continue;
@@ -3651,7 +3651,7 @@ error:
     if (streamDevDisconnect.size()) {
         status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
         if (status) {
-            QAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
+            PAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
         }
     }
     inDev->setDeviceAttributes(*inDevAttr);
@@ -3659,12 +3659,12 @@ error:
 }
 
 int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
-                                              struct qal_device *newDevAttr)
+                                              struct pal_device *newDevAttr)
 {
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
-    std::vector <std::tuple<Stream *, struct qal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
     std::vector<Stream*>::iterator sIter;
 
     if (!inDev || !newDevAttr) {
@@ -3674,7 +3674,7 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     //get the active streams on the device
     getActiveStream_l(inDev, activeStreams);
     if (activeStreams.size() == 0) {
-        QAL_ERR(LOG_TAG, "no other active streams found");
+        PAL_ERR(LOG_TAG, "no other active streams found");
         goto done;
     }
     //created dev switch vectors
@@ -3685,30 +3685,30 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
     status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
     if (status) {
-         QAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
+         PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
     }
 
 done:
     return 0;
 }
 
-const std::string ResourceManager::getQALDeviceName(const qal_device_id_t id) const
+const std::string ResourceManager::getPALDeviceName(const pal_device_id_t id) const
 {
-    QAL_DBG(LOG_TAG, "id %d", id);
+    PAL_DBG(LOG_TAG, "id %d", id);
     if (isValidDevId(id)) {
         return deviceNameLUT.at(id);
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", id);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", id);
         return std::string("");
     }
 }
 
 int ResourceManager::getBackendName(int deviceId, std::string &backendName)
 {
-    if (isValidDevId(deviceId) && (deviceId != QAL_DEVICE_NONE)) {
+    if (isValidDevId(deviceId) && (deviceId != PAL_DEVICE_NONE)) {
         backendName.assign(listAllBackEndIds[deviceId].second);
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
         return -EINVAL;
     }
     return 0;
@@ -3716,8 +3716,8 @@ int ResourceManager::getBackendName(int deviceId, std::string &backendName)
 
 bool ResourceManager::isValidDevId(int deviceId)
 {
-    if (((deviceId >= QAL_DEVICE_NONE) && (deviceId < QAL_DEVICE_OUT_MAX))
-        || ((deviceId > QAL_DEVICE_IN_MIN) && (deviceId < QAL_DEVICE_IN_MAX)))
+    if (((deviceId >= PAL_DEVICE_NONE) && (deviceId < PAL_DEVICE_OUT_MAX))
+        || ((deviceId > PAL_DEVICE_IN_MIN) && (deviceId < PAL_DEVICE_IN_MAX)))
         return true;
 
     return false;
@@ -3725,7 +3725,7 @@ bool ResourceManager::isValidDevId(int deviceId)
 
 bool ResourceManager::isOutputDevId(int deviceId)
 {
-    if ((deviceId > QAL_DEVICE_NONE) && (deviceId < QAL_DEVICE_OUT_MAX))
+    if ((deviceId > PAL_DEVICE_NONE) && (deviceId < PAL_DEVICE_OUT_MAX))
         return true;
 
     return false;
@@ -3733,7 +3733,7 @@ bool ResourceManager::isOutputDevId(int deviceId)
 
 bool ResourceManager::isInputDevId(int deviceId)
 {
-    if ((deviceId > QAL_DEVICE_IN_MIN) && (deviceId < QAL_DEVICE_IN_MAX))
+    if ((deviceId > PAL_DEVICE_IN_MIN) && (deviceId < PAL_DEVICE_IN_MAX))
         return true;
 
     return false;
@@ -3749,7 +3749,7 @@ bool ResourceManager::matchDevDir(int devId1, int devId2)
     return false;
 }
 
-bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const
+bool ResourceManager::isNonALSACodec(const struct pal_device * /*device*/) const
 {
 
     //return false on our target, move configuration to xml
@@ -3757,15 +3757,15 @@ bool ResourceManager::isNonALSACodec(const struct qal_device * /*device*/) const
     return false;
 }
 
-bool ResourceManager::ifVoiceorVoipCall (const qal_stream_type_t streamType) const {
+bool ResourceManager::ifVoiceorVoipCall (const pal_stream_type_t streamType) const {
 
    bool voiceOrVoipCall = false;
 
    switch (streamType) {
-       case QAL_STREAM_VOIP:
-       case QAL_STREAM_VOIP_RX:
-       case QAL_STREAM_VOIP_TX:
-       case QAL_STREAM_VOICE_CALL:
+       case PAL_STREAM_VOIP:
+       case PAL_STREAM_VOIP_RX:
+       case PAL_STREAM_VOIP_TX:
+       case PAL_STREAM_VOICE_CALL:
            voiceOrVoipCall = true;
            break;
        default:
@@ -3786,7 +3786,7 @@ int ResourceManager::getCallPriority(bool ifVoiceCall) const {
     }
 }
 
-int ResourceManager::getStreamAttrPriority (const qal_stream_attributes* sAttr) const {
+int ResourceManager::getStreamAttrPriority (const pal_stream_attributes* sAttr) const {
     int priority = 0;
 
     if (!sAttr)
@@ -3817,7 +3817,7 @@ int ResourceManager::getNativeAudioSupport()
         na_props.ui_na_prop_enabled) {
         ret = na_props.na_mode;
     }
-    QAL_ERR(LOG_TAG,"napb: ui Prop enabled(%d) mode(%d)",
+    PAL_ERR(LOG_TAG,"napb: ui Prop enabled(%d) mode(%d)",
            na_props.ui_na_prop_enabled, na_props.na_mode);
     return ret;
 }
@@ -3829,7 +3829,7 @@ int ResourceManager::setNativeAudioSupport(int na_mode)
         || NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == na_mode) {
         na_props.rm_na_prop_enabled = na_props.ui_na_prop_enabled = true;
         na_props.na_mode = na_mode;
-        QAL_DBG(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
+        PAL_DBG(LOG_TAG,"napb: native audio playback enabled in (%s) mode",
               ((na_mode == NATIVE_AUDIO_MODE_SRC)?"SRC":
                (na_mode == NATIVE_AUDIO_MODE_TRUE_44_1)?"True":
                (na_mode == NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_CODEC)?"Multiple_Mix_Codec":"Multiple_Mix_DSP"));
@@ -3837,7 +3837,7 @@ int ResourceManager::setNativeAudioSupport(int na_mode)
     else {
         na_props.rm_na_prop_enabled = false;
         na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
-        QAL_VERBOSE(LOG_TAG,"napb: native audio playback disabled");
+        PAL_VERBOSE(LOG_TAG,"napb: native audio playback disabled");
     }
 
     return 0;
@@ -3854,12 +3854,12 @@ void ResourceManager::getNativeAudioParams(struct str_parms *query,
         if (na_props.rm_na_prop_enabled) {
             str_parms_add_str(reply, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
                           na_props.ui_na_prop_enabled ? "true" : "false");
-            QAL_VERBOSE(LOG_TAG,"napb: na_props.ui_na_prop_enabled: %d",
+            PAL_VERBOSE(LOG_TAG,"napb: na_props.ui_na_prop_enabled: %d",
                   na_props.ui_na_prop_enabled);
         } else {
             str_parms_add_str(reply, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
                               "false");
-            QAL_VERBOSE(LOG_TAG,"napb: native audio not supported: %d",
+            PAL_VERBOSE(LOG_TAG,"napb: native audio not supported: %d",
                   na_props.rm_na_prop_enabled);
         }
     }
@@ -3874,24 +3874,24 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     if(kv_pairs == NULL) {
         ret = -ENOMEM;
-        QAL_ERR(LOG_TAG," key-value pair is NULL");
+        PAL_ERR(LOG_TAG," key-value pair is NULL");
         goto done;
     }
 
-    QAL_DBG(LOG_TAG," enter: %s", kv_pairs);
+    PAL_DBG(LOG_TAG," enter: %s", kv_pairs);
 
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
     if(value == NULL) {
         ret = -ENOMEM;
-        QAL_ERR(LOG_TAG,"failed to allocate memory");
+        PAL_ERR(LOG_TAG,"failed to allocate memory");
         goto done;
     }
     ret = setNativeAudioParams(parms, value, len);
 
     ret = setLoggingLevelParams(parms, value, len);
 done:
-    QAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
+    PAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
     if(value != NULL)
         free(value);
     return ret;
@@ -3908,9 +3908,9 @@ int ResourceManager::setLoggingLevelParams(struct str_parms *parms,
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_LOG_LEVEL,
                                 value, len);
     if (ret >= 0) {
-        qal_log_lvl = std::stoi(value,0,16);
-        QAL_INFO(LOG_TAG, "qal logging level is set to 0x%x",
-                 qal_log_lvl);
+        pal_log_lvl = std::stoi(value,0,16);
+        PAL_INFO(LOG_TAG, "pal logging level is set to 0x%x",
+                 pal_log_lvl);
         ret = 0;
 
     }
@@ -3931,14 +3931,14 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                                 value, len);
     if (ret >= 0) {
         max_session_num = std::stoi(value);
-        QAL_INFO(LOG_TAG, "Max sessions supported for each stream type are %d",
+        PAL_INFO(LOG_TAG, "Max sessions supported for each stream type are %d",
                  max_session_num);
 
     }
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE,
                              value, len);
-    QAL_VERBOSE(LOG_TAG," value %s", value);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
     if (ret >= 0) {
         if (value && !strncmp(value, "src", sizeof("src")))
             mode = NATIVE_AUDIO_MODE_SRC;
@@ -3950,30 +3950,30 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
             mode = NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP;
         else {
             mode = NATIVE_AUDIO_MODE_INVALID;
-            QAL_ERR(LOG_TAG,"napb:native_audio_mode in RM xml,invalid mode(%s) string", value);
+            PAL_ERR(LOG_TAG,"napb:native_audio_mode in RM xml,invalid mode(%s) string", value);
         }
-        QAL_VERBOSE(LOG_TAG,"napb: updating mode (%d) from XML", mode);
+        PAL_VERBOSE(LOG_TAG,"napb: updating mode (%d) from XML", mode);
         setNativeAudioSupport(mode);
     }
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,
                              value, len);
-    QAL_VERBOSE(LOG_TAG," value %s", value);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
     if (ret >= 0) {
         if (na_props.rm_na_prop_enabled) {
             if (!strncmp("true", value, sizeof("true"))) {
                 na_props.ui_na_prop_enabled = true;
-                QAL_VERBOSE(LOG_TAG,"napb: native audio feature enabled from UI");
+                PAL_VERBOSE(LOG_TAG,"napb: native audio feature enabled from UI");
             } else {
                 na_props.ui_na_prop_enabled = false;
-                QAL_VERBOSE(LOG_TAG,"napb: native audio feature disabled from UI");
+                PAL_VERBOSE(LOG_TAG,"napb: native audio feature disabled from UI");
             }
 
             str_parms_del(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO);
             //TO-DO
             // Update the concurrencies
         } else {
-              QAL_VERBOSE(LOG_TAG,"napb: native audio cannot be enabled from UI");
+              PAL_VERBOSE(LOG_TAG,"napb: native audio cannot be enabled from UI");
         }
     }
     return ret;
@@ -3983,7 +3983,7 @@ void ResourceManager::updatePcmId(int32_t deviceId, int32_t pcmId)
     if (isValidDevId(deviceId)) {
         devicePcmId[deviceId].second = pcmId;
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
     }
 }
 
@@ -3992,7 +3992,7 @@ void ResourceManager::updateLinkName(int32_t deviceId, std::string linkName)
     if (isValidDevId(deviceId)) {
         deviceLinkName[deviceId].second = linkName;
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
     }
 }
 
@@ -4001,7 +4001,7 @@ void ResourceManager::updateSndName(int32_t deviceId, std::string sndName)
     if (isValidDevId(deviceId)) {
         sndDeviceNameLUT[deviceId].second = sndName;
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
     }
 }
 
@@ -4010,7 +4010,7 @@ void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndNam
     if (isValidDevId(deviceId)) {
         listAllBackEndIds[deviceId].second = backEndName;
     } else {
-        QAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
+        PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
     }
 }
 
@@ -4039,47 +4039,47 @@ int convertCharToHex(std::string num)
 int32_t ResourceManager::a2dpSuspend()
 {
     std::shared_ptr<Device> dev = nullptr;
-    struct qal_device dattr;
+    struct pal_device dattr;
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<Stream*>::iterator sIter;
-    struct qal_device_info devinfo = {};
+    struct pal_device_info devinfo = {};
 
-    dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+    dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     dev = Device::getInstance(&dattr , rm);
 
     getActiveStream_l(dev, activeStreams);
 
     if (activeStreams.size() == 0) {
-        QAL_ERR(LOG_TAG, "no active streams found");
+        PAL_ERR(LOG_TAG, "no active streams found");
         goto exit;
     }
 
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         int ret = 0;
-        struct qal_stream_attributes sAttr = {};
+        struct pal_stream_attributes sAttr = {};
 
         ret = (*sIter)->getStreamAttributes(&sAttr);
         if (0 != ret) {
-            QAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
+            PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
             goto exit;
         }
-        if (sAttr.type == QAL_STREAM_COMPRESSED) {
+        if (sAttr.type == PAL_STREAM_COMPRESSED) {
             if (!((*sIter)->a2dp_compress_mute)) {
-                struct qal_device speakerDattr;
+                struct pal_device speakerDattr;
 
-                QAL_DBG(LOG_TAG, "selecting speaker and muting stream");
+                PAL_DBG(LOG_TAG, "selecting speaker and muting stream");
                 (*sIter)->pause(); // compress_pause
                 (*sIter)->setMute(true); // mute the stream, unmute during a2dp_resume
                 (*sIter)->a2dp_compress_mute = true;
                 // force switch to speaker
-                speakerDattr.id = QAL_DEVICE_OUT_SPEAKER;
+                speakerDattr.id = PAL_DEVICE_OUT_SPEAKER;
 
                 getDeviceInfo(speakerDattr.id, sAttr.type, &devinfo);
                 if ((devinfo.channels == 0) ||
                        (devinfo.channels > devinfo.max_channels)) {
                     status = -EINVAL;
-                    QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                    PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                     goto exit;
                 }
                 getDeviceConfig(&speakerDattr, &sAttr, devinfo.channels);
@@ -4088,7 +4088,7 @@ int32_t ResourceManager::a2dpSuspend()
                 mResourceManagerMutex.lock();
                 (*sIter)->resume(); //compress_resume
                 /* backup actual device name in stream class */
-                (*sIter)->suspendedDevId = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+                (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             }
         } else {
             // put to standby for non offload usecase
@@ -4106,19 +4106,19 @@ exit:
 int32_t ResourceManager::a2dpResume()
 {
     std::shared_ptr<Device> dev = nullptr;
-    struct qal_device dattr;
+    struct pal_device dattr;
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector<Stream*>::iterator sIter;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
 
-    dattr.id = QAL_DEVICE_OUT_SPEAKER;
+    dattr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = Device::getInstance(&dattr , rm);
 
     getActiveStream_l(dev, activeStreams);
 
     if (activeStreams.size() == 0) {
-        QAL_ERR(LOG_TAG, "no active streams found");
+        PAL_ERR(LOG_TAG, "no active streams found");
         goto exit;
     }
 
@@ -4127,25 +4127,25 @@ int32_t ResourceManager::a2dpResume()
     // unmute the stream
     for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
 
-        struct qal_device_info devinfo = {};
+        struct pal_device_info devinfo = {};
 
         status = (*sIter)->getStreamAttributes(&sAttr);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+            PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
             goto exit;
         }
-        if (sAttr.type == QAL_STREAM_COMPRESSED &&
-            ((*sIter)->suspendedDevId == QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
-            struct qal_device a2dpDattr;
+        if (sAttr.type == PAL_STREAM_COMPRESSED &&
+            ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+            struct pal_device a2dpDattr;
 
-            a2dpDattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
-            QAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
+            a2dpDattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
 
             getDeviceInfo(a2dpDattr.id, sAttr.type, &devinfo);
             if ((devinfo.channels == 0) ||
                    (devinfo.channels > devinfo.max_channels)) {
                 status = -EINVAL;
-                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                 goto exit;
             }
 
@@ -4153,7 +4153,7 @@ int32_t ResourceManager::a2dpResume()
             mResourceManagerMutex.unlock();
             forceDeviceSwitch(dev, &a2dpDattr);
             mResourceManagerMutex.lock();
-            (*sIter)->suspendedDevId = QAL_DEVICE_NONE;
+            (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
             if ((*sIter)->a2dp_compress_mute) {
                 (*sIter)->setMute(false);
                 (*sIter)->a2dp_compress_mute = false;
@@ -4169,76 +4169,76 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case QAL_PARAM_ID_UIEFFECT:
+        case PAL_PARAM_ID_UIEFFECT:
         {
 #if 0
             gef_payload_t *gef_payload = (gef_payload_t *)query;
             int index = 0;
-            int qal_device_id = 0;
+            int pal_device_id = 0;
             int stream_type = 0;
             bool match = false;
             std::vector<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->isGKVMatch(gef_payload->graph);
                 if (match) {
-                    qal_param_payload *qal_payload;
-                    qal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->getEffectParameters((void *)&qal_payload, payload_size);
+                    pal_param_payload *pal_payload;
+                    pal_payload.payload = (uint8_t *)&gef_payload->data;
+                    status = (*sIter)->getEffectParameters((void *)&pal_payload, payload_size);
                     break;
                 }
             }
 #endif
             break;
         }
-        case QAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
-        case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
-        case QAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
+        case PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
+        case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
+        case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
         {
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device dattr;
-            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+            struct pal_device dattr;
+            pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
-            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr , rm);
                 status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
                 if (status) {
-                    QAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                    PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
                     goto exit;
                 }
                 *param_payload = param_bt_a2dp;
-                *payload_size = sizeof(qal_param_bta2dp_t);
+                *payload_size = sizeof(pal_param_bta2dp_t);
             }
             break;
         }
-        case QAL_PARAM_ID_DEVICE_CAPABILITY:
+        case PAL_PARAM_ID_DEVICE_CAPABILITY:
         {
-            qal_param_device_capability_t *param_device_capability = (qal_param_device_capability_t *)(*param_payload);
-            QAL_INFO(LOG_TAG, "Device %d card = %d qalid=%x",
+            pal_param_device_capability_t *param_device_capability = (pal_param_device_capability_t *)(*param_payload);
+            PAL_INFO(LOG_TAG, "Device %d card = %d palid=%x",
                         param_device_capability->addr.device_num,
                         param_device_capability->addr.card_id,
                         param_device_capability->id);
             status = getDeviceDefaultCapability(*param_device_capability);
             break;
         }
-        case QAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES:
+        case PAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES:
         {
-            QAL_INFO(LOG_TAG, "get sound trigge properties, status %d", status);
-            struct qal_st_properties *qstp =
-                (struct qal_st_properties *)calloc(1, sizeof(struct qal_st_properties));
+            PAL_INFO(LOG_TAG, "get sound trigge properties, status %d", status);
+            struct pal_st_properties *qstp =
+                (struct pal_st_properties *)calloc(1, sizeof(struct pal_st_properties));
 
             GetVoiceUIProperties(qstp);
 
             *param_payload = qstp;
-            *payload_size = sizeof(qal_st_properties);
+            *payload_size = sizeof(pal_st_properties);
             break;
         }
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
 exit:
@@ -4249,20 +4249,20 @@ exit:
 
 int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
                                   size_t payload_size __unused,
-                                  qal_device_id_t qal_device_id,
-                                  qal_stream_type_t qal_stream_type)
+                                  pal_device_id_t pal_device_id,
+                                  pal_stream_type_t pal_stream_type)
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case QAL_PARAM_ID_UIEFFECT:
+        case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
             std::vector<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
-                match = (*sIter)->checkStreamMatch(qal_device_id, qal_stream_type);
+                match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
                     status = (*sIter)->getEffectParameters(param_payload);
                     break;
@@ -4272,7 +4272,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         }
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
 
@@ -4286,72 +4286,72 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case QAL_PARAM_ID_SCREEN_STATE:
+        case PAL_PARAM_ID_SCREEN_STATE:
         {
-            qal_param_screen_state_t* param_screen_st = (qal_param_screen_state_t*) param_payload;
-            QAL_INFO(LOG_TAG, "Screen State:%d", param_screen_st->screen_state);
-            if (payload_size == sizeof(qal_param_screen_state_t)) {
+            pal_param_screen_state_t* param_screen_st = (pal_param_screen_state_t*) param_payload;
+            PAL_INFO(LOG_TAG, "Screen State:%d", param_screen_st->screen_state);
+            if (payload_size == sizeof(pal_param_screen_state_t)) {
                 status = handleScreenStatusChange(*param_screen_st);
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
-                        sizeof(qal_param_screen_state_t), payload_size);
+                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_screen_state_t), payload_size);
                 status = -EINVAL;
             }
         }
         break;
-        case QAL_PARAM_ID_DEVICE_ROTATION:
+        case PAL_PARAM_ID_DEVICE_ROTATION:
         {
-            qal_param_device_rotation_t* param_device_rot =
-                                   (qal_param_device_rotation_t*) param_payload;
-            QAL_INFO(LOG_TAG, "Device Rotation :%d", param_device_rot->rotation_type);
-            if (payload_size == sizeof(qal_param_device_rotation_t)) {
+            pal_param_device_rotation_t* param_device_rot =
+                                   (pal_param_device_rotation_t*) param_payload;
+            PAL_INFO(LOG_TAG, "Device Rotation :%d", param_device_rot->rotation_type);
+            if (payload_size == sizeof(pal_param_device_rotation_t)) {
                 status = handleDeviceRotationChange(*param_device_rot);
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
-                        sizeof(qal_param_device_rotation_t), payload_size);
+                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_device_rotation_t), payload_size);
                 status = -EINVAL;
             }
 
         }
         break;
-        case QAL_PARAM_ID_SP_SET_MODE:
+        case PAL_PARAM_ID_SP_SET_MODE:
         {
-            qal_spkr_prot_payload *spModeval =
-                    (qal_spkr_prot_payload *) param_payload;
+            pal_spkr_prot_payload *spModeval =
+                    (pal_spkr_prot_payload *) param_payload;
 
-            if (payload_size == sizeof(qal_spkr_prot_payload)) {
+            if (payload_size == sizeof(pal_spkr_prot_payload)) {
                 switch(spModeval->operationMode) {
-                    case QAL_SP_MODE_DYNAMIC_CAL:
+                    case PAL_SP_MODE_DYNAMIC_CAL:
                     {
                         memset (&mSpkrProtModeValue, 0,
-                                        sizeof(qal_spkr_prot_payload));
+                                        sizeof(pal_spkr_prot_payload));
                         mSpkrProtModeValue.operationMode =
-                                QAL_SP_MODE_DYNAMIC_CAL;
+                                PAL_SP_MODE_DYNAMIC_CAL;
 
                     }
                     break;
-                    case QAL_SP_MODE_FACTORY_TEST:
+                    case PAL_SP_MODE_FACTORY_TEST:
                     {
                         memset (&mSpkrProtModeValue, 0,
-                                        sizeof(qal_spkr_prot_payload));
+                                        sizeof(pal_spkr_prot_payload));
                         mSpkrProtModeValue.operationMode =
-                                QAL_SP_MODE_FACTORY_TEST;
+                                PAL_SP_MODE_FACTORY_TEST;
                         mSpkrProtModeValue.spkrHeatupTime =
                                 spModeval->spkrHeatupTime;
                         mSpkrProtModeValue.operationModeRunTime =
                                 spModeval->operationModeRunTime;
                     }
                     break;
-                    case QAL_SP_MODE_V_VALIDATION:
+                    case PAL_SP_MODE_V_VALIDATION:
                     {
                         memset (&mSpkrProtModeValue, 0,
-                                        sizeof(qal_spkr_prot_payload));
+                                        sizeof(pal_spkr_prot_payload));
                         mSpkrProtModeValue.operationMode =
-                                QAL_SP_MODE_V_VALIDATION;
+                                PAL_SP_MODE_V_VALIDATION;
                         mSpkrProtModeValue.spkrHeatupTime =
                                 spModeval->spkrHeatupTime;
                         mSpkrProtModeValue.operationModeRunTime =
@@ -4360,25 +4360,25 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     break;
                 }
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
-                        sizeof(qal_param_device_rotation_t), payload_size);
+                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_device_rotation_t), payload_size);
                 status = -EINVAL;
             }
         }
         break;
-        case QAL_PARAM_ID_DEVICE_CONNECTION:
+        case PAL_PARAM_ID_DEVICE_CONNECTION:
         {
-            qal_param_device_connection_t *device_connection =
-                (qal_param_device_connection_t *)param_payload;
+            pal_param_device_connection_t *device_connection =
+                (pal_param_device_connection_t *)param_payload;
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device dattr;
+            struct pal_device dattr;
 
-            QAL_INFO(LOG_TAG, "Device %d connected = %d",
+            PAL_INFO(LOG_TAG, "Device %d connected = %d",
                         device_connection->id,
                         device_connection->connection_state);
-            if (payload_size == sizeof(qal_param_device_connection_t)) {
+            if (payload_size == sizeof(pal_param_device_connection_t)) {
                 status = handleDeviceConnectionChange(*device_connection);
-                if (!status && (device_connection->id == QAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
                     status = dev->setDeviceParameter(param_id, param_payload);
@@ -4387,28 +4387,28 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         device_connection->connection_state,
                         device_connection->id);
                     if (status) {
-                        QAL_ERR(LOG_TAG, "Failed to switch device for SVA");
+                        PAL_ERR(LOG_TAG, "Failed to switch device for SVA");
                     }
                 }
             } else {
-                QAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
-                      sizeof(qal_param_device_connection_t), payload_size);
+                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
+                      sizeof(pal_param_device_connection_t), payload_size);
                 status = -EINVAL;
             }
         }
         break;
-        case QAL_PARAM_ID_CHARGING_STATE:
+        case PAL_PARAM_ID_CHARGING_STATE:
         {
-            qal_param_charging_state *battery_charging_state =
-                (qal_param_charging_state *)param_payload;
+            pal_param_charging_state *battery_charging_state =
+                (pal_param_charging_state *)param_payload;
             StreamSoundTrigger *st_str = nullptr;
             if (IsTransitToNonLPIOnChargingSupported()) {
-                if (payload_size == sizeof(qal_param_charging_state)) {
-                    QAL_INFO(LOG_TAG, "Charging State = %d",
+                if (payload_size == sizeof(pal_param_charging_state)) {
+                    PAL_INFO(LOG_TAG, "Charging State = %d",
                               battery_charging_state->charging_state);
                     if (charging_state_ ==
                         battery_charging_state->charging_state) {
-                        QAL_DBG(LOG_TAG, "Charging state unchanged, ignore");
+                        PAL_DBG(LOG_TAG, "Charging state unchanged, ignore");
                         break;
                     }
                     charging_state_ = battery_charging_state->charging_state;
@@ -4421,7 +4421,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                 battery_charging_state->charging_state, false);
                             mResourceManagerMutex.lock();
                             if (status) {
-                                QAL_ERR(LOG_TAG,
+                                PAL_ERR(LOG_TAG,
                                         "Failed to handling charging state\n");
                             }
                         }
@@ -4435,89 +4435,89 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                 battery_charging_state->charging_state, true);
                             mResourceManagerMutex.lock();
                             if (status) {
-                                QAL_ERR(LOG_TAG,
+                                PAL_ERR(LOG_TAG,
                                         "Failed to handling charging state\n");
                             }
                         }
                     }
                 } else {
-                    QAL_ERR(LOG_TAG,
+                    PAL_ERR(LOG_TAG,
                             "Incorrect size : expected (%zu), received(%zu)",
-                            sizeof(qal_param_charging_state), payload_size);
+                            sizeof(pal_param_charging_state), payload_size);
                     status = -EINVAL;
                 }
             } else {
-                QAL_DBG(LOG_TAG,
+                PAL_DBG(LOG_TAG,
                           "transit_to_non_lpi_on_charging set to false\n");
             }
         }
         break;
-        case QAL_PARAM_ID_BT_SCO_WB:
-        case QAL_PARAM_ID_BT_SCO_SWB:
-        case QAL_PARAM_ID_BT_SCO:
+        case PAL_PARAM_ID_BT_SCO_WB:
+        case PAL_PARAM_ID_BT_SCO_SWB:
+        case PAL_PARAM_ID_BT_SCO:
         {
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device dattr;
+            struct pal_device dattr;
 
-            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_SCO;
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
             }
 
-            dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
+            dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
             }
         }
         break;
-        case QAL_PARAM_ID_BT_A2DP_RECONFIG:
+        case PAL_PARAM_ID_BT_A2DP_RECONFIG:
         {
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device dattr;
-            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
-            struct qal_device_info devinfo = {};
+            struct pal_device dattr;
+            pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+            struct pal_device_info devinfo = {};
 
-            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
                 if (status) {
-                    QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                    PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                     goto exit;
                 }
                 status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
                 if (status) {
-                    QAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                    PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
                     goto exit;
                 }
                 if (param_bt_a2dp->reconfigured == true) {
-                    struct qal_device spkrDattr;
+                    struct pal_device spkrDattr;
                     std::shared_ptr<Device> spkrDev = nullptr;
 
-                    struct qal_device_info devinfo = {};
+                    struct pal_device_info devinfo = {};
 
-                    QAL_DBG(LOG_TAG, "Switching A2DP Device\n");
-                    spkrDattr.id = QAL_DEVICE_OUT_SPEAKER;
+                    PAL_DBG(LOG_TAG, "Switching A2DP Device\n");
+                    spkrDattr.id = PAL_DEVICE_OUT_SPEAKER;
                     spkrDev = Device::getInstance(&spkrDattr, rm);
 
                     /* Num channels for Rx devices is same for all usecases,
                        stream type is irrelevant here. */
-                    getDeviceInfo(spkrDattr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+                    getDeviceInfo(spkrDattr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
                     if ((devinfo.channels == 0) ||
                           (devinfo.channels > devinfo.max_channels)) {
                         status = -EINVAL;
-                        QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                        PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                         goto exit;
                     }
 
                     getDeviceConfig(&spkrDattr, NULL, devinfo.channels);
-                    getDeviceInfo(dattr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+                    getDeviceInfo(dattr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
                     if ((devinfo.channels == 0) ||
                           (devinfo.channels > devinfo.max_channels)) {
                         status = -EINVAL;
-                        QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                        PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                         goto exit;
                     }
                     getDeviceConfig(&dattr, NULL, devinfo.channels);
@@ -4532,54 +4532,54 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
-        case QAL_PARAM_ID_BT_A2DP_SUSPENDED:
+        case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
         {
             std::shared_ptr<Device> a2dp_dev = nullptr;
-            struct qal_device a2dp_dattr;
-            qal_param_bta2dp_t *current_param_bt_a2dp = nullptr;
-            qal_param_bta2dp_t *param_bt_a2dp = nullptr;
+            struct pal_device a2dp_dattr;
+            pal_param_bta2dp_t *current_param_bt_a2dp = nullptr;
+            pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
-            a2dp_dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            a2dp_dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (!isDeviceAvailable(a2dp_dattr.id)) {
-                QAL_ERR(LOG_TAG, "device %d is inactive, set param %d failed\n",
+                PAL_ERR(LOG_TAG, "device %d is inactive, set param %d failed\n",
                                   a2dp_dattr.id,  param_id);
                 status = -EIO;
                 goto exit;
             }
 
-            param_bt_a2dp = (qal_param_bta2dp_t *)param_payload;
+            param_bt_a2dp = (pal_param_bta2dp_t *)param_payload;
             a2dp_dev = Device::getInstance(&a2dp_dattr , rm);
             status = a2dp_dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
             if (current_param_bt_a2dp->a2dp_suspended == param_bt_a2dp->a2dp_suspended) {
-                QAL_INFO(LOG_TAG, "A2DP already in requested state, ignoring\n");
+                PAL_INFO(LOG_TAG, "A2DP already in requested state, ignoring\n");
                 goto exit;
             }
 
             if (param_bt_a2dp->a2dp_suspended == false) {
                 /* Handle bt sco mic running usecase */
-                struct qal_device sco_tx_dattr;
-                struct qal_device_info devinfo = {};
-                struct qal_stream_attributes sAttr;
+                struct pal_device sco_tx_dattr;
+                struct pal_device_info devinfo = {};
+                struct pal_stream_attributes sAttr;
                 Stream *stream = NULL;
                 std::vector<Stream*> activestreams;
 
-                sco_tx_dattr.id = QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
-                QAL_DBG(LOG_TAG, "a2dp resumed, switch bt sco mic to handset mic");
+                sco_tx_dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
+                PAL_DBG(LOG_TAG, "a2dp resumed, switch bt sco mic to handset mic");
                 if (isDeviceAvailable(sco_tx_dattr.id)) {
-                    struct qal_device handset_tx_dattr;
+                    struct pal_device handset_tx_dattr;
                     std::shared_ptr<Device> sco_tx_dev = nullptr;
 
-                    handset_tx_dattr.id = QAL_DEVICE_IN_HANDSET_MIC;
+                    handset_tx_dattr.id = PAL_DEVICE_IN_HANDSET_MIC;
                     sco_tx_dev = Device::getInstance(&sco_tx_dattr , rm);
                     getActiveStream_l(sco_tx_dev, activestreams);
                     if (activestreams.size() == 0) {
-                       QAL_ERR(LOG_TAG, "no other active streams found");
+                       PAL_ERR(LOG_TAG, "no other active streams found");
                        goto setdevparam;
                     }
                     stream = static_cast<Stream *>(activestreams[0]);
                     stream->getStreamAttributes(&sAttr);
                     getDeviceInfo(handset_tx_dattr.id, sAttr.type, &devinfo);
-                    QAL_DBG(LOG_TAG, "devinfo.channels %d sAttr.type %d \n", devinfo.channels, sAttr.type);
+                    PAL_DBG(LOG_TAG, "devinfo.channels %d sAttr.type %d \n", devinfo.channels, sAttr.type);
                     getDeviceConfig(&handset_tx_dattr, &sAttr, devinfo.channels);
                     mResourceManagerMutex.unlock();
                     rm->forceDeviceSwitch(sco_tx_dev, &handset_tx_dattr);
@@ -4590,49 +4590,49 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 setdevparam:
             status = a2dp_dev->setDeviceParameter(param_id, param_payload);
             if (status) {
-                QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                 goto exit;
             }
         }
         break;
-        case QAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
         {
             std::shared_ptr<Device> dev = nullptr;
-            struct qal_device dattr;
+            struct pal_device dattr;
 
-            dattr.id = QAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
                 status = dev->setDeviceParameter(param_id, param_payload);
                 if (status) {
-                    QAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                    PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                     goto exit;
                 }
             }
         }
         break;
-        case QAL_PARAM_ID_UIEFFECT:
+        case PAL_PARAM_ID_UIEFFECT:
         {
 #if 0
             gef_payload_t *gef_payload = (gef_payload_t*)param_payload;
             int index = 0;
-            int qal_device_id = 0;
+            int pal_device_id = 0;
             int stream_type = 0;
             bool match = false;
             std::vector<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->isGKVMatch(gef_payload->graph);
                 if (match) {
-                    qal_param_payload qal_payload;
-                    qal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->setParameters(param_id, (void *)&qal_payload);
+                    pal_param_payload pal_payload;
+                    pal_payload.payload = (uint8_t *)&gef_payload->data;
+                    status = (*sIter)->setParameters(param_id, (void *)&pal_payload);
                 }
             }
 #endif
         }
         break;
         default:
-            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
 
@@ -4644,35 +4644,35 @@ exit:
 
 int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   size_t payload_size __unused,
-                                  qal_device_id_t qal_device_id,
-                                  qal_stream_type_t qal_stream_type)
+                                  pal_device_id_t pal_device_id,
+                                  pal_stream_type_t pal_stream_type)
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG, "xsang param_id=%d", param_id);
+    PAL_INFO(LOG_TAG, "xsang param_id=%d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case QAL_PARAM_ID_UIEFFECT:
+        case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
             std::vector<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
-                match = (*sIter)->checkStreamMatch(qal_device_id,
-                                                    qal_stream_type);
+                match = (*sIter)->checkStreamMatch(pal_device_id,
+                                                    pal_stream_type);
                 if (match) {
                     status = (*sIter)->setParameters(param_id, param_payload);
                     if (status) {
-                        QAL_ERR(LOG_TAG, "failed to set param for qal_device_id=%x stream_type=%x",
-                                qal_device_id, qal_stream_type);
+                        PAL_ERR(LOG_TAG, "failed to set param for pal_device_id=%x stream_type=%x",
+                                pal_device_id, pal_stream_type);
                     }
                 }
             }
         }
         break;
         default:
-            QAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
+            PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
 
@@ -4680,18 +4680,18 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
     return status;
 }
 
-int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_state)
+int ResourceManager::handleScreenStatusChange(pal_param_screen_state_t screen_state)
 {
     int status = 0;
 
     if (screen_state_ != screen_state.screen_state) {
         if (screen_state.screen_state == false) {
             /* have appropriate streams transition to LPI */
-            QAL_VERBOSE(LOG_TAG, "Screen State printout");
+            PAL_VERBOSE(LOG_TAG, "Screen State printout");
         }
         else {
             /* have appropriate streams transition out of LPI */
-            QAL_VERBOSE(LOG_TAG, "Screen State printout");
+            PAL_VERBOSE(LOG_TAG, "Screen State printout");
         }
         screen_state_ = screen_state.screen_state;
         /* update
@@ -4704,13 +4704,13 @@ int ResourceManager::handleScreenStatusChange(qal_param_screen_state_t screen_st
     return status;
 }
 
-int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
+int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                                                          rotation_type) {
     std::vector<Stream*>::iterator sIter;
-    qal_stream_type_t streamType;
-    struct qal_device dattr;
+    pal_stream_type_t streamType;
+    struct pal_device dattr;
     int status = 0;
-    QAL_INFO(LOG_TAG, "Device Rotation Changed %d", rotation_type.rotation_type);
+    PAL_INFO(LOG_TAG, "Device Rotation Changed %d", rotation_type.rotation_type);
     rotation_type_ = rotation_type.rotation_type;
 
     /**Get the active device list and check if speaker is present.
@@ -4719,21 +4719,21 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
         int deviceId = active_devices[i].first->getSndDeviceId();
         status = active_devices[i].first->getDeviceAttributes(&dattr);
         if(0 != status) {
-           QAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
+           PAL_ERR(LOG_TAG,"getDeviceAttributes Failed");
            goto error;
         }
-        QAL_INFO(LOG_TAG, "Device Got %d with channel %d",deviceId,
+        PAL_INFO(LOG_TAG, "Device Got %d with channel %d",deviceId,
                                                  dattr.config.ch_info.channels);
-        if ((QAL_DEVICE_OUT_SPEAKER == deviceId) &&
+        if ((PAL_DEVICE_OUT_SPEAKER == deviceId) &&
             (2 == dattr.config.ch_info.channels)) {
 
-            QAL_INFO(LOG_TAG, "Device is Stereo Speaker");
+            PAL_INFO(LOG_TAG, "Device is Stereo Speaker");
             std::vector <Stream *> activeStreams;
             getActiveStream_l(active_devices[i].first, activeStreams);
             for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
                 status = (*sIter)->getStreamType(&streamType);
                 if(0 != status) {
-                   QAL_ERR(LOG_TAG,"setParameters Failed");
+                   PAL_ERR(LOG_TAG,"setParameters Failed");
                    goto error;
                 }
                 /** Check for the Streams which can require Stereo speaker functionality.
@@ -4742,16 +4742,16 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
                  * 2. PCM offload
                  * 3. Compressed
                  */
-                if ((QAL_STREAM_DEEP_BUFFER == streamType) ||
-                    (QAL_STREAM_COMPRESSED == streamType) ||
-                    (QAL_STREAM_PCM_OFFLOAD == streamType)) {
+                if ((PAL_STREAM_DEEP_BUFFER == streamType) ||
+                    (PAL_STREAM_COMPRESSED == streamType) ||
+                    (PAL_STREAM_PCM_OFFLOAD == streamType)) {
 
-                    QAL_INFO(LOG_TAG, "Rotation for stream %d", streamType);
+                    PAL_INFO(LOG_TAG, "Rotation for stream %d", streamType);
                     // Need to set the rotation now.
-                    status = (*sIter)->setParameters(QAL_PARAM_ID_DEVICE_ROTATION,
+                    status = (*sIter)->setParameters(PAL_PARAM_ID_DEVICE_ROTATION,
                                                      (void*)&rotation_type);
                     if(0 != status) {
-                       QAL_ERR(LOG_TAG,"setParameters Failed");
+                       PAL_ERR(LOG_TAG,"setParameters Failed");
                        goto error;
                     }
                 }
@@ -4762,7 +4762,7 @@ int ResourceManager::handleDeviceRotationChange (qal_param_device_rotation_t
         }
     }
 error :
-    QAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange");
+    PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange");
     return status;
 }
 
@@ -4771,44 +4771,44 @@ bool ResourceManager::getScreenState()
     return screen_state_;
 }
 
-qal_speaker_rotation_type ResourceManager::getCurrentRotationType()
+pal_speaker_rotation_type ResourceManager::getCurrentRotationType()
 {
     return rotation_type_;
 }
 
-int ResourceManager::getDeviceDefaultCapability(qal_param_device_capability_t capability) {
+int ResourceManager::getDeviceDefaultCapability(pal_param_device_capability_t capability) {
     int status = 0;
-    qal_device_id_t device_qal_id = capability.id;
-    bool device_available = isDeviceAvailable(device_qal_id);
+    pal_device_id_t device_pal_id = capability.id;
+    bool device_available = isDeviceAvailable(device_pal_id);
 
-    struct qal_device conn_device;
+    struct pal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
     std::shared_ptr<Device> candidate_device;
 
-    memset(&conn_device, 0, sizeof(struct qal_device));
-    conn_device.id = device_qal_id;
-    QAL_DBG(LOG_TAG, "device qal id=%x available=%x", device_qal_id, device_available);
+    memset(&conn_device, 0, sizeof(struct pal_device));
+    conn_device.id = device_pal_id;
+    PAL_DBG(LOG_TAG, "device pal id=%x available=%x", device_pal_id, device_available);
     dev = Device::getInstance(&conn_device, rm);
     if (dev)
         status = dev->getDefaultConfig(capability);
     else
-        QAL_ERR(LOG_TAG, "failed to get device instance.");
+        PAL_ERR(LOG_TAG, "failed to get device instance.");
 
     return status;
 }
 
-int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t connection_state) {
+int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t connection_state) {
     int status = 0;
-    qal_device_id_t device_id = connection_state.id;
+    pal_device_id_t device_id = connection_state.id;
     bool is_connected = connection_state.connection_state;
     bool device_available = isDeviceAvailable(device_id);
-    struct qal_device dAttr;
-    struct qal_device conn_device;
+    struct pal_device dAttr;
+    struct pal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
-    struct qal_device_info devinfo = {};
+    struct pal_device_info devinfo = {};
 
-    QAL_DBG(LOG_TAG, "Enter");
-    memset(&conn_device, 0, sizeof(struct qal_device));
+    PAL_DBG(LOG_TAG, "Enter");
+    memset(&conn_device, 0, sizeof(struct pal_device));
     if (is_connected && !device_available) {
         if (isPluginDevice(device_id)) {
             conn_device.id = device_id;
@@ -4816,7 +4816,7 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             if (dev) {
                 addPlugInDevice(dev, connection_state);
             } else {
-                QAL_ERR(LOG_TAG, "Device creation failed");
+                PAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
             }
         } else if (isDpDevice(device_id)) {
@@ -4825,50 +4825,50 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             if (dev) {
                 addPlugInDevice(dev, connection_state);
             } else {
-                QAL_ERR(LOG_TAG, "Device creation failed");
+                PAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
             }
         }
 
-        QAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        if (device_id == QAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
             dAttr.id = device_id;
             /* Stream type is irrelevant here as we need device num channels
                which is independent of stype for BT devices */
-            rm->getDeviceInfo(dAttr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+            rm->getDeviceInfo(dAttr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
             if ((devinfo.channels == 0) ||
                    (devinfo.channels > devinfo.max_channels)) {
-                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                 return -EINVAL;
             }
             status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
             if (status) {
-                QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+                PAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
             }
             dev = Device::getInstance(&dAttr, rm);
             if (!dev) {
-                QAL_ERR(LOG_TAG, "Device creation failed");
+                PAL_ERR(LOG_TAG, "Device creation failed");
                 return -EINVAL;
             }
         } else if (isBtScoDevice(device_id)) {
             dAttr.id = device_id;
             /* Stream type is irrelevant here as we need device num channels
                which is independent of stype for BT devices */
-            rm->getDeviceInfo(dAttr.id, QAL_STREAM_LOW_LATENCY, &devinfo);
+            rm->getDeviceInfo(dAttr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
             if ((devinfo.channels == 0) ||
                    (devinfo.channels > devinfo.max_channels)) {
-                QAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
+                PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
                 return -EINVAL;
             }
             status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
             if (status) {
-                QAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
+                PAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
                 return status;
             }
             dev = Device::getInstance(&dAttr, rm);
             if (!dev) {
-                QAL_ERR(LOG_TAG, "Device creation failed");
+                PAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
                 return -EIO;
             }
@@ -4883,51 +4883,51 @@ int ResourceManager::handleDeviceConnectionChange(qal_param_device_connection_t 
             removePlugInDevice(device_id, connection_state);
         }
 
-        QAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
+        PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
         avail_devices_.erase(std::find(avail_devices_.begin(), avail_devices_.end(), device_id));
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
+        PAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
                 is_connected, device_available);
     }
 
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
 
-    qal_stream_attributes StrAttr;
+    pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
     status = str->getStreamAttributes(&StrAttr);
 
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
     mResourceManagerMutex.lock();
 
     switch (StrAttr.type) {
-        case QAL_STREAM_VOICE_UI:
+        case PAL_STREAM_VOICE_UI:
             streamConfigModifierKV = str->getStreamModifiers();
 
             if (streamConfigModifierKV.size() == 0) {
-                QAL_DBG(LOG_TAG, "no streamConfigModifierKV");
+                PAL_DBG(LOG_TAG, "no streamConfigModifierKV");
                 break;
             }
 
             for (int x = 0; x < STInstancesLists.size(); x++) {
                 if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
-                    QAL_DBG(LOG_TAG,"Found matching StreamConfig(%x) in STInstancesLists(%d)",
+                    PAL_DBG(LOG_TAG,"Found matching StreamConfig(%x) in STInstancesLists(%d)",
                         streamConfigModifierKV[0].second, x);
 
                     for (int i = 0; i < max_session_num; i++) {
                         if (STInstancesLists[x].second[i].first == sInstanceID){
                             STInstancesLists[x].second[i].second = false;
-                            QAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
+                            PAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
                                   "Instance(%d) to false",
                                   x,
                                   i,
@@ -4940,7 +4940,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             }
             break;
         default:
-            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
                     StrAttr.type);
             break;
     }
@@ -4955,32 +4955,32 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
     int status = 0;
     int i;
     int listNodeIndex = -1;
-    qal_stream_attributes StrAttr;
+    pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
     status = str->getStreamAttributes(&StrAttr);
 
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
 
     mResourceManagerMutex.lock();
 
     switch (StrAttr.type) {
-        case QAL_STREAM_VOICE_UI:
-            QAL_DBG(LOG_TAG,"STInstancesLists.size (%zu)", STInstancesLists.size());
+        case PAL_STREAM_VOICE_UI:
+            PAL_DBG(LOG_TAG,"STInstancesLists.size (%zu)", STInstancesLists.size());
 
             streamConfigModifierKV = str->getStreamModifiers();
 
             if (streamConfigModifierKV.size() == 0) {
-                QAL_DBG(LOG_TAG, "no streamConfigModifierKV");
+                PAL_DBG(LOG_TAG, "no streamConfigModifierKV");
                 break;
             }
 
             for (int x = 0; x < STInstancesLists.size(); x++) {
                 if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
-                    QAL_DBG(LOG_TAG,"Found list for StreamConfig(%x),index(%d)",
+                    PAL_DBG(LOG_TAG,"Found list for StreamConfig(%x),index(%d)",
                         streamConfigModifierKV[0].second, x);
                     listNodeIndex = x;
                     break;
@@ -4989,7 +4989,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
 
             if (listNodeIndex < 0) {
                 InstanceListNode_t streamConfigInstanceList;
-                QAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig(%x)",
+                PAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig(%x)",
                     streamConfigModifierKV[0].second);
 
                 STInstancesLists.push_back(make_pair(
@@ -5006,7 +5006,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
                 if (!STInstancesLists[listNodeIndex].second[i].second) {
                     STInstancesLists[listNodeIndex].second[i].second = true;
                     status = STInstancesLists[listNodeIndex].second[i].first;
-                    QAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
+                    PAL_DBG(LOG_TAG,"ListNodeIndex(%d), InstanceIndex(%d)"
                           "Instance(%d) to true",
                           listNodeIndex,
                           i,
@@ -5016,7 +5016,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             }
             break;
         default:
-            QAL_ERR(LOG_TAG, "Invalid streamtype %d",
+            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
                     StrAttr.type);
             break;
     }
@@ -5027,39 +5027,39 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
 
 }
 
-bool ResourceManager::isDeviceAvailable(qal_device_id_t id)
+bool ResourceManager::isDeviceAvailable(pal_device_id_t id)
 {
     bool is_available = false;
-    typename std::vector<qal_device_id_t>::iterator iter =
+    typename std::vector<pal_device_id_t>::iterator iter =
         std::find(avail_devices_.begin(), avail_devices_.end(), id);
 
     if (iter != avail_devices_.end())
         is_available = true;
 
-    QAL_DBG(LOG_TAG, "Device %d, is_available = %d", id, is_available);
+    PAL_DBG(LOG_TAG, "Device %d, is_available = %d", id, is_available);
 
     return is_available;
 }
 
-bool ResourceManager::isDeviceReady(qal_device_id_t id)
+bool ResourceManager::isDeviceReady(pal_device_id_t id)
 {
-    struct qal_device dAttr;
+    struct pal_device dAttr;
     std::shared_ptr<Device> dev = nullptr;
     bool is_ready = false;
 
     switch (id) {
-        case QAL_DEVICE_OUT_BLUETOOTH_SCO:
-        case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-        case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        case QAL_DEVICE_IN_BLUETOOTH_A2DP:
+        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
         {
             if (!isDeviceAvailable(id))
                 return is_ready;
 
             dAttr.id = id;
-            dev = Device::getInstance((struct qal_device *)&dAttr , rm);
+            dev = Device::getInstance((struct pal_device *)&dAttr , rm);
             if (!dev) {
-                QAL_ERR(LOG_TAG, "Device getInstance failed");
+                PAL_ERR(LOG_TAG, "Device getInstance failed");
                 return false;
             }
             is_ready = dev->isDeviceReady();
@@ -5073,10 +5073,10 @@ bool ResourceManager::isDeviceReady(qal_device_id_t id)
     return is_ready;
 }
 
-bool ResourceManager::isBtScoDevice(qal_device_id_t id)
+bool ResourceManager::isBtScoDevice(pal_device_id_t id)
 {
-    if (id == QAL_DEVICE_OUT_BLUETOOTH_SCO ||
-        id == QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
+    if (id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
+        id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)
         return true;
     else
         return false;
@@ -5108,17 +5108,17 @@ void ResourceManager::processBTCodecInfo(const XML_Char **attr)
     std::map<std::string, uint32_t>::iterator iter;
 
     if (strcmp(attr[0], "codec_format") != 0) {
-        QAL_ERR(LOG_TAG,"'codec_format' not found");
+        PAL_ERR(LOG_TAG,"'codec_format' not found");
         goto done;
     }
 
     if (strcmp(attr[2], "codec_type") != 0) {
-        QAL_ERR(LOG_TAG,"'codec_type' not found");
+        PAL_ERR(LOG_TAG,"'codec_type' not found");
         goto done;
     }
 
     if (strcmp(attr[4], "codec_library") != 0) {
-        QAL_ERR(LOG_TAG,"'codec_library' not found");
+        PAL_ERR(LOG_TAG,"'codec_library' not found");
         goto done;
     }
 
@@ -5140,7 +5140,7 @@ void ResourceManager::processBTCodecInfo(const XML_Char **attr)
 
     for (iter1 = codec_formats.begin(); iter1 != codec_formats.end(); ++iter1) {
         for (iter2 = codec_types.begin(); iter2 != codec_types.end(); ++iter2) {
-            QAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s, %s=%s",
+            PAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s, %s=%s",
                     attr[0], (*iter1).c_str(), attr[2], (*iter2).c_str(), attr[4], attr[5]);
 
             iter = btFmtTable.find(*iter1);
@@ -5154,19 +5154,19 @@ done:
     return;
 }
 
-bool ResourceManager::isPluginDevice(qal_device_id_t id) {
-    if (id == QAL_DEVICE_OUT_USB_DEVICE ||
-        id == QAL_DEVICE_OUT_USB_HEADSET ||
-        id == QAL_DEVICE_IN_USB_DEVICE ||
-        id == QAL_DEVICE_IN_USB_HEADSET)
+bool ResourceManager::isPluginDevice(pal_device_id_t id) {
+    if (id == PAL_DEVICE_OUT_USB_DEVICE ||
+        id == PAL_DEVICE_OUT_USB_HEADSET ||
+        id == PAL_DEVICE_IN_USB_DEVICE ||
+        id == PAL_DEVICE_IN_USB_HEADSET)
         return true;
     else
         return false;
 }
 
-bool ResourceManager::isDpDevice(qal_device_id_t id) {
-    if (id == QAL_DEVICE_OUT_AUX_DIGITAL || id == QAL_DEVICE_OUT_AUX_DIGITAL_1 ||
-        id == QAL_DEVICE_OUT_HDMI)
+bool ResourceManager::isDpDevice(pal_device_id_t id) {
+    if (id == PAL_DEVICE_OUT_AUX_DIGITAL || id == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
+        id == PAL_DEVICE_OUT_HDMI)
         return true;
     else
         return false;
@@ -5175,15 +5175,15 @@ bool ResourceManager::isDpDevice(qal_device_id_t id) {
 void ResourceManager::processConfigParams(const XML_Char **attr)
 {
     if (strcmp(attr[0], "key") != 0) {
-        QAL_ERR(LOG_TAG,"'key' not found");
+        PAL_ERR(LOG_TAG,"'key' not found");
         goto done;
     }
 
     if (strcmp(attr[2], "value") != 0) {
-        QAL_ERR(LOG_TAG,"'value' not found");
+        PAL_ERR(LOG_TAG,"'value' not found");
         goto done;
     }
-    QAL_VERBOSE(LOG_TAG, "String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
+    PAL_VERBOSE(LOG_TAG, "String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
     configParamKVPairs = str_parms_create();
     str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
     setConfigParams(configParamKVPairs);
@@ -5265,17 +5265,17 @@ void ResourceManager::process_voicemode_info(const XML_Char **attr)
     struct vsid_modepair modepair = {};
 
     if (strcmp(attr[0], "key") !=0) {
-        QAL_ERR(LOG_TAG, "key not found");
+        PAL_ERR(LOG_TAG, "key not found");
         return;
     }
     modepair.key = convertCharToHex(tagkey);
 
     if (strcmp(attr[2], "value") !=0) {
-        QAL_ERR(LOG_TAG, "value not found");
+        PAL_ERR(LOG_TAG, "value not found");
         return;
     }
     modepair.value = convertCharToHex(tagvalue);
-    QAL_INFO(LOG_TAG, "key  %x value  %x", modepair.key, modepair.value);
+    PAL_INFO(LOG_TAG, "key  %x value  %x", modepair.key, modepair.value);
     vsidInfo.modepair.push_back(modepair);
 }
 
@@ -5311,12 +5311,12 @@ void ResourceManager::process_kvinfo(const XML_Char **attr)
     std::string tagvalue(attr[3]);
 
     if (strcmp(attr[0], "key") !=0) {
-        QAL_ERR(LOG_TAG, "key not found");
+        PAL_ERR(LOG_TAG, "key not found");
         return;
     }
     kv.key = convertCharToHex(tagkey);
     if (strcmp(attr[2], "value") !=0) {
-        QAL_ERR(LOG_TAG, "value not found");
+        PAL_ERR(LOG_TAG, "value not found");
         return;
     }
     kv.value = convertCharToHex(tagvalue);
@@ -5324,7 +5324,7 @@ void ResourceManager::process_kvinfo(const XML_Char **attr)
     size = deviceInfo.size() - 1;
     sizeusecase = deviceInfo[size].usecase.size() - 1;
     deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
-    QAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
+    PAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
 }
 
 void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
@@ -5418,7 +5418,7 @@ void ResourceManager::process_input_streams(struct xml_userdata *data, const XML
             std::string userIdname(data->data_buf);
             txecinfo.tx_stream_type  = usecaseIdLUT.at(userIdname);
             txEcInfo.push_back(txecinfo);
-            QAL_DBG(LOG_TAG, "name %d", txecinfo.tx_stream_type);
+            PAL_DBG(LOG_TAG, "name %d", txecinfo.tx_stream_type);
         }
     } else if (data->tag == TAG_ECREF) {
         if (!strcmp(tag_name, "disabled_stream")) {
@@ -5426,7 +5426,7 @@ void ResourceManager::process_input_streams(struct xml_userdata *data, const XML
             type  = usecaseIdLUT.at(userIdname);
             size = txEcInfo.size() - 1;
             txEcInfo[size].disabled_rx_streams.push_back(type);
-            QAL_DBG(LOG_TAG, "ecref %d", type);
+            PAL_DBG(LOG_TAG, "ecref %d", type);
         }
     }
     if (!strcmp(tag_name, "in_streams")) {
@@ -5461,7 +5461,7 @@ void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_
     } else if (data->current_tag == TAG_PLUGIN) {
         //snd_parse_plugin_properties(data, tag_name);
     } else if (data->current_tag == TAG_DEVICE) {
-        //QAL_ERR(LOG_TAG,"tag %s", (char*)tag_name);
+        //PAL_ERR(LOG_TAG,"tag %s", (char*)tag_name);
         processDeviceIdProp(data, tag_name);
     } else if (data->current_tag == TAG_DEV_PROPS) {
         processDeviceCapability(data, tag_name);
@@ -5620,18 +5620,18 @@ int ResourceManager::XmlParser(std::string xmlFile)
     struct xml_userdata card_data;
     memset(&card_data, 0, sizeof(card_data));
 
-    QAL_INFO(LOG_TAG, "Enter. XML parsing started - file name %s", xmlFile.c_str());
+    PAL_INFO(LOG_TAG, "Enter. XML parsing started - file name %s", xmlFile.c_str());
     file = fopen(xmlFile.c_str(), "r");
     if(!file) {
         ret = EINVAL;
-        QAL_ERR(LOG_TAG, "Failed to open xml file name %s ret %d", xmlFile.c_str(), ret);
+        PAL_ERR(LOG_TAG, "Failed to open xml file name %s ret %d", xmlFile.c_str(), ret);
         goto done;
     }
 
     parser = XML_ParserCreate(NULL);
     if (!parser) {
         ret = -EINVAL;
-        QAL_ERR(LOG_TAG, "Failed to create XML ret %d", ret);
+        PAL_ERR(LOG_TAG, "Failed to create XML ret %d", ret);
         goto closeFile;
     }
     XML_SetUserData(parser, &card_data);
@@ -5642,26 +5642,26 @@ int ResourceManager::XmlParser(std::string xmlFile)
         buf = XML_GetBuffer(parser, 1024);
         if(buf == NULL) {
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, "XML_Getbuffer failed ret %d", ret);
+            PAL_ERR(LOG_TAG, "XML_Getbuffer failed ret %d", ret);
             goto freeParser;
         }
 
         bytes_read = fread(buf, 1, 1024, file);
         if(bytes_read < 0) {
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, "fread failed ret %d", ret);
+            PAL_ERR(LOG_TAG, "fread failed ret %d", ret);
             goto freeParser;
         }
 
         if(XML_ParseBuffer(parser, bytes_read, bytes_read == 0) == XML_STATUS_ERROR) {
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG, "XML ParseBuffer failed for %s file ret %d", xmlFile.c_str(), ret);
+            PAL_ERR(LOG_TAG, "XML ParseBuffer failed for %s file ret %d", xmlFile.c_str(), ret);
             goto freeParser;
         }
         if (bytes_read == 0)
             break;
     }
-    QAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
 
 freeParser:
     XML_ParserFree(parser);

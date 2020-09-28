@@ -27,11 +27,11 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: HandsetMic"
+#define LOG_TAG "PAL: HandsetMic"
 
 #include "HandsetMic.h"
 #include <tinyalsa/asoundlib.h>
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 #include "ResourceManager.h"
 #include "Device.h"
 #include "kvh2xml.h"
@@ -43,7 +43,7 @@ std::shared_ptr<Device> HandsetMic::getObject()
     return obj;
 }
 
-std::shared_ptr<Device> HandsetMic::getInstance(struct qal_device *device,
+std::shared_ptr<Device> HandsetMic::getInstance(struct pal_device *device,
                                                 std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
@@ -54,7 +54,7 @@ std::shared_ptr<Device> HandsetMic::getInstance(struct qal_device *device,
 }
 
 
-HandsetMic::HandsetMic(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+HandsetMic::HandsetMic(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
    
@@ -68,7 +68,7 @@ HandsetMic::~HandsetMic()
 int32_t HandsetMic::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch (sampleRate) {\
        //check what all need to be added
         case SAMPLINGRATE_48K:
@@ -76,7 +76,7 @@ int32_t HandsetMic::isSampleRateSupported(uint32_t sampleRate)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
             break;
     }
     return rc;
@@ -85,7 +85,7 @@ int32_t HandsetMic::isSampleRateSupported(uint32_t sampleRate)
 int32_t HandsetMic::isChannelSupported(uint32_t numChannels)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
     //check what all needed
        case CHANNELS_1:
@@ -94,7 +94,7 @@ int32_t HandsetMic::isChannelSupported(uint32_t numChannels)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
             break;
     }
     return rc;
@@ -103,7 +103,7 @@ int32_t HandsetMic::isChannelSupported(uint32_t numChannels)
 int32_t HandsetMic::isBitWidthSupported(uint32_t bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch (bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -111,7 +111,7 @@ int32_t HandsetMic::isBitWidthSupported(uint32_t bitWidth)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
             break;
     }
     return rc;

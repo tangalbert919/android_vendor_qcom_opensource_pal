@@ -11,10 +11,10 @@ LOCAL_USE_VNDK := true
 #                 Common definitons
 #----------------------------------------------------------------------------
 
-qal-def += -D_ANDROID_
+pal-def += -D_ANDROID_
 
 #----------------------------------------------------------------------------
-#             Make the Shared library (libqal)
+#             Make the Shared library (libar-pal)
 #----------------------------------------------------------------------------
 
 #LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
@@ -43,16 +43,16 @@ LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 
-LOCAL_CFLAGS   := $(qal-def)
+LOCAL_CFLAGS   := $(pal-def)
 LOCAL_CFLAGS   += -Wno-macro-redefined
 LOCAL_CFLAGS   += -Wall -Werror
 LOCAL_CFLAGS   += -DCONFIG_GSL
 LOCAL_CFLAGS   += -D_GNU_SOURCE
-LOCAL_CFLAGS   += -DQAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
+LOCAL_CFLAGS   += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
 LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
-LOCAL_SRC_FILES        := Qal.cpp\
+LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/Stream.cpp\
     stream/src/StreamCompress.cpp\
     stream/src/StreamPCM.cpp\
@@ -84,9 +84,9 @@ LOCAL_SRC_FILES        := Qal.cpp\
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \
-    utils/src/QalRingBuffer.cpp
+    utils/src/PalRingBuffer.cpp
 
-LOCAL_MODULE       := libqal
+LOCAL_MODULE       := libar-pal
 LOCAL_MODULE_OWNER := qti
 LOCAL_MODULE_TAGS  := optional
 
@@ -105,9 +105,9 @@ LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
     capiv2-headers
 
-LOCAL_COPY_HEADERS_TO := mm-audio/qal
-LOCAL_COPY_HEADERS    := QalApi.h \
-                         QalDefs.h
+LOCAL_COPY_HEADERS_TO := mm-audio/pal
+LOCAL_COPY_HEADERS    := PalApi.h \
+                         PalDefs.h
 
 LOCAL_VENDOR_MODULE := true
 

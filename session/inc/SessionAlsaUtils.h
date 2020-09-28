@@ -107,17 +107,17 @@ public:
     static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, void *payload, int payload_size);
     static int setECRefPath(struct mixer *mixer, int device, const char *intf_name);
 
-    static int getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds, uint32_t spr_miid, struct qal_session_time *stime);
-    static int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
-        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+    static int getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds, uint32_t spr_miid, struct pal_session_time *stime);
+    static int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect);
-    static int connectSessionDevice(Session* sess, Stream* streamHandle, qal_stream_type_t streamType,
-        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+    static int connectSessionDevice(Session* sess, Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
-    static int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
-        std::shared_ptr<ResourceManager> rm, struct qal_device &dAttr,
+    static int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
     static std::shared_ptr<Device> getDeviceObj(int32_t beDevId,
@@ -126,12 +126,12 @@ public:
                                 std::string backEndName,
                                 std::vector <std::pair<int, int>> &deviceKV);
     static int setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHandle,
-                            std::string backEndName, struct qal_device *dAttr);
+                            std::string backEndName, struct pal_device *dAttr);
     static int setDeviceCustomPayload(std::shared_ptr<ResourceManager> rmHandle,
                            std::string backEndName, void *payload, size_t size);
     static unsigned int bytesToFrames(size_t bufSizeInBytes, unsigned int channels,
                            enum pcm_format format);
-    static bool isMmapUsecase(struct qal_stream_attributes attr);
+    static bool isMmapUsecase(struct pal_stream_attributes attr);
     static void getAgmMetaData(const std::vector <std::pair<int, int>> &kv,
                         const std::vector <std::pair<int, int>> &ckv,
                         struct prop_data *propData,

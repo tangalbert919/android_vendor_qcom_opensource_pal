@@ -1,5 +1,5 @@
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = qal.pc
+pkgconfig_DATA = pal.pc
 EXTRA_DIST = $(pkgconfig_DATA)
 
 
@@ -30,11 +30,11 @@ h_sources = ./stream/inc/Stream.h \
             ./session/inc/SoundTriggerEngineGsl.h \
             ./session/inc/SoundTriggerEngineCapi.h \
             ./resource_manager/inc/ResourceManager.h \
-            ./QalDefs.h \
-            ./QalApi.h \
-            ./QalAudioRoute.h \
-            ./QalCommon.h \
-            ./utils/inc/QalRingBuffer.h
+            ./PalDefs.h \
+            ./PalApi.h \
+            ./PalAudioRoute.h \
+            ./PalCommon.h \
+            ./utils/inc/PalRingBuffer.h
 
 AM_CPPFLAGS := -I ./stream/inc
 AM_CPPFLAGS += -I ./device/inc
@@ -43,7 +43,7 @@ AM_CPPFLAGS += -I ./resource_manager/inc
 AM_CPPFLAGS += -I ./utils/inc
 AM_CPPFLAGS += -I ./
 
-qal_sources = ./stream/src/Stream.cpp \
+pal_sources = ./stream/src/Stream.cpp \
               ./stream/src/StreamCompress.cpp \
               ./stream/src/StreamPCM.cpp \
               ./stream/src/StreamSoundTrigger.cpp \
@@ -67,8 +67,8 @@ qal_sources = ./stream/src/Stream.cpp \
               ./session/src/SoundTriggerEngineGsl.cpp \
               ./session/src/SoundTriggerEngineCapi.cpp \
               ./resource_manager/src/ResourceManager.cpp \
-              ./Qal.cpp \
-              ./utils/src/QalRingBuffer.cpp
+              ./Pal.cpp \
+              ./utils/src/PalRingBuffer.cpp
 else
 h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamCompress.h \
@@ -104,11 +104,11 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/capi_v2_types.h \
             ${WORKSPACE}/audio/mm-audio/capiv2_api/ar_defs.h \
             ${top_srcdir}/resource_manager/inc/ResourceManager.h \
-            ${top_srcdir}/QalDefs.h \
-            ${top_srcdir}/QalApi.h \
-            ${top_srcdir}/QalAudioRoute.h \
-            ${top_srcdir}/QalCommon.h \
-            ${top_srcdir}/utils/inc/QalRingBuffer.h
+            ${top_srcdir}/PalDefs.h \
+            ${top_srcdir}/PalApi.h \
+            ${top_srcdir}/PalAudioRoute.h \
+            ${top_srcdir}/PalCommon.h \
+            ${top_srcdir}/utils/inc/PalRingBuffer.h
 
 AM_CPPFLAGS := -I $(top_srcdir)/stream/inc
 AM_CPPFLAGS += -I $(top_srcdir)/device/inc
@@ -127,9 +127,9 @@ AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\) -DLINUX_ENABLED
 AM_CPPFLAGS += -DCONFIG_GSL
 
 library_include_HEADERS = $(h_sources)
-library_includedir = $(includedir)/qal
+library_includedir = $(includedir)/pal
 
-qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
+pal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
               ${top_srcdir}/stream/src/StreamPCM.cpp \
               ${top_srcdir}/stream/src/StreamSoundTrigger.cpp \
@@ -153,8 +153,8 @@ qal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineGsl.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineCapi.cpp \
               ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
-              ${top_srcdir}/Qal.cpp \
-              ${top_srcdir}/utils/src/QalRingBuffer.cpp
+              ${top_srcdir}/Pal.cpp \
+              ${top_srcdir}/utils/src/PalRingBuffer.cpp
 
 endif
 
@@ -162,21 +162,21 @@ AM_CPPFLAGS += -D__unused=__attribute__\(\(__unused__\)\)
 AM_CPPFLAGS += -DCONFIG_GSL
 
 library_include_HEADERS = $(h_sources)
-library_includedir = $(includedir)/qal
+library_includedir = $(includedir)/pal
 
-lib_LTLIBRARIES     = libqal.la
-libqal_la_SOURCES   = $(qal_sources)
-libqal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lar_osal -lexpat -ltinycompress
-libqal_la_CPPFLAGS := $(AM_CPPFLAGS)
-libqal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
-libqal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
-libqal_la_CPPFLAGS += -DNDEBUG -ftest-coverage -fprofile-arcs
-libqal_la_LDFLAGS   = -shared -avoid-version -lgcov
-libqal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
+lib_LTLIBRARIES     = libar-pal.la
+libar-pal_la_SOURCES   = $(pal_sources)
+libar-pal_la_LIBADD    = $(GLIB_LIBS) -ltinyalsa -laudioroute -lar_osal -lexpat -ltinycompress
+libar-pal_la_CPPFLAGS := $(AM_CPPFLAGS)
+libar-pal_la_CPPFLAGS += -std=c++14 -DHAVE_PTHREADS -DHAVE_ANDROID_OS
+libar-pal_la_CPPFLAGS += -DDEBUG_REFS_CALLSTACK_ENABLED=0
+libar-pal_la_CPPFLAGS += -DNDEBUG -ftest-coverage -fprofile-arcs
+libar-pal_la_LDFLAGS   = -shared -avoid-version -lgcov
+libar-pal_la_CPPFLAGS += $(GLIB_CFLAGS) -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat -include glib.h
 if BUILDSYSTEM_OPENWRT
-libqal_la_LIBADD += -lglib-2.0
+libar-pal_la_LIBADD += -lglib-2.0
 endif
 
 if COMPILE_COMPRESS
-libqal_la_CPPFLAGS += -DSND_COMPRESS_DEC_HDR
+libar-pal_la_CPPFLAGS += -DSND_COMPRESS_DEC_HDR
 endif

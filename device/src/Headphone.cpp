@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: Headphone"
+#define LOG_TAG "PAL: Headphone"
 #include "Headphone.h"
 #include "ResourceManager.h"
 #include "Device.h"
@@ -35,7 +35,7 @@
 
 std::shared_ptr<Device> Headphone::obj = nullptr;
 
-std::shared_ptr<Device> Headphone::getInstance(struct qal_device *device,
+std::shared_ptr<Device> Headphone::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
@@ -45,7 +45,7 @@ std::shared_ptr<Device> Headphone::getInstance(struct qal_device *device,
     return obj;
 }
 
-std::shared_ptr<Device> Headphone::getObject(qal_device_id_t id)
+std::shared_ptr<Device> Headphone::getObject(pal_device_id_t id)
 {
     if (obj) {
         if (obj->getSndDeviceId() == id)
@@ -54,7 +54,7 @@ std::shared_ptr<Device> Headphone::getObject(qal_device_id_t id)
     return NULL;
 }
 
-Headphone::Headphone(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+Headphone::Headphone(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
 
@@ -62,13 +62,13 @@ Device(device, Rm)
 
 Headphone::~Headphone()
 {
-QAL_ERR(LOG_TAG, "dtor called");
+PAL_ERR(LOG_TAG, "dtor called");
 }
 
 int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -82,7 +82,7 @@ int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
             break;
     }
     return rc;
@@ -91,14 +91,14 @@ int32_t Headphone::isSampleRateSupported(uint32_t sampleRate)
 int32_t Headphone::isChannelSupported(uint32_t numChannels)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
         case CHANNELS_1:
         case CHANNELS_2:
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
             break;
     }
     return rc;
@@ -107,7 +107,7 @@ int32_t Headphone::isChannelSupported(uint32_t numChannels)
 int32_t Headphone::isBitWidthSupported(uint32_t bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch (bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -115,7 +115,7 @@ int32_t Headphone::isBitWidthSupported(uint32_t bitWidth)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
             break;
     }
     return rc;
@@ -124,7 +124,7 @@ int32_t Headphone::isBitWidthSupported(uint32_t bitWidth)
 int32_t Headphone::checkAndUpdateBitWidth(uint32_t *bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", *bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", *bitWidth);
     switch (*bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -132,7 +132,7 @@ int32_t Headphone::checkAndUpdateBitWidth(uint32_t *bitWidth)
             break;
         default:
             *bitWidth = BITWIDTH_16;
-            QAL_DBG(LOG_TAG, "bit width not supported, setting to default 16 bit");
+            PAL_DBG(LOG_TAG, "bit width not supported, setting to default 16 bit");
             break;
     }
     return rc;
@@ -144,7 +144,7 @@ int32_t Headphone::checkAndUpdateSampleRate(uint32_t *sampleRate)
 
     if ((*sampleRate % SAMPLINGRATE_44K == 0) &&
         (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == ResourceManager::getNativeAudioSupport())) {
-        QAL_DBG(LOG_TAG, "napb: setting sampling rate to %d", *sampleRate);
+        PAL_DBG(LOG_TAG, "napb: setting sampling rate to %d", *sampleRate);
     } else if (*sampleRate <= SAMPLINGRATE_48K)
         *sampleRate = SAMPLINGRATE_48K;
     else if (*sampleRate > SAMPLINGRATE_48K && *sampleRate <= SAMPLINGRATE_96K)
@@ -154,7 +154,7 @@ int32_t Headphone::checkAndUpdateSampleRate(uint32_t *sampleRate)
     else if (*sampleRate > SAMPLINGRATE_192K && *sampleRate <= SAMPLINGRATE_384K)
         *sampleRate = SAMPLINGRATE_384K;
 
-    QAL_DBG(LOG_TAG, "sampleRate %d", *sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %d", *sampleRate);
 
     return rc;
 }

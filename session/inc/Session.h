@@ -31,7 +31,7 @@
 #define SESSION_H
 
 #include "PayloadBuilder.h"
-#include "QalDefs.h"
+#include "PalDefs.h"
 #include <mutex>
 #include <algorithm>
 #include <vector>
@@ -39,7 +39,7 @@
 #include <stdlib.h>
 #include <memory>
 #include <errno.h>
-#include "QalCommon.h"
+#include "PalCommon.h"
 #include "Device.h"
 
 
@@ -79,8 +79,8 @@ protected:
     int updateCustomPayload(void *payload, size_t size);
 public:
     virtual ~Session();
-    static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr);
-    int handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_type,
+    static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
+    int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,
         int device, struct mixer *mixer, PayloadBuilder* builder,
         std::vector<std::pair<int32_t, std::string>> rxAifBackEnds);
     virtual int open(Stream * s) = 0;
@@ -89,7 +89,7 @@ public:
     virtual int setConfig(Stream * s __unused, configType type __unused, uint32_t tag1 __unused,
             uint32_t tag2 __unused, uint32_t tag3 __unused) {return 0;};
     virtual int setConfig(Stream * s __unused, configType type __unused, int tag __unused, int dir __unused) {return 0;};
-    virtual int setTKV(Stream * s __unused, configType type __unused, effect_qal_payload_t *payload __unused) {return 0;};
+    virtual int setTKV(Stream * s __unused, configType type __unused, effect_pal_payload_t *payload __unused) {return 0;};
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
     virtual int pause(Stream * s);
@@ -98,30 +98,30 @@ public:
     virtual int close(Stream * s) = 0;
     virtual int readBufferInit(Stream *s __unused, size_t noOfBuf __unused, size_t bufSize __unused, int flag __unused) {return 0;};
     virtual int writeBufferInit(Stream *s __unused, size_t noOfBuf __unused, size_t bufSize __unused, int flag __unused) {return 0;};
-    virtual int read(Stream *s __unused, int tag __unused, struct qal_buffer *buf __unused, int * size __unused) {return 0;};
-    virtual int write(Stream *s __unused, int tag __unused, struct qal_buffer *buf __unused, int * size __unused, int flag __unused) {return 0;};
+    virtual int read(Stream *s __unused, int tag __unused, struct pal_buffer *buf __unused, int * size __unused) {return 0;};
+    virtual int write(Stream *s __unused, int tag __unused, struct pal_buffer *buf __unused, int * size __unused, int flag __unused) {return 0;};
     virtual int getParameters(Stream *s __unused, int tagId __unused, uint32_t param_id __unused, void **payload __unused) {return 0;};
     virtual int setParameters(Stream *s __unused, int tagId __unused, uint32_t param_id __unused, void *payload __unused) {return 0;};
     virtual int registerCallBack(session_callback cb __unused, void *cookie __unused) {return 0;};
-    virtual int drain(qal_drain_type_t type __unused) {return 0;};
+    virtual int drain(pal_drain_type_t type __unused) {return 0;};
     virtual int flush() {return 0;};
-    virtual int getTimestamp(struct qal_session_time *stime __unused) {return 0;};
+    virtual int getTimestamp(struct pal_session_time *stime __unused) {return 0;};
     /*TODO need to implement connect/disconnect in basecase*/
-    virtual int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    virtual int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToCconnect) = 0;
-    virtual int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    virtual int connectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToCconnect) = 0;
-    virtual int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    virtual int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) = 0;
     virtual int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) = 0;
-    void getSamplerateChannelBitwidthTags(struct qal_media_config *config,
+    void getSamplerateChannelBitwidthTags(struct pal_media_config *config,
         uint32_t &sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag);
     virtual uint32_t getMIID(const char *backendName __unused, uint32_t tagId __unused, uint32_t *miid __unused) { return -EINVAL; }
-    int getEffectParameters(Stream *s, effect_qal_payload_t *effectPayload);
+    int getEffectParameters(Stream *s, effect_pal_payload_t *effectPayload);
     virtual struct mixer_ctl* getFEMixerCtl(const char *controlName __unused, int *device __unused) {return nullptr;}
     virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
-                                   struct qal_mmap_buffer *info __unused) {return -EINVAL;}
-    virtual int GetMmapPosition(Stream *s __unused, struct qal_mmap_position *position __unused) {return -EINVAL;}
+                                   struct pal_mmap_buffer *info __unused) {return -EINVAL;}
+    virtual int GetMmapPosition(Stream *s __unused, struct pal_mmap_position *position __unused) {return -EINVAL;}
 
 
 };

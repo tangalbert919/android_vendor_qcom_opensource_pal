@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: SoundTriggerEngine"
+#define LOG_TAG "PAL: SoundTriggerEngine"
 
 #include "SoundTriggerEngine.h"
 
@@ -39,10 +39,10 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
     listen_model_indicator_enum type)
 {
-    QAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
+    PAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
 
     if (!s) {
-        QAL_ERR(LOG_TAG, "Invalid stream handle");
+        PAL_ERR(LOG_TAG, "Invalid stream handle");
         return nullptr;
     }
 
@@ -53,7 +53,7 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     case ST_SM_ID_SVA_GMM:
         st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
         if (!st_engine)
-            QAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
+            PAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
         break;
 
     case ST_SM_ID_SVA_CNN:
@@ -61,47 +61,47 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     case ST_SM_ID_SVA_VOP:
         st_engine = std::make_shared<SoundTriggerEngineCapi>(s, id, type);
         if (!st_engine)
-            QAL_ERR(LOG_TAG, "SoundTriggerEngine capi creation failed");
+            PAL_ERR(LOG_TAG, "SoundTriggerEngine capi creation failed");
         break;
 
     default:
-        QAL_ERR(LOG_TAG, "Invalid model type: %u", id);
+        PAL_ERR(LOG_TAG, "Invalid model type: %u", id);
         break;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Exit, engine %p", st_engine.get());
+    PAL_VERBOSE(LOG_TAG, "Exit, engine %p", st_engine.get());
 
     return st_engine;
 }
 
 int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
-    uint32_t engine_size, std::vector<QalRingBufferReader *> &reader_list)
+    uint32_t engine_size, std::vector<PalRingBufferReader *> &reader_list)
 {
     int32_t status = 0;
     int32_t i = 0;
-    QalRingBufferReader *reader = nullptr;
+    PalRingBufferReader *reader = nullptr;
 
     if (!buffer_size || !engine_size) {
-        QAL_ERR(LOG_TAG, "Invalid buffer size or engine number");
+        PAL_ERR(LOG_TAG, "Invalid buffer size or engine number");
         status = -EINVAL;
         goto exit;
     }
 
     if (engine_id_ != static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
-        QAL_ERR(LOG_TAG, "Cannot create buffer in non-GMM engine");
+        PAL_ERR(LOG_TAG, "Cannot create buffer in non-GMM engine");
         status = -EINVAL;
         goto exit;
     }
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     if (buffer_) {
         delete buffer_;
         buffer_ = nullptr;
     }
 
-    buffer_ = new QalRingBuffer(buffer_size);
+    buffer_ = new PalRingBuffer(buffer_size);
     if (!buffer_) {
-        QAL_ERR(LOG_TAG, "Failed to allocate memory for ring buffer");
+        PAL_ERR(LOG_TAG, "Failed to allocate memory for ring buffer");
         status = -ENOMEM;
         goto exit;
     }
@@ -109,7 +109,7 @@ int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
     for (i = 0; i < engine_size; i++) {
         reader = buffer_->newReader();
         if (!reader) {
-            QAL_ERR(LOG_TAG, "Failed to create new ring buffer reader");
+            PAL_ERR(LOG_TAG, "Failed to create new ring buffer reader");
             status = -ENOMEM;
             goto exit;
         }
@@ -117,17 +117,17 @@ int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
-int32_t SoundTriggerEngine::SetBufferReader(QalRingBufferReader *reader)
+int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
 {
     int32_t status = 0;
 
     if (engine_id_ == static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
-        QAL_DBG(LOG_TAG, "No need to set reader for GMM engine");
+        PAL_DBG(LOG_TAG, "No need to set reader for GMM engine");
         return status;
     }
 

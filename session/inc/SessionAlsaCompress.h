@@ -38,8 +38,8 @@
 #include <algorithm>
 #include <queue>
 #include <deque>
-#include "QalAudioRoute.h"
-#include "QalCommon.h"
+#include "PalAudioRoute.h"
+#include "PalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <condition_variable>
 #include <sound/compress_params.h>
@@ -78,16 +78,16 @@ private:
     std::condition_variable cv_; /* used to wait for incoming requests */
     std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
     struct mixer_ctl *disconnectCtrl;
-    void getSndCodecParam(struct snd_codec &codec, struct qal_stream_attributes &sAttr);
-    int getSndCodecId(qal_audio_fmt_t fmt);
-    int setCustomFormatParam(qal_audio_fmt_t audio_fmt);
+    void getSndCodecParam(struct snd_codec &codec, struct pal_stream_attributes &sAttr);
+    int getSndCodecId(pal_audio_fmt_t fmt);
+    int setCustomFormatParam(pal_audio_fmt_t audio_fmt);
     bool playback_started;
     bool playback_paused;
     int ioMode;
     session_callback sessionCb;
     void *cbCookie;
-    qal_audio_fmt_t audio_fmt;
-    int fileWrite(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag);
+    pal_audio_fmt_t audio_fmt;
+    int fileWrite(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag);
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
 
@@ -99,7 +99,7 @@ public:
     int setConfig(Stream * s, configType type, int tag = 0) override;
     int setConfig(Stream * s, configType type, uint32_t tag1,
             uint32_t tag2, uint32_t tag3) override;
-    int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
+    int setTKV(Stream * s, configType type, effect_pal_payload_t *payload) override;
     //int getConfig(Stream * s) override;
     int start(Stream * s) override;
     int stop(Stream * s) override;
@@ -110,19 +110,19 @@ public:
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload);
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload);
-    int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
-    int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
+    int read(Stream *s, int tag, struct pal_buffer *buf, int * size) override;
+    int write(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag) override;
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
     static void offloadThreadLoop(SessionAlsaCompress *ob);
     int registerCallBack(session_callback cb, void *cookie);
-    int drain(qal_drain_type_t type);
+    int drain(pal_drain_type_t type);
     int flush();
-    int getTimestamp(struct qal_session_time *stime) override;
-    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int getTimestamp(struct pal_session_time *stime) override;
+    int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int connectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
     struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;

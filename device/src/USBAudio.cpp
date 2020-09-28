@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: USB"
+#define LOG_TAG "PAL: USB"
 #include "USBAudio.h"
 
 #include <cstdio>
@@ -41,21 +41,21 @@
 std::shared_ptr<Device> USB::objRx = nullptr;
 std::shared_ptr<Device> USB::objTx = nullptr;
 
-std::shared_ptr<Device> USB::getInstance(struct qal_device *device,
+std::shared_ptr<Device> USB::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
     if (!device)
        return NULL;
 
-    if ((device->id == QAL_DEVICE_OUT_USB_DEVICE) ||
-        (device->id == QAL_DEVICE_OUT_USB_HEADSET)){
+    if ((device->id == PAL_DEVICE_OUT_USB_DEVICE) ||
+        (device->id == PAL_DEVICE_OUT_USB_HEADSET)){
         if (!objRx) {
             std::shared_ptr<Device> sp(new USB(device, Rm));
             objRx = sp;
         }
         return objRx;
-    } else if ((device->id == QAL_DEVICE_IN_USB_DEVICE) ||
-               (device->id == QAL_DEVICE_IN_USB_HEADSET)){
+    } else if ((device->id == PAL_DEVICE_IN_USB_DEVICE) ||
+               (device->id == PAL_DEVICE_IN_USB_HEADSET)){
         if (!objTx) {
             std::shared_ptr<Device> sp(new USB(device, Rm));
             objTx = sp;
@@ -66,16 +66,16 @@ std::shared_ptr<Device> USB::getInstance(struct qal_device *device,
     return NULL;
 }
 
-std::shared_ptr<Device> USB::getObject(qal_device_id_t id)
+std::shared_ptr<Device> USB::getObject(pal_device_id_t id)
 {
-    if ((id == QAL_DEVICE_OUT_USB_DEVICE) ||
-        (id == QAL_DEVICE_OUT_USB_HEADSET)) {
+    if ((id == PAL_DEVICE_OUT_USB_DEVICE) ||
+        (id == PAL_DEVICE_OUT_USB_HEADSET)) {
         if (objRx) {
             if (objRx->getSndDeviceId() == id)
                 return objRx;
         }
-    } else if ((id == QAL_DEVICE_IN_USB_DEVICE) ||
-               (id == QAL_DEVICE_IN_USB_HEADSET)) {
+    } else if ((id == PAL_DEVICE_IN_USB_DEVICE) ||
+               (id == PAL_DEVICE_IN_USB_HEADSET)) {
         if (objTx) {
             if (objTx->getSndDeviceId() == id)
                 return objTx;
@@ -84,7 +84,7 @@ std::shared_ptr<Device> USB::getObject(qal_device_id_t id)
     return NULL;
 }
 
-USB::USB(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+USB::USB(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
 
@@ -92,7 +92,7 @@ Device(device, Rm)
 
 USB::~USB()
 {
-    QAL_INFO(LOG_TAG, "dtor called");
+    PAL_INFO(LOG_TAG, "dtor called");
 }
 
 int USB::start()
@@ -101,7 +101,7 @@ int USB::start()
 
     status = configureUsb();
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"USB Endpoint Configuration Failed");
+        PAL_ERR(LOG_TAG,"USB Endpoint Configuration Failed");
         return status;
     }
     status = Device::start();
@@ -127,12 +127,12 @@ int USB::configureUsb()
     dev = Device::getInstance(&deviceAttr, rm);
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "no active stream available");
+        PAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
-    if (deviceAttr.id == QAL_DEVICE_IN_USB_HEADSET) {
+    if (deviceAttr.id == PAL_DEVICE_IN_USB_HEADSET) {
         tagId = DEVICE_HW_ENDPOINT_TX;
         cfg.usb_token = (deviceAttr.address.card_id << 16)|0x1;
         cfg.svc_interval = 0;
@@ -143,7 +143,7 @@ int USB::configureUsb()
     }
     status = session->getMIID(backEndName.c_str(), tagId, &miid);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get tag info %d, status = %d", tagId, status);
+        PAL_ERR(LOG_TAG, "Failed to get tag info %d, status = %d", tagId, status);
         return status;
     }
     builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
@@ -151,7 +151,7 @@ int USB::configureUsb()
         status = updateCustomPayload(payload, payloadSize);
         delete payload;
         if (0 != status) {
-        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
         return status;
         }
     }
@@ -161,7 +161,7 @@ int USB::configureUsb()
 int32_t USB::isSampleRateSupported(unsigned int sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %d", sampleRate);
 
     if (sampleRate % SAMPLINGRATE_44K == 0)
         return rc;
@@ -175,7 +175,7 @@ int32_t USB::isSampleRateSupported(unsigned int sampleRate)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
             break;
     }
     return rc;
@@ -184,20 +184,20 @@ int32_t USB::isSampleRateSupported(unsigned int sampleRate)
 int32_t USB::isChannelSupported(unsigned int numChannels)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
         case CHANNELS_1:
         case CHANNELS_2:
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
             break;
     }
     return rc;
 }
 
-int USB::init(qal_param_device_connection_t device_conn)
+int USB::init(pal_param_device_connection_t device_conn)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
 
@@ -211,7 +211,7 @@ int USB::init(qal_param_device_connection_t device_conn)
         std::shared_ptr<USBCardConfig> sp(
             new USBCardConfig(device_conn.device_config.usb_addr));
         if (!sp) {
-            QAL_ERR(LOG_TAG, "failed to create new usb_card_config object.");
+            PAL_ERR(LOG_TAG, "failed to create new usb_card_config object.");
             return -EINVAL;
         }
         if (isUSBOutDevice(device_conn.id))
@@ -220,13 +220,13 @@ int USB::init(qal_param_device_connection_t device_conn)
             sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
         usb_card_config_list_.push_back(sp);
     } else {
-        QAL_INFO(LOG_TAG, "usb info has been cached.");
+        PAL_INFO(LOG_TAG, "usb info has been cached.");
     }
 
     return 0;
 }
 
-int USB::deinit(qal_param_device_connection_t device_conn)
+int USB::deinit(pal_param_device_connection_t device_conn)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
 
@@ -240,7 +240,7 @@ int USB::deinit(qal_param_device_connection_t device_conn)
         //TODO: usb_remove_capability
         usb_card_config_list_.erase(iter);
     } else {
-        QAL_INFO(LOG_TAG, "usb info has not been cached.");
+        PAL_INFO(LOG_TAG, "usb info has not been cached.");
     }
 
     return 0;
@@ -261,15 +261,15 @@ int32_t USB::checkAndUpdateSampleRate(unsigned int *sampleRate __unused)
     return 0;
 }
 
-bool USB::isUSBOutDevice(qal_device_id_t qal_dev_id) {
-    if (qal_dev_id == QAL_DEVICE_OUT_USB_DEVICE ||
-        qal_dev_id == QAL_DEVICE_OUT_USB_HEADSET)
+bool USB::isUSBOutDevice(pal_device_id_t pal_dev_id) {
+    if (pal_dev_id == PAL_DEVICE_OUT_USB_DEVICE ||
+        pal_dev_id == PAL_DEVICE_OUT_USB_HEADSET)
         return true;
     else
         return false;
 }
 
-int USB::getDefaultConfig(qal_param_device_capability_t capability)
+int USB::getDefaultConfig(pal_param_device_capability_t capability)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
     int status = 0;
@@ -278,7 +278,7 @@ int USB::getDefaultConfig(qal_param_device_capability_t capability)
             iter != usb_card_config_list_.end();
             iter++) {
         if ((*iter)->isConfigCached(capability.addr)) {
-            QAL_ERR(LOG_TAG, "usb device is found.");
+            PAL_ERR(LOG_TAG, "usb device is found.");
             status = (*iter)->readSupportedConfig(capability.config,
                                         capability.is_playback);
             break;
@@ -286,7 +286,7 @@ int USB::getDefaultConfig(qal_param_device_capability_t capability)
     }
 
     if (iter == usb_card_config_list_.end()) {
-        QAL_ERR(LOG_TAG, "usb device card=%d device=%d is not found.",
+        PAL_ERR(LOG_TAG, "usb device card=%d device=%d is not found.",
                     capability.addr.card_id, capability.addr.device_num);
         return -EINVAL;
     }
@@ -294,8 +294,8 @@ int USB::getDefaultConfig(qal_param_device_capability_t capability)
     return status;
 }
 
-int USB::selectBestConfig(struct qal_device *dattr,
-                          struct qal_stream_attributes *sattr,
+int USB::selectBestConfig(struct pal_device *dattr,
+                          struct pal_stream_attributes *sattr,
                           bool is_playback)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
@@ -305,14 +305,14 @@ int USB::selectBestConfig(struct qal_device *dattr,
     for (iter = usb_card_config_list_.begin();
             iter != usb_card_config_list_.end(); iter++) {
         if ((*iter)->isConfigCached(dattr->address)) {
-            QAL_ERR(LOG_TAG, "usb device is found.");
+            PAL_ERR(LOG_TAG, "usb device is found.");
             status = (*iter)->readBestConfig(&dattr->config, sattr, is_playback);
             break;
         }
     }
 
     if (iter == usb_card_config_list_.end()) {
-        QAL_ERR(LOG_TAG, "usb device card=%d device=%d is not found.",
+        PAL_ERR(LOG_TAG, "usb device card=%d device=%d is not found.",
                     dattr->address.card_id, dattr->address.device_num);
         return -EINVAL;
     }
@@ -329,7 +329,7 @@ const unsigned int USBCardConfig::in_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS] =
     {0x10, 0x80000001, 0xc, 0x80000003, 0x80000007, 0x8000000f, 0x8000001f,
     0x8000003f};
 
-bool USBCardConfig::isConfigCached(struct qal_usb_device_address addr) {
+bool USBCardConfig::isConfigCached(struct pal_usb_device_address addr) {
     if(address_.card_id == addr.card_id && address_.device_num == addr.device_num)
         return true;
     else
@@ -341,7 +341,7 @@ void USBCardConfig::setEndian(int endian){
 }
 
 int USBCardConfig::getCapability(usb_usecase_type_t type,
-                                        struct qal_usb_device_address addr) {
+                                        struct pal_usb_device_address addr) {
     int32_t size = 0;
     FILE *fd = NULL;
     int32_t channels_no;
@@ -362,19 +362,19 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     bool check = false;
 
     memset(path, 0, sizeof(path));
-    QAL_INFO(LOG_TAG, "for %s", (type == USB_PLAYBACK) ?
+    PAL_INFO(LOG_TAG, "for %s", (type == USB_PLAYBACK) ?
           PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR);
 
     ret = snprintf(path, sizeof(path), "/proc/asound/card%u/stream0",
              addr.card_id);
     if(ret < 0) {
-        QAL_ERR(LOG_TAG, "failed on snprintf (%d) to path %s\n", ret, path);
+        PAL_ERR(LOG_TAG, "failed on snprintf (%d) to path %s\n", ret, path);
         goto done;
     }
 
     fd = fopen(path, "r");
     if (!fd) {
-        QAL_ERR(LOG_TAG, "failed to open config file %s error: %d\n", path, errno);
+        PAL_ERR(LOG_TAG, "failed to open config file %s error: %d\n", path, errno);
         ret = -EINVAL;
         goto done;
     }
@@ -382,20 +382,20 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     read_buf = (char *)calloc(1, USB_BUFF_SIZE + 1);
 
     if (!read_buf) {
-        QAL_ERR(LOG_TAG, "Failed to create read_buf");
+        PAL_ERR(LOG_TAG, "Failed to create read_buf");
         ret = -ENOMEM;
         goto done;
     }
 
     if (fread(read_buf, 1, USB_BUFF_SIZE, fd) < 0) {
-        QAL_ERR(LOG_TAG, "file read error\n");
+        PAL_ERR(LOG_TAG, "file read error\n");
         goto done;
     }
 
     str_start = strstr(read_buf, ((type == USB_PLAYBACK) ?
                        PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));
     if (str_start == NULL) {
-        QAL_ERR(LOG_TAG, "error %s section not found in usb config file",
+        PAL_ERR(LOG_TAG, "error %s section not found in usb config file",
                 ((type == USB_PLAYBACK) ?
                PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));
         ret = -EINVAL;
@@ -407,19 +407,19 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     if (str_end > str_start)
         check = true;
 
-    QAL_INFO(LOG_TAG, "usb_config = %s, check %d\n", str_start, check);
+    PAL_INFO(LOG_TAG, "usb_config = %s, check %d\n", str_start, check);
 
     while (str_start != NULL) {
         str_start = strstr(str_start, "Altset");
         if ((str_start == NULL) || (check  && (str_start >= str_end))) {
-            QAL_VERBOSE(LOG_TAG,"done parsing %s\n", str_start);
+            PAL_VERBOSE(LOG_TAG,"done parsing %s\n", str_start);
             break;
         }
-        QAL_VERBOSE(LOG_TAG,"remaining string %s\n", str_start);
+        PAL_VERBOSE(LOG_TAG,"remaining string %s\n", str_start);
         str_start += sizeof("Altset");
         std::shared_ptr<USBDeviceConfig> usb_device_info(new USBDeviceConfig());
         if (!usb_device_info) {
-            QAL_ERR(LOG_TAG, "error unable to create usb device config object");
+            PAL_ERR(LOG_TAG, "error unable to create usb device config object");
             ret = -ENOMEM;
             break;
         }
@@ -427,17 +427,17 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* Bit bit_width parsing */
         bit_width_start = strstr(str_start, "Format: ");
         if (bit_width_start == NULL) {
-            QAL_INFO(LOG_TAG, "Could not find bit_width string");
+            PAL_INFO(LOG_TAG, "Could not find bit_width string");
             continue;
         }
         target = strchr(bit_width_start, '\n');
         if (target == NULL) {
-            QAL_INFO(LOG_TAG, "end of line not found");
+            PAL_INFO(LOG_TAG, "end of line not found");
             continue;
         }
         size = target - bit_width_start;
         if ((bit_width_str = (char *)malloc(size + 1)) == NULL) {
-            QAL_ERR(LOG_TAG, "unable to allocate memory to hold bit width strings");
+            PAL_ERR(LOG_TAG, "unable to allocate memory to hold bit width strings");
             ret = -EINVAL;
             break;
         }
@@ -461,7 +461,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* channels parsing */
         channel_start = strstr(str_start, CHANNEL_NUMBER_STR);
         if (channel_start == NULL) {
-            QAL_INFO(LOG_TAG, "could not find Channels string");
+            PAL_INFO(LOG_TAG, "could not find Channels string");
             continue;
         }
         channels_no = atoi(channel_start + strlen(CHANNEL_NUMBER_STR));
@@ -470,17 +470,17 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* Sample rates parsing */
         rates_str_start = strstr(str_start, "Rates: ");
         if (rates_str_start == NULL) {
-            QAL_INFO(LOG_TAG, "cant find rates string");
+            PAL_INFO(LOG_TAG, "cant find rates string");
             continue;
         }
         target = strchr(rates_str_start, '\n');
         if (target == NULL) {
-            QAL_INFO(LOG_TAG, "end of line not found");
+            PAL_INFO(LOG_TAG, "end of line not found");
             continue;
         }
         size = target - rates_str_start;
         if ((rates_str = (char *)malloc(size + 1)) == NULL) {
-            QAL_INFO(LOG_TAG, "unable to allocate memory to hold sample rate strings");
+            PAL_INFO(LOG_TAG, "unable to allocate memory to hold sample rate strings");
             ret = -EINVAL;
 
             break;
@@ -491,7 +491,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         if (rates_str)
             free(rates_str);
         if (ret < 0) {
-            QAL_INFO(LOG_TAG, "error unable to get sample rate values");
+            PAL_INFO(LOG_TAG, "error unable to get sample rate values");
             continue;
         }
         // Data packet interval is an optional field.
@@ -503,7 +503,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
             interval_str_start += strlen(DATA_PACKET_INTERVAL_STR);
             ret = usb_device_info->getServiceInterval(interval_str_start);
             if (ret < 0) {
-                QAL_INFO(LOG_TAG, "error unable to get service interval, assume default");
+                PAL_INFO(LOG_TAG, "error unable to get service interval, assume default");
             }
         }
         /* Add to list if every field is valid */
@@ -520,7 +520,7 @@ done:
     return ret;
 }
 
-USBCardConfig::USBCardConfig(struct qal_usb_device_address address) {
+USBCardConfig::USBCardConfig(struct pal_usb_device_address address) {
     address_ = address;
 }
 
@@ -626,8 +626,8 @@ int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool
     return 0;
 }
 
-int USBCardConfig::readBestConfig(struct qal_media_config *config,
-                                struct qal_stream_attributes *sattr,
+int USBCardConfig::readBestConfig(struct pal_media_config *config,
+                                struct pal_stream_attributes *sattr,
                                 bool is_playback)
 {
     typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
@@ -635,16 +635,16 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
     int max_bit_width = 0;
     int bitwidth = 16;
     int ret = -EINVAL;
-    struct qal_media_config media_config;
+    struct pal_media_config media_config;
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
         if ((*iter)->getType() == is_playback) {
             if (is_playback) {
-                QAL_INFO(LOG_TAG, "USB output");
+                PAL_INFO(LOG_TAG, "USB output");
                 media_config = sattr->out_media_config;
             } else {
-                QAL_INFO(LOG_TAG, "USB input");
+                PAL_INFO(LOG_TAG, "USB input");
                 media_config = sattr->in_media_config;
             }
 
@@ -653,15 +653,15 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
             bitwidth = (*iter)->getBitWidth();
             if (bitwidth == media_config.bit_width) {
                 config->bit_width = bitwidth;
-                QAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
+                PAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
                 // 2. sample rate
                 ret = (*iter)->getBestRate(media_config.sample_rate,
                                     &config->sample_rate);
-                QAL_INFO(LOG_TAG, "found matching SampleRate = %d", config->sample_rate);
+                PAL_INFO(LOG_TAG, "found matching SampleRate = %d", config->sample_rate);
                 // 3. get channel
                 ret = (*iter)->getBestChInfo(&media_config.ch_info,
                                     &config->ch_info);
-                QAL_INFO(LOG_TAG, "found matching Channels = %d", config->ch_info.channels);
+                PAL_INFO(LOG_TAG, "found matching Channels = %d", config->ch_info.channels);
                 break;
             } else {
                 // if bit width does not match, use highest width.
@@ -674,7 +674,7 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
     }
     if (iter == usb_device_config_list_.end()) {
         if (candidate_config) {
-            QAL_INFO(LOG_TAG, "Stream bitwidth of %d is not supported by USB. Use USB width of %d",
+            PAL_INFO(LOG_TAG, "Stream bitwidth of %d is not supported by USB. Use USB width of %d",
                         media_config.bit_width, max_bit_width);
             config->bit_width = bitwidth;
             ret = candidate_config->getBestRate(media_config.sample_rate,
@@ -682,7 +682,7 @@ int USBCardConfig::readBestConfig(struct qal_media_config *config,
             ret = candidate_config->getBestChInfo(&media_config.ch_info,
                                 &config->ch_info);
         } else {
-            QAL_ERR(LOG_TAG, "%s is not supported.", is_playback?"playback":"capture");
+            PAL_ERR(LOG_TAG, "%s is not supported.", is_playback?"playback":"capture");
             ret = -EINVAL;
         }
     }
@@ -743,7 +743,7 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
             nearestRate = rates_[i];
             diff = abs(double(requested_rate - rates_[i]));
         }
-        QAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
+        PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
     }
     if (nearestRate == 0)
         nearestRate = rates_[0];
@@ -754,20 +754,20 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
 }
 
 // return 0 if match, else return -EINVAL with default sample rate
-int USBDeviceConfig::getBestChInfo(struct qal_channel_info *requested_ch_info,
-                                        struct qal_channel_info *best_ch_info)
+int USBDeviceConfig::getBestChInfo(struct pal_channel_info *requested_ch_info,
+                                        struct pal_channel_info *best_ch_info)
 {
-    struct qal_channel_info usb_ch_info;
+    struct pal_channel_info usb_ch_info;
 
     usb_ch_info.channels = channels_;
     for (int i = 0; i < channels_; i++) {
-        usb_ch_info.ch_map[i] = QAL_CHMAP_CHANNEL_FL + i;
+        usb_ch_info.ch_map[i] = PAL_CHMAP_CHANNEL_FL + i;
     }
 
     *best_ch_info = usb_ch_info;
 
     if (channels_ != requested_ch_info->channels)
-        QAL_ERR(LOG_TAG, "channel num mismatch. use USB's");
+        PAL_ERR(LOG_TAG, "channel num mismatch. use USB's");
 
     return 0;
 }
@@ -783,17 +783,17 @@ int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
      * Support both the bit_widths
      */
 
-    QAL_VERBOSE(LOG_TAG, "rates_str %s", rates_str);
+    PAL_VERBOSE(LOG_TAG, "rates_str %s", rates_str);
     next_sr_string = strtok_r(rates_str, "Rates: ", &temp_ptr);
     if (next_sr_string == NULL) {
-        QAL_ERR(LOG_TAG, "could not find min rates string");
+        PAL_ERR(LOG_TAG, "could not find min rates string");
         return -EINVAL;
     }
     if (strstr(rates_str, "continuous") != NULL) {
         min_sr = (unsigned int)atoi(next_sr_string);
         next_sr_string = strtok_r(NULL, " ,.-", &temp_ptr);
         if (next_sr_string == NULL) {
-            QAL_ERR(LOG_TAG, "could not find max rates string");
+            PAL_ERR(LOG_TAG, "could not find max rates string");
             return -EINVAL;
         }
         max_sr = (unsigned int)atoi(next_sr_string);
@@ -807,7 +807,7 @@ int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
                     continue;
                 rates_[sr_size++] = supported_sample_rates_[i];
                 supported_sample_rates_mask_[type] |= (1<<i);
-                QAL_DBG(LOG_TAG, "continuous sample rate supported_sample_rates_[%d] %d",
+                PAL_DBG(LOG_TAG, "continuous sample rate supported_sample_rates_[%d] %d",
                         i, supported_sample_rates_[i]);
             }
         }
@@ -822,7 +822,7 @@ int USBDeviceConfig::getSampleRates(int type, char *rates_str) {
 
             for (i = 0; i < MAX_SAMPLE_RATE_SIZE; i++) {
                 if (supported_sample_rates_[i] == sr) {
-                    QAL_DBG(LOG_TAG, "sr %d, supported_sample_rates_[%d] %d -> matches!!",
+                    PAL_DBG(LOG_TAG, "sr %d, supported_sample_rates_[%d] %d -> matches!!",
                               sr, i, supported_sample_rates_[i]);
                     rates_[sr_size++] = supported_sample_rates_[i];
                     supported_sample_rates_mask_[type] |= (1<<i);
@@ -843,12 +843,12 @@ int USBDeviceConfig::getServiceInterval(const char *interval_str_start)
 
     const char *eol = strchr(interval_str_start, '\n');
     if (!eol) {
-        QAL_ERR(LOG_TAG, "No EOL found");
+        PAL_ERR(LOG_TAG, "No EOL found");
         return -1;
     }
     char *tmp = (char *)calloc(1, eol-interval_str_start+1);
     if (!tmp) {
-        QAL_ERR(LOG_TAG, "failed to allocate tmp");
+        PAL_ERR(LOG_TAG, "failed to allocate tmp");
         return -1;
     }
     memcpy(tmp, interval_str_start, eol-interval_str_start);
@@ -861,12 +861,12 @@ int USBDeviceConfig::getServiceInterval(const char *interval_str_start)
     } else if (!strcmp(time_unit, "s")) {
         multiplier = 1000000;
     } else {
-        QAL_ERR(LOG_TAG, "unknown time_unit %s, assume default", time_unit);
+        PAL_ERR(LOG_TAG, "unknown time_unit %s, assume default", time_unit);
         interval = DEFAULT_SERVICE_INTERVAL_US;
         multiplier = 1;
     }
     interval *= multiplier;
-    QAL_DBG(LOG_TAG, "set service_interval_us %lu", interval);
+    PAL_DBG(LOG_TAG, "set service_interval_us %lu", interval);
     service_interval_us_ = interval;
     free(tmp);
 

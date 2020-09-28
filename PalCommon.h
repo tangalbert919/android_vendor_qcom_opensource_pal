@@ -37,27 +37,27 @@
 #include <log/log.h>
 #endif
 
-#define QAL_LOG_ERR             (0x1) /**< error message, represents code bugs that should be debugged and fixed.*/
-#define QAL_LOG_INFO            (0x2) /**< info message, additional info to support debug */
-#define QAL_LOG_DBG             (0x4) /**< debug message, required at minimum for debug.*/
-#define QAL_LOG_VERBOSE         (0x8)/**< verbose message, useful primarily to help developers debug low-level code */
+#define PAL_LOG_ERR             (0x1) /**< error message, represents code bugs that should be debugged and fixed.*/
+#define PAL_LOG_INFO            (0x2) /**< info message, additional info to support debug */
+#define PAL_LOG_DBG             (0x4) /**< debug message, required at minimum for debug.*/
+#define PAL_LOG_VERBOSE         (0x8)/**< verbose message, useful primarily to help developers debug low-level code */
 
-extern uint32_t qal_log_lvl;
+extern uint32_t pal_log_lvl;
 
 
-#define QAL_ERR(log_tag, arg,...)                                          \
-    if (qal_log_lvl & QAL_LOG_ERR) {                              \
+#define PAL_ERR(log_tag, arg,...)                                          \
+    if (pal_log_lvl & PAL_LOG_ERR) {                              \
         ALOGE("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
     }
-#define QAL_DBG(log_tag,arg,...)                                           \
-    if (qal_log_lvl & QAL_LOG_DBG) {                               \
+#define PAL_DBG(log_tag,arg,...)                                           \
+    if (pal_log_lvl & PAL_LOG_DBG) {                               \
         ALOGD("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__); \
     }
-#define QAL_INFO(log_tag,arg,...)                                         \
-    if (qal_log_lvl & QAL_LOG_INFO) {                             \
+#define PAL_INFO(log_tag,arg,...)                                         \
+    if (pal_log_lvl & PAL_LOG_INFO) {                             \
         ALOGI("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
     }
-#define QAL_VERBOSE(log_tag,arg,...)                                      \
-    if (qal_log_lvl & QAL_LOG_VERBOSE) {                          \
+#define PAL_VERBOSE(log_tag,arg,...)                                      \
+    if (pal_log_lvl & PAL_LOG_VERBOSE) {                          \
         ALOGV("%s: %d: "  arg, __func__, __LINE__, ##__VA_ARGS__);\
     }

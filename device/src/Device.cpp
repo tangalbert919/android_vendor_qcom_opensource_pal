@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: Device"
+#define LOG_TAG "PAL: Device"
 
 #include "Device.h"
 #include <tinyalsa/asoundlib.h>
@@ -50,151 +50,151 @@
 
 #define MAX_CHANNEL_SUPPORTED 2
 
-std::shared_ptr<Device> Device::getInstance(struct qal_device *device,
+std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
                                                  std::shared_ptr<ResourceManager> Rm)
 {
     if (!device || !Rm) {
-        QAL_ERR(LOG_TAG, "Invalid input parameters");
+        PAL_ERR(LOG_TAG, "Invalid input parameters");
         return NULL;
     }
 
-    QAL_DBG(LOG_TAG, "Enter device id %d", device->id);
+    PAL_DBG(LOG_TAG, "Enter device id %d", device->id);
 
     //TBD: decide on supported devices from XML and not in code
     switch (device->id) {
-    case QAL_DEVICE_OUT_HANDSET:
-        QAL_VERBOSE(LOG_TAG, "handset device");
+    case PAL_DEVICE_OUT_HANDSET:
+        PAL_VERBOSE(LOG_TAG, "handset device");
         return Handset::getInstance(device, Rm);
-    case QAL_DEVICE_OUT_SPEAKER:
-        QAL_VERBOSE(LOG_TAG, "speaker device");
+    case PAL_DEVICE_OUT_SPEAKER:
+        PAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getInstance(device, Rm);
-    case QAL_DEVICE_OUT_WIRED_HEADSET:
-    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        QAL_VERBOSE(LOG_TAG, "headphone device");
+    case PAL_DEVICE_OUT_WIRED_HEADSET:
+    case PAL_DEVICE_OUT_WIRED_HEADPHONE:
+        PAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getInstance(device, Rm);
-    case QAL_DEVICE_OUT_USB_DEVICE:
-    case QAL_DEVICE_OUT_USB_HEADSET:
-    case QAL_DEVICE_IN_USB_DEVICE:
-    case QAL_DEVICE_IN_USB_HEADSET:
-        QAL_VERBOSE(LOG_TAG, "USB device");
+    case PAL_DEVICE_OUT_USB_DEVICE:
+    case PAL_DEVICE_OUT_USB_HEADSET:
+    case PAL_DEVICE_IN_USB_DEVICE:
+    case PAL_DEVICE_IN_USB_HEADSET:
+        PAL_VERBOSE(LOG_TAG, "USB device");
         return USB::getInstance(device, Rm);
-    case QAL_DEVICE_IN_HANDSET_MIC:
-        QAL_VERBOSE(LOG_TAG, "HandsetMic device");
+    case PAL_DEVICE_IN_HANDSET_MIC:
+        PAL_VERBOSE(LOG_TAG, "HandsetMic device");
         return HandsetMic::getInstance(device, Rm);
-    case QAL_DEVICE_IN_SPEAKER_MIC:
-        QAL_VERBOSE(LOG_TAG, "speakerMic device");
+    case PAL_DEVICE_IN_SPEAKER_MIC:
+        PAL_VERBOSE(LOG_TAG, "speakerMic device");
         return SpeakerMic::getInstance(device, Rm);
-    case QAL_DEVICE_IN_WIRED_HEADSET:
-        QAL_VERBOSE(LOG_TAG, "HeadsetMic device");
+    case PAL_DEVICE_IN_WIRED_HEADSET:
+        PAL_VERBOSE(LOG_TAG, "HeadsetMic device");
         return HeadsetMic::getInstance(device, Rm);
-    case QAL_DEVICE_IN_HANDSET_VA_MIC:
-        QAL_VERBOSE(LOG_TAG, "HandsetVaMic device");
+    case PAL_DEVICE_IN_HANDSET_VA_MIC:
+        PAL_VERBOSE(LOG_TAG, "HandsetVaMic device");
         return HandsetVaMic::getInstance(device, Rm);
-    case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-    case QAL_DEVICE_OUT_BLUETOOTH_SCO:
-        QAL_VERBOSE(LOG_TAG, "BTSCO device");
+    case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+    case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        PAL_VERBOSE(LOG_TAG, "BTSCO device");
         return BtSco::getInstance(device, Rm);
-    case QAL_DEVICE_IN_BLUETOOTH_A2DP:
-    case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        QAL_VERBOSE(LOG_TAG, "BTA2DP device");
+    case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+    case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        PAL_VERBOSE(LOG_TAG, "BTA2DP device");
         return BtA2dp::getInstance(device, Rm);
-    case QAL_DEVICE_OUT_AUX_DIGITAL:
-    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
-    case QAL_DEVICE_OUT_HDMI:
-        QAL_VERBOSE(LOG_TAG, "Display Port device");
+    case PAL_DEVICE_OUT_AUX_DIGITAL:
+    case PAL_DEVICE_OUT_AUX_DIGITAL_1:
+    case PAL_DEVICE_OUT_HDMI:
+        PAL_VERBOSE(LOG_TAG, "Display Port device");
         return DisplayPort::getInstance(device, Rm);
-    case QAL_DEVICE_IN_HEADSET_VA_MIC:
-        QAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
+    case PAL_DEVICE_IN_HEADSET_VA_MIC:
+        PAL_VERBOSE(LOG_TAG, "HeadsetVaMic device");
         return HeadsetVaMic::getInstance(device, Rm);
-    case QAL_DEVICE_OUT_PROXY:
-        QAL_VERBOSE(LOG_TAG, "RTProxyOut device");
+    case PAL_DEVICE_OUT_PROXY:
+        PAL_VERBOSE(LOG_TAG, "RTProxyOut device");
         return RTProxyOut::getInstance(device, Rm);
-    case QAL_DEVICE_IN_PROXY:
-        QAL_VERBOSE(LOG_TAG, "RTProxy device");
+    case PAL_DEVICE_IN_PROXY:
+        PAL_VERBOSE(LOG_TAG, "RTProxy device");
         return RTProxy::getInstance(device, Rm);
     default:
-        QAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
+        PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
     }
 }
 
-std::shared_ptr<Device> Device::getObject(qal_device_id_t dev_id)
+std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
 {
 
     switch(dev_id) {
-    case QAL_DEVICE_OUT_HANDSET:
-        QAL_VERBOSE(LOG_TAG, "handset device");
+    case PAL_DEVICE_OUT_HANDSET:
+        PAL_VERBOSE(LOG_TAG, "handset device");
         return Handset::getObject();
-    case QAL_DEVICE_OUT_SPEAKER:
-        QAL_VERBOSE(LOG_TAG, "speaker device");
+    case PAL_DEVICE_OUT_SPEAKER:
+        PAL_VERBOSE(LOG_TAG, "speaker device");
         return Speaker::getObject();
-    case QAL_DEVICE_OUT_WIRED_HEADSET:
-    case QAL_DEVICE_OUT_WIRED_HEADPHONE:
-        QAL_VERBOSE(LOG_TAG, "headphone device");
+    case PAL_DEVICE_OUT_WIRED_HEADSET:
+    case PAL_DEVICE_OUT_WIRED_HEADPHONE:
+        PAL_VERBOSE(LOG_TAG, "headphone device");
         return Headphone::getObject(dev_id);
-    case QAL_DEVICE_OUT_USB_DEVICE:
-    case QAL_DEVICE_OUT_USB_HEADSET:
-        QAL_VERBOSE(LOG_TAG, "USB device");
+    case PAL_DEVICE_OUT_USB_DEVICE:
+    case PAL_DEVICE_OUT_USB_HEADSET:
+        PAL_VERBOSE(LOG_TAG, "USB device");
         return USB::getObject(dev_id);
-    case QAL_DEVICE_OUT_AUX_DIGITAL:
-    case QAL_DEVICE_OUT_AUX_DIGITAL_1:
-    case QAL_DEVICE_OUT_HDMI:
-        QAL_VERBOSE(LOG_TAG, "Display Port device");
+    case PAL_DEVICE_OUT_AUX_DIGITAL:
+    case PAL_DEVICE_OUT_AUX_DIGITAL_1:
+    case PAL_DEVICE_OUT_HDMI:
+        PAL_VERBOSE(LOG_TAG, "Display Port device");
         return DisplayPort::getObject();
-    case QAL_DEVICE_IN_HANDSET_MIC:
-        QAL_VERBOSE(LOG_TAG, "handset mic device");
+    case PAL_DEVICE_IN_HANDSET_MIC:
+        PAL_VERBOSE(LOG_TAG, "handset mic device");
         return HandsetMic::getObject();
-    case QAL_DEVICE_IN_SPEAKER_MIC:
-        QAL_VERBOSE(LOG_TAG, "speaker mic device");
+    case PAL_DEVICE_IN_SPEAKER_MIC:
+        PAL_VERBOSE(LOG_TAG, "speaker mic device");
         return SpeakerMic::getObject();
-    case QAL_DEVICE_IN_WIRED_HEADSET:
-        QAL_VERBOSE(LOG_TAG, "headset mic device");
+    case PAL_DEVICE_IN_WIRED_HEADSET:
+        PAL_VERBOSE(LOG_TAG, "headset mic device");
         return HeadsetMic::getObject();
-    case QAL_DEVICE_OUT_BLUETOOTH_A2DP:
-    case QAL_DEVICE_IN_BLUETOOTH_A2DP:
-        QAL_VERBOSE(LOG_TAG, "BT A2DP device %d", dev_id);
+    case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+    case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+        PAL_VERBOSE(LOG_TAG, "BT A2DP device %d", dev_id);
         return BtA2dp::getObject(dev_id);
-    case QAL_DEVICE_OUT_BLUETOOTH_SCO:
-    case QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-        QAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
+    case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+    case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+        PAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
         return BtSco::getObject(dev_id);
-    case QAL_DEVICE_OUT_PROXY:
-    case QAL_DEVICE_IN_PROXY:
-        QAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
+    case PAL_DEVICE_OUT_PROXY:
+    case PAL_DEVICE_IN_PROXY:
+        PAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();
     default:
-        QAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
+        PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
     }
 }
 
-Device::Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm)
+Device::Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
     uint16_t channels;
     rm = Rm;
 
     channels = device->config.ch_info.channels;
     if (channels > MAX_CHANNEL_SUPPORTED) {
-        QAL_INFO(LOG_TAG, "channels %d are greater,reset to MAX", channels);
+        PAL_INFO(LOG_TAG, "channels %d are greater,reset to MAX", channels);
         channels = MAX_CHANNEL_SUPPORTED;
     } else
-       QAL_DBG(LOG_TAG, "channels %d", channels);
+       PAL_DBG(LOG_TAG, "channels %d", channels);
 
-    memset(&deviceAttr, 0, sizeof(struct qal_device));
-    ar_mem_cpy(&deviceAttr, sizeof(struct qal_device), device,
-                     sizeof(struct qal_device));
+    memset(&deviceAttr, 0, sizeof(struct pal_device));
+    ar_mem_cpy(&deviceAttr, sizeof(struct pal_device), device,
+                     sizeof(struct pal_device));
 
-    mQALDeviceName.clear();
+    mPALDeviceName.clear();
     customPayload = NULL;
     customPayloadSize = 0;
-    QAL_DBG(LOG_TAG,"device instance for id %d created", device->id);
+    PAL_DBG(LOG_TAG,"device instance for id %d created", device->id);
 
 }
 
 Device::Device()
 {
     initialized = false;
-    mQALDeviceName.clear();
+    mPALDeviceName.clear();
 }
 
 Device::~Device()
@@ -204,36 +204,36 @@ Device::~Device()
 
     customPayload = NULL;
     customPayloadSize = 0;
-    QAL_DBG(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
+    PAL_DBG(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
 }
 
-int Device::getDeviceAttributes(struct qal_device *dattr)
+int Device::getDeviceAttributes(struct pal_device *dattr)
 {
     int status = 0;
 
     if (!dattr) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
+        PAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
         goto exit;
     }
-    ar_mem_cpy(dattr, sizeof(struct qal_device), &deviceAttr, sizeof(struct qal_device));
+    ar_mem_cpy(dattr, sizeof(struct pal_device), &deviceAttr, sizeof(struct pal_device));
 
 exit:
     return status;
 }
 
-int Device::getDefaultConfig(qal_param_device_capability_t capability __unused) {
+int Device::getDefaultConfig(pal_param_device_capability_t capability __unused) {
     return 0;
 }
 
-int Device::setDeviceAttributes(struct qal_device dattr)
+int Device::setDeviceAttributes(struct pal_device dattr)
 {
     int status = 0;
 
-    QAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
+    PAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
 
-    ar_mem_cpy(&deviceAttr, sizeof(struct qal_device), &dattr,
-                     sizeof(struct qal_device));
+    ar_mem_cpy(&deviceAttr, sizeof(struct pal_device), &dattr,
+                     sizeof(struct pal_device));
 
     return status;
 }
@@ -247,35 +247,35 @@ int Device::updateCustomPayload(void *payload, size_t size)
     }
 
     if (!customPayload) {
-        QAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+        PAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
         return -ENOMEM;
     }
 
     memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
     customPayloadSize += size;
-    QAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
+    PAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     return 0;
 }
 
 int Device::getSndDeviceId()
 {
-    QAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);
+    PAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);
     return deviceAttr.id;
 }
 
-std::string Device::getQALDeviceName()
+std::string Device::getPALDeviceName()
 {
-    QAL_VERBOSE(LOG_TAG, "Device name %s acquired", mQALDeviceName.c_str());
-    return mQALDeviceName;
+    PAL_VERBOSE(LOG_TAG, "Device name %s acquired", mPALDeviceName.c_str());
+    return mPALDeviceName;
 }
 
 
-int Device::init(qal_param_device_connection_t device_conn __unused)
+int Device::init(pal_param_device_connection_t device_conn __unused)
 {
     return 0;
 }
 
-int Device::deinit(qal_param_device_connection_t device_conn __unused)
+int Device::deinit(pal_param_device_connection_t device_conn __unused)
 {
     return 0;
 }
@@ -284,13 +284,13 @@ int Device::open()
 {
     int status = 0;
     mDeviceMutex.lock();
-    QAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
+    PAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
         deviceCount, this->deviceAttr.id, initialized);
 
     if (!initialized) {
-        mQALDeviceName = rm->getQALDeviceName(this->deviceAttr.id);
+        mPALDeviceName = rm->getPALDeviceName(this->deviceAttr.id);
         initialized = true;
-        QAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mQALDeviceName.c_str(), this->deviceAttr.id, initialized);
+        PAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mPALDeviceName.c_str(), this->deviceAttr.id, initialized);
         {
             std::string backEndName;
             rm->getBackendName(this->deviceAttr.id, backEndName);
@@ -302,7 +302,7 @@ int Device::open()
 
     devObj = Device::getInstance(&deviceAttr, rm);
 
-    QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
     mDeviceMutex.unlock();
     return status;
 }
@@ -324,24 +324,24 @@ int Device::start()
 
     mDeviceMutex.lock();
 
-    QAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
+    PAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
     if (deviceCount == 0 && initialized) {
         status = rm->getAudioRoute(&audioRoute);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
+            PAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
             goto exit;
         }
         status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
 
         if (!UpdatedSndName.empty()) {
-            QAL_DBG(LOG_TAG,"Update sndName %s, currently %s",
+            PAL_DBG(LOG_TAG,"Update sndName %s, currently %s",
                     UpdatedSndName.c_str(), mSndDeviceName);
             strlcpy(mSndDeviceName, UpdatedSndName.c_str(), DEVICE_NAME_MAX_SIZE);
         }
 
-        QAL_VERBOSE(LOG_TAG, "audio_route %pK SND device name %s", audioRoute, mSndDeviceName);
+        PAL_VERBOSE(LOG_TAG, "audio_route %pK SND device name %s", audioRoute, mSndDeviceName);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
+            PAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
             goto exit;
         }
 
@@ -349,7 +349,7 @@ int Device::start()
 
         rm->getBackendName(deviceAttr.id, backEndName);
         if (!strlen(backEndName.c_str())) {
-            QAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
+            PAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
             status = -EINVAL;
             goto disable_dev;
         }
@@ -360,14 +360,14 @@ int Device::start()
             status = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                                         customPayload, customPayloadSize);
             if (status) {
-                 QAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
+                 PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
                                    deviceAttr.id);
                  goto disable_dev;
             }
         }
     }
     deviceCount += 1;
-    QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
     goto exit;
 
 disable_dev:
@@ -381,12 +381,12 @@ int Device::stop()
 {
     int status = 0;
     mDeviceMutex.lock();
-    QAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mQALDeviceName.c_str(), deviceCount);
+    PAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mPALDeviceName.c_str(), deviceCount);
     if (deviceCount == 1 && initialized) {
         disableDevice(audioRoute, mSndDeviceName);
     }
     deviceCount -= 1;
-    QAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
     mDeviceMutex.unlock();
     return status;
 }

@@ -36,7 +36,7 @@
 
 #include "Stream.h"
 #include "SoundTriggerEngine.h"
-#include "QalRingBuffer.h"
+#include "PalRingBuffer.h"
 #include "SoundTriggerPlatformInfo.h"
 
 /* Event Mode
@@ -102,8 +102,8 @@ class ResourceManager;
 
 class StreamSoundTrigger : public Stream {
  public:
-    StreamSoundTrigger(struct qal_stream_attributes *sattr,
-                       struct qal_device *dattr,
+    StreamSoundTrigger(struct pal_stream_attributes *sattr,
+                       struct pal_device *dattr,
                        uint32_t no_of_devices,
                        struct modifier_kv *modifiers __unused,
                        uint32_t no_of_modifiers __unused,
@@ -119,25 +119,25 @@ class StreamSoundTrigger : public Stream {
 
     int32_t ssrDownHandler() override;
     int32_t ssrUpHandler() override;
-    int32_t setStreamAttributes(struct qal_stream_attributes *sattr __unused) {
+    int32_t setStreamAttributes(struct pal_stream_attributes *sattr __unused) {
         return 0;
     }
 
-    int32_t setVolume(struct qal_volume_data * volume __unused) { return 0; }
+    int32_t setVolume(struct pal_volume_data * volume __unused) { return 0; }
     int32_t setMute(bool state __unused) override { return 0; }
     int32_t setPause() override { return 0; }
     int32_t setResume() override { return 0; }
 
-    int32_t read(struct qal_buffer *buf) override;
+    int32_t read(struct pal_buffer *buf) override;
 
-    int32_t write(struct qal_buffer *buf __unused) { return 0; }
+    int32_t write(struct pal_buffer *buf __unused) { return 0; }
 
-    int32_t registerCallBack(qal_stream_callback cb,  void *cookie) override;
-    int32_t getCallBack(qal_stream_callback *cb) override;
+    int32_t registerCallBack(pal_stream_callback cb,  void *cookie) override;
+    int32_t getCallBack(pal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;
 
-    int32_t addRemoveEffect(qal_audio_effect_t effec __unused,
+    int32_t addRemoveEffect(pal_audio_effect_t effec __unused,
                             bool enable __unused) {
         return -ENOSYS;
     }
@@ -153,12 +153,12 @@ class StreamSoundTrigger : public Stream {
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
-    std::shared_ptr<Device> GetQalDevice(qal_device_id_t dev_id,
-                                         struct qal_device *dev,
+    std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id,
+                                         struct pal_device *dev,
                                          bool use_rm_profile);
     int32_t GetSetupDuration(struct audio_dam_downstream_setup_duration **duration);
-    int32_t DisconnectDevice(qal_device_id_t device_id);
-    int32_t ConnectDevice(qal_device_id_t device_id);
+    int32_t DisconnectDevice(pal_device_id_t device_id);
+    int32_t ConnectDevice(pal_device_id_t device_id);
     int32_t HandleChargingStateUpdate(bool state, bool active);
     int32_t Resume();
     int32_t Pause();
@@ -176,7 +176,7 @@ class StreamSoundTrigger : public Stream {
     int32_t GetSecondStageConfig(st_sound_model_type_t &detection_type,
         std::string &lib_name, listen_model_indicator_enum type);
 
-    friend class QalRingBufferReader;
+    friend class PalRingBufferReader;
 
  private:
     class EngineCfg {
@@ -375,15 +375,15 @@ class StreamSoundTrigger : public Stream {
     };
     class StDeviceConnectedEventConfigData : public StEventConfigData {
      public:
-        StDeviceConnectedEventConfigData(qal_device_id_t id)
+        StDeviceConnectedEventConfigData(pal_device_id_t id)
             : dev_id_(id) {}
         ~StDeviceConnectedEventConfigData() {}
 
-        qal_device_id_t dev_id_;
+        pal_device_id_t dev_id_;
     };
     class StDeviceConnectedEventConfig : public StEventConfig {
      public:
-        StDeviceConnectedEventConfig(qal_device_id_t id)
+        StDeviceConnectedEventConfig(pal_device_id_t id)
             : StEventConfig(ST_EV_DEVICE_CONNECTED) {
             data_ = std::make_shared<StDeviceConnectedEventConfigData>(id);
         }
@@ -392,15 +392,15 @@ class StreamSoundTrigger : public Stream {
 
     class StDeviceDisconnectedEventConfigData : public StEventConfigData {
      public:
-        StDeviceDisconnectedEventConfigData(qal_device_id_t id)
+        StDeviceDisconnectedEventConfigData(pal_device_id_t id)
             : dev_id_(id) {}
         ~StDeviceDisconnectedEventConfigData() {}
 
-        qal_device_id_t dev_id_;
+        pal_device_id_t dev_id_;
     };
     class StDeviceDisconnectedEventConfig : public StEventConfig {
      public:
-        StDeviceDisconnectedEventConfig(qal_device_id_t id)
+        StDeviceDisconnectedEventConfig(pal_device_id_t id)
             : StEventConfig(ST_EV_DEVICE_DISCONNECTED) {
             data_ = std::make_shared<StDeviceDisconnectedEventConfigData>(id);
         }
@@ -505,30 +505,30 @@ class StreamSoundTrigger : public Stream {
         int32_t ProcessEvent(std::shared_ptr<StEventConfig> ev_cfg) override;
     };
 
-    qal_device_id_t GetAvailCaptureDevice();
+    pal_device_id_t GetAvailCaptureDevice();
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
-    int32_t LoadSoundModel(struct qal_st_sound_model *sm_data);
-    int32_t UpdateSoundModel(struct qal_st_sound_model *sm_data);
-    int32_t SendRecognitionConfig(struct qal_st_recognition_config *config);
-    int32_t UpdateRecognitionConfig(struct qal_st_recognition_config *config);
+    int32_t LoadSoundModel(struct pal_st_sound_model *sm_data);
+    int32_t UpdateSoundModel(struct pal_st_sound_model *sm_data);
+    int32_t SendRecognitionConfig(struct pal_st_recognition_config *config);
+    int32_t UpdateRecognitionConfig(struct pal_st_recognition_config *config);
     bool compareRecognitionConfig(
-       const struct qal_st_recognition_config *current_config,
-       struct qal_st_recognition_config *new_config);
+       const struct pal_st_recognition_config *current_config,
+       struct pal_st_recognition_config *new_config);
 
     int32_t ParseOpaqueConfLevels(void *opaque_conf_levels,
                                   uint32_t version,
                                   uint8_t **out_conf_levels,
                                   uint32_t *out_num_conf_levels);
-    int32_t FillConfLevels(struct qal_st_recognition_config *config,
+    int32_t FillConfLevels(struct pal_st_recognition_config *config,
                            uint8_t **out_conf_levels,
                            uint32_t *out_num_conf_levels);
     int32_t FillOpaqueConfLevels(const void *sm_levels_generic,
                                  uint8_t **out_payload,
                                  uint32_t *out_payload_size,
                                  uint32_t version);
-    int32_t GenerateCallbackEvent(struct qal_st_recognition_event **event,
+    int32_t GenerateCallbackEvent(struct pal_st_recognition_event **event,
                                   uint32_t *event_size);
-    static int32_t HandleDetectionEvent(qal_stream_handle_t *stream_handle,
+    static int32_t HandleDetectionEvent(pal_stream_handle_t *stream_handle,
                                         uint32_t event_id,
                                         uint32_t *event_data,
                                         void *cookie __unused);
@@ -556,14 +556,14 @@ class StreamSoundTrigger : public Stream {
     std::vector<std::shared_ptr<EngineCfg>> engines_;
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
 
-    qal_st_sound_model_type_t sound_model_type_;
-    struct qal_st_phrase_sound_model *sm_config_;
-    struct qal_st_recognition_config *rec_config_;
+    pal_st_sound_model_type_t sound_model_type_;
+    struct pal_st_phrase_sound_model *sm_config_;
+    struct pal_st_recognition_config *rec_config_;
     uint32_t detection_state_;
     uint32_t notification_state_;
-    qal_stream_callback callback_;
+    pal_stream_callback callback_;
     void * cookie_;
-    QalRingBufferReader *reader_;
+    PalRingBufferReader *reader_;
 
     StState *st_idle_;
     StState *st_loaded_;

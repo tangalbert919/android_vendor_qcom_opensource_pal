@@ -28,7 +28,7 @@
  */
 
 
-#define LOG_TAG "QAL: SessionAlsaVoice"
+#define LOG_TAG "PAL: SessionAlsaVoice"
 
 #include "SessionAlsaVoice.h"
 #include "SessionAlsaUtils.h"
@@ -40,7 +40,7 @@
 #include <agm_api.h>
 #include "audio_route/audio_route.h"
 
-#define QAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
+#define PAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define MAX_VOL_INDEX 5
 #define MIN_VOL_INDEX 0
 #define percent_to_index(val, min, max) \
@@ -75,7 +75,7 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
         device = pcmDevRxIds.at(0);
         break;
     default:
-        QAL_INFO(LOG_TAG, "Unsupported tag info %x",tagId);
+        PAL_INFO(LOG_TAG, "Unsupported tag info %x",tagId);
         return -EINVAL;
     }
 
@@ -83,7 +83,7 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
                                                    backendName,
                                                    tagId, miid);
     if (0 != status)
-        QAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
 
     return status;
 }
@@ -97,23 +97,23 @@ int SessionAlsaVoice::prepare(Stream * s __unused)
 int SessionAlsaVoice::open(Stream * s)
 {
     int status = -EINVAL;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
     status = s->getStreamAttributes(&sAttr);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;
     }
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         goto exit;
     }
 
-    if (sAttr.direction != (QAL_AUDIO_INPUT|QAL_AUDIO_OUTPUT)) {
-        QAL_ERR(LOG_TAG,"Voice session dir must be input and output");
+    if (sAttr.direction != (PAL_AUDIO_INPUT|PAL_AUDIO_OUTPUT)) {
+        PAL_ERR(LOG_TAG,"Voice session dir must be input and output");
         goto exit;
     }
 
@@ -127,7 +127,7 @@ int SessionAlsaVoice::open(Stream * s)
 
     status = rm->getAudioMixer(&mixer);
     if (status) {
-        QAL_ERR(LOG_TAG,"mixer error");
+        PAL_ERR(LOG_TAG,"mixer error");
         goto exit;
     }
 
@@ -135,7 +135,7 @@ int SessionAlsaVoice::open(Stream * s)
                                     rxAifBackEnds, txAifBackEnds);
 
     if (status) {
-        QAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
+        PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
         rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXDIR);
         rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXDIR);
     }
@@ -155,21 +155,21 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
         pcmId = pcmDevRxIds.at(0);
         status = populate_rx_mfc_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
+            PAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
 
         // populate_vsid_payload, appends to the existing payload
         status = populate_vsid_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
+            PAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
     } else {
         pcmId = pcmDevTxIds.at(0);
         status = populate_vsid_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"populating vsid payload for TX Failed:%d", status);
+            PAL_ERR(LOG_TAG,"populating vsid payload for TX Failed:%d", status);
             goto exit;
         }
     }
@@ -177,7 +177,7 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmId,
                                                  payload, payloadSize);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"setMixerParameter failed:%d for dir:%s",
+        PAL_ERR(LOG_TAG,"setMixerParameter failed:%d for dir:%s",
                 status, (dir == RXDIR)?"RX":"TX");
         goto exit;
     }
@@ -201,12 +201,12 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
 
     vsidpayloadSize = sizeof(struct apm_module_param_data_t)+
                   sizeof(vcpm_param_vsid_payload_t);
-    padBytes = QAL_PADDING_8BYTE_ALIGN(vsidpayloadSize);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(vsidpayloadSize);
 
     vsidPayload =  (uint8_t *) realloc((void *)*payload,
                                        (*payloadSize + vsidpayloadSize + padBytes));
     if (!vsidPayload) {
-        QAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
         return -EINVAL;
     }
     //set base out pointer to new address
@@ -234,21 +234,21 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
 {
     int status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    struct qal_device dAttr;
+    struct pal_device dAttr;
     struct sessionToPayloadParam deviceData;
     uint32_t miid = 0;
     int dev_id = 0;
 
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
         return status;
     }
 
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
     if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "no backend specified for this stream");
+        PAL_ERR(LOG_TAG, "no backend specified for this stream");
         return status;
     }
 
@@ -256,7 +256,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
                                                    rxAifBackEnds[0].second.c_str(),
                                                    TAG_DEVICE_PP_MFC, &miid);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"getModuleInstanceId failed status:%d", status);
+        PAL_ERR(LOG_TAG,"getModuleInstanceId failed status:%d", status);
         return status;
     }
 
@@ -279,18 +279,18 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
 int SessionAlsaVoice::start(Stream * s)
 {
     struct pcm_config config;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     int32_t status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    qal_param_payload *qalPayload;
+    pal_param_payload *palPayload;
     int txDevId;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
-    struct qal_volume_data *volume = NULL;
+    struct pal_volume_data *volume = NULL;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
 
@@ -313,12 +313,12 @@ int SessionAlsaVoice::start(Stream * s)
 
     pcmRx = pcm_open(rm->getSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
     if (!pcmRx) {
-        QAL_ERR(LOG_TAG, "pcm-rx open failed");
+        PAL_ERR(LOG_TAG, "pcm-rx open failed");
         return -EINVAL;
     }
 
     if (!pcm_is_ready(pcmRx)) {
-        QAL_ERR(LOG_TAG, "pcm-rx open not ready");
+        PAL_ERR(LOG_TAG, "pcm-rx open not ready");
         pcmRx = NULL;
         return -EINVAL;
     }
@@ -336,12 +336,12 @@ int SessionAlsaVoice::start(Stream * s)
 
     pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
     if (!pcmTx) {
-        QAL_ERR(LOG_TAG, "pcm-tx open failed");
+        PAL_ERR(LOG_TAG, "pcm-tx open failed");
         return -EINVAL;
     }
 
     if (!pcm_is_ready(pcmTx)) {
-        QAL_ERR(LOG_TAG, "pcm-tx open not ready");
+        PAL_ERR(LOG_TAG, "pcm-tx open not ready");
         pcmTx = NULL;
         return -EINVAL;
     }
@@ -349,13 +349,13 @@ int SessionAlsaVoice::start(Stream * s)
     SessionAlsaVoice::setConfig(s, MODULE, VSID, RXDIR);
     /*if no volume is set set a default volume*/
     if ((s->getVolumeData(volume))) {
-        QAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
+        PAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
                  default_volume);
-        volume = (struct qal_volume_data *)malloc(sizeof(uint32_t) +
-                                                  (sizeof(struct qal_channel_vol_kv)));
+        volume = (struct pal_volume_data *)malloc(sizeof(uint32_t) +
+                                                  (sizeof(struct pal_channel_vol_kv)));
         if (!volume) {
             status = -ENOMEM;
-            QAL_ERR(LOG_TAG, "volume malloc failed %s", strerror(errno));
+            PAL_ERR(LOG_TAG, "volume malloc failed %s", strerror(errno));
             goto exit;
         }
         volume->no_of_volpair = 1;
@@ -371,45 +371,45 @@ int SessionAlsaVoice::start(Stream * s)
 
     /*set tty mode*/
     if (ttyMode) {
-        qalPayload = (qal_param_payload *)calloc(1,
-                                 sizeof(qal_param_payload) + sizeof(ttyMode));
-        qalPayload->payload_size = sizeof(ttyMode);
-        *(qalPayload->payload) = ttyMode;
-        setParameters(s, TTY_MODE, QAL_PARAM_ID_TTY_MODE, qalPayload);
+        palPayload = (pal_param_payload *)calloc(1,
+                                 sizeof(pal_param_payload) + sizeof(ttyMode));
+        palPayload->payload_size = sizeof(ttyMode);
+        *(palPayload->payload) = ttyMode;
+        setParameters(s, TTY_MODE, PAL_PARAM_ID_TTY_MODE, palPayload);
     }
 
     /*set sidetone*/
     status = getTXDeviceId(s, &txDevId);
     if (status){
-        QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
     } else {
         status = setSidetone(txDevId,s,1);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"enabling sidetone failed \n");
+            PAL_ERR(LOG_TAG,"enabling sidetone failed \n");
         }
     }
 
     status = populate_rx_mfc_payload(s, &payload, &payloadSize);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"Configuring RX MFC failed");
+        PAL_ERR(LOG_TAG,"Configuring RX MFC failed");
         return status;
     }
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
                                                  payload, payloadSize);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"setMixerParameter failed");
+        PAL_ERR(LOG_TAG,"setMixerParameter failed");
         goto exit;
     }
 
     status = pcm_start(pcmRx);
     if (status) {
-        QAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+        PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
         goto exit;
     }
 
     status = pcm_start(pcmTx);
     if (status) {
-        QAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+        PAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
         goto exit;
     }
 
@@ -424,29 +424,29 @@ exit:
 int SessionAlsaVoice::stop(Stream * s __unused)
 {
     int status = 0;
-    int txDevId = QAL_DEVICE_NONE;
+    int txDevId = PAL_DEVICE_NONE;
 
     /*disable sidetone*/
     status = getTXDeviceId(s, &txDevId);
     if (status){
-        QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
     } else {
         status = setSidetone(txDevId,s,0);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"disabling sidetone failed");
+            PAL_ERR(LOG_TAG,"disabling sidetone failed");
         }
     }
     if (pcmRx) {
         status = pcm_stop(pcmRx);
         if (status) {
-            QAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
+            PAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
         }
     }
 
     if (pcmTx) {
         status = pcm_stop(pcmTx);
         if (status) {
-            QAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
+            PAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
         }
     }
 
@@ -456,24 +456,24 @@ int SessionAlsaVoice::stop(Stream * s __unused)
 int SessionAlsaVoice::close(Stream * s)
 {
     int status = 0;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
 
     if (pcmRx) {
         status = pcm_close(pcmRx);
         if (status) {
-            QAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
+            PAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
         }
     }
     rm->freeFrontEndIds(pcmDevRxIds, sAttr, 0);
     if (pcmTx) {
         status = pcm_close(pcmTx);
         if (status) {
-            QAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
+            PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
         }
     }
     rm->freeFrontEndIds(pcmDevTxIds, sAttr, 1);
@@ -491,23 +491,23 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
     size_t paramSize = 0;
 
     uint32_t tty_mode;
-    qal_param_payload *QalPayload = (qal_param_payload *)payload;
+    pal_param_payload *PalPayload = (pal_param_payload *)payload;
 
     switch (static_cast<uint32_t>(tagId)) {
 
         case VOICE_VOLUME_BOOST:
             device = pcmDevRxIds.at(0);
-            volume_boost = *((bool *)QalPayload->payload);
+            volume_boost = *((bool *)PalPayload->payload);
             status = payloadCalKeys(s, &paramData, &paramSize);
             if (!paramData) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 goto exit;
             }
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
                                             RXDIR);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
             }
             break;
@@ -515,53 +515,53 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
         case VOICE_SLOW_TALK_OFF:
         case VOICE_SLOW_TALK_ON:
             device = pcmDevRxIds.at(0);
-            slow_talk = *((bool *)QalPayload->payload);
+            slow_talk = *((bool *)PalPayload->payload);
             status = payloadTaged(s, MODULE, tagId, device, RXDIR);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice slow_Talk params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice slow_Talk params status = %d",
                         status);
             }
             break;
 
         case TTY_MODE:
-            tty_mode = *((uint32_t *)QalPayload->payload);
+            tty_mode = *((uint32_t *)PalPayload->payload);
             device = pcmDevRxIds.at(0);
             status = payloadSetTTYMode(&paramData, &paramSize,
                                        tty_mode);
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
                                             RXDIR);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
                         status);
                 break;
             }
 
             if (!paramData) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
+                PAL_ERR(LOG_TAG, "failed to get tty payload status %d", status);
                 goto exit;
             }
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d \n",
+            PAL_ERR(LOG_TAG,"Failed unsupported tag type %d \n",
                     static_cast<uint32_t>(tagId));
             status = -EINVAL;
             break;
     }
 
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"Failed to set config data");
+        PAL_ERR(LOG_TAG,"Failed to set config data");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
+    PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"exit status:%d ", status);
+    PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 
 }
@@ -582,12 +582,12 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
                                                               paramSize,
                                                               RXDIR);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
             }
             if (!paramData) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 goto exit;
             }
             break;
@@ -598,22 +598,22 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
+            PAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
             status = -EINVAL;
             break;
     }
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"Failed to set config data");
+        PAL_ERR(LOG_TAG,"Failed to set config data");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
+    PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"exit status:%d ", status);
+    PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -634,12 +634,12 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
                                                               paramSize,
                                                               dir);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
             }
             if (!paramData) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 goto exit;
             }
             break;
@@ -658,36 +658,36 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
                                                               paramSize,
                                                               dir);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
                 break;
             }
 
             if (!paramData) {
                 status = -ENOMEM;
-                QAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 goto exit;
             }
 
             break;
 
         default:
-            QAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
+            PAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
             status = -EINVAL;
             break;
     }
     if (0 != status) {
-        QAL_ERR(LOG_TAG,"Failed to set config data\n");
+        PAL_ERR(LOG_TAG,"Failed to set config data\n");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "%x - payload and %zu size", *paramData , paramSize);
+    PAL_VERBOSE(LOG_TAG, "%x - payload and %zu size", *paramData , paramSize);
 
 exit:
 if (paramData) {
     free(paramData);
 }
-    QAL_DBG(LOG_TAG,"exit status:%d ", status);
+    PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -706,7 +706,7 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             tkv.clear();
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
-                QAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
+                PAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
                 goto exit;
             }
 
@@ -730,14 +730,14 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             tagCntrlName<<stream<<" "<<setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
-                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
                 return -ENOENT;
             }
 
             tkv_size = tkv.size()*sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
                 goto exit;
             }
             ctl = NULL;
@@ -747,12 +747,12 @@ int SessionAlsaVoice::payloadTaged(Stream * s, configType type, int tag,
             }
             break;
         default:
-            QAL_ERR(LOG_TAG,"invalid type ");
+            PAL_ERR(LOG_TAG,"invalid type ");
             status = -EINVAL;
     }
 
 exit:
-    QAL_DBG(LOG_TAG,"exit status:%d ", status);
+    PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -766,11 +766,11 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
 
     payloadSize = sizeof(struct apm_module_param_data_t)+
                   sizeof(vcpm_param_vsid_payload_t);
-    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
     payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
-        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return -EINVAL;
     }
     header = (apm_module_param_data_t*)payloadInfo;
@@ -802,31 +802,31 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     vcpm_ckv_pair_t cal_key_pair[NUM_OF_CAL_KEYS];
     float volume = 0.0;
     int vol;
-    struct qal_volume_data *voldata = NULL;
+    struct pal_volume_data *voldata = NULL;
 
-    voldata = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (0xFFFF))));
+    voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
     if (!voldata) {
         status = -ENOMEM;
         goto exit;
     }
     status = s->getVolumeData(voldata);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"getVolumeData Failed");
+        PAL_ERR(LOG_TAG,"getVolumeData Failed");
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG,"volume sent:%f", (voldata->volume_pair[0].vol));
+    PAL_VERBOSE(LOG_TAG,"volume sent:%f", (voldata->volume_pair[0].vol));
     volume = (voldata->volume_pair[0].vol);
 
     payloadSize = sizeof(apm_module_param_data_t) +
                   sizeof(vcpm_param_cal_keys_payload_t) +
                   sizeof(vcpm_ckv_pair_t)*NUM_OF_CAL_KEYS;
-    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
     payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
-        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return -EINVAL;
     }
     header = (apm_module_param_data_t*)payloadInfo;
@@ -868,7 +868,7 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    QAL_VERBOSE(LOG_TAG, "payload %pK size %zu", *payload, *size);
+    PAL_VERBOSE(LOG_TAG, "payload %pK size %zu", *payload, *size);
 
 exit:
     if (voldata) {
@@ -887,11 +887,11 @@ int SessionAlsaVoice::payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_
 
     payloadSize = sizeof(struct apm_module_param_data_t)+
                   sizeof(tty_payload);
-    padBytes = QAL_PADDING_8BYTE_ALIGN(payloadSize);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
     payloadInfo = new uint8_t[payloadSize + padBytes]();
     if (!payloadInfo) {
-        QAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return -EINVAL;
     }
     header = (apm_module_param_data_t*)payloadInfo;
@@ -915,12 +915,12 @@ int SessionAlsaVoice::setSidetone(int deviceId,Stream * s, bool enable){
     int status = 0;
     sidetone_mode_t mode;
 
-    status = rm->getSidetoneMode((qal_device_id_t)deviceId, QAL_STREAM_VOICE_CALL, &mode);
+    status = rm->getSidetoneMode((pal_device_id_t)deviceId, PAL_STREAM_VOICE_CALL, &mode);
     if(status) {
-            QAL_ERR(LOG_TAG, "get sidetone mode failed");
+            PAL_ERR(LOG_TAG, "get sidetone mode failed");
     }
     if (mode == SIDETONE_HW) {
-        QAL_DBG(LOG_TAG, "HW sidetone mode being set");
+        PAL_DBG(LOG_TAG, "HW sidetone mode being set");
         if (enable) {
             status = setHWSidetone(s,1);
         } else {
@@ -943,14 +943,14 @@ int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
     status = s->getAssociatedDevices(associatedDevices);
     for(int i =0; i < associatedDevices.size(); i++) {
         switch(associatedDevices[i]->getSndDeviceId()){
-            case QAL_DEVICE_IN_HANDSET_MIC:
+            case PAL_DEVICE_IN_HANDSET_MIC:
                 if(enable)
                     audio_route_apply_and_update_path(audioRoute, "sidetone-handset");
                 else
                     audio_route_reset_and_update_path(audioRoute, "sidetone-handset");
                 set = true;
                 break;
-            case QAL_DEVICE_IN_WIRED_HEADSET:
+            case PAL_DEVICE_IN_WIRED_HEADSET:
                 if(enable)
                     audio_route_apply_and_update_path(audioRoute, "sidetone-headphones");
                 else
@@ -958,7 +958,7 @@ int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
                 set = true;
                 break;
             default:
-                QAL_DBG(LOG_TAG,"codec sidetone not supported on device %d",associatedDevices[i]->getSndDeviceId());
+                PAL_DBG(LOG_TAG,"codec sidetone not supported on device %d",associatedDevices[i]->getSndDeviceId());
                 break;
 
         }
@@ -969,14 +969,14 @@ int SessionAlsaVoice::setHWSidetone(Stream * s, bool enable){
 }
 
 int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
-                                              qal_stream_type_t streamType,
+                                              pal_stream_type_t streamType,
                                               std::shared_ptr<Device> deviceToDisconnect)
 {
     std::vector<std::shared_ptr<Device>> deviceList;
     std::vector<std::string> aifBackEndsToDisconnect;
-    struct qal_device dAttr;
+    struct pal_device dAttr;
     int status = 0;
-    int txDevId = QAL_DEVICE_NONE;
+    int txDevId = PAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToDisconnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds,txAifBackEnds);
@@ -989,18 +989,18 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
                                                             dAttr, pcmDevRxIds,
                                                             rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"disconnectSessionDevice on RX Failed \n");
+            PAL_ERR(LOG_TAG,"disconnectSessionDevice on RX Failed \n");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
         /*if HW sidetone is enable disable it */
         status = getTXDeviceId(streamHandle, &txDevId);
         if (status){
-            QAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+            PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
         } else {
             status = setSidetone(txDevId,streamHandle,0);
             if(0 != status) {
-                QAL_ERR(LOG_TAG,"disabling sidetone failed");
+                PAL_ERR(LOG_TAG,"disabling sidetone failed");
             }
         }
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
@@ -1008,7 +1008,7 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
                                                             dAttr, pcmDevTxIds,
                                                             txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"disconnectSessionDevice on TX Failed");
+            PAL_ERR(LOG_TAG,"disconnectSessionDevice on TX Failed");
         }
     }
 
@@ -1016,14 +1016,14 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
 }
 
 int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
-                                 qal_stream_type_t streamType,
+                                 pal_stream_type_t streamType,
                                  std::shared_ptr<Device> deviceToConnect)
 {
     std::vector<std::shared_ptr<Device>> deviceList;
     std::vector<std::string> aifBackEndsToConnect;
-    struct qal_device dAttr;
+    struct pal_device dAttr;
     int status = 0;
-    int txDevId = QAL_DEVICE_NONE;
+    int txDevId = PAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
@@ -1034,39 +1034,39 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
                                                        rm, dAttr, pcmDevRxIds,
                                                        rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"setupSessionDevice on RX Failed");
+            PAL_ERR(LOG_TAG,"setupSessionDevice on RX Failed");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
         /*set sidetone on new tx device*/
-        if (deviceToConnect->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
-            deviceToConnect->getSndDeviceId() < QAL_DEVICE_IN_MAX) {
+        if (deviceToConnect->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+            deviceToConnect->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
             txDevId = deviceToConnect->getSndDeviceId();
         }
-        if(txDevId != QAL_DEVICE_NONE)
+        if(txDevId != PAL_DEVICE_NONE)
         {
             status = setSidetone(txDevId,streamHandle,1);
         }
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"enabling sidetone failed");
+            PAL_ERR(LOG_TAG,"enabling sidetone failed");
         }
         status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
                                                        rm, dAttr, pcmDevTxIds,
                                                        txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"setupSessionDevice on TX Failed");
+            PAL_ERR(LOG_TAG,"setupSessionDevice on TX Failed");
         }
     }
     return status;
 }
 
 int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
-                                           qal_stream_type_t streamType,
+                                           pal_stream_type_t streamType,
                                            std::shared_ptr<Device> deviceToConnect)
 {
     std::vector<std::shared_ptr<Device>> deviceList;
     std::vector<std::string> aifBackEndsToConnect;
-    struct qal_device dAttr;
+    struct pal_device dAttr;
     int status = 0;
 
     deviceList.push_back(deviceToConnect);
@@ -1079,7 +1079,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
                                                          dAttr, pcmDevRxIds,
                                                          rxAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"connectSessionDevice on RX Failed");
+            PAL_ERR(LOG_TAG,"connectSessionDevice on RX Failed");
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
@@ -1089,7 +1089,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
                                                          dAttr, pcmDevTxIds,
                                                          txAifBackEnds);
         if(0 != status) {
-            QAL_ERR(LOG_TAG,"connectSessionDevice on TX Failed");
+            PAL_ERR(LOG_TAG,"connectSessionDevice on TX Failed");
         }
     }
     return status;
@@ -1102,13 +1102,13 @@ int SessionAlsaVoice::setVoiceMixerParameter(Stream * s, struct mixer *mixer,
     char *mixer_str;
     struct mixer_ctl *ctl;
     int ctl_len = 0,ret = 0;
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     char *stream = SessionAlsaVoice::getMixerVoiceStream(s, dir);
 
     ret = s->getStreamAttributes(&sAttr);
 
     if (ret) {
-         QAL_ERR(LOG_TAG, "could not get stream attributes\n");
+         PAL_ERR(LOG_TAG, "could not get stream attributes\n");
         return ret;
     }
 
@@ -1120,10 +1120,10 @@ int SessionAlsaVoice::setVoiceMixerParameter(Stream * s, struct mixer *mixer,
     }
     snprintf(mixer_str, ctl_len, "%s %s", stream, control);
 
-    QAL_VERBOSE(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    PAL_VERBOSE(LOG_TAG, "- mixer -%s-\n", mixer_str);
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
     if (!ctl) {
-        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
         free(mixer_str);
         return ENOENT;
     }
@@ -1131,14 +1131,14 @@ int SessionAlsaVoice::setVoiceMixerParameter(Stream * s, struct mixer *mixer,
 
     ret = mixer_ctl_set_array(ctl, payload, size);
 
-    QAL_VERBOSE(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
+    PAL_VERBOSE(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
     free(mixer_str);
     return ret;
 }
 
 char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
     char *stream = (char*)"VOICEMMODE1p";
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
 
     s->getStreamAttributes(&sAttr);
     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
@@ -1169,22 +1169,22 @@ int SessionAlsaVoice::getTXDeviceId(Stream *s, int *id)
     int status = 0;
     int i;
     std::vector<std::shared_ptr<Device>> associatedDevices;
-    *id = QAL_DEVICE_NONE;
+    *id = PAL_DEVICE_NONE;
 
     status = s->getAssociatedDevices(associatedDevices);
     if(0 != status) {
-        QAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
+        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed");
         return status;
     }
 
     for (i =0; i < associatedDevices.size(); i++) {
-        if (associatedDevices[i]->getSndDeviceId() > QAL_DEVICE_IN_MIN &&
-            associatedDevices[i]->getSndDeviceId() < QAL_DEVICE_IN_MAX) {
+        if (associatedDevices[i]->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+            associatedDevices[i]->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
             *id = associatedDevices[i]->getSndDeviceId();
             break;
         }
     }
-    if(i >= QAL_DEVICE_IN_MAX){
+    if(i >= PAL_DEVICE_IN_MAX){
         status = -EINVAL;
     }
     return status;

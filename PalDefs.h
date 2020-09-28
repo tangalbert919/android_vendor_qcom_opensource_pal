@@ -1,0 +1,1046 @@
+/*
+ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors may be used to endorse or promote products derived
+ *       from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/** \file pal_defs.h
+ *  \brief struture, enum constant defintions of the
+ *         PAL(Platform Audio Layer).
+ *
+ *  This file contains macros, constants, or global variables
+ *  exposed to the client of PAL(Platform Audio Layer).
+ */
+
+#ifndef PAL_DEFS_H
+#define PAL_DEFS_H
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+#ifdef __cplusplus
+
+#include <map>
+#include <string>
+
+extern "C" {
+#endif
+
+#define MIXER_PATH_MAX_LENGTH 100
+#define PAL_MAX_CHANNELS_SUPPORTED 64
+
+/** Audio stream handle */
+typedef uint64_t pal_stream_handle_t;
+
+/** Sound Trigger handle */
+typedef void pal_st_handle_t;
+
+/** PAL Audio format enumeration */
+typedef enum {
+    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
+    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,            /**< Default Compressed*/
+    PAL_AUDIO_FMT_MP3 = PAL_AUDIO_FMT_DEFAULT_COMPRESSED,
+    PAL_AUDIO_FMT_AAC = 0x3,
+    PAL_AUDIO_FMT_AAC_ADTS = 0x4,
+    PAL_AUDIO_FMT_AAC_ADIF = 0x5,
+    PAL_AUDIO_FMT_AAC_LATM = 0x6,
+    PAL_AUDIO_FMT_WMA_STD = 0x7,
+    PAL_AUDIO_FMT_ALAC = 0x8,
+    PAL_AUDIO_FMT_APE = 0x9,
+    PAL_AUDIO_FMT_WMA_PRO = 0xA,
+    PAL_AUDIO_FMT_FLAC = 0xB,
+    PAL_AUDIO_FMT_FLAC_OGG = 0xC,
+    PAL_AUDIO_FMT_VORBIS = 0xD,
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
+} pal_audio_fmt_t;
+
+#define PCM_24_BIT_PACKED (0x6u)
+#define PCM_32_BIT (0x3u)
+#define PCM_16_BIT (0x1u)
+
+#define SAMPLE_RATE_192000 192000
+
+#ifdef __cplusplus
+static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
+{
+    { "PCM",  PAL_AUDIO_FMT_DEFAULT_PCM},
+    { "MP3",  PAL_AUDIO_FMT_MP3},
+    { "AAC",  PAL_AUDIO_FMT_AAC},
+    { "AAC_ADTS",  PAL_AUDIO_FMT_AAC_ADTS},
+    { "AAC_ADIF",  PAL_AUDIO_FMT_AAC_ADIF},
+    { "AAC_LATM",  PAL_AUDIO_FMT_AAC_LATM},
+    { "WMA_STD",  PAL_AUDIO_FMT_WMA_STD},
+    { "ALAC", PAL_AUDIO_FMT_ALAC},
+    { "APE", PAL_AUDIO_FMT_APE},
+    { "WMA_PRO", PAL_AUDIO_FMT_WMA_PRO},
+    { "FLAC", PAL_AUDIO_FMT_FLAC},
+    { "FLAC_OGG", PAL_AUDIO_FMT_FLAC_OGG},
+    { "VORBIS", PAL_AUDIO_FMT_VORBIS}
+
+};
+#endif
+
+struct pal_snd_dec_aac {
+    uint16_t audio_obj_type;
+    uint16_t pce_bits_size;
+};
+
+struct pal_snd_dec_wma {
+    uint32_t fmt_tag;
+    uint32_t super_block_align;
+    uint32_t bits_per_sample;
+    uint32_t channelmask;
+    uint32_t encodeopt;
+    uint32_t encodeopt1;
+    uint32_t encodeopt2;
+    uint32_t avg_bit_rate;
+};
+
+struct pal_snd_dec_alac {
+    uint32_t frame_length;
+    uint8_t compatible_version;
+    uint8_t bit_depth;
+    uint8_t pb;
+    uint8_t mb;
+    uint8_t kb;
+    uint8_t num_channels;
+    uint16_t max_run;
+    uint32_t max_frame_bytes;
+    uint32_t avg_bit_rate;
+    uint32_t sample_rate;
+    uint32_t channel_layout_tag;
+};
+
+struct pal_snd_dec_ape {
+    uint16_t compatible_version;
+    uint16_t compression_level;
+    uint32_t format_flags;
+    uint32_t blocks_per_frame;
+    uint32_t final_frame_blocks;
+    uint32_t total_frames;
+    uint16_t bits_per_sample;
+    uint16_t num_channels;
+    uint32_t sample_rate;
+    uint32_t seek_table_present;
+};
+
+struct pal_snd_dec_flac {
+    uint16_t sample_size;
+    uint16_t min_blk_size;
+    uint16_t max_blk_size;
+    uint16_t min_frame_size;
+    uint16_t max_frame_size;
+};
+
+struct pal_snd_dec_vorbis {
+    uint32_t bit_stream_fmt;
+};
+
+typedef struct pal_key_value_pair_s {
+    uint32_t key; /**< key */
+    uint32_t value; /**< value */
+} pal_key_value_pair_t;
+
+typedef struct pal_key_vector_s {
+    size_t num_tkvs;  /**< number of key value pairs */
+    pal_key_value_pair_t kvp[];  /**< vector of key value pairs */
+} pal_key_vector_t;
+
+typedef enum {
+    PARAM_NONTKV,
+    PARAM_TKV,
+} pal_param_type_t;
+
+typedef struct pal_effect_custom_payload_s {
+    uint32_t paramId;
+    uint32_t data[];
+} pal_effect_custom_payload_t;
+
+typedef struct effect_pal_payload_s {
+    pal_param_type_t isTKV;      /* payload type: 0->non-tkv 1->tkv*/
+    uint32_t tag;
+    uint32_t  payloadSize;
+    uint32_t  payload[]; /* TKV uses pal_key_vector_t, while nonTKV uses pal_effect_custom_payload_t */
+} effect_pal_payload_t;
+
+/* Type of Modes for Speaker Protection */
+typedef enum {
+    PAL_SP_MODE_DYNAMIC_CAL = 1,
+    PAL_SP_MODE_FACTORY_TEST,
+    PAL_SP_MODE_V_VALIDATION,
+} pal_spkr_prot_mode;
+
+/* Payload For ID: PAL_PARAM_ID_SP_SET_MODE
+ * Description   : Values for Speaker protection modes
+ */
+typedef struct pal_spkr_prot_payload {
+    uint32_t spkrHeatupTime;         /* Wait time in mili seconds to heat up the
+                                      * speaker before collecting statistics  */
+
+    uint32_t operationModeRunTime;   /* Time period in  milli seconds when
+                                      * statistics are collected */
+
+    pal_spkr_prot_mode operationMode;/* Type of mode for which request is raised */
+} pal_spkr_prot_payload;
+
+typedef enum {
+    GEF_PARAM_READ = 0,
+    GEF_PARAM_WRITE,
+} gef_param_rw_t;
+
+/** Audio parameter data*/
+typedef union {
+    struct pal_snd_dec_aac aac_dec;
+    struct pal_snd_dec_wma wma_dec;
+    struct pal_snd_dec_alac alac_dec;
+    struct pal_snd_dec_ape ape_dec;
+    struct pal_snd_dec_flac flac_dec;
+    struct pal_snd_dec_vorbis vorbis_dec;
+} pal_snd_dec_t;
+
+/** Audio parameter data*/
+typedef struct pal_param_payload_s {
+    uint32_t payload_size;
+    uint8_t payload[];
+} pal_param_payload;
+
+typedef struct gef_payload_s {
+    pal_key_vector_t *graph;
+    bool persist;
+    effect_pal_payload_t data;
+} gef_payload_t;
+
+/** Audio channel map enumeration*/
+typedef enum {
+    PAL_CHMAP_CHANNEL_FL = 1,               /**< Front right channel. */
+    PAL_CHMAP_CHANNEL_FR = 2,               /**< Front center channel. */
+    PAL_CHMAP_CHANNEL_C = 3,                /**< Left surround channel. */
+    PAL_CHMAP_CHANNEL_LS = 4,               /** Right surround channel. */
+    PAL_CHMAP_CHANNEL_RS = 5,               /** Low frequency effect channel. */
+    PAL_CHMAP_CHANNEL_LFE = 6,              /** Center surround channel; */
+    PAL_CHMAP_CHANNEL_RC = 7,               /**< rear center channel. */
+    PAL_CHMAP_CHANNEL_LB = 8,               /**< rear left channel. */
+    PAL_CHMAP_CHANNEL_RB = 9,               /**<  rear right channel. */
+    PAL_CHMAP_CHANNEL_TS = 10,              /**< Top surround channel. */
+    PAL_CHMAP_CHANNEL_TFC = 11,             /**< Top front center channel. or Center vertical height channel.*/
+    PAL_CHMAP_CHANNEL_MS = 12,              /**< Mono surround channel. */
+    PAL_CHMAP_CHANNEL_FLC = 13,             /**< Front left of center channel. */
+    PAL_CHMAP_CHANNEL_FRC = 14,             /**< Front right of center channel. */
+    PAL_CHMAP_CHANNEL_RLC = 15,             /**< Rear left of center channel. */
+    PAL_CHMAP_CHANNEL_RRC = 16,             /**< Rear right of center channel. */
+    PAL_CHMAP_CHANNEL_LFE2 = 17,            /**< Secondary low frequency effect channel. */
+    PAL_CHMAP_CHANNEL_SL = 18,              /**< Side left channel. */
+    PAL_CHMAP_CHANNEL_SR = 19,              /**< Side right channel. */
+    PAL_CHMAP_CHANNEL_TFL = 20,             /**< Top front left channel or Left vertical height channel */
+    PAL_CHMAP_CHANNEL_TFR = 21,             /**< Top front right channel or Right vertical height channel. */
+    PAL_CHMAP_CHANNEL_TC = 22,              /**< Top center channel. */
+    PAL_CHMAP_CHANNEL_TBL = 23,             /**< Top back left channel. */
+    PAL_CHMAP_CHANNEL_TBR = 24,             /**< Top back right channel. */
+    PAL_CHMAP_CHANNEL_TSL = 25,             /**< Top side left channel. */
+    PAL_CHMAP_CHANNEL_TSR = 26,             /**< Top side right channel. */
+    PAL_CHMAP_CHANNEL_TBC = 27,             /**< Top back center channel. */
+    PAL_CHMAP_CHANNEL_BFC = 28,             /**< Bottom front center channel. */
+    PAL_CHMAP_CHANNEL_BFL = 29,             /**< Bottom front left channel. */
+    PAL_CHMAP_CHANNEL_BFR = 30,             /**< Bottom front right channel. */
+    PAL_CHMAP_CHANNEL_LW = 31,              /**< Left wide channel. */
+    PAL_CHMAP_CHANNEL_RW = 32,              /**< Right wide channel. */
+    PAL_CHMAP_CHANNEL_LSD = 33,             /**< Left side direct channel. */
+    PAL_CHMAP_CHANNEL_RSD = 34,             /**< Left side direct channel. */
+} pal_channel_map;
+
+/** Audio channel info data structure */
+struct pal_channel_info {
+    uint16_t channels;      /**< number of channels*/
+    uint8_t  ch_map[PAL_MAX_CHANNELS_SUPPORTED]; /**< ch_map value per channel. */
+};
+
+/** Audio stream direction enumeration */
+typedef enum {
+    PAL_AUDIO_OUTPUT        = 0x1, /**< playback usecases*/
+    PAL_AUDIO_INPUT         = 0x2, /**< capture/voice activation usecases*/
+    PAL_AUDIO_INPUT_OUTPUT  = 0x3, /**< transcode usecases*/
+} pal_stream_direction_t;
+
+/** Audio Voip TX Effect enumeration */
+typedef enum {
+    PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation*/
+    PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression*/
+    PAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
+} pal_audio_effect_t;
+
+/** Audio stream types */
+typedef enum {
+    PAL_STREAM_LOW_LATENCY = 1,           /**< :low latency, higher power*/
+    PAL_STREAM_DEEP_BUFFER = 2,           /**< :low power, higher latency*/
+    PAL_STREAM_COMPRESSED = 3,            /**< :compresssed audio*/
+    PAL_STREAM_VOIP = 4,                  /**< :pcm voip audio*/
+    PAL_STREAM_VOIP_RX = 5,               /**< :pcm voip audio downlink*/
+    PAL_STREAM_VOIP_TX = 6,               /**< :pcm voip audio uplink*/
+    PAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
+    PAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
+    PAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
+    PAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    PAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
+    PAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
+    PAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
+    PAL_STREAM_VOICE_CALL = 14,           /**< voice call */
+    PAL_STREAM_LOOPBACK = 15,             /**< loopback */
+    PAL_STREAM_TRANSCODE = 16,            /**< audio transcode */
+    PAL_STREAM_VOICE_UI = 17,             /**< voice ui */
+    PAL_STREAM_PCM_OFFLOAD = 18,          /**< pcm offload audio */
+    PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
+    PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
+} pal_stream_type_t;
+
+/** Audio devices available for enabling streams */
+typedef enum {
+    //OUTPUT DEVICES
+    PAL_DEVICE_OUT_MIN = 0,
+    PAL_DEVICE_NONE = 1, /**< for transcode usecases*/
+    PAL_DEVICE_OUT_HANDSET = 2,
+    PAL_DEVICE_OUT_SPEAKER = 3,
+    PAL_DEVICE_OUT_WIRED_HEADSET = 4,
+    PAL_DEVICE_OUT_WIRED_HEADPHONE = 5, /**< Wired headphones without mic*/
+    PAL_DEVICE_OUT_LINE = 6,
+    PAL_DEVICE_OUT_BLUETOOTH_SCO = 7,
+    PAL_DEVICE_OUT_BLUETOOTH_A2DP = 8,
+    PAL_DEVICE_OUT_AUX_DIGITAL = 9,
+    PAL_DEVICE_OUT_HDMI = 10,
+    PAL_DEVICE_OUT_USB_DEVICE = 11,
+    PAL_DEVICE_OUT_USB_HEADSET = 12,
+    PAL_DEVICE_OUT_SPDIF = 13,
+    PAL_DEVICE_OUT_FM = 14,
+    PAL_DEVICE_OUT_AUX_LINE = 15,
+    PAL_DEVICE_OUT_PROXY = 16,
+    PAL_DEVICE_OUT_AUX_DIGITAL_1 = 17,
+    // Add new OUT devices here, increment MAX and MIN below when you do so
+    PAL_DEVICE_OUT_MAX = 18,
+    //INPUT DEVICES
+    PAL_DEVICE_IN_MIN = PAL_DEVICE_OUT_MAX,
+    PAL_DEVICE_IN_HANDSET_MIC = PAL_DEVICE_IN_MIN +1,
+    PAL_DEVICE_IN_SPEAKER_MIC = PAL_DEVICE_IN_MIN + 2,
+    PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET = PAL_DEVICE_IN_MIN + 3,
+    PAL_DEVICE_IN_WIRED_HEADSET = PAL_DEVICE_IN_MIN + 4,
+    PAL_DEVICE_IN_AUX_DIGITAL = PAL_DEVICE_IN_MIN + 5,
+    PAL_DEVICE_IN_HDMI = PAL_DEVICE_IN_MIN + 6,
+    PAL_DEVICE_IN_USB_ACCESSORY = PAL_DEVICE_IN_MIN + 7,
+    PAL_DEVICE_IN_USB_DEVICE = PAL_DEVICE_IN_MIN + 8,
+    PAL_DEVICE_IN_USB_HEADSET = PAL_DEVICE_IN_MIN + 9,
+    PAL_DEVICE_IN_FM_TUNER = PAL_DEVICE_IN_MIN + 10,
+    PAL_DEVICE_IN_LINE = PAL_DEVICE_IN_MIN + 11,
+    PAL_DEVICE_IN_SPDIF = PAL_DEVICE_IN_MIN + 12,
+    PAL_DEVICE_IN_PROXY = PAL_DEVICE_IN_MIN + 13,
+    PAL_DEVICE_IN_HANDSET_VA_MIC = PAL_DEVICE_IN_MIN + 14,
+    PAL_DEVICE_IN_BLUETOOTH_A2DP = PAL_DEVICE_IN_MIN + 15,
+    PAL_DEVICE_IN_HEADSET_VA_MIC = PAL_DEVICE_IN_MIN + 16,
+    PAL_DEVICE_IN_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 17,
+    // Add new IN devices here, increment MAX and MIN below when you do so
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 18,
+} pal_device_id_t;
+
+#ifdef __cplusplus
+static const std::map<std::string, pal_device_id_t> deviceIdLUT {
+    {std::string{ "PAL_DEVICE_OUT_MIN" },                  PAL_DEVICE_OUT_MIN},
+    {std::string{ "PAL_DEVICE_NONE" },                     PAL_DEVICE_NONE},
+    {std::string{ "PAL_DEVICE_OUT_HANDSET" },              PAL_DEVICE_OUT_HANDSET},
+    {std::string{ "PAL_DEVICE_OUT_SPEAKER" },              PAL_DEVICE_OUT_SPEAKER},
+    {std::string{ "PAL_DEVICE_OUT_WIRED_HEADSET" },        PAL_DEVICE_OUT_WIRED_HEADSET},
+    {std::string{ "PAL_DEVICE_OUT_WIRED_HEADPHONE" },      PAL_DEVICE_OUT_WIRED_HEADPHONE},
+    {std::string{ "PAL_DEVICE_OUT_LINE" },                 PAL_DEVICE_OUT_LINE},
+    {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_SCO" },        PAL_DEVICE_OUT_BLUETOOTH_SCO},
+    {std::string{ "PAL_DEVICE_OUT_BLUETOOTH_A2DP" },       PAL_DEVICE_OUT_BLUETOOTH_A2DP},
+    {std::string{ "PAL_DEVICE_OUT_AUX_DIGITAL" },          PAL_DEVICE_OUT_AUX_DIGITAL},
+    {std::string{ "PAL_DEVICE_OUT_HDMI" },                 PAL_DEVICE_OUT_HDMI},
+    {std::string{ "PAL_DEVICE_OUT_USB_DEVICE" },           PAL_DEVICE_OUT_USB_DEVICE},
+    {std::string{ "PAL_DEVICE_OUT_USB_HEADSET" },          PAL_DEVICE_OUT_USB_HEADSET},
+    {std::string{ "PAL_DEVICE_OUT_SPDIF" },                PAL_DEVICE_OUT_SPDIF},
+    {std::string{ "PAL_DEVICE_OUT_FM" },                   PAL_DEVICE_OUT_FM},
+    {std::string{ "PAL_DEVICE_OUT_AUX_LINE" },             PAL_DEVICE_OUT_AUX_LINE},
+    {std::string{ "PAL_DEVICE_OUT_PROXY" },                PAL_DEVICE_OUT_PROXY},
+    {std::string{ "PAL_DEVICE_OUT_AUX_DIGITAL_1" },        PAL_DEVICE_OUT_AUX_DIGITAL_1},
+    {std::string{ "PAL_DEVICE_OUT_MAX" },                  PAL_DEVICE_OUT_MAX},
+    {std::string{ "PAL_DEVICE_IN_HANDSET_MIC" },           PAL_DEVICE_IN_HANDSET_MIC},
+    {std::string{ "PAL_DEVICE_IN_SPEAKER_MIC" },           PAL_DEVICE_IN_SPEAKER_MIC},
+    {std::string{ "PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET" }, PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET},
+    {std::string{ "PAL_DEVICE_IN_WIRED_HEADSET" },         PAL_DEVICE_IN_WIRED_HEADSET},
+    {std::string{ "PAL_DEVICE_IN_AUX_DIGITAL" },           PAL_DEVICE_IN_AUX_DIGITAL},
+    {std::string{ "PAL_DEVICE_IN_HDMI" },                  PAL_DEVICE_IN_HDMI},
+    {std::string{ "PAL_DEVICE_IN_USB_ACCESSORY" },         PAL_DEVICE_IN_USB_ACCESSORY},
+    {std::string{ "PAL_DEVICE_IN_USB_DEVICE" },            PAL_DEVICE_IN_USB_DEVICE},
+    {std::string{ "PAL_DEVICE_IN_USB_HEADSET" },           PAL_DEVICE_IN_USB_HEADSET},
+    {std::string{ "PAL_DEVICE_IN_FM_TUNER" },              PAL_DEVICE_IN_FM_TUNER},
+    {std::string{ "PAL_DEVICE_IN_LINE" },                  PAL_DEVICE_IN_LINE},
+    {std::string{ "PAL_DEVICE_IN_SPDIF" },                 PAL_DEVICE_IN_SPDIF},
+    {std::string{ "PAL_DEVICE_IN_PROXY" },                 PAL_DEVICE_IN_PROXY},
+    {std::string{ "PAL_DEVICE_IN_HANDSET_VA_MIC" },        PAL_DEVICE_IN_HANDSET_VA_MIC},
+    {std::string{ "PAL_DEVICE_IN_BLUETOOTH_A2DP" },        PAL_DEVICE_IN_BLUETOOTH_A2DP},
+    {std::string{ "PAL_DEVICE_IN_HEADSET_VA_MIC" },        PAL_DEVICE_IN_HEADSET_VA_MIC},
+    {std::string{ "PAL_DEVICE_IN_VI_FEEDBACK" },           PAL_DEVICE_IN_VI_FEEDBACK}
+};
+
+//reverse mapping
+static const std::map<uint32_t, std::string> deviceNameLUT {
+    {PAL_DEVICE_OUT_MIN,                  std::string{"PAL_DEVICE_OUT_MIN"}},
+    {PAL_DEVICE_NONE,                     std::string{"PAL_DEVICE_NONE"}},
+    {PAL_DEVICE_OUT_HANDSET,              std::string{"PAL_DEVICE_OUT_HANDSET"}},
+    {PAL_DEVICE_OUT_SPEAKER,              std::string{"PAL_DEVICE_OUT_SPEAKER"}},
+    {PAL_DEVICE_OUT_WIRED_HEADSET,        std::string{"PAL_DEVICE_OUT_WIRED_HEADSET"}},
+    {PAL_DEVICE_OUT_WIRED_HEADPHONE,      std::string{"PAL_DEVICE_OUT_WIRED_HEADPHONE"}},
+    {PAL_DEVICE_OUT_LINE,                 std::string{"PAL_DEVICE_OUT_LINE"}},
+    {PAL_DEVICE_OUT_BLUETOOTH_SCO,        std::string{"PAL_DEVICE_OUT_BLUETOOTH_SCO"}},
+    {PAL_DEVICE_OUT_BLUETOOTH_A2DP,       std::string{"PAL_DEVICE_OUT_BLUETOOTH_A2DP"}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL,          std::string{"PAL_DEVICE_OUT_AUX_DIGITAL"}},
+    {PAL_DEVICE_OUT_HDMI,                 std::string{"PAL_DEVICE_OUT_HDMI"}},
+    {PAL_DEVICE_OUT_USB_DEVICE,           std::string{"PAL_DEVICE_OUT_USB_DEVICE"}},
+    {PAL_DEVICE_OUT_USB_HEADSET,          std::string{"PAL_DEVICE_OUT_USB_HEADSET"}},
+    {PAL_DEVICE_OUT_SPDIF,                std::string{"PAL_DEVICE_OUT_SPDIF"}},
+    {PAL_DEVICE_OUT_FM,                   std::string{"PAL_DEVICE_OUT_FM"}},
+    {PAL_DEVICE_OUT_AUX_LINE,             std::string{"PAL_DEVICE_OUT_AUX_LINE"}},
+    {PAL_DEVICE_OUT_PROXY,                std::string{"PAL_DEVICE_OUT_PROXY"}},
+    {PAL_DEVICE_OUT_AUX_DIGITAL_1,        std::string{"PAL_DEVICE_OUT_AUX_DIGITAL_1"}},
+    {PAL_DEVICE_OUT_MAX,                  std::string{"PAL_DEVICE_OUT_MAX"}},
+    {PAL_DEVICE_IN_HANDSET_MIC,           std::string{"PAL_DEVICE_IN_HANDSET_MIC"}},
+    {PAL_DEVICE_IN_SPEAKER_MIC,           std::string{"PAL_DEVICE_IN_SPEAKER_MIC"}},
+    {PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET, std::string{"PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET"}},
+    {PAL_DEVICE_IN_WIRED_HEADSET,         std::string{"PAL_DEVICE_IN_WIRED_HEADSET"}},
+    {PAL_DEVICE_IN_AUX_DIGITAL,           std::string{"PAL_DEVICE_IN_AUX_DIGITAL"}},
+    {PAL_DEVICE_IN_HDMI,                  std::string{"PAL_DEVICE_IN_HDMI"}},
+    {PAL_DEVICE_IN_USB_ACCESSORY,         std::string{"PAL_DEVICE_IN_USB_ACCESSORY"}},
+    {PAL_DEVICE_IN_USB_DEVICE,            std::string{"PAL_DEVICE_IN_USB_DEVICE"}},
+    {PAL_DEVICE_IN_USB_HEADSET,           std::string{"PAL_DEVICE_IN_USB_HEADSET"}},
+    {PAL_DEVICE_IN_FM_TUNER,              std::string{"PAL_DEVICE_IN_FM_TUNER"}},
+    {PAL_DEVICE_IN_LINE,                  std::string{"PAL_DEVICE_IN_LINE"}},
+    {PAL_DEVICE_IN_SPDIF,                 std::string{"PAL_DEVICE_IN_SPDIF"}},
+    {PAL_DEVICE_IN_PROXY,                 std::string{"PAL_DEVICE_IN_PROXY"}},
+    {PAL_DEVICE_IN_HANDSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HANDSET_VA_MIC"}},
+    {PAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"PAL_DEVICE_IN_BLUETOOTH_A2DP"}},
+    {PAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HEADSET_VA_MIC"}},
+    {PAL_DEVICE_IN_VI_FEEDBACK,           std::string{"PAL_DEVICE_IN_VI_FEEDBACK"}}
+};
+#endif
+
+
+/* type of asynchronous write callback events. Mutually exclusive */
+typedef enum {
+    PAL_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
+    PAL_STREAM_CBK_EVENT_DRAIN_READY,  /* drain completed */
+    PAL_STREAM_CBK_EVENT_ERROR, /* stream hit some error, let AF take action */
+} pal_stream_callback_event_t;
+
+/* type of global callback events. */
+typedef enum {
+    PAL_SND_CARD_STATE,
+} pal_global_callback_event_t;
+
+typedef enum {
+    PAL_STREAM_LOOPBACK_PCM,
+    PAL_STREAM_LOOPBACK_HFP_RX,
+    PAL_STREAM_LOOPBACK_HFP_TX,
+    PAL_STREAM_LOOPBACK_COMPRESS,
+} pal_stream_loopback_type_t;
+
+typedef enum {
+    PAL_STREAM_PROXY_TX_VISUALIZER,
+    PAL_STREAM_PROXY_TX_WFD,
+} pal_stream_proxy_tx_type_t;
+
+struct pal_stream_info {
+    int64_t version;                    /** version of structure*/
+    int64_t size;                       /** size of structure*/
+    int64_t duration_us;                /** duration in microseconds, -1 if unknown */
+    bool has_video;                     /** optional, true if stream is tied to a video stream */
+    bool is_streaming;                  /** true if streaming, false if local playback */
+    int32_t loopback_type;              /** used only if stream_type is LOOPBACK. One of the */
+                                        /** enums defined in enum pal_stream_loopback_type */
+    int32_t tx_proxy_type;   /** enums defined in enum pal_stream_proxy_tx_types */
+    //pal_audio_attributes_t usage;       /** Not sure if we make use of this */
+};
+
+typedef enum {
+    INCALL_RECORD_VOICE_UPLINK = 1,
+    INCALL_RECORD_VOICE_DOWNLINK,
+    INCALL_RECORD_VOICE_UPLINK_DOWNLINK,
+} pal_incall_record_direction;
+
+struct pal_voice_record_info {
+    int64_t version;                    /** version of structure*/
+    int64_t size;                       /** size of structure*/
+    pal_incall_record_direction record_direction;         /** use direction enum to indicate content to be record */
+};
+
+struct pal_voice_call_info {
+     uint32_t VSID;
+     uint32_t tty_mode;
+};
+
+typedef enum {
+    VOICEMMODE1 = 0x11C05000,
+    VOICEMMODE2 = 0x11DC5000,
+    VOICELBMMODE1 = 0x12006000,
+    VOICELBMMODE2 = 0x121C6000,
+}pal_VSID_t;
+
+typedef enum {
+    PAL_TTY_OFF = 0,
+    PAL_TTY_HCO = 1,
+    PAL_TTY_VCO = 2,
+    PAL_TTY_FULL = 3,
+}pal_tty_t;
+
+typedef union {
+    struct pal_stream_info opt_stream_info; /* optional */
+    struct pal_voice_record_info voice_rec_info; /* mandatory */
+    struct pal_voice_call_info voice_call_info; /* manatory for voice call*/
+} pal_stream_info_t;
+
+/** Media configuraiton */
+struct pal_media_config {
+    uint32_t sample_rate;                /**< sample rate */
+    uint32_t bit_width;                  /**< bit width */
+    pal_audio_fmt_t aud_fmt_id;          /**< audio format id*/
+    struct pal_channel_info ch_info;    /**< channel info */
+};
+
+/** Android Media configuraiton  */
+typedef struct dynamic_media_config {
+    uint32_t sample_rate;                /**< sample rate */
+    uint32_t format;                     /**< format */
+    uint32_t mask;                       /**< channel mask */
+} dynamic_media_config_t;
+
+/**  Available stream flags of an audio session*/
+typedef enum {
+    PAL_STREAM_FLAG_TIMESTAMP       = 0x1,  /**< Enable time stamps associated to audio buffers  */
+    PAL_STREAM_FLAG_NON_BLOCKING    = 0x2,  /**< Stream IO operations are non blocking */
+    PAL_STREAM_FLAG_MMAP            = 0x4,  /**< Stream Mode should be in MMAP*/
+    PAL_STREAM_FLAG_MMAP_NO_IRQ     = 0x8,  /**< Stream Mode should be No IRQ */
+} pal_stream_flags_t;
+
+#define PAL_STREAM_FLAG_NON_BLOCKING_MASK 0x2
+#define PAL_STREAM_FLAG_MMAP_MASK 0x4
+#define PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK 0x8
+
+/**< PAL stream attributes to be specified, used in pal_stream_open cmd */
+struct pal_stream_attributes {
+    pal_stream_type_t type;                      /**<  stream type */
+    pal_stream_info_t info;                      /**<  stream info */
+    pal_stream_flags_t flags;                    /**<  stream flags */
+    pal_stream_direction_t direction;            /**<  direction of the streams */
+    struct pal_media_config in_media_config;     /**<  media config of the input audio samples */
+    struct pal_media_config out_media_config;    /**<  media config of the output audio samples */
+};
+
+/**< Key value pair to identify the topology of a usecase from default  */
+struct modifier_kv  {
+    uint32_t key;
+    uint32_t value;
+};
+
+/** Metadata flags */
+enum {
+    PAL_META_DATA_FLAGS_NONE = 0,
+};
+
+/** metadata flags, can be OR'able */
+typedef uint32_t pal_meta_data_flags_t;
+
+typedef struct pal_meta_data {
+    size_t payload_size;
+    uint8_t payload[];
+} pal_meta_data_t;
+
+/** PAL buffer structure used for reading/writing buffers from/to the stream */
+struct pal_buffer {
+    void *buffer;                  /**<  buffer pointer */
+    size_t size;                   /**< number of bytes */
+    size_t offset;                 /**< offset in buffer from where valid byte starts */
+    struct timespec *ts;           /**< timestmap */
+    pal_meta_data_flags_t flags;   /**< meta data flags */
+    struct pal_meta_data metadata;   /**< meta data flags */
+};
+
+
+/** pal_mmap_buffer flags */
+enum {
+    PAL_MMMAP_BUFF_FLAGS_NONE = 0,
+    /**
+    * Only set this flag if applications can access the audio buffer memory
+    * shared with the backend (usually DSP) _without_ security issue.
+    *
+    * Setting this flag also implies that Binder will allow passing the shared memory FD
+    * to applications.
+    *
+    * That usually implies that the kernel will prevent any access to the
+    * memory surrounding the audio buffer as it could lead to a security breach.
+    *
+    * For example, a "/dev/snd/" file descriptor generally is not shareable,
+    * but an "anon_inode:dmabuffer" file descriptor is shareable.
+    * See also Linux kernel's dma_buf.
+    *
+    */
+    PAL_MMMAP_BUFF_FLAGS_APP_SHAREABLE = 1,
+};
+
+/** pal_mmap_buffer flags, can be OR'able */
+typedef uint32_t pal_mmap_buffer_flags_t;
+
+/** PAL buffer structure used for reading/writing buffers from/to the stream */
+struct pal_mmap_buffer {
+    void*    buffer;                /**< base address of mmap memory buffer,
+                                         for use by local proces only */
+    int32_t  fd;                    /**< fd for mmap memory buffer */
+    uint32_t buffer_size_frames;    /**< total buffer size in frames */
+    uint32_t burst_size_frames;     /**< transfer size granularity in frames */
+    pal_mmap_buffer_flags_t flags;  /**< Attributes describing the buffer. */
+};
+
+ /**
+ * Mmap buffer read/write position returned by GetMmapPosition.
+ * note\ Used by streams opened in mmap mode.
+ */
+struct pal_mmap_position {
+    int64_t  time_nanoseconds; /**< timestamp in ns, CLOCK_MONOTONIC */
+    int32_t  position_frames;  /**< increasing 32 bit frame count reset when stop()
+                                    is called */
+};
+
+/** channel mask and volume pair */
+struct pal_channel_vol_kv {
+    uint32_t channel_mask;       /**< channel mask */
+    float vol;                   /**< gain of the channel mask */
+};
+
+/** Volume data strucutre defintion used as argument for volume command */
+struct pal_volume_data {
+    uint32_t no_of_volpair;                       /**< no of volume pairs*/
+    struct pal_channel_vol_kv volume_pair[];     /**< channel mask and volume pair */
+};
+
+struct pal_time_us {
+    uint32_t value_lsw;   /** Lower 32 bits of 64 bit time value in microseconds */
+    uint32_t value_msw;   /** Upper 32 bits of 64 bit time value in microseconds */
+};
+
+/** Timestamp strucutre defintion used as argument for
+ *  gettimestamp api */
+struct pal_session_time {
+    struct pal_time_us session_time;   /** Value of the current session time in microseconds */
+    struct pal_time_us absolute_time;  /** Value of the absolute time in microseconds */
+    struct pal_time_us timestamp;      /** Value of the last processed time stamp in microseconds */
+};
+
+/** EVENT configurations data strucutre defintion used as
+ *  argument for mute command */
+//typedef union {
+//} pal_event_cfg_t;
+
+/** event id of the event generated*/
+typedef uint32_t pal_event_id;
+
+typedef enum {
+    /** request notification when all accumlated data has be
+     *  drained.*/
+    PAL_DRAIN,
+    /** request notification when drain completes shortly before all
+     *  accumlated data of the current track has been played out */
+    PAL_DRAIN_PARTIAL,
+} pal_drain_type_t;
+
+typedef enum {
+    PAL_PARAM_ID_LOAD_SOUND_MODEL = 0,
+    PAL_PARAM_ID_RECOGNITION_CONFIG = 1,
+    PAL_PARAM_ID_FLUENCE_ON_OFF = 2,
+    PAL_PARAM_ID_DIRECTION_OF_ARRIVAL = 3,
+    PAL_PARAM_ID_UIEFFECT = 4,
+    PAL_PARAM_ID_STOP_BUFFERING = 5,
+    PAL_PARAM_ID_CODEC_CONFIGURATION = 6,
+    /* Non-Stream Specific Parameters*/
+    PAL_PARAM_ID_DEVICE_CONNECTION = 7,
+    PAL_PARAM_ID_SCREEN_STATE = 8,
+    PAL_PARAM_ID_CHARGING_STATE = 9,
+    PAL_PARAM_ID_DEVICE_ROTATION = 10,
+    PAL_PARAM_ID_BT_SCO = 11,
+    PAL_PARAM_ID_BT_SCO_WB = 12,
+    PAL_PARAM_ID_BT_SCO_SWB = 13,
+    PAL_PARAM_ID_BT_A2DP_RECONFIG = 14,
+    PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED = 15,
+    PAL_PARAM_ID_BT_A2DP_SUSPENDED = 16,
+    PAL_PARAM_ID_BT_A2DP_TWS_CONFIG = 17,
+    PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY = 18,
+    PAL_PARAM_ID_DEVICE_CAPABILITY = 19,
+    PAL_PARAM_ID_GET_SOUND_TRIGGER_PROPERTIES = 20,
+    PAL_PARAM_ID_TTY_MODE = 21,
+    PAL_PARAM_ID_VOLUME_BOOST = 22,
+    PAL_PARAM_ID_SLOW_TALK = 23,
+    PAL_PARAM_ID_SPEAKER_RAS = 24,
+    PAL_PARAM_ID_SP_SET_MODE = 25,
+}pal_param_id_type_t;
+
+/** HDMI/DP */
+// START: MST ==================================================
+#define MAX_CONTROLLERS 1
+#define MAX_STREAMS_PER_CONTROLLER 2
+// END: MST ==================================================
+
+/** Audio parameter data*/
+
+struct pal_param_disp_port_config_params {
+    int controller;
+    int stream;
+};
+
+struct pal_usb_device_address {
+    int card_id;
+    int device_num;
+};
+
+typedef union {
+    struct pal_param_disp_port_config_params dp_config;
+    struct pal_usb_device_address usb_addr;
+} pal_device_config_t;
+
+/* Payload For ID: PAL_PARAM_ID_DEVICE_CONNECTION
+ * Description   : Device Connection
+*/
+typedef struct pal_param_device_connection {
+    pal_device_id_t   id;
+    bool              connection_state;
+    pal_device_config_t device_config;
+}pal_param_device_connection_t;
+
+/* Payload For ID: PAL_PARAM_ID_DEVICE_CAPABILITY
+ * Description   : get Device Capability
+*/
+ typedef struct pal_param_device_capability {
+  pal_device_id_t   id;
+  struct pal_usb_device_address addr;
+  bool              is_playback;
+  struct dynamic_media_config *config;
+}pal_param_device_capability_t;
+
+/* Payload For ID: PAL_PARAM_ID_SCREEN_STATE
+ * Description   : Screen State
+*/
+typedef struct pal_param_screen_state {
+    bool              screen_state;
+} pal_param_screen_state_t;
+
+/* Payload For ID: PAL_PARAM_ID_CHARGING_STATE
+ * Description   : Charging State
+*/
+typedef struct pal_param_charging_state {
+    bool              charging_state;
+} pal_param_charging_state_t;
+
+/*
+ * Used to identify the swapping type
+ */
+typedef enum {
+    PAL_SPEAKER_ROTATION_LR,  /* Default position. It will be set when device
+                               * is at angle 0, 90 or 180 degree.
+                               */
+
+    PAL_SPEAKER_ROTATION_RL   /* This will be set if device is rotated by 270
+                               * degree
+                               */
+} pal_speaker_rotation_type;
+
+/* Payload For ID: PAL_PARAM_ID_DEVICE_ROTATION
+ * Description   : Device Rotation
+ */
+typedef struct pal_param_device_rotation {
+    pal_speaker_rotation_type    rotation_type;
+} pal_param_device_rotation_t;
+
+/* Payload For ID: PAL_PARAM_ID_BT_SCO*
+ * Description   : BT SCO related device parameters
+*/
+typedef struct pal_param_btsco {
+    bool     bt_sco_on;
+    bool     bt_wb_speech_enabled;
+    int      bt_swb_speech_mode;
+} pal_param_btsco_t;
+
+/* Payload For ID: PAL_PARAM_ID_BT_A2DP*
+ * Description   : A2DP related device setParameters
+*/
+typedef struct pal_param_bta2dp {
+    int32_t  reconfig_supported;
+    bool     reconfigured;
+    bool     a2dp_suspended;
+    bool     is_tws_mono_mode_on;
+    uint32_t latency;
+} pal_param_bta2dp_t;
+
+typedef struct pal_bt_tws_payload_s {
+    bool isTwsMonoModeOn;
+    uint32_t codecFormat;
+} pal_bt_tws_payload;
+
+/**< PAL device */
+struct pal_device {
+    pal_device_id_t id;                     /**<  device id */
+    struct pal_media_config config;         /**<  media config of the device */
+    struct pal_usb_device_address address;
+};
+
+#define PAL_SOUND_TRIGGER_MAX_STRING_LEN 64 /* max length of strings in properties or descriptor structs */
+#define PAL_SOUND_TRIGGER_MAX_LOCALE_LEN 6  /* max length of locale string. e.g en_US */
+#define PAL_SOUND_TRIGGER_MAX_USERS 10      /* max number of concurrent users */
+#define PAL_SOUND_TRIGGER_MAX_PHRASES 10    /* max number of concurrent phrases */
+
+#define PAL_RECOGNITION_MODE_VOICE_TRIGGER 0x1       /* simple voice trigger */
+#define PAL_RECOGNITION_MODE_USER_IDENTIFICATION 0x2 /* trigger only if one user in model identified */
+#define PAL_RECOGNITION_MODE_USER_AUTHENTICATION 0x4 /* trigger only if one user in mode authenticated */
+#define PAL_RECOGNITION_MODE_GENERIC_TRIGGER 0x8     /* generic sound trigger */
+
+#define PAL_RECOGNITION_STATUS_SUCCESS 0
+#define PAL_RECOGNITION_STATUS_ABORT 1
+#define PAL_RECOGNITION_STATUS_FAILURE 2
+#define PAL_RECOGNITION_STATUS_GET_STATE_RESPONSE 3  /* Indicates that the recognition event is in
+                                                        response to a state request and was not
+                                                        triggered by a real DSP recognition */
+
+/** used to identify the sound model type for the session */
+typedef enum {
+    PAL_SOUND_MODEL_TYPE_UNKNOWN = -1,        /* use for unspecified sound model type */
+    PAL_SOUND_MODEL_TYPE_KEYPHRASE = 0,       /* use for key phrase sound models */
+    PAL_SOUND_MODEL_TYPE_GENERIC = 1          /* use for all models other than keyphrase */
+} pal_st_sound_model_type_t;
+
+struct st_uuid {
+    uint32_t timeLow;
+    uint16_t timeMid;
+    uint16_t timeHiAndVersion;
+    uint16_t clockSeq;
+    uint8_t node[6];
+};
+
+/**
+ * sound trigger implementation descriptor read by the framework via get_properties().
+ * Used by SoundTrigger service to report to applications and manage concurrency and policy.
+ */
+struct pal_st_properties {
+    int8_t           implementor[PAL_SOUND_TRIGGER_MAX_STRING_LEN]; /* implementor name */
+    int8_t           description[PAL_SOUND_TRIGGER_MAX_STRING_LEN]; /* implementation description */
+    uint32_t         version;               /* implementation version */
+    struct st_uuid   uuid;                             /* unique implementation ID.
+                                                   Must change with version each version */
+    uint32_t         max_sound_models;      /* maximum number of concurrent sound models
+                                                   loaded */
+    uint32_t         max_key_phrases;       /* maximum number of key phrases */
+    uint32_t         max_users;             /* maximum number of concurrent users detected */
+    uint32_t         recognition_modes;     /* all supported modes.
+                                                   e.g PAL_RECOGNITION_MODE_VOICE_TRIGGER */
+    bool             capture_transition;    /* supports seamless transition from detection
+                                                   to capture */
+    uint32_t         max_buffer_ms;         /* maximum buffering capacity in ms if
+                                                   capture_transition is true*/
+    bool             concurrent_capture;    /* supports capture by other use cases while
+                                                   detection is active */
+    bool             trigger_in_event;      /* returns the trigger capture in event */
+    uint32_t         power_consumption_mw;  /* Rated power consumption when detection is active
+                                                   with TDB silence/sound/speech ratio */
+};
+
+/** sound model structure passed in by ST Client during pal_st_load_sound_model() */
+struct pal_st_sound_model {
+    pal_st_sound_model_type_t type;           /* model type. e.g. PAL_SOUND_MODEL_TYPE_KEYPHRASE */
+    struct st_uuid            uuid;           /* unique sound model ID. */
+    struct st_uuid            vendor_uuid;    /* unique vendor ID. Identifies the engine the
+                                                  sound model was build for */
+    uint32_t                  data_size;      /* size of opaque model data */
+    uint32_t                  data_offset;    /* offset of opaque data start from head of struct
+                                                  e.g sizeof struct pal_st_sound_model) */
+};
+
+/** key phrase descriptor */
+struct pal_st_phrase {
+    uint32_t    id;                                 /**< keyphrase ID */
+    uint32_t    recognition_mode;                   /**< recognition modes supported by this key phrase */
+    uint32_t    num_users;                          /**< number of users in the key phrase */
+    uint32_t    users[PAL_SOUND_TRIGGER_MAX_USERS]; /**< users ids: (not uid_t but sound trigger
+                                                        specific IDs */
+    char        locale[PAL_SOUND_TRIGGER_MAX_LOCALE_LEN]; /**< locale - JAVA Locale style (e.g. en_US) */
+    char        text[PAL_SOUND_TRIGGER_MAX_STRING_LEN];   /**< phrase text in UTF-8 format. */
+};
+
+/**
+ * Specialized sound model for key phrase detection.
+ * Proprietary representation of key phrases in binary data must match information indicated
+ * by phrases field use this when not sending
+ */
+struct pal_st_phrase_sound_model {
+    struct pal_st_sound_model   common;         /** common sound model */
+    uint32_t                    num_phrases;    /** number of key phrases in model */
+    struct pal_st_phrase        phrases[PAL_SOUND_TRIGGER_MAX_PHRASES];
+};
+
+struct pal_st_confidence_level {
+    uint32_t user_id;   /* user ID */
+    uint32_t level;     /* confidence level in percent (0 - 100).
+                               - min level for recognition configuration
+                               - detected level for recognition event */
+};
+
+/** Specialized recognition event for key phrase detection */
+struct pal_st_phrase_recognition_extra {
+    uint32_t id;                /* keyphrase ID */
+    uint32_t recognition_modes; /* recognition modes used for this keyphrase */
+    uint32_t confidence_level;  /* confidence level for mode RECOGNITION_MODE_VOICE_TRIGGER */
+    uint32_t num_levels;        /* number of user confidence levels */
+    struct pal_st_confidence_level levels[PAL_SOUND_TRIGGER_MAX_USERS];
+};
+
+struct pal_st_recognition_event {
+    int32_t                          status;              /**< recognition status e.g.
+                                                              RECOGNITION_STATUS_SUCCESS */
+    pal_st_sound_model_type_t        type;                /**< event type, same as sound model type.
+                                                              e.g. SOUND_MODEL_TYPE_KEYPHRASE */
+    pal_st_handle_t                  *st_handle;           /**< handle of sound trigger session */
+    bool                             capture_available;   /**< it is possible to capture audio from this
+                                                              utterance buffered by the
+                                                              implementation */
+    int32_t                          capture_session;     /**< audio session ID. framework use */
+    int32_t                          capture_delay_ms;    /**< delay in ms between end of model
+                                                              detection and start of audio available
+                                                              for capture. A negative value is possible
+                                                              (e.g. if key phrase is also available for
+                                                              capture */
+    int32_t                          capture_preamble_ms; /**< duration in ms of audio captured
+                                                              before the start of the trigger.
+                                                              0 if none. */
+    bool                             trigger_in_data;     /**< the opaque data is the capture of
+                                                              the trigger sound */
+    struct pal_media_config          media_config;        /**< media format of either the trigger in
+                                                              event data or to use for capture of the
+                                                              rest of the utterance */
+    uint32_t                         data_size;           /**< size of opaque event data */
+    uint32_t                         data_offset;         /**< offset of opaque data start from start of
+                                                              this struct (e.g sizeof struct
+                                                              sound_trigger_phrase_recognition_event) */
+};
+
+typedef void(*pal_st_recognition_callback_t)(struct pal_st_recognition_event *event,
+                                             void *cookie);
+
+/* Payload for pal_st_start_recognition() */
+struct pal_st_recognition_config {
+    int32_t       capture_handle;             /**< IO handle that will be used for capture.
+                                                N/A if capture_requested is false */
+    uint32_t      capture_device;             /**< input device requested for detection capture */
+    bool          capture_requested;          /**< capture and buffer audio for this recognition
+                                                instance */
+    uint32_t      num_phrases;                /**< number of key phrases recognition extras */
+    struct pal_st_phrase_recognition_extra phrases[PAL_SOUND_TRIGGER_MAX_PHRASES];
+                                              /**< configuration for each key phrase */
+    pal_st_recognition_callback_t callback;   /**< callback for recognition events */
+    void *        cookie;                     /**< cookie set from client*/
+    uint32_t      data_size;                  /**< size of opaque capture configuration data */
+    uint32_t      data_offset;                /**< offset of opaque data start from start of this struct
+                                              (e.g sizeof struct sound_trigger_recognition_config) */
+};
+
+struct pal_st_phrase_recognition_event {
+    struct pal_st_recognition_event common;
+    uint32_t                        num_phrases;
+    struct pal_st_phrase_recognition_extra phrase_extras[PAL_SOUND_TRIGGER_MAX_PHRASES];
+};
+
+struct pal_st_generic_recognition_event {
+    struct pal_st_recognition_event common;
+};
+
+struct detection_engine_config_voice_wakeup {
+    uint16_t mode;
+    uint16_t custom_payload_size;
+    uint8_t num_active_models;
+    uint8_t reserved;
+    uint8_t confidence_levels[PAL_SOUND_TRIGGER_MAX_USERS];
+    uint8_t keyword_user_enables[PAL_SOUND_TRIGGER_MAX_USERS];
+};
+
+struct detection_engine_voice_wakeup_buffer_config {
+    uint32_t hist_buffer_duration_in_ms;
+    uint32_t pre_roll_duration_in_ms;
+};
+
+struct detection_engine_generic_event_cfg {
+    uint32_t event_mode;
+};
+
+struct ffv_doa_tracking_monitor_t
+{
+    int16_t target_angle_L16[2];
+    int16_t interf_angle_L16[2];
+    int8_t polarActivityGUI[360];
+};
+
+/** @brief Callback function prototype to be given for
+ *         pal_open_stream.
+ *
+ * \param[in] stream_handle - stream handle associated with the
+ * callback event.
+ * \param[in] event_id - event id of the event raised on the
+ *       stream.
+ * \param[in] event_data - event_data specific to the event
+ *       raised.
+ * \param[in] cookie - cookie speificied in the
+ *       pal_stream_open()
+ */
+typedef int32_t (*pal_stream_callback)(pal_stream_handle_t *stream_handle,
+                                       uint32_t event_id, uint32_t *event_data,
+                                       uint32_t event_data_size,
+                                       void *cookie);
+
+/** @brief Callback function prototype to be given for
+ *         pal_register_callback.
+ *
+ * \param[in] event_id - event id of the event raised on the
+ *       stream.
+ * \param[in] event_data - event_data specific to the event
+ *       raised.
+ * \param[in] cookie - cookie specified in the
+ *       pal_register_global_callback.
+ */
+typedef int32_t (*pal_global_callback)(uint32_t event_id, uint32_t *event_data, void *cookie);
+
+/** Sound card state */
+typedef enum card_status_t {
+    CARD_STATUS_OFFLINE = 0,
+    CARD_STATUS_ONLINE,
+    CARD_STATUS_NONE,
+} card_status_t;
+
+#ifdef __cplusplus
+}  /* extern "C" */
+#endif
+
+#endif /*PAL_DEFS_H*/

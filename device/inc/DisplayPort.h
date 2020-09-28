@@ -31,8 +31,8 @@
 #define DISPLAYPORT_H
 
 #include "Device.h"
-#include "QalAudioRoute.h"
-#include "QalDefs.h"
+#include "PalAudioRoute.h"
+#include "PalDefs.h"
 #include "ResourceManager.h"
 #include <system/audio.h>
 
@@ -134,12 +134,12 @@ class DisplayPort : public Device
 protected:
     static std::shared_ptr<Device> obj;
     int configureDpEndpoint();
-    DisplayPort(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    DisplayPort(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     int start();
-    int init(qal_param_device_connection_t device_conn);
-    int deinit(qal_param_device_connection_t device_conn);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    int init(pal_param_device_connection_t device_conn);
+    int deinit(pal_param_device_connection_t device_conn);
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     static std::shared_ptr<Device> getObject();
     static int32_t isSampleRateSupported(uint32_t sampleRate);
@@ -177,7 +177,7 @@ public:
     int getExtDispSysfsNodeIndex(int ext_disp_type);
     int updateExtDispSysfsNode(int node_value, int controller, int stream);
     int updateAudioAckState(int node_value, int controller, int stream);
-    int getDeviceAttributes (struct qal_device *dattr) override;
+    int getDeviceAttributes (struct pal_device *dattr) override;
 };
 
 

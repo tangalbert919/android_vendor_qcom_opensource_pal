@@ -31,22 +31,22 @@
 #define HEADPHONE_H
 
 #include "Device.h"
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 
 class Headphone : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;
-    Headphone(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    Headphone(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static int32_t checkAndUpdateBitWidth(uint32_t *bitWidth);
     static int32_t checkAndUpdateSampleRate(uint32_t *sampleRate);
-    static std::shared_ptr<Device> getObject(qal_device_id_t id);
+    static std::shared_ptr<Device> getObject(pal_device_id_t id);
     virtual ~Headphone();
 };
 

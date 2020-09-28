@@ -33,8 +33,8 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Session.h"
-#include "QalAudioRoute.h"
-#include "QalCommon.h"
+#include "PalAudioRoute.h"
+#include "PalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <thread>
 
@@ -65,14 +65,14 @@ private:
     sessionState mState;
     session_callback sessionCb;
     void *cbCookie;
-    qal_device_id_t ecRefDevId;
+    pal_device_id_t ecRefDevId;
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);
     ~SessionAlsaPcm();
     int open(Stream * s) override;
     int prepare(Stream * s) override;
-    int setTKV(Stream * s, configType type, effect_qal_payload_t *payload) override;
+    int setTKV(Stream * s, configType type, effect_pal_payload_t *payload) override;
     int setConfig(Stream * s, configType type, int tag = 0) override;
     int setConfig(Stream * s, configType type, uint32_t tag1,
             uint32_t tag2, uint32_t tag3) override;
@@ -82,30 +82,30 @@ public:
     int close(Stream * s) override;
     int readBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
     int writeBufferInit(Stream *s, size_t noOfBuf, size_t bufSize, int flag) override;
-    int read(Stream *s, int tag, struct qal_buffer *buf, int * size) override;
-    int write(Stream *s, int tag, struct qal_buffer *buf, int * size, int flag) override;
+    int read(Stream *s, int tag, struct pal_buffer *buf, int * size) override;
+    int write(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag) override;
     int setParameters(Stream *s, int tagId, uint32_t param_id, void *payload) override;
     int getParameters(Stream *s, int tagId, uint32_t param_id, void **payload) override;
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
-    int getTimestamp(struct qal_session_time *stime) override;
+    int getTimestamp(struct pal_session_time *stime) override;
     int registerCallBack(session_callback cb, void *cookie) override;
-    int drain(qal_drain_type_t type) override;
+    int drain(pal_drain_type_t type) override;
     int flush();
-    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int connectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int connectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
-    int disconnectSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToDisconnect) override;
     bool isActive();
     uint32_t getMIID(const char *backendName, uint32_t tagId, uint32_t *miid) override;
     struct mixer_ctl* getFEMixerCtl(const char *controlName, int *device) override;
     int createMmapBuffer(Stream *s, int32_t min_size_frames,
-                                   struct qal_mmap_buffer *info) override;
-    int GetMmapPosition(Stream *s, struct qal_mmap_position *position) override;
+                                   struct pal_mmap_buffer *info) override;
+    int GetMmapPosition(Stream *s, struct pal_mmap_position *position) override;
     void adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames);
-    void registerAdmStream(Stream *s, qal_stream_direction_t dir,
-            qal_stream_flags_t flags, struct pcm *, struct pcm_config *cfg);
+    void registerAdmStream(Stream *s, pal_stream_direction_t dir,
+            pal_stream_flags_t flags, struct pcm *, struct pcm_config *cfg);
     void deRegisterAdmStream(Stream *s);
     void requestAdmFocus(Stream *s, long ns);
     void releaseAdmFocus(Stream *s);

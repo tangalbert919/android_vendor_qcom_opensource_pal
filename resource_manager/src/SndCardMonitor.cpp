@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: SndMonitor"
+#define LOG_TAG "PAL: SndMonitor"
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -35,7 +35,7 @@
 #include <sys/poll.h>
 #include <list>
 #include "ResourceManager.h"
-#include "QalCommon.h"
+#include "PalCommon.h"
 #include "SndCardMonitor.h"
 
 #define SNDCARD_PATH "/proc/asound/cards"
@@ -50,16 +50,16 @@ int SndCardMonitor::parseSndcards(int sndNum)
     int fd = -1;
 
     snprintf(path, sizeof(path), "/proc/asound/card%d/state", sndNum);
-    QAL_VERBOSE(LOG_TAG, "Opening sound card state : %s", path);
+    PAL_VERBOSE(LOG_TAG, "Opening sound card state : %s", path);
 
     if ((fd = open(path, O_RDONLY)) < 0) {
-        QAL_ERR(LOG_TAG, "Open %s failed error: %s", path, strerror(errno));
+        PAL_ERR(LOG_TAG, "Open %s failed error: %s", path, strerror(errno));
         return -EINVAL;
     }
 
     ret = SndCardMonitor::addNewSndCard(sndNum, fd);
     if (ret != 0) {
-         QAL_ERR(LOG_TAG, "Adding new sound card failed, ret %d", ret);
+         PAL_ERR(LOG_TAG, "Adding new sound card failed, ret %d", ret);
          close(fd);
          return ret;
     }
@@ -75,7 +75,7 @@ int  SndCardMonitor::onSndcardStateUpdate(sndcard_t *s)
 
     rd_buf = readState(s->fd);
 
-    QAL_VERBOSE(LOG_TAG, "card num %d, new state %s old state %d", s->card, rd_buf, s->status);
+    PAL_VERBOSE(LOG_TAG, "card num %d, new state %s old state %d", s->card, rd_buf, s->status);
 
     if (strstr(rd_buf, "OFFLINE"))
         status = CARD_STATUS_OFFLINE;
@@ -83,12 +83,12 @@ int  SndCardMonitor::onSndcardStateUpdate(sndcard_t *s)
         status = CARD_STATUS_ONLINE;
     else {
         ret = -EINVAL;
-        QAL_ERR(LOG_TAG, "unknown state, ret %d", ret);
+        PAL_ERR(LOG_TAG, "unknown state, ret %d", ret);
         return ret;
     }
 
     s->status = status;
-    QAL_ERR(LOG_TAG, "state %d", status);
+    PAL_ERR(LOG_TAG, "state %d", status);
 
     return status;
 }
@@ -104,7 +104,7 @@ char* SndCardMonitor::readState(int fd)
     off_t pos = lseek(fd, 0, SEEK_CUR);
     off_t avail = buf.st_size - pos;
     if (avail <= 0) {
-        QAL_ERR(LOG_TAG, "avail %ld", avail);
+        PAL_ERR(LOG_TAG, "avail %ld", avail);
         return NULL;
     }
 
@@ -133,15 +133,15 @@ int SndCardMonitor::addNewSndCard(int card, int fd)
 
     state = readState(fd);
     if (!state) {
-        QAL_ERR(LOG_TAG, "Failed to read the state, card %d", card);
+        PAL_ERR(LOG_TAG, "Failed to read the state, card %d", card);
         return -EINVAL;
     }
     online = state && !strcmp(state, "ONLINE");
-    QAL_DBG(LOG_TAG, "card %d initial state %s %d", card, state, online);
+    PAL_DBG(LOG_TAG, "card %d initial state %s %d", card, state, online);
 
     s = (sndcard_t *)calloc(sizeof(sndcard_t), 1);
     if (!s) {
-        QAL_ERR(LOG_TAG, "Calloc failed to sndcard");
+        PAL_ERR(LOG_TAG, "Calloc failed to sndcard");
         return -ENOMEM;
     }
     s->card = card;
@@ -165,11 +165,11 @@ void SndCardMonitor::monitorThreadLoop()
     struct pollfd *pfd = (struct pollfd *)calloc(sizeof(struct pollfd),
                                                   num_poll_fds);
     if (!pfd) {
-        QAL_ERR(LOG_TAG, "Calloc failed for poll fds");
+        PAL_ERR(LOG_TAG, "Calloc failed for poll fds");
         return;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Start monitor threadLoop.");
+    PAL_VERBOSE(LOG_TAG, "Start monitor threadLoop.");
 
     pfd[0].fd = intPipe[0];
     pfd[0].events = POLLPRI|POLLIN;
@@ -182,7 +182,7 @@ void SndCardMonitor::monitorThreadLoop()
     while (1) {
         if (poll(pfd, num_poll_fds, -1) < 0) {
             int errno_ = errno;
-            QAL_INFO(LOG_TAG, "poll() failed with err %s", strerror(errno_));
+            PAL_INFO(LOG_TAG, "poll() failed with err %s", strerror(errno_));
             switch (errno_) {
                 case EINTR:
                 case ENOMEM:
@@ -192,11 +192,11 @@ void SndCardMonitor::monitorThreadLoop()
                     /* above errors can be caused due to current system
                      * state .. any other error is not expected
                      */
-                    QAL_ERR(LOG_TAG, "unxpected poll() system call failure");
+                    PAL_ERR(LOG_TAG, "unxpected poll() system call failure");
                     break;
             }
         }
-        QAL_VERBOSE(LOG_TAG, "out of poll");
+        PAL_VERBOSE(LOG_TAG, "out of poll");
 
         // check if requested to exit
         if (READY_TO_READ(&pfd[0])) {
@@ -210,7 +210,7 @@ void SndCardMonitor::monitorThreadLoop()
              * POLLHUP - adev must not close pipe
              * POLLNVAL - fd is valid
              */
-            QAL_ERR(LOG_TAG, "unxpected error in pipe poll fd 0x%x",
+            PAL_ERR(LOG_TAG, "unxpected error in pipe poll fd 0x%x",
                              pfd[0].revents);
             pfd[0].fd *= -1;
         }
@@ -220,7 +220,7 @@ void SndCardMonitor::monitorThreadLoop()
             if (READY_TO_READ(&pfd[i])) {
                 sndcard_t *snd = *it;
                 status = static_cast<card_status_t>(onSndcardStateUpdate(snd));
-                QAL_INFO(LOG_TAG, "rm %p status %d", rm.get(), status);
+                PAL_INFO(LOG_TAG, "rm %p status %d", rm.get(), status);
                 rm->ssrHandler(status);
             } else if (ERROR_IN_FD(&pfd[i])) {
                 /* do not consider for poll again
@@ -228,7 +228,7 @@ void SndCardMonitor::monitorThreadLoop()
                  * POLLHUP - not valid for cardN/state
                  * POLLNVAL - fd is valid
                  */
-                QAL_ERR(LOG_TAG, "unxpected error in card poll fd 0x%x",
+                PAL_ERR(LOG_TAG, "unxpected error in card poll fd 0x%x",
                                  pfd[i].revents);
                 pfd[i].fd *= -1;
             }
@@ -241,15 +241,15 @@ void SndCardMonitor::monitorThreadLoop()
 SndCardMonitor::SndCardMonitor(int sndNum)
 {
     if (pipe(intPipe) < 0) {
-        QAL_ERR(LOG_TAG, "failed to get pipe");
+        PAL_ERR(LOG_TAG, "failed to get pipe");
         return;
     }
     if (parseSndcards(sndNum) < 0) {
-        QAL_ERR(LOG_TAG, "Unable to parse sound cards");
+        PAL_ERR(LOG_TAG, "Unable to parse sound cards");
         goto parse_sndcards_error;
     }
     mThread = std::thread(&SndCardMonitor::monitorThreadLoop, this);
-    QAL_INFO(LOG_TAG, "Snd card monitor init done.");
+    PAL_INFO(LOG_TAG, "Snd card monitor init done.");
     return;
 
 parse_sndcards_error:
@@ -261,7 +261,7 @@ parse_sndcards_error:
 
 SndCardMonitor::~SndCardMonitor()
 {
-   QAL_DBG(LOG_TAG, "destructor called");
+   PAL_DBG(LOG_TAG, "destructor called");
    write(intPipe[1], "Q", 1);
    mThread.join();
    close(intPipe[0]);

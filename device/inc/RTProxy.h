@@ -31,17 +31,17 @@
 #define RTPROXY_H
 
 #include "Device.h"
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 
 class RTProxy : public Device
 {
 protected:
     static std::shared_ptr<Device> obj;
-    RTProxy(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-	struct qal_device mDeviceAttr;
+    RTProxy(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
+	struct pal_device mDeviceAttr;
     std::shared_ptr<ResourceManager> rm;
 public:
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
@@ -55,12 +55,12 @@ class RTProxyOut : public Device
 {
     protected:
         static std::shared_ptr<Device> obj;
-        RTProxyOut(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-        struct qal_device mDeviceAttr;
+        RTProxyOut(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
+        struct pal_device mDeviceAttr;
         std::shared_ptr<ResourceManager> rm;
     public:
         int start();
-        static std::shared_ptr<Device> getInstance(struct qal_device *device,
+        static std::shared_ptr<Device> getInstance(struct pal_device *device,
                 std::shared_ptr<ResourceManager> Rm);
         static int32_t isSampleRateSupported(uint32_t sampleRate);
         static int32_t isChannelSupported(uint32_t numChannels);

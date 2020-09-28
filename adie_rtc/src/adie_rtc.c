@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: ADIE_RTC"
+#define LOG_TAG "PAL: ADIE_RTC"
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
 #endif
@@ -104,7 +104,7 @@ int find_codec_index(uint32_t handle)
     for (i=0; i < (int)number_of_codecs; i++)
         if (codec_info[i].handle == handle)
             goto done;
-    QAL_ERR(LOG_TAG,"could not find codec with handle %d", handle);
+    PAL_ERR(LOG_TAG,"could not find codec with handle %d", handle);
     i = -EINVAL;
  done:
     return i;
@@ -115,7 +115,7 @@ int find_codec_index(uint32_t handle)
     int ret = 0;
     unsigned int i;
     if(chipset_name == NULL){
-        QAL_ERR(LOG_TAG,"chipset_name is null");
+        PAL_ERR(LOG_TAG,"chipset_name is null");
         ret = -EINVAL;
         goto done;
     }
@@ -142,49 +142,49 @@ static int read_version_file(char *version_path)
     size_t  num_read;
     char    version_entry[FILE_NAME_LENGTH];
     if(version_path == NULL) {
-        QAL_ERR(LOG_TAG,"version_path is null");
+        PAL_ERR(LOG_TAG,"version_path is null");
         ret = -EINVAL;
         goto done;
     }
 
     fd = ar_fopen(&file_handle, version_path, AR_FOPEN_READ_ONLY);
     if (fd != 0) {
-        QAL_ERR(LOG_TAG,"file open failed for path %s", version_path);
+        PAL_ERR(LOG_TAG,"file open failed for path %s", version_path);
         ret = -ENODEV;
         goto done;
     }
 
     fd = ar_fread(file_handle, version_entry, sizeof(version_entry),&num_read);
     if (fd != 0) {
-        QAL_ERR(LOG_TAG,"file read failed for path %s");
+        PAL_ERR(LOG_TAG,"file read failed for path %s");
         ret = -ENODEV;
         goto done;
     }
 
     token = strtok_r(version_entry, "_", &save);
     if (token == NULL) {
-        QAL_ERR(LOG_TAG,"strtok failed to get chipset name");
+        PAL_ERR(LOG_TAG,"strtok failed to get chipset name");
         ret = -EINVAL;
         goto close;
     }
 
     ret = get_chipset_id(token);
     if (ret < 0) {
-        QAL_ERR(LOG_TAG,"get_chipset_id failed error %d", ret);
+        PAL_ERR(LOG_TAG,"get_chipset_id failed error %d", ret);
         ret = -EINVAL;
         goto close;
     }
 
     token = strtok_r(NULL, "_", &save);
     if (token == NULL) {
-        QAL_ERR(LOG_TAG,"strtok failed to get chipset major version");
+        PAL_ERR(LOG_TAG,"strtok failed to get chipset major version");
         ret = -EINVAL;
         goto close;
     }
 
     token2 = strtok_r(NULL, "_", &save);
     if (token2 == NULL) {
-        QAL_ERR(LOG_TAG,"strtok failed to get chipset minor version");
+        PAL_ERR(LOG_TAG,"strtok failed to get chipset minor version");
         ret = -EINVAL;
         goto close;
     }
@@ -208,13 +208,13 @@ static int get_reg_path(char **match_strings, int array_size)
 
     if(*match_strings == NULL){
         ret = -EINVAL;
-        QAL_ERR(LOG_TAG,"Empty array of string");
+        PAL_ERR(LOG_TAG,"Empty array of string");
     }
 
     for(i = 0; i <  array_size; i++) {
         dir = opendir(path);
         if (dir == NULL) {
-            QAL_INFO(LOG_TAG,"%d (%s) opendir %s failed\n", errno, strerror(errno), path);
+            PAL_INFO(LOG_TAG,"%d (%s) opendir %s failed\n", errno, strerror(errno), path);
             return -EINVAL;
         }
 
@@ -249,7 +249,7 @@ static int find_codecs_info(void)
     char version_path[FILE_NAME_LENGTH] = CODEC_INFO_PATH;
     dir = opendir(version_path);
     if (dir == NULL) {
-        QAL_ERR(LOG_TAG,"%d (%s) opendir %s failed", errno, strerror(errno), CODEC_INFO_PATH);
+        PAL_ERR(LOG_TAG,"%d (%s) opendir %s failed", errno, strerror(errno), CODEC_INFO_PATH);
         ret = -ENODEV;
         goto done;
     }
@@ -260,27 +260,27 @@ static int find_codecs_info(void)
         ret = snprintf(codec_info[number_of_codecs].codec_name,
             sizeof(codec_info[number_of_codecs].codec_name), "%s", dentry->d_name);
         if (ret < 0) {
-            QAL_ERR(LOG_TAG,"snprintf failed: %s in %s, err %d",
+            PAL_ERR(LOG_TAG,"snprintf failed: %s in %s, err %d",
                 dentry->d_name, CODEC_INFO_PATH, ret);
             continue;
         }
         ret = snprintf(version_path, sizeof(version_path),
             "%s%s/version", CODEC_INFO_PATH, dentry->d_name);
         if (ret < 0) {
-            QAL_ERR(LOG_TAG,"snprintf failed: %s in %s, err %d\n",
+            PAL_ERR(LOG_TAG,"snprintf failed: %s in %s, err %d\n",
                 dentry->d_name, CODEC_INFO_PATH, ret);
             continue;
         }
         ret = read_version_file(version_path);
         if (ret < 0) {
-            QAL_ERR(LOG_TAG,"read_version_file failed, err %d path %s\n",
+            PAL_ERR(LOG_TAG,"read_version_file failed, err %d path %s\n",
                 ret, version_path);
             continue;
         }
         char *match_strings[] = {"regmap", codec_info[number_of_codecs].codec_name, "registers"};
         ret = get_reg_path(match_strings, sizeof(match_strings)/sizeof(char *));
         if (ret < 0) {
-            QAL_ERR(LOG_TAG,"get_reg_path failed, err %d, path %s\n",
+            PAL_ERR(LOG_TAG,"get_reg_path failed, err %d, path %s\n",
                 ret, version_path);
             continue;
         }
@@ -302,7 +302,7 @@ static int find_codecs(void)
     if (number_of_codecs == 0) {
         ret = get_reg_path(old_match_strings, sizeof(old_match_strings)/sizeof(char *));
         if (ret < 0) {
-            QAL_ERR(LOG_TAG,"get_reg_path failed, err %d\n", ret);
+            PAL_ERR(LOG_TAG,"get_reg_path failed, err %d\n", ret);
             goto done;
         }
 
@@ -310,7 +310,7 @@ static int find_codecs(void)
         number_of_codecs++;
     }
     for (i=0; i < number_of_codecs; i++)
-        QAL_VERBOSE(LOG_TAG,"codec %s: handle %d, chipset id %d, major %d, minor %d, reg path %s\n",
+        PAL_VERBOSE(LOG_TAG,"codec %s: handle %d, chipset id %d, major %d, minor %d, reg path %s\n",
             codec_info[i].codec_name, codec_info[i].handle, codec_info[i].chipset_id,
             codec_info[i].major_version, codec_info[i].minor_version, codec_info[i].reg_path);
  done:
@@ -326,7 +326,7 @@ int32_t adie_rtc_get_codec_info(struct adie_rtc_codec_info *cdc_info)
     }
     else{
         if(cdc_info->handle == NULL) {
-            QAL_ERR(LOG_TAG,"handle is null");
+            PAL_ERR(LOG_TAG,"handle is null");
             ret = -EINVAL;
             goto done;
         }
@@ -364,7 +364,7 @@ static int parse_codec_reg_file(char_t **rtc_io_buf_base, int32_t *rtc_io_buf_si
     {
         rc = -EINVAL;
         *rtc_io_buf_base = NULL;
-        QAL_ERR(LOG_TAG,"Invalid fd");
+        PAL_ERR(LOG_TAG,"Invalid fd");
         goto done;
     }
 
@@ -377,7 +377,7 @@ static int parse_codec_reg_file(char_t **rtc_io_buf_base, int32_t *rtc_io_buf_si
             free(*rtc_io_buf_base);
             *rtc_io_buf_base = NULL;
             buf_size = 0;
-            QAL_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
+            PAL_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
                  READ_STEP_SIZE, codec_info[codec_idx].reg_path);
             goto done;
         }
@@ -422,19 +422,19 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     codec_idx = find_codec_index(handle);
     if (codec_idx < 0) {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
+        PAL_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
         goto done;
     } else if (strlen(codec_info[codec_idx].reg_path) == 0) {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"codec path is empty\n %d", handle);
+        PAL_ERR(LOG_TAG,"codec path is empty\n %d", handle);
         goto done;
     }
-    //QAL_INFO(LOG_TAG,"reg path= %s",codec_info[codec_idx].reg_path);
+    //PAL_INFO(LOG_TAG,"reg path= %s",codec_info[codec_idx].reg_path);
     fd = open(codec_info[codec_idx].reg_path, O_RDWR);
     if(fd < 0)
     {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"cannot open adie peek error: %d, path: %s",
+        PAL_ERR(LOG_TAG,"cannot open adie peek error: %d, path: %s",
                 fd, codec_info[codec_idx].reg_path);
         goto done;
     }
@@ -442,14 +442,14 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     if (rtc_io_buf_base == NULL || result < 0)
     {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
+        PAL_ERR(LOG_TAG,"cannot allocate memory: %d, path: %s",
                 READ_STEP_SIZE, codec_info[codec_idx].reg_path);
             goto close_fd;
     }
     if (rtc_io_buf_size <= 0)
     {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"length of written bytes does not match expected value %d", rtc_io_buf_size);
+        PAL_ERR(LOG_TAG,"length of written bytes does not match expected value %d", rtc_io_buf_size);
         goto close_fd;
     }
     numBytes = rtc_io_buf_size;
@@ -457,18 +457,18 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
     memcpy((void*)reg, (void*)(rtc_io_buf+offset), sizeof(uint32_t));
     token = strtok_r(reg, ":", &save);
     if (token == NULL) {
-        QAL_ERR(LOG_TAG,"strtok failed to find register length : delimiter!\n");
+        PAL_ERR(LOG_TAG,"strtok failed to find register length : delimiter!\n");
         result = -EINVAL;
         goto done;
     }
     reg_len = strlen(token);
     if (reg_len <= 0) {
-        QAL_ERR(LOG_TAG,"register length is %d!\n", reg_len);
+        PAL_ERR(LOG_TAG,"register length is %d!\n", reg_len);
         result = -EINVAL;
         goto done;
     }
     register_length = reg_len;
-    QAL_DEBUG("valid register length is %d\n", register_length);
+    PAL_DEBUG("valid register length is %d\n", register_length);
     while(numBytes>offset)
     {
         memcpy((void*)reg, (void*)(rtc_io_buf+offset), sizeof(uint32_t));
@@ -483,20 +483,20 @@ int32_t adie_rtc_get_register(struct adie_rtc_register_req *req)
         if(ultempRegAddr == regAddr)
         {
             found = 1;
-            QAL_INFO(LOG_TAG,"register[%08X] found from the file!\n",regAddr);
+            PAL_INFO(LOG_TAG,"register[%08X] found from the file!\n",regAddr);
             break;
         }
     }
     if (found == 0)
     {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"get adie register[0x%x] failed Peek(%s) Poke(%s)",
+        PAL_ERR(LOG_TAG,"get adie register[0x%x] failed Peek(%s) Poke(%s)",
         regAddr, codec_info[codec_idx].reg_path, codec_info[codec_idx].reg_path);
         goto close_fd;
     }
     else
     {
-        QAL_ERR(LOG_TAG,"Found the value for register = 0x%X, value = 0x%X\n",regAddr,lRegValue);
+        PAL_ERR(LOG_TAG,"Found the value for register = 0x%X, value = 0x%X\n",regAddr,lRegValue);
     }
     /* return a masked value */
     lRegValue &= regMask;
@@ -524,10 +524,10 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
 
     codec_idx = find_codec_index(handle);
     if (codec_idx < 0) {
-        QAL_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
+        PAL_ERR(LOG_TAG,"could not find codec index for handle\n %d", handle);
         goto done;
     } else if (strlen(codec_info[codec_idx].reg_path) == 0) {
-        QAL_ERR(LOG_TAG,"codec path is empty\n %d", handle);
+        PAL_ERR(LOG_TAG,"codec path is empty\n %d", handle);
         goto done;
     }
 
@@ -538,12 +538,12 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
         regAddr += CDC_REG_DIG_OFFSET;
 
     numBytes1 = asprintf(&temp, "0x%x 0x%x", regAddr, ulRegValue);
-    QAL_DBG(LOG_TAG,"set register request received for ==> reg[%X], val[%X], bytes[%zu]\n",
+    PAL_DBG(LOG_TAG,"set register request received for ==> reg[%X], val[%X], bytes[%zu]\n",
             regAddr, ulRegValue, numBytes1);
     fd = open(codec_info[codec_idx].reg_path, O_RDWR);
     if(fd < 0) {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"ERROR! cannot open adie poke error: %d, path: %s",
+        PAL_ERR(LOG_TAG,"ERROR! cannot open adie poke error: %d, path: %s",
                 fd, codec_info[codec_idx].reg_path);
         if (temp != NULL)
         {
@@ -554,7 +554,7 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
         goto done;
     }
     numBytes2 = write(fd, temp, numBytes1);
-    QAL_DBG(LOG_TAG,"set register ==> actual bytes written[%zu]\n", numBytes2);
+    PAL_DBG(LOG_TAG,"set register ==> actual bytes written[%zu]\n", numBytes2);
     if (temp != NULL) {
         free(temp);
         temp = NULL;
@@ -563,11 +563,11 @@ int32_t adie_rtc_set_register(struct adie_rtc_register_req *req)
     /* make sure the write is successful */
     if (numBytes1 != numBytes2) {
         result = -EINVAL;
-        QAL_ERR(LOG_TAG,"set adie register failed for Register[0x%X], numBytes[%zu]",regAddr ,numBytes1);
+        PAL_ERR(LOG_TAG,"set adie register failed for Register[0x%X], numBytes[%zu]",regAddr ,numBytes1);
         goto done;
     }
     //*resp_buf_bytes_filled = 0;
-    QAL_INFO(LOG_TAG,"Set Register Success\n");
+    PAL_INFO(LOG_TAG,"Set Register Success\n");
 
  done:
     return result;
@@ -579,13 +579,13 @@ int32_t adie_rtc_init()
     codec_info = (struct codec_info *)malloc(MAX_NUMBER_OF_CODECS*sizeof(struct codec_info));
     if(codec_info == NULL) {
         ret = -ENOMEM;
-        QAL_ERR(LOG_TAG,"malloc failed\n");
+        PAL_ERR(LOG_TAG,"malloc failed\n");
         goto done;
     }
     if (!found_codec_path) {
         if (find_codecs() < 0) {
             ret = -EINVAL;
-            QAL_ERR(LOG_TAG,"failed to get register paths \n");
+            PAL_ERR(LOG_TAG,"failed to get register paths \n");
         }
     }
 

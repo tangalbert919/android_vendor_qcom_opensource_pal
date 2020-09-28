@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: ADIE_RTC_TEST"
+#define LOG_TAG "PAL: ADIE_RTC_TEST"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -51,20 +51,20 @@ int main()
     uint32_t numEntries, status;
     adie_rtc_init() ;
     adie_rtc_get_version(&ver);
-    QAL_INFO(LOG_TAG,"major= %d \n & minor= %d",ver.major,ver.minor);
+    PAL_INFO(LOG_TAG,"major= %d \n & minor= %d",ver.major,ver.minor);
     adie_rtc_get_codec_info(&cdcInfo);
     cdcInfotest.num_of_entries = cdcInfo.num_of_entries;
     cdcInfotest.handle = (struct adie_rtc_codec_handle *)calloc(cdcInfotest.num_of_entries, sizeof(struct adie_rtc_codec_handle));
     status = adie_rtc_get_codec_info(&cdcInfotest) ;
-    QAL_INFO(LOG_TAG,"num_of_entries=%d \n & handle=%d \n & chipset_id=%d \n & major_version= %d \n& minor_version=%d \n ",cdcInfotest.num_of_entries,cdcInfotest.handle[0].handle,cdcInfotest.handle[0].chipset_id,cdcInfotest.handle[0].chipset_major_version,cdcInfotest.handle[0].chipset_minor_version);
+    PAL_INFO(LOG_TAG,"num_of_entries=%d \n & handle=%d \n & chipset_id=%d \n & major_version= %d \n& minor_version=%d \n ",cdcInfotest.num_of_entries,cdcInfotest.handle[0].handle,cdcInfotest.handle[0].chipset_id,cdcInfotest.handle[0].chipset_major_version,cdcInfotest.handle[0].chipset_minor_version);
     regReq.codec_handle = 1;
     regReq.register_id = 0x2604;
     regReq.register_mask = 0xff;
     adie_rtc_get_register(&regReq);
-    QAL_INFO(LOG_TAG,"Received value= %x\n ",regReq.value);
+    PAL_INFO(LOG_TAG,"Received value= %x\n ",regReq.value);
     regReq.value = 0x38;
     adie_rtc_set_register(&regReq);
     adie_rtc_get_register(&regReq);
-    QAL_INFO(LOG_TAG,"Received value= %x\n ",regReq.value);
+    PAL_INFO(LOG_TAG,"Received value= %x\n ",regReq.value);
 
 }

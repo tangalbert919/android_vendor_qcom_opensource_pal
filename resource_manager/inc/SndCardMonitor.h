@@ -30,7 +30,7 @@
 #ifndef SNDCARD_MONITOR_H
 #define SNDCARD_MONITOR_H
 #include <list>
-#include "QalDefs.h"
+#include "PalDefs.h"
 
 typedef struct {
     int card;

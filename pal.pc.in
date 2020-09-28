@@ -3,7 +3,7 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: qal
-Description: qal library
+Name: pal
+Description: pal library
 Version: @VERSION@
 Libs: -L${libdir}

@@ -32,7 +32,7 @@
 
 #include "PayloadBuilder.h"
 #include "Session.h"
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 #include "vcpm_api.h"
 #include <tinyalsa/asoundlib.h>
 #include <thread>
@@ -60,7 +60,7 @@ private:
     std::thread threadHandler;
     uint32_t vsid = 0x11C0500; /*defualt*/
     float default_volume = 0.4;
-    uint32_t ttyMode = QAL_TTY_OFF;
+    uint32_t ttyMode = PAL_TTY_OFF;
     bool volume_boost = vol_boost_disable;
     bool slow_talk = false;
 
@@ -78,13 +78,13 @@ public:
     int start(Stream * s) override;
     int stop(Stream * s) override;
     int close(Stream * s) override;
-    int setupSessionDevice(Stream* streamHandle, qal_stream_type_t streamType,
+    int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;
     int disconnectSessionDevice(Stream *streamHandle,
-                                qal_stream_type_t streamType,
+                                pal_stream_type_t streamType,
                                 std::shared_ptr<Device> deviceToDisconnect);
     int connectSessionDevice(Stream* streamHandle,
-                             qal_stream_type_t streamType,
+                             pal_stream_type_t streamType,
                              std::shared_ptr<Device> deviceToConnect);
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
 private:

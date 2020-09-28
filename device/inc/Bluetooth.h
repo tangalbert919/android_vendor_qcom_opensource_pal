@@ -77,9 +77,9 @@ typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
 class Bluetooth : public Device
 {
 protected:
-    Bluetooth(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 
-    struct qal_media_config codecConfig;
+    struct pal_media_config codecConfig;
     codec_format_t          codecFormat;
     codec_type              type;
     void                    *pluginHandler;
@@ -107,7 +107,7 @@ protected:
     void stopAbr();
 
 public:
-    int getDeviceAttributes(struct qal_device *dattr) override;
+    int getDeviceAttributes(struct pal_device *dattr) override;
     virtual ~Bluetooth();
 };
 
@@ -116,8 +116,8 @@ class BtA2dp : public Bluetooth
 protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
-    BtA2dp(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
-    qal_param_bta2dp_t param_bt_a2dp;
+    BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
+    pal_param_bta2dp_t param_bt_a2dp;
 
 private:
     /* BT IPC related members */
@@ -169,8 +169,8 @@ public:
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     int32_t getDeviceParameter(uint32_t param_id, void **param) override;
 
-    static std::shared_ptr<Device> getObject(qal_device_id_t id);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getObject(pal_device_id_t id);
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     virtual ~BtA2dp();
     DISALLOW_COPY_AND_ASSIGN(BtA2dp);
@@ -181,7 +181,7 @@ class BtSco : public Bluetooth
 protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
-    BtSco(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     bool bt_sco_on;
     bool bt_wb_speech_enabled;
     int startSwb();
@@ -193,8 +193,8 @@ public:
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
     void updateSampleRate(uint32_t *sampleRate);
 
-    static std::shared_ptr<Device> getObject(qal_device_id_t id);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getObject(pal_device_id_t id);
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     virtual ~BtSco();
     DISALLOW_COPY_AND_ASSIGN(BtSco);

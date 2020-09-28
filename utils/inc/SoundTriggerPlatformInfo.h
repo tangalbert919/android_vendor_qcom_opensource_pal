@@ -34,7 +34,7 @@
 #include <map>
 #include <memory>
 #include <string>
-#include "QalDefs.h"
+#include "PalDefs.h"
 #include "SoundTriggerEngine.h"
 
 #define CAPTURE_PROFILE_PRIORITY_HIGH 1
@@ -87,7 +87,7 @@ class CaptureProfile : public SoundTriggerXml {
     void HandleCharData(const char* data) override;
 
     std::string GetName() const { return name_; }
-    qal_device_id_t GetDevId() const { return device_id_; }
+    pal_device_id_t GetDevId() const { return device_id_; }
     uint32_t GetSampleRate() const { return sample_rate_; }
     uint32_t GetBitWidth() const { return bitwidth_; }
     uint32_t GetChannels() const { return channels_; }
@@ -102,7 +102,7 @@ class CaptureProfile : public SoundTriggerXml {
 
  private:
     std::string name_;
-    qal_device_id_t device_id_;
+    pal_device_id_t device_id_;
     uint32_t sample_rate_;
     uint32_t channels_;
     uint32_t bitwidth_;

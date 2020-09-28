@@ -51,13 +51,13 @@
     </config_voice>
     <device_profile>
         <in-device>
-            <id>QAL_DEVICE_IN_HANDSET_MIC</id>
+            <id>PAL_DEVICE_IN_HANDSET_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
+                <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -65,7 +65,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
+                <name>PAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -73,7 +73,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -81,7 +81,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
@@ -90,19 +90,19 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_SPEAKER_MIC</id>
+            <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <channels>1</channels>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
+                <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -110,7 +110,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
+                <name>PAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -118,7 +118,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -126,7 +126,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
@@ -135,24 +135,24 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_LOOPBACK</name>
+                <name>PAL_STREAM_LOOPBACK</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_WIRED_HEADSET</id>
+            <id>PAL_DEVICE_IN_WIRED_HEADSET</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>headset-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
+                <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -160,7 +160,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
+                <name>PAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -168,7 +168,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -176,7 +176,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
@@ -185,19 +185,19 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET</id>
+            <id>PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET</id>
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
+                <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -205,7 +205,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
+                <name>PAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -213,7 +213,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -221,7 +221,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>PAL_STREAM_VOICE_CALL</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
                     <!-- VOICE_FLUENCE_SMECNS -->
@@ -229,19 +229,19 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_HANDSET_VA_MIC</id>
+            <id>PAL_DEVICE_IN_HANDSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>va-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -250,13 +250,13 @@
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_HEADSET_VA_MIC</id>
+            <id>PAL_DEVICE_IN_HEADSET_VA_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>headset-va-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -265,13 +265,13 @@
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_USB_HEADSET</id>
+            <id>PAL_DEVICE_IN_USB_HEADSET</id>
             <back_end_name>USB_AUDIO-TX</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_VOIP_TX</name>
+                <name>PAL_STREAM_VOIP_TX</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
@@ -279,7 +279,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_UI</name>
+                <name>PAL_STREAM_VOICE_UI</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000001"/>
                     <!-- VOICE_UI_FLUENCE_FFECNS -->
@@ -287,7 +287,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_LOW_LATENCY</name>
+                <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -295,7 +295,7 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_VOICE_CALL</name>
+                <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
@@ -304,32 +304,32 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>QAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_PROXY</id>
+            <id>PAL_DEVICE_IN_PROXY</id>
             <back_end_name>PCM_RT_PROXY-TX-1</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>afe-proxy</snd_device_name>
             <usecase>
-                <name>QAL_STREAM_PROXY</name>
+                <name>PAL_STREAM_PROXY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
-            <id>QAL_DEVICE_IN_VI_FEEDBACK</id>
+            <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>vi-feedback-mono-2</snd_device_name>
         </in-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_SPEAKER</id>
+            <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
@@ -339,77 +339,77 @@
             <ras_enabled>0</ras_enabled> <!-- RAS should be enabled with speaker protection always -->
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_HANDSET</id>
+            <id>PAL_DEVICE_OUT_HANDSET</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_WIRED_HEADPHONE</id>
+            <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>headphones</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_WIRED_HEADSET</id>
+            <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>headphones</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_BLUETOOTH_SCO</id>
+            <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_AUX_DIGITAL</id>
+            <id>PAL_DEVICE_OUT_AUX_DIGITAL</id>
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
             <snd_device_name>display-port</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_HDMI</id>
+            <id>PAL_DEVICE_OUT_HDMI</id>
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
             <snd_device_name>display-port</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_USB_DEVICE</id>
+            <id>PAL_DEVICE_OUT_USB_DEVICE</id>
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_USB_HEADSET</id>
+            <id>PAL_DEVICE_OUT_USB_HEADSET</id>
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_AUX_DIGITAL_1</id>
+            <id>PAL_DEVICE_OUT_AUX_DIGITAL_1</id>
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>8</max_channels>
             <channels>2</channels>
             <snd_device_name>display-port</snd_device_name>
         </out-device>
         <out-device>
-            <id>QAL_DEVICE_OUT_PROXY</id>
+            <id>PAL_DEVICE_OUT_PROXY</id>
             <back_end_name>PCM_RT_PROXY-RX-1</back_end_name>
             <max_channels>8</max_channels>
             <channels>2</channels>
@@ -418,37 +418,37 @@
     </device_profile>
     <in_streams>
         <in_stream>
-            <name>QAL_STREAM_VOIP_TX</name>
+            <name>PAL_STREAM_VOIP_TX</name>
                 <policies>
                     <ec_ref>
-                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
-                        <disabled_stream>QAL_STREAM_VOIP_RX</disabled_stream>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_VOIP_RX</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
         <in_stream>
-            <name>QAL_STREAM_LOW_LATENCY</name>
+            <name>PAL_STREAM_LOW_LATENCY</name>
                 <policies>
                     <ec_ref>
-                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
-                        <!--<disabled_stream>QAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>-->
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <!--<disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>-->
                     </ec_ref>
                 </policies>
         </in_stream>
         <in_stream>
-            <name>QAL_STREAM_VOICE_UI</name>
+            <name>PAL_STREAM_VOICE_UI</name>
                 <policies>
                     <ec_ref>
-                        <disabled_stream>QAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
         <in_stream>
-            <name>QAL_STREAM_PROXY</name>
+            <name>PAL_STREAM_PROXY</name>
                 <policies>
                     <ec_ref>
-                        <disabled_stream>QAL_STREAM_COMPRESSED</disabled_stream>
-                        <disabled_stream>QAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
+                        <disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>

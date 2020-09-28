@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: Session"
+#define LOG_TAG "PAL: Session"
 
 #include "Session.h"
 #include "Stream.h"
@@ -53,10 +53,10 @@ Session::~Session()
 }
 
 
-Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct qal_stream_attributes *sAttr)
+Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr)
 {
     if (!rm || !sAttr) {
-        QAL_ERR(LOG_TAG,"Invalid parameters passed");
+        PAL_ERR(LOG_TAG,"Invalid parameters passed");
         return nullptr;
     }
 
@@ -64,10 +64,10 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
 
     switch (sAttr->type) {
         //create compressed if the stream type is compressed
-        case QAL_STREAM_COMPRESSED:
+        case PAL_STREAM_COMPRESSED:
             s =  new SessionAlsaCompress(rm);
             break;
-        case QAL_STREAM_VOICE_CALL:
+        case PAL_STREAM_VOICE_CALL:
             s = new SessionAlsaVoice(rm);
             break;
         default:
@@ -77,7 +77,7 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
     return s;
 }
 
-void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
+void Session::getSamplerateChannelBitwidthTags(struct pal_media_config *config,
         uint32_t &mfc_sr_tag, uint32_t &ch_tag, uint32_t &bitwidth_tag)
 {
     switch (config->sample_rate) {
@@ -154,7 +154,7 @@ void Session::getSamplerateChannelBitwidthTags(struct qal_media_config *config,
     }
 }
 
-int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effectPayload)
+int Session::getEffectParameters(Stream *s __unused, effect_pal_payload_t *effectPayload)
 {
     int status = 0;
     uint8_t *ptr = NULL;
@@ -165,14 +165,14 @@ int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effec
     uint32_t miid = 0;
     const char *control = "getParam";
     struct mixer_ctl *ctl;
-    qal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    pal_effect_custom_payload_t *effectCustomPayload = nullptr;
     std::ostringstream CntrlName;
     PayloadBuilder builder;
 
-    QAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     ctl = getFEMixerCtl(control, &device);
     if (!ctl) {
-        QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
         status = -ENOENT;
         goto exit;
     }
@@ -192,16 +192,16 @@ int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effec
     }
 
     if (miid == 0) {
-        QAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
                     effectPayload->tag);
         status = -EINVAL;
         goto exit;
     }
 
-    effectCustomPayload = (qal_effect_custom_payload_t *)(effectPayload->payload);
-    if (effectPayload->payloadSize < sizeof(qal_effect_custom_payload_t)) {
+    effectCustomPayload = (pal_effect_custom_payload_t *)(effectPayload->payload);
+    if (effectPayload->payloadSize < sizeof(pal_effect_custom_payload_t)) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "memory for retrieved data is too small");
+        PAL_ERR(LOG_TAG, "memory for retrieved data is too small");
         goto exit;
     }
 
@@ -210,13 +210,13 @@ int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effec
                             effectPayload->payloadSize - sizeof(uint32_t));
     status = mixer_ctl_set_array(ctl, payloadData, payloadSize);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Set custom config failed, status = %d", status);
+        PAL_ERR(LOG_TAG, "Set custom config failed, status = %d", status);
         goto exit;
     }
 
     status = mixer_ctl_get_array(ctl, payloadData, payloadSize);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Get custom config failed, status = %d", status);
+        PAL_ERR(LOG_TAG, "Get custom config failed, status = %d", status);
         goto exit;
     }
 
@@ -227,7 +227,7 @@ int Session::getEffectParameters(Stream *s __unused, effect_qal_payload_t *effec
 exit:
     if (payloadData)
         free(payloadData);
-    QAL_ERR(LOG_TAG, "Exit. status %d", status);
+    PAL_ERR(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -240,13 +240,13 @@ int Session::updateCustomPayload(void *payload, size_t size)
     }
 
     if (!customPayload) {
-        QAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+        PAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
         return -ENOMEM;
     }
 
     memcpy((uint8_t *)customPayload + customPayloadSize, payload, size);
     customPayloadSize += size;
-    QAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
+    PAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     return 0;
 }
 
@@ -260,13 +260,13 @@ int Session::resume(Stream * s __unused)
      return 0;
 }
 
-int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_type,
+int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,
         int device, struct mixer *mixer, PayloadBuilder* builder,
         std::vector<std::pair<int32_t, std::string>> rxAifBackEnds)
 {
     int status = 0;
-    struct qal_stream_attributes sAttr;
-    struct qal_device dAttr;
+    struct pal_stream_attributes sAttr;
+    struct pal_device dAttr;
     struct sessionToPayloadParam deviceData;
     uint32_t miid = 0;
     uint8_t* alsaParamData = NULL;
@@ -274,25 +274,25 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
     std::vector<std::shared_ptr<Device>> associatedDevices;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        QAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
 
-    if (QAL_AUDIO_OUTPUT== sAttr.direction) {
+    if (PAL_AUDIO_OUTPUT== sAttr.direction) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            QAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
             return status;
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
              status = associatedDevices[i]->getDeviceAttributes(&dAttr);
              if (0 != status) {
-                 QAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
+                 PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
                  return status;
              }
 
-             if ((QAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
+             if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
                   (2 == dAttr.config.ch_info.channels)) {
                  /* Get PSPD MFC MIID and configure to match to device config */
                  /* This has to be done after sending all mixer controls and
@@ -305,10 +305,10 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
                                                               TAG_DEVICE_MFC_SR,
                                                               &miid);
                 if (status != 0) {
-                    QAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
                 }
-                QAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
                     device, rxAifBackEnds[i].second.data(), dAttr.id);
 
                 deviceData.bitWidth = dAttr.config.bit_width;
@@ -323,7 +323,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
                     delete alsaParamData;
                     if (0 != status) {
-                        QAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         return status;
                     }
                 }
@@ -332,7 +332,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
                                                              customPayload,
                                                              customPayloadSize);
                 if (status != 0) {
-                    QAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
                     return status;
                 }
             }
@@ -342,7 +342,7 @@ int Session::handleDeviceRotation(Stream *s, qal_speaker_rotation_type rotation_
 }
 
 #if 0
-int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag1,
+int setConfig(Stream * s, pal_stream_type_t sType, configType type, uint32_t tag1,
         uint32_t tag2, uint32_t tag3)
 {
     int status = 0;
@@ -354,7 +354,7 @@ int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag
     struct mixer_ctl *ctl = nullptr;
     uint32_t tkv_size = 0;
 
-    if (sType == QAL_STREAM_COMPRESSED)
+    if (sType == PAL_STREAM_COMPRESSED)
         stream = "COMPRESS";
 
     switch (type) {
@@ -384,14 +384,14 @@ int setConfig(Stream * s, qal_stream_type_t sType, configType type, uint32_t tag
             tagCntrlName << stream << pcmDevIds.at(0) << " " << setParamTagControl;
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
-                QAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
+                PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
                 return -ENOENT;
             }
 
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-                QAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
                 goto exit;
             }
             ctl = NULL;

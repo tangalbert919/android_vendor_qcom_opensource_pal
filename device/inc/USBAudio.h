@@ -32,7 +32,7 @@
 
 #include "Device.h"
 #include "ResourceManager.h"
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 #include "SessionAlsaUtils.h"
 
 #include <vector>
@@ -80,22 +80,22 @@ public:
     unsigned int getDefaultRate();
     int getSampleRates(int type, char *rates_str);
     int getBestRate(int requested_rate, unsigned int *best_rate);
-    int getBestChInfo(struct qal_channel_info *requested_ch_info,
-                        struct qal_channel_info *best);
+    int getBestChInfo(struct pal_channel_info *requested_ch_info,
+                        struct pal_channel_info *best);
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
 };
 
 class USBCardConfig {
 protected:
-     struct qal_usb_device_address address_;
+     struct pal_usb_device_address address_;
     int endian_;
     std::vector <std::shared_ptr<USBDeviceConfig>> usb_device_config_list_;
 public:
-    USBCardConfig(struct qal_usb_device_address address);
-    bool isConfigCached(struct qal_usb_device_address addr);
+    USBCardConfig(struct pal_usb_device_address address);
+    bool isConfigCached(struct pal_usb_device_address addr);
     void setEndian(int endian);
-    int getCapability(usb_usecase_type_t type, struct qal_usb_device_address addr);
+    int getCapability(usb_usecase_type_t type, struct pal_usb_device_address addr);
     int getMaxBitWidth(bool is_playback);
     int getMaxChannels(bool is_playback);
     unsigned int getFormatByBitWidth(int bitwidth);
@@ -103,8 +103,8 @@ public:
     unsigned int readDefaultSampleRate(bool is_playback);
     unsigned int readDefaultChannelMask(bool is_playback);
     int readSupportedConfig(dynamic_media_config_t *config, bool is_playback);
-    int readBestConfig(struct qal_media_config *config,
-                                    struct qal_stream_attributes *sattr,
+    int readBestConfig(struct pal_media_config *config,
+                                    struct pal_stream_attributes *sattr,
                                     bool is_playback);
     unsigned int getMax(unsigned int a, unsigned int b);
     unsigned int getMin(unsigned int a, unsigned int b);
@@ -119,24 +119,24 @@ protected:
     static std::shared_ptr<Device> objTx;
     std::vector <std::shared_ptr<USBCardConfig>> usb_card_config_list_;
     int configureUsb();
-    USB(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    USB(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     int start();
-    int init(qal_param_device_connection_t device_conn);
-    int deinit(qal_param_device_connection_t device_conn);
-    int getDefaultConfig(qal_param_device_capability_t capability);
-    int selectBestConfig(struct qal_device *dattr,
-                                   struct qal_stream_attributes *sattr,
+    int init(pal_param_device_connection_t device_conn);
+    int deinit(pal_param_device_connection_t device_conn);
+    int getDefaultConfig(pal_param_device_capability_t capability);
+    int selectBestConfig(struct pal_device *dattr,
+                                   struct pal_stream_attributes *sattr,
                                    bool is_playback);
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     static int32_t isSampleRateSupported(unsigned int sampleRate);
     static int32_t isChannelSupported(unsigned int numChannels);
     static int32_t isBitWidthSupported(unsigned int bitWidth);
     static int32_t checkAndUpdateBitWidth(unsigned int *bitWidth);
     static int32_t checkAndUpdateSampleRate(unsigned int *sampleRate);
-    static bool isUSBOutDevice(qal_device_id_t);
-    static std::shared_ptr<Device> getObject(qal_device_id_t id);
+    static bool isUSBOutDevice(pal_device_id_t);
+    static std::shared_ptr<Device> getObject(pal_device_id_t id);
     ~USB();
 };
 

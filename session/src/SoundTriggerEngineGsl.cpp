@@ -28,7 +28,7 @@
  */
 
 #define ATRACE_TAG (ATRACE_TAG_AUDIO | ATRACE_TAG_HAL)
-#define LOG_TAG "QAL: SoundTriggerEngineGsl"
+#define LOG_TAG "PAL: SoundTriggerEngineGsl"
 
 #include "SoundTriggerEngineGsl.h"
 
@@ -44,7 +44,7 @@
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS
 #ifdef ST_DBG_LOGS
-#define QAL_DBG(LOG_TAG,...)  QAL_INFO(LOG_TAG,__VA_ARGS__)
+#define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
 // TODO: Move to sound trigger xml files
@@ -63,34 +63,34 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
     int32_t status = 0;
 
-    QAL_INFO(LOG_TAG, "Enter. start thread loop");
+    PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
-        QAL_ERR(LOG_TAG, "Invalid sound trigger engine");
+        PAL_ERR(LOG_TAG, "Invalid sound trigger engine");
         return;
     }
 
     std::unique_lock<std::mutex> lck(gsl_engine->mutex_);
     while (!gsl_engine->exit_thread_) {
-        QAL_VERBOSE(LOG_TAG, "waiting on cond");
+        PAL_VERBOSE(LOG_TAG, "waiting on cond");
         gsl_engine->cv_.wait(lck);
-        QAL_DBG(LOG_TAG, "done waiting on cond");
+        PAL_DBG(LOG_TAG, "done waiting on cond");
 
         if (gsl_engine->exit_thread_) {
-            QAL_VERBOSE(LOG_TAG, "Exit thread");
+            PAL_VERBOSE(LOG_TAG, "Exit thread");
             break;
         }
         if (gsl_engine->capture_requested_) {
             gsl_engine->StartBuffering();
         } else {
             // TODO: Work around to resume further detections.
-            QAL_DBG(LOG_TAG, "HandleSessionEvent: reset engine");
+            PAL_DBG(LOG_TAG, "HandleSessionEvent: reset engine");
             status = gsl_engine->session_->setParameters(
                 gsl_engine->stream_handle_,
                 DEVICE_SVA,
                 PARAM_ID_DETECTION_ENGINE_RESET,
                 nullptr);
             if (status) {
-                QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
+                PAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
                         status);
             }
             StreamSoundTrigger *s =
@@ -100,13 +100,13 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             lck.lock();
         }
     }
-    QAL_DBG(LOG_TAG, "Exit");
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 int32_t SoundTriggerEngineGsl::StartBuffering() {
     int32_t status = 0;
     int32_t size = 0;
-    struct qal_buffer buf;
+    struct pal_buffer buf;
     size_t input_buf_size = 0;
     size_t input_buf_num = 0;
     size_t output_buf_size = 0;
@@ -122,20 +122,20 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     bool event_notified = false;
     StreamSoundTrigger *s = nullptr;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     stream_handle_->getBufInfo(&input_buf_size, &input_buf_num,
                                &output_buf_size, &output_buf_num);
-    std::memset(&buf, 0, sizeof(struct qal_buffer));
+    std::memset(&buf, 0, sizeof(struct pal_buffer));
     buf.size = input_buf_size * input_buf_num;
     buf.buffer = (uint8_t *)calloc(1, buf.size);
     if (!buf.buffer) {
-        QAL_ERR(LOG_TAG, "buf.buffer allocation failed");
+        PAL_ERR(LOG_TAG, "buf.buffer allocation failed");
         status = -ENOMEM;
         goto exit;
     }
     buf.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
     if (!buf.ts) {
-        QAL_ERR(LOG_TAG, "buf.ts allocation failed");
+        PAL_ERR(LOG_TAG, "buf.ts allocation failed");
         status = -ENOMEM;
         goto exit;
     }
@@ -144,7 +144,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     ftrt_size = UsToBytes(detection_event_info_.ftrt_data_length_in_us);
     ATRACE_BEGIN("stEngine: read FTRT data");
     while (!exit_buffering_) {
-        QAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
+        PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
         if (buffer_->getFreeSize() >= buf.size) {
             ATRACE_BEGIN("stEngine: lab read");
@@ -159,13 +159,13 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
             if (status) {
                 break;
             }
-            QAL_INFO(LOG_TAG, "requested %zu, read %d", buf.size, size);
+            PAL_INFO(LOG_TAG, "requested %zu, read %d", buf.size, size);
             total_read_size += size;
         }
         // write data to ring buffer
         if (size) {
             size_t ret = buffer_->write(buf.buffer, size);
-            QAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
+            PAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
 
             if (!timestamp_recorded) {
                 timestamp = ((uint64_t)buf.ts->tv_sec * 1000000000 +
@@ -186,7 +186,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
 
         // notify client until ftrt data read
         if (!event_notified && total_read_size >= ftrt_size) {
-            QAL_DBG(LOG_TAG, "Ftrt data read done");
+            PAL_DBG(LOG_TAG, "Ftrt data read done");
             ATRACE_END();
 
             s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
@@ -205,7 +205,7 @@ exit:
     if (buf.ts) {
         free(buf.ts);
     }
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -223,9 +223,9 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
     struct detection_timestamp_info_t *detection_timestamp_info = nullptr;
     struct ftrt_data_info_t *ftrt_info = nullptr;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     if (!event_data) {
-        QAL_ERR(LOG_TAG, "Invalid event data");
+        PAL_ERR(LOG_TAG, "Invalid event data");
         return -EINVAL;
     }
 
@@ -237,22 +237,22 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
     detection_event_info_.status = generic_info->status;
     event_size = generic_info->payload_size;
     ptr = (uint8_t *)event_data + payload_size;
-    QAL_INFO(LOG_TAG, "status = %u, event_size = %u",
+    PAL_INFO(LOG_TAG, "status = %u, event_size = %u",
              detection_event_info_.status, event_size);
     if (status || !event_size) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid detection payload");
+        PAL_ERR(LOG_TAG, "Invalid detection payload");
         goto exit;
     }
 
     // parse variable payload
     while (parsed_size < event_size) {
-        QAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
+        PAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
                 parsed_size, event_size);
         event_header = (struct detection_event_info_header_t *)ptr;
         uint32_t keyId = event_header->key_id;
         payload_size = event_header->payload_size;
-        QAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
+        PAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
                 keyId, payload_size);
         ptr += sizeof(struct detection_event_info_header_t);
         parsed_size += sizeof(struct detection_event_info_header_t);
@@ -262,12 +262,12 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
             confidence_info = (struct confidence_level_info_t *)ptr;
             detection_event_info_.num_confidence_levels =
                 confidence_info->number_of_confidence_values;
-            QAL_DBG(LOG_TAG, "num_confidence_levels = %u",
+            PAL_DBG(LOG_TAG, "num_confidence_levels = %u",
                     detection_event_info_.num_confidence_levels);
             for (i = 0; i < detection_event_info_.num_confidence_levels; i++) {
                 detection_event_info_.confidence_levels[i] =
                     confidence_info->confidence_levels[i];
-                QAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
+                PAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
                             detection_event_info_.confidence_levels[i]);
             }
             break;
@@ -281,7 +281,7 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
                 keyword_position_info->kw_end_timestamp_lsw;
             detection_event_info_.kw_end_timestamp_msw =
                 keyword_position_info->kw_end_timestamp_msw;
-            QAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
+            PAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
                     "end_lsw = %u, end_msw = %u",
                     detection_event_info_.kw_start_timestamp_lsw,
                     detection_event_info_.kw_start_timestamp_msw,
@@ -294,7 +294,7 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
                 detection_timestamp_info->detection_timestamp_lsw;
             detection_event_info_.detection_timestamp_msw =
                 detection_timestamp_info->detection_timestamp_msw;
-            QAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
+            PAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
                     detection_event_info_.detection_timestamp_lsw,
                     detection_event_info_.detection_timestamp_msw);
             break;
@@ -302,12 +302,12 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
             ftrt_info = (struct ftrt_data_info_t *)ptr;
             detection_event_info_.ftrt_data_length_in_us =
                 ftrt_info->ftrt_data_length_in_us;
-            QAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
+            PAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
                     detection_event_info_.ftrt_data_length_in_us);
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
+            PAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
             goto exit;
         }
         ptr += payload_size;
@@ -315,7 +315,7 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -325,7 +325,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     uint32_t id,
     listen_model_indicator_enum type) {
 
-    struct qal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr;
     std::shared_ptr<ResourceManager> rm = nullptr;
     engine_id_ = id;
     engine_type_ = type;
@@ -340,24 +340,24 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     StreamSoundTrigger *st_str = dynamic_cast<StreamSoundTrigger *>(s);
     int32_t status = st_str->GetEngineConfig(sample_rate_,
         bit_width_, channels_, type);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get engine config");
+        PAL_ERR(LOG_TAG, "Failed to get engine config");
         throw std::runtime_error("Failed to get engine config");
     }
     // Create session
     rm = ResourceManager::getInstance();
     if (!rm) {
-        QAL_ERR(LOG_TAG, "Failed to get ResourceManager instance");
+        PAL_ERR(LOG_TAG, "Failed to get ResourceManager instance");
         throw std::runtime_error("Failed to get ResourceManager instance");
     }
     stream_handle_->getStreamAttributes(&sAttr);
     session_ = Session::makeSession(rm, &sAttr);
     if (!session_) {
-        QAL_ERR(LOG_TAG, "Failed to create session");
+        PAL_ERR(LOG_TAG, "Failed to create session");
         throw std::runtime_error("Failed to create session");
     }
 
@@ -374,11 +374,11 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     instance_count_++;
 
-    QAL_DBG(LOG_TAG, "Exit");
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
-    QAL_INFO(LOG_TAG, "Enter");
+    PAL_INFO(LOG_TAG, "Enter");
     if (dam_setup_duration_) {
         free(dam_setup_duration_);
     }
@@ -389,16 +389,16 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
         delete reader_;
     }
     instance_count_--;
-    QAL_INFO(LOG_TAG, "Exit");
+    PAL_INFO(LOG_TAG, "Exit");
 }
 
 int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
                                               uint32_t data_size) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     if (!data) {
-        QAL_ERR(LOG_TAG, "Invalid sound model data status %d", status);
+        PAL_ERR(LOG_TAG, "Invalid sound model data status %d", status);
         status = -EINVAL;
         return status;
     }
@@ -406,7 +406,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     std::lock_guard<std::mutex> lck(mutex_);
     status = session_->open(s);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
         return status;
 
     }
@@ -414,7 +414,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
                                      PARAM_ID_DETECTION_ENGINE_SOUND_MODEL,
                                      (void *)data);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
         session_->close(s);
         return status;
     }
@@ -426,19 +426,19 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
         std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
 
     if (!buffer_thread_handler_.joinable()) {
-        QAL_ERR(LOG_TAG, "failed to create even processing thread, status = %d",
+        PAL_ERR(LOG_TAG, "failed to create even processing thread, status = %d",
                 status);
         session_->close(s);
         status = -EINVAL;
     }
-    QAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     std::unique_lock<std::mutex> lck(mutex_);
     exit_thread_ = true;
     exit_buffering_ = true;
@@ -447,22 +447,22 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         lck.unlock();
         buffer_thread_handler_.join();
         lck.lock();
-        QAL_INFO(LOG_TAG, "Thread joined");
+        PAL_INFO(LOG_TAG, "Thread joined");
     }
     status = session_->close(s);
     if (status)
-        QAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
     sm_data_ = nullptr;
     sm_data_size_ = 0;
 
-    QAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
 
@@ -472,7 +472,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
         &wakeup_config_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
         goto exit;
     }
 
@@ -482,7 +482,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG,
         &event_config_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to set event config, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to set event config, status = %d", status);
         goto exit;
     }
 
@@ -492,14 +492,14 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
         &buffer_config_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d",
+        PAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d",
                 status);
         goto exit;
     }
 
     status = UpdateDAMSetupDuration(instance_count_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to update dam setup duration, status = %d",
+        PAL_ERR(LOG_TAG, "Failed to update dam setup duration, status = %d",
                 status);
         goto exit;
     }
@@ -509,31 +509,31 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION,
         dam_setup_duration_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to set downstream setup duration, status = %d",
+        PAL_ERR(LOG_TAG, "Failed to set downstream setup duration, status = %d",
                 status);
         goto exit;
     }
     status = session_->prepare(stream_handle_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to prepare session, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to prepare session, status = %d", status);
         goto exit;
     }
 
     status = session_->start(stream_handle_);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to start session, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to start session, status = %d", status);
         goto exit;
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
     /*
@@ -547,41 +547,41 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
         PARAM_ID_DETECTION_ENGINE_RESET,
         nullptr);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to reset engine, status = %d",
+        PAL_ERR(LOG_TAG, "Failed to reset engine, status = %d",
                 status);
     }
     status = session_->stop(stream_handle_);
     if (!status) {
         status = session_->start(stream_handle_);
         if (status) {
-            QAL_ERR(LOG_TAG, "start session failed, status = %d",
+            PAL_ERR(LOG_TAG, "start session failed, status = %d",
                     status);
         }
     } else {
-        QAL_ERR(LOG_TAG, "stop session failed, status = %d",
+        PAL_ERR(LOG_TAG, "stop session failed, status = %d",
                 status);
     }
-    QAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::StopBuffering(Stream *s __unused) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
     if (buffer_) {
         buffer_->reset();
     }
-    QAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
     if (buffer_) {
@@ -598,22 +598,22 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
         PARAM_ID_DETECTION_ENGINE_RESET,
         nullptr);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
+        PAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
                 status);
     }
 
     status = session_->stop(stream_handle_);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
     }
 
-    QAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     Stream *s __unused,
-    struct qal_st_recognition_config *config,
+    struct pal_st_recognition_config *config,
     uint8_t *conf_levels,
     uint32_t num_conf_levels) {
 
@@ -622,11 +622,11 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     std::lock_guard<std::mutex> lck(mutex_);
     if (!config) {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid config, status %d", status);
+        PAL_ERR(LOG_TAG, "Invalid config, status %d", status);
         goto exit;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
+    PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
     wakeup_config_.mode = config->phrases[0].recognition_modes;
     wakeup_config_.custom_payload_size = config->data_size;
     wakeup_config_.num_active_models = num_conf_levels;
@@ -637,7 +637,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -661,11 +661,11 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
     std::unique_lock<std::mutex> lck(mutex_);
     status = ParseDetectionPayload(data);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
+        PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
                 status);
         return;
     }
-    QAL_INFO(LOG_TAG, "singal event processing thread");
+    PAL_INFO(LOG_TAG, "singal event processing thread");
     ATRACE_BEGIN("stEngine: keyword detected");
     ATRACE_END();
     cv_.notify_one();
@@ -675,9 +675,9 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
                                                   void *data, uint32_t event_size __unused) {
     SoundTriggerEngineGsl *engine = nullptr;
 
-    QAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
+    PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
     if (!hdl || !data) {
-        QAL_ERR(LOG_TAG, "Invalid engine handle or event data");
+        PAL_ERR(LOG_TAG, "Invalid engine handle or event data");
         return;
     }
 
@@ -689,7 +689,7 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
     engine = (SoundTriggerEngineGsl *)hdl;
     engine->HandleSessionEvent(event_id, data);
 
-    QAL_DBG(LOG_TAG, "Exit");
+    PAL_DBG(LOG_TAG, "Exit");
     return;
 }
 
@@ -697,33 +697,33 @@ int32_t SoundTriggerEngineGsl::GetParameters(uint32_t param_id,
                                              void **payload) {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
-      case QAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
+      case PAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
           status = session_->getParameters(stream_handle_, TAG_FLUENCE,
                                          param_id, payload);
           break;
       default:
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
+        PAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
                 param_id, status);
         goto exit;
     }
 
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to get parameters, param id %d, status %d",
+        PAL_ERR(LOG_TAG, "Failed to get parameters, param id %d, status %d",
                 param_id, status);
     }
 
 exit:
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::ConnectSessionDevice(
     Stream* stream_handle,
-    qal_stream_type_t stream_type,
+    pal_stream_type_t stream_type,
     std::shared_ptr<Device> device_to_connect) {
 
     int32_t status = 0;
@@ -736,7 +736,7 @@ int32_t SoundTriggerEngineGsl::ConnectSessionDevice(
 
 int32_t SoundTriggerEngineGsl::DisconnectSessionDevice(
     Stream* stream_handle,
-    qal_stream_type_t stream_type,
+    pal_stream_type_t stream_type,
     std::shared_ptr<Device> device_to_disconnect) {
 
     int32_t status = 0;
@@ -749,7 +749,7 @@ int32_t SoundTriggerEngineGsl::DisconnectSessionDevice(
 
 int32_t SoundTriggerEngineGsl::SetupSessionDevice(
     Stream* stream_handle,
-    qal_stream_type_t stream_type,
+    pal_stream_type_t stream_type,
     std::shared_ptr<Device> device_to_disconnect) {
 
     int32_t status = 0;
@@ -761,7 +761,7 @@ int32_t SoundTriggerEngineGsl::SetupSessionDevice(
 }
 
 void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
-    QAL_DBG(LOG_TAG, "setting capture requested %d", is_requested);
+    PAL_DBG(LOG_TAG, "setting capture requested %d", is_requested);
     capture_requested_ = is_requested;
 }
 
@@ -771,7 +771,7 @@ struct detection_event_info* SoundTriggerEngineGsl::GetDetectionEventInfo() {
 
 int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) {
     if (!session_) {
-        QAL_ERR(LOG_TAG, "Invalid session");
+        PAL_ERR(LOG_TAG, "Invalid session");
         return -EINVAL;
     }
 
@@ -792,7 +792,7 @@ int32_t SoundTriggerEngineGsl::UpdateDAMSetupDuration(int port_num) {
 
     if (dam_setup_duration_) {
         if (dam_setup_duration_->num_output_ports == port_num) {
-            QAL_DBG(LOG_TAG, "No need to update DAM setup duration");
+            PAL_DBG(LOG_TAG, "No need to update DAM setup duration");
             return 0;
         } else {
             free(dam_setup_duration_);
@@ -805,7 +805,7 @@ int32_t SoundTriggerEngineGsl::UpdateDAMSetupDuration(int port_num) {
     dam_setup_duration_ =
         (struct audio_dam_downstream_setup_duration *)calloc(1, size);
     if (!dam_setup_duration_) {
-        QAL_ERR(LOG_TAG, "Failed to allocate dam setup duration");
+        PAL_ERR(LOG_TAG, "Failed to allocate dam setup duration");
         return -ENOMEM;
     }
 

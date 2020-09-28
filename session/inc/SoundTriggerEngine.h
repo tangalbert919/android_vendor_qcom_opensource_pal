@@ -36,9 +36,9 @@
 #include <mutex>
 #include <vector>
 
-#include "QalDefs.h"
-#include "QalCommon.h"
-#include "QalRingBuffer.h"
+#include "PalDefs.h"
+#include "PalCommon.h"
+#include "PalRingBuffer.h"
 #include "Device.h"
 
 // TODO: Move to sound trigger xml files
@@ -293,7 +293,7 @@ public:
     virtual int32_t StopRecognition(Stream *s) = 0;
     virtual int32_t UpdateConfLevels(
         Stream *s,
-        struct qal_st_recognition_config *config,
+        struct pal_st_recognition_config *config,
         uint8_t *conf_levels,
         uint32_t num_conf_levels) = 0;
     virtual int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
@@ -302,15 +302,15 @@ public:
     virtual int32_t GetParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t ConnectSessionDevice(
         Stream* stream_handle,
-        qal_stream_type_t stream_type,
+        pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_connect) = 0;
     virtual int32_t DisconnectSessionDevice(
         Stream* stream_handle,
-        qal_stream_type_t stream_type,
+        pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) = 0;
     virtual int32_t SetupSessionDevice(
         Stream* streamHandle,
-        qal_stream_type_t streamType,
+        pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual struct detection_event_info* GetDetectionEventInfo() = 0;
@@ -322,8 +322,8 @@ public:
         struct audio_dam_downstream_setup_duration **duration) = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
-        std::vector<QalRingBufferReader *> &reader_list);
-    int32_t SetBufferReader(QalRingBufferReader *reader);
+        std::vector<PalRingBufferReader *> &reader_list);
+    int32_t SetBufferReader(PalRingBufferReader *reader);
     uint32_t UsToBytes(uint64_t input_us);
 
 protected:
@@ -333,8 +333,8 @@ protected:
     uint32_t sm_data_size_;
     bool capture_requested_;
     Stream *stream_handle_;
-    QalRingBuffer *buffer_;
-    QalRingBufferReader *reader_;
+    PalRingBuffer *buffer_;
+    PalRingBufferReader *reader_;
     uint32_t sample_rate_;
     uint32_t bit_width_;
     uint32_t channels_;

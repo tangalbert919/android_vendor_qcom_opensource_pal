@@ -11,7 +11,7 @@ else
 h_sources = ${top_srcdir}/inc/adie_rtc.h
 
 AM_CFLAGS := -I ${top_srcdir}/inc
-AM_CFLAGS +=  -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/qal/
+AM_CFLAGS +=  -I $(PKG_CONFIG_SYSROOT_DIR)/usr/include/pal/
 rtc_c_sources = ${top_srcdir}/src/adie_rtc.c
 endif
 

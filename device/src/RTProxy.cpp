@@ -27,8 +27,8 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: RTProxy"
-#define LOG_TAG_OUT "QAL: RTProxyOut"
+#define LOG_TAG "PAL: RTProxy"
+#define LOG_TAG_OUT "PAL: RTProxyOut"
 #include "RTProxy.h"
 #include "ResourceManager.h"
 #include "Device.h"
@@ -46,7 +46,7 @@ std::shared_ptr<Device> RTProxy::getObject()
 }
 
 
-std::shared_ptr<Device> RTProxy::getInstance(struct qal_device *device,
+std::shared_ptr<Device> RTProxy::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
@@ -57,12 +57,12 @@ std::shared_ptr<Device> RTProxy::getInstance(struct qal_device *device,
 }
 
 
-RTProxy::RTProxy(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+RTProxy::RTProxy(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
     rm = Rm;
-    memset(&mDeviceAttr, 0, sizeof(struct qal_device));
-    memcpy(&mDeviceAttr, device, sizeof(struct qal_device));
+    memset(&mDeviceAttr, 0, sizeof(struct pal_device));
+    memcpy(&mDeviceAttr, device, sizeof(struct pal_device));
 }
 
 RTProxy::~RTProxy()
@@ -72,21 +72,21 @@ RTProxy::~RTProxy()
 
 int32_t RTProxy::isSampleRateSupported(uint32_t sampleRate)
 {
-    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     /* Proxy supports all sample rates, accept by default */
     return 0;
 }
 
 int32_t RTProxy::isChannelSupported(uint32_t numChannels)
 {
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     /* Proxy supports all channels, accept by default */
     return 0;
 }
 
 int32_t RTProxy::isBitWidthSupported(uint32_t bitWidth)
 {
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     /* Proxy supports all bitwidths, accept by default */
     return 0;
 }
@@ -97,7 +97,7 @@ int RTProxy::start() {
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t ratMiid = 0;
-    //struct qal_media_config config;
+    //struct pal_media_config config;
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activestreams;
@@ -117,7 +117,7 @@ int RTProxy::start() {
 
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
-        QAL_ERR(LOG_TAG, "no active stream available");
+        PAL_ERR(LOG_TAG, "no active stream available");
         return -EINVAL;
     }
     stream = static_cast<Stream *>(activestreams[0]);
@@ -125,7 +125,7 @@ int RTProxy::start() {
 
     status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
     if (status) {
-        QAL_INFO(LOG_TAG,
+        PAL_INFO(LOG_TAG,
          "Failed to get tag info %x Skipping RAT Configuration Setup, status = %d",
           RAT_RENDER, status);
         //status = -EINVAL;
@@ -141,7 +141,7 @@ int RTProxy::start() {
         paramSize = 0;
     } else {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "Invalid RAT module param size");
+        PAL_ERR(LOG_TAG, "Invalid RAT module param size");
         goto error;
     }
 start:
@@ -153,7 +153,7 @@ error:
 
 std::shared_ptr<Device> RTProxyOut::obj = nullptr;
 
-std::shared_ptr<Device> RTProxyOut::getInstance(struct qal_device *device,
+std::shared_ptr<Device> RTProxyOut::getInstance(struct pal_device *device,
                                                      std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
@@ -163,17 +163,17 @@ std::shared_ptr<Device> RTProxyOut::getInstance(struct qal_device *device,
     return obj;
 }
 
-RTProxyOut::RTProxyOut(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+RTProxyOut::RTProxyOut(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
     Device(device, Rm)
 {
     rm = Rm;
-    memset(&mDeviceAttr, 0, sizeof(struct qal_device));
-    memcpy(&mDeviceAttr, device, sizeof(struct qal_device));
+    memset(&mDeviceAttr, 0, sizeof(struct pal_device));
+    memcpy(&mDeviceAttr, device, sizeof(struct pal_device));
 }
 
 int32_t RTProxyOut::isSampleRateSupported(uint32_t sampleRate)
 {
-    QAL_DBG(LOG_TAG,"sampleRate %u", sampleRate);
+    PAL_DBG(LOG_TAG,"sampleRate %u", sampleRate);
 
     /* ProxyOut supports all sample rates, accept by default */
     return 0;
@@ -181,7 +181,7 @@ int32_t RTProxyOut::isSampleRateSupported(uint32_t sampleRate)
 
 int32_t RTProxyOut::isChannelSupported(uint32_t numChannels)
 {
-    QAL_DBG(LOG_TAG,"numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG,"numChannels %u", numChannels);
 
     /* ProxyOut supports all channels */
     return 0;
@@ -189,7 +189,7 @@ int32_t RTProxyOut::isChannelSupported(uint32_t numChannels)
 
 int32_t RTProxyOut::isBitWidthSupported(uint32_t bitWidth)
 {
-    QAL_DBG(LOG_TAG,"bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG,"bitWidth %u", bitWidth);
 
     /* ProxyOut supports all bitWidth configurations */
     return 0;

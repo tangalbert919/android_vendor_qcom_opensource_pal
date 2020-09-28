@@ -30,7 +30,7 @@
 #ifndef STREAM_H_
 #define STREAM_H_
 
-#include "QalDefs.h"
+#include "PalDefs.h"
 #include <algorithm>
 #include <vector>
 #include <string.h>
@@ -40,7 +40,7 @@
 #include <mutex>
 #include <exception>
 #include <errno.h>
-#include "QalCommon.h"
+#include "PalCommon.h"
 
 typedef enum {
     DATA_MODE_SHMEM = 0,
@@ -120,10 +120,10 @@ class Stream
 protected:
     uint32_t mNoOfDevices;
     std::vector <std::shared_ptr<Device>> mDevices;
-    static struct qal_device* mQalDevice;
+    static struct pal_device* mPalDevice;
     Session* session;
-    struct qal_stream_attributes* mStreamAttr;
-    struct qal_volume_data* mVolumeData = NULL;
+    struct pal_stream_attributes* mStreamAttr;
+    struct pal_volume_data* mVolumeData = NULL;
     std::mutex mStreamMutex;
     static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
     static std::shared_ptr<ResourceManager> rm;
@@ -142,11 +142,11 @@ protected:
     uint32_t mInstanceID = 0; // used for Voice UI only now
 public:
     virtual ~Stream() {};
-    qal_stream_callback streamCb;
+    pal_stream_callback streamCb;
     void *cookie;
     bool isPaused = false;
     bool a2dp_compress_mute = false;  /* TODO : Check if this can be removed */
-    qal_device_id_t suspendedDevId = QAL_DEVICE_NONE;
+    pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
@@ -154,58 +154,58 @@ public:
     virtual int32_t prepare() = 0;
     virtual int32_t pause() {return 0;}
     virtual int32_t resume() {return 0;}
-    virtual int32_t drain(qal_drain_type_t type __unused) {return 0;}
-    virtual int32_t setStreamAttributes(struct qal_stream_attributes *sattr) = 0;
-    virtual int32_t setVolume( struct qal_volume_data *volume) = 0;
+    virtual int32_t drain(pal_drain_type_t type __unused) {return 0;}
+    virtual int32_t setStreamAttributes(struct pal_stream_attributes *sattr) = 0;
+    virtual int32_t setVolume( struct pal_volume_data *volume) = 0;
     virtual int32_t setMute( bool state) = 0;
     virtual int32_t setPause() = 0;
     virtual int32_t setResume()= 0;
     virtual int32_t flush() {return 0;}
-    virtual int32_t read(struct qal_buffer *buf) = 0;
+    virtual int32_t read(struct pal_buffer *buf) = 0;
     virtual int32_t standby() {return 0;};
 
-    virtual int32_t addRemoveEffect(qal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
-    virtual int32_t write(struct qal_buffer *buf) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
-    virtual int32_t registerCallBack(qal_stream_callback cb, void *cookie) = 0;
-    virtual int32_t getCallBack(qal_stream_callback *cb) = 0;
+    virtual int32_t write(struct pal_buffer *buf) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
+    virtual int32_t registerCallBack(pal_stream_callback cb, void *cookie) = 0;
+    virtual int32_t getCallBack(pal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
     virtual int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable) = 0;
     virtual int32_t ssrDownHandler() = 0;
     virtual int32_t ssrUpHandler() = 0;
     virtual int32_t createMmapBuffer(int32_t min_size_frames __unused,
-                                   struct qal_mmap_buffer *info __unused) {return -EINVAL;}
-    virtual int32_t GetMmapPosition(struct qal_mmap_position *position __unused) {return -EINVAL;}
+                                   struct pal_mmap_buffer *info __unused) {return -EINVAL;}
+    virtual int32_t GetMmapPosition(struct pal_mmap_position *position __unused) {return -EINVAL;}
 
-    int32_t getStreamAttributes(struct qal_stream_attributes *sattr);
+    int32_t getStreamAttributes(struct pal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     const KeyVect_t& getDevPpModifiers() const;
     const KeyVect_t& getStreamModifiers() const;
-    int32_t getStreamType(qal_stream_type_t* streamType);
-    int32_t getStreamDirection(qal_stream_direction_t *dir);
+    int32_t getStreamType(pal_stream_type_t* streamType);
+    int32_t getStreamDirection(pal_stream_direction_t *dir);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
                        size_t *out_buf_size, size_t out_buf_count);
     int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                        size_t *out_buf_size, size_t *out_buf_count);
-    int32_t getVolumeData(struct qal_volume_data *vData);
+    int32_t getVolumeData(struct pal_volume_data *vData);
     /* static so that this method can be accessed wihtout object */
-    static Stream* create(struct qal_stream_attributes *sattr, struct qal_device *dattr,
+    static Stream* create(struct pal_stream_attributes *sattr, struct pal_device *dattr,
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
-    bool isStreamAudioOutFmtSupported(qal_audio_fmt_t format);
-    int32_t getTimestamp(struct qal_session_time *stime);
-    int disconnectStreamDevice(Stream* streamHandle,  qal_device_id_t dev_id);
-    int disconnectStreamDevice_l(Stream* streamHandle,  qal_device_id_t dev_id);
-    int connectStreamDevice(Stream* streamHandle, struct qal_device *dattr);
-    int connectStreamDevice_l(Stream* streamHandle, struct qal_device *dattr);
-    int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct qal_device *deviceArray);
-    bool isGKVMatch(qal_key_vector_t* gkv);
+    bool isStreamAudioOutFmtSupported(pal_audio_fmt_t format);
+    int32_t getTimestamp(struct pal_session_time *stime);
+    int disconnectStreamDevice(Stream* streamHandle,  pal_device_id_t dev_id);
+    int disconnectStreamDevice_l(Stream* streamHandle,  pal_device_id_t dev_id);
+    int connectStreamDevice(Stream* streamHandle, struct pal_device *dattr);
+    int connectStreamDevice_l(Stream* streamHandle, struct pal_device *dattr);
+    int switchDevice(Stream* streamHandle, uint32_t no_of_devices, struct pal_device *deviceArray);
+    bool isGKVMatch(pal_key_vector_t* gkv);
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
     uint32_t getInstanceId() { return mInstanceID; }
-    bool checkStreamMatch(qal_device_id_t qal_device_id,
-                                qal_stream_type_t qal_stream_type);
+    bool checkStreamMatch(pal_device_id_t pal_device_id,
+                                pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
     bool isActive() { return currentState == STREAM_STARTED; }
 };

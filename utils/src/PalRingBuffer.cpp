@@ -28,27 +28,27 @@
  */
 
 
-#include "QalRingBuffer.h"
-#include "QalCommon.h"
-#define LOG_TAG "QAL: QalRingBuffer"
+#include "PalRingBuffer.h"
+#include "PalCommon.h"
+#define LOG_TAG "PAL: PalRingBuffer"
 
-int32_t QalRingBuffer::removeReader(std::shared_ptr<QalRingBufferReader> reader __unused)
+int32_t PalRingBuffer::removeReader(std::shared_ptr<PalRingBufferReader> reader __unused)
 {
 
     return 0;
 }
 
-size_t QalRingBuffer::read(std::shared_ptr<QalRingBufferReader>reader __unused,
+size_t PalRingBuffer::read(std::shared_ptr<PalRingBufferReader>reader __unused,
                            void* readBuffer __unused, size_t readSize __unused)
 {
     return 0;
 }
 
-size_t QalRingBuffer::getFreeSize()
+size_t PalRingBuffer::getFreeSize()
 {
 
     size_t freeSize = bufferEnd_;
-    std::vector<QalRingBufferReader*>::iterator it;
+    std::vector<PalRingBufferReader*>::iterator it;
 
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++) {
         if ((*(it))->state_ == READER_ENABLED)
@@ -57,27 +57,27 @@ size_t QalRingBuffer::getFreeSize()
     return freeSize;
 }
 
-void QalRingBuffer::updateUnReadSize(size_t writtenSize)
+void PalRingBuffer::updateUnReadSize(size_t writtenSize)
 {
     int32_t i = 0;
-    std::vector<QalRingBufferReader*>::iterator it;
+    std::vector<PalRingBufferReader*>::iterator it;
 
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++) {
         if ((*(it))->state_ == READER_ENABLED) {
             (*(it))->unreadSize_ += writtenSize;
-            QAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%zu)", i, (*(it))->unreadSize_);
+            PAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%zu)", i, (*(it))->unreadSize_);
         }
     }
 }
 
-void QalRingBuffer::updateIndices(uint32_t startIndice, uint32_t endIndice)
+void PalRingBuffer::updateIndices(uint32_t startIndice, uint32_t endIndice)
 {
     startIndex = startIndice;
     endIndex = endIndice;
-    QAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u", startIndex, endIndex);
+    PAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u", startIndex, endIndex);
 }
 
-size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
+size_t PalRingBuffer::write(void* writeBuffer, size_t writeSize)
 {
     /* update the unread size for each reader*/
     mutex_.lock();
@@ -86,7 +86,7 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
     int32_t i = 0;
     size_t sizeToCopy = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. freeSize(%zu), writeOffset(%zu)", freeSize, writeOffset_);
+    PAL_DBG(LOG_TAG, "Enter. freeSize(%zu), writeOffset(%zu)", freeSize, writeOffset_);
 
     if (writeSize <= freeSize)
         sizeToCopy = writeSize;
@@ -114,12 +114,12 @@ size_t QalRingBuffer::write(void* writeBuffer, size_t writeSize)
     }
     updateUnReadSize(writtenSize);
     writeOffset_ = writeOffset_ % bufferEnd_;
-    QAL_DBG(LOG_TAG, "Exit. writeOffset(%zu)", writeOffset_);
+    PAL_DBG(LOG_TAG, "Exit. writeOffset(%zu)", writeOffset_);
     mutex_.unlock();
     return writtenSize;
 }
 
-void QalRingBuffer::reset()
+void PalRingBuffer::reset()
 {
     mutex_.lock();
     writeOffset_ = 0;
@@ -127,7 +127,7 @@ void QalRingBuffer::reset()
     // reset indices also
 }
 
-size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
+size_t PalRingBufferReader::read(void* readBuffer, size_t bufferSize)
 {
     int32_t readSize = 0;
     // Return 0 when no data can be read for current reader
@@ -194,7 +194,7 @@ size_t QalRingBufferReader::read(void* readBuffer, size_t bufferSize)
     return readSize;
 }
 
-size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
+size_t PalRingBufferReader::advanceReadOffset(size_t advanceSize)
 {
     size_t size_advanced = 0;
 
@@ -202,7 +202,7 @@ size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
 
     /* add code to advance the offset here*/
     if (unreadSize_ < advanceSize) {
-        QAL_ERR(LOG_TAG, "Cannot advance read offset greater than unread size");
+        PAL_ERR(LOG_TAG, "Cannot advance read offset greater than unread size");
         return size_advanced;
     }
 
@@ -217,27 +217,27 @@ size_t QalRingBufferReader::advanceReadOffset(size_t advanceSize)
     return size_advanced;
 }
 
-void QalRingBufferReader::updateState(qal_ring_buffer_reader_state state)
+void PalRingBufferReader::updateState(pal_ring_buffer_reader_state state)
 {
     state_ = state;
     // TODO: Handle read offsets for different scenario
 }
 
-void QalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
+void PalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
 {
     *startIndice = ringBuffer_->startIndex;
     *endIndice = ringBuffer_->endIndex;
-    QAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u",
+    PAL_VERBOSE(LOG_TAG, "start index = %u, end index = %u",
                 ringBuffer_->startIndex, ringBuffer_->endIndex);
 }
 
-size_t QalRingBufferReader::getUnreadSize()
+size_t PalRingBufferReader::getUnreadSize()
 {
-    QAL_DBG(LOG_TAG, "unread size %zu", unreadSize_);
+    PAL_DBG(LOG_TAG, "unread size %zu", unreadSize_);
     return unreadSize_;
 }
 
-void QalRingBufferReader::reset()
+void PalRingBufferReader::reset()
 {
     ringBuffer_->mutex_.lock();
     readOffset_ = 0;
@@ -246,10 +246,10 @@ void QalRingBufferReader::reset()
     ringBuffer_->mutex_.unlock();
 }
 
-QalRingBufferReader* QalRingBuffer::newReader()
+PalRingBufferReader* PalRingBuffer::newReader()
 {
-    QalRingBufferReader* readOffset =
-                  new QalRingBufferReader(this);
+    PalRingBufferReader* readOffset =
+                  new PalRingBufferReader(this);
     readOffsets_.push_back(readOffset);
     return readOffset;
 }

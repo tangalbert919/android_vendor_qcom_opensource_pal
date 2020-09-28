@@ -83,7 +83,7 @@ protected :
     static int numberOfChannels;
     static bool mDspCallbackRcvd;
     static param_id_sp_th_vi_calib_res_cfg_t *callback_data;
-    struct qal_device mDeviceAttr;
+    struct pal_device mDeviceAttr;
     std::vector<int> pcmDevIdTx;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
@@ -107,7 +107,7 @@ public:
     static int setConfig(int type, int tag, int tagValue, int devId, const char *aif);
     bool isSpeakerInUse(unsigned long *sec);
 
-    SpeakerProtection(struct qal_device *device,
+    SpeakerProtection(struct pal_device *device,
                       std::shared_ptr<ResourceManager> Rm);
 
     ~SpeakerProtection();

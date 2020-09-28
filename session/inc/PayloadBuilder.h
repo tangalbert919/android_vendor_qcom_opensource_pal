@@ -30,10 +30,10 @@
 #ifndef PAYLOAD_BUILDER_H_
 #define PAYLOAD_BUILDER_H_
 
-#include "QalDefs.h"
+#include "PalDefs.h"
 #include "gsl_intf.h"
 #include "kvh2xml.h"
-#include "QalCommon.h"
+#include "PalCommon.h"
 #include <vector>
 #include <algorithm>
 #include <expat.h>
@@ -66,7 +66,7 @@ struct sessionToPayloadParam {
     uint32_t sampleRate;                /**< sample rate */
     uint32_t bitWidth;                  /**< bit width */
     uint32_t numChannel;
-    struct qal_channel_info *ch_info;    /**< channel info */
+    struct pal_channel_info *ch_info;    /**< channel info */
     int direction;
     int native;
     int rotation_type;
@@ -105,7 +105,7 @@ public:
                             uint32_t *customayload, uint32_t customPayloadSize,
                             uint32_t moduleInstanceId, uint32_t dspParamId);
     void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId,
-                              struct qal_st_sound_model *soundModel);
+                              struct pal_st_sound_model *soundModel);
     void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
                                 struct detection_engine_config_voice_wakeup *pWakeUp);
     void payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
@@ -121,11 +121,11 @@ public:
     template <typename T>
     void populateChannelMap(T pcmChannel, uint8_t numChannel);
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
-                          struct qal_media_config *data);
+                          struct pal_media_config *data);
     void payloadPcmCnvConfig(uint8_t** payload, size_t* size, uint32_t miid,
-                             struct qal_media_config *data);
+                             struct pal_media_config *data);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
-                          struct qal_media_config *data);
+                          struct pal_media_config *data);
     void payloadTWSConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           bool isTwsMonoModeOn, uint32_t codecFormat);
     void payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid, int paramId, void *data);
@@ -144,7 +144,7 @@ public:
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx,
         std::vector<kvpair_info> kvpair);
     int populateDevicePPCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector);
-    int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct qal_volume_data **);
+    int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct pal_volume_data **);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
     void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);

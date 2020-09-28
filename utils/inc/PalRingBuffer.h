@@ -36,60 +36,60 @@
 #include <iostream>
 #include <string.h>
 
-#ifndef QALRINGBUFFER_H_
-#define QALRINGBUFFER_H_
+#ifndef PALRINGBUFFER_H_
+#define PALRINGBUFFER_H_
 
-#define DEFAULT_QAL_RING_BUFFER_SIZE 4096 * 10
+#define DEFAULT_PAL_RING_BUFFER_SIZE 4096 * 10
 
 typedef enum {
     READER_DISABLED = 0,
     READER_ENABLED = 1,
-} qal_ring_buffer_reader_state;
+} pal_ring_buffer_reader_state;
 
-class QalRingBuffer;
+class PalRingBuffer;
 
-class QalRingBufferReader {
+class PalRingBufferReader {
  public:
-     QalRingBufferReader(QalRingBuffer *buffer)
+     PalRingBufferReader(PalRingBuffer *buffer)
          : ringBuffer_(buffer),
            unreadSize_(0),
            readOffset_(0),
            state_(READER_ENABLED) {}
 
-    ~QalRingBufferReader() {};
+    ~PalRingBufferReader() {};
 
     size_t advanceReadOffset(size_t advanceSize);
     size_t read(void* readBuffer, size_t readSize);
-    void updateState(qal_ring_buffer_reader_state state);
+    void updateState(pal_ring_buffer_reader_state state);
     void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
     void reset();
 
-    friend class QalRingBuffer;
+    friend class PalRingBuffer;
     friend class StreamSoundTrigger;
 
  protected:
-    QalRingBuffer *ringBuffer_;
+    PalRingBuffer *ringBuffer_;
     size_t unreadSize_;
     size_t readOffset_;
-    qal_ring_buffer_reader_state state_;
+    pal_ring_buffer_reader_state state_;
 };
 
-class QalRingBuffer {
+class PalRingBuffer {
  public:
-    explicit QalRingBuffer(size_t bufferSize)
+    explicit PalRingBuffer(size_t bufferSize)
         : buffer_((char*)(new char[bufferSize])),
           startIndex(0),
           endIndex(0),
           writeOffset_(0),
           bufferEnd_(bufferSize) {}
 
-    ~QalRingBuffer() {}
+    ~PalRingBuffer() {}
 
-    QalRingBufferReader* newReader();
+    PalRingBufferReader* newReader();
 
-    int32_t removeReader(std::shared_ptr<QalRingBufferReader> reader);
-    size_t read(std::shared_ptr<QalRingBufferReader>reader, void* readBuffer,
+    int32_t removeReader(std::shared_ptr<PalRingBufferReader> reader);
+    size_t read(std::shared_ptr<PalRingBufferReader>reader, void* readBuffer,
                 size_t readSize);
     size_t write(void* writeBuffer, size_t writeSize);
     size_t getFreeSize();
@@ -103,8 +103,8 @@ class QalRingBuffer {
     uint32_t endIndex;
     size_t writeOffset_;
     const size_t bufferEnd_;
-    std::vector<QalRingBufferReader*> readOffsets_;
+    std::vector<PalRingBufferReader*> readOffsets_;
     void updateUnReadSize(size_t writtenSize);
-    friend class QalRingBufferReader;
+    friend class PalRingBufferReader;
 };
 #endif

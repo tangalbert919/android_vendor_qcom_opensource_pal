@@ -27,60 +27,60 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/** \file qal_api.h
- *  \brief Function prototypes for the QAL(QTI Audio
+/** \file pal_api.h
+ *  \brief Function prototypes for the PAL(Platform Audio
  *   Layer).
  *
- *  This contains the prototypes for the QAL(QTI Audio
+ *  This contains the prototypes for the PAL(Platform Audio
  *  layer) and  any macros, constants, or global variables
  *  needed.
  */
 
-#ifndef QAL_API_H
-#define QAL_API_H
+#ifndef PAL_API_H
+#define PAL_API_H
 
-#include "QalDefs.h"
+#include "PalDefs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- *  Get QAL version in the form of Major and Minor number
+ *  Get PAL version in the form of Major and Minor number
  *  seperated by period.
  *
  *  @return the version string in the form of Major and Minor
  *  e.g '1.0'
  */
-char* qal_get_version( );
+char* pal_get_version( );
 
 /**
- *  Initialize QAL. Increases ref count.
+ *  Initialize PAL. Increases ref count.
  *
  *  @return 0 on success, error code on failure.
  */
-int32_t qal_init( );
+int32_t pal_init( );
 
 /**
- *  De-Initialize QAL. Decreases the ref count.
+ *  De-Initialize PAL. Decreases the ref count.
  */
-void qal_deinit();
+void pal_deinit();
 
 /**
   * \brief Open the stream with specified configuration.
   *
   * \param[in] attributes - Valid stream attributes obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] no_of_devices - no of audio devices that the
   *       stream should be initially started with.
-  * \param[in] qal_device - an array of qal_devices. The size of
+  * \param[in] pal_device - an array of pal_devices. The size of
   *       the array is based on the no_of_devices specified by
   *       the client.
-  *       If qal_media_config in qal_device is specified as NULL,
-  *       QAL uses the default device configuration or appropriate
+  *       If pal_media_config in pal_device is specified as NULL,
+  *       PAL uses the default device configuration or appropriate
   *       configuration based on the usecases running.
   *       Clients can query the device configuration by using
-  *       qal_get_device().
+  *       pal_get_device().
   * \param[in] no_of_modifiers - no of modifiers.
   * \param[in] modifiers - an array of modifiers. Modifiers are
   *       used to add additional key-value pairs. e.g to
@@ -96,123 +96,123 @@ void qal_deinit();
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_open(struct qal_stream_attributes *attributes,
-                        uint32_t no_of_devices, struct qal_device *devices,
+int32_t pal_stream_open(struct pal_stream_attributes *attributes,
+                        uint32_t no_of_devices, struct pal_device *devices,
                         uint32_t no_of_modifiers, struct modifier_kv *modifiers,
-                        qal_stream_callback cb, void *cookie,
-                        qal_stream_handle_t **stream_handle);
+                        pal_stream_callback cb, void *cookie,
+                        pal_stream_handle_t **stream_handle);
 
 /**
   * \brief Close the stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_close(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_close(pal_stream_handle_t *stream_handle);
 
 /**
   * \brief Register for specific event on a given stream. Events
   *        will be notified via the callback function registered
-  *        in qal_stream_open cmd.
+  *        in pal_stream_open cmd.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] event_id - Valid event id that the client would like notificaiton.
   * \param[in] event_data - Event configuration data.
   *
   * \return 0 on success, error code otherwise
   */
-//int32_t qal_stream_register_for_event(qal_stream_handle_t *stream_handle,
-  //                               uint32_t event_id, qal_event_cfg_t *event_cfg);
+//int32_t pal_stream_register_for_event(pal_stream_handle_t *stream_handle,
+  //                               uint32_t event_id, pal_event_cfg_t *event_cfg);
 
 /**
   * \brief Start the stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_start(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_start(pal_stream_handle_t *stream_handle);
 
 /**
   * \brief Stop the stream. Stream must be in started/paused
   *        state before stoping.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_stop(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_stop(pal_stream_handle_t *stream_handle);
 
 /**
   * \brief Pause the stream. Stream must be in started state
   *        before resuming.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_pause(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_pause(pal_stream_handle_t *stream_handle);
 
 /**
   * \brief Resume the stream. Stream must be in paused state
   *        before resuming.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_resume(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_resume(pal_stream_handle_t *stream_handle);
 
 /**
   * \brief Flush accumlated data from the stream. Stream must be
   *        in paused state before flushing.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_flush(qal_stream_handle_t *stream_handle);
+int32_t pal_stream_flush(pal_stream_handle_t *stream_handle);
 
 /**
   * Drain audio data buffered by the driver/hardware has been
   * played depending on the drain type specified. If stream is
   * opened with AUDIO_STREAM_FLAG_NON_BLOCKING and callback
-  * function is set in qal_open_stream(), drain complete
+  * function is set in pal_open_stream(), drain complete
   * notificaiton will be sent via the callback function
   * otherwise will block until drain is completed.
   *
   * Drain will return immediately on stop() and flush() call.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] type - drain type, DRAIN or DRAIN_PARTIAL.
   *
   * \return 0 on success, error code otherwise
   */
 
-int32_t qal_stream_drain(qal_stream_handle_t *stream_handle, qal_drain_type_t type);
+int32_t pal_stream_drain(pal_stream_handle_t *stream_handle, pal_drain_type_t type);
 
 /**
   * Get audio buffer size based on the direction of the stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open.
+  *       from pal_stream_open.
   * \param[out] in_buffer - filled if stream was opened with
-  *       QAL_AUDIO_INPUT direction.
+  *       PAL_AUDIO_INPUT direction.
   * \param[out] out_buffer - filled if stream was opened with
-  *       QAL_AUDIO_OUTPUT direction.
+  *       PAL_AUDIO_OUTPUT direction.
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle,
+int32_t pal_stream_get_buffer_size(pal_stream_handle_t *stream_handle,
                                    size_t *in_buffer, size_t *out_buffer);
 
 /**
@@ -221,19 +221,19 @@ int32_t qal_stream_get_buffer_size(qal_stream_handle_t *stream_handle,
   * certain stream types.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open.
+  *       from pal_stream_open.
   * \param[in] in_buf_size - input buffer size when stream is
-  *       opened with QAL_AUDIO_INPUT direction.
+  *       opened with PAL_AUDIO_INPUT direction.
   * \param[in] in_buf_count - input buffer count when stream is
-  *       opened with QAL_AUDIO_INPUT direction.
+  *       opened with PAL_AUDIO_INPUT direction.
   * \param[in] out_buf_size - output buffer size when stream is
-  *       opened with QAL_AUDIO_OUTPUT direction..
+  *       opened with PAL_AUDIO_OUTPUT direction..
   * \param[in] out_buf_count - output buffer count when stream is
-  *       opened with QAL_AUDIO_OUTPUT direction..
+  *       opened with PAL_AUDIO_OUTPUT direction..
   *
   * \return - 0 on success, error code otherwise.
   */
-int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, size_t *in_buf_size,
+int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle, size_t *in_buf_size,
                                     const size_t in_buf_count, size_t *out_buf_size,
                                     const size_t out_buf_count);
 
@@ -244,53 +244,53 @@ int32_t qal_stream_set_buffer_size (qal_stream_handle_t *stream_handle, size_t *
   * opened with timetamp flag.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
-  * \param[in] buf - pointer to qal_buffer containing audio
+  *       from pal_stream_open
+  * \param[in] buf - pointer to pal_buffer containing audio
   *       samples and metadata.
   *
   * \return - number of bytes read or error code on failure
   */
-ssize_t qal_stream_read(qal_stream_handle_t *stream_handle, struct qal_buffer *buf);
+ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *buf);
 
 /**
   * Write audio buffer of a stream for rendering.If at least one
-  * frame was written successfully prior to the error, QAL will
+  * frame was written successfully prior to the error, PAL will
   * return number of bytes returned.
   *
   * Timestamp is honored if the stream was opened with timestamp
   * flag otherwise it is ignored.
   *
   * If the stream was opened with non-blocking mode, the write()
-  * will operate in non-blocking mode. QAL will write only the
+  * will operate in non-blocking mode. PAL will write only the
   * number of bytes that currently fit in the driver/hardware
   * buffer. If the callback function is set during
-  * qal_stream_open, the callback function will be called when
+  * pal_stream_open, the callback function will be called when
   * more space is available in the driver/hardware buffer.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
-  * \param[in] buf - pointer to qal_buffer containing audio
+  *       from pal_stream_open
+  * \param[in] buf - pointer to pal_buffer containing audio
   *       samples and metadata.
   *
   * \return number of bytes written or error code.
   */
-ssize_t qal_stream_write(qal_stream_handle_t *stream_handle, struct qal_buffer *buf);
+ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *buf);
 
 /**
   * \brief get current device on stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] no_of_devices - no of audio devices that the
   *       stream should be initially started with.
-  * \param[in] qal_device - an array of qal_device. The size of
+  * \param[in] pal_device - an array of pal_device. The size of
   *       the array is based on the no_of_devices the stream is
   *       associated.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle,
-                            uint32_t no_of_devices, struct qal_device *devices);
+int32_t pal_stream_get_device(pal_stream_handle_t *stream_handle,
+                            uint32_t no_of_devices, struct pal_device *devices);
 
 /**
   * \brief set new device on stream. This api will disable the
@@ -301,23 +301,23 @@ int32_t qal_stream_get_device(qal_stream_handle_t *stream_handle,
   *        configuration chagnes.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] no_of_devices - no of audio devices that the
   *       stream should be initially started with.
-  * \param[in] qal_device - an array of qal_device. The size of
+  * \param[in] pal_device - an array of pal_device. The size of
   *       the array is based on the no_of_devices specified by
   *       the client.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
-                           uint32_t no_of_devices, struct qal_device *devices);
+int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
+                           uint32_t no_of_devices, struct pal_device *devices);
 
 /**
   * \brief Get audio parameters specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] param_id - param id whose parameters are
   *       retrieved.
   * \param[out] param_payload - param data applicable to the
@@ -325,14 +325,14 @@ int32_t qal_stream_set_device(qal_stream_handle_t *stream_handle,
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
-                           uint32_t param_id, qal_param_payload **param_payload);
+int32_t pal_stream_get_param(pal_stream_handle_t *stream_handle,
+                           uint32_t param_id, pal_param_payload **param_payload);
 
 /**
   * \brief Set audio parameters specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] param_id - param id whose parameters are to be
   *       set.
   * \param[out] param_payload - param data applicable to the
@@ -340,56 +340,56 @@ int32_t qal_stream_get_param(qal_stream_handle_t *stream_handle,
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_param(qal_stream_handle_t *stream_handle,
-                           uint32_t param_id, qal_param_payload *param_payload);
+int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle,
+                           uint32_t param_id, pal_param_payload *param_payload);
 
 /**
   * \brief Get audio volume specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] volume - volume data to be set on a stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_volume(qal_stream_handle_t *stream_handle,
-                              struct qal_volume_data *volume);
+int32_t pal_stream_get_volume(pal_stream_handle_t *stream_handle,
+                              struct pal_volume_data *volume);
 
 /**
   * \brief Set audio volume specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[out] volume - volume data to be retrieved from the
   *       stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_volume(qal_stream_handle_t *stream_handle,
-                              struct qal_volume_data *volume);
+int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
+                              struct pal_volume_data *volume);
 
 /**
   * \brief Get current audio audio mute state to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] mute - mute state to be retrieved from the
   *       stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_mute(qal_stream_handle_t *stream_handle, bool *state);
+int32_t pal_stream_get_mute(pal_stream_handle_t *stream_handle, bool *state);
 
 /**
   * \brief Set mute specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[out] mute - mute state to be set to the stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_set_mute(qal_stream_handle_t *stream, bool state);
+int32_t pal_stream_set_mute(pal_stream_handle_t *stream, bool state);
 
 /**
   * \brief Get microphone mute state.
@@ -398,7 +398,7 @@ int32_t qal_stream_set_mute(qal_stream_handle_t *stream, bool state);
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_get_mic_mute(bool *state);
+int32_t pal_get_mic_mute(bool *state);
 
 /**
   * \brief Set global mic mute state.
@@ -407,34 +407,34 @@ int32_t qal_get_mic_mute(bool *state);
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_set_mic_mute(bool state);
+int32_t pal_set_mic_mute(bool state);
 
 /**
   * \brief Get time stamp.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[out] stime - time stamp data to be retrieved from the
   *       stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_get_timestamp(qal_stream_handle_t *stream_handle, struct qal_session_time *stime);
+int32_t pal_get_timestamp(pal_stream_handle_t *stream_handle, struct pal_session_time *stime);
 
 /**
   * \brief Add remove effects for Voip TX path.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] effect - effect to be enabled or disable
   * \param[in] enable - enable/disable
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle, qal_audio_effect_t effect, bool enable);
+int32_t pal_add_remove_effect(pal_stream_handle_t *stream_handle, pal_audio_effect_t effect, bool enable);
 
 /**
-  * \brief Set qal parameters
+  * \brief Set pal parameters
   *
   * \param[in] param_id - param id whose parameters are to be
   *       set.
@@ -444,10 +444,10 @@ int32_t qal_add_remove_effect(qal_stream_handle_t *stream_handle, qal_audio_effe
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_set_param(uint32_t param_id, void *param_payload, size_t payload_size);
+int32_t pal_set_param(uint32_t param_id, void *param_payload, size_t payload_size);
 
 /**
-  * \brief Get qal parameters
+  * \brief Get pal parameters
   *
   *
   * \param[in] param_id - param id whose parameters are
@@ -458,38 +458,38 @@ int32_t qal_set_param(uint32_t param_id, void *param_payload, size_t payload_siz
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_get_param(uint32_t param_id, void **param_payload,
+int32_t pal_get_param(uint32_t param_id, void **param_payload,
                         size_t *payload_size, void *query);
 
 /**
   * \brief Set audio volume specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[in] min_size_frames - minimum frame size required.
   * \param[out] info - map buffer descriptor returned by
   *       stream.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_create_mmap_buffer(qal_stream_handle_t *stream_handle,
+int32_t pal_stream_create_mmap_buffer(pal_stream_handle_t *stream_handle,
                               int32_t min_size_frames,
-                              struct qal_mmap_buffer *info);
+                              struct pal_mmap_buffer *info);
 
 /**
   * \brief Set audio volume specific to a stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained
-  *       from qal_stream_open
+  *       from pal_stream_open
   * \param[out] position - Mmap buffer read/write position returned.
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
-                              struct qal_mmap_position *position);
+int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
+                              struct pal_mmap_position *position);
 
 /**
-  * \brief Register global callback to qal.
+  * \brief Register global callback to pal.
   *        This can be used to inform client about any information
   *        needed even before stream is created.
   *
@@ -499,10 +499,10 @@ int32_t qal_stream_get_mmap_position(qal_stream_handle_t *stream_handle,
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_register_global_callback(qal_global_callback cb, void *cookie);
+int32_t pal_register_global_callback(pal_global_callback cb, void *cookie);
 
 /**
-  * \brief Set and get qal parameters for generic effect framework
+  * \brief Set and get pal parameters for generic effect framework
   *
   * \param[in] param_id - param id whose parameters are to be
   *       set.
@@ -510,24 +510,24 @@ int32_t qal_register_global_callback(qal_global_callback cb, void *cookie);
   *       param_id
   * \param[in] payload_size - size of payload
   *
-  * \param[in] qal_stream_type - type of stream to apply the GEF param
+  * \param[in] pal_stream_type - type of stream to apply the GEF param
   *
-  * \param[in] qal_device_id - device id to apply the effect
+  * \param[in] pal_device_id - device id to apply the effect
   *
-  * \param[i] qal_stream_type - stream type to apply the effect
+  * \param[i] pal_stream_type - stream type to apply the effect
   *
   * \param[in] dir - param read or write
   *
   * \return 0 on success, error code otherwise
   */
-int32_t qal_gef_rw_param(uint32_t param_id, void *param_payload,
-                      size_t payload_size, qal_device_id_t qal_device_id,
-                      qal_stream_type_t qal_stream_type, unsigned int dir);
+int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
+                      size_t payload_size, pal_device_id_t pal_device_id,
+                      pal_stream_type_t pal_stream_type, unsigned int dir);
 
 extern void  __gcov_flush();
 
 /**
- *  Enable Gcov for QAL.
+ *  Enable Gcov for PAL.
  */
 //void enable_gcov();
 
@@ -535,4 +535,4 @@ extern void  __gcov_flush();
 }  /* extern "C" */
 #endif
 
-#endif /*QAL_API_H*/
+#endif /*PAL_API_H*/

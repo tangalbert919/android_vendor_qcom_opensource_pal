@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: Speaker"
+#define LOG_TAG "PAL: Speaker"
 #include "Speaker.h"
 #include "ResourceManager.h"
 #include "SpeakerProtection.h"
@@ -43,7 +43,7 @@ std::shared_ptr<Device> Speaker::getObject()
 }
 
 
-std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device,
+std::shared_ptr<Device> Speaker::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
     if (!obj) {
@@ -54,7 +54,7 @@ std::shared_ptr<Device> Speaker::getInstance(struct qal_device *device,
 }
 
 
-Speaker::Speaker(struct qal_device *device, std::shared_ptr<ResourceManager> Rm) :
+Speaker::Speaker(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
 Device(device, Rm)
 {
     if (ResourceManager::isSpeakerProtectionEnabled) {
@@ -76,14 +76,14 @@ Speaker::~Speaker()
 int32_t Speaker::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch (sampleRate) {
         case SAMPLINGRATE_48K:
         case SAMPLINGRATE_96K:
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "sample rate not supported rc %d", rc);
             break;
     }
     return rc;
@@ -92,7 +92,7 @@ int32_t Speaker::isSampleRateSupported(uint32_t sampleRate)
 int32_t Speaker::isChannelSupported(uint32_t numChannels)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch (numChannels) {
         case CHANNELS_1:
         case CHANNELS_2:
@@ -102,7 +102,7 @@ int32_t Speaker::isChannelSupported(uint32_t numChannels)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "channels not supported rc %d", rc);
             break;
     }
     return rc;
@@ -111,7 +111,7 @@ int32_t Speaker::isChannelSupported(uint32_t numChannels)
 int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch (bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -119,7 +119,7 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
+            PAL_ERR(LOG_TAG, "bit width not supported rc %d", rc);
             break;
     }
     return rc;
@@ -127,7 +127,7 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
 
 int Speaker::start()
 {
-    QAL_DBG(LOG_TAG, "Inside Speaker start");
+    PAL_DBG(LOG_TAG, "Inside Speaker start");
     std::shared_ptr<SpeakerProtection> speakerProt;
     speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
     if (ResourceManager::isSpeakerProtectionEnabled) {
@@ -139,7 +139,7 @@ int Speaker::start()
 
 int Speaker::stop()
 {
-    QAL_DBG(LOG_TAG, "Inside Speaker stop");
+    PAL_DBG(LOG_TAG, "Inside Speaker stop");
     std::shared_ptr<SpeakerProtection> speakerProt;
     speakerProt = std::dynamic_pointer_cast<SpeakerProtection> (objSP);
     Device::stop();

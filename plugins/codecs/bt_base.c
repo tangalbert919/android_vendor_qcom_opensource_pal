@@ -27,7 +27,7 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define LOG_TAG "QAL: bt_base"
+#define LOG_TAG "PAL: bt_base"
 
 #include "bt_base.h"
 #include <common_enc_dec_api.h>

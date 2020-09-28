@@ -35,7 +35,7 @@
 #include "capi_v2_extn.h"
 
 #include "SoundTriggerEngine.h"
-#include "QalRingBuffer.h"
+#include "PalRingBuffer.h"
 
 class Stream;
 
@@ -53,7 +53,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
         Stream *s,
-        struct qal_st_recognition_config *config,
+        struct pal_st_recognition_config *config,
         uint8_t *conf_levels,
         uint32_t num_conf_levels) override;
     void SetDetected(bool detected) override;
@@ -63,15 +63,15 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     }
     int32_t ConnectSessionDevice(
         Stream* stream_handle __unused,
-        qal_stream_type_t stream_type __unused,
+        pal_stream_type_t stream_type __unused,
         std::shared_ptr<Device> device_to_connect __unused) { return 0; }
     int32_t DisconnectSessionDevice(
         Stream* stream_handle __unused,
-        qal_stream_type_t stream_type __unused,
+        pal_stream_type_t stream_type __unused,
         std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t SetupSessionDevice(
        Stream* stream_handle __unused,
-       qal_stream_type_t stream_type __unused,
+       pal_stream_type_t stream_type __unused,
        std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
                             uint32_t pre_roll_duration __unused) {

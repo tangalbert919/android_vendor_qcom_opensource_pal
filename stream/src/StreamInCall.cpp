@@ -40,7 +40,7 @@
 #include "Device.h"
 #include <unistd.h>
 
-StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal_device *dattr,
+StreamInCall::StreamInCall(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
                     const uint32_t no_of_devices, const struct modifier_kv *modifiers,
                     const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm)
 {
@@ -49,14 +49,14 @@ StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal
     uint32_t attribute_size = 0;
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
-        QAL_ERR(LOG_TAG, "Sound card offline, can not create stream");
+        PAL_ERR(LOG_TAG, "Sound card offline, can not create stream");
         usleep(SSR_RECOVERY);
         mStreamMutex.unlock();
         throw std::runtime_error("Sound card offline");
     }
 
     session = NULL;
-    mStreamAttr = (struct qal_stream_attributes *)nullptr;
+    mStreamAttr = (struct pal_stream_attributes *)nullptr;
     inBufSize = BUF_SIZE_CAPTURE;
     outBufSize = BUF_SIZE_PLAYBACK;
     inBufCount = NO_OF_BUF;
@@ -66,7 +66,7 @@ StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
 
-    QAL_DBG(LOG_TAG, "Enter");
+    PAL_DBG(LOG_TAG, "Enter");
 
     //TBD handle modifiers later
     mNoOfModifiers = 0; //no_of_modifiers;
@@ -75,51 +75,51 @@ StreamInCall::StreamInCall(const struct qal_stream_attributes *sattr, struct qal
     std::ignore = no_of_modifiers;
 
     // Setting default volume to unity
-    mVolumeData = (struct qal_volume_data *)malloc(sizeof(struct qal_volume_data)
-                      +sizeof(struct qal_channel_vol_kv));
+    mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
+                      +sizeof(struct pal_channel_vol_kv));
     mVolumeData->no_of_volpair = 1;
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;
 
     if (!sattr || !dattr) {
-        QAL_ERR(LOG_TAG,"invalid arguments");
+        PAL_ERR(LOG_TAG,"invalid arguments");
         mStreamMutex.unlock();
         throw std::runtime_error("invalid arguments");
     }
 
-    attribute_size = sizeof(struct qal_stream_attributes);
-    mStreamAttr = (struct qal_stream_attributes *) calloc(1, attribute_size);
+    attribute_size = sizeof(struct pal_stream_attributes);
+    mStreamAttr = (struct pal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
-        QAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "malloc for stream attributes failed %s", strerror(errno));
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
 
-    ar_mem_cpy(mStreamAttr, sizeof(qal_stream_attributes), sattr, sizeof(qal_stream_attributes));
+    ar_mem_cpy(mStreamAttr, sizeof(pal_stream_attributes), sattr, sizeof(pal_stream_attributes));
 
-    if (mStreamAttr->in_media_config.ch_info.channels > QAL_MAX_CHANNELS_SUPPORTED) {
-        QAL_ERR(LOG_TAG,"in_channels is invalid %d", in_channels);
-        mStreamAttr->in_media_config.ch_info.channels = QAL_MAX_CHANNELS_SUPPORTED;
+    if (mStreamAttr->in_media_config.ch_info.channels > PAL_MAX_CHANNELS_SUPPORTED) {
+        PAL_ERR(LOG_TAG,"in_channels is invalid %d", in_channels);
+        mStreamAttr->in_media_config.ch_info.channels = PAL_MAX_CHANNELS_SUPPORTED;
     }
-    if (mStreamAttr->out_media_config.ch_info.channels > QAL_MAX_CHANNELS_SUPPORTED) {
-        QAL_ERR(LOG_TAG,"out_channels is invalid %d", out_channels);
-        mStreamAttr->out_media_config.ch_info.channels = QAL_MAX_CHANNELS_SUPPORTED;
+    if (mStreamAttr->out_media_config.ch_info.channels > PAL_MAX_CHANNELS_SUPPORTED) {
+        PAL_ERR(LOG_TAG,"out_channels is invalid %d", out_channels);
+        mStreamAttr->out_media_config.ch_info.channels = PAL_MAX_CHANNELS_SUPPORTED;
     }
 
-    QAL_VERBOSE(LOG_TAG, "Create new Session");
+    PAL_VERBOSE(LOG_TAG, "Create new Session");
     session = Session::makeSession(rm, sattr);
     if (!session) {
-        QAL_ERR(LOG_TAG, "session creation failed");
+        PAL_ERR(LOG_TAG, "session creation failed");
         free(mStreamAttr);
         mStreamMutex.unlock();
         throw std::runtime_error("failed to create session object");
     }
 
-    QAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
+    PAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
 
     rm->registerStream(this);
     mStreamMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit. state %d", currentState);
+    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     return;
 }
 
@@ -129,30 +129,30 @@ int32_t  StreamInCall::open()
 
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
-        QAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
+        PAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
         usleep(SSR_RECOVERY);
         status = -EIO;
         goto exit;
     }
 
     if (currentState == STREAM_IDLE) {
-        QAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
+        PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
                 mDevices.size());
         status = session->open(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session open failed with status %d", status);
+            PAL_ERR(LOG_TAG, "session open failed with status %d", status);
             goto exit;
         }
-        QAL_VERBOSE(LOG_TAG, "session open successful");
+        PAL_VERBOSE(LOG_TAG, "session open successful");
 
         currentState = STREAM_INIT;
-        QAL_DBG(LOG_TAG, "Exit. streamLL opened. state %d", currentState);
+        PAL_DBG(LOG_TAG, "Exit. streamLL opened. state %d", currentState);
     } else if (currentState == STREAM_INIT) {
-        QAL_INFO(LOG_TAG, "Stream is already opened, state %d", currentState);
+        PAL_INFO(LOG_TAG, "Stream is already opened, state %d", currentState);
         status = 0;
         goto exit;
     } else {
-        QAL_ERR(LOG_TAG, "Stream is not in correct state %d", currentState);
+        PAL_ERR(LOG_TAG, "Stream is not in correct state %d", currentState);
         //TBD : which error code to return here.
         status = -EINVAL;
         goto exit;
@@ -168,7 +168,7 @@ int32_t  StreamInCall::close()
     int32_t status = 0;
     mStreamMutex.lock();
 
-    QAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
+    PAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
             session, mDevices.size(), currentState);
 
     if (currentState == STREAM_IDLE) {
@@ -179,19 +179,19 @@ int32_t  StreamInCall::close()
          * 2. Stream created but opened failed.
          * No need to call session close for this case too.
          */
-        QAL_VERBOSE(LOG_TAG, "closed the devices successfully");
+        PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
         goto exit;
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         status = stop();
         if (0 != status)
-            QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
+            PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
     }
 
     rm->lockGraph();
     status = session->close(this);
     rm->unlockGraph();
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session close failed with status %d", status);
+        PAL_ERR(LOG_TAG, "session close failed with status %d", status);
     }
 
 exit:
@@ -200,16 +200,16 @@ exit:
     status = rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
-        mStreamAttr = (struct qal_stream_attributes *)NULL;
+        mStreamAttr = (struct pal_stream_attributes *)NULL;
     }
 
     if(mVolumeData)  {
         free(mVolumeData);
-        mVolumeData = (struct qal_volume_data *)NULL;
+        mVolumeData = (struct pal_volume_data *)NULL;
     }
     delete session;
     session = nullptr;
-    QAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
+    PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
 }
@@ -221,80 +221,80 @@ int32_t StreamInCall::start()
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_STARTED;
-        QAL_ERR(LOG_TAG, "Sound card offline. Update the cached state %d",
+        PAL_ERR(LOG_TAG, "Sound card offline. Update the cached state %d",
                 cachedState);
         goto exit;
     }
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
               session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
-        case QAL_AUDIO_OUTPUT:
+        case PAL_AUDIO_OUTPUT:
             rm->lockGraph();
-            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_OUTPUT device count - %zu",
+            PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_OUTPUT device count - %zu",
                             mDevices.size());
 
             status = session->prepare(this);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
+                PAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
                         status);
                 rm->unlockGraph();
                 goto exit;
             }
-            QAL_VERBOSE(LOG_TAG, "session prepare successful");
+            PAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
             if (errno == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 cachedState = STREAM_STARTED;
                 rm->unlockGraph();
                 goto exit;
             }
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
+                PAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
                         status);
                 rm->unlockGraph();
                 goto exit;
             }
-            QAL_VERBOSE(LOG_TAG, "session start successful");
+            PAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
             break;
 
-        case QAL_AUDIO_INPUT:
-            QAL_VERBOSE(LOG_TAG, "Inside QAL_AUDIO_INPUT device count - %zu",
+        case PAL_AUDIO_INPUT:
+            PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_INPUT device count - %zu",
                         mDevices.size());
 
             status = session->prepare(this);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
+                PAL_ERR(LOG_TAG, "Tx session prepare is failed with status %d",
                         status);
                 goto exit;
             }
-            QAL_VERBOSE(LOG_TAG, "session prepare successful");
+            PAL_VERBOSE(LOG_TAG, "session prepare successful");
 
             status = session->start(this);
             if (errno == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 cachedState = STREAM_STARTED;
                 rm->unlockGraph();
                 goto exit;
             }
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
+                PAL_ERR(LOG_TAG, "Tx session start is failed with status %d",
                         status);
                 goto exit;
             }
-            QAL_VERBOSE(LOG_TAG, "session start successful");
+            PAL_VERBOSE(LOG_TAG, "session start successful");
             break;
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
+            PAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
             break;
         }
         /*pcm_open and pcm_start done at once here,
@@ -302,14 +302,14 @@ int32_t StreamInCall::start()
          */
         currentState = STREAM_STARTED;
     } else if (currentState == STREAM_STARTED) {
-        QAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
+        PAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
         goto exit;
     } else {
-        QAL_ERR(LOG_TAG, "Stream is not opened yet");
+        PAL_ERR(LOG_TAG, "Stream is not opened yet");
         status = -EINVAL;
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. state %d", currentState);
+    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
 
 exit:
     mStreamMutex.unlock();
@@ -322,49 +322,49 @@ int32_t StreamInCall::stop()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    QAL_ERR(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+    PAL_ERR(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         switch (mStreamAttr->direction) {
-        case QAL_AUDIO_OUTPUT:
-            QAL_VERBOSE(LOG_TAG, "In QAL_AUDIO_OUTPUT case, device count - %zu",
+        case PAL_AUDIO_OUTPUT:
+            PAL_VERBOSE(LOG_TAG, "In PAL_AUDIO_OUTPUT case, device count - %zu",
                         mDevices.size());
 
             status = session->stop(this);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
+                PAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
             }
-            QAL_VERBOSE(LOG_TAG, "session stop successful");
+            PAL_VERBOSE(LOG_TAG, "session stop successful");
             break;
 
-        case QAL_AUDIO_INPUT:
-            QAL_ERR(LOG_TAG, "In QAL_AUDIO_INPUT case, device count - %zu",
+        case PAL_AUDIO_INPUT:
+            PAL_ERR(LOG_TAG, "In PAL_AUDIO_INPUT case, device count - %zu",
                         mDevices.size());
 
             status = session->stop(this);
             if (0 != status) {
-                QAL_ERR(LOG_TAG, "Tx session stop failed with status %d", status);
+                PAL_ERR(LOG_TAG, "Tx session stop failed with status %d", status);
                 goto exit;
             }
-            QAL_VERBOSE(LOG_TAG, "session stop successful");
+            PAL_VERBOSE(LOG_TAG, "session stop successful");
             break;
 
         default:
             status = -EINVAL;
-            QAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
+            PAL_ERR(LOG_TAG, "Stream type is not supported with status %d", status);
             break;
         }
         currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
-        QAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
+        PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
         goto exit;
     } else {
-        QAL_ERR(LOG_TAG, "Stream should be in start/pause state, %d", currentState);
+        PAL_ERR(LOG_TAG, "Stream should be in start/pause state, %d", currentState);
         status = -EINVAL;
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
+    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
 
 exit:
    mStreamMutex.unlock();
@@ -376,53 +376,53 @@ int32_t StreamInCall::prepare()
 {
     int32_t status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mStreamMutex.lock();
     status = session->prepare(this);
     if (0 != status)
-        QAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
+        PAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
     mStreamMutex.unlock();
-    QAL_DBG(LOG_TAG, "Exit. status - %d", status);
+    PAL_DBG(LOG_TAG, "Exit. status - %d", status);
 
     return status;
 }
 
 //TBD: move this to Stream, why duplicate code?
-int32_t  StreamInCall::setStreamAttributes(struct qal_stream_attributes *sattr)
+int32_t  StreamInCall::setStreamAttributes(struct pal_stream_attributes *sattr)
 {
     int32_t status = -EINVAL;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     if (!sattr)
     {
-        QAL_ERR(LOG_TAG, "NULL stream attributes sent");
+        PAL_ERR(LOG_TAG, "NULL stream attributes sent");
         goto exit;
     }
-    memset(mStreamAttr, 0, sizeof(struct qal_stream_attributes));
+    memset(mStreamAttr, 0, sizeof(struct pal_stream_attributes));
     mStreamMutex.lock();
-    ar_mem_cpy (mStreamAttr, sizeof(struct qal_stream_attributes), sattr,
-                      sizeof(struct qal_stream_attributes));
+    ar_mem_cpy (mStreamAttr, sizeof(struct pal_stream_attributes), sattr,
+                      sizeof(struct pal_stream_attributes));
     mStreamMutex.unlock();
     status = session->setConfig(this, MODULE, 0);  //TODO:gkv or ckv or tkv need to pass
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+        PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 
 exit:
     return status;
 }
 
 //TBD: move this to Stream, why duplicate code?
-int32_t  StreamInCall::setVolume(struct qal_volume_data *volume)
+int32_t  StreamInCall::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     if (!volume || volume->no_of_volpair == 0) {
-        QAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
+        PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
         goto exit;
     }
@@ -432,23 +432,23 @@ int32_t  StreamInCall::setVolume(struct qal_volume_data *volume)
         free(mVolumeData);
     }
 
-    mVolumeData = (struct qal_volume_data *)calloc(1, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) * (volume->no_of_volpair))));
+    mVolumeData = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                      (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
     if (!mVolumeData) {
         status = -ENOMEM;
-        QAL_ERR(LOG_TAG, "mVolumeData malloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "mVolumeData malloc failed %s", strerror(errno));
         goto exit;
     }
 
     //mStreamMutex.lock();
     ar_mem_cpy (mVolumeData, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) *
+                      (sizeof(struct pal_channel_vol_kv) *
                       (volume->no_of_volpair))), volume, (sizeof(uint32_t) +
-                      (sizeof(struct qal_channel_vol_kv) *
+                      (sizeof(struct pal_channel_vol_kv) *
                       (volume->no_of_volpair))));
     //mStreamMutex.unlock();
     for(int32_t i=0; i < (mVolumeData->no_of_volpair); i++) {
-        QAL_ERR(LOG_TAG, "Volume payload mask:%x vol:%f",
+        PAL_ERR(LOG_TAG, "Volume payload mask:%x vol:%f",
                       (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
     /* Allow caching of stream volume as part of mVolumeData
@@ -459,23 +459,23 @@ int32_t  StreamInCall::setVolume(struct qal_volume_data *volume)
         && currentState != STREAM_INIT) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
+            PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",
                     status);
             goto exit;
         }
     }
-    QAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
                       (volume->no_of_volpair), (volume->volume_pair->channel_mask),
                       (volume->volume_pair->vol));
 exit:
     return status;
 }
 
-int32_t  StreamInCall::read(struct qal_buffer* buf)
+int32_t  StreamInCall::read(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
@@ -483,11 +483,11 @@ int32_t  StreamInCall::read(struct qal_buffer* buf)
         uint32_t streamSize;
         uint32_t byteWidth = mStreamAttr->in_media_config.bit_width / 8;
         uint32_t sampleRate = mStreamAttr->in_media_config.sample_rate;
-        struct qal_channel_info chInfo = mStreamAttr->in_media_config.ch_info;
+        struct pal_channel_info chInfo = mStreamAttr->in_media_config.ch_info;
 
         streamSize = byteWidth * chInfo.channels;
         if ((streamSize == 0) || (sampleRate == 0)) {
-            QAL_ERR(LOG_TAG, "stream_size= %d, srate = %d",
+            PAL_ERR(LOG_TAG, "stream_size= %d, srate = %d",
                     streamSize, sampleRate);
             status =  -EINVAL;
             goto exit;
@@ -495,7 +495,7 @@ int32_t  StreamInCall::read(struct qal_buffer* buf)
         size = buf->size;
         memset(buf->buffer, 0, size);
         usleep((uint64_t)size * 1000000 / streamSize / sampleRate);
-        QAL_DBG(LOG_TAG, "Sound card offline, dropped buffer size - %d", size);
+        PAL_DBG(LOG_TAG, "Sound card offline, dropped buffer size - %d", size);
         status = size;
         goto exit;
     }
@@ -503,19 +503,19 @@ int32_t  StreamInCall::read(struct qal_buffer* buf)
     if (currentState == STREAM_STARTED) {
         status = session->read(this, SHMEM_ENDPOINT, buf, &size);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session read is failed with status %d", status);
+            PAL_ERR(LOG_TAG, "session read is failed with status %d", status);
             if (errno == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
                 status = size;
-                QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
                 status = size;
-                QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
                 status = errno;
@@ -523,18 +523,18 @@ int32_t  StreamInCall::read(struct qal_buffer* buf)
             }
         }
     } else {
-        QAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
+        PAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
         status = -EINVAL;
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
+    PAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
-    QAL_DBG(LOG_TAG, "session read failed status %d", status);
+    PAL_DBG(LOG_TAG, "session read failed status %d", status);
     return status;
 }
 
-int32_t  StreamInCall::write(struct qal_buffer* buf)
+int32_t  StreamInCall::write(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size = 0;
@@ -543,7 +543,7 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
     uint32_t sampleRate = 0;
     uint32_t channelCount = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     mStreamMutex.lock();
@@ -557,13 +557,13 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
 
         frameSize = byteWidth * channelCount;
         if ((frameSize == 0) || (sampleRate == 0)) {
-            QAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
+            PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
             return -EINVAL;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
-        QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+        PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
         mStreamMutex.unlock();
         return size;
     }
@@ -572,20 +572,20 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
         rm->lockGraph();
         status = session->open(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session open failed with status %d", status);
+            PAL_ERR(LOG_TAG, "session open failed with status %d", status);
             goto error;
         }
         currentState = STREAM_INIT;
 
         status = session->prepare(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session prepare is failed with status %d",
+            PAL_ERR(LOG_TAG, "session prepare is failed with status %d",
                     status);
             goto error;
         }
         status = session->start(this);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session start is failed with status %d",
+            PAL_ERR(LOG_TAG, "session start is failed with status %d",
                     status);
             goto error;
         }
@@ -598,10 +598,10 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
     if (currentState == STREAM_STARTED) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session write is failed with status %d", status);
+            PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
             mStreamMutex.lock();
             if (standBy) {
-                QAL_INFO(LOG_TAG, "in standby state, ignore write failure");
+                PAL_INFO(LOG_TAG, "in standby state, ignore write failure");
                 mStreamMutex.unlock();
                 return buf->size;
             }
@@ -610,26 +610,26 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
             /* ENETRESET is the error code returned by AGM during SSR */
             if (errno == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
-                QAL_ERR(LOG_TAG, "Sound card offline, informing RM");
+                PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
                 status = size;
-                QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
                 status = size;
-                QAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+                PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
                 status = errno;
                 goto exit;
             }
          }
-         QAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
+         PAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
          return size;
     } else {
-        QAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
+        PAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
         if (currentState == STREAM_STOPPED)
             status = -EIO;
         else
@@ -639,21 +639,21 @@ int32_t  StreamInCall::write(struct qal_buffer* buf)
 
 error:
     if (session->close(this) != 0) {
-        QAL_ERR(LOG_TAG, "session close failed");
+        PAL_ERR(LOG_TAG, "session close failed");
     }
     rm->unlockGraph();
     mStreamMutex.unlock();
 exit :
-    QAL_DBG(LOG_TAG, "session write failed status %d", status);
+    PAL_DBG(LOG_TAG, "session write failed status %d", status);
     return status;
 }
 
-int32_t  StreamInCall::registerCallBack(qal_stream_callback /*cb*/, void */*cookie*/)
+int32_t  StreamInCall::registerCallBack(pal_stream_callback /*cb*/, void */*cookie*/)
 {
     return 0;
 }
 
-int32_t  StreamInCall::getCallBack(qal_stream_callback * /*cb*/)
+int32_t  StreamInCall::getCallBack(pal_stream_callback * /*cb*/)
 {
     return 0;
 }
@@ -670,23 +670,23 @@ int32_t  StreamInCall::setParameters(uint32_t param_id, void *payload)
     if (!payload)
     {
         status = -EINVAL;
-        QAL_ERR(LOG_TAG, "wrong params");
+        PAL_ERR(LOG_TAG, "wrong params");
         goto error;
     }
 
-    QAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
+    PAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {        
         default:
-            QAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
+            PAL_ERR(LOG_TAG, "Unsupported param id %u", param_id);
             status = -EINVAL;
             break;
     }
 
     mStreamMutex.unlock();
-    QAL_VERBOSE(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
+    PAL_VERBOSE(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
 error:
     return status;
 }
@@ -694,7 +694,7 @@ error:
 int32_t  StreamInCall::setMute( bool state)
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
     mStreamMutex.lock();
     if (state)
         status = session->setConfig(this, MODULE, MUTE_TAG, TXDIR);
@@ -702,11 +702,11 @@ int32_t  StreamInCall::setMute( bool state)
         status = session->setConfig(this, MODULE, UNMUTE_TAG, TXDIR);
 
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
+        PAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
                 status);
         goto exit;
     }
-    QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
     mStreamMutex.unlock();
     return status;
@@ -715,25 +715,25 @@ exit:
 int32_t  StreamInCall::setPause()
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_PAUSED;
         isPaused = true;
-        QAL_ERR(LOG_TAG, "Sound Card Offline, cached state %d", cachedState);
+        PAL_ERR(LOG_TAG, "Sound Card Offline, cached state %d", cachedState);
         goto exit;
     }
 
     status = session->setConfig(this, MODULE, PAUSE_TAG);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+        PAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
                 status);
         goto exit;
     }
     usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
-    QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
     mStreamMutex.unlock();
     return status;
@@ -742,23 +742,23 @@ exit:
 int32_t  StreamInCall::setResume()
 {
     int32_t status = 0;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_STARTED;
-        QAL_ERR(LOG_TAG, "Sound Card offline, cached state %d", cachedState);
+        PAL_ERR(LOG_TAG, "Sound Card offline, cached state %d", cachedState);
         goto exit;
     }
 
     status = session->setConfig(this, MODULE, RESUME_TAG);
     if (0 != status) {
-        QAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+        PAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
                 status);
         goto exit;
     }
     isPaused = false;
     currentState = STREAM_STARTED;
-    QAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
     mStreamMutex.unlock();
     return status;
@@ -770,12 +770,12 @@ int32_t StreamInCall::flush()
 
     mStreamMutex.lock();
     if (isPaused == false) {
-         QAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
+         PAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
          goto exit;
     }
 
-    if (mStreamAttr->type != QAL_STREAM_PCM_OFFLOAD) {
-         QAL_VERBOSE(LOG_TAG, "flush called for non PCM OFFLOAD stream, ignore");
+    if (mStreamAttr->type != PAL_STREAM_PCM_OFFLOAD) {
+         PAL_VERBOSE(LOG_TAG, "flush called for non PCM OFFLOAD stream, ignore");
          goto exit;
     }
 
@@ -788,7 +788,7 @@ exit:
 int32_t StreamInCall::isSampleRateSupported(uint32_t sampleRate)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
+    PAL_DBG(LOG_TAG, "sampleRate %u", sampleRate);
     switch(sampleRate) {
         case SAMPLINGRATE_8K:
         case SAMPLINGRATE_16K:
@@ -802,7 +802,7 @@ int32_t StreamInCall::isSampleRateSupported(uint32_t sampleRate)
             break;
        default:
             rc = 0;
-            QAL_VERBOSE(LOG_TAG, "sample rate received %d rc %d", sampleRate, rc);
+            PAL_VERBOSE(LOG_TAG, "sample rate received %d rc %d", sampleRate, rc);
             break;
     }
     return rc;
@@ -811,7 +811,7 @@ int32_t StreamInCall::isSampleRateSupported(uint32_t sampleRate)
 int32_t StreamInCall::isChannelSupported(uint32_t numChannels)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "numChannels %u", numChannels);
+    PAL_DBG(LOG_TAG, "numChannels %u", numChannels);
     switch(numChannels) {
         case CHANNELS_1:
         case CHANNELS_2:
@@ -824,7 +824,7 @@ int32_t StreamInCall::isChannelSupported(uint32_t numChannels)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "channels not supported %d rc %d", numChannels, rc);
+            PAL_ERR(LOG_TAG, "channels not supported %d rc %d", numChannels, rc);
             break;
     }
     return rc;
@@ -833,7 +833,7 @@ int32_t StreamInCall::isChannelSupported(uint32_t numChannels)
 int32_t StreamInCall::isBitWidthSupported(uint32_t bitWidth)
 {
     int32_t rc = 0;
-    QAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
+    PAL_DBG(LOG_TAG, "bitWidth %u", bitWidth);
     switch(bitWidth) {
         case BITWIDTH_16:
         case BITWIDTH_24:
@@ -841,7 +841,7 @@ int32_t StreamInCall::isBitWidthSupported(uint32_t bitWidth)
             break;
         default:
             rc = -EINVAL;
-            QAL_ERR(LOG_TAG, "bit width not supported %d rc %d", bitWidth, rc);
+            PAL_ERR(LOG_TAG, "bit width not supported %d rc %d", bitWidth, rc);
             break;
     }
     return rc;
@@ -865,14 +865,14 @@ int32_t StreamInCall::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
     if (!session)
         return -EINVAL;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     status = session->setECRef(this, dev, is_enable);
     if (status) {
-        QAL_ERR(LOG_TAG, "Failed to set ec ref in session");
+        PAL_ERR(LOG_TAG, "Failed to set ec ref in session");
     }
 
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -888,7 +888,7 @@ int32_t StreamInCall::ssrDownHandler()
      */
     if (cachedState == STREAM_IDLE)
         cachedState = currentState;
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK cached State %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK cached State %d",
             session, cachedState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
@@ -900,14 +900,14 @@ int32_t StreamInCall::ssrDownHandler()
         currentState = STREAM_IDLE;
         mStreamMutex.unlock();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session close failed. status %d", status);
+            PAL_ERR(LOG_TAG, "session close failed. status %d", status);
             goto exit;
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         mStreamMutex.unlock();
         status = stop();
         if (0 != status)
-            QAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
+            PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
         mStreamMutex.lock();
         rm->lockGraph();
         status = session->close(this);
@@ -915,23 +915,23 @@ int32_t StreamInCall::ssrDownHandler()
         currentState = STREAM_IDLE;
         mStreamMutex.unlock();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "session close failed. status %d", status);
+            PAL_ERR(LOG_TAG, "session close failed. status %d", status);
             goto exit;
         }
     } else {
-       QAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
+       PAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
        mStreamMutex.unlock();
        goto exit;
     }
 
 exit :
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
-int32_t StreamInCall::addRemoveEffect(qal_audio_effect_t /*effect*/, bool /*enable*/)
+int32_t StreamInCall::addRemoveEffect(pal_audio_effect_t /*effect*/, bool /*enable*/)
 {
-    QAL_ERR(LOG_TAG, "Function not supported");
+    PAL_ERR(LOG_TAG, "Function not supported");
     return -ENOSYS;
 }
 
@@ -939,49 +939,49 @@ int32_t StreamInCall::ssrUpHandler()
 {
     int status = 0;
 
-    QAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
             session, cachedState);
 
     if (cachedState == STREAM_INIT) {
         status = open();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
+            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
     } else if (cachedState == STREAM_STARTED) {
         status = open();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
+            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
         status = start();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+            PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
         }
     } else if (cachedState == STREAM_PAUSED) {
         status = open();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stream open failed. status %d", status);
+            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
         status = start();
         if (0 != status) {
-            QAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+            PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
         }
         status = setPause();
         if (0 != status) {
-           QAL_ERR(LOG_TAG, "stream set pause failed. status %d", status);
+           PAL_ERR(LOG_TAG, "stream set pause failed. status %d", status);
             goto exit;
         }
     } else {
-        QAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
+        PAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
         goto exit;
     }
 exit :
     cachedState = STREAM_IDLE;
-    QAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 

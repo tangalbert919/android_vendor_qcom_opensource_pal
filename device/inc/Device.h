@@ -32,12 +32,12 @@
 #include <iostream>
 #include <mutex>
 #include <memory>
-#include "QalApi.h"
-#include "QalDefs.h"
+#include "PalApi.h"
+#include "PalDefs.h"
 #include <string.h>
-#include "QalCommon.h"
+#include "PalCommon.h"
 #include "Device.h"
-#include "QalAudioRoute.h"
+#include "PalAudioRoute.h"
 
 #define DEVICE_NAME_MAX_SIZE 128
 
@@ -48,8 +48,8 @@ class Device
 protected:
     std::shared_ptr<Device> devObj;
     std::mutex mDeviceMutex;
-    std::string mQALDeviceName;
-    struct qal_device deviceAttr;
+    std::string mPALDeviceName;
+    struct pal_device deviceAttr;
     std::shared_ptr<ResourceManager> rm;
     int deviceCount = 0;
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
@@ -60,25 +60,25 @@ protected:
     size_t customPayloadSize;
     std::string UpdatedSndName;
 
-    Device(struct qal_device *device, std::shared_ptr<ResourceManager> Rm);
+    Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
 public:
-    virtual int init(qal_param_device_connection_t device_conn);
-    virtual int deinit(qal_param_device_connection_t device_conn);
-    virtual int getDefaultConfig(qal_param_device_capability_t capability);
+    virtual int init(pal_param_device_connection_t device_conn);
+    virtual int deinit(pal_param_device_connection_t device_conn);
+    virtual int getDefaultConfig(pal_param_device_capability_t capability);
     int open();
     int close();
     virtual int start();
     virtual int stop();
     int prepare();
-    static std::shared_ptr<Device> getInstance(struct qal_device *device,
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
     int getSndDeviceId();
     int getDeviceCount() { return deviceCount; }
-    std::string getQALDeviceName();
-    int setDeviceAttributes (struct qal_device dattr);
-    virtual int getDeviceAttributes (struct qal_device *dattr);
-    static std::shared_ptr<Device> getObject(qal_device_id_t dev_id);
+    std::string getPALDeviceName();
+    int setDeviceAttributes (struct pal_device dattr);
+    virtual int getDeviceAttributes (struct pal_device *dattr);
+    static std::shared_ptr<Device> getObject(pal_device_id_t dev_id);
     int updateCustomPayload(void *payload, size_t size);
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
     virtual int32_t getDeviceParameter(uint32_t param_id, void **param);

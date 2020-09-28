@@ -32,7 +32,7 @@
 #define SOUNDTRIGGERENGINEGSL_H
 
 #include "SoundTriggerEngine.h"
-#include "QalRingBuffer.h"
+#include "PalRingBuffer.h"
 #include "Session.h"
 
 class Session;
@@ -52,7 +52,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
         Stream *s __unused,
-        struct qal_st_recognition_config *config,
+        struct pal_st_recognition_config *config,
         uint8_t *conf_levels,
         uint32_t num_conf_levels) override;
     int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
@@ -61,15 +61,15 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetParameters(uint32_t param_id, void **payload) override;
     int32_t ConnectSessionDevice(
         Stream* stream_handle,
-        qal_stream_type_t stream_type,
+        pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_connect) override;
     int32_t DisconnectSessionDevice(
         Stream* stream_handle,
-        qal_stream_type_t stream_type,
+        pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) override;
     int32_t SetupSessionDevice(
         Stream* stream_handle,
-        qal_stream_type_t stream_type,
+        pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) override;
     void SetCaptureRequested(bool is_requested) override;
     struct detection_event_info* GetDetectionEventInfo() override;
