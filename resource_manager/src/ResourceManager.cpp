@@ -332,6 +332,7 @@ bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
+bool ResourceManager::isVIRecordStarted;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -840,7 +841,7 @@ int ResourceManager::init()
     // Get the speaker instance and activate speaker protection
     dattr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
-    if (!dev) {
+    if (dev) {
         PAL_DBG(LOG_TAG, "Speaker instance created");
     }
     else
@@ -1046,6 +1047,14 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
             deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+        case PAL_DEVICE_IN_VI_FEEDBACK:
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
+            deviceattr->config.ch_info = dev_ch_info;
+            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            deviceattr->config.bit_width = BITWIDTH_32;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case PAL_DEVICE_OUT_WIRED_HEADPHONE:

@@ -121,10 +121,28 @@ public:
 
     int32_t spkrProtProcessingMode(bool flag);
     int speakerProtectionDynamicCal();
+    void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
     static void mixer_ctl_callback (void *hdl, uint32_t event_id, void *event_data,
                              uint32_t event_size);
 
+};
+
+class SpeakerFeedback : public Speaker
+{
+    protected :
+    struct pal_device mDeviceAttr;
+    static std::shared_ptr<Device> obj;
+    static int numSpeaker;
+    public :
+    int32_t start();
+    int32_t stop();
+    SpeakerFeedback(struct pal_device *device,
+                    std::shared_ptr<ResourceManager> Rm);
+    ~SpeakerFeedback();
+    void updateVIcustomPayload();
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
 };
 
 #endif

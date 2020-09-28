@@ -89,6 +89,8 @@ int SpeakerProtection::numberOfChannels;
 int SpeakerProtection::calibrationCallbackStatus;
 int SpeakerProtection::numberOfRequest;
 bool SpeakerProtection::mDspCallbackRcvd;
+std::shared_ptr<Device> SpeakerFeedback::obj = nullptr;
+int SpeakerFeedback::numSpeaker;
 
 bool SpeakerProtection::isSpeakerInUse(unsigned long *sec)
 {
@@ -769,22 +771,7 @@ void SpeakerProtection::spkrCalibrationThread()
     unsigned long sec = 0;
     bool proceed = false;
     std::string line;
-    FILE *fp;
     int i;
-
-    fp = fopen(PAL_SP_TEMP_PATH, "rb");
-    if (fp) {
-        PAL_DBG(LOG_TAG, "Cal File exists. Reading from it");
-        struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
-        for (i = 0; i < numberOfChannels; i++) {
-            fread(&r0t0Array[i].r0_cali_q24, sizeof(r0t0Array[i].r0_cali_q24), 1, fp);
-            fread(&r0t0Array[i].t0_cali_q6, sizeof(r0t0Array[i].t0_cali_q6), 1, fp);
-            PAL_DBG(LOG_TAG, "R0 %d T0 %d ", r0t0Array[i].r0_cali_q24,
-                    r0t0Array[i].t0_cali_q6);
-        }
-        spkrCalState = SPKR_CALIBRATED;
-        threadExit = true;
-    }
 
     while (!threadExit) {
         PAL_DBG(LOG_TAG, "Inside calibration while loop");
@@ -866,10 +853,11 @@ void SpeakerProtection::spkrCalibrationThread()
 }
 
 SpeakerProtection::SpeakerProtection(struct pal_device *device,
-                                     std::shared_ptr<ResourceManager> Rm)
+                        std::shared_ptr<ResourceManager> Rm):Speaker(device, Rm)
 {
     int status = 0;
     struct pal_device_info devinfo = {};
+    FILE *fp;
 
     if (ResourceManager::spQuickCalTime > 0 &&
         ResourceManager::spQuickCalTime < MIN_SPKR_IDLE_SEC)
@@ -908,15 +896,23 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     calibrationCallbackStatus = 0;
     mDspCallbackRcvd = false;
 
-    mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
-                        this);
-
+    fp = fopen(PAL_SP_TEMP_PATH, "rb");
+    if (fp) {
+        PAL_DBG(LOG_TAG, "Cal File exists. Reading from it");
+        spkrCalState = SPKR_CALIBRATED;
+    }
+    else {
+        PAL_DBG(LOG_TAG, "Calibration Not done");
+        mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
+                            this);
+    }
     calThrdCreated = true;
 }
 
 SpeakerProtection::~SpeakerProtection()
 {
 }
+
 
 /*
  * Function to trigger Processing mode.
@@ -1000,9 +996,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         keyVector.clear();
         calVector.clear();
 
-        if (customPayloadSize) {
+        if (customPayload) {
             free(customPayload);
             customPayloadSize = 0;
+            customPayload = NULL;
         }
 
         // Configure device attribute
@@ -1366,6 +1363,52 @@ done:
     return ret;
 }
 
+void SpeakerProtection::updateSPcustomPayload()
+{
+    PayloadBuilder* builder = new PayloadBuilder();
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    std::string backEndName;
+    std::shared_ptr<Device> dev = nullptr;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    std::vector<Stream*> activeStreams;
+    uint32_t miid = 0, ret;
+    param_id_sp_op_mode_t spModeConfg;
+
+    rm->getBackendName(mDeviceAttr.id, backEndName);
+    dev = Device::getInstance(&mDeviceAttr, rm);
+    ret = rm->getActiveStream_l(dev, activeStreams);
+    if ((0 != ret) || (activeStreams.size() == 0)) {
+        PAL_ERR(LOG_TAG, " no active stream available");
+        return;
+    }
+    stream = static_cast<Stream *>(activeStreams[0]);
+    stream->getAssociatedSession(&session);
+    ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
+    if (ret) {
+        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
+        return;
+    }
+
+    if (customPayloadSize) {
+        free(customPayload);
+        customPayloadSize = 0;
+    }
+
+    spModeConfg.operation_mode = NORMAL_MODE;
+    payloadSize = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+                    PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+}
+
 
 int SpeakerProtection::speakerProtectionDynamicCal()
 {
@@ -1392,7 +1435,14 @@ int SpeakerProtection::speakerProtectionDynamicCal()
 int SpeakerProtection::start()
 {
     PAL_DBG(LOG_TAG, "Inside Speaker Protection start");
-    spkrProtProcessingMode(true);
+
+    if (ResourceManager::isVIRecordStarted) {
+        PAL_DBG(LOG_TAG, "record running so just update SP payload");
+        updateSPcustomPayload();
+    }
+    else {
+        spkrProtProcessingMode(true);
+    }
     Device::start();
     return 0;
 }
@@ -1401,6 +1451,11 @@ int SpeakerProtection::stop()
 {
     PAL_DBG(LOG_TAG, "Inside Speaker Protection stop");
     Device::stop();
+    if (ResourceManager::isVIRecordStarted) {
+        PAL_DBG(LOG_TAG, "record running so no need to proceed");
+        ResourceManager::isVIRecordStarted = false;
+        return 0;
+    }
     spkrProtProcessingMode(false);
     return 0;
 }
@@ -1567,4 +1622,165 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
 
 exit :
     return size;
+}
+
+/*
+ * VI feedack related functionalities
+ */
+
+void SpeakerFeedback::updateVIcustomPayload()
+{
+    PayloadBuilder* builder = new PayloadBuilder();
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    std::string backEndName;
+    std::shared_ptr<Device> dev = nullptr;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    std::vector<Stream*> activeStreams;
+    uint32_t miid = 0, ret;
+    struct vi_r0t0_cfg_t r0t0Array[numSpeaker];
+    FILE *fp = NULL;
+    param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
+    param_id_sp_vi_op_mode_cfg_t modeConfg;
+    param_id_sp_vi_channel_map_cfg_t viChannelMapConfg;
+    param_id_sp_ex_vi_mode_cfg_t viExModeConfg;
+
+    rm->getBackendName(mDeviceAttr.id, backEndName);
+    dev = Device::getInstance(&mDeviceAttr, rm);
+    ret = rm->getActiveStream_l(dev, activeStreams);
+    if ((0 != ret) || (activeStreams.size() == 0)) {
+        PAL_ERR(LOG_TAG, " no active stream available");
+        return;
+    }
+    stream = static_cast<Stream *>(activeStreams[0]);
+    stream->getAssociatedSession(&session);
+    ret = session->getMIID(backEndName.c_str(), MODULE_VI, &miid);
+    if (ret) {
+        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
+        return;
+    }
+
+    if (customPayloadSize) {
+        free(customPayload);
+        customPayloadSize = 0;
+    }
+
+    memset(&modeConfg, 0, sizeof(modeConfg));
+    memset(&viChannelMapConfg, 0, sizeof(viChannelMapConfg));
+    memset(&viExModeConfg, 0, sizeof(viExModeConfg));
+
+    // Setting the mode of VI module
+    modeConfg.num_speakers = numSpeaker;
+    modeConfg.th_operation_mode = NORMAL_MODE;
+    modeConfg.th_quick_calib_flag = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+                             PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
+        }
+    }
+
+    // Setting Channel Map configuration for VI module
+    viChannelMapConfg.num_ch = numSpeaker * 2;
+    payloadSize = 0;
+
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+                    PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
+        }
+    }
+
+    fp = fopen(PAL_SP_TEMP_PATH, "rb");
+    if (fp) {
+        PAL_DBG(LOG_TAG, "Speaker calibrated. Send calibrated value");
+        for (int i = 0; i < numSpeaker; i++) {
+            fread(&r0t0Array[i].r0_cali_q24,
+                    sizeof(r0t0Array[i].r0_cali_q24), 1, fp);
+            fread(&r0t0Array[i].t0_cali_q6,
+                    sizeof(r0t0Array[i].t0_cali_q6), 1, fp);
+        }
+    }
+    else {
+        PAL_DBG(LOG_TAG, "Speaker not calibrated. Send safe value");
+        for (int i = 0; i < numSpeaker; i++) {
+            r0t0Array[i].r0_cali_q24 = MIN_RESISTANCE_SPKR_Q24;
+            r0t0Array[i].t0_cali_q6 = SAFE_SPKR_TEMP_Q6;
+        }
+    }
+    spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
+                        sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
+                        sizeof(vi_r0t0_cfg_t) * numSpeaker);
+    spR0T0confg->num_speakers = numSpeaker;
+
+    memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
+            numSpeaker);
+
+    payloadSize = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+                    PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        free(spR0T0confg);
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+}
+
+SpeakerFeedback::SpeakerFeedback(struct pal_device *device,
+                                std::shared_ptr<ResourceManager> Rm):Speaker(device, Rm)
+{
+    struct pal_device_info devinfo = {};
+
+    memset(&mDeviceAttr, 0, sizeof(struct pal_device));
+    memcpy(&mDeviceAttr, device, sizeof(struct pal_device));
+    rm = Rm;
+
+
+    rm->getDeviceInfo(mDeviceAttr.id, PAL_STREAM_PROXY, &devinfo);
+    numSpeaker = devinfo.channels;
+}
+
+SpeakerFeedback::~SpeakerFeedback()
+{
+}
+
+int32_t SpeakerFeedback::start()
+{
+    ResourceManager::isVIRecordStarted = true;
+    // Do the customPayload configuration for VI path and call the Device::start
+    PAL_DBG(LOG_TAG," Feedback start\n");
+    updateVIcustomPayload();
+    Device::start();
+
+    return 0;
+}
+
+int32_t SpeakerFeedback::stop()
+{
+    ResourceManager::isVIRecordStarted = false;
+    PAL_DBG(LOG_TAG," Feedback stop\n");
+    Device::stop();
+
+    return 0;
+}
+
+std::shared_ptr<Device> SpeakerFeedback::getInstance(struct pal_device *device,
+                                                     std::shared_ptr<ResourceManager> Rm)
+{
+    PAL_DBG(LOG_TAG," Feedback getInstance\n");
+    if (!obj) {
+        std::shared_ptr<Device> sp(new SpeakerFeedback(device, Rm));
+        obj = sp;
+    }
+    return obj;
 }

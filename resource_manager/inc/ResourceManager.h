@@ -342,7 +342,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
-    /* Variable to store whether main speaker is right one not.
+    /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
     static bool isMainSpeakerRight;
@@ -351,6 +351,8 @@ public:
     /* Variable to store the mode request for Speaker protection */
     pal_spkr_prot_payload mSpkrProtModeValue;
     pal_global_callback globalCb = NULL;
+    /* Flag to store the state of VI record */
+    static bool isVIRecordStarted;
     void *cookie;
     int initSndMonitor();
     adm_init_t admInitFn = NULL;

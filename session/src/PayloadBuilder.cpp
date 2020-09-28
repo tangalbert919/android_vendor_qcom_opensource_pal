@@ -1360,6 +1360,9 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case PAL_DEVICE_OUT_PROXY:
             keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
             break;
+        case PAL_DEVICE_IN_VI_FEEDBACK:
+            keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
+            break;
         default:
             PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
             break;
@@ -1735,7 +1738,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
                 cap_prof->GetChannels()));
         }
         break;
-    case SPKR_PROT_ENABLED :
+    case SPKR_PROT_ENABLE :
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
@@ -1761,6 +1764,32 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
             }
         }
         break;
+    case SPKR_VI_ENABLE :
+        status = s->getAssociatedDevices(associatedDevices);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+            return status;
+        }
+
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"%s: getAssociatedDevices Failed \n", __func__);
+                return status;
+            }
+            if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
+                if (dAttr.config.ch_info.channels > 1) {
+                    PAL_DBG(LOG_TAG, "Multi channel speaker");
+                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, STEREO_SPKR));
+                }
+                else {
+                    PAL_DBG(LOG_TAG, "Mono channel speaker");
+                    ckv.push_back(std::make_pair(SPK_PRO_VI_MAP, RIGHT_SPKR));
+                }
+                break;
+            }
+        }
+    break;
     default:
         break;
     }

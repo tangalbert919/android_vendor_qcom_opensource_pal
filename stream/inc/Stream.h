@@ -91,11 +91,12 @@ typedef enum {
 #define VOICE_SLOW_TALK_OFF 28
 #define VOICE_SLOW_TALK_ON 29
 #define VOICE_VOLUME_BOOST 30
-#define SPKR_PROT_ENABLED 31
+#define SPKR_PROT_ENABLE 31
 #define INCALL_RECORD_UPLINK 32
 #define INCALL_RECORD_DOWNLINK 33
 #define INCALL_RECORD_UPLINK_DOWNLINK_MONO 34
 #define INCALL_RECORD_UPLINK_DOWNLINK_STEREO 35
+#define SPKR_VI_ENABLE 36
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
  * not continously try to open a session if it fails
