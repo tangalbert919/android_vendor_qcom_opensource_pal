@@ -801,6 +801,12 @@ bool DisplayPort::isSampleRateSupported(unsigned char srByte, int samplingRate)
     case 48000:
         result = (srByte & BIT(2));
         break;
+    case 44100:
+        result = (srByte & BIT(1));
+        break;
+    case 32000:
+        result = (srByte & BIT(0));
+        break;
      default:
         break;
     }
@@ -867,6 +873,12 @@ int DisplayPort::getHighestEdidSF(unsigned char byte)
     } else if (byte & BIT(2)) {
         PAL_VERBOSE(LOG_TAG,"Highest: 48kHz");
         nfreq = 48000;
+    } else if (byte & BIT(1)) {
+        PAL_VERBOSE(LOG_TAG,"Highest: 44.1kHz");
+        nfreq = 44100;
+    } else if (byte & BIT(0)) {
+        PAL_VERBOSE(LOG_TAG,"Highest: 32kHz");
+        nfreq = 32000;
     }
     return nfreq;
 }
