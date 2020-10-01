@@ -189,10 +189,12 @@ int32_t StreamCompress::close()
     PAL_VERBOSE(LOG_TAG,"start, session handle - %p mDevices count - %zu state %d",
                 session, mDevices.size(), currentState);
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = stop();
         if (0 != status) {
             PAL_ERR(LOG_TAG,"stop failed with status %d", status);
         }
+        mStreamMutex.lock();
     }
     for (int32_t i=0; i < mDevices.size(); i++) {
         PAL_ERR(LOG_TAG, "device %d name %s, going to close",

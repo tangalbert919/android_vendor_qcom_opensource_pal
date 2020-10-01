@@ -214,9 +214,11 @@ int32_t  StreamPCM::close()
              session, mDevices.size(), currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = stop();
         if (0 != status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
+        mStreamMutex.lock();
     }
 
     for (int32_t i=0; i < mDevices.size(); i++) {

@@ -387,11 +387,13 @@ int Device::stop()
     int status = 0;
     mDeviceMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mPALDeviceName.c_str(), deviceCount);
-    if (deviceCount == 1 && initialized) {
-        disableDevice(audioRoute, mSndDeviceName);
-        rxEcDevCount = 0;
+    if(deviceCount > 0){
+       if (deviceCount == 1 && initialized) {
+           disableDevice(audioRoute, mSndDeviceName);
+           rxEcDevCount = 0;
+       }
+       deviceCount -= 1;
     }
-    deviceCount -= 1;
     PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
     mDeviceMutex.unlock();
     return status;
