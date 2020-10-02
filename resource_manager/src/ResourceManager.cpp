@@ -4688,7 +4688,7 @@ setdevparam:
 
             pal_param_gain_lvl_cal_t *gain_lvl_cal = (pal_param_gain_lvl_cal_t *) param_payload;
             if (payload_size != sizeof(pal_param_gain_lvl_cal_t)) {
-                PAL_ERR(LOG_TAG, "incorrect payload size : expected (%d), received(%d)",
+                PAL_ERR(LOG_TAG, "incorrect payload size : expected (%zu), received(%zu)",
                       sizeof(pal_param_gain_lvl_cal_t), payload_size);
                 status = -EINVAL;
                 goto exit;
