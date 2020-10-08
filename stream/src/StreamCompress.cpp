@@ -150,7 +150,7 @@ int32_t StreamCompress::open()
         }
         PAL_VERBOSE(LOG_TAG, "session open successful");
         for (int32_t i=0; i < mDevices.size(); i++) {
-            PAL_ERR(LOG_TAG, "device %d name %s, going to open",
+            PAL_DBG(LOG_TAG, "device %d name %s, going to open",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
             status = mDevices[i]->open();

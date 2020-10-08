@@ -1385,7 +1385,6 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
                return result;
             }
-            PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
         case PAL_STREAM_VOICE_UI:

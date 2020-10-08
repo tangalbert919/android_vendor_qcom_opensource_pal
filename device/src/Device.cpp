@@ -170,15 +170,7 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
 
 Device::Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
 {
-    uint16_t channels;
     rm = Rm;
-
-    channels = device->config.ch_info.channels;
-    if (channels > MAX_CHANNEL_SUPPORTED) {
-        PAL_INFO(LOG_TAG, "channels %d are greater,reset to MAX", channels);
-        channels = MAX_CHANNEL_SUPPORTED;
-    } else
-       PAL_DBG(LOG_TAG, "channels %d", channels);
 
     memset(&deviceAttr, 0, sizeof(struct pal_device));
     ar_mem_cpy(&deviceAttr, sizeof(struct pal_device), device,

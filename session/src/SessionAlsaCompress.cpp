@@ -1024,7 +1024,7 @@ int SessionAlsaCompress::write(Stream *s __unused, int tag __unused, struct pal_
              buf->size, bytes_written);
 
     if (bytes_written >= 0 && bytes_written < (ssize_t)buf->size && non_blocking) {
-        PAL_ERR(LOG_TAG, "No space available in compress driver, post msg to cb thread");
+        PAL_DBG(LOG_TAG, "No space available in compress driver, post msg to cb thread");
         std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_WAIT_FOR_BUFFER);
         std::lock_guard<std::mutex> lock(cv_mutex_);
         msg_queue_.push(msg);
@@ -1160,7 +1160,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         }
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             pal_snd_dec = (pal_snd_dec_t *)param_payload->payload;
-            PAL_INFO(LOG_TAG, "compress format %x", audio_fmt);
+            PAL_DBG(LOG_TAG, "compress format %x", audio_fmt);
             switch (audio_fmt) {
                 case PAL_AUDIO_FMT_MP3:
                 case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:

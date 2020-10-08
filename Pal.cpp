@@ -127,7 +127,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
         return status;
     }
 
-    PAL_INFO(LOG_TAG, "Enter.");
+    PAL_INFO(LOG_TAG, "Enter, stream type:%d", attributes->type);
 
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,

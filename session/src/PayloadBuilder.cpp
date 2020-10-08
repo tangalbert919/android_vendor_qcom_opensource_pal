@@ -1499,7 +1499,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                     keyVectorTx.push_back(kv);
                 break;
             default:
-                PAL_ERR(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
+                PAL_DBG(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
                 goto free_sattr;
         }
     }
@@ -1575,8 +1575,10 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
             case PAL_STREAM_DEEP_BUFFER:
             case PAL_STREAM_PCM_OFFLOAD:
             case PAL_STREAM_COMPRESSED:
-                PAL_INFO(LOG_TAG,"SpeakerProt Status[%d], RAS Status[%d] device id[%d]\n",
-                        rm->isSpeakerProtectionEnabled, rm->isRasEnabled, dAttr.id);
+                if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
+                    PAL_INFO(LOG_TAG,"SpeakerProt Status[%d], RAS Status[%d]\n",
+                            rm->isSpeakerProtectionEnabled, rm->isRasEnabled);
+                }
                 if (rm->isSpeakerProtectionEnabled == true &&
                     rm->isRasEnabled == true &&
                     dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
@@ -1594,7 +1596,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 if ((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
                     (dAttr.id == PAL_DEVICE_OUT_WIRED_HEADSET) ||
                     (dAttr.id == PAL_DEVICE_OUT_WIRED_HEADPHONE)) {
-                    PAL_INFO(LOG_TAG, "Entered default %x %x", GAIN, GAIN_0);
+                    PAL_DBG(LOG_TAG, "Entered default %x %x", GAIN, GAIN_0);
                     keyVector.push_back(std::make_pair(GAIN, GAIN_0));
                 }
 

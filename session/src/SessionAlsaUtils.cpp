@@ -374,7 +374,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         else {
             rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type, &devinfo);
             if (devinfo.kvpair.size() == 0) {
-                PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
+                PAL_DBG(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                         be->first, sAttr.type);
             }
             status = builder->populateDevicePPKV(streamHandle, 0, emptyKV, be->first,
