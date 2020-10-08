@@ -1721,7 +1721,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     registerDevice_l(d, s);
     if (sAttr.direction == PAL_AUDIO_INPUT &&
         sAttr.type != PAL_STREAM_PROXY &&
-        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
+        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY &&
+        sAttr.type != PAL_STREAM_GENERIC ) {
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev) {
             // use setECRef_l to avoid deadlock
@@ -3087,6 +3088,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
     switch(sAttr.type) {
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_GENERIC:
         case PAL_STREAM_DEEP_BUFFER:
         case PAL_STREAM_VOIP:
         case PAL_STREAM_VOIP_RX:
@@ -3311,6 +3313,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
     switch(sAttr.type) {
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
+        case PAL_STREAM_GENERIC:
         case PAL_STREAM_PROXY:
         case PAL_STREAM_DEEP_BUFFER:
         case PAL_STREAM_VOIP:

@@ -1201,6 +1201,13 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             }
             break;
         case PAL_STREAM_GENERIC:
+            if (sattr->direction == PAL_AUDIO_OUTPUT) {
+                keyVector.push_back(std::make_pair(STREAMRX,GENERIC_PLAYBACK));
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
             break;
         case PAL_STREAM_COMPRESSED:
            if (sattr->direction == PAL_AUDIO_OUTPUT) {
@@ -1457,6 +1464,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
             case PAL_STREAM_COMPRESSED:
             case PAL_STREAM_DEEP_BUFFER:
             case PAL_STREAM_PCM_OFFLOAD:
+            case PAL_STREAM_GENERIC:
                 if (sattr->direction == PAL_AUDIO_OUTPUT) {
                   if(dAttr.id == PAL_DEVICE_OUT_PROXY) {
                     PAL_DBG(LOG_TAG,"Device PP for Proxy is Rx Default");

@@ -41,6 +41,13 @@
         <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec" codec_library="lib_bt_aptx.so" />
     </bt_codecs>
+    <gain_db_to_level_mapping>
+        <gain_level_map db="-59" level="5"/>
+        <gain_level_map db="-17.4" level="4"/>
+        <gain_level_map db="-13.8" level="3"/>
+        <gain_level_map db="-10.2" level="2"/>
+        <gain_level_map db="0" level="1"/>
+    </gain_db_to_level_mapping>
     <config_voice>
         <vsid>0xB3000000</vsid>
         <mode_map>
@@ -59,6 +66,11 @@
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -104,6 +116,11 @@
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -155,6 +172,11 @@
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
                 <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
@@ -199,6 +221,11 @@
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -289,6 +316,11 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000002"/>
                     <!-- AUDIO_FLUENCE_SMECNS -->
@@ -439,15 +471,16 @@
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
         <in_stream>
-            <name>PAL_STREAM_LOW_LATENCY</name>
+            <name>PAL_STREAM_DEEP_BUFFER</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
-                        <!--<disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>-->
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
@@ -456,6 +489,7 @@
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
@@ -466,6 +500,7 @@
                         <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
                         <disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
                 </policies>
         </in_stream>
