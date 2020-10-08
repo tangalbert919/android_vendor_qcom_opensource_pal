@@ -991,6 +991,8 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
 {
     int32_t status = 0;
     struct pal_channel_info dev_ch_info;
+    bool is_wfd_in_progress = false;
+    struct pal_stream_attributes tx_attr;
 
     PAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
@@ -1148,7 +1150,16 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
         case PAL_DEVICE_OUT_PROXY:
             {
-            if (sAttr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD)
+            // check if wfd session in progress
+            for (auto& tx_str: mActiveStreams) {
+                tx_str->getStreamAttributes(&tx_attr);
+                if (tx_attr.direction == PAL_AUDIO_INPUT &&
+                    tx_attr.info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD) {
+                    is_wfd_in_progress = true;
+                    break;
+                }
+            }
+            if (is_wfd_in_progress)
             {
                 std::shared_ptr<Device> dev = nullptr;
                 struct pal_device proxyIn_dattr;
