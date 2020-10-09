@@ -46,7 +46,7 @@
 #define percent_to_index(val, min, max) \
             ((val) * ((max) - (min)) * 0.01 + (min) + .5)
 
-#define NUM_OF_CAL_KEYS 2
+#define NUM_OF_CAL_KEYS 3
 
 SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
 {
@@ -499,6 +499,8 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
     uint32_t tty_mode;
     pal_param_payload *PalPayload = (pal_param_payload *)payload;
 
+    PAL_INFO(LOG_TAG,"setParam called with tag:%d ", tagId);
+
     switch (static_cast<uint32_t>(tagId)) {
 
         case VOICE_VOLUME_BOOST:
@@ -549,7 +551,23 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
             }
             break;
 
-        default:
+        case VOICE_HD_VOICE:
+            device = pcmDevRxIds.at(0);
+            hd_voice = *((bool *)PalPayload->payload);
+            status = payloadCalKeys(s, &paramData, &paramSize);
+            if (!paramData) {
+                status = -ENOMEM;
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
+            status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
+                                            RXDIR);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
+                        status);
+            }
+            break;
+       default:
             PAL_ERR(LOG_TAG,"Failed unsupported tag type %d \n",
                     static_cast<uint32_t>(tagId));
             status = -EINVAL;
@@ -578,6 +596,8 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
+
+    PAL_INFO(LOG_TAG,"setConfig called with tag:%d ", tag);
 
     switch (static_cast<uint32_t>(tag)) {
         case TAG_STREAM_VOLUME:
@@ -629,6 +649,8 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
     int device = pcmDevRxIds.at(0);
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
+
+    PAL_INFO(LOG_TAG,"setConfig called with tag:%d ", tag);
 
     switch (static_cast<uint32_t>(tag)) {
 
@@ -841,7 +863,7 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     header->error_code = 0x0;
     header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
     cal_keys.vsid = vsid;
-    cal_keys.num_ckv_pairs = 2;
+    cal_keys.num_ckv_pairs = NUM_OF_CAL_KEYS;
     if (volume < 0.0) {
             volume = 0.0;
     } else if (volume > 1.0) {
@@ -863,6 +885,10 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     cal_key_pair[1].cal_key_id = VCPM_CAL_KEY_ID_VOL_BOOST;
     cal_key_pair[1].value = volume_boost;
 
+     /*cal key for BWE/HD_VOICE*/
+    cal_key_pair[2].cal_key_id = VCPM_CAL_KEY_ID_BWE;
+    cal_key_pair[2].value = hd_voice;
+
     vol_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
     ar_mem_cpy(vol_pl, sizeof(vcpm_param_cal_keys_payload_t),
                      &cal_keys, sizeof(vcpm_param_cal_keys_payload_t));
@@ -874,7 +900,9 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
-    PAL_VERBOSE(LOG_TAG, "payload %pK size %zu", *payload, *size);
+    PAL_DBG(LOG_TAG, "Volume level: %lf, volume boost: %d, HD voice: %d",
+            percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX),
+            volume_boost, hd_voice);
 
 exit:
     if (voldata) {

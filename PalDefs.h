@@ -706,6 +706,7 @@ typedef enum {
     PAL_PARAM_ID_GAIN_LVL_MAP = 26,
     PAL_PARAM_ID_GAIN_LVL_CAL = 27,
     PAL_PARAM_ID_GAPLESS_MDATA = 28,
+    PAL_PARAM_ID_HD_VOICE = 29,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
