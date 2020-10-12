@@ -223,6 +223,7 @@ int32_t StreamCompress::close()
 StreamCompress::~StreamCompress()
 {
     mStreamMutex.lock();
+    rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);

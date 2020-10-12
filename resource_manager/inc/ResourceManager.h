@@ -56,6 +56,7 @@
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
 #define MAX_PCM_NAME_SIZE 50
+#define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
 #if defined(__LP64__)
 #define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
@@ -327,6 +328,7 @@ protected:
     static std::queue<card_status_t> msgQ;
     static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
+    uint64_t stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
     static int concurrentRxStreamCount;
     static int concurrentTxStreamCount;
@@ -533,6 +535,7 @@ public:
     int32_t getSidetoneMode(pal_device_id_t deviceId, pal_stream_type_t type,
                             sidetone_mode_t *mode);
     int getStreamInstanceID(Stream *str);
+    int resetStreamInstanceID(Stream *str);
     int resetStreamInstanceID(Stream *str, uint32_t sInstanceID);
     static void setGaplessMode(const XML_Char **attr);
 };

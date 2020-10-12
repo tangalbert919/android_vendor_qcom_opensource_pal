@@ -254,6 +254,7 @@ StreamPCM::~StreamPCM()
     }
 
     mStreamMutex.lock();
+    rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);

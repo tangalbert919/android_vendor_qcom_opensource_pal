@@ -317,6 +317,7 @@ typedef enum {
     PAL_STREAM_PCM_OFFLOAD = 18,          /**< pcm offload audio */
     PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
     PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
+    PAL_STREAM_MAX                        /**< max stream types - add new ones above */
 } pal_stream_type_t;
 
 /** Audio devices available for enabling streams */

@@ -495,6 +495,7 @@ ResourceManager::ResourceManager()
     listAllPcmVoice2TxFrontEnds.clear();
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
+    memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -5053,14 +5054,21 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     return status;
 }
 
+int ResourceManager::resetStreamInstanceID(Stream *s){
+    return s ? resetStreamInstanceID(s, s->getInstanceId()) : -EINVAL;
+}
+
 int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
-
     pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
-    status = str->getStreamAttributes(&StrAttr);
+    if(sInstanceID < INSTANCE_1){
+        PAL_ERR(LOG_TAG,"Invalid Stream Instance ID\n");
+        return -EINVAL;
+    }
 
+    status = str->getStreamAttributes(&StrAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
@@ -5098,21 +5106,16 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             }
             break;
         default:
-            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr.type);
-            break;
+            stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+            str->setInstanceId(0);
     }
-
 
     mResourceManagerMutex.unlock();
     return status;
-
 }
 
 int ResourceManager::getStreamInstanceID(Stream *str) {
-    int status = 0;
-    int i;
-    int listNodeIndex = -1;
+    int i, status = 0, listNodeIndex = -1;
     pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
@@ -5174,15 +5177,25 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             }
             break;
         default:
-            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr.type);
-            break;
+            status = str->getInstanceId();
+            if (!status) {
+                if (stream_instances[StrAttr.type - 1] ==  -1) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                for (i = 0; i < MAX_STREAM_INSTANCES; ++i)
+                    if (!(stream_instances[StrAttr.type - 1] & (1 << i))) {
+                        stream_instances[StrAttr.type - 1] |= (1 << i);
+                        status = i + 1;
+                        break;
+                    }
+                str->setInstanceId(status);
+            }
     }
-
 
     mResourceManagerMutex.unlock();
     return status;
-
 }
 
 bool ResourceManager::isDeviceAvailable(pal_device_id_t id)
