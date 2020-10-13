@@ -277,10 +277,13 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
     {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
     {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
+    {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
     {std::string{ "PAL_STREAM_VOICE_CALL" },               PAL_STREAM_VOICE_CALL},
     {std::string{ "PAL_STREAM_LOOPBACK" },                 PAL_STREAM_LOOPBACK},
     {std::string{ "PAL_STREAM_TRANSCODE" },                PAL_STREAM_TRANSCODE},
     {std::string{ "PAL_STREAM_VOICE_UI" },                 PAL_STREAM_VOICE_UI},
+    {std::string{ "PAL_STREAM_PCM_OFFLOAD" },              PAL_STREAM_PCM_OFFLOAD},
     {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
     {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
 };
@@ -4732,6 +4735,7 @@ setdevparam:
             struct pal_device dattr;
             Stream *stream = NULL;
             std::vector<Stream*> activestreams;
+            struct pal_stream_attributes sAttr;
             Session *session = NULL;
 
             pal_param_gain_lvl_cal_t *gain_lvl_cal = (pal_param_gain_lvl_cal_t *) param_payload;
@@ -4758,13 +4762,21 @@ setdevparam:
                        status = -EINVAL;
                        goto exit;
                     }
+
                     stream = static_cast<Stream *>(activestreams[0]);
-                    stream->setGainLevel(gain_lvl_cal->level);
-                    stream->getAssociatedSession(&session);
-                    status = session->setConfig(stream, CALIBRATION, TAG_DEVICE_PP_MBDRC);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
-                        goto exit;
+                    stream->getStreamAttributes(&sAttr);
+                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                        ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                        (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                        (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                        (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                        stream->setGainLevel(gain_lvl_cal->level);
+                        stream->getAssociatedSession(&session);
+                        status = session->setConfig(stream, CALIBRATION, TAG_DEVICE_PP_MBDRC);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+                            goto exit;
+                        }
                     }
                 }
             }
