@@ -331,11 +331,12 @@ protected:
     static int concurrentRxStreamCount;
     static int concurrentTxStreamCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
-    std::thread mixerEventTread;
+    static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
     ResourceManager();
 public:
     ~ResourceManager();
+    static bool mixerClosed;
     enum card_status_t cardState;
     bool ssrStarted = false;
     /* Variable to store whether Speaker protection is enabled or not */
