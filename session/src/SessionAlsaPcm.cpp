@@ -603,15 +603,6 @@ int SessionAlsaPcm::start(Stream * s)
                         PCM_OUT |PCM_MMAP| PCM_NOIRQ, &config);
                 }
                 else {
-                    if (sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC) {
-                        status = SessionAlsaUtils::getModuleInstanceId(mixer,
-                                 pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
-                                 STREAM_SPR, &spr_miid);
-                        if (0 != status) {
-                            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-                            status = 0; //TODO: add this to some policy in pal
-                        }
-                    }
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 }
 
@@ -1702,11 +1693,21 @@ int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)
 int SessionAlsaPcm::getTimestamp(struct pal_session_time *stime)
 {
     int status = 0;
-    status = SessionAlsaUtils::getTimestamp(mixer, pcmDevIds, spr_miid, stime);
-    if (0 != status) {
-       PAL_ERR(LOG_TAG, "getTimestamp failed status = %d", status);
-       return status;
+
+    if (!spr_miid) {
+        status = SessionAlsaUtils::getModuleInstanceId(mixer,
+                pcmDevIds.at(0), rxAifBackEnds[0].second.data(),
+                STREAM_SPR, &spr_miid);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                    STREAM_SPR, status);
+            return status;
+        }
     }
+    status = SessionAlsaUtils::getTimestamp(mixer, pcmDevIds, spr_miid, stime);
+    if (0 != status)
+       PAL_ERR(LOG_TAG, "getTimestamp failed status = %d", status);
+
     return status;
 }
 int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
