@@ -818,7 +818,8 @@ int ResourceManager::init_audio()
              resourcemanager.xml.
        TODO: Add support for form factors other than IDP/QRD.
     */
-    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))){
+    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))||
+        !strncmp(cur_snd_card_split.form_factor, "cdp", sizeof ("cdp"))){
             strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
 
