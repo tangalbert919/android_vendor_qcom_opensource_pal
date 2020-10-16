@@ -48,8 +48,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
     int32_t StartRecognition(Stream *s) override;
-    int32_t RestartRecognition(Stream *s __unused) { return 0; }
-    int32_t StopBuffering(Stream *s) override;
+    int32_t RestartRecognition(Stream *s __unused) override;
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
         Stream *s,

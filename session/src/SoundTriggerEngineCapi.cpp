@@ -782,7 +782,7 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineCapi::StopBuffering(Stream *s __unused)
+int32_t SoundTriggerEngineCapi::RestartRecognition(Stream *s __unused)
 {
     int32_t status = 0;
 
@@ -809,16 +809,17 @@ int32_t SoundTriggerEngineCapi::StopRecognition(Stream *s __unused)
 
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
-    status = StopSoundEngine();
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
-        goto exit;
-    }
-
+    processing_started_ = false;
+    exit_buffering_ = true;
     if (reader_) {
         reader_->reset();
     } else {
         status = -EINVAL;
+        goto exit;
+    }
+    status = StopSoundEngine();
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
         goto exit;
     }
 

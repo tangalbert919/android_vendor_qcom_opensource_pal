@@ -290,7 +290,6 @@ public:
     virtual int32_t UnloadSoundModel(Stream *s) = 0;
     virtual int32_t StartRecognition(Stream *s) = 0;
     virtual int32_t RestartRecognition(Stream *s) = 0;
-    virtual int32_t StopBuffering(Stream *s) = 0;
     virtual int32_t StopRecognition(Stream *s) = 0;
     virtual int32_t UpdateConfLevels(
         Stream *s,

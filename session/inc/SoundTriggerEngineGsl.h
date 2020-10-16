@@ -48,7 +48,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t UnloadSoundModel(Stream *s) override;
     int32_t StartRecognition(Stream *s) override;
     int32_t RestartRecognition(Stream *s) override;
-    int32_t StopBuffering(Stream *s) override;
     int32_t StopRecognition(Stream *s) override;
     int32_t UpdateConfLevels(
         Stream *s __unused,

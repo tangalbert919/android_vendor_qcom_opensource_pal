@@ -95,9 +95,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             }
             StreamSoundTrigger *s =
                 dynamic_cast<StreamSoundTrigger *>(gsl_engine->stream_handle_);
-            lck.unlock();
             s->SetEngineDetectionState(GMM_DETECTED);
-            lck.lock();
         }
     }
     PAL_DBG(LOG_TAG, "Exit");
@@ -190,9 +188,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
             ATRACE_END();
 
             s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-            mutex_.unlock();
             s->SetEngineDetectionState(GMM_DETECTED);
-            mutex_.lock();
 
             event_notified = true;
         }
@@ -534,8 +530,11 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+    exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
-    exit_buffering_ = false;
+    if (buffer_) {
+        buffer_->reset();
+    }
     /*
      * TODO: This sequence RESET->STOP->START is currently required from spf
      * as ENGINE_RESET alone can't reset the graph (including DAM etc..) ready
@@ -552,6 +551,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     }
     status = session_->stop(stream_handle_);
     if (!status) {
+        exit_buffering_ = false;
         status = session_->start(stream_handle_);
         if (status) {
             PAL_ERR(LOG_TAG, "start session failed, status = %d",
@@ -560,19 +560,6 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     } else {
         PAL_ERR(LOG_TAG, "stop session failed, status = %d",
                 status);
-    }
-    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
-    return status;
-}
-
-int32_t SoundTriggerEngineGsl::StopBuffering(Stream *s __unused) {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    exit_buffering_ = true;
-    std::lock_guard<std::mutex> lck(mutex_);
-    if (buffer_) {
-        buffer_->reset();
     }
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;

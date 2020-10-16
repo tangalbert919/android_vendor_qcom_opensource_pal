@@ -3067,60 +3067,34 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             status = st_stream_.reader_->read(buf->buffer, buf->size);
             break;
         }
-        case ST_EV_STOP_BUFFERING: {
-            PAL_DBG(LOG_TAG, "StBuffering: stop buffering");
+        case ST_EV_START_RECOGNITION: {
+            /*
+             * Can happen if client requests next recognition without any config
+             * change with/without reading buffers after sending detection event.
+             */
+            StStartRecognitionEventConfigData *data =
+                (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
+            PAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
+                    data->restart_);
+            st_stream_.CancelDelayedStop();
+
             for (auto& eng: st_stream_.engines_) {
-                PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                            eng->GetEngineId());
-                status = eng->GetEngine()->StopBuffering(&st_stream_);
-                if (status){
-                    PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
+                PAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Restart engine %d buffering failed, status %d",
                             eng->GetEngineId(), status);
+                    break;
                 }
             }
-            if (st_stream_.reader_) {
+            if (st_stream_.reader_)
                 st_stream_.reader_->reset();
+            if (!status) {
+                TransitTo(ST_STATE_ACTIVE);
+            } else {
+                TransitTo(ST_STATE_LOADED);
             }
-            st_stream_.PostDelayedStop();
             break;
-        }
-        case ST_EV_START_RECOGNITION: {
-          /*
-           * Can happen if client requests next recognition without any config
-           * change with/without reading buffers after sending detection event.
-           */
-          StStartRecognitionEventConfigData *data =
-              (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
-          PAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
-                  data->restart_);
-          st_stream_.CancelDelayedStop();
-
-          for (auto& eng: st_stream_.engines_) {
-              PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                          eng->GetEngineId());
-              status = eng->GetEngine()->StopBuffering(&st_stream_);
-              if (status)
-                  PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                          eng->GetEngineId(), status);
-          }
-          if (st_stream_.reader_)
-              st_stream_.reader_->reset();
-
-          for (auto& eng: st_stream_.engines_) {
-              PAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
-              status = eng->GetEngine()->RestartRecognition(&st_stream_);
-              if (status) {
-                  PAL_ERR(LOG_TAG, "Restart engine %d buffering failed, status %d",
-                          eng->GetEngineId(), status);
-                  break;
-              }
-          }
-          if (!status) {
-              TransitTo(ST_STATE_ACTIVE);
-          } else {
-              TransitTo(ST_STATE_LOADED);
-          }
-          break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
             /*
@@ -3131,26 +3105,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
-                PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                            eng->GetEngineId());
-                status = eng->GetEngine()->StopBuffering(&st_stream_);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                            eng->GetEngineId(), status);
-                    // continue stopping recognition
-                }
-            }
-            if (st_stream_.reader_) {
-              st_stream_.reader_->reset();
-            }
-
-            for (auto& eng: st_stream_.engines_) {
                 PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
                 status = eng->GetEngine()->StopRecognition(&st_stream_);
                 if (status) {
                     PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
                             eng->GetEngineId(), status);
                 }
+            }
+            if (st_stream_.reader_) {
+              st_stream_.reader_->reset();
             }
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
@@ -3177,18 +3140,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_PAUSE: {
             st_stream_.paused_ = true;
             PAL_DBG(LOG_TAG, "StBuffering: Pause");
-            for (auto& eng: st_stream_.engines_) {
-                PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                            eng->GetEngineId());
-                status = eng->GetEngine()->StopBuffering(&st_stream_);
-                if (status){
-                    PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                            eng->GetEngineId(), status);
-                }
-            }
-            if (st_stream_.reader_) {
-                st_stream_.reader_->reset();
-            }
             // fall through to stop
             [[fallthrough]];
         }
@@ -3203,6 +3154,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
                             eng->GetEngineId(), status);
                 }
+            }
+            if (st_stream_.reader_) {
+                st_stream_.reader_->reset();
             }
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
@@ -3233,19 +3187,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
                 st_stream_.detection_state_ = ENGINE_IDLE;
-                for (auto& eng: st_stream_.engines_) {
-                    PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                                eng->GetEngineId());
-                    status = eng->GetEngine()->StopBuffering(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
-                                         "status %d", eng->GetEngineId(), status);
-                        // Continue to restart
-                    }
-                }
-                if (st_stream_.reader_) {
-                    st_stream_.reader_->reset();
-                }
+
                 for (auto& eng: st_stream_.engines_) {
                     PAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
                     status = eng->GetEngine()->RestartRecognition(&st_stream_);
@@ -3254,6 +3196,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                                 eng->GetEngineId(), status);
                         break;
                     }
+                }
+                if (st_stream_.reader_) {
+                    st_stream_.reader_->reset();
                 }
                 if (!status) {
                     TransitTo(ST_STATE_ACTIVE);
@@ -3271,17 +3216,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_DBG(LOG_TAG, "Second stage detected");
                 st_stream_.detection_state_ = ENGINE_IDLE;
                 if (!st_stream_.rec_config_->capture_requested) {
-                    for (auto& eng: st_stream_.engines_) {
-                        PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                                    eng->GetEngineId());
-                        status = eng->GetEngine()->StopBuffering(&st_stream_);
-                        if (status) {
-                            PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed,"
-                                    "status %d", eng->GetEngineId(), status);
-                        }
-                    }
                     if (st_stream_.reader_) {
                         st_stream_.reader_->reset();
+                        // TODO: remove this line in sound model merging change
+                        st_stream_.reader_->updateState(READER_DISABLED);
                     }
                     TransitTo(ST_STATE_DETECTED);
                 }
@@ -3297,16 +3235,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_CHARGING_STATE:
         case ST_EV_CONCURRENT_STREAM: {
             st_stream_.CancelDelayedStop();
-            for (auto& eng: st_stream_.engines_) {
-                PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                            eng->GetEngineId());
-                status = eng->GetEngine()->StopBuffering(&st_stream_);
-                if (status)
-                    PAL_ERR(LOG_TAG, "Stop buffering of engine %d failed, status %d",
-                            eng->GetEngineId(), status);
-            }
-            if (st_stream_.reader_)
-                st_stream_.reader_->reset();
             // Reuse from Active state.
             TransitTo(ST_STATE_ACTIVE);
             status = st_stream_.ProcessInternalEvent(ev_cfg);
@@ -3314,24 +3242,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
                                  "status %d", status);
             }
+            if (st_stream_.reader_)
+                st_stream_.reader_->reset();
             break;
         }
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
-
-            for (auto& eng: st_stream_.engines_) {
-                PAL_VERBOSE(LOG_TAG, "Stop buffering of engine %d",
-                            eng->GetEngineId());
-                status = eng->GetEngine()->StopBuffering(&st_stream_);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                            eng->GetEngineId(), status);
-                }
-            }
-            if (st_stream_.reader_) {
-                st_stream_.reader_->reset();
-            }
 
             for (auto& eng: st_stream_.engines_) {
                 PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
@@ -3340,6 +3257,9 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
                             eng->GetEngineId(), status);
                 }
+            }
+            if (st_stream_.reader_) {
+                st_stream_.reader_->reset();
             }
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
@@ -3367,9 +3287,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
                 st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
-            std::shared_ptr<StEventConfig> ev_cfg1(
-                new StStopBufferingEventConfig());
-            status = st_stream_.ProcessInternalEvent(ev_cfg1);
 
             std::shared_ptr<StEventConfig> ev_cfg2(
                 new StStopRecognitionEventConfig(false));
