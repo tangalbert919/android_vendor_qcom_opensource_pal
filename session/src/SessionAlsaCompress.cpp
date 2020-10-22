@@ -93,10 +93,10 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
             break;
+#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
-#endif
     }
 
     return id;
