@@ -156,6 +156,9 @@ int32_t  StreamPCM::open()
 {
     int32_t status = 0;
 
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
+            mDevices.size());
+
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
@@ -165,8 +168,6 @@ int32_t  StreamPCM::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
-                mDevices.size());
         status = session->open(this);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session open failed with status %d", status);
@@ -182,7 +183,7 @@ int32_t  StreamPCM::open()
             }
         }
         currentState = STREAM_INIT;
-        PAL_DBG(LOG_TAG, "Exit. streamLL opened. state %d", currentState);
+        PAL_DBG(LOG_TAG, "streamLL opened. state %d", currentState);
     } else if (currentState == STREAM_INIT) {
         PAL_INFO(LOG_TAG, "Stream is already opened, state %d", currentState);
         status = 0;
@@ -195,6 +196,7 @@ int32_t  StreamPCM::open()
     }
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit ret %d", status)
     return status;
 }
 
@@ -210,7 +212,7 @@ int32_t  StreamPCM::close()
         return status;
     }
 
-    PAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
              session, mDevices.size(), currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
@@ -239,7 +241,7 @@ int32_t  StreamPCM::close()
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
 
-    PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
+    PAL_DBG(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
 }
@@ -277,6 +279,9 @@ int32_t StreamPCM::start()
 {
     int32_t status = 0, devStatus = 0;
 
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+            session, mStreamAttr->direction, currentState);
+
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_STARTED;
@@ -284,9 +289,6 @@ int32_t StreamPCM::start()
                 cachedState);
         goto exit;
     }
-
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
-              session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
@@ -452,7 +454,6 @@ int32_t StreamPCM::start()
         status = -EINVAL;
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     goto exit;
 session_fail:
     for (int32_t i=0; i < mDevices.size(); i++) {
@@ -462,6 +463,7 @@ session_fail:
         rm->deregisterDevice(mDevices[i], this);
     }
 exit:
+    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     mStreamMutex.unlock();
     return status;
 }
@@ -899,7 +901,7 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         goto error;
     }
 
-    PAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
+    PAL_DBG(LOG_TAG, "Enter, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
@@ -978,7 +980,7 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.unlock();
-    PAL_VERBOSE(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
+    PAL_DBG(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
 error:
     return status;
 }

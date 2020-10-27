@@ -459,7 +459,6 @@ err:
 
 ResourceManager::ResourceManager()
 {
-    PAL_INFO(LOG_TAG, "Enter.");
     int ret = 0;
     // Init audio_route and audio_mixer
 
@@ -474,7 +473,6 @@ ResourceManager::ResourceManager()
     btCodecMap.clear();
 
     ret = ResourceManager::init_audio();
-    PAL_INFO(LOG_TAG, "Enter.");
     if (ret) {
         PAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
     }
@@ -550,7 +548,6 @@ ResourceManager::ResourceManager()
 
     ResourceManager::loadAdmLib();
 
-    PAL_INFO(LOG_TAG, "Exit. ret %d", ret);
 }
 
 ResourceManager::~ResourceManager()
@@ -705,7 +702,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
             lock.lock();
         }
     }
-    PAL_INFO(LOG_TAG, "ssr Handling thread exited");
+    PAL_INFO(LOG_TAG, "ssr Handling thread ended");
 }
 
 int ResourceManager::initSndMonitor()
@@ -1719,7 +1716,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     int rxdevcount = 0;
     struct pal_stream_attributes rx_attr;
 
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter. dev id: %d", d->getSndDeviceId());
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -1788,13 +1785,14 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
     mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
     return status;
 }
 
 int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
 {
     int ret = 0;
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_VERBOSE(LOG_TAG, "Enter.");
 
     auto iter = std::find(active_devices.begin(),
         active_devices.end(), std::make_pair(d, s));
@@ -1805,7 +1803,7 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
         PAL_ERR(LOG_TAG, "no device %d found in active device list ret %d",
                 d->getSndDeviceId(), ret);
     }
-    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    PAL_VERBOSE(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
@@ -1817,7 +1815,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<Stream*> str_list;
 
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter. dev id: %d", d->getSndDeviceId());
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -1866,6 +1864,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     }
     deregisterDevice_l(d, s);
     mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
     return status;
 }
 
@@ -2485,14 +2484,12 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
 
     if (dir == PAL_AUDIO_OUTPUT && type == PAL_STREAM_LOW_LATENCY) {
         PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
-        mResourceManagerMutex.unlock();
-        return;
+        goto exit;
     }
 
     if (active_streams_st.size() == 0) {
         PAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
-        mResourceManagerMutex.unlock();
-        return;
+        goto exit;
     }
 
     /*
@@ -2624,6 +2621,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
             }
         }
     }
+exit:
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 }
@@ -2759,7 +2757,6 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
         }
     }
 exit:
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return tx_stream_list;
 }
 
@@ -4393,7 +4390,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
@@ -4809,6 +4806,7 @@ setdevparam:
 
 exit:
     mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -4820,7 +4818,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 {
     int status = 0;
 
-    PAL_DBG(LOG_TAG, "param_id=%d", param_id);
+    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
     mResourceManagerMutex.lock();
     switch (param_id) {
@@ -4848,6 +4846,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
     }
 
     mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d",status);
     return status;
 }
 
@@ -5887,7 +5886,7 @@ int ResourceManager::XmlParser(std::string xmlFile)
     struct xml_userdata card_data;
     memset(&card_data, 0, sizeof(card_data));
 
-    PAL_INFO(LOG_TAG, "Enter. XML parsing started - file name %s", xmlFile.c_str());
+    PAL_INFO(LOG_TAG, "XML parsing started - file name %s", xmlFile.c_str());
     file = fopen(xmlFile.c_str(), "r");
     if(!file) {
         ret = EINVAL;
@@ -5928,7 +5927,6 @@ int ResourceManager::XmlParser(std::string xmlFile)
         if (bytes_read == 0)
             break;
     }
-    PAL_DBG(LOG_TAG, "Exit.");
 
 freeParser:
     XML_ParserFree(parser);

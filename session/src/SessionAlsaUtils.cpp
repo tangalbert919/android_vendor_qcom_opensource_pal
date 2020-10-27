@@ -500,7 +500,6 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
     struct mixer *mixerHandle;
-    PAL_DBG(LOG_TAG, "Enter.");
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");

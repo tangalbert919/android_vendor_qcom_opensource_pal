@@ -169,7 +169,7 @@ int32_t  StreamInCall::close()
     int32_t status = 0;
     mStreamMutex.lock();
 
-    PAL_INFO(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu state %d",
             session, mDevices.size(), currentState);
 
     if (currentState == STREAM_IDLE) {
@@ -210,7 +210,7 @@ exit:
     }
     delete session;
     session = nullptr;
-    PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
+    PAL_DBG(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
 }
@@ -310,9 +310,9 @@ int32_t StreamInCall::start()
         status = -EINVAL;
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
 
 exit:
+    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     mStreamMutex.unlock();
     return status;
 }
@@ -365,10 +365,10 @@ int32_t StreamInCall::stop()
         status = -EINVAL;
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
 
 exit:
    mStreamMutex.unlock();
+   PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
    return status;
 }
 
@@ -476,7 +476,7 @@ int32_t  StreamInCall::read(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size;
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
@@ -528,10 +528,10 @@ int32_t  StreamInCall::read(struct pal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. session read successful size - %d", size);
+    PAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
-    PAL_DBG(LOG_TAG, "session read failed status %d", status);
+    PAL_VERBOSE(LOG_TAG, "Exit session read failed status %d", status);
     return status;
 }
 
@@ -544,7 +544,7 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
     uint32_t sampleRate = 0;
     uint32_t channelCount = 0;
 
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
+    PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
     mStreamMutex.lock();
@@ -645,7 +645,7 @@ error:
     rm->unlockGraph();
     mStreamMutex.unlock();
 exit :
-    PAL_DBG(LOG_TAG, "session write failed status %d", status);
+    PAL_VERBOSE(LOG_TAG, "session write failed status %d", status);
     return status;
 }
 

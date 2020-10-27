@@ -104,9 +104,9 @@ int32_t pal_init(void)
  */
 void pal_deinit(void)
 {
-    PAL_INFO(LOG_TAG, "Enter.");
+    PAL_DBG(LOG_TAG, "Enter.");
     ResourceManager::deinit();
-    PAL_INFO(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit.");
     return;
 }
 
@@ -139,7 +139,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     if (!s) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "stream creation failed status %d", status);
-        return status;
+        goto exit;
     }
     status = s->open();
     if (0 != status) {
@@ -148,13 +148,14 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
             PAL_ERR(LOG_TAG, "stream closed failed.");
         }
         delete s;
-        return status;
+        goto exit;
     }
 
     if (cb)
        s->registerCallBack(cb, cookie);
     stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
+exit:
     PAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
 }
@@ -163,7 +164,7 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
-
+    PAL_DBG(LOG_TAG, "Enter");
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -269,14 +270,14 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         PAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_VERBOSE(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->read(buf);
     if (status < 0) {
         PAL_ERR(LOG_TAG, "stream read failed status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_VERBOSE(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -311,7 +312,8 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
         PAL_ERR(LOG_TAG,  "Invalid stream handle, status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK param_id %d", stream_handle,
+            param_id);
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->setParameters(param_id, (void *)param_payload);
     if (0 != status) {
@@ -394,7 +396,7 @@ int32_t pal_stream_resume(pal_stream_handle_t *stream_handle)
         return status;
     }
 
-    PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
 
     status = s->resume();
@@ -596,7 +598,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 int32_t pal_set_param(uint32_t param_id, void *param_payload,
                       size_t payload_size)
 {
-    PAL_DBG(LOG_TAG, "Enter:");
+    PAL_DBG(LOG_TAG, "Enter: param id %d", param_id);
     int status = 0;
     std::shared_ptr<ResourceManager> rm = NULL;
 
@@ -693,6 +695,7 @@ int32_t pal_register_global_callback(pal_global_callback cb, void *cookie)
         rm->globalCb = cb;
         rm->cookie = cookie;
     }
+    PAL_DBG(LOG_TAG, "Exit");
     return 0;
 }
 
