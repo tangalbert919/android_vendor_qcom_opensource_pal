@@ -86,14 +86,6 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
@@ -107,6 +99,10 @@
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_HANDSET</id>
+                <id>PAL_DEVICE_OUT_SPEAKER</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
@@ -136,14 +132,6 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
                 <devicePP-metadata>
@@ -162,6 +150,9 @@
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_SPEAKER</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_WIRED_HEADSET</id>
@@ -191,14 +182,6 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
                 <devicePP-metadata>
@@ -212,6 +195,10 @@
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
+                <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET</id>
@@ -241,14 +228,6 @@
                 </devicePP-metadata>
             </usecase>
             <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000008"/>
@@ -268,14 +247,11 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>va-mic</snd_device_name>
-            <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_SPEAKER</id>
+                <id>PAL_DEVICE_OUT_HANDSET</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_HEADSET_VA_MIC</id>
@@ -283,14 +259,11 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>headset-va-mic</snd_device_name>
-            <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
+                <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
+                <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_USB_HEADSET</id>
@@ -303,14 +276,6 @@
                 <devicePP-metadata>
                     <kvpair key="0xAD000000" value="0xAD000007"/>
                     <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
-            </usecase>
-            <usecase>
-                <name>PAL_STREAM_VOICE_UI</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                    <!-- VOICE_UI_FLUENCE_FFECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
             </usecase>

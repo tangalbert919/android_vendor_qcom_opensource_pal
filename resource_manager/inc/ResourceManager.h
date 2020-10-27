@@ -158,6 +158,7 @@ struct deviceIn {
     int max_channel;
     int channel;
     std::vector<usecase_info> usecase;
+    std::vector<pal_device_id_t> rx_dev_ids;
 };
 
 struct pal_device_info {

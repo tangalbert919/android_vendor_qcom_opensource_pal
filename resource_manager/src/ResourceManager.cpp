@@ -2785,25 +2785,19 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
 
     rx_dev_id = rx_dev->getSndDeviceId();
     tx_dev_id = tx_dev->getSndDeviceId();
-    // TODO: address all possible combinations
-    if ((rx_dev_id == PAL_DEVICE_OUT_SPEAKER) ||
-        (rx_dev_id == PAL_DEVICE_OUT_SPEAKER &&
-         tx_dev_id == PAL_DEVICE_IN_SPEAKER_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_HANDSET &&
-         tx_dev_id == PAL_DEVICE_IN_HANDSET_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADSET &&
-         tx_dev_id == PAL_DEVICE_IN_WIRED_HEADSET) ||
-        (rx_dev_id == PAL_DEVICE_OUT_HANDSET &&
-         tx_dev_id == PAL_DEVICE_IN_HANDSET_VA_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADSET &&
-         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_WIRED_HEADPHONE &&
-         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP &&
-         tx_dev_id == PAL_DEVICE_IN_HEADSET_VA_MIC) ||
-        (rx_dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP &&
-         tx_dev_id == PAL_DEVICE_IN_HANDSET_VA_MIC))
-        result = true;
+
+    for (int i = 0; i < deviceInfo.size(); i++) {
+        if (tx_dev_id == deviceInfo[i].deviceId) {
+            for (int j = 0; j < deviceInfo[i].rx_dev_ids.size(); j++) {
+                if (rx_dev_id == deviceInfo[i].rx_dev_ids[j]) {
+                    result = true;
+                    break;
+                }
+            }
+        }
+        if (result)
+            break;
+    }
 
     PAL_DBG(LOG_TAG, "EC Ref: %d, rx dev: %d, tx dev: %d",
         result, rx_dev_id, tx_dev_id);
@@ -5623,6 +5617,13 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             sizeusecase = deviceInfo[size].usecase.size() - 1;
             deviceInfo[size].usecase[sizeusecase].sidetoneMode = sidetoneModetoId.at(mode);
         }
+    } else if (data->tag == TAG_ECREF) {
+        if (!strcmp(tag_name, "id")) {
+            std::string rxDeviceName(data->data_buf);
+            pal_device_id_t rxDeviceId  = deviceIdLUT.at(rxDeviceName);
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].rx_dev_ids.push_back(rxDeviceId);
+        }
     }
     if (!strcmp(tag_name, "kvpair")) {
         data->tag = TAG_DEVICEPP;
@@ -5636,6 +5637,8 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         data->tag = TAG_RESOURCE_MANAGER_INFO;
     } else if (!strcmp(tag_name, "sidetone_mode")) {
         data->tag = TAG_USECASE;
+    } else if (!strcmp(tag_name, "ec_rx_device")) {
+        data->tag = TAG_ECREF;
     } else if (!strcmp(tag_name, "resource_manager_info")) {
         data->tag = TAG_RESOURCE_ROOT;
         data->resourcexml_parsed = true;
@@ -5795,6 +5798,8 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "policies")) {
         data->tag = TAG_POLICIES;
     } else if (!strcmp(tag_name, "ec_ref")) {
+        data->tag = TAG_ECREF;
+    } else if (!strcmp(tag_name, "ec_rx_device")) {
         data->tag = TAG_ECREF;
     }else if (!strcmp(tag_name, "sidetone_mode")) {
         data->tag = TAG_USECASE;
