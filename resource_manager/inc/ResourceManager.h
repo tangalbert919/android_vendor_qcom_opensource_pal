@@ -345,6 +345,7 @@ public:
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
     static bool isCpsEnabled;
+    static int bitWidthSupported;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
     /* Variable to store which speaker side is being used for call audio.

@@ -340,6 +340,7 @@ int ResourceManager::concurrencyDisableCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
+int ResourceManager::bitWidthSupported = BITWIDTH_16;
 bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
@@ -1062,7 +1063,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.bit_width = bitWidthSupported;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case PAL_DEVICE_IN_VI_FEEDBACK:
@@ -5693,6 +5694,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "cps_enabled")) {
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
+        } else if (!strcmp(tag_name, "is_24_bit_supported")) {
+            if (atoi(data->data_buf))
+                bitWidthSupported = BITWIDTH_24;
         } else if (!strcmp(tag_name, "speaker_mono_right")) {
             if (atoi(data->data_buf))
                 isMainSpeakerRight = true;
