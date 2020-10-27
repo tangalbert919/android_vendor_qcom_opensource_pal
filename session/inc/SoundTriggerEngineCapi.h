@@ -82,10 +82,6 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
         bool is_enable __unused) { return 0; }
-    int32_t GetSetupDuration(
-        struct audio_dam_downstream_setup_duration **duration __unused) {
-        return 0;
-    }
 
  private:
     int32_t StartSoundEngine();

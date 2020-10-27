@@ -114,13 +114,6 @@ struct __attribute__((__packed__)) volume_ctrl_multichannel_gain_t
     volume_ctrl_channels_gain_config_t gain_data[0];
 };
 
-struct audio_dam_downstream_setup_duration
-{
-    uint32_t num_output_ports;
-    struct audio_dam_downstream_setup_duration_t port_cfgs[0];
-};
-
-
 class Stream;
 class Session;
 

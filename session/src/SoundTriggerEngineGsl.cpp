@@ -47,17 +47,6 @@
 #define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
 
-// TODO: Move to sound trigger xml files
-#define HIST_BUFFER_DURATION_MS 1750
-#ifdef FEATURE_IPQ_OPENWRT
-#define PRE_ROLL_DURATION_IN_MS 500
-#else
-#define PRE_ROLL_DURATION_IN_MS 250
-#endif
-#define DWNSTRM_SETUP_DURATION_MS 300
-
-int SoundTriggerEngineGsl::instance_count_ = 0;
-
 void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
@@ -330,7 +319,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     capture_requested_ = false;
     stream_handle_ = s;
     sm_data_ = nullptr;
-    dam_setup_duration_ = nullptr;
     reader_ = nullptr;
     buffer_ = nullptr;
 
@@ -359,32 +347,20 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     session_->registerCallBack(HandleSessionCallBack, this);
 
-    // Init internal structures
-    event_config_.event_mode = CONFIDENCE_LEVEL_INFO |
-                               KEYWORD_INDICES_INFO |
-                               TIME_STAMP_INFO |
-                               FTRT_INFO;
-
     buffer_config_.hist_buffer_duration_in_ms = 0;
     buffer_config_.pre_roll_duration_in_ms = 0;
-
-    instance_count_++;
 
     PAL_DBG(LOG_TAG, "Exit");
 }
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     PAL_INFO(LOG_TAG, "Enter");
-    if (dam_setup_duration_) {
-        free(dam_setup_duration_);
-    }
     if (buffer_) {
         delete buffer_;
     }
     if (reader_) {
         delete reader_;
     }
-    instance_count_--;
     PAL_INFO(LOG_TAG, "Exit");
 }
 
@@ -475,16 +451,6 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
     status = session_->setParameters(
         stream_handle_,
         DEVICE_SVA,
-        PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG,
-        &event_config_);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to set event config, status = %d", status);
-        goto exit;
-    }
-
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_SVA,
         PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
         &buffer_config_);
     if (0 != status) {
@@ -493,22 +459,6 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         goto exit;
     }
 
-    status = UpdateDAMSetupDuration(instance_count_);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to update dam setup duration, status = %d",
-                status);
-        goto exit;
-    }
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_ADAM,
-        PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION,
-        dam_setup_duration_);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to set downstream setup duration, status = %d",
-                status);
-        goto exit;
-    }
     status = session_->prepare(stream_handle_);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to prepare session, status = %d", status);
@@ -763,45 +713,4 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     }
 
     return session_->setECRef(s, dev, is_enable);
-}
-
-int32_t SoundTriggerEngineGsl::GetSetupDuration(
-    struct audio_dam_downstream_setup_duration **duration) {
-    int32_t status = 0;
-
-    *duration = dam_setup_duration_;
-
-    return status;
-}
-
-int32_t SoundTriggerEngineGsl::UpdateDAMSetupDuration(int port_num) {
-    uint32_t size = 0;
-
-    if (dam_setup_duration_) {
-        if (dam_setup_duration_->num_output_ports == port_num) {
-            PAL_DBG(LOG_TAG, "No need to update DAM setup duration");
-            return 0;
-        } else {
-            free(dam_setup_duration_);
-            dam_setup_duration_ = nullptr;
-        }
-    }
-
-    size = sizeof(struct audio_dam_downstream_setup_duration) +
-        port_num * sizeof(struct audio_dam_downstream_setup_duration_t);
-    dam_setup_duration_ =
-        (struct audio_dam_downstream_setup_duration *)calloc(1, size);
-    if (!dam_setup_duration_) {
-        PAL_ERR(LOG_TAG, "Failed to allocate dam setup duration");
-        return -ENOMEM;
-    }
-
-    dam_setup_duration_->num_output_ports = port_num;
-    for (int i = 0; i < dam_setup_duration_->num_output_ports; i++) {
-        dam_setup_duration_->port_cfgs[i].output_port_id = i * 2 + 1;
-        dam_setup_duration_->port_cfgs[i].dwnstrm_setup_duration_ms =
-            DWNSTRM_SETUP_DURATION_MS;
-    }
-
-    return 0;
 }

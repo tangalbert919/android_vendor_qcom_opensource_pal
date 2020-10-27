@@ -1020,10 +1020,6 @@ struct detection_engine_voice_wakeup_buffer_config {
     uint32_t pre_roll_duration_in_ms;
 };
 
-struct detection_engine_generic_event_cfg {
-    uint32_t event_mode;
-};
-
 struct ffv_doa_tracking_monitor_t
 {
     int16_t target_angle_L16[2];

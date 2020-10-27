@@ -1454,8 +1454,6 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     int status = 0;
     std::ostringstream connectCtrlName;
     struct sessionToPayloadParam deviceData;
-    StreamSoundTrigger *stHandle = nullptr;
-    struct audio_dam_downstream_setup_duration *setupDuration;
     PayloadBuilder* builder = new PayloadBuilder();
     struct pal_stream_attributes sAttr;
     int sub = 1;
@@ -1526,42 +1524,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
                 PAL_ERR(LOG_TAG,"setMixerParameter failed");
                 return status;
             }
-        } else {
-           if (sAttr.type == PAL_STREAM_VOICE_UI) {
-                // update config for audio dam buffer
-                status = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
-                    pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(),
-                    DEVICE_ADAM, &miid);
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                    return status;
-                }
-                PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n",
-                        miid, pcmDevIds.at(0),
-                        aifBackEndsToConnect[0].second.data(), dAttr.id);
-                stHandle = dynamic_cast<StreamSoundTrigger *>(streamHandle);
-                status = stHandle->GetSetupDuration(&setupDuration);
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG, "Failed to get setup duration");
-                    return status;
-                }
-                builder->payloadSVAStreamSetupDuration(&payload, &payloadSize,
-                                                       miid, setupDuration);
-                if (!payloadSize) {
-                    PAL_ERR(LOG_TAG, "Failed to populate setup duration");
-                    return -EINVAL;
-                }
-
-                status = SessionAlsaUtils::setMixerParameter(mixerHandle,
-                    pcmDevIds.at(0), payload, payloadSize);
-                free(payload);
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG, "Failed to set parameter, status %d",
-                            status);
-                    return status;
-                }
-           }
-       }
+        }
     } else if (!(SessionAlsaUtils::isMmapUsecase(sAttr))) {
         if (sess) {
             SessionAlsaVoice *voiceSession = dynamic_cast<SessionAlsaVoice *>(sess);

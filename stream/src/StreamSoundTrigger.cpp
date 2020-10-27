@@ -513,14 +513,6 @@ exit:
     return device;
 }
 
-int32_t StreamSoundTrigger::GetSetupDuration(
-    struct audio_dam_downstream_setup_duration **duration) {
-    /* NOTE: stream lock should not be handled here
-     * as it's calling from session with stream locked
-     */
-    return gsl_engine_->GetSetupDuration(duration);
-}
-
 int32_t StreamSoundTrigger::isSampleRateSupported(uint32_t sampleRate) {
     int32_t rc = 0;
 

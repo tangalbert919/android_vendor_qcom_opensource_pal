@@ -76,15 +76,10 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) override;
-    int32_t GetSetupDuration(
-        struct audio_dam_downstream_setup_duration **duration) override;
-
-    static int instance_count_;
 
  private:
     int32_t StartBuffering();
     int32_t ParseDetectionPayload(void *event_data);
-    int32_t UpdateDAMSetupDuration(int port_num);
     void HandleSessionEvent(uint32_t event_id __unused, void *data);
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
@@ -93,9 +88,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
     Session *session_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
-    struct detection_engine_generic_event_cfg event_config_;
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
-    struct audio_dam_downstream_setup_duration *dam_setup_duration_;
     struct detection_event_info detection_event_info_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

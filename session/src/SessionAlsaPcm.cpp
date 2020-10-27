@@ -1395,20 +1395,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
             builder->payloadSVAWakeUpConfig(&paramData, &paramSize, miid, pWakeUpConfig);
             break;
         }
-        case PARAM_ID_DETECTION_ENGINE_GENERIC_EVENT_CFG:
-        {
-            struct detection_engine_generic_event_cfg *pEventConfig = NULL;
-            pEventConfig = (struct detection_engine_generic_event_cfg *)payload;
-            // set custom config for detection event
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
-                goto exit;
-            }
-            builder->payloadSVAEventConfig(&paramData, &paramSize, miid, pEventConfig);
-            break;
-        }
         case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
         {
             struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
@@ -1420,19 +1406,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
                 goto exit;
             }
             builder->payloadSVAWakeUpBufferConfig(&paramData, &paramSize, miid, pWakeUpBufConfig);
-            break;
-        }
-        case PARAM_ID_AUDIO_DAM_DOWNSTREAM_SETUP_DURATION:
-        {
-            struct audio_dam_downstream_setup_duration *pSetupDuration = NULL;
-            pSetupDuration = (struct audio_dam_downstream_setup_duration *)payload;
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_ADAM, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_ADAM, status);
-                goto exit;
-            }
-            builder->payloadSVAStreamSetupDuration(&paramData, &paramSize, miid, pSetupDuration);
             break;
         }
         case PARAM_ID_DETECTION_ENGINE_RESET:

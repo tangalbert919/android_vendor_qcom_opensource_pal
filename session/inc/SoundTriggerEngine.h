@@ -318,8 +318,6 @@ public:
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) = 0;
-    virtual int32_t GetSetupDuration(
-        struct audio_dam_downstream_setup_duration **duration) = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);
