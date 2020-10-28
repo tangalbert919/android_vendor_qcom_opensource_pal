@@ -34,7 +34,6 @@
 #include <unistd.h>
 
 #include "Session.h"
-#include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
 #include "Device.h"
@@ -776,7 +775,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                          big_sm->type, big_sm->size);
                 if (big_sm->type == ST_SM_ID_SVA_GMM) {
                     sm_size = big_sm->size +
-                              sizeof(struct pal_st_phrase_sound_model);
+                        sizeof(struct pal_st_phrase_sound_model);
                     sm_data = (uint8_t *)calloc(1, sm_size);
                     if (!sm_data) {
                         status = -ENOMEM;
@@ -793,8 +792,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
                     ar_mem_cpy(sm_data + sizeof(*phrase_sm), big_sm->size,
-                                     (char *)phrase_sm + common_sm->data_offset,
-                                     big_sm->size);
+                        (char *)phrase_sm + common_sm->data_offset, big_sm->size);
                     common_sm->data_offset = sizeof(*phrase_sm);
                     common_sm = (struct pal_st_sound_model *)&phrase_sm->common;
 
@@ -1973,6 +1971,30 @@ int32_t StreamSoundTrigger::GetSecondStageConfig(
             }
             detection_type = ss_config->GetDetectionType();
             lib_name = ss_config->GetLibName();
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
+    uint32_t *param_ids) {
+
+    std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
+
+    if (sm_info_) {
+        // TODO: update input type to GMM/PDK
+        sm_module_info = sm_info_->GetSoundTriggerModuleInfo(0);
+        if (!sm_module_info) {
+            PAL_ERR(LOG_TAG, "Failed to get module info");
+            return -EINVAL;
+        }
+        for (int i = LOAD_SOUND_MODEL; i < MAX_PARAM_IDS; i++) {
+            tag_ids[i] = sm_module_info->GetModuleTagId((st_param_id_type_t)i);
+            param_ids[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
         }
     } else {
         PAL_ERR(LOG_TAG, "No sound model info present");

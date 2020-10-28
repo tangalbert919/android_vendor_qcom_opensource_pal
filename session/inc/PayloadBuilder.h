@@ -42,6 +42,9 @@
 #include "Device.h"
 #include "ResourceManager.h"
 
+#define PAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
+#define PAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
+
 #define MSM_MI2S_SD0 (1 << 0)
 #define MSM_MI2S_SD1 (1 << 1)
 #define MSM_MI2S_SD2 (1 << 2)
@@ -104,13 +107,9 @@ public:
     int payloadCustomParam(uint8_t **alsaPayload, size_t *size,
                             uint32_t *customayload, uint32_t customPayloadSize,
                             uint32_t moduleInstanceId, uint32_t dspParamId);
-    void payloadSVASoundModel(uint8_t **payload, size_t *size, uint32_t moduleId,
-                              struct pal_st_sound_model *soundModel);
-    void payloadSVAWakeUpConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
-                                struct detection_engine_config_voice_wakeup *pWakeUp);
-    void payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size, uint32_t moduleId,
-                    struct detection_engine_voice_wakeup_buffer_config *pBufferConfig);
-    void payloadSVAEngineReset(uint8_t **payload, size_t *size, uint32_t moduleId);
+    int payloadSVAConfig(uint8_t **payload, size_t *size,
+                        uint8_t *config, size_t config_size,
+                        uint32_t miid, uint32_t param_id);
     void payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId);
     void payloadQuery(uint8_t **payload, size_t *size, uint32_t moduleId,
                             uint32_t paramId, uint32_t querySize);

@@ -38,8 +38,6 @@
 #include "sp_vi.h"
 #include "sp_rx.h"
 
-#define PAL_ALIGN_8BYTE(x) (((x) + 7) & (~7))
-#define PAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
 #define XML_FILE "/vendor/etc/hw_ep_info.xml"
 #define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
 
@@ -473,164 +471,36 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     return 0;
 }
 
-void PayloadBuilder::payloadSVASoundModel(uint8_t **payload, size_t *size,
-                       uint32_t moduleId, struct pal_st_sound_model *soundModel)
-{
-    struct apm_module_param_data_t* header;
-    uint8_t *phrase_sm;
-    uint8_t *sm_data;
-    uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0, padBytes = 0;
-    size_t soundModelSize = 0;
+int PayloadBuilder::payloadSVAConfig(uint8_t **payload, size_t *size,
+            uint8_t *config, size_t config_size,
+            uint32_t miid, uint32_t param_id) {
+    struct apm_module_param_data_t* header = nullptr;
+    uint8_t* payloadInfo = nullptr;
+    size_t payloadSize = 0;
 
-    if (!soundModel) {
-        PAL_ERR(LOG_TAG, "Invalid soundModel param");
-        return;
-    }
-    soundModelSize = soundModel->data_size;
-    payloadSize = sizeof(struct apm_module_param_data_t) + soundModelSize;
-    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    payloadSize = PAL_ALIGN_8BYTE(
+        sizeof(struct apm_module_param_data_t) + config_size);
+    payloadInfo = (uint8_t *)calloc(1, payloadSize);
     if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-        return;
+        PAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return -ENOMEM;
     }
+
     header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleId;
-    header->param_id = PARAM_ID_DETECTION_ENGINE_SOUND_MODEL;
+    header->module_instance_id = miid;
+    header->param_id = param_id;
     header->error_code = 0x0;
-    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-    phrase_sm = (uint8_t *)payloadInfo + sizeof(struct apm_module_param_data_t);
-    sm_data = (uint8_t *)soundModel + soundModel->data_offset;
-    ar_mem_cpy(phrase_sm, soundModelSize, sm_data, soundModelSize);
-    *size = payloadSize + padBytes;
+    header->param_size = config_size;
+    if (config_size)
+        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+            config_size, config, config_size);
+    *size = payloadSize;
     *payload = payloadInfo;
+
     PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+
+    return 0;
 }
-
-void PayloadBuilder::payloadSVAWakeUpConfig(uint8_t **payload, size_t *size,
-        uint32_t moduleId, struct detection_engine_config_voice_wakeup *pWakeUp)
-{
-    struct apm_module_param_data_t* header;
-    struct detection_engine_config_voice_wakeup *wakeUpConfig;
-    uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0, padBytes = 0;
-    uint8_t *confidence_level;
-    uint8_t *kw_user_enable;
-    uint32_t fixedConfigVoiceWakeupSize = 0;
-
-    if (!pWakeUp) {
-        PAL_ERR(LOG_TAG, "Invalid pWakeUp param");
-        return;
-    }
-    fixedConfigVoiceWakeupSize = sizeof(struct detection_engine_config_voice_wakeup) -
-                                  PAL_SOUND_TRIGGER_MAX_USERS * 2;
-
-    payloadSize = sizeof(struct apm_module_param_data_t) +
-                  fixedConfigVoiceWakeupSize +
-                     pWakeUp->num_active_models * 2;
-    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-        return;
-    }
-    header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleId;
-    header->param_id = PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP;
-    header->error_code = 0x0;
-    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-
-    wakeUpConfig = (struct detection_engine_config_voice_wakeup*)
-                   (payloadInfo + sizeof(struct apm_module_param_data_t));
-    ar_mem_cpy(wakeUpConfig, fixedConfigVoiceWakeupSize, pWakeUp,
-                     fixedConfigVoiceWakeupSize);
-    confidence_level = (uint8_t*)((uint8_t*)wakeUpConfig + fixedConfigVoiceWakeupSize);
-    kw_user_enable = (uint8_t*)((uint8_t*)wakeUpConfig +
-                     fixedConfigVoiceWakeupSize +
-                     pWakeUp->num_active_models);
-
-    PAL_VERBOSE(LOG_TAG, "mode=%d custom_payload_size=%d", wakeUpConfig->mode,
-                wakeUpConfig->custom_payload_size);
-    PAL_VERBOSE(LOG_TAG, "num_active_models=%d reserved=%d",
-                wakeUpConfig->num_active_models, wakeUpConfig->reserved);
-
-    for (int i = 0; i < pWakeUp->num_active_models; i++) {
-        confidence_level[i] = pWakeUp->confidence_levels[i];
-        kw_user_enable[i] = pWakeUp->keyword_user_enables[i];
-        PAL_VERBOSE(LOG_TAG, "confidence_level[%d] = %d KW_User_enable[%d] = %d",
-                                  i, confidence_level[i], i, kw_user_enable[i]);
-    }
-
-    *size = payloadSize + padBytes;
-    *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
-}
-
-void PayloadBuilder::payloadSVAWakeUpBufferConfig(uint8_t **payload, size_t *size,
-  uint32_t moduleId, struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig)
-{
-    struct apm_module_param_data_t* header;
-    struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufCfg;
-    uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0, padBytes = 0;
-
-    if (!pWakeUpBufConfig) {
-        PAL_ERR(LOG_TAG, "Invalid pWakeUpBufConfig param");
-        return;
-    }
-    payloadSize = sizeof(struct apm_module_param_data_t) +
-                  sizeof(struct detection_engine_voice_wakeup_buffer_config);
-    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-        return;
-    }
-    header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleId;
-    header->param_id = PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG;
-    header->error_code = 0x0;
-    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-
-    pWakeUpBufCfg = (struct detection_engine_voice_wakeup_buffer_config *)
-                    (payloadInfo + sizeof(struct apm_module_param_data_t));
-    ar_mem_cpy(pWakeUpBufCfg,sizeof(struct detection_engine_voice_wakeup_buffer_config),
-                     pWakeUpBufConfig, sizeof(struct detection_engine_voice_wakeup_buffer_config));
-
-    *size = payloadSize + padBytes;
-    *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
-}
-
-void PayloadBuilder::payloadSVAEngineReset(uint8_t **payload, size_t *size,
-                                           uint32_t moduleId)
-{
-    struct apm_module_param_data_t* header;
-    uint8_t* payloadInfo = NULL;
-    size_t payloadSize = 0, padBytes = 0;
-
-    payloadSize = sizeof(struct apm_module_param_data_t);
-    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-        return;
-    }
-    header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleId;
-    header->param_id = PARAM_ID_DETECTION_ENGINE_RESET;
-    header->error_code = 0x0;
-    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
-
-    *size = payloadSize + padBytes;
-    *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
-}
-
 
 void PayloadBuilder::payloadQuery(uint8_t **payload, size_t *size,
                     uint32_t moduleId, uint32_t paramId, uint32_t querySize)

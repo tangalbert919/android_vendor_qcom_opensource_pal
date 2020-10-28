@@ -249,9 +249,13 @@ uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32
     int status = 0;
     int device = pcmDevIds.at(0);
 /* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
-    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                   backendName,
-                                                   tagId, miid);
+    if (backendName) {
+        status = SessionAlsaUtils::getModuleInstanceId(mixer,
+            device, backendName, tagId, miid);
+    } else {
+        status = SessionAlsaUtils::getModuleInstanceId(mixer,
+            device, txAifBackEnds[0].second.data(), tagId, miid);
+    }
     if (0 != status)
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
 
@@ -1369,58 +1373,41 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
                                           device, mixer, builder, rxAifBackEnds);
             goto exit;
         }
-        case PARAM_ID_DETECTION_ENGINE_SOUND_MODEL:
+        case PAL_PARAM_ID_LOAD_SOUND_MODEL:
+        case PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG:
+        case PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG:
+        case PAL_PARAM_ID_WAKEUP_ENGINE_RESET:
         {
-            struct pal_st_sound_model *pSoundModel = NULL;
-            pSoundModel = (struct pal_st_sound_model *)payload;
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
-                goto exit;
-            }
-            builder->payloadSVASoundModel(&paramData, &paramSize, miid, pSoundModel);
-            break;
-        }
-        case PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP:
-        {
-            struct detection_engine_config_voice_wakeup *pWakeUpConfig = NULL;
-            pWakeUpConfig = (struct detection_engine_config_voice_wakeup *)payload;
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
-                goto exit;
-            }
-            builder->payloadSVAWakeUpConfig(&paramData, &paramSize, miid, pWakeUpConfig);
-            break;
-        }
-        case PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG:
-        {
-            struct detection_engine_voice_wakeup_buffer_config *pWakeUpBufConfig = NULL;
-            pWakeUpBufConfig = (struct detection_engine_voice_wakeup_buffer_config *)payload;
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
-                goto exit;
-            }
-            builder->payloadSVAWakeUpBufferConfig(&paramData, &paramSize, miid, pWakeUpBufConfig);
-            break;
-        }
-        case PARAM_ID_DETECTION_ENGINE_RESET:
-        {
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                    txAifBackEnds[0].second.data(), DEVICE_SVA, &miid);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to get tage info %x, status = %d", DEVICE_SVA, status);
-                goto exit;
-            }
-            builder->payloadSVAEngineReset(&paramData, &paramSize, miid);
-            status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), paramData, paramSize);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to set mixer param, status = %d", status);
-                goto exit;
+            struct apm_module_param_data_t* header =
+                (struct apm_module_param_data_t *)payload;
+            paramData = (uint8_t *)payload;
+            paramSize = PAL_ALIGN_8BYTE(header->param_size +
+                sizeof(struct apm_module_param_data_t));
+            if (mState == SESSION_IDLE) {
+                if (!customPayloadSize) {
+                    customPayload = (uint8_t *)calloc(1, paramSize);
+                } else {
+                    customPayload = (uint8_t *)realloc(customPayload,
+                        customPayloadSize + paramSize);
+                }
+                if (!customPayload) {
+                    status = -ENOMEM;
+                    PAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
+                    goto free_payload;
+                }
+
+                ar_mem_cpy((uint8_t *)customPayload + customPayloadSize, paramSize,
+                    paramData, paramSize);
+                customPayloadSize += paramSize;
+                PAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
+            } else {
+                status = SessionAlsaUtils::setMixerParameter(mixer,
+                    pcmDevIds.at(0), paramData, paramSize);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to set mixer param, status = %d",
+                        status);
+                    goto exit;
+                }
             }
             break;
         }
@@ -1487,25 +1474,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
     }
 
     PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
-
-    if (param_id != PARAM_ID_DETECTION_ENGINE_RESET &&
-        param_id != PAL_PARAM_ID_UIEFFECT) {
-        if (!customPayloadSize) {
-            customPayload = (uint8_t *)calloc(1, paramSize);
-        } else {
-            customPayload = (uint8_t *)realloc(customPayload, customPayloadSize + paramSize);
-        }
-
-        if (!customPayload) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
-            goto free_payload;
-        }
-
-        memcpy((uint8_t *)customPayload + customPayloadSize, paramData, paramSize);
-        customPayloadSize += paramSize;
-        PAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
-    }
 
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :

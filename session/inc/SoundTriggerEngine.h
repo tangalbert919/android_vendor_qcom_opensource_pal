@@ -264,6 +264,15 @@ typedef enum st_sound_model_type {
     ST_SM_TYPE_MAX
 }st_sound_model_type_t;
 
+typedef enum st_param_id_type {
+    LOAD_SOUND_MODEL = 0,
+    UNLOAD_SOUND_MODEL,
+    WAKEUP_CONFIG,
+    BUFFERING_CONFIG,
+    ENGINE_RESET,
+    MAX_PARAM_IDS
+} st_param_id_type_t;
+
 struct detection_event_info
 {
     uint16_t status;

@@ -73,11 +73,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         } else {
             // TODO: Work around to resume further detections.
             PAL_DBG(LOG_TAG, "HandleSessionEvent: reset engine");
-            status = gsl_engine->session_->setParameters(
-                gsl_engine->stream_handle_,
-                DEVICE_SVA,
-                PARAM_ID_DETECTION_ENGINE_RESET,
-                nullptr);
+            status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
                         status);
@@ -321,6 +317,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     sm_data_ = nullptr;
     reader_ = nullptr;
     buffer_ = nullptr;
+    builder_ = new PayloadBuilder();
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
@@ -331,6 +328,12 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to get engine config");
         throw std::runtime_error("Failed to get engine config");
+    }
+
+    status = st_str->GetModuleIds(module_tag_ids_, param_ids_);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update module ids");
+        throw std::runtime_error("Failed to update module ids");
     }
     // Create session
     rm = ResourceManager::getInstance();
@@ -361,6 +364,9 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     if (reader_) {
         delete reader_;
     }
+    if (builder_) {
+        delete builder_;
+    }
     PAL_INFO(LOG_TAG, "Exit");
 }
 
@@ -380,18 +386,17 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
         return status;
-
     }
-    status = session_->setParameters(stream_handle_, DEVICE_SVA,
-                                     PARAM_ID_DETECTION_ENGINE_SOUND_MODEL,
-                                     (void *)data);
+
+    sm_data_ = data;
+    sm_data_size_ = data_size;
+
+    status = UpdateSessionPayload(LOAD_SOUND_MODEL);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
         session_->close(s);
         return status;
     }
-    sm_data_ = data;
-    sm_data_size_ = data_size;
 
     exit_thread_ = false;
     buffer_thread_handler_ =
@@ -438,21 +443,13 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
     std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
 
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_SVA,
-        PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP,
-        &wakeup_config_);
+    status = UpdateSessionPayload(WAKEUP_CONFIG);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
         goto exit;
     }
 
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_SVA,
-        PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG,
-        &buffer_config_);
+    status = UpdateSessionPayload(BUFFERING_CONFIG);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d",
                 status);
@@ -490,11 +487,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
      * as ENGINE_RESET alone can't reset the graph (including DAM etc..) ready
      * for next detection.
      */
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_SVA,
-        PARAM_ID_DETECTION_ENGINE_RESET,
-        nullptr);
+    status = UpdateSessionPayload(ENGINE_RESET);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to reset engine, status = %d",
                 status);
@@ -529,11 +522,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
      * will not close the gate, rather just flushes the buffers, resulting in no
      * further detections.
      */
-    status = session_->setParameters(
-        stream_handle_,
-        DEVICE_SVA,
-        PARAM_ID_DETECTION_ENGINE_RESET,
-        nullptr);
+    status = UpdateSessionPayload(ENGINE_RESET);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
                 status);
@@ -713,4 +702,104 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     }
 
     return session_->setECRef(s, dev, is_enable);
+}
+
+int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
+    int32_t status = 0;
+    uint32_t miid = 0;
+    uint32_t tag_id = 0;
+    uint32_t param_id = 0;
+    uint8_t *payload = nullptr;
+    size_t payload_size = 0;
+    uint32_t ses_param_id = 0;
+
+    if (param < LOAD_SOUND_MODEL || param >= MAX_PARAM_IDS) {
+        PAL_ERR(LOG_TAG, "Invalid param id %u", param);
+        return -EINVAL;
+    }
+
+    tag_id = module_tag_ids_[param];
+    param_id = param_ids_[param];
+
+    status = session_->getMIID(nullptr, tag_id, &miid);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "Failed to get instance id for tag %x, status = %d",
+            tag_id, status);
+        return status;
+    }
+
+    switch(param) {
+        case LOAD_SOUND_MODEL:
+        {
+            ses_param_id = PAL_PARAM_ID_LOAD_SOUND_MODEL;
+            // TODO: update this after sound model feature merged
+            struct pal_st_sound_model *common_sm =
+                (struct pal_st_sound_model *)sm_data_;
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                sm_data_ + common_sm->data_offset, common_sm->data_size,
+                miid, param_id);
+            break;
+        }
+        case UNLOAD_SOUND_MODEL:
+            // implement when SVA5 integrated
+            break;
+        case WAKEUP_CONFIG:
+        {
+            ses_param_id = PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG;
+            size_t fixed_wakeup_payload_size =
+                sizeof(struct detection_engine_config_voice_wakeup) -
+                PAL_SOUND_TRIGGER_MAX_USERS * 2;
+            size_t wakeup_payload_size = fixed_wakeup_payload_size +
+                wakeup_config_.num_active_models * 2;
+            uint8_t *wakeup_payload = new uint8_t[wakeup_payload_size];
+            ar_mem_cpy(wakeup_payload, fixed_wakeup_payload_size,
+                &wakeup_config_, fixed_wakeup_payload_size);
+            uint8_t *confidence_level = wakeup_payload +
+                fixed_wakeup_payload_size;
+            uint8_t *kw_user_enable = wakeup_payload +
+                fixed_wakeup_payload_size +
+                wakeup_config_.num_active_models;
+            for (int i = 0; i < wakeup_config_.num_active_models; i++) {
+                confidence_level[i] = wakeup_config_.confidence_levels[i];
+                kw_user_enable[i] = wakeup_config_.keyword_user_enables[i];
+                PAL_VERBOSE(LOG_TAG,
+                    "confidence_level[%d] = %d KW_User_enable[%d] = %d",
+                    i, confidence_level[i], i, kw_user_enable[i]);
+            }
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                (uint8_t *)wakeup_payload, wakeup_payload_size,
+                miid, param_id);
+            delete[] wakeup_payload;
+            break;
+        }
+        case BUFFERING_CONFIG:
+            ses_param_id = PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG;
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                (uint8_t *)&buffer_config_,
+                sizeof(struct detection_engine_voice_wakeup_buffer_config),
+                miid, param_id);
+            break;
+        case ENGINE_RESET:
+            ses_param_id = PAL_PARAM_ID_WAKEUP_ENGINE_RESET;
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                nullptr, 0, miid, param_id);
+            break;
+        default:
+            PAL_ERR(LOG_TAG, "Invalid param id %u", param);
+            return -EINVAL;
+    }
+
+    if (status || !payload) {
+        PAL_ERR(LOG_TAG, "Failed to construct SVA payload, status = %d",
+            status);
+        return -ENOMEM;
+    }
+
+    status = session_->setParameters(stream_handle_, tag_id, ses_param_id, payload);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "Failed to set payload for param id %x, status = %d",
+            ses_param_id, status);
+    }
+
+    return status;
 }

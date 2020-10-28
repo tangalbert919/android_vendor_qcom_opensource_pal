@@ -174,6 +174,7 @@ class StreamSoundTrigger : public Stream {
         uint32_t &channels, listen_model_indicator_enum type);
     int32_t GetSecondStageConfig(st_sound_model_type_t &detection_type,
         std::string &lib_name, listen_model_indicator_enum type);
+    int32_t GetModuleIds(uint32_t *tag_ids, uint32_t *param_ids);
 
     friend class PalRingBufferReader;
 

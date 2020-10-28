@@ -667,6 +667,13 @@
                 <param bit_width="16"/>
                 <param channel_count="1"/>
             </arm_ss_usecase>
+            <module_params>
+                <param module_type="GMM" />
+                <param load_sound_model_ids="0xC0000008, 0x0800104C" />
+                <param wakeup_config_ids="0xC0000008, 0x08001049" />
+                <param buffering_config_ids="0xC0000008, 0x08001044" />
+                <param engine_reset_ids="0xC0000008, 0x08001051" />
+            </module_params>
         </sound_model_config>
         <!-- Hotword -->
         <sound_model_config>

@@ -259,6 +259,57 @@ void SecondStageConfig::HandleEndTag(const char *tag __unused) {
 void SecondStageConfig::HandleCharData(const char *data __unused) {
 }
 
+SoundTriggerModuleInfo::SoundTriggerModuleInfo() :
+    model_type_(0)
+{
+    for (int i = 0; i < MAX_PARAM_IDS; i++) {
+        module_tag_ids_[i] = 0;
+        param_ids_[i] = 0;
+    }
+}
+
+void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attribs) {
+    PAL_DBG(LOG_TAG, "Got tag %s", tag);
+
+    if (!strcmp(tag, "param")) {
+        uint32_t i = 0;
+        while (attribs[i]) {
+            if (!strcmp(attribs[i], "model_type")) {
+                i++;
+                if (!strcmp(attribs[i], "GMM")) {
+                    model_type_ = 0;
+                } else if (!strcmp(attribs[i], "PDK")) {
+                    model_type_ = 1;
+                }
+            } else {
+                uint32_t index = 0;
+                if (!strcmp(attribs[i], "load_sound_model_ids")) {
+                    index = LOAD_SOUND_MODEL;
+                } else if (!strcmp(attribs[i], "unload_sound_model_ids")) {
+                    index = UNLOAD_SOUND_MODEL;
+                } else if (!strcmp(attribs[i], "wakeup_config_ids")) {
+                    index = WAKEUP_CONFIG;
+                } else if (!strcmp(attribs[i], "buffering_config_ids")) {
+                    index = BUFFERING_CONFIG;
+                } else if (!strcmp(attribs[i], "engine_reset_ids")) {
+                    index = ENGINE_RESET;
+                }
+                sscanf(attribs[++i], "%x, %x", &module_tag_ids_[index],
+                    &param_ids_[index]);
+            }
+            ++i;
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "Invalid tag %s", tag);
+    }
+}
+
+void SoundTriggerModuleInfo::HandleEndTag(const char *tag __unused) {
+}
+
+void SoundTriggerModuleInfo::HandleCharData(const char *data __unused) {
+}
+
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),
@@ -290,9 +341,21 @@ void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
 
 std::shared_ptr<SecondStageConfig> SoundModelConfig::GetSecondStageConfig(
     const uint32_t& sm_id) const {
+
     auto ss_config = ss_config_list_.find(sm_id);
     if (ss_config != ss_config_list_.end())
         return ss_config->second;
+    else
+        return nullptr;
+}
+
+
+std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleInfo(
+    const uint32_t& type) const {
+
+    auto module_config = st_module_info_list_.find(type);
+    if (module_config != st_module_info_list_.end())
+        return module_config->second;
     else
         return nullptr;
 }
@@ -312,6 +375,10 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     if (!strcmp(tag, "arm_ss_usecase")) {
         curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
             std::make_shared<SecondStageConfig>());
+        return;
+    } if (!strcmp(tag, "module_params")) {
+        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
+            std::make_shared<SoundTriggerModuleInfo>());
         return;
     }
 
@@ -388,6 +455,14 @@ void SoundModelConfig::HandleEndTag(const char* tag __unused) {
             std::static_pointer_cast<SecondStageConfig>(curr_child_));
         const auto res = ss_config_list_.insert(
             std::make_pair(ss_cfg->GetSoundModelID(), ss_cfg));
+        if (!res.second)
+            PAL_ERR(LOG_TAG, "Failed to insert to map");
+        curr_child_ = nullptr;
+    } else if (!strcmp(tag, "module_params")) {
+        std::shared_ptr<SoundTriggerModuleInfo> st_module_info(
+            std::static_pointer_cast<SoundTriggerModuleInfo>(curr_child_));
+        const auto res = st_module_info_list_.insert(
+            std::make_pair(st_module_info->GetModelType(), st_module_info));
         if (!res.second)
             PAL_ERR(LOG_TAG, "Failed to insert to map");
         curr_child_ = nullptr;

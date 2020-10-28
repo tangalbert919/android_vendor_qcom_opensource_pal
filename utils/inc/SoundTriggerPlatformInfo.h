@@ -137,6 +137,28 @@ class SecondStageConfig : public SoundTriggerXml {
     uint32_t channels_;
 };
 
+class SoundTriggerModuleInfo : public SoundTriggerXml {
+ public:
+    SoundTriggerModuleInfo();
+
+    void HandleStartTag(const char *tag, const char **attribs) override;
+    void HandleEndTag(const char *tag) override;
+    void HandleCharData(const char *data) override;
+
+    uint32_t GetModelType() const { return model_type_; }
+    uint32_t GetModuleTagId(st_param_id_type_t param_id) const {
+        return module_tag_ids_[param_id];
+    }
+    uint32_t GetParamId(st_param_id_type_t param_id) const {
+        return param_ids_[param_id];
+    }
+
+ private:
+    uint32_t model_type_;
+    uint32_t module_tag_ids_[MAX_PARAM_IDS];
+    uint32_t param_ids_[MAX_PARAM_IDS];
+};
+
 class SoundModelConfig : public SoundTriggerXml {
  public:
     /*
@@ -165,6 +187,8 @@ class SoundModelConfig : public SoundTriggerXml {
     }
     std::shared_ptr<SecondStageConfig> GetSecondStageConfig(
         const uint32_t& sm_id) const;
+    std::shared_ptr<SoundTriggerModuleInfo> GetSoundTriggerModuleInfo(
+        const uint32_t& type) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
@@ -189,6 +213,7 @@ class SoundModelConfig : public SoundTriggerXml {
     std::map<std::pair<StOperatingModes, StInputModes>, std::shared_ptr<CaptureProfile>> op_modes_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
     std::map<uint32_t, std::shared_ptr<SecondStageConfig>> ss_config_list_;
+    std::map<uint32_t, std::shared_ptr<SoundTriggerModuleInfo>> st_module_info_list_;
 };
 
 class SoundTriggerPlatformInfo : public SoundTriggerXml {
