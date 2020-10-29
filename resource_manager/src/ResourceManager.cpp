@@ -277,10 +277,13 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
     {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
     {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
+    {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
     {std::string{ "PAL_STREAM_VOICE_CALL" },               PAL_STREAM_VOICE_CALL},
     {std::string{ "PAL_STREAM_LOOPBACK" },                 PAL_STREAM_LOOPBACK},
     {std::string{ "PAL_STREAM_TRANSCODE" },                PAL_STREAM_TRANSCODE},
     {std::string{ "PAL_STREAM_VOICE_UI" },                 PAL_STREAM_VOICE_UI},
+    {std::string{ "PAL_STREAM_PCM_OFFLOAD" },              PAL_STREAM_PCM_OFFLOAD},
     {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
     {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
 };
@@ -323,6 +326,8 @@ std::mutex ResourceManager::cvMutex;
 std::queue<card_status_t> ResourceManager::msgQ;
 std::condition_variable ResourceManager::cv;
 std::thread ResourceManager::workerThread;
+std::thread ResourceManager::mixerEventTread;
+bool ResourceManager::mixerClosed = false;
 int ResourceManager::mixerEventRegisterCount = 0;
 int ResourceManager::concurrentRxStreamCount = 0;
 int ResourceManager::concurrentTxStreamCount = 0;
@@ -493,6 +498,7 @@ ResourceManager::ResourceManager()
     listAllPcmVoice2TxFrontEnds.clear();
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
+    memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -838,6 +844,9 @@ int ResourceManager::init()
 
     // Initialize Speaker Protection calibration mode
     struct pal_device dattr;
+
+    mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
+
     // Get the speaker instance and activate speaker protection
     dattr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
@@ -2247,10 +2256,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
                 std::make_pair(callback, cookie)));
 
         }
-        if (mixerEventRegisterCount++ == 0) {
-            PAL_DBG(LOG_TAG, "Creating mixer event thread");
-            mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
-        }
+        mixerEventRegisterCount++;
     } else {
         for (int i = 0; i < DevIds.size(); i++) {
             it = mixerEventCallbackMap.find(DevIds[i]);
@@ -2267,12 +2273,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
                 PAL_ERR(LOG_TAG, "No callback found for pcm id %d", DevIds[i]);
             }
         }
-        if (mixerEventRegisterCount-- == 1) {
-            if (mixerEventTread.joinable()) {
-                mixerEventTread.join();
-            }
-            PAL_DBG(LOG_TAG, "Mixer event thread joined");
-        }
+        mixerEventRegisterCount--;
     }
 
     return status;
@@ -2290,38 +2291,35 @@ void ResourceManager::mixerEventWaitThreadLoop(
         return;
     }
 
-    PAL_VERBOSE(LOG_TAG, "subscribing for event");
+    PAL_INFO(LOG_TAG, "subscribing for event");
     mixer_subscribe_events(mixer, 1);
 
     while (1) {
         PAL_VERBOSE(LOG_TAG, "going to wait for event");
-        /* TODO: set timeout here to avoid stuck during stop
-         * Better if AGM side can provide one event indicating stop
-         */
-        ret = mixer_wait_event(mixer, 1000);
+        ret = mixer_wait_event(mixer, -1);
         PAL_VERBOSE(LOG_TAG, "mixer_wait_event returns %d", ret);
         if (ret <= 0) {
             PAL_DBG(LOG_TAG, "mixer_wait_event err! ret = %d", ret);
         } else if (ret > 0) {
             ret = mixer_read_event(mixer, &mixer_event);
             if (ret >= 0) {
-                PAL_INFO(LOG_TAG, "Event Received %s",
-                    mixer_event.data.elem.id.name);
-                if (strstr((char *)mixer_event.data.elem.id.name, (char *)"event"))
+                if (strstr((char *)mixer_event.data.elem.id.name, (char *)"event")) {
+                    PAL_INFO(LOG_TAG, "Event Received %s",
+                             mixer_event.data.elem.id.name);
                     ret = rm->handleMixerEvent(mixer,
                         (char *)mixer_event.data.elem.id.name);
-                else
+                } else
                     PAL_VERBOSE(LOG_TAG, "Unwanted event, Skipping");
             } else {
                 PAL_DBG(LOG_TAG, "mixer_read failed, ret = %d", ret);
             }
         }
-        if (!rm->isCallbackRegistered()) {
-            PAL_VERBOSE(LOG_TAG, "Exit thread as no session registered");
-            break;
+        if (ResourceManager::mixerClosed) {
+            PAL_INFO(LOG_TAG, "mixerClosed, exit mixerEventWaitThreadLoop");
+            return;
         }
     }
-    PAL_VERBOSE(LOG_TAG, "unsubscribing for event");
+    PAL_INFO(LOG_TAG, "unsubscribing for event");
     mixer_subscribe_events(mixer, 0);
 }
 
@@ -2995,10 +2993,15 @@ void ResourceManager::deinit()
 {
     card_status_t state = CARD_STATUS_NONE;
 
+    mixerClosed = true;
     mixer_close(audio_mixer);
     if (audio_route) {
        audio_route_free(audio_route);
     }
+    if (mixerEventTread.joinable()) {
+        mixerEventTread.join();
+    }
+    PAL_DBG(LOG_TAG, "Mixer event thread joined");
     if (sndmon)
         delete sndmon;
 
@@ -4732,6 +4735,7 @@ setdevparam:
             struct pal_device dattr;
             Stream *stream = NULL;
             std::vector<Stream*> activestreams;
+            struct pal_stream_attributes sAttr;
             Session *session = NULL;
 
             pal_param_gain_lvl_cal_t *gain_lvl_cal = (pal_param_gain_lvl_cal_t *) param_payload;
@@ -4758,13 +4762,21 @@ setdevparam:
                        status = -EINVAL;
                        goto exit;
                     }
+
                     stream = static_cast<Stream *>(activestreams[0]);
-                    stream->setGainLevel(gain_lvl_cal->level);
-                    stream->getAssociatedSession(&session);
-                    status = session->setConfig(stream, CALIBRATION, TAG_DEVICE_PP_MBDRC);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
-                        goto exit;
+                    stream->getStreamAttributes(&sAttr);
+                    if ((sAttr.direction == PAL_AUDIO_OUTPUT) &&
+                        ((sAttr.type == PAL_STREAM_LOW_LATENCY) ||
+                        (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
+                        (sAttr.type == PAL_STREAM_COMPRESSED) ||
+                        (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                        stream->setGainLevel(gain_lvl_cal->level);
+                        stream->getAssociatedSession(&session);
+                        status = session->setConfig(stream, CALIBRATION, TAG_DEVICE_PP_MBDRC);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "session setConfig failed with status %d", status);
+                            goto exit;
+                        }
                     }
                 }
             }
@@ -5054,14 +5066,21 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     return status;
 }
 
+int ResourceManager::resetStreamInstanceID(Stream *s){
+    return s ? resetStreamInstanceID(s, s->getInstanceId()) : -EINVAL;
+}
+
 int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
-
     pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
-    status = str->getStreamAttributes(&StrAttr);
+    if(sInstanceID < INSTANCE_1){
+        PAL_ERR(LOG_TAG,"Invalid Stream Instance ID\n");
+        return -EINVAL;
+    }
 
+    status = str->getStreamAttributes(&StrAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
@@ -5099,21 +5118,16 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             }
             break;
         default:
-            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr.type);
-            break;
+            stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+            str->setInstanceId(0);
     }
-
 
     mResourceManagerMutex.unlock();
     return status;
-
 }
 
 int ResourceManager::getStreamInstanceID(Stream *str) {
-    int status = 0;
-    int i;
-    int listNodeIndex = -1;
+    int i, status = 0, listNodeIndex = -1;
     pal_stream_attributes StrAttr;
     KeyVect_t streamConfigModifierKV;
 
@@ -5175,15 +5189,25 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             }
             break;
         default:
-            PAL_ERR(LOG_TAG, "Invalid streamtype %d",
-                    StrAttr.type);
-            break;
+            status = str->getInstanceId();
+            if (!status) {
+                if (stream_instances[StrAttr.type - 1] ==  -1) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                for (i = 0; i < MAX_STREAM_INSTANCES; ++i)
+                    if (!(stream_instances[StrAttr.type - 1] & (1 << i))) {
+                        stream_instances[StrAttr.type - 1] |= (1 << i);
+                        status = i + 1;
+                        break;
+                    }
+                str->setInstanceId(status);
+            }
     }
-
 
     mResourceManagerMutex.unlock();
     return status;
-
 }
 
 bool ResourceManager::isDeviceAvailable(pal_device_id_t id)

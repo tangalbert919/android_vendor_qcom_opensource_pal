@@ -141,7 +141,7 @@ protected:
     bool ssrDone = true;
     stream_state_t currentState;
     stream_state_t cachedState;
-    uint32_t mInstanceID = 0; // used for Voice UI only now
+    uint32_t mInstanceID = 0;
 public:
     virtual ~Stream() {};
     pal_stream_callback streamCb;
@@ -206,6 +206,7 @@ public:
     bool isGKVMatch(pal_key_vector_t* gkv);
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
     uint32_t getInstanceId() { return mInstanceID; }
+    inline void setInstanceId(uint32_t sid) { mInstanceID = sid; }
     bool checkStreamMatch(pal_device_id_t pal_device_id,
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);

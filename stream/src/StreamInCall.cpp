@@ -986,3 +986,6 @@ exit :
     return status;
 }
 
+StreamInCall::~StreamInCall(){
+    rm->resetStreamInstanceID(this);
+}
