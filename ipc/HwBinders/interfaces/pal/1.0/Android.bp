@@ -29,6 +29,7 @@ hidl_interface {
         "PalBufferConfig",
         "PalExternAllocBuffInfo",
         "PalParamPayload",
+        "PalEventReadWriteDonePayload",
     ],
     gen_java: false,
 }

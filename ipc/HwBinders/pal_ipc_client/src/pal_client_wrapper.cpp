@@ -90,6 +90,68 @@ Return<int32_t> PalCallback::event_callback(uint64_t strm_handle,
     return int32_t {};
 }
 
+Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
+                                 uint32_t event_id,
+                                 uint32_t event_data_size,
+                                 const hidl_vec<PalEventReadWriteDonePayload>& event_data,
+                                 uint64_t cookie) {
+    ALOGE("%s called \n", __func__);
+
+    struct pal_event_read_write_done_payload *rw_done_payload;
+    struct pal_buffer *buffer;
+    uint32_t *ev_data = NULL;
+    const PalEventReadWriteDonePayload *rwDonePayloadHidl = event_data.data();
+    PalBuffer *bufferHidl;
+    rw_done_payload = (struct pal_event_read_write_done_payload *)
+                          calloc(1, sizeof(pal_event_read_write_done_payload));
+
+    ev_data = (uint32_t *)rw_done_payload;
+    rw_done_payload->tag = rwDonePayloadHidl->tag;
+    rw_done_payload->status = rwDonePayloadHidl->status;
+    rw_done_payload->md_status = rwDonePayloadHidl->md_status;
+
+    buffer = &rw_done_payload->buff;
+
+    buffer->size = rwDonePayloadHidl->buff.size;
+    if (rwDonePayloadHidl->buff.buffer.size() == buffer->size) {
+        buffer->buffer = (uint8_t *)calloc(1, buffer->size);
+        memcpy(buffer->buffer, rwDonePayloadHidl->buff.buffer.data(),
+               buffer->size);
+    }
+
+    buffer->offset = rwDonePayloadHidl->buff.offset;
+    buffer->ts = (struct timespec *) calloc(1, sizeof(struct timespec));
+    buffer->ts->tv_sec = rwDonePayloadHidl->buff.timeStamp.tvSec;
+    buffer->ts->tv_nsec = rwDonePayloadHidl->buff.timeStamp.tvNSec;
+    buffer->flags = rwDonePayloadHidl->buff.flags;
+    if (rwDonePayloadHidl->buff.metadataSz) {
+        buffer->metadata_size = rwDonePayloadHidl->buff.metadataSz;
+        buffer->metadata = (uint8_t *)calloc(1, buffer->metadata_size);
+        ALOGE("metadatasize %d \n", buffer->metadata_size);
+        memcpy(buffer->metadata, rwDonePayloadHidl->buff.metadata.data(),
+               buffer->metadata_size);
+    }
+    const native_handle *allochandle = nullptr;
+    allochandle = rwDonePayloadHidl->buff.alloc_info.alloc_handle.handle();
+
+    buffer->alloc_info.alloc_handle = allochandle->data[1];
+    buffer->alloc_info.alloc_size = rwDonePayloadHidl->buff.alloc_info.alloc_size;
+    buffer->alloc_info.offset = rwDonePayloadHidl->buff.alloc_info.offset;
+    ALOGE("%s:%d Bufsize %d  ret bufSize %d", __func__, __LINE__, rwDonePayloadHidl->buff.size, buffer->size);
+    ALOGE("event_payload_size %d alloc_handle %d", event_data_size, allochandle->data[1]);
+    ALOGE("alloc size %d alloc_size ret %d", rwDonePayloadHidl->buff.alloc_info.alloc_size,buffer->alloc_info.alloc_size);
+    this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
+                                    cookie);
+    if (buffer->metadata)
+        free(buffer->metadata);
+    if (buffer->buffer)
+        free(buffer->buffer);
+    if (buffer->ts)
+        free(buffer->ts);
+    free(rw_done_payload);
+    return int32_t {};
+}
+
 int32_t pal_stream_open(struct pal_stream_attributes *attr,
                         uint32_t no_of_devices, struct pal_device *devices,
                         uint32_t no_of_modifiers, struct modifier_kv *modifiers,
@@ -299,8 +361,9 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
         buf_hidl.resize(sizeof(struct pal_buffer));
         PalBuffer *palBuff = buf_hidl.data();
         native_handle_t *allocHidlHandle = nullptr;
-        allocHidlHandle = native_handle_create(1, 0);
+        allocHidlHandle = native_handle_create(1, 1);
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
+        allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
 
         palBuff->size = buf->size;
         palBuff->offset = buf->offset;
@@ -320,6 +383,7 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
          }
          palBuff->alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle", hidl_handle(allocHidlHandle),
                                                          buf->alloc_info.alloc_size);
+         ALOGE("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
          palBuff->alloc_info.alloc_size = buf->alloc_info.alloc_size;
          palBuff->alloc_info.offset = buf->alloc_info.offset;
          ret = pal_client->ipc_pal_stream_write((PalStreamHandle)stream_handle, buf_hidl);
@@ -343,8 +407,9 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         buf_hidl.resize(sizeof(struct pal_buffer));
         PalBuffer *palBuff = buf_hidl.data();
         native_handle_t *allocHidlHandle = nullptr;
-        allocHidlHandle = native_handle_create(1, 0);
+        allocHidlHandle = native_handle_create(1, 1);
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
+        allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
 
         palBuff->size = buf->size;
         palBuff->offset = buf->offset;
@@ -355,6 +420,7 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         palBuff->alloc_info.offset = buf->alloc_info.offset;
 
         ALOGE("%s:%d size %d %d",__func__,__LINE__,buf_hidl.data()->size, buf->size);
+        ALOGE("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
         pal_client->ipc_pal_stream_read((PalStreamHandle)stream_handle, buf_hidl,
                [&](int32_t ret_, hidl_vec<PalBuffer> ret_buf_hidl)
                   {
@@ -696,16 +762,20 @@ int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
 {
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGE("%s:%d: size %d", __func__, __LINE__, *size);
         android::sp<IPAL> pal_client = get_pal_server();
         pal_client->ipc_pal_stream_get_tags_with_module_info((PalStreamHandle)stream_handle,(uint32_t)*size,
                              [&](int32_t ret_, uint32_t size_ret, hidl_vec<uint8_t> payload_ret)
                               {
-                                    if (!ret) {
+                                    if (!ret_) {
                                         if (payload && (*size > 0) && (*size <= size_ret)) {
                                             memcpy(payload, payload_ret.data(), *size);
+                                        } else if (payload && (*size > size_ret)) {
+                                            memcpy(payload, payload_ret.data(), size_ret);
                                         }
+                                        *size = size_ret;
                                     }
+                                    ALOGE("ret %d size_ret %d", ret_, size_ret);
                                     ret = ret_;
                               });
     }

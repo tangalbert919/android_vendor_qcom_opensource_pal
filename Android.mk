@@ -58,6 +58,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamCompress.cpp\
     stream/src/StreamPCM.cpp\
     stream/src/StreamInCall.cpp\
+    stream/src/StreamNonTunnel.cpp\
     stream/src/StreamSoundTrigger.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
@@ -76,6 +77,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \
+    session/src/SessionAgm.cpp \
     session/src/SessionAlsaUtils.cpp \
     session/src/SessionAlsaCompress.cpp \
     session/src/SessionAlsaVoice.cpp \

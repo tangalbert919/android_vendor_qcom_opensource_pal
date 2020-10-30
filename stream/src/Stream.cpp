@@ -51,7 +51,7 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     uint32_t count = 0;
 
 
-    if (!sAttr || !dAttr) {
+    if (!sAttr || ((noOfDevices > 0) && !dAttr)) {
         PAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
@@ -65,6 +65,9 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         }
     }
     PAL_VERBOSE(LOG_TAG,"get RM instance success and noOfDevices %d \n", noOfDevices);
+
+    if (sAttr->type == PAL_STREAM_NON_TUNNEL)
+        goto stream_create;
 
     mPalDevice = new pal_device [noOfDevices];
     if (!mPalDevice) {
@@ -135,6 +138,10 @@ stream_create:
             case PAL_STREAM_VOICE_CALL_RECORD:
             case PAL_STREAM_VOICE_CALL_MUSIC:
                 stream = new StreamInCall(sAttr, mPalDevice, count, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_NON_TUNNEL:
+                stream = new StreamNonTunnel(sAttr, NULL, 0, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:
@@ -407,6 +414,26 @@ exit:
     return status;
 }
 
+int32_t Stream::getMaxMetadataSz(size_t *in_max_metdata_sz, size_t *out_max_metadata_sz)
+{
+    int32_t status = 0;
+
+    if (in_max_metdata_sz)
+        *in_max_metdata_sz = inMaxMetadataSz;
+    if (out_max_metadata_sz)
+        *out_max_metadata_sz = outMaxMetadataSz;
+
+    if (!in_max_metdata_sz)
+        PAL_DBG(LOG_TAG, "in max metadataSize %zu",
+                *in_max_metdata_sz);
+
+    if (!out_max_metadata_sz)
+        PAL_DBG(LOG_TAG, "in max metadataSize %zu",
+                *out_max_metadata_sz);
+
+    return status;
+}
+
 int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                            size_t *out_buf_size, size_t *out_buf_count)
 {
@@ -447,6 +474,12 @@ bool Stream::isStreamAudioOutFmtSupported(pal_audio_fmt_t format)
     case PAL_AUDIO_FMT_WMA_PRO:
     case PAL_AUDIO_FMT_FLAC:
     case PAL_AUDIO_FMT_VORBIS:
+    case PAL_AUDIO_FMT_AMR_NB:
+    case PAL_AUDIO_FMT_AMR_WB:
+    case PAL_AUDIO_FMT_AMR_WB_PLUS:
+    case PAL_AUDIO_FMT_EVRC:
+    case PAL_AUDIO_FMT_G711:
+    case PAL_AUDIO_FMT_QCELP:
         return true;
     default:
         return false;

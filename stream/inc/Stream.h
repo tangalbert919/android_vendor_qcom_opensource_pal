@@ -180,7 +180,7 @@ public:
     virtual int32_t createMmapBuffer(int32_t min_size_frames __unused,
                                    struct pal_mmap_buffer *info __unused) {return -EINVAL;}
     virtual int32_t GetMmapPosition(struct pal_mmap_position *position __unused) {return -EINVAL;}
-
+    virtual int32_t getTagsWithModuleInfo(size_t *size __unused, uint8_t *payload __unused) {return -EINVAL;};
     int32_t getStreamAttributes(struct pal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
     const KeyVect_t& getDevPpModifiers() const;
@@ -193,6 +193,7 @@ public:
                        pal_buffer_config *out_buffer_config);
     int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                        size_t *out_buf_size, size_t *out_buf_count);
+    int32_t getMaxMetadataSz(size_t *in_max_metadata_sz, size_t *out_max_metadata_sz);
     int32_t getVolumeData(struct pal_volume_data *vData);
     void setGainLevel(int level) { mGainLevel = level; };
     int getGainLevel() { return mGainLevel; };
@@ -214,6 +215,45 @@ public:
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
     bool isActive() { return currentState == STREAM_STARTED; }
+};
+
+class StreamNonTunnel : public Stream
+{
+public:
+   StreamNonTunnel(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
+             const uint32_t no_of_devices,
+             const struct modifier_kv *modifiers, const uint32_t no_of_modifiers,
+             const std::shared_ptr<ResourceManager> rm);
+   virtual ~StreamNonTunnel();
+   int32_t open() override;
+   int32_t close() override;
+   int32_t start() override;
+   int32_t stop() override;
+   int32_t prepare() override;
+   int32_t setStreamAttributes( struct pal_stream_attributes *sattr __unused) {return 0;};
+   int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;};
+   int32_t mute(bool state __unused) {return 0;};
+   int32_t pause() override;
+   int32_t resume() override;
+   int32_t flush();
+   int32_t getTagsWithModuleInfo(size_t *size , uint8_t *payload) override;
+   int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
+                       size_t *out_buf_size, size_t out_buf_count);
+
+   int32_t addRemoveEffect(pal_audio_effect_t effect __unused, bool enable __unused) {return 0;};
+   int32_t read(struct pal_buffer *buf) override;
+   int32_t write(struct pal_buffer *buf) override;
+   int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) override;
+   int32_t getCallBack(pal_stream_callback *cb) override;
+   int32_t getParameters(uint32_t param_id, void **payload) override;
+   int32_t setParameters(uint32_t param_id, void *payload) override;
+   static int32_t isSampleRateSupported(uint32_t sampleRate);
+   static int32_t isChannelSupported(uint32_t numChannels);
+   static int32_t isBitWidthSupported(uint32_t bitWidth);
+   int32_t setECRef(std::shared_ptr<Device> dev __unused, bool is_enable __unused) {return 0;};
+   int32_t setECRef_l(std::shared_ptr<Device> dev __unused, bool is_enable __unused) {return 0;};
+   int32_t ssrDownHandler() override;
+   int32_t ssrUpHandler() override;
 };
 
 #endif//STREAM_H_

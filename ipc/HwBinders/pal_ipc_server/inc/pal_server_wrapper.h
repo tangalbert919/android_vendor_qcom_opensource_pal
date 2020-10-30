@@ -35,8 +35,11 @@
 #include <vendor/qti/hardware/pal/1.0/IPAL.h>
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
+#include <utils/RefBase.h>
 #include "PalApi.h"
 #include<log/log.h>
+
+using namespace android;
 
 namespace vendor {
 namespace qti {
@@ -57,12 +60,14 @@ using ::android::sp;
 class PalClientDeathRecipient;
 
 
-class SrvrClbk
-{
+class SrvrClbk : public ::android::RefBase {
     public :
     sp<IPALCallback> clbk_binder;
     uint64_t client_data_;
+    struct pal_stream_attributes session_attr;
     int pid_;
+    bool client_died;
+    std::vector<std::pair<int, int>> sharedMemFdList;;
 
     SrvrClbk()
     {
@@ -76,6 +81,11 @@ class SrvrClbk
         clbk_binder = binder;
         client_data_ = client_data;
         pid_ = pid;
+        client_died = false;
+    }
+    void setSessionAttr(struct pal_stream_attributes *attr)
+    {
+        memcpy(&session_attr, attr, sizeof(session_attr));
     }
     ~SrvrClbk()
     {
@@ -85,7 +95,7 @@ class SrvrClbk
 
 typedef struct session_info {
     uint64_t session_handle;
-    SrvrClbk *callback_binder;
+    sp<SrvrClbk> callback_binder;
 }session_info;
 
 typedef struct client_info {
@@ -168,6 +178,9 @@ struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
                                      ipc_pal_stream_get_tags_with_module_info_cb _hidl_cb) override;
     sp<PalClientDeathRecipient> client_death_recipient_;
     std::vector<client_info> mClients_;
+private:
+    int find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd);
+    void add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd);
 };
 
 class PalClientDeathRecipient : public android::hardware::hidl_death_recipient

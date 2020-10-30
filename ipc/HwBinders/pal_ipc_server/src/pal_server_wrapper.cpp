@@ -32,6 +32,8 @@
 #include <hwbinder/IPCThreadState.h>
 
 using vendor::qti::hardware::pal::V1_0::IPAL;
+using android::hardware::hidl_handle;
+using android::hardware::hidl_memory;
 
 
 namespace vendor {
@@ -56,11 +58,12 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
            for (sess_iter = clnt.mActiveSessions.begin();
                  sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
                struct session_info session = (*sess_iter);
-               ALOGE("Closing the session %p", session.session_handle);
-               ALOGE("hdle %p binder %p", session.session_handle, session.callback_binder);
+               ALOGE("Closing the session %x", session.session_handle);
+               ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
+               session.callback_binder->client_died = true;
                pal_stream_stop((pal_stream_handle_t *)session.session_handle);
                pal_stream_close((pal_stream_handle_t *)session.session_handle);
-               delete session.callback_binder;
+               session.callback_binder.clear();
            }
            clnt.mActiveSessions.clear();
            if (clnt.mActiveSessions.empty())
@@ -70,16 +73,115 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
     }
 }
 
+int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd)
+{
+    for (auto& s: mClients_) {
+        for (int i =0; i < s.mActiveSessions.size(); i++) {
+             if (s.mActiveSessions[i].session_handle == streamHandle) {
+                 for (int j=0; j < s.mActiveSessions[i].callback_binder->sharedMemFdList.size(); j++) {
+                      ALOGE("fd list, input %d dup %d", s.mActiveSessions[i].callback_binder->sharedMemFdList[j].first,
+                             s.mActiveSessions[i].callback_binder->sharedMemFdList[j].second);
+                      if (s.mActiveSessions[i].callback_binder->sharedMemFdList[j].first == input_fd) {
+                          *dup_fd = s.mActiveSessions[i].callback_binder->sharedMemFdList[j].second;
+                           ALOGE("matching input fd found, return dup fd %d", *dup_fd);
+                           return 0;
+                      }
+                 }
+             }
+         }
+    }
+    return -1;
+}
+
+void PAL::add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd)
+{
+    for (auto& s: mClients_) {
+        for (int i =0; i < s.mActiveSessions.size(); i++) {
+             if (s.mActiveSessions[i].session_handle == streamHandle) {
+                 ALOGE("input fd %d dup_fd %d \n", input_fd, dup_fd);
+                 s.mActiveSessions[i].callback_binder->sharedMemFdList.push_back(std::make_pair(input_fd, dup_fd));
+             }
+         }
+    }
+}
+
 static int32_t pal_callback(pal_stream_handle_t *stream_handle,
                             uint32_t event_id, uint32_t *event_data,
                             uint32_t event_data_size,
                             uint64_t cookie)
 {
-    SrvrClbk *sr_clbk_dat = (SrvrClbk *) cookie;
+    sp<SrvrClbk> sr_clbk_dat = (SrvrClbk *) cookie;
     sp<IPALCallback> clbk_bdr = sr_clbk_dat->clbk_binder;
-    clbk_bdr->event_callback((uint64_t)stream_handle, event_id,
+
+    if ((sr_clbk_dat->session_attr.type == PAL_STREAM_NON_TUNNEL) &&
+          ((event_id == PAL_STREAM_CBK_EVENT_READ_DONE) ||
+           (event_id == PAL_STREAM_CBK_EVENT_WRITE_READY))) {
+        hidl_vec<PalEventReadWriteDonePayload> rwDonePayloadHidl;
+        PalEventReadWriteDonePayload *rwDonePayload;
+        struct pal_event_read_write_done_payload *rw_done_payload;
+        int input_fd = -1;
+        native_handle_t *allocHidlHandle = nullptr;
+
+        allocHidlHandle = native_handle_create(1, 1);
+        rw_done_payload = (struct pal_event_read_write_done_payload *)event_data;
+        /*
+         * Find the original fd that was passed by client based on what
+         * input and dup fd list and send that back.
+         */
+        for (int i = 0; i < sr_clbk_dat->sharedMemFdList.size(); i++) {
+             if (sr_clbk_dat->sharedMemFdList[i].second == rw_done_payload->buff.alloc_info.alloc_handle)
+                 input_fd = sr_clbk_dat->sharedMemFdList[i].first;
+        }
+
+        rwDonePayloadHidl.resize(sizeof(struct pal_event_read_write_done_payload));
+        rwDonePayload =(PalEventReadWriteDonePayload *)rwDonePayloadHidl.data();
+        rwDonePayload->tag = rw_done_payload->tag;
+        rwDonePayload->status = rw_done_payload->status;
+        rwDonePayload->md_status = rw_done_payload->md_status;
+
+        rwDonePayload->buff.offset = rw_done_payload->buff.offset;
+        rwDonePayload->buff.flags = rw_done_payload->buff.flags;
+        rwDonePayload->buff.size = rw_done_payload->buff.size;
+        if ((rw_done_payload->buff.buffer != NULL) &&
+             !(sr_clbk_dat->session_attr.flags & PAL_STREAM_FLAG_EXTERN_MEM)) {
+            rwDonePayload->buff.buffer.resize(rwDonePayload->buff.size);
+            memcpy(rwDonePayload->buff.buffer.data(), rw_done_payload->buff.buffer,
+                   rwDonePayload->buff.size);
+        }
+        if ((rw_done_payload->buff.metadata_size > 0) &&
+             rw_done_payload->buff.metadata) {
+            ALOGE("metadatasize %d ", rw_done_payload->buff.metadata_size);
+            rwDonePayload->buff.metadataSz = rw_done_payload->buff.metadata_size;
+            rwDonePayload->buff.metadata.resize(rwDonePayload->buff.metadataSz);
+            memcpy(rwDonePayload->buff.metadata.data(), rw_done_payload->buff.metadata,
+                    rwDonePayload->buff.metadataSz);
+        }
+
+        allocHidlHandle->data[0] = rw_done_payload->buff.alloc_info.alloc_handle;
+        allocHidlHandle->data[1] = input_fd;
+        ALOGE("returning fd %d for dup fd %d\n", allocHidlHandle->data[1], rw_done_payload->buff.alloc_info.alloc_handle);
+        rwDonePayload->buff.alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle",
+                                                       hidl_handle(allocHidlHandle),
+                                                       rw_done_payload->buff.alloc_info.alloc_size);
+
+        rwDonePayload->buff.alloc_info.alloc_size = rw_done_payload->buff.alloc_info.alloc_size;
+        rwDonePayload->buff.alloc_info.offset = rw_done_payload->buff.alloc_info.offset;
+
+        if (!sr_clbk_dat->client_died)
+            clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
+                              sizeof(struct pal_event_read_write_done_payload),
+                              rwDonePayloadHidl,
+                              sr_clbk_dat->client_data_);
+        else
+            ALOGE("Client died dropping this event %d", event_id);
+    } else {
+        if (!sr_clbk_dat->client_died)
+            clbk_bdr->event_callback((uint64_t)stream_handle, event_id,
                               0, NULL,
                               sr_clbk_dat->client_data_);
+        else
+            ALOGE("Client died dropping this event %d", event_id);
+    }
     return 0;
 }
 
@@ -97,7 +199,7 @@ static void print_media_config(struct pal_media_config *cfg)
    ALOGE("%s",__func__);
    ALOGE("sr[%d] bw[%d] aud_fmt_id[%d]", cfg->sample_rate, cfg->bit_width, cfg->aud_fmt_id);
    ALOGE("channel [%d]", cfg->ch_info.channels);
-   for (int i = 0; i < cfg->ch_info.channels; i++)
+   for (int i = 0; i < 8; i++)
         ALOGE("ch[%d] map%d", i, cfg->ch_info.ch_map[i]);
 }
 
@@ -147,7 +249,7 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     int32_t ret = -EINVAL;
     uint8_t *temp = NULL;
     int pid = ::android::hardware::IPCThreadState::self()->getCallingPid();
-    SrvrClbk  *sr_clbk_data = NULL;
+    sp<SrvrClbk> sr_clbk_data = NULL;
     bool new_client = true;
 
     if (cb != NULL) {
@@ -202,27 +304,28 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
              dev_hidl =  (PalDevice *)(dev_hidl + sizeof(PalDevice));
         }
     }
-    print_attr(attr); print_devices(noOfDevices, devices);
+   // print_attr(attr); print_devices(noOfDevices, devices);
     if (modskv_hidl.size()) {
         modifiers = (struct modifier_kv *)calloc(1,
                                    sizeof(struct modifier_kv) * noOfModifiers);
         memcpy(modifiers, modskv_hidl.data(),
                sizeof(struct modifier_kv) * noOfModifiers);
     }
-    print_kv_modifier(noOfModifiers, modifiers);
+    //print_kv_modifier(noOfModifiers, modifiers);
+    sr_clbk_data->setSessionAttr(attr);
 
     ret = pal_stream_open(attr, noOfDevices, devices, noOfModifiers, modifiers,
-                          callback, (uint64_t)sr_clbk_data, &stream_handle);
+                          callback, (uint64_t)sr_clbk_data.get(), &stream_handle);
 
     if (!ret) {
         for(auto& s: mClients_) {
             if (s.pid == pid) {
                 /*Another session from the same client*/
-                ALOGE("Add session for same pid %d session %x", pid, (uint64_t)stream_handle);
+                ALOGI("Add session for same pid %d session %x", pid, (uint64_t)stream_handle);
                 struct session_info session;
                 session.session_handle = (uint64_t)stream_handle;
                 session.callback_binder = sr_clbk_data;
-             ALOGE("hdle %x binder %p", session.session_handle, session.callback_binder);
+                ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
                 s.mActiveSessions.push_back(session);
                 new_client = false;
                 break;
@@ -231,17 +334,17 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
         if (new_client) {
             struct client_info client;
             struct session_info session;
-            ALOGE("session from new pid %d session %x", pid, (uint64_t)stream_handle);
+            ALOGI("session from new pid %d session %x", pid, (uint64_t)stream_handle);
             client.pid = pid;
             session.session_handle = (uint64_t)stream_handle;
             session.callback_binder = sr_clbk_data;
-             ALOGE("hdle %x binder %p", session.session_handle, session.callback_binder);
+            ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
             client.mActiveSessions.push_back(session);
             mClients_.push_back(client);
         }
     } else {
         /*stream_open failed, free the callback binder object*/
-        delete sr_clbk_data;
+        sr_clbk_data.clear();
     }
     _hidl_cb(ret, (uint64_t)stream_handle);
     return Void();
@@ -261,7 +364,7 @@ Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
                  sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
                 if ((*sess_iter).session_handle == streamHandle) {
                     ALOGE("Closing the session %x", streamHandle);
-                    delete (*sess_iter).callback_binder;
+                    (*sess_iter).callback_binder.clear();
                     break;
                 }
            }
@@ -362,10 +465,11 @@ Return<void> PAL::ipc_pal_stream_get_buffer_size(const uint64_t streamHandle,
 Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
                                           const hidl_vec<PalBuffer>& buff_hidl) {
     int32_t ret = -EINVAL;
-    struct pal_buffer buf;
+    struct pal_buffer buf = {0};
     uint32_t bufSize;
     bufSize = buff_hidl.data()->size;
-    buf.buffer = (uint8_t *)calloc(1, bufSize);
+    if (buff_hidl.data()->buffer.size() == bufSize)
+        buf.buffer = (uint8_t *)calloc(1, bufSize);
     buf.size = (size_t)bufSize;
     buf.offset = (size_t)buff_hidl.data()->offset;
     buf.ts = (struct timespec *) calloc(1, sizeof(struct timespec));
@@ -379,12 +483,21 @@ Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
                buf.metadata_size);
     }
     const native_handle *allochandle = nullptr;
+    int dupfd = -1;
+
     allochandle = buff_hidl.data()->alloc_info.alloc_handle.handle();
-    buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
+
+    if (find_dup_fd_from_input_fd(streamHandle, allochandle->data[1], &dupfd)){
+        buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
+        add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
+    } else {
+        buf.alloc_info.alloc_handle = dupfd;
+    }
+    ALOGE("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
     buf.alloc_info.alloc_size = buff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = buff_hidl.data()->alloc_info.offset;
 
-    if (bufSize)
+    if (buf.buffer != NULL)
         memcpy(buf.buffer, buff_hidl.data()->buffer.data(), bufSize);
     ALOGE("%s:%d sz %d", __func__,__LINE__,bufSize);
     ret = pal_stream_write((pal_stream_handle_t *)streamHandle, &buf);
@@ -406,8 +519,17 @@ Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
     buf.metadata_size = inBuff_hidl.data()->metadataSz;
     buf.metadata = (uint8_t *)calloc(1, buf.metadata_size);
     const native_handle *allochandle = nullptr;
+    int dupfd = -1;
+
     allochandle = inBuff_hidl.data()->alloc_info.alloc_handle.handle();
-    buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
+
+    if (find_dup_fd_from_input_fd(streamHandle, allochandle->data[1], &dupfd)){
+        buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
+        add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
+    } else {
+        buf.alloc_info.alloc_handle = dupfd;
+    }
+    ALOGE("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
     buf.alloc_info.alloc_size = inBuff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = inBuff_hidl.data()->alloc_info.offset;
 

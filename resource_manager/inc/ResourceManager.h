@@ -54,6 +54,7 @@
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
+#define AUDIO_PARAMETER_KEY_MAX_NT_SESSIONS "max_nonTunnel_sessions"
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
@@ -218,6 +219,7 @@ class StreamPCM;
 class StreamCompress;
 class StreamSoundTrigger;
 class StreamInCall;
+class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
 
@@ -275,6 +277,7 @@ protected:
     std::vector <StreamPCM*> active_streams_po;
     std::vector <StreamPCM*> active_streams_proxy;
     std::vector <StreamInCall*> active_streams_incall_record;
+    std::vector <StreamNonTunnel*> active_streams_non_tunnel;
     std::vector <StreamInCall*> active_streams_incall_music;
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
@@ -303,6 +306,7 @@ protected:
     static std::vector<int> listAllPcmPlaybackFrontEnds;
     static std::vector<int> listAllPcmRecordFrontEnds;
     static std::vector<int> listAllPcmLoopbackRxFrontEnds;
+    static std::vector<int> listAllNonTunnelSessionIds;
     static std::vector<int> listAllPcmLoopbackTxFrontEnds;
     static std::vector<int> listAllCompressPlaybackFrontEnds;
     static std::vector<int> listAllCompressRecordFrontEnds;

@@ -54,10 +54,11 @@ using PalAudioEffect = ::vendor::qti::hardware::pal::V1_0::PalAudioEffect;
 using PalMmapBuffer = ::vendor::qti::hardware::pal::V1_0::PalMmapBuffer;
 using PalMmapPosition = ::vendor::qti::hardware::pal::V1_0::PalMmapPosition;
 using PalParamPayload = ::vendor::qti::hardware::pal::V1_0::PalParamPayload;
+using PalEventReadWriteDonePayload =
+                     ::vendor::qti::hardware::pal::V1_0::PalEventReadWriteDonePayload;
 using IPALCallback = ::vendor::qti::hardware::pal::V1_0::IPALCallback;
 using android::hardware::hidl_handle;
 using android::hardware::hidl_memory;
-
 
 class server_death_notifier : public android::hardware::hidl_death_recipient
 {
@@ -95,6 +96,11 @@ struct PalCallback : public IPALCallback {
                                uint32_t event_id, uint32_t event_data_size,
                                const hidl_vec<uint8_t>& event_data,
                                uint64_t cookie) override;
+    Return<int32_t> event_callback_rw_done(uint64_t stream_handle,
+                               uint32_t event_id, uint32_t event_data_size,
+                               const hidl_vec<PalEventReadWriteDonePayload>& event_data,
+                               uint64_t cookie) override;
+
     PalCallback(pal_stream_callback callBack)
     {
         cb = callBack;

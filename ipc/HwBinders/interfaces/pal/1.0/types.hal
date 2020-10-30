@@ -275,7 +275,9 @@ struct PalBufferConfig {
  */
 struct PalEventReadWriteDonePayload {
     uint32_t tag; /**< tag that was used to read/write this buffer */
-    PalBuffer buff; /**< buffer that was passed to pal_read/pal_write */
+    uint32_t status; /**< data buffer status as defined in ar_osal_error.h */
+    uint32_t md_status; /**< meta-data status as defined in ar_osal_error.h */
+    PalBuffer buff;
 };
 
 /**
