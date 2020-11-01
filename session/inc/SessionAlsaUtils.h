@@ -101,6 +101,8 @@ public:
                     const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
                        int tag_id, uint32_t *miid);
+    static int getTagsWithModuleInfo(struct mixer *mixer, int device, const char *intf_name,
+                       uint8_t *payload);
     static int setMixerParameter(struct mixer *mixer, int device,
                                  void *payload, int size);
     static int setStreamMetadataType(struct mixer *mixer, int device, const char *val);

@@ -227,6 +227,7 @@ class StreamInCall;
 class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
+class StreamUltraSound;
 
 struct deviceIn {
     int deviceId;
@@ -312,6 +313,7 @@ protected:
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <StreamACD*> active_streams_acd;
+    std::vector <StreamUltraSound*> active_streams_ultrasound;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;

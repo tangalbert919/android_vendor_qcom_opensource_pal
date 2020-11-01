@@ -59,6 +59,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamACD.cpp\
     stream/src/StreamCommon.cpp\
     stream/src/StreamContextProxy.cpp\
+    stream/src/StreamUltraSound.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \
@@ -75,6 +76,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     device/src/SpeakerProtection.cpp \
     device/src/FMDevice.cpp\
     device/src/HapticsDev.cpp \
+    device/src/UltrasoundDevice.cpp \
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \

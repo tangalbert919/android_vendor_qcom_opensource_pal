@@ -35,6 +35,7 @@
 #include "StreamSoundTrigger.h"
 #include "StreamACD.h"
 #include "StreamContextProxy.h"
+#include "StreamUltraSound.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -153,6 +154,10 @@ stream_create:
                 break;
             case PAL_STREAM_CONTEXT_PROXY:
                 stream = new StreamContextProxy(sAttr, NULL, 0, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                stream = new StreamUltraSound(sAttr, mPalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:

@@ -1035,6 +1035,8 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 }
             }
             break;
+    case PAL_STREAM_ULTRASOUND:
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1045,7 +1047,6 @@ exit:
     return status;
 }
 
-/** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx __unused)
 {
@@ -1070,6 +1071,8 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
         case PAL_STREAM_VOICE_CALL:
             /*need to update*/
             keyVectorRx.push_back(std::make_pair(STREAMPP_RX, STREAMPP_RX_DEFAULT));
+            break;
+        case PAL_STREAM_ULTRASOUND:
             break;
         default:
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1415,6 +1418,12 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case PAL_DEVICE_IN_FM_TUNER:
             keyVector.push_back(std::make_pair(DEVICETX, FM_TX));
             break;
+        case PAL_DEVICE_OUT_ULTRASOUND:
+            keyVector.push_back(std::make_pair(DEVICERX, ULTRASOUND_RX));
+            break;
+        case PAL_DEVICE_IN_ULTRASOUND_MIC:
+            keyVector.push_back(std::make_pair(DEVICETX, ULTRASOUND_TX));
+            break;
         default:
             PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
             break;
@@ -1562,6 +1571,14 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 for (auto& kv: s->getDevPpModifiers())
                     keyVectorTx.push_back(kv);
                 break;
+            case PAL_STREAM_ULTRASOUND:
+                 if (dAttr.id == txBeDevId) {
+                     keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_ULTRASOUND_DETECTOR));
+                 }
+                 else {
+                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_ULTRASOUND_GENERATOR));
+                 }
+                 break;
             default:
                 PAL_DBG(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
                 goto free_sattr;

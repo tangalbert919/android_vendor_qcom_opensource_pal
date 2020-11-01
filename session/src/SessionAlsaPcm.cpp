@@ -42,6 +42,7 @@
 #include "detection_cmn_api.h"
 #include "audio_dam_buffer_api.h"
 #include "apm_api.h"
+#include "us_detect_api.h"
 
 #define SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE (48000)
 #define SESSION_ALSA_MMAP_PERIOD_SIZE (SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE/1000)
@@ -82,6 +83,7 @@ int SessionAlsaPcm::open(Stream * s)
     struct pal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
+    std::vector<int> pcmId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -166,11 +168,27 @@ int SessionAlsaPcm::open(Stream * s)
             break;
     }
 
-    if (!status && (sAttr.type == PAL_STREAM_VOICE_UI ||
-                    sAttr.type == PAL_STREAM_ACD ||
-                    sAttr.type == PAL_STREAM_CONTEXT_PROXY)) {
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, true);
+    if (status)
+        goto exit;
+
+    if (sAttr.type == PAL_STREAM_VOICE_UI ||
+        sAttr.type == PAL_STREAM_ACD ||
+        sAttr.type == PAL_STREAM_CONTEXT_PROXY ||
+        sAttr.type == PAL_STREAM_ULTRASOUND) {
+        switch (sAttr.type) {
+            case PAL_STREAM_VOICE_UI:
+            case PAL_STREAM_CONTEXT_PROXY:
+            case PAL_STREAM_ACD:
+                pcmId = pcmDevIds;
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                pcmId = pcmDevTxIds;
+                break;
+            default:
+                break;
+        }
+        status = rm->registerMixerEventCallback(pcmId,
+                             sessionCb, cbCookie, true);
         if (status != 0) {
             PAL_ERR(LOG_TAG, "Failed to register callback to rm");
         }
@@ -561,6 +579,7 @@ int SessionAlsaPcm::start(Stream * s)
     int payload_size = 0;
     struct agm_event_reg_cfg *event_cfg;
     int tagId;
+    int DeviceId;
 
     PAL_DBG(LOG_TAG,"Enter");
 
@@ -687,18 +706,27 @@ int SessionAlsaPcm::start(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
             registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
-    if (sAttr.type == PAL_STREAM_VOICE_UI) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
         if (!event_cfg) {
             status = -ENOMEM;
+            return status;
         }
-        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
         event_cfg->event_config_payload_size = 0;
         event_cfg->is_register = 1;
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), DEVICE_SVA, (void *)event_cfg,
+        if(sAttr.type == PAL_STREAM_VOICE_UI) {
+           event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+           tagId = DEVICE_SVA;
+           DeviceId = pcmDevIds.at(0);
+        } else {
+           event_cfg->event_id = EVENT_ID_GENERIC_US_DETECTION;
+           tagId = ULTRASOUND_DETECTION_MODULE;
+           DeviceId = pcmDevTxIds.at(0);
+        }
+        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                txAifBackEnds[0].second.data(), tagId, (void *)event_cfg,
                 payload_size);
     } else if(sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload) {
@@ -1029,7 +1057,9 @@ pcm_start_loopback:
            break;
     }
     // Setting the volume as in stream open, no default volume is set.
-    if (sAttr.type != PAL_STREAM_ACD  && sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
+    if (sAttr.type != PAL_STREAM_ACD &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
+        sAttr.type != PAL_STREAM_ULTRASOUND) {
         if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
              PAL_ERR(LOG_TAG,"Setting volume failed");
         }
@@ -1048,6 +1078,8 @@ int SessionAlsaPcm::stop(Stream * s)
     struct pal_stream_attributes sAttr;
     struct agm_event_reg_cfg *event_cfg;
     int payload_size = 0;
+    int tagId;
+    int DeviceId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -1082,19 +1114,28 @@ int SessionAlsaPcm::stop(Stream * s)
     }
     mState = SESSION_STOPPED;
 
-    if (sAttr.type == PAL_STREAM_VOICE_UI) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
         if (!event_cfg) {
             status = -ENOMEM;
+            return status;
         }
-        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
         event_cfg->event_config_payload_size = 0;
         event_cfg->is_register = 0;
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-            txAifBackEnds[0].second.data(), DEVICE_SVA, (void *) event_cfg,
-            payload_size);
+        if(sAttr.type == PAL_STREAM_VOICE_UI) {
+           event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+           tagId = DEVICE_SVA;
+           DeviceId = pcmDevIds.at(0);
+        } else {
+           event_cfg->event_id = EVENT_ID_GENERIC_US_DETECTION;
+           tagId = ULTRASOUND_DETECTION_MODULE;
+           DeviceId = pcmDevTxIds.at(0);
+        }
+        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                txAifBackEnds[0].second.data(), tagId, (void *)event_cfg,
+                payload_size);
     } else if (sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload == NULL)
             goto done;
@@ -1125,6 +1166,7 @@ int SessionAlsaPcm::close(Stream * s)
     int32_t beDevId = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
+    std::vector<int> pcmId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -1227,10 +1269,24 @@ int SessionAlsaPcm::close(Stream * s)
 
     mState = SESSION_IDLE;
 
-    if (sAttr.type == PAL_STREAM_VOICE_UI || sAttr.type == PAL_STREAM_ACD ||
-        sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, false);
+    if (sAttr.type == PAL_STREAM_VOICE_UI ||
+        sAttr.type == PAL_STREAM_ACD ||
+        sAttr.type == PAL_STREAM_CONTEXT_PROXY ||
+        sAttr.type == PAL_STREAM_ULTRASOUND) {
+        switch (sAttr.type) {
+            case PAL_STREAM_VOICE_UI:
+            case PAL_STREAM_ACD:
+            case PAL_STREAM_CONTEXT_PROXY:
+                pcmId = pcmDevIds;
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                pcmId = pcmDevTxIds;
+                break;
+            default:
+                break;
+        }
+        status = rm->registerMixerEventCallback(pcmId,
+                      sessionCb, cbCookie, false);
         if (status != 0) {
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
@@ -1906,6 +1962,7 @@ int SessionAlsaPcm::getTimestamp(struct pal_session_time *stime)
 
     return status;
 }
+
 int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 {
     return 0;
@@ -1938,6 +1995,31 @@ bool SessionAlsaPcm::isActive()
     return mState == SESSION_STARTED;
 }
 
+int SessionAlsaPcm::getTagsWithModuleInfo(Stream *s, size_t *size __unused, uint8_t *payload)
+{
+    int status = 0;
+    struct pal_stream_attributes sAttr;
+    int DeviceId;
+
+    PAL_DBG(LOG_TAG,"Enter");
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        return status;
+    }
+
+    if(sAttr.type == PAL_STREAM_ULTRASOUND)
+       DeviceId = pcmDevTxIds.at(0);
+    else
+       DeviceId = pcmDevIds.at(0);
+
+    status = SessionAlsaUtils::getTagsWithModuleInfo(mixer, DeviceId,
+                                  txAifBackEnds[0].second.data(), payload);
+    if (0 != status)
+        PAL_ERR(LOG_TAG, "get tags failed = %d", status);
+
+    return status;
+}
 
 void SessionAlsaPcm::adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames)
 {
