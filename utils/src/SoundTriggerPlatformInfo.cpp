@@ -59,6 +59,12 @@ const std::map<std::string, uint32_t> streamConfigValueLUT {
     {std::string{ "VUI_STREAM_CFG_HW" }, VUI_STREAM_CFG_HW},
 };
 
+static const struct st_uuid qcva_uuid =
+    { 0x68ab2d40, 0xe860, 0x11e3, 0x95ef, { 0x00, 0x02, 0xa5, 0xd5, 0xc5, 0x1b } };
+
+static const struct st_uuid qcmd_uuid =
+    { 0x876c1b46, 0x9d4d, 0x40cc, 0xa4fd, { 0x4d, 0x5e, 0xc7, 0xa8, 0x0e, 0x47 } };
+
 SoundTriggerUUID::SoundTriggerUUID() :
     timeLow(0),
     timeMid(0),
@@ -102,6 +108,22 @@ SoundTriggerUUID& SoundTriggerUUID::operator = (SoundTriggerUUID& rhs) {
     memcpy(node, rhs.node, sizeof(node));
 
     return *this;
+}
+
+bool SoundTriggerUUID::CompareUUID(const struct st_uuid uuid) const {
+    if (uuid.timeLow != timeLow ||
+        uuid.timeMid != timeMid ||
+        uuid.timeHiAndVersion != timeHiAndVersion ||
+        uuid.clockSeq != clockSeq)
+        return false;
+
+    for (int i = 0; i < 6; i++) {
+        if (uuid.node[i] != node[i]) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 CaptureProfile::CaptureProfile(const std::string name) :
@@ -293,6 +315,10 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
                     index = BUFFERING_CONFIG;
                 } else if (!strcmp(attribs[i], "engine_reset_ids")) {
                     index = ENGINE_RESET;
+                } else if (!strcmp(attribs[i], "custom_config_ids")) {
+                    index = CUSTOM_CONFIG;
+                } else if (!strcmp(attribs[i], "version_ids")) {
+                    index = MODULE_VERSION;
                 }
                 sscanf(attribs[++i], "%x, %x", &module_tag_ids_[index],
                     &param_ids_[index]);
@@ -311,6 +337,8 @@ void SoundTriggerModuleInfo::HandleCharData(const char *data __unused) {
 }
 
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
+    is_qcva_uuid_(false),
+    is_qcmd_uuid_(false),
     merge_first_stage_sound_models_(false),
     sample_rate_(16000),
     bit_width_(16),
@@ -388,6 +416,14 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             if (!strcmp(attribs[i], "vendor_uuid")) {
                 SoundTriggerPlatformInfo::StringToUUID(attribs[++i],
                     vendor_uuid_);
+                if (vendor_uuid_.CompareUUID(qcva_uuid)) {
+                    is_qcva_uuid_ = true;
+                } else if (vendor_uuid_.CompareUUID(qcmd_uuid)) {
+                    is_qcmd_uuid_ = true;
+                }
+            } else if (!strcmp(attribs[i], "get_module_version")) {
+                get_module_version_supported_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "merge_first_stage_sound_models")) {
                 merge_first_stage_sound_models_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
@@ -509,6 +545,20 @@ std::shared_ptr<CaptureProfile> SoundTriggerPlatformInfo::GetCapProfile(
         return capProfile->second;
     else
         return nullptr;
+}
+
+// We can assume only Hotword sm config supports version api
+void SoundTriggerPlatformInfo::GetSmConfigForVersionQuery(
+    std::vector<std::shared_ptr<SoundModelConfig>> &sm_cfg_list) const {
+
+    std::shared_ptr<SoundModelConfig> sm_cfg = nullptr;
+    for (auto iter = sound_model_cfg_list_.begin();
+        iter != sound_model_cfg_list_.end(); iter++) {
+        sm_cfg = iter->second;
+        if (sm_cfg && sm_cfg->GetModuleVersionSupported()) {
+            sm_cfg_list.push_back(sm_cfg);
+        }
+    }
 }
 
 std::shared_ptr<SoundTriggerPlatformInfo>

@@ -710,6 +710,9 @@ typedef enum {
     PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG = 30,
     PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG = 31,
     PAL_PARAM_ID_WAKEUP_ENGINE_RESET = 32,
+    PAL_PARAM_ID_WAKEUP_MODULE_VERSION = 33,
+    PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
+    PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1028,6 +1031,11 @@ struct ffv_doa_tracking_monitor_t
     int16_t target_angle_L16[2];
     int16_t interf_angle_L16[2];
     int8_t polarActivityGUI[360];
+};
+
+struct __attribute__((__packed__)) version_arch_payload {
+    unsigned int version;
+    char arch[64];
 };
 
 struct pal_compr_gapless_mdata {

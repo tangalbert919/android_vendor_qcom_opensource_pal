@@ -122,6 +122,7 @@ public:
     virtual int createMmapBuffer(Stream *s __unused, int32_t min_size_frames __unused,
                                    struct pal_mmap_buffer *info __unused) {return -EINVAL;}
     virtual int GetMmapPosition(Stream *s __unused, struct pal_mmap_position *position __unused) {return -EINVAL;}
+    virtual int openGraph(Stream *s __unused) { return 0; }
 
 
 };

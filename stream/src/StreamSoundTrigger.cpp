@@ -259,6 +259,58 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         status = gsl_engine_->GetParameters(param_id, payload);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+    } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
+        std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
+        std::pair<int32_t,int32_t> streamConfigKV;
+
+        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM);
+        if (!gsl_engine_) {
+            PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
+            return -ENOMEM;
+        }
+
+        st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
+        if (sm_cfg_list.size() == 0) {
+            PAL_ERR(LOG_TAG, "No sound model config supports version query");
+            return -EINVAL;
+        }
+        if (!mDevices.size()) {
+            struct pal_device* dattr = new (struct pal_device);
+            std::shared_ptr<Device> dev = nullptr;
+
+            // update best device
+            pal_device_id_t dev_id = GetAvailCaptureDevice();
+            PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+
+            dev = GetPalDevice(dev_id, dattr, false);
+            if (!dev) {
+                PAL_ERR(LOG_TAG, "Device creation is failed");
+                free(mStreamAttr);
+                throw std::runtime_error("failed to create device object");
+            }
+            mDevices.push_back(dev);
+            dev = nullptr;
+            delete dattr;
+        }
+
+        cap_prof_ = GetCurrentCaptureProfile();
+        /* store the pre-proc KV selected in the config file */
+        mDevPpModifiers.clear();
+        mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
+
+        streamConfigKV = sm_cfg_list[0]->GetStreamConfig();
+        mStreamModifiers.clear();
+        mStreamModifiers.push_back(streamConfigKV);
+
+        mInstanceID = rm->getStreamInstanceID(this);
+
+        status = gsl_engine_->GetParameters(param_id, payload);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+
+        rm->resetStreamInstanceID(this, mInstanceID);
+        mDevPpModifiers.clear();
+        mStreamModifiers.clear();
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
@@ -1055,7 +1107,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     }
 
     // Parse recognition config
-    if (config->data_size > CUSTOM_CONFIG_OPAQUE_DATA_SIZE) {
+    if (config->data_size > CUSTOM_CONFIG_OPAQUE_DATA_SIZE &&
+        sm_info_->isQCVAUUID()) {
         opaque_ptr = (uint8_t *)config + config->data_offset;
         while (opaque_size < config->data_size) {
             param_hdr = (struct st_param_header *)opaque_ptr;
@@ -1139,7 +1192,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                   goto error_exit;
             }
         }
-    } else {
+    } else if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
         // get history buffer duration from sound trigger platform xml
         hist_buffer_duration = sm_info_->GetKwDuration();
         pre_roll_duration = 0;
@@ -1325,22 +1378,26 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     size_t event_size = 0;
     uint8_t *opaque_data = nullptr;
     uint32_t start_index = 0, end_index = 0;
+    uint8_t *custom_event = nullptr;
+    struct detection_event_info *det_ev_info = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        struct detection_event_info *det_ev_info =
-            gsl_engine_->GetDetectionEventInfo();
-        if (!det_ev_info) {
-            PAL_ERR(LOG_TAG, "detection info not available");
-            return -EINVAL;
+        if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
+            det_ev_info = gsl_engine_->GetDetectionEventInfo();
+            if (!det_ev_info) {
+                PAL_ERR(LOG_TAG, "detection info not available");
+                return -EINVAL;
+            }
+
+            opaque_size = (3 * sizeof(struct st_param_header)) +
+                sizeof(struct st_timestamp_info) +
+                sizeof(struct st_keyword_indices_info) +
+                sizeof(struct st_confidence_levels_info);
+        } else {
+            gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
         }
-
-        opaque_size = (3 * sizeof(struct st_param_header)) +
-            sizeof(struct st_timestamp_info) +
-            sizeof(struct st_keyword_indices_info) +
-            sizeof(struct st_confidence_levels_info);
-
         event_size = sizeof(struct pal_st_phrase_recognition_event) +
                      opaque_size;
         phrase_event = (struct pal_st_phrase_recognition_event *)
@@ -1375,51 +1432,55 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
 
         // Filling Opaque data
         opaque_data = (uint8_t *)phrase_event +
-                      phrase_event->common.data_offset;
+                    phrase_event->common.data_offset;
 
-        /* Pack the opaque data confidence levels structure */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
-        param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
-        opaque_data += sizeof(struct st_param_header);
-        conf_levels = (struct st_confidence_levels_info *)opaque_data;
-        conf_levels->version = 0x1;
-        conf_levels->num_sound_models = engines_.size();
-        // TODO: update user conf levels
-        for (int i = 0; i < conf_levels->num_sound_models; i++) {
-            conf_levels->conf_levels[i].sm_id = ST_SM_ID_SVA_GMM;
-            conf_levels->conf_levels[i].num_kw_levels = 1;
-            conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                det_ev_info->confidence_levels[i];
-            conf_levels->conf_levels[i].kw_levels[0].num_user_levels = 0;
+        if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
+            /* Pack the opaque data confidence levels structure */
+            param_hdr = (struct st_param_header *)opaque_data;
+            param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
+            param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
+            opaque_data += sizeof(struct st_param_header);
+            conf_levels = (struct st_confidence_levels_info *)opaque_data;
+            conf_levels->version = 0x1;
+            conf_levels->num_sound_models = engines_.size();
+            // TODO: update user conf levels
+            for (int i = 0; i < conf_levels->num_sound_models; i++) {
+                conf_levels->conf_levels[i].sm_id = ST_SM_ID_SVA_GMM;
+                conf_levels->conf_levels[i].num_kw_levels = 1;
+                conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                    det_ev_info->confidence_levels[i];
+                conf_levels->conf_levels[i].kw_levels[0].num_user_levels = 0;
+            }
+            opaque_data += param_hdr->payload_size;
+
+            /* Pack the opaque data keyword indices structure */
+            param_hdr = (struct st_param_header *)opaque_data;
+            param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
+            param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
+            opaque_data += sizeof(struct st_param_header);
+            kw_indices = (struct st_keyword_indices_info *)opaque_data;
+            kw_indices->version = 0x1;
+            reader_->getIndices(&start_index, &end_index);
+            kw_indices->start_index = start_index;
+            kw_indices->end_index = end_index;
+            opaque_data += sizeof(struct st_keyword_indices_info);
+
+            /*
+            * Pack the opaque data detection time structure
+            * TODO: add support for 2nd stage detection timestamp
+            */
+            param_hdr = (struct st_param_header *)opaque_data;
+            param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
+            param_hdr->payload_size = sizeof(struct st_timestamp_info);
+            opaque_data += sizeof(struct st_param_header);
+            timestamps = (struct st_timestamp_info *)opaque_data;
+            timestamps->version = 0x1;
+            timestamps->first_stage_det_event_time = 1000 *
+                ((uint64_t)det_ev_info->detection_timestamp_lsw +
+                ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
+        } else {
+            ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
         }
-        opaque_data += param_hdr->payload_size;
-
-        /* Pack the opaque data keyword indices structure */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
-        param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
-        opaque_data += sizeof(struct st_param_header);
-        kw_indices = (struct st_keyword_indices_info *)opaque_data;
-        kw_indices->version = 0x1;
-        reader_->getIndices(&start_index, &end_index);
-        kw_indices->start_index = start_index;
-        kw_indices->end_index = end_index;
-        opaque_data += sizeof(struct st_keyword_indices_info);
-
-        /*
-         * Pack the opaque data detection time structure
-         * TODO: add support for 2nd stage detection timestamp
-         */
-        param_hdr = (struct st_param_header *)opaque_data;
-        param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
-        param_hdr->payload_size = sizeof(struct st_timestamp_info);
-        opaque_data += sizeof(struct st_param_header);
-        timestamps = (struct st_timestamp_info *)opaque_data;
-        timestamps->version = 0x1;
-        timestamps->first_stage_det_event_time = 1000 *
-            ((uint64_t)det_ev_info->detection_timestamp_lsw +
-            ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
     }
     *evt_size = event_size;
     // TODO: handle for generic sound model
@@ -1996,6 +2057,20 @@ int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
             tag_ids[i] = sm_module_info->GetModuleTagId((st_param_id_type_t)i);
             param_ids[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
         }
+    } else {
+        PAL_ERR(LOG_TAG, "No sound model info present");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+int32_t StreamSoundTrigger::CheckVendorUUID(bool *is_qcva_uuid,
+    bool *is_qcmd_uuid) {
+
+    if (sm_info_) {
+        *is_qcva_uuid = sm_info_->isQCVAUUID();
+        *is_qcmd_uuid = sm_info_->isQCMDUUID();
     } else {
         PAL_ERR(LOG_TAG, "No sound model info present");
         return -EINVAL;

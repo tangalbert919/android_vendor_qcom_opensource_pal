@@ -317,6 +317,12 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     sm_data_ = nullptr;
     reader_ = nullptr;
     buffer_ = nullptr;
+    is_qcva_uuid_ = false;
+    is_qcmd_uuid_ = false;
+    custom_data = nullptr;
+    custom_data_size = 0;
+    custom_detection_event = nullptr;
+    custom_detection_event_size = 0;
     builder_ = new PayloadBuilder();
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
@@ -334,6 +340,12 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update module ids");
         throw std::runtime_error("Failed to update module ids");
+    }
+
+    status = st_str->CheckVendorUUID(&is_qcva_uuid_, &is_qcmd_uuid_);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to check vendor uuid");
+        throw std::runtime_error("Failed to check vendor uuid");
     }
     // Create session
     rm = ResourceManager::getInstance();
@@ -366,6 +378,9 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     }
     if (builder_) {
         delete builder_;
+    }
+    if (session_) {
+        delete session_;
     }
     PAL_INFO(LOG_TAG, "Exit");
 }
@@ -426,6 +441,14 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
+
+    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
+        status = UpdateSessionPayload(UNLOAD_SOUND_MODEL);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to unload sound model");
+        }
+    }
+
     status = session_->close(s);
     if (status)
         PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
@@ -443,7 +466,19 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
     std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
 
-    status = UpdateSessionPayload(WAKEUP_CONFIG);
+    // release custom detection event before start
+    if (custom_detection_event) {
+        free(custom_detection_event);
+        custom_detection_event = nullptr;
+        custom_detection_event_size = 0;
+    }
+
+    if (is_qcva_uuid_ || is_qcmd_uuid_) {
+        status = UpdateSessionPayload(WAKEUP_CONFIG);
+    } else {
+        // update custom config for 3rd party wakeup module
+        status = UpdateSessionPayload(CUSTOM_CONFIG);
+    }
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
         goto exit;
@@ -481,6 +516,11 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     std::lock_guard<std::mutex> lck(mutex_);
     if (buffer_) {
         buffer_->reset();
+    }
+    // release custom detection event before start
+    if (custom_detection_event) {
+        free(custom_detection_event);
+        custom_detection_event_size = 0;
     }
     /*
      * TODO: This sequence RESET->STOP->START is currently required from spf
@@ -549,20 +589,29 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     if (!config) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid config, status %d", status);
-        goto exit;
+        return -EINVAL;
     }
 
-    PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
-    wakeup_config_.mode = config->phrases[0].recognition_modes;
-    wakeup_config_.custom_payload_size = config->data_size;
-    wakeup_config_.num_active_models = num_conf_levels;
-    wakeup_config_.reserved = 0;
-    for (int i = 0; i < wakeup_config_.num_active_models; i++) {
-        wakeup_config_.confidence_levels[i] = conf_levels[i];
-        wakeup_config_.keyword_user_enables[i] = 1;
+    if (is_qcva_uuid_ || is_qcmd_uuid_) {
+        PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
+        wakeup_config_.mode = config->phrases[0].recognition_modes;
+        wakeup_config_.custom_payload_size = config->data_size;
+        wakeup_config_.num_active_models = num_conf_levels;
+        wakeup_config_.reserved = 0;
+        for (int i = 0; i < wakeup_config_.num_active_models; i++) {
+            wakeup_config_.confidence_levels[i] = conf_levels[i];
+            wakeup_config_.keyword_user_enables[i] = 1;
+        }
+    } else {
+        custom_data_size = config->data_size;
+        custom_data = (uint8_t *)calloc(1, custom_data_size);
+        if (!custom_data) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
+            return -ENOMEM;
+        }
+        ar_mem_cpy(custom_data, custom_data_size,
+            (uint8_t *)config + config->data_offset, custom_data_size);
     }
-
-exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -581,15 +630,26 @@ int32_t SoundTriggerEngineGsl::UpdateBufConfig(
 }
 
 void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
-                                               void *data) {
+                                               void *data, uint32_t size) {
     int32_t status = 0;
 
     std::unique_lock<std::mutex> lck(mutex_);
-    status = ParseDetectionPayload(data);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
-                status);
-        return;
+    if (is_qcva_uuid_ || is_qcmd_uuid_) {
+        status = ParseDetectionPayload(data);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
+                    status);
+            return;
+        }
+    } else {
+        // store custom detection event for further use
+        custom_detection_event_size = size;
+        custom_detection_event = (uint8_t *)calloc(1, size);
+        if (!custom_detection_event) {
+            PAL_ERR(LOG_TAG, "Failed to allocate custom detection event");
+            return;
+        }
+        ar_mem_cpy(custom_detection_event, size, data, size);
     }
     PAL_INFO(LOG_TAG, "singal event processing thread");
     ATRACE_BEGIN("stEngine: keyword detected");
@@ -598,7 +658,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 }
 
 void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
-                                                  void *data, uint32_t event_size __unused) {
+                                                  void *data, uint32_t event_size) {
     SoundTriggerEngineGsl *engine = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
@@ -613,7 +673,7 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
         return;
 
     engine = (SoundTriggerEngineGsl *)hdl;
-    engine->HandleSessionEvent(event_id, data);
+    engine->HandleSessionEvent(event_id, data, event_size);
 
     PAL_DBG(LOG_TAG, "Exit");
     return;
@@ -622,18 +682,44 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
 int32_t SoundTriggerEngineGsl::GetParameters(uint32_t param_id,
                                              void **payload) {
     int32_t status = 0;
+    size_t size = 0;
+    uint32_t miid = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
-      case PAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
-          status = session_->getParameters(stream_handle_, TAG_ECNS,
-                                         param_id, payload);
-          break;
-      default:
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
-                param_id, status);
-        goto exit;
+        case PAL_PARAM_ID_DIRECTION_OF_ARRIVAL:
+            status = session_->getParameters(stream_handle_, TAG_ECNS,
+                                            param_id, payload);
+            break;
+        case PAL_PARAM_ID_WAKEUP_MODULE_VERSION:
+            status = session_->openGraph(stream_handle_);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "Failed to open graph, status = %d", status);
+                return status;
+            }
+            status = session_->getMIID(nullptr,
+                module_tag_ids_[MODULE_VERSION], &miid);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "Failed to get instance id for tag %x, status = %d",
+                    module_tag_ids_[MODULE_VERSION], status);
+                return status;
+            }
+            // TODO: update query size here
+            builder_->payloadQuery((uint8_t **)payload, &size, miid,
+                param_ids_[MODULE_VERSION],
+                sizeof(struct version_arch_payload));
+            status = session_->getParameters(stream_handle_,
+                module_tag_ids_[MODULE_VERSION], param_id, payload);
+            status = session_->close(stream_handle_);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+                return status;
+            }
+        default:
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
+                    param_id, status);
+            goto exit;
     }
 
     if (status) {
@@ -704,6 +790,14 @@ int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, 
     return session_->setECRef(s, dev, is_enable);
 }
 
+int32_t SoundTriggerEngineGsl::GetCustomDetectionEvent(uint8_t **event,
+    size_t *size) {
+
+    *event = custom_detection_event;
+    *size = custom_detection_event_size;
+    return 0;
+}
+
 int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
     int32_t status = 0;
     uint32_t miid = 0;
@@ -720,6 +814,10 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
 
     tag_id = module_tag_ids_[param];
     param_id = param_ids_[param];
+    if (!tag_id || !param_id) {
+        PAL_ERR(LOG_TAG, "Invalid tag/param id %u", param);
+        return -EINVAL;
+    }
 
     status = session_->getMIID(nullptr, tag_id, &miid);
     if (status != 0) {
@@ -741,7 +839,10 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
             break;
         }
         case UNLOAD_SOUND_MODEL:
-            // implement when SVA5 integrated
+            // TODO: add check when SVA5 integrated
+            ses_param_id = PAL_PARAM_ID_UNLOAD_SOUND_MODEL;
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                nullptr, 0, miid, param_id);
             break;
         case WAKEUP_CONFIG:
         {
@@ -784,6 +885,16 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
             status = builder_->payloadSVAConfig(&payload, &payload_size,
                 nullptr, 0, miid, param_id);
             break;
+        case CUSTOM_CONFIG:
+            ses_param_id = PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG;
+            status = builder_->payloadSVAConfig(&payload, &payload_size,
+                custom_data, custom_data_size, miid, param_id);
+            // release local custom data
+            if (custom_data) {
+                free(custom_data);
+                custom_data = nullptr;
+                custom_data_size = 0;
+            }
         default:
             PAL_ERR(LOG_TAG, "Invalid param id %u", param);
             return -EINVAL;

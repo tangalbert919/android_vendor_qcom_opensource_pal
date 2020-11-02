@@ -175,6 +175,7 @@ class StreamSoundTrigger : public Stream {
     int32_t GetSecondStageConfig(st_sound_model_type_t &detection_type,
         std::string &lib_name, listen_model_indicator_enum type);
     int32_t GetModuleIds(uint32_t *tag_ids, uint32_t *param_ids);
+    int32_t CheckVendorUUID(bool *is_qcva_uuid, bool *is_qcmd_uuid);
 
     friend class PalRingBufferReader;
 

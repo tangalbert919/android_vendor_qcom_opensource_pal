@@ -1374,9 +1374,11 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unu
             goto exit;
         }
         case PAL_PARAM_ID_LOAD_SOUND_MODEL:
+        case PAL_PARAM_ID_UNLOAD_SOUND_MODEL:
         case PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG:
         case PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG:
         case PAL_PARAM_ID_WAKEUP_ENGINE_RESET:
+        case PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG:
         {
             struct apm_module_param_data_t* header =
                 (struct apm_module_param_data_t *)payload;
@@ -1595,6 +1597,15 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
         {
             configSize = sizeof(struct ffv_doa_tracking_monitor_t);
             builder->payloadDOAInfo(&payloadData, &payloadSize, miid);
+            break;
+        }
+        case PAL_PARAM_ID_WAKEUP_MODULE_VERSION:
+        {
+            struct apm_module_param_data_t *header =
+                (struct apm_module_param_data_t *)payloadData;
+            configSize = header->param_size;
+            payloadData = (uint8_t *)*payload;
+            payloadSize = configSize + sizeof(struct apm_module_param_data_t);
             break;
         }
         default:
@@ -1933,3 +1944,68 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
              /*+ out->mmap_time_offset_nanos*/;
      return status;
  }
+
+// NOTE: only used by Voice UI for Google hotword api query
+int SessionAlsaPcm::openGraph(Stream *s) {
+    int status = 0;
+    struct pcm_config config;
+    struct pal_stream_attributes sAttr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
+
+    if (sAttr.type != PAL_STREAM_VOICE_UI) {
+        PAL_ERR(LOG_TAG, "Invalid stream type %d", sAttr.type);
+        return -EINVAL;
+    }
+
+    status = open(s);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
+        return status;
+    }
+
+    if (mState == SESSION_IDLE) {
+        s->getBufInfo(&in_buf_size,&in_buf_count,&out_buf_size,&out_buf_count);
+        memset(&config, 0, sizeof(config));
+
+        config.rate = sAttr.in_media_config.sample_rate;
+        if (sAttr.in_media_config.bit_width == 32)
+            config.format = PCM_FORMAT_S32_LE;
+        else if (sAttr.in_media_config.bit_width == 24)
+            config.format = PCM_FORMAT_S24_3LE;
+        else if (sAttr.in_media_config.bit_width == 16)
+            config.format = PCM_FORMAT_S16_LE;
+        config.channels = sAttr.in_media_config.ch_info.channels;
+        config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
+            config.channels, config.format);
+        config.period_count = in_buf_count;
+        config.start_threshold = 0;
+        config.stop_threshold = 0;
+        config.silence_threshold = 0;
+
+        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+
+        if (!pcm) {
+            PAL_ERR(LOG_TAG, "pcm open failed");
+            return -EINVAL;
+        }
+
+        if (!pcm_is_ready(pcm)) {
+            PAL_ERR(LOG_TAG, "pcm open not ready");
+            return -EINVAL;
+        }
+
+        mState = SESSION_OPENED;
+    } else {
+        PAL_ERR(LOG_TAG, "Invalid session state %d", mState);
+        return -EINVAL;
+    }
+
+    return status;
+}

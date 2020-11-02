@@ -77,12 +77,13 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) override;
+    int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
 
  private:
     int32_t StartBuffering();
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     int32_t ParseDetectionPayload(void *event_data);
-    void HandleSessionEvent(uint32_t event_id __unused, void *data);
+    void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data,
@@ -94,7 +95,13 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
     struct detection_event_info detection_event_info_;
 
+    bool is_qcva_uuid_;
+    bool is_qcmd_uuid_;
     uint32_t module_tag_ids_[MAX_PARAM_IDS];
     uint32_t param_ids_[MAX_PARAM_IDS];
+    uint8_t *custom_data;
+    size_t custom_data_size;
+    uint8_t *custom_detection_event;
+    size_t custom_detection_event_size;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

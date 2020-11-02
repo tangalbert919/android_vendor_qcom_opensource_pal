@@ -270,6 +270,8 @@ typedef enum st_param_id_type {
     WAKEUP_CONFIG,
     BUFFERING_CONFIG,
     ENGINE_RESET,
+    MODULE_VERSION,
+    CUSTOM_CONFIG,
     MAX_PARAM_IDS
 } st_param_id_type_t;
 
@@ -327,6 +329,8 @@ public:
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable) = 0;
+    virtual int32_t GetCustomDetectionEvent(uint8_t **event __unused,
+        size_t *size __unused) { return 0; }
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);

@@ -57,6 +57,7 @@ class SoundTriggerUUID {
     SoundTriggerUUID();
     SoundTriggerUUID & operator=(SoundTriggerUUID &rhs);
     bool operator<(const SoundTriggerUUID &rhs) const;
+    bool CompareUUID(const struct st_uuid uuid) const;
 
     uint32_t timeLow;
     uint16_t timeMid;
@@ -170,9 +171,13 @@ class SoundModelConfig : public SoundTriggerXml {
     SoundModelConfig & operator=(SoundModelConfig &rhs) = delete;
 
     SoundTriggerUUID GetUUID() const { return vendor_uuid_; }
+    bool GetModuleVersionSupported() const {
+        return get_module_version_supported_; }
     bool GetMergeFirstStageSoundModels() const {
         return merge_first_stage_sound_models_;
     }
+    bool isQCVAUUID() const { return is_qcva_uuid_; }
+    bool isQCMDUUID() const { return is_qcmd_uuid_; }
     uint32_t GetSampleRate() const { return sample_rate_; }
     uint32_t GetBitWidth() const { return bit_width_; }
     uint32_t GetOutChannels() const { return out_channels_; }
@@ -200,6 +205,9 @@ class SoundModelConfig : public SoundTriggerXml {
     void ReadCapProfileNames(StOperatingModes mode, const char* * attribs);
 
     SoundTriggerUUID vendor_uuid_;
+    bool is_qcva_uuid_;
+    bool is_qcmd_uuid_;
+    bool get_module_version_supported_;
     bool merge_first_stage_sound_models_;
     uint32_t sample_rate_;
     uint32_t bit_width_;
@@ -239,6 +247,8 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool GetConcurrentVoipCallEnable() const { return concurrent_voip_call_; }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
     std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
+    void GetSmConfigForVersionQuery(
+        std::vector<std::shared_ptr<SoundModelConfig>> &sm_cfg_list) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
