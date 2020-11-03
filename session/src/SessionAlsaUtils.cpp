@@ -1453,10 +1453,12 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     bool is_compress = false;
     int status = 0;
     std::ostringstream connectCtrlName;
-    struct sessionToPayloadParam deviceData;
+    struct sessionToPayloadParam mfcData;
     PayloadBuilder* builder = new PayloadBuilder();
     struct pal_stream_attributes sAttr;
+    struct pal_media_config codecConfig;
     int sub = 1;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
@@ -1500,20 +1502,38 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                        aifBackEndsToConnect[0].second.data(),
                                                        TAG_DEVICE_MFC_SR, &miid);
-            if (status != 0) {
+            if (status == 0) {
+                PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                    pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
+            } else {
                 PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                 return status;
             }
-            PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
 
-            deviceData.bitWidth = dAttr.config.bit_width;
-            deviceData.sampleRate = dAttr.config.sample_rate;
-            deviceData.numChannel = dAttr.config.ch_info.channels;
-            deviceData.ch_info = nullptr;
-            builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &deviceData);
+            if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                dev = Device::getInstance((struct pal_device *)&dAttr , rm);
+                if (!dev) {
+                    PAL_ERR(LOG_TAG, "Device getInstance failed");
+                    return -EINVAL;
+                }
+                status = dev->getCodecConfig(&codecConfig);
+                if(0 != status) {
+                    PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                    return status;
+                }
+                mfcData.bitWidth = codecConfig.bit_width;
+                mfcData.sampleRate = codecConfig.sample_rate;
+                mfcData.numChannel = codecConfig.ch_info.channels;
+                mfcData.ch_info = nullptr;
+            } else {
+                mfcData.bitWidth = dAttr.config.bit_width;
+                mfcData.sampleRate = dAttr.config.sample_rate;
+                mfcData.numChannel = dAttr.config.ch_info.channels;
+                mfcData.ch_info = nullptr;
+            }
+            builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
             if (!payloadSize) {
-                PAL_ERR(LOG_TAG,"payloadMFCConfig failed\n");
+                PAL_ERR(LOG_TAG, "payloadMFCConfig failed\n");
                 return -EINVAL;
             }
 

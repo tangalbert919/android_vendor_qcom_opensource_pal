@@ -79,8 +79,9 @@ public:
     void setEcRefDevCount(bool is_enable, bool is_txstop);
     int getEcRefDevCount() { return rxEcDevCount; }
     std::string getPALDeviceName();
-    int setDeviceAttributes (struct pal_device dattr);
-    virtual int getDeviceAttributes (struct pal_device *dattr);
+    int setDeviceAttributes(struct pal_device dattr);
+    virtual int getDeviceAttributes(struct pal_device *dattr);
+    virtual int getCodecConfig(struct pal_media_config *config);
     static std::shared_ptr<Device> getObject(pal_device_id_t dev_id);
     int updateCustomPayload(void *payload, size_t size);
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
