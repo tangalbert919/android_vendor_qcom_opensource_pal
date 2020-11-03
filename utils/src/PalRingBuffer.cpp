@@ -63,10 +63,8 @@ void PalRingBuffer::updateUnReadSize(size_t writtenSize)
     std::vector<PalRingBufferReader*>::iterator it;
 
     for (it = readOffsets_.begin(); it != readOffsets_.end(); it++, i++) {
-        if ((*(it))->state_ == READER_ENABLED) {
-            (*(it))->unreadSize_ += writtenSize;
-            PAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%zu)", i, (*(it))->unreadSize_);
-        }
+        (*(it))->unreadSize_ += writtenSize;
+        PAL_VERBOSE(LOG_TAG, "Reader (%d), unreadSize(%zu)", i, (*(it))->unreadSize_);
     }
 }
 
@@ -121,11 +119,19 @@ size_t PalRingBuffer::write(void* writeBuffer, size_t writeSize)
 
 void PalRingBuffer::reset()
 {
+    std::vector<PalRingBufferReader*>::iterator it;
+
     mutex_.lock();
+    startIndex = 0;
+    endIndex = 0;
     writeOffset_ = 0;
     mutex_.unlock();
-    // reset indices also
+
+    /* Reset all the associated readers */
+    for (it = readOffsets_.begin(); it != readOffsets_.end(); it++)
+        (*(it))->reset();
 }
+
 
 size_t PalRingBufferReader::read(void* readBuffer, size_t bufferSize)
 {
@@ -202,7 +208,8 @@ size_t PalRingBufferReader::advanceReadOffset(size_t advanceSize)
 
     /* add code to advance the offset here*/
     if (unreadSize_ < advanceSize) {
-        PAL_ERR(LOG_TAG, "Cannot advance read offset greater than unread size");
+        PAL_ERR(LOG_TAG, "Cannot advance read offset %zu greater than unread size %zu",
+            advanceSize, unreadSize_);
         return size_advanced;
     }
 
@@ -219,8 +226,21 @@ size_t PalRingBufferReader::advanceReadOffset(size_t advanceSize)
 
 void PalRingBufferReader::updateState(pal_ring_buffer_reader_state state)
 {
+    PAL_DBG(LOG_TAG, "update reader state to %d", state);
+    std::lock_guard<std::mutex> lock(ringBuffer_->mutex_);
+
+    if (state_ == READER_DISABLED && state == READER_ENABLED) {
+        if (unreadSize_ > ringBuffer_->bufferEnd_)
+           unreadSize_ = ringBuffer_->bufferEnd_;
+
+        if (unreadSize_ <= ringBuffer_->writeOffset_) {
+            readOffset_ = ringBuffer_->writeOffset_ - unreadSize_;
+        } else {
+            readOffset_ = ringBuffer_->writeOffset_ +
+                ringBuffer_->bufferEnd_ - unreadSize_;
+        }
+    }
     state_ = state;
-    // TODO: Handle read offsets for different scenario
 }
 
 void PalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
@@ -242,7 +262,7 @@ void PalRingBufferReader::reset()
     ringBuffer_->mutex_.lock();
     readOffset_ = 0;
     unreadSize_ = 0;
-    state_ = READER_ENABLED;
+    state_ = READER_DISABLED;
     ringBuffer_->mutex_.unlock();
 }
 

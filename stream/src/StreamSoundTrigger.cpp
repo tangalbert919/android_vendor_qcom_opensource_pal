@@ -660,6 +660,8 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     }
 
     std::unique_lock<std::mutex> lck(mStreamMutex);
+    if (det_type == GMM_DETECTED)
+        reader_->updateState(READER_ENABLED);
     std::shared_ptr<StEventConfig> ev_cfg(
        new StDetectedEventConfig(det_type));
     status = cur_state_->ProcessEvent(ev_cfg);

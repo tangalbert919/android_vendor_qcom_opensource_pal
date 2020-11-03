@@ -856,6 +856,8 @@ void SoundTriggerEngineCapi::SetDetected(bool detected)
     PAL_DBG(LOG_TAG, "SetDetected %d", detected);
     std::lock_guard<std::mutex> lck(event_mutex_);
     if (detected != processing_started_) {
+        if (detected)
+            reader_->updateState(READER_ENABLED);
         processing_started_ = detected;
         exit_buffering_ = !processing_started_;
         PAL_INFO(LOG_TAG, "setting processing started %d", detected);

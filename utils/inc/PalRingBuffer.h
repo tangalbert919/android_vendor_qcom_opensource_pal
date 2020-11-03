@@ -54,7 +54,7 @@ class PalRingBufferReader {
          : ringBuffer_(buffer),
            unreadSize_(0),
            readOffset_(0),
-           state_(READER_ENABLED) {}
+           state_(READER_DISABLED) {}
 
     ~PalRingBufferReader() {};
 
