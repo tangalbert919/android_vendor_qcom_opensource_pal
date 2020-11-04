@@ -976,11 +976,15 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             // R0T0 already set, we don't need to process the request.
             goto done;
         }
+        PAL_DBG(LOG_TAG, "Custom payload size %zu, Payload %p", customPayloadSize,
+                customPayload);
 
-        if (customPayloadSize) {
+        if (customPayload) {
             free(customPayload);
-            customPayloadSize = 0;
         }
+        customPayloadSize = 0;
+        customPayload = NULL;
+
         spkrProtSetSpkrStatus(flag);
         // Speaker in use. Start the Processing Mode
         rm = ResourceManager::getInstance();
