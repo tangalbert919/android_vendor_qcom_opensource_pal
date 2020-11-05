@@ -55,6 +55,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
                                        std::shared_ptr<ResourceManager> rm) {
 
     class SoundTriggerUUID uuid;
+    int32_t enable_concurrency_count = 0;
+    int32_t disable_concurrency_count = 0;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     notification_state_ = ENGINE_IDLE;
@@ -137,12 +139,25 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     prev_state_ = nullptr;
     state_for_restore_ = ST_STATE_NONE;
 
+    // check concurrency count from rm
+    rm->GetSVAConcurrencyCount(&enable_concurrency_count,
+        &disable_concurrency_count);
+
     // check if lpi should be used
-    if (rm->IsVoiceUILPISupported() &&
-        !rm->CheckForActiveConcurrentNonLPIStream()) {
+    if (rm->IsVoiceUILPISupported() && !enable_concurrency_count) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
+    }
+
+    /*
+     * When voice/voip/record is active and concurrency is not
+     * supported, mark paused as true, so that start recognition
+     * will be skipped and when voice/voip/record stops, stream
+     * will be resumed.
+     */
+    if (disable_concurrency_count) {
+        paused_ = true;
     }
 
     timer_thread_ = std::thread(TimerThread, std::ref(*this));
@@ -397,8 +412,9 @@ int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (!rm->IsVoiceUILPISupported()) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
+    } else {
+        use_lpi_ = is_enable;
     }
-    use_lpi_ = is_enable;
 
     return 0;
 }

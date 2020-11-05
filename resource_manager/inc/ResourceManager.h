@@ -331,8 +331,8 @@ protected:
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
-    static int concurrentRxStreamCount;
-    static int concurrentTxStreamCount;
+    static int concurrencyEnableCount;
+    static int concurrencyDisableCount;
     std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
@@ -461,7 +461,7 @@ public:
     bool IsVoiceCallAndVoiceUIConcurrencySupported();
     bool IsVoipAndVoiceUIConcurrencySupported();
     bool IsTransitToNonLPIOnChargingSupported();
-    bool CheckForActiveConcurrentNonLPIStream();
+    void GetSVAConcurrencyCount(int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);

@@ -329,8 +329,8 @@ std::thread ResourceManager::workerThread;
 std::thread ResourceManager::mixerEventTread;
 bool ResourceManager::mixerClosed = false;
 int ResourceManager::mixerEventRegisterCount = 0;
-int ResourceManager::concurrentRxStreamCount = 0;
-int ResourceManager::concurrentTxStreamCount = 0;
+int ResourceManager::concurrencyEnableCount = 0;
+int ResourceManager::concurrencyDisableCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled;
 bool ResourceManager::isRasEnabled = false;
@@ -1641,8 +1641,8 @@ int ResourceManager::deregisterStream(Stream *s)
             ret = deregisterstream(sST, active_streams_st);
             // reset concurrency count when all st streams deregistered
             if (active_streams_st.size() == 0) {
-                concurrentTxStreamCount = 0;
-                concurrentRxStreamCount = 0;
+                concurrencyDisableCount = 0;
+                concurrencyEnableCount = 0;
             }
             break;
         }
@@ -1995,15 +1995,19 @@ bool ResourceManager::IsVoiceUILPISupported() {
 }
 
 // this should only be called when LPI supported by platform
-bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
-    bool has_nlpi_concurrency = false;
+void ResourceManager::GetSVAConcurrencyCount(
+    int32_t *enable_count, int32_t *disable_count) {
+
     pal_stream_attributes st_attr;
+    bool voice_conc_enable = IsVoiceCallAndVoiceUIConcurrencySupported();
+    bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
+    bool audio_capture_conc_enable =
+        IsAudioCaptureAndVoiceUIConcurrencySupported();
 
     mResourceManagerMutex.lock();
-    if (concurrentRxStreamCount > 0) {
-        PAL_DBG(LOG_TAG, "Existing streams for NLPI concurrency");
-        mResourceManagerMutex.unlock();
-        return true;
+    if (concurrencyEnableCount > 0 || concurrencyDisableCount > 0) {
+        PAL_DBG(LOG_TAG, "Concurrency count already updated, return");
+        goto exit;
     }
 
     for (auto& s: mActiveStreams) {
@@ -2011,20 +2015,39 @@ bool ResourceManager::CheckForActiveConcurrentNonLPIStream() {
             continue;
         }
         s->getStreamAttributes(&st_attr);
-        // TODO: check Tx concurrency also
-        if (st_attr.direction != PAL_AUDIO_INPUT &&
-            st_attr.type != PAL_STREAM_LOW_LATENCY) {
-                concurrentRxStreamCount++;
+
+        if (st_attr.type == PAL_STREAM_VOICE_CALL) {
+            if (!voice_conc_enable) {
+                concurrencyDisableCount++;
+            } else {
+                concurrencyEnableCount++;
+            }
+        } else if (st_attr.type == PAL_STREAM_VOIP_TX ||
+                st_attr.type == PAL_STREAM_VOIP_RX ||
+                st_attr.type == PAL_STREAM_VOIP) {
+            if (!voip_conc_enable) {
+                concurrencyDisableCount++;
+            } else {
+                concurrencyEnableCount++;
+            }
+        } else if (st_attr.direction == PAL_AUDIO_INPUT &&
+                   (st_attr.type == PAL_STREAM_LOW_LATENCY ||
+                    st_attr.type == PAL_STREAM_DEEP_BUFFER)) {
+            if (!audio_capture_conc_enable) {
+                concurrencyDisableCount++;
+            } else {
+                concurrencyEnableCount++;
+            }
+        } else if (st_attr.direction == PAL_AUDIO_OUTPUT &&
+                   st_attr.type != PAL_STREAM_LOW_LATENCY) {
+            concurrencyEnableCount++;
         }
     }
 
-    if (concurrentRxStreamCount > 0) {
-        PAL_DBG(LOG_TAG, "Found streams for NLPI concurrency");
-        has_nlpi_concurrency = true;
-    }
+exit:
     mResourceManagerMutex.unlock();
-
-    return has_nlpi_concurrency;
+    *enable_count = concurrencyEnableCount;
+    *disable_count = concurrencyDisableCount;
 }
 
 bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
@@ -2476,15 +2499,25 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     int32_t status = 0;
     bool conc_en = true;
     bool do_switch = false;
+    bool tx_conc = false;
+    bool rx_conc = false;
+    bool voice_conc_enable = IsVoiceCallAndVoiceUIConcurrencySupported();
+    bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
+    bool audio_capture_conc_enable =
+        IsAudioCaptureAndVoiceUIConcurrencySupported();
     StreamSoundTrigger *st_str = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     mResourceManagerMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
 
-    if (dir == PAL_AUDIO_OUTPUT && type == PAL_STREAM_LOW_LATENCY) {
-        PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
-        goto exit;
+    if (dir == PAL_AUDIO_OUTPUT) {
+        if (type == PAL_STREAM_LOW_LATENCY) {
+            PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
+            goto exit;
+        } else {
+            rx_conc = true;
+        }
     }
 
     if (active_streams_st.size() == 0) {
@@ -2497,32 +2530,36 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
      * so there's no need to switch to NLPI for voip/voice rx stream
      * if corresponding voip/voice tx stream concurrency is not supported.
      */
-    if (IsAudioCaptureAndVoiceUIConcurrencySupported()) {
-        if ((!IsVoiceCallAndVoiceUIConcurrencySupported() &&
-            type == PAL_STREAM_VOICE_CALL)) {
+    if (type == PAL_STREAM_VOICE_CALL) {
+        tx_conc = true;
+        rx_conc = true;
+        if (!voice_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
             conc_en = false;
-        } else if (!IsVoipAndVoiceUIConcurrencySupported() &&
-            (type == PAL_STREAM_VOIP_TX ||
-            type == PAL_STREAM_VOIP_RX ||
-            type == PAL_STREAM_VOIP)) {
+        }
+    } else if (type == PAL_STREAM_VOIP_TX ||
+               type == PAL_STREAM_VOIP_RX ||
+               type == PAL_STREAM_VOIP) {
+        tx_conc = true;
+        rx_conc = true;
+        if (!voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
             conc_en = false;
         }
-    } else if (dir != PAL_AUDIO_OUTPUT &&
-                (type == PAL_STREAM_LOW_LATENCY || // LL or mmap record
-                type == PAL_STREAM_DEEP_BUFFER || // regular audio record
-                type == PAL_STREAM_VOICE_CALL ||
-                type == PAL_STREAM_VOIP_RX ||
-                type == PAL_STREAM_VOIP_TX ||
-                type == PAL_STREAM_VOIP)) {
-        conc_en = false;
+    } else if (dir == PAL_AUDIO_INPUT &&
+               (type == PAL_STREAM_LOW_LATENCY ||
+                type == PAL_STREAM_DEEP_BUFFER)) {
+        tx_conc = true;
+        if (!audio_capture_conc_enable) {
+            PAL_DBG(LOG_TAG, "pause on audio capture concurrency");
+            conc_en = false;
+        }
     }
 
     if (!conc_en) {
         if (active) {
-            ++concurrentTxStreamCount;
-            if (concurrentTxStreamCount == 1) {
+            ++concurrencyDisableCount;
+            if (concurrencyDisableCount == 1) {
                 // pause all sva streams
                 for (int i = 0; i < active_streams_st.size(); i++) {
                     st_str = active_streams_st[i];
@@ -2538,8 +2575,8 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                 }
             }
         } else {
-            --concurrentTxStreamCount;
-            if (concurrentTxStreamCount == 0) {
+            --concurrencyDisableCount;
+            if (concurrencyDisableCount == 0) {
                 // resume all sva streams
                 for (int i = 0; i < active_streams_st.size(); i++) {
                     st_str = active_streams_st[i];
@@ -2555,15 +2592,15 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                 }
             }
         }
-    } else if (dir == PAL_AUDIO_OUTPUT || dir == PAL_AUDIO_INPUT_OUTPUT) {
+    } else if (tx_conc || rx_conc) {
         if (!IsVoiceUILPISupported()) {
             PAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
         } else if (active) {
-            if (++concurrentRxStreamCount == 1) {
+            if (++concurrencyEnableCount == 1) {
                 do_switch = true;
             }
         } else {
-            if (--concurrentRxStreamCount == 0) {
+            if (--concurrencyEnableCount == 0) {
                 do_switch = true;
             }
         }
@@ -2577,7 +2614,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                     status = st_str->EnableLPI(!active);
                     mResourceManagerMutex.lock();
                     if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
+                        PAL_ERR(LOG_TAG, "Failed to update LPI state");
                     }
                 }
             }
