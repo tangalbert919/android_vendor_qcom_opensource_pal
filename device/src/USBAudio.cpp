@@ -591,10 +591,11 @@ unsigned int USBCardConfig::readDefaultSampleRate(bool is_playback) {
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
-             if ((*iter)->getType() == is_playback)
+             if ((*iter)->getType() == is_playback){
                  sample_rate = (*iter)->getDefaultRate();
-            break;
-    }
+                 break;
+             }
+         }
 
     return sample_rate;
 }
