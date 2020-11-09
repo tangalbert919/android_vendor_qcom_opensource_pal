@@ -32,8 +32,11 @@
 #include "PalCommon.h"
 #define LOG_TAG "PAL: PalRingBuffer"
 
-int32_t PalRingBuffer::removeReader(std::shared_ptr<PalRingBufferReader> reader __unused)
+int32_t PalRingBuffer::removeReader(PalRingBufferReader *reader)
 {
+    auto iter = std::find(readOffsets_.begin(), readOffsets_.end(), reader);
+    if (iter != readOffsets_.end())
+        readOffsets_.erase(iter);
 
     return 0;
 }
@@ -132,6 +135,15 @@ void PalRingBuffer::reset()
         (*(it))->reset();
 }
 
+void PalRingBuffer::resizeRingBuffer(size_t bufferSize)
+{
+    if (buffer_) {
+        delete[] buffer_;
+        buffer_ = nullptr;
+    }
+    buffer_ = (char *)new char[bufferSize];
+    bufferEnd_ = bufferSize;
+}
 
 size_t PalRingBufferReader::read(void* readBuffer, size_t bufferSize)
 {

@@ -84,7 +84,8 @@ LOCAL_SRC_FILES        := Pal.cpp\
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \
-    utils/src/PalRingBuffer.cpp
+    utils/src/PalRingBuffer.cpp \
+    utils/src/SoundTriggerUtils.cpp
 
 LOCAL_MODULE       := libar-pal
 LOCAL_MODULE_OWNER := qti

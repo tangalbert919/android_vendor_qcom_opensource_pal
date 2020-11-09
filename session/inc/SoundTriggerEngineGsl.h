@@ -32,8 +32,9 @@
 #define SOUNDTRIGGERENGINEGSL_H
 
 #include "SoundTriggerEngine.h"
+#include "SoundTriggerUtils.h"
+#include "StreamSoundTrigger.h"
 #include "PalRingBuffer.h"
-#include "Session.h"
 #include "PayloadBuilder.h"
 
 class Session;
@@ -44,6 +45,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     SoundTriggerEngineGsl(Stream *s, uint32_t id,
         listen_model_indicator_enum type);
     ~SoundTriggerEngineGsl();
+    static std::shared_ptr<SoundTriggerEngineGsl> GetInstance(Stream *s,
+        uint32_t id, listen_model_indicator_enum type);
+    void ResetEngineInstance(Stream *s) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
@@ -55,8 +59,13 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         struct pal_st_recognition_config *config,
         uint8_t *conf_levels,
         uint32_t num_conf_levels) override;
-    int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
+    int32_t UpdateBufConfig(Stream *s, uint32_t hist_buffer_duration,
                             uint32_t pre_roll_duration) override;
+    void GetUpdatedBufConfig(uint32_t *hist_buffer_duration,
+                            uint32_t *pre_roll_duration) override {
+       *hist_buffer_duration = buffer_config_.hist_buffer_duration_in_ms;
+       *pre_roll_duration = buffer_config_.pre_roll_duration_in_ms;
+    }
     void SetDetected(bool detected __unused) {};
     int32_t GetParameters(uint32_t param_id, void **payload) override;
     int32_t ConnectSessionDevice(
@@ -81,7 +90,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetDetectedConfScore() { return 0; }
 
  private:
-    int32_t StartBuffering();
+    int32_t StartBuffering(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     int32_t ParseDetectionPayload(void *event_data);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
@@ -89,9 +98,41 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data,
                                       uint32_t event_size);
+    bool CheckIfOtherStreamsAttached(Stream *s);
+    int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);
+    int32_t HandleMultiStreamUnload(Stream *s);
+    void CheckOtherStreamStates(st_state_id_t *restore_state);
+    bool IsAnyStreamInState(st_state_id_t state, Stream **s);
+    bool IsOtherStreamInState(st_state_id_t state, Stream *s);
+    int32_t UpdateEngineModel(Stream *s, uint8_t *data,
+                              uint32_t data_size, bool add);
+    int32_t AddSoundModel(Stream *s, uint8_t *data, uint32_t data_size);
+    int32_t DeleteSoundModel(Stream *s);
+    int32_t QuerySoundModel(SoundModelInfo *sm_info,
+                            uint8_t *data, uint32_t data_size);
+    int32_t MergeSoundModels(uint32_t num_models, listen_model_type *in_models[],
+             listen_model_type *out_model);
+    int32_t DeleteFromMergedModel(char **keyphrases, uint32_t num_keyphrases,
+             listen_model_type *in_model, listen_model_type *out_model);
+    int32_t ConstructAPMPayload(uint32_t param_id, uint8_t** payload,
+                                uint8_t* data, uint32_t data_size);
 
+    int32_t ProcessStartRecognition(Stream *s);
+    int32_t ProcessStopRecognition(Stream *s);
+    int32_t UpdateMergeConfLevelsWithActiveStreams();
+    int32_t UpdateMergeConfLevelsPayload(SoundModelInfo* src_sm_info,
+                               bool set);
+    int32_t UpdateEngineConfigOnStop(Stream *s);
+    int32_t UpdateEngineConfigOnRestart(Stream *s);
+    Stream* GetDetectedStream();
+    void CheckAndSetDetectionConfLevels(Stream *s);
     Session *session_;
     PayloadBuilder *builder_;
+    static std::shared_ptr<SoundTriggerEngineGsl> eng_;
+    std::vector<Stream *> eng_streams_;
+    SoundModelInfo *eng_sm_info_;
+    bool sm_merged_;
+    int32_t dev_disconnect_count_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
     struct detection_event_info detection_event_info_;

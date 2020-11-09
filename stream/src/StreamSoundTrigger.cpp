@@ -69,6 +69,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     paused_ = false;
     pending_stop_ = false;
     currentState = STREAM_IDLE;
+    capture_requested_ = false;
+    hist_buf_duration_ = 0;
+    pre_roll_duration_ = 0;
     conf_levels_intf_version_ = 0;
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
@@ -747,6 +750,30 @@ void StreamSoundTrigger::CancelDelayedStop() {
     timer_wait_cond_.notify_one();
 }
 
+std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
+    uint8_t *sm_data, int32_t sm_size, listen_model_indicator_enum type) {
+
+    int status = 0;
+    bool sm_merge = sm_cfg_->GetMergeFirstStageSoundModels();
+    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
+
+    engine = SoundTriggerEngine::Create(this, type, sm_merge);
+    if (!engine) {
+        status = -ENOMEM;
+        PAL_ERR(LOG_TAG, "engine creation failed for type %u", type);
+        goto error_exit;
+    }
+    status = engine->LoadSoundModel(this, sm_data, sm_size);
+    if (status) {
+        PAL_ERR(LOG_TAG, "engine loading model failed, status %d", status);
+        goto error_exit;
+    }
+    return engine;
+
+error_exit:
+    return nullptr;
+}
+
 /* TODO:
  *   - Need to track vendor UUID
  */
@@ -755,8 +782,6 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
     int32_t status = 0;
     int32_t i = 0;
-    int32_t engine_id = 0;
-    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
     struct pal_st_phrase_sound_model *phrase_sm = nullptr;
     struct pal_st_sound_model *common_sm = nullptr;
     uint8_t *ptr = nullptr;
@@ -766,7 +791,10 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     SML_GlobalHeaderType *global_hdr = nullptr;
     SML_HeaderTypeV3 *hdr_v3 = nullptr;
     SML_BigSoundModelTypeV3 *big_sm = nullptr;
+    std::shared_ptr<SoundTriggerEngine> engine = nullptr;
     uint32_t sm_version = SML_MODEL_V2;
+    int32_t engine_id = 0;
+    std::shared_ptr<EngineCfg> engine_cfg = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -836,6 +864,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         }
     }
 
+    /* Create Sound Model Info for stream */
+    sm_info_ = new SoundModelInfo();
+
     if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
         sm_payload = (uint8_t *)common_sm + common_sm->data_offset;
         global_hdr = (SML_GlobalHeaderType *)sm_payload;
@@ -873,22 +904,15 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         (hdr_v3->numModels * sizeof(SML_BigSoundModelTypeV3)) +
                         big_sm->offset;
                     ar_mem_cpy(sm_data + sizeof(*phrase_sm), big_sm->size,
-                        (char *)phrase_sm + common_sm->data_offset, big_sm->size);
+                                     (char *)phrase_sm + common_sm->data_offset,
+                                     big_sm->size);
                     common_sm->data_offset = sizeof(*phrase_sm);
                     common_sm = (struct pal_st_sound_model *)&phrase_sm->common;
 
-                    gsl_engine_ = SoundTriggerEngine::Create(this,
-                                                             ST_SM_ID_SVA_GMM);
+                    gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
+                                              big_sm->size, big_sm->type);
                     if (!gsl_engine_) {
-                        status = -ENOMEM;
-                        PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-                        goto error_exit;
-                    }
-
-                    status = gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
-                                "failed, status %d", status);
+                        status = -EINVAL;
                         goto error_exit;
                     }
 
@@ -912,18 +936,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     }
                     ar_mem_cpy(sm_data, sm_size, ptr, sm_size);
 
-                    engine = SoundTriggerEngine::Create(this, big_sm->type);
+                    engine = HandleEngineLoad(sm_data, sm_size, big_sm->type);
                     if (!engine) {
-                        PAL_ERR(LOG_TAG, "Failed to create engine for type %d",
-                                big_sm->type);
-                        status = -ENOENT;
-                        goto error_exit;
-                    }
-
-                    status = engine->LoadSoundModel(this, sm_data, sm_size);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Loading model to engine type %d"
-                                "failed, status %d", big_sm->type, status);
+                        status = -EINVAL;
                         goto error_exit;
                     }
 
@@ -957,24 +972,18 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             ar_mem_cpy(sm_data + sizeof(*phrase_sm), common_sm->data_size,
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
-            gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM);
-            if (!gsl_engine_) {
-                PAL_ERR(LOG_TAG, "gsl engine creation failed");
-                status = -ENOMEM;
-                goto error_exit;
-            }
 
-            status = gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
-            if (status) {
-                PAL_ERR(LOG_TAG, "gsl engine loading model failed, status %d",
-                        status);
+            gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
+                                          common_sm->data_size, ST_SM_ID_SVA_GMM);
+            if (!gsl_engine_) {
+                status = -EINVAL;
                 goto error_exit;
             }
 
             engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
-            std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(engine_id,
-                                                          gsl_engine_,
-                                                          sm_data, sm_size));
+            std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
+                 engine_id, gsl_engine_, (void *) sm_data, sm_size));
+
             AddEngine(engine_cfg);
         }
     }
@@ -1002,6 +1011,10 @@ error_exit:
     if (reader_) {
         delete reader_;
         reader_ = nullptr;
+    }
+    if (sm_info_) {
+        delete sm_info_;
+        sm_info_ = nullptr;
     }
     if (sm_config_) {
         free(sm_config_);
@@ -1106,8 +1119,6 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     uint32_t num_conf_levels = 0;
     uint32_t ring_buffer_len = 0;
     uint32_t ring_buffer_size = 0;
-    bool capture_requested = false;
-    std::vector<PalRingBufferReader *> reader_list;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!config) {
@@ -1136,7 +1147,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
     // Parse recognition config
     if (config->data_size > CUSTOM_CONFIG_OPAQUE_DATA_SIZE &&
-        sm_info_->isQCVAUUID()) {
+        sm_cfg_->isQCVAUUID()) {
         opaque_ptr = (uint8_t *)config + config->data_offset;
         while (opaque_size < config->data_size) {
             param_hdr = (struct st_param_header *)opaque_ptr;
@@ -1191,8 +1202,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                   }
                   hist_buf = (struct st_hist_buffer_info *)(opaque_ptr +
                       sizeof(struct st_param_header));
-                  hist_buffer_duration = hist_buf->hist_buffer_duration_msec;
-                  pre_roll_duration = hist_buf->pre_roll_duration_msec;
+                  hist_buf_duration_ = hist_buf->hist_buffer_duration_msec;
+                  pre_roll_duration_ = hist_buf->pre_roll_duration_msec;
 
                   opaque_size += sizeof(struct st_param_header) +
                       sizeof(struct st_hist_buffer_info);
@@ -1220,10 +1231,10 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                   goto error_exit;
             }
         }
-    } else if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
+    } else if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
         // get history buffer duration from sound trigger platform xml
-        hist_buffer_duration = sm_info_->GetKwDuration();
-        pre_roll_duration = 0;
+        hist_buf_duration_ = sm_cfg_->GetKwDuration();
+        pre_roll_duration_ = 0;
 
         status = FillConfLevels(config, &conf_levels, &num_conf_levels);
         if (status) {
@@ -1232,25 +1243,35 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
-    client_capture_read_delay = sm_info_->GetCaptureReadDelay();
+    client_capture_read_delay = sm_cfg_->GetCaptureReadDelay();
     PAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
-        hist_buffer_duration, pre_roll_duration, client_capture_read_delay);
+        hist_buf_duration_, pre_roll_duration_, client_capture_read_delay);
 
-    status = gsl_engine_->UpdateBufConfig(hist_buffer_duration,
-                                          pre_roll_duration);
+    status = gsl_engine_->UpdateBufConfig(this, hist_buf_duration_,
+                                          pre_roll_duration_);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update buf config, status %d", status);
         goto error_exit;
     }
 
+    /*
+     * Get the updated buffer config from engine as multiple streams
+     * attached to it might have different buffer configurations
+     */
+    gsl_engine_->GetUpdatedBufConfig(&hist_buffer_duration,
+                                          &pre_roll_duration);
+
+    PAL_DBG(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
+        hist_buffer_duration, pre_roll_duration);
+
     // create ring buffer for lab transfer in gsl_engine
     ring_buffer_len = hist_buffer_duration + pre_roll_duration +
         client_capture_read_delay;
-    ring_buffer_size = (ring_buffer_len / 1000) * sm_info_->GetSampleRate() *
-                       sm_info_->GetBitWidth() *
-                       sm_info_->GetOutChannels() / 8;
+    ring_buffer_size = (ring_buffer_len / 1000) * sm_cfg_->GetSampleRate() *
+                       sm_cfg_->GetBitWidth() *
+                       sm_cfg_->GetOutChannels() / 8;
     status = gsl_engine_->CreateBuffer(ring_buffer_size,
-                                       engines_.size(), reader_list);
+                                       engines_.size(), reader_list_);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to get ring buf reader, status %d", status);
         goto error_exit;
@@ -1259,9 +1280,9 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     // NOTE: First stage engine is the writer to the buffer
     // PAL client reader should be first in the reader list.
     // The remaining readers are for seconds stage engines.
-    reader_ = reader_list[0];
+    reader_ = reader_list_[0];
     for (i = 1; i < engines_.size(); i++) {
-        status = engines_[i]->GetEngine()->SetBufferReader(reader_list[i]);
+        status = engines_[i]->GetEngine()->SetBufferReader(reader_list_[i]);
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
             goto error_exit;
@@ -1273,10 +1294,10 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
     // Update capture requested flag to gsl engine
     if (!config->capture_requested && engines_.size() == 1)
-        capture_requested = false;
+        capture_requested_ = false;
     else
-        capture_requested = true;
-    gsl_engine_->SetCaptureRequested(capture_requested);
+        capture_requested_ = true;
+    gsl_engine_->SetCaptureRequested(capture_requested_);
     return status;
 
 error_exit:
@@ -1524,7 +1545,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
+        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
             det_ev_info = gsl_engine_->GetDetectionEventInfo();
             if (!det_ev_info) {
                 PAL_ERR(LOG_TAG, "detection info not available");
@@ -1579,7 +1600,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         opaque_data = (uint8_t *)phrase_event +
                     phrase_event->common.data_offset;
 
-        if (sm_info_->isQCVAUUID() || sm_info_->isQCMDUUID()) {
+        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
             /* Pack the opaque data confidence levels structure */
             param_hdr = (struct st_param_header *)opaque_data;
             param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
@@ -2100,29 +2121,29 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
 
     if (GetAvailCaptureDevice() == PAL_DEVICE_IN_HEADSET_VA_MIC) {
         if (is_transit_to_nlpi) {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
                     ST_INPUT_MODE_HEADSET));
         } else if (use_lpi_) {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HEADSET));
         } else {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
                     ST_INPUT_MODE_HEADSET));
         }
     } else {
         if (is_transit_to_nlpi) {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING,
                     ST_INPUT_MODE_HANDSET));
         } else if (use_lpi_) {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_LOW_POWER,
                     ST_INPUT_MODE_HANDSET));
         } else {
-            cap_prof = sm_info_->GetCaptureProfile(
+            cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(ST_OPERATING_MODE_HIGH_PERF,
                     ST_INPUT_MODE_HANDSET));
         }
@@ -2139,8 +2160,8 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
 uint32_t StreamSoundTrigger::GetKwStartTolerance() {
     uint32_t start_tolerance = 0;
 
-    if (sm_info_) {
-        start_tolerance = sm_info_->GetKwStartTolerance() * 1000;
+    if (sm_cfg_) {
+        start_tolerance = sm_cfg_->GetKwStartTolerance() * 1000;
     }
 
     PAL_DBG(LOG_TAG, "start tolerance %u us", start_tolerance);
@@ -2150,8 +2171,8 @@ uint32_t StreamSoundTrigger::GetKwStartTolerance() {
 uint32_t StreamSoundTrigger::GetKwEndTolerance() {
     uint32_t end_tolerance = 0;
 
-    if (sm_info_) {
-        end_tolerance = sm_info_->GetKwEndTolerance() * 1000;
+    if (sm_cfg_) {
+        end_tolerance = sm_cfg_->GetKwEndTolerance() * 1000;
     }
 
     PAL_DBG(LOG_TAG, "end tolerance %u us", end_tolerance);
@@ -2162,15 +2183,15 @@ int32_t StreamSoundTrigger::GetEngineConfig(uint32_t &sample_rate,
     uint32_t &bit_width, uint32_t &channels, listen_model_indicator_enum type) {
     uint32_t sm_id = static_cast<uint32_t>(type);
 
-    if (sm_info_) {
+    if (sm_cfg_) {
         if (type == ST_SM_ID_SVA_GMM) {
-            sample_rate = sm_info_->GetSampleRate();
-            bit_width = sm_info_->GetBitWidth();
-            channels = sm_info_->GetOutChannels();
+            sample_rate = sm_cfg_->GetSampleRate();
+            bit_width = sm_cfg_->GetBitWidth();
+            channels = sm_cfg_->GetOutChannels();
         } else if (type == ST_SM_ID_SVA_CNN ||
                     type == ST_SM_ID_SVA_VOP ||
                     type == ST_SM_ID_SVA_RNN) {
-            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            auto ss_config = sm_cfg_->GetSecondStageConfig(sm_id);
             if (!ss_config) {
                 PAL_ERR(LOG_TAG, "No matching second stage config");
                 return -EINVAL;
@@ -2193,11 +2214,11 @@ int32_t StreamSoundTrigger::GetSecondStageConfig(
     listen_model_indicator_enum type) {
     uint32_t sm_id = static_cast<uint32_t>(type);
 
-    if (sm_info_) {
+    if (sm_cfg_) {
         if (type == ST_SM_ID_SVA_CNN ||
             type == ST_SM_ID_SVA_VOP ||
             type == ST_SM_ID_SVA_RNN) {
-            auto ss_config = sm_info_->GetSecondStageConfig(sm_id);
+            auto ss_config = sm_cfg_->GetSecondStageConfig(sm_id);
             if (!ss_config) {
                 PAL_ERR(LOG_TAG, "No matching second stage config");
                 return -EINVAL;
@@ -2206,7 +2227,7 @@ int32_t StreamSoundTrigger::GetSecondStageConfig(
             lib_name = ss_config->GetLibName();
         }
     } else {
-        PAL_ERR(LOG_TAG, "No sound model info present");
+        PAL_ERR(LOG_TAG, "No sound model config present");
         return -EINVAL;
     }
 
@@ -2218,9 +2239,9 @@ int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
 
     std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
 
-    if (sm_info_) {
+    if (sm_cfg_) {
         // TODO: update input type to GMM/PDK
-        sm_module_info = sm_info_->GetSoundTriggerModuleInfo(0);
+        sm_module_info = sm_cfg_->GetSoundTriggerModuleInfo(0);
         if (!sm_module_info) {
             PAL_ERR(LOG_TAG, "Failed to get module info");
             return -EINVAL;
@@ -2230,7 +2251,7 @@ int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
             param_ids[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
         }
     } else {
-        PAL_ERR(LOG_TAG, "No sound model info present");
+        PAL_ERR(LOG_TAG, "No sound model config present");
         return -EINVAL;
     }
 
@@ -2240,11 +2261,11 @@ int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
 int32_t StreamSoundTrigger::CheckVendorUUID(bool *is_qcva_uuid,
     bool *is_qcmd_uuid) {
 
-    if (sm_info_) {
-        *is_qcva_uuid = sm_info_->isQCVAUUID();
-        *is_qcmd_uuid = sm_info_->isQCMDUUID();
+    if (sm_cfg_) {
+        *is_qcva_uuid = sm_cfg_->isQCVAUUID();
+        *is_qcmd_uuid = sm_cfg_->isQCMDUUID();
     } else {
-        PAL_ERR(LOG_TAG, "No sound model info present");
+        PAL_ERR(LOG_TAG, "No sound model config present");
         return -EINVAL;
     }
 
@@ -2330,9 +2351,9 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         uuid.node[4],
                         uuid.node[5]);
 
-            st_stream_.sm_info_ = st_stream_.st_info_->GetSmConfig(uuid);
+            st_stream_.sm_cfg_ = st_stream_.st_info_->GetSmConfig(uuid);
 
-            if (!st_stream_.sm_info_) {
+            if (!st_stream_.sm_cfg_) {
                 PAL_ERR(LOG_TAG, "Failed to get sound model platform info");
                 throw std::runtime_error("Failed to get sound model platform info");
             }
@@ -2370,7 +2391,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             st_stream_.mDevPpModifiers.push_back(
                 st_stream_.cap_prof_->GetDevicePpKv());
 
-            streamConfigKV = st_stream_.sm_info_->GetStreamConfig();
+            streamConfigKV = st_stream_.sm_cfg_->GetStreamConfig();
             st_stream_.mStreamModifiers.clear();
             st_stream_.mStreamModifiers.push_back(streamConfigKV);
 
@@ -2557,13 +2578,21 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 }
                 free(eng->sm_data_);
             }
+
+            st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
             if (st_stream_.reader_) {
                 delete st_stream_.reader_;
                 st_stream_.reader_ = nullptr;
             }
             st_stream_.engines_.clear();
+            st_stream_.gsl_engine_->ResetEngineInstance(&st_stream_);
+            st_stream_.reader_list_.clear();
+            if (st_stream_.sm_info_) {
+                delete st_stream_.sm_info_;
+                st_stream_.sm_info_ = nullptr;
+            }
 
-            streamConfigKV = st_stream_.sm_info_->GetStreamConfig();
+            streamConfigKV = st_stream_.sm_cfg_->GetStreamConfig();
 
             st_stream_.rm->resetStreamInstanceID(
                 &st_stream_,
@@ -3479,8 +3508,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 if (!st_stream_.rec_config_->capture_requested) {
                     if (st_stream_.reader_) {
                         st_stream_.reader_->reset();
-                        // TODO: remove this line in sound model merging change
-                        st_stream_.reader_->updateState(READER_DISABLED);
                     }
                     TransitTo(ST_STATE_DETECTED);
                 }

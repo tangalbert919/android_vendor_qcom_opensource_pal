@@ -38,6 +38,7 @@
 #include "SoundTriggerEngine.h"
 #include "PalRingBuffer.h"
 #include "SoundTriggerPlatformInfo.h"
+#include "SoundTriggerUtils.h"
 
 /* Event Mode
  * Indicating info SPF will notify to client
@@ -99,6 +100,7 @@ enum {
 };
 
 class ResourceManager;
+class SoundModelInfo;
 
 class StreamSoundTrigger : public Stream {
  public:
@@ -153,6 +155,7 @@ class StreamSoundTrigger : public Stream {
     static int32_t isBitWidthSupported(uint32_t bitWidth);
 
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
+    SoundModelInfo* GetSoundModelInfo() { return sm_info_; };
     std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id,
                                          struct pal_device *dev,
                                          bool use_rm_profile);
@@ -161,7 +164,7 @@ class StreamSoundTrigger : public Stream {
     int32_t HandleChargingStateUpdate(bool state, bool active);
     int32_t Resume();
     int32_t Pause();
-
+    int32_t GetCurrentStateId();
     int32_t HandleConcurrentStream(bool active);
     int32_t EnableLPI(bool is_enable);
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) override;
@@ -178,6 +181,9 @@ class StreamSoundTrigger : public Stream {
     int32_t CheckVendorUUID(bool *is_qcva_uuid, bool *is_qcmd_uuid);
 
     friend class PalRingBufferReader;
+    bool IsCaptureRequested() { return capture_requested_; }
+    uint32_t GetHistBufDuration() { return hist_buf_duration_; }
+    uint32_t GetPreRollDuration() { return pre_roll_duration_; }
 
  private:
     class EngineCfg {
@@ -507,6 +513,8 @@ class StreamSoundTrigger : public Stream {
     };
 
     pal_device_id_t GetAvailCaptureDevice();
+    std::shared_ptr<SoundTriggerEngine> HandleEngineLoad(uint8_t *sm_data,
+             int32_t sm_size, listen_model_indicator_enum type);
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     int32_t LoadSoundModel(struct pal_st_sound_model *sm_data);
     int32_t UpdateSoundModel(struct pal_st_sound_model *sm_data);
@@ -549,12 +557,12 @@ class StreamSoundTrigger : public Stream {
     bool paused_;
 
     void AddState(StState* state);
-    int32_t GetCurrentStateId();
     int32_t GetPreviousStateId();
     int32_t ProcessInternalEvent(std::shared_ptr<StEventConfig> ev_cfg);
 
     std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
-    std::shared_ptr<SoundModelConfig> sm_info_;
+    std::shared_ptr<SoundModelConfig> sm_cfg_;
+    SoundModelInfo* sm_info_;
     std::vector<std::shared_ptr<EngineCfg>> engines_;
     std::shared_ptr<SoundTriggerEngine> gsl_engine_;
 
@@ -581,8 +589,12 @@ class StreamSoundTrigger : public Stream {
     bool charging_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;
     uint32_t conf_levels_intf_version_;
+    std::vector<PalRingBufferReader *> reader_list_;
     st_confidence_levels_info *st_conf_levels_;
     st_confidence_levels_info_v2 *st_conf_levels_v2_;
+    bool capture_requested_;
+    uint32_t hist_buf_duration_;
+    uint32_t pre_roll_duration_;
     bool use_lpi_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

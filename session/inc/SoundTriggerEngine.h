@@ -292,7 +292,7 @@ struct detection_event_info
 class SoundTriggerEngine {
 public:
     static std::shared_ptr<SoundTriggerEngine> Create(Stream *s,
-        listen_model_indicator_enum type);
+        listen_model_indicator_enum type, bool sm_merge = false);
 
     virtual ~SoundTriggerEngine() {}
 
@@ -307,8 +307,10 @@ public:
         struct pal_st_recognition_config *config,
         uint8_t *conf_levels,
         uint32_t num_conf_levels) = 0;
-    virtual int32_t UpdateBufConfig(uint32_t hist_buffer_duration,
+    virtual int32_t UpdateBufConfig(Stream *s, uint32_t hist_buffer_duration,
                                     uint32_t pre_roll_duration) = 0;
+    virtual void GetUpdatedBufConfig(uint32_t *hist_buffer_duration,
+                                    uint32_t *pre_roll_duration) = 0;
     virtual void SetDetected(bool detected) = 0;
     virtual int32_t GetParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t ConnectSessionDevice(
@@ -323,6 +325,7 @@ public:
         Stream* streamHandle,
         pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) = 0;
+    virtual void ResetEngineInstance(Stream *s) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual struct detection_event_info* GetDetectionEventInfo() = 0;
     virtual int32_t setECRef(
@@ -336,6 +339,7 @@ public:
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);
     int32_t SetBufferReader(PalRingBufferReader *reader);
+    int32_t ResetBufferReaders(std::vector<PalRingBufferReader *> &reader_list);
     uint32_t UsToBytes(uint64_t input_us);
 
 protected:

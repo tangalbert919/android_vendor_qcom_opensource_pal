@@ -37,7 +37,8 @@
 
 std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
-    listen_model_indicator_enum type)
+    listen_model_indicator_enum type,
+    bool sm_merge)
 {
     PAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
 
@@ -51,7 +52,11 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
 
     switch (type) {
     case ST_SM_ID_SVA_GMM:
-        st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
+        if (!sm_merge)
+            st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
+        else
+            st_engine = SoundTriggerEngineGsl::GetInstance(s, id, type);
+
         if (!st_engine)
             PAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
         break;
@@ -94,26 +99,39 @@ int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
     }
 
     PAL_DBG(LOG_TAG, "Enter");
-    if (buffer_) {
-        delete buffer_;
-        buffer_ = nullptr;
-    }
-
-    buffer_ = new PalRingBuffer(buffer_size);
     if (!buffer_) {
-        PAL_ERR(LOG_TAG, "Failed to allocate memory for ring buffer");
-        status = -ENOMEM;
-        goto exit;
-    }
-
-    for (i = 0; i < engine_size; i++) {
-        reader = buffer_->newReader();
-        if (!reader) {
-            PAL_ERR(LOG_TAG, "Failed to create new ring buffer reader");
+        buffer_ = new PalRingBuffer(buffer_size);
+        if (!buffer_) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for ring buffer");
             status = -ENOMEM;
             goto exit;
         }
-        reader_list.push_back(reader);
+        PAL_VERBOSE(LOG_TAG, "Created a new buffer: %pK with size: %d",
+            buffer_, buffer_size);
+    } else {
+        buffer_->reset();
+        /* Resize the ringbuffer if it is changed */
+        if (buffer_->getBufferSize() != buffer_size) {
+            PAL_VERBOSE(LOG_TAG, "Resize the buffer %pK from old size: %zu to new size: %d",
+                    buffer_, buffer_->getBufferSize(), buffer_size);
+            buffer_->resizeRingBuffer(buffer_size);
+        }
+        /* Reset the readers from existing list*/
+        for (int32_t i = 0; i < reader_list.size(); i++)
+            reader_list[i]->reset();
+    }
+
+    if (engine_size != reader_list.size()) {
+        reader_list.clear();
+        for (i = 0; i < engine_size; i++) {
+            reader = buffer_->newReader();
+            if (!reader) {
+                PAL_ERR(LOG_TAG, "Failed to create new ring buffer reader");
+                status = -ENOMEM;
+                goto exit;
+            }
+            reader_list.push_back(reader);
+        }
     }
 
 exit:
@@ -131,12 +149,23 @@ int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
         return status;
     }
 
-    // release reader first if exists
-    if (reader_)
-        delete reader_;
     reader_ = reader;
 
     return status;
+}
+
+int32_t SoundTriggerEngine::ResetBufferReaders(
+    std::vector<PalRingBufferReader *> &reader_list)
+{
+    if (engine_id_ != static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
+        PAL_ERR(LOG_TAG, "Cannot reset buffer readers in non-GMM engine");
+        return -EINVAL;
+    }
+
+    for (int32_t i = 0; i < reader_list.size(); i++)
+        buffer_->removeReader(reader_list[i]);
+
+    return 0;
 }
 
 uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {

@@ -34,7 +34,8 @@ h_sources = ./stream/inc/Stream.h \
             ./PalApi.h \
             ./PalAudioRoute.h \
             ./PalCommon.h \
-            ./utils/inc/PalRingBuffer.h
+            ./utils/inc/PalRingBuffer.h \
+            ./utils/inc/SoundTriggerUtils.h
 
 AM_CPPFLAGS := -I ./stream/inc
 AM_CPPFLAGS += -I ./device/inc
@@ -68,7 +69,8 @@ pal_sources = ./stream/src/Stream.cpp \
               ./session/src/SoundTriggerEngineCapi.cpp \
               ./resource_manager/src/ResourceManager.cpp \
               ./Pal.cpp \
-              ./utils/src/PalRingBuffer.cpp
+              ./utils/src/PalRingBuffer.cpp \
+              ./utils/src/SoundTriggerUtils.cpp
 else
 h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamCompress.h \
@@ -108,7 +110,8 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/PalApi.h \
             ${top_srcdir}/PalAudioRoute.h \
             ${top_srcdir}/PalCommon.h \
-            ${top_srcdir}/utils/inc/PalRingBuffer.h
+            ${top_srcdir}/utils/inc/PalRingBuffer.h \
+            ${top_srcdir}/utils/inc/SoundTriggerUtils.h
 
 AM_CPPFLAGS := -I $(top_srcdir)/stream/inc
 AM_CPPFLAGS += -I $(top_srcdir)/device/inc
@@ -154,7 +157,8 @@ pal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/session/src/SoundTriggerEngineCapi.cpp \
               ${top_srcdir}/resource_manager/src/ResourceManager.cpp \
               ${top_srcdir}/Pal.cpp \
-              ${top_srcdir}/utils/src/PalRingBuffer.cpp
+              ${top_srcdir}/utils/src/PalRingBuffer.cpp \
+              ${top_srcdir}/utils/src/SoundTriggerUtils.cpp
 
 endif
 

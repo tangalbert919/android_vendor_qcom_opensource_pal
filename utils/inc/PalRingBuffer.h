@@ -88,13 +88,15 @@ class PalRingBuffer {
 
     PalRingBufferReader* newReader();
 
-    int32_t removeReader(std::shared_ptr<PalRingBufferReader> reader);
+    int32_t removeReader(PalRingBufferReader *reader);
     size_t read(std::shared_ptr<PalRingBufferReader>reader, void* readBuffer,
                 size_t readSize);
     size_t write(void* writeBuffer, size_t writeSize);
     size_t getFreeSize();
     void updateIndices(uint32_t startIndice, uint32_t endIndice);
     void reset();
+    size_t getBufferSize() { return bufferEnd_; };
+    void resizeRingBuffer(size_t bufferSize);
 
  protected:
     std::mutex mutex_;
@@ -102,7 +104,7 @@ class PalRingBuffer {
     uint32_t startIndex;
     uint32_t endIndex;
     size_t writeOffset_;
-    const size_t bufferEnd_;
+    size_t bufferEnd_;
     std::vector<PalRingBufferReader*> readOffsets_;
     void updateUnReadSize(size_t writtenSize);
     friend class PalRingBufferReader;

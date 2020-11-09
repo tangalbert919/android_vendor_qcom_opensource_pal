@@ -72,11 +72,15 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
        Stream* stream_handle __unused,
        pal_stream_type_t stream_type __unused,
        std::shared_ptr<Device> device_to_disconnect __unused) { return 0; }
-    int32_t UpdateBufConfig(uint32_t hist_buffer_duration __unused,
+    int32_t UpdateBufConfig(Stream *s __unused,
+                            uint32_t hist_buffer_duration __unused,
                             uint32_t pre_roll_duration __unused) {
         return 0;
     }
+    void GetUpdatedBufConfig(uint32_t *hist_buffer_duration __unused,
+                            uint32_t *pre_roll_duration __unused) {}
     void SetCaptureRequested(bool is_requested __unused) {}
+    void ResetEngineInstance(Stream *s __unused) {}
     struct detection_event_info* GetDetectionEventInfo() { return nullptr; }
     int32_t setECRef(
         Stream *s __unused,

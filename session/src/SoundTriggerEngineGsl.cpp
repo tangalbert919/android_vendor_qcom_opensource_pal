@@ -51,6 +51,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
     int32_t status = 0;
+    Stream *s = nullptr;
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
@@ -68,8 +69,11 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             PAL_VERBOSE(LOG_TAG, "Exit thread");
             break;
         }
+        s = gsl_engine->GetDetectedStream();
+
         if (gsl_engine->capture_requested_) {
-            gsl_engine->StartBuffering();
+            if (s)
+                gsl_engine->StartBuffering(s);
         } else {
             // TODO: Work around to resume further detections.
             PAL_DBG(LOG_TAG, "HandleSessionEvent: reset engine");
@@ -78,15 +82,50 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 PAL_ERR(LOG_TAG, "Failed to reset detection engine, status = %d",
                         status);
             }
-            StreamSoundTrigger *s =
-                dynamic_cast<StreamSoundTrigger *>(gsl_engine->stream_handle_);
-            s->SetEngineDetectionState(GMM_DETECTED);
+            if (s) {
+                gsl_engine->CheckAndSetDetectionConfLevels(s);
+                StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+                st->SetEngineDetectionState(GMM_DETECTED);
+            }
         }
     }
     PAL_DBG(LOG_TAG, "Exit");
 }
 
-int32_t SoundTriggerEngineGsl::StartBuffering() {
+void SoundTriggerEngineGsl::CheckAndSetDetectionConfLevels(Stream *s) {
+
+   StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (detection_event_info_.num_confidence_levels <
+            eng_sm_info_->GetConfLevelsSize()) {
+        PAL_ERR(LOG_TAG, "detection event conf lvls %d < eng conf lvl size %d",
+            detection_event_info_.num_confidence_levels,
+            eng_sm_info_->GetConfLevelsSize());
+        return;
+    }
+    /* Reset any cached previous detection conf level values */
+    st->GetSoundModelInfo()->ResetDetConfLevels();
+
+    /* Extract the stream conf level values from SPF detection payload */
+    for (uint32_t i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+        if (!detection_event_info_.confidence_levels[i])
+            continue;
+        for (uint32_t j = 0; j < st->GetSoundModelInfo()->GetConfLevelsSize(); j++) {
+            if (!strcmp(st->GetSoundModelInfo()->GetConfLevelsKwUsers()[j],
+                 eng_sm_info_->GetConfLevelsKwUsers()[i])) {
+                 st->GetSoundModelInfo()->UpdateDetConfLevel(j,
+                   detection_event_info_.confidence_levels[i]);
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < st->GetSoundModelInfo()->GetConfLevelsSize(); i++)
+        PAL_DBG(LOG_TAG, "det_cf_levels[%d]-%d", i,
+            st->GetSoundModelInfo()->GetDetConfLevels()[i]);
+}
+
+int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     int32_t status = 0;
     int32_t size = 0;
     struct pal_buffer buf;
@@ -103,10 +142,9 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
     size_t ftrt_size = 0;
     bool timestamp_recorded = false;
     bool event_notified = false;
-    StreamSoundTrigger *s = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    stream_handle_->getBufInfo(&input_buf_size, &input_buf_num,
+    s->getBufInfo(&input_buf_size, &input_buf_num,
                                &output_buf_size, &output_buf_num);
     std::memset(&buf, 0, sizeof(struct pal_buffer));
     buf.size = input_buf_size * input_buf_num;
@@ -133,10 +171,10 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
             ATRACE_BEGIN("stEngine: lab read");
             if (total_read_size < ftrt_size && ftrt_size - total_read_size < buf.size) {
                 buf.size = ftrt_size - total_read_size;
-                status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+                status = session_->read(s, SHMEM_ENDPOINT, &buf, &size);
                 buf.size = input_buf_size * input_buf_num;
             } else {
-                status = session_->read(stream_handle_, SHMEM_ENDPOINT, &buf, &size);
+                status = session_->read(s, SHMEM_ENDPOINT, &buf, &size);
             }
             ATRACE_END();
             if (status) {
@@ -172,8 +210,22 @@ int32_t SoundTriggerEngineGsl::StartBuffering() {
             PAL_DBG(LOG_TAG, "Ftrt data read done");
             ATRACE_END();
 
-            s = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-            s->SetEngineDetectionState(GMM_DETECTED);
+            if (s) {
+                this->CheckAndSetDetectionConfLevels(s);
+                StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+                st->SetEngineDetectionState(GMM_DETECTED);
+            } else {
+                /*
+                 * Though we set higest conf level 100 for inactive stream in merged
+                 * sound model, it may be possible it still detects. In case the lab
+                 * is enabled due to other active stream, stop buffering.
+                 */
+                if (capture_requested_) {
+                    exit_buffering_ = true;
+                    if (buffer_)
+                        buffer_->reset();
+                }
+            }
 
             event_notified = true;
         }
@@ -301,6 +353,69 @@ exit:
     return status;
 }
 
+Stream* SoundTriggerEngineGsl::GetDetectedStream() {
+
+    StreamSoundTrigger *st = nullptr;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (eng_streams_.empty()) {
+        PAL_ERR(LOG_TAG, "Unexpected, No streams attached to engine!");
+        return nullptr;
+    }
+    /*
+     * If only single stream exists, this detection is not for merged/multi
+     * sound model, hence return this as only available stream
+     */
+    if (eng_streams_.size() == 1) {
+        st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[0]);
+        if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
+            st->GetCurrentStateId() == ST_STATE_DETECTED ||
+            st->GetCurrentStateId() == ST_STATE_BUFFERING) {
+            return eng_streams_[0];
+        } else {
+            PAL_ERR(LOG_TAG, "Detected stream is not in active state");
+            return nullptr;
+        }
+    }
+
+    if (detection_event_info_.num_confidence_levels <
+            eng_sm_info_->GetNumKeyPhrases()) {
+        PAL_ERR(LOG_TAG, "detection event conf levels %d < num of keyphrases %d",
+            detection_event_info_.num_confidence_levels,
+            eng_sm_info_->GetNumKeyPhrases());
+        return nullptr;
+    }
+
+    /*
+     * The DSP payload contains the keyword conf levels from the beginning.
+     * Only one keyword conf level is expected to be non-zero from keyword
+     * detection. Find non-zero conf level up to number of keyphrases and
+     * if one is found, match it to the corresponding keyphrase from list
+     * of streams to obtain the detected stream.
+     */
+    for (uint32_t i = 0; i < eng_sm_info_->GetNumKeyPhrases(); i++) {
+        if (!detection_event_info_.confidence_levels[i])
+            continue;
+        for (uint32_t j = 0; j < eng_streams_.size(); j++) {
+            st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[j]);
+            for (uint32_t k = 0; k < st->GetSoundModelInfo()->GetNumKeyPhrases(); k++) {
+                if (!strcmp(eng_sm_info_->GetKeyPhrases()[i],
+                            st->GetSoundModelInfo()->GetKeyPhrases()[k])) {
+                    if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
+                        st->GetCurrentStateId() == ST_STATE_DETECTED ||
+                        st->GetCurrentStateId() == ST_STATE_BUFFERING) {
+                        return eng_streams_[j];
+                    } else {
+                        PAL_ERR(LOG_TAG, "detected stream is not active");
+                        return nullptr;
+                    }
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
 SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     Stream *s,
     uint32_t id,
@@ -324,6 +439,8 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     custom_detection_event = nullptr;
     custom_detection_event_size = 0;
     builder_ = new PayloadBuilder();
+	eng_sm_info_ = new SoundModelInfo();
+    dev_disconnect_count_ = 0;
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
@@ -376,6 +493,9 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     if (reader_) {
         delete reader_;
     }
+    if (eng_sm_info_) {
+        delete eng_sm_info_;
+    }
     if (builder_) {
         delete builder_;
     }
@@ -383,6 +503,717 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
         delete session_;
     }
     PAL_INFO(LOG_TAG, "Exit");
+}
+
+int32_t SoundTriggerEngineGsl::QuerySoundModel(SoundModelInfo *sm_info,
+                                               uint8_t *data,
+                                               uint32_t data_size) {
+
+    listen_sound_model_header sml_header = {};
+    listen_model_type model = {};
+    listen_status_enum sml_ret = kSucess;
+    uint32_t status = 0;
+    std::shared_ptr<SoundModelLib>sml = SoundModelLib::GetInstance();
+
+    PAL_VERBOSE(LOG_TAG, "Enter: sound model size %d", data_size);
+
+    if (!sml || !sm_info) {
+        PAL_ERR(LOG_TAG, "soundmodel lib handle or model info NULL");
+        return -ENOSYS;
+    }
+
+    model.data = data;
+    model.size = data_size;
+
+    sml_ret = sml->GetSoundModelHeader_(&model, &sml_header);
+    if (sml_ret != kSucess) {
+        PAL_ERR(LOG_TAG, "GetSoundModelHeader_ failed, err %d ", sml_ret);
+        return -EINVAL;
+    }
+    if (sml_header.numKeywords == 0) {
+        PAL_ERR(LOG_TAG, "num keywords zero!");
+        return -EINVAL;
+    }
+
+    if (sml_header.numActiveUserKeywordPairs < sml_header.numUsers) {
+        PAL_ERR(LOG_TAG, "smlib activeUserKwPairs(%d) < total users (%d)",
+                sml_header.numActiveUserKeywordPairs, sml_header.numUsers);
+        goto cleanup;
+    }
+    if (sml_header.numUsers && !sml_header.userKeywordPairFlags) {
+        PAL_ERR(LOG_TAG, "userKeywordPairFlags is NULL, numUsers (%d)",
+                sml_header.numUsers);
+        goto cleanup;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "SML model.data %pK, model.size %d", model.data,
+            model.size);
+    status = sm_info->SetKeyPhrases(&model, sml_header.numKeywords);
+    if (status)
+        goto cleanup;
+
+    status = sm_info->SetUsers(&model, sml_header.numUsers);
+    if (status)
+        goto cleanup;
+
+    status = sm_info->SetConfLevels(sml_header.numActiveUserKeywordPairs,
+                                    sml_header.numUsersSetPerKw,
+                                    sml_header.userKeywordPairFlags);
+    if (status)
+        goto cleanup;
+
+    sml_ret = sml->ReleaseSoundModelHeader_(&sml_header);
+    if (sml_ret != kSucess) {
+        PAL_ERR(LOG_TAG, "ReleaseSoundModelHeader failed, err %d ", sml_ret);
+        status = -EINVAL;
+        goto cleanup_1;
+    }
+    PAL_VERBOSE(LOG_TAG, "exit");
+    return 0;
+
+cleanup:
+    sml_ret = sml->ReleaseSoundModelHeader_(&sml_header);
+    if (sml_ret != kSucess)
+        PAL_ERR(LOG_TAG, "ReleaseSoundModelHeader_ failed, err %d ", sml_ret);
+
+cleanup_1:
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::MergeSoundModels(uint32_t num_models,
+             listen_model_type *in_models[],
+             listen_model_type *out_model) {
+
+    listen_status_enum sm_ret = kSucess;
+    int32_t status = 0;
+    std::shared_ptr<SoundModelLib>sml = SoundModelLib::GetInstance();
+
+    if (!sml) {
+        PAL_ERR(LOG_TAG, "soundmodel lib handle NULL");
+        return -ENOSYS;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "num_models to merge %d", num_models);
+    sm_ret = sml->GetMergedModelSize_(num_models, in_models,
+        &out_model->size);
+    if ((sm_ret != kSucess) || !out_model->size) {
+        PAL_ERR(LOG_TAG, "GetMergedModelSize failed, err %d, size %d",
+            sm_ret, out_model->size);
+        return -EINVAL;
+    }
+    PAL_INFO(LOG_TAG, "merged sound model size %d", out_model->size);
+
+    out_model->data = (uint8_t *)calloc(1, out_model->size * sizeof(char));
+    if (!out_model->data) {
+        PAL_ERR(LOG_TAG, "Merged sound model allocation failed");
+        return -ENOMEM;
+    }
+
+    sm_ret = sml->MergeModels_(num_models, in_models, out_model);
+    if (sm_ret != kSucess) {
+        PAL_ERR(LOG_TAG, "MergeModels failed, err %d", sm_ret);
+        status = -EINVAL;
+        goto cleanup;
+    }
+    if (!out_model->data || !out_model->size) {
+        PAL_ERR(LOG_TAG, "MergeModels returned NULL data or size %d",
+              out_model->size);
+        status = -EINVAL;
+        goto cleanup;
+    }
+    PAL_DBG(LOG_TAG, "Exit, status: %d", status);
+    return 0;
+
+cleanup:
+    if (out_model->data) {
+        free(out_model->data);
+        out_model->data = nullptr;
+        out_model->size = 0;
+    }
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
+                                              uint32_t data_size){
+
+    int32_t status = 0;
+    uint32_t num_models = 0;
+    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    listen_model_type **in_models = nullptr;
+    listen_model_type out_model = {};
+    SoundModelInfo *sm_info;
+
+    PAL_VERBOSE(LOG_TAG, "Enter");
+    if (st->GetSoundModelInfo()->GetModelData()) {
+        PAL_DBG(LOG_TAG, "Stream model already added");
+        return 0;
+    }
+
+    /* Populate sound model info for the incoming stream model */
+    status = QuerySoundModel(st->GetSoundModelInfo(), data, data_size);
+    if (status) {
+        PAL_ERR(LOG_TAG, "QuerySoundModel failed status: %d", status);
+        return status;
+    }
+
+    st->GetSoundModelInfo()->SetModelData(data, data_size);
+
+    /* Check for remaining stream sound models to merge */
+    for (int i = 0; i < eng_streams_.size(); i++) {
+        StreamSoundTrigger *sst = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (s != eng_streams_[i] && sst && sst->GetSoundModelInfo()->GetModelData())
+             num_models++;
+    }
+
+    if (!num_models) {
+        PAL_DBG(LOG_TAG, "Copy model info from incoming stream to engine");
+        *eng_sm_info_ = *(st->GetSoundModelInfo());
+        sm_merged_ = false;
+        return 0;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "number of existing models: %d", num_models);
+    /*
+     * Merge this stream model with already existing merged model due to other
+     * streams models.
+     */
+    if (!eng_sm_info_) {
+        PAL_ERR(LOG_TAG, "eng_sm_info is NULL");
+        status = -EINVAL;
+        goto cleanup;
+    }
+
+    if (!eng_sm_info_->GetModelData()) {
+        if (num_models == 1) {
+            /*
+             * Its not a merged model yet, but engine sm_data is valid
+             * and must be pointing to single stream sm_data
+             */
+            PAL_ERR(LOG_TAG, "Model data is NULL, num_models: %d", num_models);
+            status = -EINVAL;
+            goto cleanup;
+        } else if (!sm_merged_) {
+            PAL_ERR(LOG_TAG, "Unexpected, no pre-existing merged model,"
+                  "num current models %d", num_models);
+            status = -EINVAL;
+            goto cleanup;
+        }
+    }
+
+    /* Merge this stream model with remaining streams models */
+    num_models = 2;
+    SoundModelInfo::AllocArrayPtrs((char***)&in_models, num_models,
+                                   sizeof(listen_model_type));
+    if (!in_models) {
+        PAL_ERR(LOG_TAG, "in_models allocation failed");
+        status = -ENOMEM;
+        goto cleanup;
+    }
+    /* Add existing model */
+    in_models[0]->data = eng_sm_info_->GetModelData();
+    in_models[0]->size = eng_sm_info_->GetModelSize();
+    /* Add incoming stream model */
+    in_models[1]->data = data;
+    in_models[1]->size = data_size;
+
+    status = MergeSoundModels(num_models, in_models, &out_model);
+    if (status) {
+        PAL_ERR(LOG_TAG, "merge models failed");
+        goto cleanup;
+    }
+    sm_info = new SoundModelInfo();
+    sm_info->SetModelData(out_model.data, out_model.size);
+
+    /* Populate sound model info for the merged stream models */
+    status = QuerySoundModel(sm_info, out_model.data, out_model.size);
+    if (status) {
+        delete sm_info;
+        goto cleanup;
+    }
+
+    if (out_model.size < eng_sm_info_->GetModelSize()) {
+        PAL_ERR(LOG_TAG, "Unexpected, merged model sz %d < current sz %d",
+            out_model.size, eng_sm_info_->GetModelSize());
+        delete sm_info;
+        status = -EINVAL;
+        goto cleanup;
+    }
+    SoundModelInfo::FreeArrayPtrs((char **)in_models, num_models);
+    in_models = nullptr;
+
+    /* Update the new merged model */
+    PAL_INFO(LOG_TAG, "Updated sound model: current size %d, new size %d",
+        eng_sm_info_->GetModelSize(), out_model.size);
+    *eng_sm_info_ = *sm_info;
+    sm_merged_ = true;
+
+    delete sm_info;
+    PAL_DBG(LOG_TAG, "Exit: status %d", status);
+    return 0;
+cleanup:
+    if (out_model.data)
+        free(out_model.data);
+
+    if (in_models)
+        SoundModelInfo::FreeArrayPtrs((char **)in_models, num_models);
+
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::DeleteFromMergedModel(char **keyphrases,
+    uint32_t num_keyphrases, listen_model_type *in_model,
+    listen_model_type *out_model) {
+
+    listen_model_type merge_model = {};
+    listen_status_enum sm_ret = kSucess;
+    uint32_t out_model_sz = 0;
+    int32_t status = 0;
+    std::shared_ptr<SoundModelLib>sml = SoundModelLib::GetInstance();
+
+    out_model->data = nullptr;
+    out_model->size = 0;
+    merge_model.data = in_model->data;
+    merge_model.size = in_model->size;
+
+    for (uint32_t i = 0; i < num_keyphrases; i++) {
+        sm_ret = sml->GetSizeAfterDeleting_(&merge_model, keyphrases[i],
+                                                   nullptr, &out_model_sz);
+        if (sm_ret != kSucess) {
+            PAL_ERR(LOG_TAG, "GetSizeAfterDeleting failed %d", sm_ret);
+            status = -EINVAL;
+            goto cleanup;
+        }
+        if (out_model_sz >= in_model->size) {
+            PAL_ERR(LOG_TAG, "unexpected, GetSizeAfterDeleting returned size %d"
+                  "not less than merged model size %d",
+                  out_model_sz, in_model->size);
+            status = -EINVAL;
+            goto cleanup;
+        }
+        PAL_VERBOSE(LOG_TAG, "Size after deleting kw[%d] = %d", i, out_model_sz);
+        if (!out_model->data) {
+            /* Valid if deleting multiple keyphrases one after other */
+            free(out_model->data);
+            out_model->size = 0;
+        }
+        out_model->data = (uint8_t *)calloc(1, out_model_sz * sizeof(char));
+        if (!out_model->data) {
+            PAL_ERR(LOG_TAG, "Merge sound model allocation failed, size %d ",
+                  out_model_sz);
+            status = -ENOMEM;
+            goto cleanup;
+        }
+        out_model->size = out_model_sz;
+
+        sm_ret = sml->DeleteFromModel_(&merge_model, keyphrases[i],
+                                              nullptr, out_model);
+        if (sm_ret != kSucess) {
+            PAL_ERR(LOG_TAG, "DeleteFromModel failed %d", sm_ret);
+            status = -EINVAL;
+            goto cleanup;
+        }
+        if (out_model->size != out_model_sz) {
+            PAL_ERR(LOG_TAG, "unexpected, out_model size %d != expected size %d",
+                  out_model->size, out_model_sz);
+            status = -EINVAL;
+            goto cleanup;
+        }
+        /* Used if deleting multiple keyphrases one after other */
+        merge_model.data = out_model->data;
+        merge_model.size = out_model->size;
+    }
+    return 0;
+
+cleanup:
+    if (out_model->data) {
+        free(out_model->data);
+        out_model->data = nullptr;
+    }
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
+
+    int32_t status = 0;
+    uint32_t num_models = 0;
+    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+    StreamSoundTrigger *rem_st = nullptr;
+    listen_model_type in_model = {};
+    listen_model_type out_model = {};
+    SoundModelInfo *sm_info = nullptr;
+
+    PAL_VERBOSE(LOG_TAG, "Enter");
+    if (!st->GetSoundModelInfo()->GetModelData()) {
+        PAL_DBG(LOG_TAG, "Stream model data already deleted");
+        return 0;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "sm_data %pK, sm_size %d",
+          st->GetSoundModelInfo()->GetModelData(),
+          st->GetSoundModelInfo()->GetModelSize());
+
+    /* Check for remaining streams sound models to merge */
+    for (int i = 0; i < eng_streams_.size(); i++) {
+        StreamSoundTrigger *sst = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (s != eng_streams_[i] && sst) {
+             if (sst->GetSoundModelInfo() &&
+                 sst->GetSoundModelInfo()->GetModelData()) {
+                 rem_st = sst;
+                 num_models++;
+                 PAL_DBG(LOG_TAG, "num_models: %d", num_models);
+             }
+        }
+    }
+
+    if (num_models == 0) {
+        PAL_DBG(LOG_TAG, "No remaining models");
+        return 0;
+    }
+    if (num_models == 1) {
+        PAL_DBG(LOG_TAG, "reuse only remaining stream model, size %d",
+            rem_st->GetSoundModelInfo()->GetModelSize());
+        /* If only one remaining stream model exists, re-use it */
+        *eng_sm_info_ = *(rem_st->GetSoundModelInfo());
+        wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
+        for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+        }
+        sm_merged_ = false;
+        return 0;
+    }
+
+    /*
+     * Delete this stream model with already existing merged model due to other
+     * streams models.
+     */
+    if (!sm_merged_ || !(eng_sm_info_->GetModelData())) {
+        PAL_ERR(LOG_TAG, "Unexpected, no pre-existing merged model to delete from,"
+              "num current models %d", num_models);
+        goto cleanup;
+    }
+
+    /* Existing merged model from which the current stream model to be deleted */
+    in_model.data = eng_sm_info_->GetModelData();
+    in_model.size = eng_sm_info_->GetModelSize();
+
+    status = DeleteFromMergedModel(st->GetSoundModelInfo()->GetKeyPhrases(),
+        st->GetSoundModelInfo()->GetNumKeyPhrases(),
+        &in_model, &out_model);
+
+    if (status)
+        goto cleanup;
+    sm_info = new SoundModelInfo();
+    sm_info->SetModelData(out_model.data, out_model.size);
+
+    /* Update existing merged model info with new merged model */
+    status = QuerySoundModel(sm_info, out_model.data,
+                               out_model.size);
+    if (status)
+        goto cleanup;
+
+    if (out_model.size > eng_sm_info_->GetModelSize()) {
+        PAL_ERR(LOG_TAG, "Unexpected, merged model sz %d > current sz %d",
+            out_model.size, eng_sm_info_->GetModelSize());
+        delete sm_info;
+        status = -EINVAL;
+        goto cleanup;
+    }
+
+    PAL_INFO(LOG_TAG, "Updated sound model: current size %d, new size %d",
+        eng_sm_info_->GetModelSize(), out_model.size);
+
+    *eng_sm_info_ = *sm_info;
+    sm_merged_ = true;
+
+    return 0;
+
+cleanup:
+    if (out_model.data)
+        free(out_model.data);
+
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateEngineModel(Stream *s, uint8_t *data,
+                                                 uint32_t data_size, bool add) {
+
+    int32_t status = 0;
+
+    if (add)
+        status = AddSoundModel(s, data, data_size);
+    else
+        status = DeleteSoundModel(s);
+
+    PAL_DBG(LOG_TAG, "Exit, status: %d", status);
+    return status;
+}
+
+bool SoundTriggerEngineGsl::IsAnyStreamInState(st_state_id_t state, Stream **s) {
+
+    StreamSoundTrigger *st_str = nullptr;
+
+    for (int i = 0; i < eng_streams_.size(); i++) {
+        st_str = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (st_str && (st_str->GetCurrentStateId() == state)) {
+            *s = eng_streams_[i];
+            PAL_VERBOSE(LOG_TAG, "Found a stream %pK in state: %d", *s, state);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SoundTriggerEngineGsl::IsOtherStreamInState(st_state_id_t state, Stream *s) {
+
+    StreamSoundTrigger *st_str = nullptr;
+
+    for (int i = 0; i < eng_streams_.size(); i++) {
+        if (s == eng_streams_[i])
+           continue;
+        st_str = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (st_str && (st_str->GetCurrentStateId() == state))
+            return true;
+    }
+    return false;
+}
+
+void SoundTriggerEngineGsl::CheckOtherStreamStates(st_state_id_t *restore_state) {
+
+    Stream *s = nullptr;
+
+    PAL_VERBOSE(LOG_TAG, "Enter");
+    if ((IsAnyStreamInState(ST_STATE_BUFFERING, &s) ||
+        IsAnyStreamInState(ST_STATE_ACTIVE, &s) ||
+        IsAnyStreamInState(ST_STATE_DETECTED, &s))) {
+        PAL_INFO(LOG_TAG, "Other stream(s) active, stopping recognition");
+        this->ProcessStopRecognition(s);
+        *restore_state = ST_STATE_ACTIVE;
+    }
+}
+
+int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsPayload(
+                               SoundModelInfo *src_sm_info,
+                               bool set) {
+
+    if (!src_sm_info) {
+        PAL_ERR(LOG_TAG, "src sm info NULL");
+        return -EINVAL;
+    }
+
+    if (!sm_merged_) {
+        PAL_DBG(LOG_TAG, "Soundmodel is not merged, return");
+        return 0;
+    }
+
+    if (src_sm_info->GetConfLevelsSize() > eng_sm_info_->GetConfLevelsSize()) {
+        PAL_ERR(LOG_TAG, "Unexpected, stream conf levels sz > eng conf levels sz");
+        return -EINVAL;
+    }
+
+    for (uint32_t i = 0; i < src_sm_info->GetConfLevelsSize(); i++)
+        PAL_VERBOSE(LOG_TAG, "source cf levels[%d] = %d for %s", i,
+            src_sm_info->GetConfLevels()[i], src_sm_info->GetConfLevelsKwUsers()[i]);
+
+    /* Populate DSP merged sound model conf levels */
+    for (uint32_t i = 0; i < src_sm_info->GetConfLevelsSize(); i++) {
+        for (uint32_t j = 0; j < eng_sm_info_->GetConfLevelsSize(); j++) {
+            if (!strcmp(eng_sm_info_->GetConfLevelsKwUsers()[j],
+                        src_sm_info->GetConfLevelsKwUsers()[i])) {
+                if (set) {
+                    eng_sm_info_->UpdateConfLevel(j, src_sm_info->GetConfLevels()[i]);
+                    PAL_DBG(LOG_TAG, "set: cf_levels[%d]=%d",
+                          j, eng_sm_info_->GetConfLevels()[j]);
+                } else {
+                    eng_sm_info_->UpdateConfLevel(j, MAX_CONF_LEVEL_VALUE);
+                    PAL_DBG(LOG_TAG, "reset: cf_levels[%d]=%d",
+                          j, eng_sm_info_->GetConfLevels()[j]);
+                }
+            }
+        }
+    }
+
+    for (uint32_t i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++)
+        PAL_ERR(LOG_TAG, "engine cf_levels[%d] = %d",
+            i, eng_sm_info_->GetConfLevels()[i]);
+
+    return 0;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsWithActiveStreams() {
+
+    int32_t status = 0;
+    StreamSoundTrigger *st_str = nullptr;
+
+    for (int i = 0; i < eng_streams_.size(); i++) {
+        st_str = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (st_str && st_str->GetCurrentStateId() == ST_STATE_ACTIVE) {
+            PAL_VERBOSE(LOG_TAG, "update merge conf levels with other active streams");
+            status = UpdateMergeConfLevelsPayload(st_str->GetSoundModelInfo(),
+                        true);
+            if (status)
+                return status;
+        }
+    }
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
+                                                     uint32_t data_size) {
+
+    int32_t status = 0;
+    st_state_id_t restore_state = ST_STATE_IDLE;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    std::unique_lock<std::mutex> lck(mutex_);
+
+    /*
+     * Check the states of all existing streams and identify the state for
+     * restore. If the state is active/detected/buffering, stop the
+     * recognition of engine as well
+     */
+    CheckOtherStreamStates(&restore_state);
+
+    /* Unload the current sound model */
+    exit_thread_ = true;
+    exit_buffering_ = true;
+    if (buffer_thread_handler_.joinable()) {
+        cv_.notify_one();
+        lck.unlock();
+        buffer_thread_handler_.join();
+        lck.lock();
+        PAL_INFO(LOG_TAG, "Thread joined");
+    }
+    status = session_->close(eng_streams_[0]);
+    if (status)
+        PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+
+    /* Update the engine with merged sound model */
+    status = UpdateEngineModel(s, data, data_size, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+        goto exit;
+    }
+
+    /*
+     * Sound model merge would have changed the order of merge conf levels,
+     * which need to be re-updated for all current active streams, if any.
+     */
+    status = UpdateMergeConfLevelsWithActiveStreams();
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update merge conf levels, status = %d", status);
+        goto exit;
+    }
+
+    /* Load the updated/merged sound model */
+    status = session_->open(eng_streams_[0]);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
+        goto exit;
+    }
+
+    status = UpdateSessionPayload(LOAD_SOUND_MODEL);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d", status);
+        session_->close(eng_streams_[0]);
+        goto exit;
+    }
+
+    exit_thread_ = false;
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
+                status);
+        session_->close(eng_streams_[0]);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    /* If the restore state is active, start the recognition */
+    if (restore_state == ST_STATE_ACTIVE)
+        status = ProcessStartRecognition(eng_streams_[0]);
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
+
+    int32_t status = 0;
+    st_state_id_t restore_state = ST_STATE_IDLE;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    std::unique_lock<std::mutex> lck(mutex_);
+
+    /* Check the states of all existing streams and identify the state for restore */
+    CheckOtherStreamStates(&restore_state);
+
+    /* Unload the current sound model */
+    exit_thread_ = true;
+    exit_buffering_ = true;
+    if (buffer_thread_handler_.joinable()) {
+        cv_.notify_one();
+        lck.unlock();
+        buffer_thread_handler_.join();
+        lck.lock();
+        PAL_INFO(LOG_TAG, "Thread joined");
+    }
+    status = session_->close(eng_streams_[0]);
+    if (status)
+        PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+
+    /* Update the engine with modified sound model after deletion */
+    status = UpdateEngineModel(s, nullptr, 0, false);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
+        goto exit;
+    }
+    /*
+     * Sound model merge would have changed the order of merge conf levels,
+     * which need to be re-updated for all current active streams, if any.
+     */
+    status = UpdateMergeConfLevelsWithActiveStreams();
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update merge conf levels, status = %d", status);
+        goto exit;
+    }
+
+    /* Load the updated/merged sound model */
+    status = session_->open(eng_streams_[0]);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
+        goto exit;
+    }
+
+    status = UpdateSessionPayload(LOAD_SOUND_MODEL);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d", status);
+        session_->close(eng_streams_[0]);
+        goto exit;
+    }
+
+    exit_thread_ = false;
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
+                status);
+        session_->close(eng_streams_[0]);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    /* If the restore state is active, start the recognition */
+    if (restore_state == ST_STATE_ACTIVE)
+        status = ProcessStartRecognition(eng_streams_[0]);
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    return status;
 }
 
 int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
@@ -396,21 +1227,35 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
         return status;
     }
 
-    std::lock_guard<std::mutex> lck(mutex_);
+    std::unique_lock<std::mutex> lck(mutex_);
+
+    /* Check whether any stream is already attached to this engine */
+    if (CheckIfOtherStreamsAttached(s)) {
+        lck.unlock();
+        status = HandleMultiStreamLoad(s, data, data_size);
+        lck.lock();
+        goto exit;
+    }
+
     status = session_->open(s);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to open session, status = %d", status);
-        return status;
+        goto exit;
     }
 
-    sm_data_ = data;
-    sm_data_size_ = data_size;
+    /* Update the engine with sound model */
+    status = UpdateEngineModel(s, data, data_size, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+        session_->close(s);
+        goto exit;
+    }
 
     status = UpdateSessionPayload(LOAD_SOUND_MODEL);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to load sound model, status = %d", status);
+        PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d", status);
         session_->close(s);
-        return status;
+        goto exit;
     }
 
     exit_thread_ = false;
@@ -422,7 +1267,12 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
                 status);
         session_->close(s);
         status = -EINVAL;
+        goto exit;
     }
+exit:
+    if (!status)
+        eng_streams_.push_back(s);
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -432,6 +1282,15 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
     std::unique_lock<std::mutex> lck(mutex_);
+
+    /* Check whether any stream is already attached to this engine */
+    if (CheckIfOtherStreamsAttached(s)) {
+        lck.unlock();
+        status = HandleMultiStreamUnload(s);
+        lck.lock();
+        goto exit;
+    }
+
     exit_thread_ = true;
     exit_buffering_ = true;
     if (buffer_thread_handler_.joinable()) {
@@ -454,16 +1313,20 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
     sm_data_ = nullptr;
     sm_data_size_ = 0;
-
+    /* Delete the sound model in engine */
+    status = UpdateEngineModel(s, nullptr, 0, false);
+    if (status)
+        PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+exit:
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
+int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
+
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mutex_);
     exit_buffering_ = false;
 
     // release custom detection event before start
@@ -491,13 +1354,13 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s __unused) {
         goto exit;
     }
 
-    status = session_->prepare(stream_handle_);
+    status = session_->prepare(s);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to prepare session, status = %d", status);
         goto exit;
     }
 
-    status = session_->start(stream_handle_);
+    status = session_->start(s);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to start session, status = %d", status);
         goto exit;
@@ -508,12 +1371,29 @@ exit:
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
+int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    st_state_id_t restore_state = ST_STATE_IDLE;
+    std::lock_guard<std::mutex> lck(mutex_);
+
+    CheckOtherStreamStates(&restore_state);
+
+    status = ProcessStartRecognition(s);
+    if (0 != status)
+        PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+    UpdateEngineConfigOnRestart(s);
     if (buffer_) {
         buffer_->reset();
     }
@@ -532,10 +1412,10 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
         PAL_ERR(LOG_TAG, "Failed to reset engine, status = %d",
                 status);
     }
-    status = session_->stop(stream_handle_);
+    status = session_->stop(s);
     if (!status) {
         exit_buffering_ = false;
-        status = session_->start(stream_handle_);
+        status = session_->start(s);
         if (status) {
             PAL_ERR(LOG_TAG, "start session failed, status = %d",
                     status);
@@ -548,12 +1428,10 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s __unused) {
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
+int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG, "Enter");
-    exit_buffering_ = true;
-    std::lock_guard<std::mutex> lck(mutex_);
+    PAL_VERBOSE(LOG_TAG, "Enter");
     if (buffer_) {
         buffer_->reset();
     }
@@ -568,7 +1446,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
                 status);
     }
 
-    status = session_->stop(stream_handle_);
+    status = session_->stop(s);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
     }
@@ -577,54 +1455,239 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s __unused) {
     return status;
 }
 
+int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    exit_buffering_ = true;
+
+    std::lock_guard<std::mutex> lck(mutex_);
+    status = ProcessStopRecognition(s);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Failed to stop recognition, status = %d", status);
+        goto exit;
+    }
+
+    if (CheckIfOtherStreamsAttached(s)) {
+        if (IsOtherStreamInState(ST_STATE_BUFFERING, s) ||
+            IsOtherStreamInState(ST_STATE_ACTIVE, s) ||
+            IsOtherStreamInState(ST_STATE_DETECTED, s)) {
+            PAL_INFO(LOG_TAG, "Other stream is active, restart engine recognition");
+            UpdateEngineConfigOnStop(s);
+            status = ProcessStartRecognition(eng_streams_[0]);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+                goto exit;
+            }
+        }
+    }
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    return status;
+}
+
+bool SoundTriggerEngineGsl::CheckIfOtherStreamsAttached(Stream *s) {
+    for (uint32_t i = 0; i < eng_streams_.size(); i++)
+        if (s != eng_streams_[i])
+            return true;
+
+    return false;
+}
+
 int32_t SoundTriggerEngineGsl::UpdateConfLevels(
-    Stream *s __unused,
+    Stream *s,
     struct pal_st_recognition_config *config,
     uint8_t *conf_levels,
     uint32_t num_conf_levels) {
 
     int32_t status = 0;
+    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
     std::lock_guard<std::mutex> lck(mutex_);
-    if (!config) {
+    if (!config || !conf_levels) {
         status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid config, status %d", status);
-        return -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid config or conf levels, status %d", status);
+        goto exit;
+    }
+
+    PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
+
+    if (st->GetSoundModelInfo()->GetConfLevelsSize() != num_conf_levels) {
+        PAL_ERR(LOG_TAG, "Unexpected, stream cf levels %d != sm_info cf levels %d",
+                num_conf_levels, st->GetSoundModelInfo()->GetConfLevelsSize());
+        status = -EINVAL;
+        goto exit;
+    }
+    /*
+     * Cache it to use when stream restarts without config update or
+     * during only one remaining stream model as there won't be a
+     * merged model yet.
+     */
+    st->GetSoundModelInfo()->UpdateConfLevelArray(conf_levels,
+        num_conf_levels);
+
+    status = UpdateMergeConfLevelsPayload(st->GetSoundModelInfo(), true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Update merge conf levels failed %d", status);
+        goto exit;
     }
 
     if (is_qcva_uuid_ || is_qcmd_uuid_) {
-        PAL_VERBOSE(LOG_TAG, "Enter, config: %pK", config);
-        wakeup_config_.mode = config->phrases[0].recognition_modes;
-        wakeup_config_.custom_payload_size = config->data_size;
-        wakeup_config_.num_active_models = num_conf_levels;
-        wakeup_config_.reserved = 0;
-        for (int i = 0; i < wakeup_config_.num_active_models; i++) {
-            wakeup_config_.confidence_levels[i] = conf_levels[i];
-            wakeup_config_.keyword_user_enables[i] = 1;
+	    if (!CheckIfOtherStreamsAttached(s)) {
+	        wakeup_config_.mode = config->phrases[0].recognition_modes;
+	        wakeup_config_.custom_payload_size = config->data_size;
+	        wakeup_config_.num_active_models = num_conf_levels;
+	        wakeup_config_.reserved = 0;
+	        for (int i = 0; i < wakeup_config_.num_active_models; i++) {
+	            wakeup_config_.confidence_levels[i] = conf_levels[i];
+	            wakeup_config_.keyword_user_enables[i] =
+	                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+	            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+	        }
+	    } else {
+	        /* Update recognition mode considering all streams */
+	        if (wakeup_config_.mode != config->phrases[0].recognition_modes)
+	            wakeup_config_.mode |= config->phrases[0].recognition_modes;
+
+	        wakeup_config_.custom_payload_size = config->data_size;
+	        wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
+	        wakeup_config_.reserved = 0;
+	        for (int i = 0; i < wakeup_config_.num_active_models; i++) {
+	            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+	            wakeup_config_.keyword_user_enables[i] =
+	                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+	            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+	        }
+            }
+        } else {
+            custom_data_size = config->data_size;
+            custom_data = (uint8_t *)calloc(1, custom_data_size);
+            if (!custom_data) {
+                PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
+                status = -ENOMEM;
+                goto exit;
+            }
+            ar_mem_cpy(custom_data, custom_data_size,
+                (uint8_t *)config + config->data_offset, custom_data_size);
         }
-    } else {
-        custom_data_size = config->data_size;
-        custom_data = (uint8_t *)calloc(1, custom_data_size);
-        if (!custom_data) {
-            PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
-            return -ENOMEM;
-        }
-        ar_mem_cpy(custom_data, custom_data_size,
-            (uint8_t *)config + config->data_offset, custom_data_size);
-    }
+
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
 
-int32_t SoundTriggerEngineGsl::UpdateBufConfig(
+int32_t SoundTriggerEngineGsl::UpdateBufConfig(Stream *s,
     uint32_t hist_buffer_duration,
     uint32_t pre_roll_duration) {
 
     int32_t status = 0;
 
-    buffer_config_.hist_buffer_duration_in_ms = hist_buffer_duration;
-    buffer_config_.pre_roll_duration_in_ms = pre_roll_duration;
+    if (!CheckIfOtherStreamsAttached(s)) {
+        buffer_config_.hist_buffer_duration_in_ms = hist_buffer_duration;
+        buffer_config_.pre_roll_duration_in_ms = pre_roll_duration;
+    } else {
+        if (hist_buffer_duration > buffer_config_.hist_buffer_duration_in_ms)
+            buffer_config_.hist_buffer_duration_in_ms = hist_buffer_duration;
+        if (pre_roll_duration > buffer_config_.pre_roll_duration_in_ms)
+            buffer_config_.pre_roll_duration_in_ms = pre_roll_duration;
+    }
+    PAL_DBG(LOG_TAG, "updated hist buf:%d msec, pre roll:%d msec",
+        buffer_config_.hist_buffer_duration_in_ms,
+        buffer_config_.pre_roll_duration_in_ms);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnStop(Stream *s) {
+
+    int32_t status = 0;
+    StreamSoundTrigger *st = nullptr;
+    bool is_any_stream_active = false, enable_lab = false;
+    uint32_t hb_duration = 0, pr_duration = 0;
+
+    /* If there is only single stream, do nothing */
+    if (!CheckIfOtherStreamsAttached(s))
+        return 0;
+
+    /*
+     * Adjust history buffer and preroll durations to highest of
+     * remaining streams.
+     */
+    for (uint32_t i = 0; i < eng_streams_.size(); i++) {
+        st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (s != eng_streams_[i] && st && st->GetCurrentStateId() == ST_STATE_ACTIVE) {
+            is_any_stream_active = true;
+            if (hb_duration < st->GetHistBufDuration())
+                hb_duration = st->GetHistBufDuration();
+            if (pr_duration < st->GetPreRollDuration())
+                pr_duration = st->GetPreRollDuration();
+            if (!enable_lab)
+                enable_lab = st->IsCaptureRequested();
+        }
+    }
+
+    if (!is_any_stream_active) {
+        PAL_DBG(LOG_TAG, "No stream is active, reset engine config");
+        buffer_config_.hist_buffer_duration_in_ms = 0;
+        buffer_config_.pre_roll_duration_in_ms = 0;
+        capture_requested_ = false;
+        return 0;
+    }
+
+    buffer_config_.hist_buffer_duration_in_ms = hb_duration;
+    buffer_config_.pre_roll_duration_in_ms = pr_duration;
+    capture_requested_ = enable_lab;
+
+    /* Update the merged conf levels considering this stream stop */
+    StreamSoundTrigger *stopped_st = dynamic_cast<StreamSoundTrigger *>(s);
+    status = UpdateMergeConfLevelsPayload(stopped_st->GetSoundModelInfo(), false);
+    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+        wakeup_config_.keyword_user_enables[i] =
+            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    }
+
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
+
+    int32_t status = 0;
+    StreamSoundTrigger *st = nullptr;
+    uint32_t hb_duration = 0, pr_duration = 0;
+    bool enable_lab = false;
+
+    /*
+     * Adjust history buffer and preroll durations to highest of
+     * all streams, including current restarting stream.
+     */
+    for (uint32_t i = 0; i < eng_streams_.size(); i++) {
+        st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (s == eng_streams_[i] || st->GetCurrentStateId() == ST_STATE_ACTIVE) {
+            if (hb_duration < st->GetHistBufDuration())
+                hb_duration = st->GetHistBufDuration();
+            if (pr_duration < st->GetPreRollDuration())
+                pr_duration = st->GetPreRollDuration();
+            if (!enable_lab)
+                enable_lab = st->IsCaptureRequested();
+        }
+    }
+
+    buffer_config_.hist_buffer_duration_in_ms = hb_duration;
+    buffer_config_.pre_roll_duration_in_ms = pr_duration;
+    capture_requested_ = enable_lab;
+
+    /* Update the merged conf levels considering this stream restarted as well */
+    StreamSoundTrigger *restarted_st = dynamic_cast<StreamSoundTrigger *>(s);
+    status = UpdateMergeConfLevelsPayload(restarted_st->GetSoundModelInfo(), true);
+    for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
+        wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+        wakeup_config_.keyword_user_enables[i] =
+            (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+        PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+    }
 
     return status;
 }
@@ -740,9 +1803,13 @@ int32_t SoundTriggerEngineGsl::ConnectSessionDevice(
 
     int32_t status = 0;
 
-    status = session_->connectSessionDevice(stream_handle, stream_type,
+    if (dev_disconnect_count_ == 0)
+        status = session_->connectSessionDevice(stream_handle, stream_type,
                                             device_to_connect);
+    if (status != 0)
+        dev_disconnect_count_++;
 
+    PAL_DBG(LOG_TAG, "dev_disconnect_count_: %d", dev_disconnect_count_);
     return status;
 }
 
@@ -753,9 +1820,13 @@ int32_t SoundTriggerEngineGsl::DisconnectSessionDevice(
 
     int32_t status = 0;
 
-    status = session_->disconnectSessionDevice(stream_handle, stream_type,
+    dev_disconnect_count_++;
+    if (dev_disconnect_count_ == eng_streams_.size())
+        status = session_->disconnectSessionDevice(stream_handle, stream_type,
                                                device_to_disconnect);
-
+    if (status != 0)
+        dev_disconnect_count_--;
+    PAL_DBG(LOG_TAG, "dev_disconnect_count_: %d", dev_disconnect_count_);
     return status;
 }
 
@@ -766,15 +1837,24 @@ int32_t SoundTriggerEngineGsl::SetupSessionDevice(
 
     int32_t status = 0;
 
-    status = session_->setupSessionDevice(stream_handle, stream_type,
-                                          device_to_disconnect);
+    dev_disconnect_count_--;
+    if (dev_disconnect_count_ < 0)
+        dev_disconnect_count_ = 0;
 
+    if (dev_disconnect_count_ == 0)
+        status = session_->setupSessionDevice(stream_handle, stream_type,
+                                          device_to_disconnect);
+    if (status != 0)
+        dev_disconnect_count_++;
+
+    PAL_DBG(LOG_TAG, "dev_disconnect_count_: %d", dev_disconnect_count_);
     return status;
 }
 
 void SoundTriggerEngineGsl::SetCaptureRequested(bool is_requested) {
-    PAL_DBG(LOG_TAG, "setting capture requested %d", is_requested);
-    capture_requested_ = is_requested;
+    capture_requested_ |= is_requested;
+    PAL_DBG(LOG_TAG, "capture requested %d, set to engine %d",
+        is_requested, capture_requested_);
 }
 
 struct detection_event_info* SoundTriggerEngineGsl::GetDetectionEventInfo() {
@@ -830,11 +1910,9 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
         case LOAD_SOUND_MODEL:
         {
             ses_param_id = PAL_PARAM_ID_LOAD_SOUND_MODEL;
-            // TODO: update this after sound model feature merged
-            struct pal_st_sound_model *common_sm =
-                (struct pal_st_sound_model *)sm_data_;
+            /* Set payload data and size from engine's sound model info */
             status = builder_->payloadSVAConfig(&payload, &payload_size,
-                sm_data_ + common_sm->data_offset, common_sm->data_size,
+                eng_sm_info_->GetModelData(), eng_sm_info_->GetModelSize(),
                 miid, param_id);
             break;
         }
@@ -913,4 +1991,28 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
     }
 
     return status;
+}
+std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::eng_ =
+    nullptr;
+
+std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
+            Stream *s, uint32_t id, listen_model_indicator_enum type) {
+    if (!eng_)
+        eng_ = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
+
+    return eng_;
+}
+
+void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
+
+    if (s) {
+        auto iter = std::find(eng_streams_.begin(), eng_streams_.end(), s);
+        if (iter != eng_streams_.end())
+            eng_streams_.erase(iter);
+    }
+    if (!eng_streams_.size()) {
+        PAL_VERBOSE(LOG_TAG, "reset the engine instance to be freed");
+        eng_.reset();
+        eng_ = nullptr;
+    }
 }
