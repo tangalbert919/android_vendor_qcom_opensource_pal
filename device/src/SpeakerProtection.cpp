@@ -50,6 +50,9 @@
 #define SPKR_RIGHT_WSA_TEMP "SpkrRight WSA Temp"
 #define SPKR_LEFT_WSA_TEMP "SpkrLeft WSA Temp"
 
+#define SPKR_RIGHT_WSA_DEV_NUM "SpkrRight WSA Get DevNum"
+#define SPKR_LEFT_WSA_DEV_NUM "SpkrLeft WSA Get DevNum"
+
 #define TZ_TEMP_MIN_THRESHOLD    (5)
 #define TZ_TEMP_MAX_THRESHOLD    (45)
 
@@ -91,6 +94,75 @@ int SpeakerProtection::numberOfRequest;
 bool SpeakerProtection::mDspCallbackRcvd;
 std::shared_ptr<Device> SpeakerFeedback::obj = nullptr;
 int SpeakerFeedback::numSpeaker;
+
+int32_t FourOhmTable_GaindB_q24[SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE] =
+        {0x53e1f24, 0x8a6f830, 0xae85307, 0xc6c65a9, 0xd68c132, 0xdf7b2bf,
+         0xe5de0fa, 0xec86429, 0xf67e253, 0x5be1ce3, 0x8c1ef2d, 0xab7a418,
+         0xc2ee9bb, 0xd454e60, 0xddc3fe5, 0xe42de78, 0xeb0c869, 0xf57a079,
+         0x5dc82c3, 0x8de921e, 0xaaca757, 0xc238e9b, 0xd3d1bd7, 0xdc676a7,
+         0xe2ca47b, 0xe9d6fad, 0xf41b4e3, 0x615d39f, 0x8e173aa, 0xab1369d,
+         0xc333572, 0xd41bd88, 0xde61431, 0xe4b020b, 0xec0d352, 0xf68031d,
+         0x5fd76b2, 0x8cb5dc7, 0xaad6a38, 0xc159c21, 0xd368cab, 0xdd9dec8,
+         0xe425e68, 0xeb634cd, 0xf602c14, 0x5e5b300, 0x8bf9050, 0xa95f594,
+         0xbf0ad5f, 0xd25df4c, 0xdcc69f5, 0xe372339, 0xeacb2a8, 0xf539721,
+         0x5d90ba3, 0x8b86beb, 0xa84ba58, 0xbd21ac6, 0xd19be21, 0xdbf8b1c,
+         0xe2b738a, 0xea05a24, 0xf4c647e, 0x5cfc05c, 0x8b13bb3, 0xa713800,
+         0xbaca286, 0xd06da85, 0xdaf4a5c, 0xe114414, 0xe938ec3, 0xf3d0ea6,
+         0x5c2d809, 0x8737374, 0xa385c3c, 0xb8f36d1, 0xcbdd817, 0xd6c9a21,
+         0xdda3c94, 0xe524419, 0xefda658, 0x57ff542, 0x869e158, 0xa1fffdb,
+         0xb7c6c3c, 0xcb1798f, 0xd5a4232, 0xdcb7c7a, 0xe4433b0, 0xef275d1,
+         0x57aeed8, 0x86184b8, 0xa11a5dc, 0xb42bae6, 0xc647a7f, 0xd12c06b,
+         0xd7ed8c0, 0xdf86957, 0xe922953, 0x5735a40, 0x85a64c3, 0x9f711e4,
+         0xae6e146, 0xbd9f8dd, 0xc670a00, 0xcda1ac9, 0xd3917d8, 0xdd8c537,
+         0x567e253, 0x7da71c3, 0x9261265, 0xa282dde, 0xad9cbad, 0xb8da906,
+         0xbd8cf60, 0xc5a6f83, 0xcd9a4b0, 0x40a9f41, 0x559b459, 0x6054609,
+         0x68b2f54, 0x7a4ac6e, 0x8bdc850, 0x8f172fa, 0x971e02a, 0xa0b80c1};
+
+int32_t SixOhmTable_GaindB_q24[SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE] =
+        {0x55b0044, 0x8e5c26a, 0xb9a7df8, 0xd1c3e91, 0xe88e2e8, 0xf4e7dc4,
+        0xfbf1eb0, 0x10397396, 0x10eb90f5, 0x5669a3b, 0x91902d0, 0xba8b233,
+        0xd0cd18b, 0xe7ab548, 0xf4438f0, 0xfb8872c, 0x102a11dc, 0x10e29522,
+        0x5e24330, 0x94c5bbd, 0xbb47886, 0xd03314b, 0xe6c9670, 0xf3b756b,
+        0xfb15b81, 0x102683bd, 0x10dcd3df, 0x6e5fe77, 0x9ad2993, 0xc1997d4,
+        0xd859656, 0xeda235a, 0xf819619, 0xfd89525, 0xfed0d70, 0x110fd7ab,
+        0x6671fa0, 0x9a53a8d, 0xc09da21, 0xd93ba58, 0xecd2f94, 0xf77c7df,
+        0xfe45367, 0x10594b0d, 0x1104800e, 0x6659865, 0x9a0e094, 0xbfdaffc,
+        0xd7dda1a, 0xeb9951e, 0xf6637bb, 0xfd40f3f, 0x104b71f6, 0x10f7911a,
+        0x6352598, 0x993b844, 0xbe8656e, 0xd6e8552, 0xeaae0a4, 0xf5878ab,
+        0xfc79d18, 0x1041898d, 0x10ed9910, 0x619a761, 0x990c64e, 0xbdb6c48,
+        0xd574654, 0xe971e2e, 0xf47fc49, 0xfb8872c, 0x10326d8e, 0x10e20926,
+        0x5e08a42, 0x9842b83, 0xbcc17fc, 0xd40cb68, 0xe846a87, 0xf38a7d9,
+        0xfa9c73a, 0x1025618b, 0x10d2c0eb, 0x5995c68, 0x974664b, 0xbc0915c,
+        0xd2e595a, 0xe6ec0d5, 0xf264304, 0xf9b616d, 0x1015b794, 0x10c753de,
+        0x58c6c17, 0x96a860e, 0xbbcff49, 0xcf9256a, 0xe2a16a2, 0xeeb3f79,
+        0xf6a7160, 0xff7bd23, 0x10b9173f, 0x577c7df, 0x9529cfa, 0xba926ba,
+        0xcb3beb2, 0xda6982e, 0xe59e2a1, 0xedb3a95, 0xf40a545, 0x100050a7,
+        0x573fc79, 0x94088eb, 0xaf28fb9, 0xba5812a, 0xc8ae680, 0xd3da2d4,
+        0xda4004d, 0xe23ef3f, 0xed66bea, 0x408ddf9, 0x6d585cf, 0x7d43aec,
+        0x9542be2, 0xa54542c, 0xb063af4, 0xb06c1d0, 0xb5217bf, 0xbd2b075};
+
+int32_t EightOhmTable_GaindB_q24[SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE] =
+        {0x7b924c1, 0xb4f4ce3, 0xd6343aa, 0xef54dbe, 0x1016ebe5, 0x10bfed32,
+        0x112aad7e, 0x118b21ba, 0x11a5703f, 0x76b5d32, 0xb20f473, 0xd55ba6b,
+        0xee5492a, 0x100beca6, 0x10b1ed61, 0x111ea87f, 0x1184d9b4, 0x11a87e2b,
+        0x739f15e, 0xad73bc4, 0xd4bc779, 0xed83eb4, 0xffc57ed, 0x10a953c2,
+        0x111281df, 0x117cf2d0, 0x11aa524a, 0x907e90e, 0xbd7f00f, 0xdee343e,
+        0xf0d2f17, 0x1028f097, 0x10c79b91, 0x11322ab6, 0x1193ddcd, 0x11a2aead,
+        0x9025663, 0xbd2b075, 0xde18a01, 0xefca9b0, 0x101bb9d6, 0x10bc5953,
+        0x11266661, 0x1190c138, 0x11a0fea1, 0x8fefaf1, 0xbccd416, 0xdcd573d,
+        0xeed099b, 0x100c965a, 0x10b06738, 0x111b5f8a, 0x11878639, 0x11a012b1,
+        0x8f83c3b, 0xbc5c124, 0xdbdaa6a, 0xedce634, 0xfff7a28, 0x10a32bbc,
+        0x11106931, 0x11801db2, 0x119f4dee, 0x8ef2d87, 0xbbcd923, 0xdad6294,
+        0xecac117, 0xfee95dd, 0x1097ecc2, 0x1102553a, 0x11782e25, 0x119d7524,
+        0x8e60bc7, 0xbb47886, 0xd9aecde, 0xeb89bb2, 0xfded0a5, 0x108a97e5,
+        0x10f74c6d, 0x1171ca65, 0x1198354a, 0x8dcd6ab, 0xbaca286, 0xd888c4f,
+        0xea7614e, 0xfccb6cb, 0x107b4d45, 0x10eb11ad, 0x11684c61, 0x1193b607,
+        0x8d4b810, 0xba07880, 0xd750f54, 0xe74965d, 0xf8da937, 0x104dca8d,
+        0x10bfed32, 0x113fa7d3, 0x118f0a25, 0x8ca3112, 0xb8df8a1, 0xd0b7eea,
+        0xe24f66b, 0xf248fe2, 0xfd76cb2, 0x104a3e80, 0x10bc899a, 0x1189b8b6,
+        0x8c1ef2d, 0xb83fa3c, 0xc89899b, 0xd8a1fbd, 0xe70c133, 0xf0a66a7,
+        0xf56962a, 0xfbbbd60, 0x1054a501, 0x8ad9f1c, 0xa3c9463, 0xad2d3d0,
+        0xc058865, 0xd071339, 0xd394e0b, 0xd9ff484, 0xe04ff0d, 0xe519baf};
 
 bool SpeakerProtection::isSpeakerInUse(unsigned long *sec)
 {
@@ -161,6 +233,26 @@ void SpeakerProtection::spkrCalibrateWait()
     std::unique_lock<std::mutex> lock(cvMutex);
     cv.wait_for(lock,
             std::chrono::milliseconds(WAKEUP_MIN_IDLE_CHECK));
+}
+
+int SpeakerProtection::getCpsDevNumber(std::string mixer_name)
+{
+    struct mixer_ctl *ctl;
+    int status = 0;
+
+    PAL_DBG(LOG_TAG, "Mixer control %s", mixer_name.c_str());
+    PAL_DBG(LOG_TAG, "audio_mixer %pK", mixer);
+
+    ctl = mixer_get_ctl_by_name(mixer, mixer_name.c_str());
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_name.c_str());
+        status = -ENOENT;
+        return status;
+    }
+
+    status = mixer_ctl_get_value(ctl, 0);
+    PAL_DBG(LOG_TAG, "Value for Mixer control %d", status);
+    return status;
 }
 
 int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
@@ -913,6 +1005,104 @@ SpeakerProtection::~SpeakerProtection()
 {
 }
 
+/*
+ * CPS related custom payload
+ */
+
+void SpeakerProtection::updateCpsCustomPayload(int miid)
+{
+    PayloadBuilder* builder = new PayloadBuilder();
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    lpass_swr_hw_reg_cfg_t *cpsRegCfg = NULL;
+    param_id_sp_cps_static_cfg_t cpsStaticConf;
+    pkd_reg_addr_t pkedRegAddr[numberOfChannels];
+    int dev_num;
+    int val, ret = 0;
+
+    memset(&cpsStaticConf, 0, sizeof(param_id_sp_cps_static_cfg_t));
+
+    // Payload for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
+    cpsRegCfg = (lpass_swr_hw_reg_cfg_t *) calloc(1, sizeof(lpass_swr_hw_reg_cfg_t)
+                       + sizeof(pkd_reg_addr_t) * numberOfChannels);
+    if (cpsRegCfg == NULL) {
+        PAL_ERR(LOG_TAG,"Unable to allocate Memory for CPS config\n");
+        return;
+    }
+    cpsRegCfg->num_spkr = numberOfChannels;
+    cpsRegCfg->lpass_wr_cmd_reg_phy_addr = LPASS_WR_CMD_REG_PHY_ADDR;
+    cpsRegCfg->lpass_rd_cmd_reg_phy_addr = LPASS_RD_CMD_REG_PHY_ADDR;
+    cpsRegCfg->lpass_rd_fifo_reg_phy_addr = LPASS_RD_FIFO_REG_PHY_ADDR;
+
+    for (int i = 0; i < numberOfChannels; i++) {
+        switch (i)
+        {
+            case 0 :
+                dev_num = getCpsDevNumber(SPKR_RIGHT_WSA_DEV_NUM);
+            break;
+            case 1 :
+                dev_num = getCpsDevNumber(SPKR_LEFT_WSA_DEV_NUM);
+            break;
+        }
+        pkedRegAddr[i].vbatt_pkd_reg_addr = CPS_WSA_VBATT_REG_ADDR;
+        pkedRegAddr[i].temp_pkd_reg_addr = CPS_WSA_TEMP_REG_ADDR;
+
+        pkedRegAddr[i].vbatt_pkd_reg_addr &= 0xFFFF;
+        pkedRegAddr[i].temp_pkd_reg_addr &= 0xFFFF;
+
+        val = 0;
+
+        /* bits 20:23 carry swr device number */
+        val |= dev_num << 20;
+        /* bits 24:27 carry read length in bytes */
+        val |= 1 << 24;
+
+        pkedRegAddr[i].vbatt_pkd_reg_addr |= val;
+        pkedRegAddr[i].temp_pkd_reg_addr |= val;
+    }
+    memcpy(cpsRegCfg->pkd_reg_addr, pkedRegAddr, sizeof(pkd_reg_addr_t) *
+                    numberOfChannels);
+
+    // Payload builder for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
+    payloadSize = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_CPS_LPASS_HW_INTF_CFG,(void *)cpsRegCfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        free(cpsRegCfg);
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+
+    // Payload for ParamID : PARAM_ID_SP_CPS_STATIC_CFG
+    cpsStaticConf.limiter_cps_en_flag = 1;
+    cpsStaticConf.limiter_cps_smooth_VbDT_en_flag = 1;
+    cpsStaticConf.limiter_cps_margin_dB_q15 = 0xccd;
+
+    memcpy(cpsStaticConf.FourOhmTable_GaindB_q24, FourOhmTable_GaindB_q24,
+            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
+
+    memcpy(cpsStaticConf.SixOhmTable_GaindB_q24, SixOhmTable_GaindB_q24,
+            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
+
+    memcpy(cpsStaticConf.EightOhmTable_GaindB_q24, EightOhmTable_GaindB_q24,
+            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
+
+    // Payload builder for ParamID : PARAM_ID_SP_CPS_STATIC_CFG
+    payloadSize = 0;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_SP_CPS_STATIC_CFG,(void *)&cpsStaticConf);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        delete payload;
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+    delete builder;
+}
 
 /*
  * Function to trigger Processing mode.
@@ -1299,15 +1489,21 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         builder->payloadSPConfig(&payload, &payloadSize, miid,
                 PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
         if (payloadSize) {
-            if (customPayloadSize) {
+            if (customPayload) {
                 free (customPayload);
                 customPayloadSize = 0;
+                customPayload = NULL;
             }
             ret = updateCustomPayload(payload, payloadSize);
             delete payload;
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
+        }
+
+        // CPS related payload
+        if (ResourceManager::isCpsEnabled) {
+            updateCpsCustomPayload(miid);
         }
 
         enableDevice(audioRoute, mSndDeviceName_vi);

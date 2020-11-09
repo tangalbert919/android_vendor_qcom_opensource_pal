@@ -42,6 +42,12 @@
 
 class Speaker;
 
+#define LPASS_WR_CMD_REG_PHY_ADDR 0x3250300
+#define LPASS_RD_CMD_REG_PHY_ADDR 0x3250304
+#define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250318
+#define CPS_WSA_VBATT_REG_ADDR 0x0003429
+#define CPS_WSA_TEMP_REG_ADDR 0x0003422
+
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
     SPKR_CALIBRATED,         /* Speaker calibrated  */
@@ -64,6 +70,7 @@ struct agmMetaData {
     agmMetaData(uint8_t *b, uint32_t s)
         :buf(b),size(s) {}
 };
+
 
 class SpeakerProtection : public Speaker
 {
@@ -125,6 +132,8 @@ public:
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
     static void mixer_ctl_callback (void *hdl, uint32_t event_id, void *event_data,
                              uint32_t event_size);
+    void updateCpsCustomPayload(int miid);
+    int getCpsDevNumber(std::string mixer);
 
 };
 
