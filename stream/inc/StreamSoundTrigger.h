@@ -527,6 +527,7 @@ class StreamSoundTrigger : public Stream {
                                  uint8_t **out_payload,
                                  uint32_t *out_payload_size,
                                  uint32_t version);
+    void PackEventConfLevels(uint8_t *opaque_data);
     int32_t GenerateCallbackEvent(struct pal_st_recognition_event **event,
                                   uint32_t *event_size);
     static int32_t HandleDetectionEvent(pal_stream_handle_t *stream_handle,
@@ -579,6 +580,9 @@ class StreamSoundTrigger : public Stream {
     std::map<uint32_t, StState*> st_states_;
     bool charging_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;
+    uint32_t conf_levels_intf_version_;
+    st_confidence_levels_info *st_conf_levels_;
+    st_confidence_levels_info_v2 *st_conf_levels_v2_;
     bool use_lpi_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

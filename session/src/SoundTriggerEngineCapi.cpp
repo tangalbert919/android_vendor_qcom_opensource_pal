@@ -244,6 +244,8 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
             PAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
         }
+        det_conf_score_ = result_cfg_ptr->best_confidence;
+        PAL_INFO(LOG_TAG, "KW second stage conf level %d", det_conf_score_);
 
         if (!first_buffer_processed) {
             buffer_size_ = lab_buffer_size;
@@ -443,6 +445,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             keyword_detected_ = true;
             PAL_INFO(LOG_TAG, "KW Second Stage Detected");
         }
+        det_conf_score_ = (int32_t)result_cfg_ptr->combined_user_score;
     }
 
 exit:

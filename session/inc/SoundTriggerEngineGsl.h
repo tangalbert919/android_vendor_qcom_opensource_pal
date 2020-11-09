@@ -78,6 +78,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         std::shared_ptr<Device> dev,
         bool is_enable) override;
     int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
+    int32_t GetDetectedConfScore() { return 0; }
 
  private:
     int32_t StartBuffering();

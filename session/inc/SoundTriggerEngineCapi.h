@@ -82,6 +82,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,
         bool is_enable __unused) { return 0; }
+    int32_t GetDetectedConfScore() { return det_conf_score_; }
 
  private:
     int32_t StartSoundEngine();
@@ -113,6 +114,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     uint32_t confidence_score_;  // used by Vop engine
     uint32_t kw_start_tolerance_;
     uint32_t kw_end_tolerance_;
+    int32_t det_conf_score_;
 };
 #endif  // SOUNDTRIGGERENGINECAPI_H
 

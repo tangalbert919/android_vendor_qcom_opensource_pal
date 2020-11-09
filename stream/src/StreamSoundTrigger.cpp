@@ -67,6 +67,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     paused_ = false;
     pending_stop_ = false;
     currentState = STREAM_IDLE;
+    conf_levels_intf_version_ = 0;
+    st_conf_levels_ = nullptr;
+    st_conf_levels_v2_ = nullptr;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -198,6 +201,14 @@ int32_t StreamSoundTrigger::close() {
         reader_ = nullptr;
     }
 
+    if (st_conf_levels_) {
+        free(st_conf_levels_);
+        st_conf_levels_ = nullptr;
+    }
+    if (st_conf_levels_v2_) {
+        free(st_conf_levels_v2_);
+        st_conf_levels_v2_ = nullptr;
+    }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -322,8 +333,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
     int32_t status = 0;
     pal_param_payload *param_payload = (pal_param_payload *)payload;
 
-    if (!param_payload) {
-        PAL_ERR(LOG_TAG, "Invalid payload");
+    if (param_id != PAL_PARAM_ID_STOP_BUFFERING && !param_payload) {
+        PAL_ERR(LOG_TAG, "Invalid payload for param ID: %d", param_id);
         return -EINVAL;
     }
 
@@ -1075,7 +1086,6 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     uint32_t hist_buffer_duration = 0;
     uint32_t pre_roll_duration = 0;
     uint32_t client_capture_read_delay = 0;
-    uint32_t conf_levels_intf_version = 0;
     uint8_t *conf_levels = NULL;
     uint32_t num_conf_levels = 0;
     uint32_t ring_buffer_len = 0;
@@ -1119,11 +1129,11 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
             switch (param_hdr->key_id) {
               case ST_PARAM_KEY_CONFIDENCE_LEVELS:
-                  conf_levels_intf_version = *(uint32_t *)(
+                  conf_levels_intf_version_ = *(uint32_t *)(
                       opaque_ptr + sizeof(struct st_param_header));
                   PAL_VERBOSE(LOG_TAG, "conf_levels_intf_version = %u",
-                      conf_levels_intf_version);
-                  if (conf_levels_intf_version !=
+                      conf_levels_intf_version_);
+                  if (conf_levels_intf_version_ !=
                       CONF_LEVELS_INTF_VERSION_0002) {
                       conf_levels_payload_size =
                           sizeof(struct st_confidence_levels_info);
@@ -1137,7 +1147,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                       goto error_exit;
                   }
                   status = ParseOpaqueConfLevels(opaque_ptr,
-                                                 conf_levels_intf_version,
+                                                 conf_levels_intf_version_,
                                                  &conf_levels,
                                                  &num_conf_levels);
                 if (status) {
@@ -1262,6 +1272,17 @@ error_exit:
         rec_config_ = nullptr;
     }
 
+    if (status) {
+        if (st_conf_levels_) {
+            free(st_conf_levels_);
+            st_conf_levels_ = nullptr;
+        }
+        if (st_conf_levels_v2_) {
+            free(st_conf_levels_v2_);
+            st_conf_levels_v2_ = nullptr;
+        }
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -1368,16 +1389,117 @@ int32_t StreamSoundTrigger::notifyClient() {
     return status;
 }
 
+void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
+
+    struct st_confidence_levels_info *conf_levels = nullptr;
+    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
+    uint32_t i = 0, j = 0, k = 0, user_id = 0;
+
+    PAL_VERBOSE(LOG_TAG, "Enter");
+
+    /*
+     * Update the opaque data of callback event with confidence levels
+     * accordingly for all users and keywords from the detection event
+     */
+    if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
+        conf_levels = (struct st_confidence_levels_info *)opaque_data;
+        for (i = 0; i < conf_levels->num_sound_models; i++) {
+            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+                for (j = 0; j < conf_levels->conf_levels[i].num_kw_levels; j++) {
+                    if (j <= sm_info_->GetConfLevelsSize())
+                            conf_levels->conf_levels[i].kw_levels[j].kw_level =
+                                    sm_info_->GetDetConfLevels()[j];
+                    else
+                        PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
+                            sm_info_->GetConfLevelsSize(), j);
+
+                    for (k = 0;
+                         k < conf_levels->conf_levels[i].kw_levels[j].num_user_levels;
+                         k++) {
+                        user_id =
+                            conf_levels->conf_levels[i].kw_levels[j].
+                                user_levels[k].user_id;
+                        if (user_id <=  sm_info_->GetConfLevelsSize())
+                            conf_levels->conf_levels[i].kw_levels[j].
+                                user_levels[k].level =
+                                    sm_info_->GetDetConfLevels()[user_id];
+                        else
+                            PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
+                                sm_info_->GetConfLevelsSize(), user_id);
+                    }
+                }
+            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
+                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+                /* Update confidence levels for second stage */
+                for (auto& eng: engines_) {
+                    if (conf_levels->conf_levels[i].sm_id ==
+                            eng->GetEngineId()) {
+                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                            conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
+                                eng->GetEngine()->GetDetectedConfScore();
+                    }
+                }
+            }
+        }
+    } else {
+        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
+        for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
+            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+                for (j = 0; j < conf_levels_v2->conf_levels[i].num_kw_levels; j++) {
+                    if (j <= sm_info_->GetConfLevelsSize())
+                            conf_levels_v2->conf_levels[i].kw_levels[j].kw_level =
+                                    sm_info_->GetDetConfLevels()[j];
+                    else
+                        PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
+                            sm_info_->GetConfLevelsSize(), j);
+
+                    for (k = 0;
+                         k < conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
+                         k++) {
+                        user_id =
+                            conf_levels_v2->conf_levels[i].kw_levels[j].
+                                user_levels[k].user_id;
+                        if (user_id <=  sm_info_->GetConfLevelsSize())
+                            conf_levels_v2->conf_levels[i].kw_levels[j].
+                                user_levels[k].level =
+                                    sm_info_->GetDetConfLevels()[user_id];
+                        else
+                            PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
+                                sm_info_->GetConfLevelsSize(), user_id);
+                    }
+                }
+            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
+                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+                /* Update confidence levels for second stage */
+                for (auto& eng: engines_) {
+                    if (conf_levels_v2->conf_levels[i].sm_id ==
+                            eng->GetEngineId()) {
+                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                            conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
+                                eng->GetEngine()->GetDetectedConfScore();
+                        PAL_INFO(LOG_TAG, "SS Conf score %d",
+                            eng->GetEngine()->GetDetectedConfScore());
+                    }
+                }
+            }
+
+        }
+    }
+}
+
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct pal_st_recognition_event **event, uint32_t *evt_size) {
 
     struct pal_st_phrase_recognition_event *phrase_event = nullptr;
     struct st_param_header *param_hdr = nullptr;
-    struct st_confidence_levels_info *conf_levels = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
     struct st_timestamp_info *timestamps = nullptr;
     size_t opaque_size = 0;
-    size_t event_size = 0;
+    size_t event_size = 0, conf_levels_size = 0;
     uint8_t *opaque_data = nullptr;
     uint32_t start_index = 0, end_index = 0;
     uint8_t *custom_event = nullptr;
@@ -1393,10 +1515,15 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                 return -EINVAL;
             }
 
-            opaque_size = (3 * sizeof(struct st_param_header)) +
-                sizeof(struct st_timestamp_info) +
-                sizeof(struct st_keyword_indices_info) +
-                sizeof(struct st_confidence_levels_info);
+        if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
+            conf_levels_size = sizeof(struct st_confidence_levels_info);
+        else
+            conf_levels_size = sizeof(struct st_confidence_levels_info_v2);
+
+        opaque_size = (3 * sizeof(struct st_param_header)) +
+            sizeof(struct st_timestamp_info) +
+            sizeof(struct st_keyword_indices_info) +
+            conf_levels_size;
         } else {
             gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
         }
@@ -1440,19 +1567,20 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             /* Pack the opaque data confidence levels structure */
             param_hdr = (struct st_param_header *)opaque_data;
             param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
-            param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
+            if (conf_levels_intf_version_ !=  CONF_LEVELS_INTF_VERSION_0002)
+                param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
+            else
+                param_hdr->payload_size = sizeof(struct st_confidence_levels_info_v2);
+
             opaque_data += sizeof(struct st_param_header);
-            conf_levels = (struct st_confidence_levels_info *)opaque_data;
-            conf_levels->version = 0x1;
-            conf_levels->num_sound_models = engines_.size();
-            // TODO: update user conf levels
-            for (int i = 0; i < conf_levels->num_sound_models; i++) {
-                conf_levels->conf_levels[i].sm_id = ST_SM_ID_SVA_GMM;
-                conf_levels->conf_levels[i].num_kw_levels = 1;
-                conf_levels->conf_levels[i].kw_levels[0].kw_level =
-                    det_ev_info->confidence_levels[i];
-                conf_levels->conf_levels[i].kw_levels[0].num_user_levels = 0;
-            }
+            /* Copy the cached conf levels from recognition config */
+            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
+                ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                    st_conf_levels_, param_hdr->payload_size);
+            else
+                ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                    st_conf_levels_v2_, param_hdr->payload_size);
+            PackEventConfLevels(opaque_data);
             opaque_data += param_hdr->payload_size;
 
             /* Pack the opaque data keyword indices structure */
@@ -1510,6 +1638,19 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
     if (version != CONF_LEVELS_INTF_VERSION_0002) {
         conf_levels = (struct st_confidence_levels_info *)
             ((char *)opaque_conf_levels + sizeof(struct st_param_header));
+
+        if (!st_conf_levels_) {
+             st_conf_levels_ = (struct st_confidence_levels_info *)calloc(1,
+                                 sizeof(struct st_confidence_levels_info));
+             if (!st_conf_levels_) {
+                 PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
+                 return -ENOMEM;
+             }
+        }
+        /* Cache to use during detection event processing */
+        ar_mem_cpy((uint8_t *)st_conf_levels_, sizeof(struct st_confidence_levels_info),
+            (uint8_t *)conf_levels, sizeof(struct st_confidence_levels_info));
+
         for (int i = 0; i < conf_levels->num_sound_models; i++) {
             sm_levels = &conf_levels->conf_levels[i];
             if (sm_levels->sm_id == ST_SM_ID_SVA_GMM) {
@@ -1534,6 +1675,19 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
     } else {
         conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
             ((char *)opaque_conf_levels + sizeof(struct st_param_header));
+
+        if (!st_conf_levels_v2_) {
+            st_conf_levels_v2_ = (struct st_confidence_levels_info_v2 *)calloc(1,
+                sizeof(struct st_confidence_levels_info_v2));
+            if (!st_conf_levels_v2_) {
+                PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
+                return -ENOMEM;
+            }
+        }
+        /* Cache to use during detection event processing */
+        ar_mem_cpy((uint8_t *)st_conf_levels_v2_, sizeof(struct st_confidence_levels_info_v2),
+            (uint8_t *)conf_levels_v2, sizeof(struct st_confidence_levels_info_v2));
+
         for (int i = 0; i < conf_levels_v2->num_sound_models; i++) {
             sm_levels_v2 = &conf_levels_v2->conf_levels[i];
             if (sm_levels_v2->sm_id == ST_SM_ID_SVA_GMM) {
