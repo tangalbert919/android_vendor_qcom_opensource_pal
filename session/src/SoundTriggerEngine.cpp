@@ -38,6 +38,7 @@
 std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
     listen_model_indicator_enum type,
+    st_module_type_t module_type,
     bool sm_merge)
 {
     PAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
@@ -52,10 +53,12 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
 
     switch (type) {
     case ST_SM_ID_SVA_GMM:
-        if (!sm_merge)
-            st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id, type);
+        if (!sm_merge && module_type != ST_MODULE_TYPE_PDK5)
+            st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id,
+                                                   type, module_type);
         else
-            st_engine = SoundTriggerEngineGsl::GetInstance(s, id, type);
+            st_engine = SoundTriggerEngineGsl::GetInstance(s, id, type,
+                                                          module_type);
 
         if (!st_engine)
             PAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");

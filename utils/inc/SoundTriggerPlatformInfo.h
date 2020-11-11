@@ -185,7 +185,6 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t GetCaptureReadDelay() const { return client_capture_read_delay_; }
     uint32_t GetKwStartTolerance() const { return kw_start_tolerance_; }
     uint32_t GetKwEndTolerance() const { return kw_end_tolerance_; }
-    std::pair<uint32_t,uint32_t> GetStreamConfig() const { return stream_config_; }
     std::shared_ptr<CaptureProfile> GetCaptureProfile(
         std::pair<StOperatingModes, StInputModes> mode_pair) const {
         return op_modes_.at(mode_pair);
@@ -199,7 +198,7 @@ class SoundModelConfig : public SoundTriggerXml {
         override;
     void HandleEndTag(const char *tag) override;
     void HandleCharData(const char *data) override;
-
+    std::pair<uint32_t,uint32_t> GetStreamConfig(uint32_t stream_type);
  private:
     /* reads capture profile names into member variables */
     void ReadCapProfileNames(StOperatingModes mode, const char* * attribs);
@@ -216,7 +215,7 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t client_capture_read_delay_;
     uint32_t kw_start_tolerance_;
     uint32_t kw_end_tolerance_;
-    std::pair<uint32_t,uint32_t> stream_config_;
+    std::map<uint32_t, std::pair<uint32_t,uint32_t>> stream_config_;
     const st_cap_profile_map_t& cap_profile_map_;
     std::map<std::pair<StOperatingModes, StInputModes>, std::shared_ptr<CaptureProfile>> op_modes_;
     std::shared_ptr<SoundTriggerXml> curr_child_;

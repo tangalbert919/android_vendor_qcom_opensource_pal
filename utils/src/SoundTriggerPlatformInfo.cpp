@@ -57,6 +57,8 @@ const std::map<std::string, uint32_t> streamConfigKeyLUT {
 const std::map<std::string, uint32_t> streamConfigValueLUT {
     {std::string{ "VUI_STREAM_CFG_SVA" }, VUI_STREAM_CFG_SVA},
     {std::string{ "VUI_STREAM_CFG_HW" }, VUI_STREAM_CFG_HW},
+    {std::string{ "VUI_STREAM_CFG_SVA5" }, VUI_STREAM_CFG_SVA5},
+    {std::string{ "VUI_STREAM_CFG_CUSTOM" }, VUI_STREAM_CFG_CUSTOM},
 };
 
 static const struct st_uuid qcva_uuid =
@@ -296,23 +298,33 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
     if (!strcmp(tag, "param")) {
         uint32_t i = 0;
         while (attribs[i]) {
-            if (!strcmp(attribs[i], "model_type")) {
+            if (!strcmp(attribs[i], "module_type")) {
                 i++;
                 if (!strcmp(attribs[i], "GMM")) {
-                    model_type_ = 0;
+                    model_type_ = ST_MODULE_TYPE_GMM;
+                    PAL_DBG(LOG_TAG, "GMM block is being parsed");
                 } else if (!strcmp(attribs[i], "PDK")) {
-                    model_type_ = 1;
+                    model_type_ = ST_MODULE_TYPE_PDK5;
+                    PAL_DBG(LOG_TAG, "PDK5 block is being parsed");
                 }
             } else {
                 uint32_t index = 0;
                 if (!strcmp(attribs[i], "load_sound_model_ids")) {
                     index = LOAD_SOUND_MODEL;
+                } else if (!strcmp(attribs[i], "load_multi_sound_model_ids")) {
+                    index = LOAD_MULTI_SOUND_MODEL;
                 } else if (!strcmp(attribs[i], "unload_sound_model_ids")) {
                     index = UNLOAD_SOUND_MODEL;
+                } else if (!strcmp(attribs[i], "deregister_multi_sound_model_ids")) {
+                    index = DEREGISTER_MULTI_SOUND_MODEL;
                 } else if (!strcmp(attribs[i], "wakeup_config_ids")) {
                     index = WAKEUP_CONFIG;
+                } else if (!strcmp(attribs[i], "multi_model_wakeup_config_ids")) {
+                    index = WAKEUP_CONFIG_STAGE1_SVA5;
                 } else if (!strcmp(attribs[i], "buffering_config_ids")) {
                     index = BUFFERING_CONFIG;
+                } else if (!strcmp(attribs[i], "multi_model_buffering_config_ids")) {
+                    index = MULTI_MODEL_BUFFERING_CONFIG;
                 } else if (!strcmp(attribs[i], "engine_reset_ids")) {
                     index = ENGINE_RESET;
                 } else if (!strcmp(attribs[i], "custom_config_ids")) {
@@ -322,6 +334,8 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
                 }
                 sscanf(attribs[++i], "%x, %x", &module_tag_ids_[index],
                     &param_ids_[index]);
+                PAL_DBG(LOG_TAG, "index : %u, module_id : %x, param : %x",
+                index, module_tag_ids_[index], param_ids_[index]);
             }
             ++i;
         }
@@ -348,6 +362,19 @@ SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     cap_profile_map_(cap_prof_map),
     curr_child_(nullptr)
 {
+}
+
+std::pair<uint32_t, uint32_t> SoundModelConfig::GetStreamConfig(
+                                                uint32_t module_type){
+    if (module_type == ST_MODULE_TYPE_PDK5){
+        PAL_DBG(LOG_TAG, "Returnung SVA5 stream config");
+        return stream_config_[VUI_STREAM_CFG_SVA5];
+    } else if (module_type == ST_MODULE_TYPE_GMM && stream_config_.size() == 1){
+        PAL_DBG(LOG_TAG, "Returning hotword stream config");
+        return stream_config_[VUI_STREAM_CFG_HW];
+    }
+    PAL_DBG(LOG_TAG, "Returning SVA4 stream config");
+    return stream_config_[VUI_STREAM_CFG_SVA];
 }
 
 void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
@@ -381,6 +408,7 @@ std::shared_ptr<SecondStageConfig> SoundModelConfig::GetSecondStageConfig(
 std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleInfo(
     const uint32_t& type) const {
 
+    PAL_DBG(LOG_TAG, "Quering for type : %u", type);
     auto module_config = st_module_info_list_.find(type);
     if (module_config != st_module_info_list_.end())
         return module_config->second;
@@ -468,7 +496,9 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                         valItr->second);
                     value = valItr->second;
                 }
-                stream_config_ = std::make_pair(key, value);
+                stream_config_[value] = std::make_pair(key, value);
+                PAL_DBG(LOG_TAG, "stream_config_, key = %x, value = %x, %x",
+                value, stream_config_[value].first, stream_config_[value].second);
             }
             ++i; /* move to next attribute */
         }

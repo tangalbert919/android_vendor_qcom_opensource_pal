@@ -40,14 +40,6 @@
 #include "SoundTriggerPlatformInfo.h"
 #include "SoundTriggerUtils.h"
 
-/* Event Mode
- * Indicating info SPF will notify to client
- */
-#define CONFIDENCE_LEVEL_INFO    0x1
-#define KEYWORD_INDICES_INFO     0x2
-#define TIME_STAMP_INFO          0x4
-#define FTRT_INFO                0x8
-
 enum {
     ENGINE_IDLE  = 0x0,
     GMM_DETECTED = 0x1,
@@ -184,7 +176,10 @@ class StreamSoundTrigger : public Stream {
     bool IsCaptureRequested() { return capture_requested_; }
     uint32_t GetHistBufDuration() { return hist_buf_duration_; }
     uint32_t GetPreRollDuration() { return pre_roll_duration_; }
-
+    uint32_t GetModelId(){ return model_id_; }
+    void SetModelId(uint32_t model_id) { model_id_ = model_id; }
+    void SetModelType(st_module_type_t model_type) { model_type_ = model_type; }
+    st_module_type_t GetModelType() { return model_type_; }
  private:
     class EngineCfg {
      public:
@@ -514,7 +509,8 @@ class StreamSoundTrigger : public Stream {
 
     pal_device_id_t GetAvailCaptureDevice();
     std::shared_ptr<SoundTriggerEngine> HandleEngineLoad(uint8_t *sm_data,
-             int32_t sm_size, listen_model_indicator_enum type);
+                         int32_t sm_size, listen_model_indicator_enum type,
+                         st_module_type_t module_type);
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     int32_t LoadSoundModel(struct pal_st_sound_model *sm_data);
     int32_t UpdateSoundModel(struct pal_st_sound_model *sm_data);
@@ -555,11 +551,13 @@ class StreamSoundTrigger : public Stream {
     bool exit_timer_thread_;
     bool pending_stop_;
     bool paused_;
+    st_module_type_t model_type_;
 
     void AddState(StState* state);
     int32_t GetPreviousStateId();
     int32_t ProcessInternalEvent(std::shared_ptr<StEventConfig> ev_cfg);
-
+    void GetUUID(class SoundTriggerUUID *uuid, struct pal_st_sound_model
+                                                          *sound_model);
     std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
     std::shared_ptr<SoundModelConfig> sm_cfg_;
     SoundModelInfo* sm_info_;
@@ -596,5 +594,6 @@ class StreamSoundTrigger : public Stream {
     uint32_t hist_buf_duration_;
     uint32_t pre_roll_duration_;
     bool use_lpi_;
+    uint32_t model_id_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

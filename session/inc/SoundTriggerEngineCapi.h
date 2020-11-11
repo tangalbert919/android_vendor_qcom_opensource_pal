@@ -81,7 +81,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
                             uint32_t *pre_roll_duration __unused) {}
     void SetCaptureRequested(bool is_requested __unused) {}
     void ResetEngineInstance(Stream *s __unused) {}
-    struct detection_event_info* GetDetectionEventInfo() { return nullptr; }
+    void* GetDetectionEventInfo() { return nullptr; }
     int32_t setECRef(
         Stream *s __unused,
         std::shared_ptr<Device> dev __unused,

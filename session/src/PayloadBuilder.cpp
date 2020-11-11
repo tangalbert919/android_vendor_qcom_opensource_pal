@@ -497,7 +497,7 @@ int PayloadBuilder::payloadSVAConfig(uint8_t **payload, size_t *size,
     *size = payloadSize;
     *payload = payloadInfo;
 
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+    PAL_INFO(LOG_TAG, "PID 0x%x, payload %pK size %zu", param_id, *payload, *size);
 
     return 0;
 }

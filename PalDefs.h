@@ -52,6 +52,7 @@ extern "C" {
 
 #define MIXER_PATH_MAX_LENGTH 100
 #define PAL_MAX_CHANNELS_SUPPORTED 64
+#define MAX_KEYWORD_SUPPORTED 8
 
 /** Audio stream handle */
 typedef uint64_t pal_stream_handle_t;
@@ -713,6 +714,10 @@ typedef enum {
     PAL_PARAM_ID_WAKEUP_MODULE_VERSION = 33,
     PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
     PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
+    PAL_PARAM_ID_LOAD_MULTI_SOUND_MODEL = 36,
+    PAL_PARAM_ID_UNLOAD_MULTI_SOUND_MODEL = 37,
+    PAL_PARAM_ID_WAKEUP_MULTI_MODEL_BUFFERING_CONFIG = 38,
+    PAL_PARAM_ID_WAKEUP_MULTI_MODEL_ENGINE_CONFIG = 39
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1004,7 +1009,7 @@ struct pal_st_recognition_config {
 
 struct pal_st_phrase_recognition_event {
     struct pal_st_recognition_event common;
-    uint32_t                        num_phrases;
+    uint32_t num_phrases;
     struct pal_st_phrase_recognition_extra phrase_extras[PAL_SOUND_TRIGGER_MAX_PHRASES];
 };
 
@@ -1021,7 +1026,21 @@ struct detection_engine_config_voice_wakeup {
     uint8_t keyword_user_enables[PAL_SOUND_TRIGGER_MAX_USERS];
 };
 
+struct detection_engine_config_stage1_sva5 {
+    uint16_t mode;
+    uint16_t custom_payload_size;
+    uint32_t model_id;
+    uint32_t num_keywords;
+    uint32_t confidence_levels[MAX_KEYWORD_SUPPORTED];
+};
+
 struct detection_engine_voice_wakeup_buffer_config {
+    uint32_t hist_buffer_duration_in_ms;
+    uint32_t pre_roll_duration_in_ms;
+};
+
+struct detection_engine_multi_model_buffering_config {
+    uint32_t model_id;
     uint32_t hist_buffer_duration_in_ms;
     uint32_t pre_roll_duration_in_ms;
 };

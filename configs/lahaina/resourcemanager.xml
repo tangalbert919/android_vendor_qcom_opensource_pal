@@ -635,7 +635,8 @@
             <param client_capture_read_delay="2000" />
             <streamConfig-metadata>
                 <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA"/> <!-- Hotword Stream Config -->
+                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA"/> <!-- SVA Stream Config -->
+                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA5"/> <!-- SVA5 Stream Config -->
             </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
@@ -672,6 +673,14 @@
                 <param load_sound_model_ids="0xC0000008, 0x0800104C" />
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
+                <param engine_reset_ids="0xC0000008, 0x08001051" />
+            </module_params>
+            <module_params>
+                <param module_type="PDK" />
+                <param load_multi_sound_model_ids="0xC0000008, 0x0800124E"/>
+                <param deregister_multi_sound_model_ids="0xC0000008, 0x08001250"/>
+                <param multi_model_wakeup_config_ids="0xC0000008, 0x08001049" />
+                <param multi_model_buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
             </module_params>
         </sound_model_config>

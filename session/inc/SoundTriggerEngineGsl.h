@@ -31,11 +31,20 @@
 #ifndef SOUNDTRIGGERENGINEGSL_H
 #define SOUNDTRIGGERENGINEGSL_H
 
+#include <map>
 #include "SoundTriggerEngine.h"
 #include "SoundTriggerUtils.h"
 #include "StreamSoundTrigger.h"
 #include "PalRingBuffer.h"
 #include "PayloadBuilder.h"
+#include "detection_cmn_api.h"
+#define MAX_MODEL_ID_VALUE 0xFFFFFFFE
+#define MIN_MODEL_ID_VALUE 1
+#define CONFIDENCE_LEVEL_INFO    0x1
+#define KEYWORD_INDICES_INFO     0x2
+#define TIME_STAMP_INFO          0x4
+#define FTRT_INFO                0x8
+#define MULTI_MODEL_RESULT       0x20
 
 class Session;
 class Stream;
@@ -43,10 +52,12 @@ class Stream;
 class SoundTriggerEngineGsl : public SoundTriggerEngine {
  public:
     SoundTriggerEngineGsl(Stream *s, uint32_t id,
-        listen_model_indicator_enum type);
+               listen_model_indicator_enum type,
+               st_module_type_t module_type);
     ~SoundTriggerEngineGsl();
     static std::shared_ptr<SoundTriggerEngineGsl> GetInstance(Stream *s,
-        uint32_t id, listen_model_indicator_enum type);
+                         uint32_t id, listen_model_indicator_enum type,
+                          st_module_type_t module_type);
     void ResetEngineInstance(Stream *s) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -62,11 +73,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t UpdateBufConfig(Stream *s, uint32_t hist_buffer_duration,
                             uint32_t pre_roll_duration) override;
     void GetUpdatedBufConfig(uint32_t *hist_buffer_duration,
-                            uint32_t *pre_roll_duration) override {
-       *hist_buffer_duration = buffer_config_.hist_buffer_duration_in_ms;
-       *pre_roll_duration = buffer_config_.pre_roll_duration_in_ms;
-    }
-    void SetDetected(bool detected __unused) {};
+                            uint32_t *pre_roll_duration) override;
+     void SetDetected(bool detected __unused) {};
     int32_t GetParameters(uint32_t param_id, void **payload) override;
     int32_t ConnectSessionDevice(
         Stream* stream_handle,
@@ -81,7 +89,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) override;
     void SetCaptureRequested(bool is_requested) override;
-    struct detection_event_info* GetDetectionEventInfo() override;
+    void* GetDetectionEventInfo() override;
     int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
@@ -90,16 +98,22 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetDetectedConfScore() { return 0; }
 
  private:
+    uint32_t AddModelID(Stream *s);
+    uint32_t GetModelID(Stream *s);
+    uint32_t GenerateModelID();
     int32_t StartBuffering(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
+    int32_t ParseDetectionPayloadSVA5(void *event_data);
     int32_t ParseDetectionPayload(void *event_data);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
+    void ResetEngine();
 
     static void EventProcessingThread(SoundTriggerEngineGsl *gsl_engine);
     static void HandleSessionCallBack(void *hdl, uint32_t event_id, void *data,
                                       uint32_t event_size);
     bool CheckIfOtherStreamsAttached(Stream *s);
     int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);
+    int32_t HandleMultiStreamUnloadSVA5(Stream *s);
     int32_t HandleMultiStreamUnload(Stream *s);
     void CheckOtherStreamStates(st_state_id_t *restore_state);
     bool IsAnyStreamInState(st_state_id_t state, Stream **s);
@@ -116,7 +130,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
              listen_model_type *in_model, listen_model_type *out_model);
     int32_t ConstructAPMPayload(uint32_t param_id, uint8_t** payload,
                                 uint8_t* data, uint32_t data_size);
-
     int32_t ProcessStartRecognition(Stream *s);
     int32_t ProcessStopRecognition(Stream *s);
     int32_t UpdateMergeConfLevelsWithActiveStreams();
@@ -124,18 +137,26 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                bool set);
     int32_t UpdateEngineConfigOnStop(Stream *s);
     int32_t UpdateEngineConfigOnRestart(Stream *s);
-    Stream* GetDetectedStream();
+    Stream* GetDetectedStream(uint32_t model_id = 0);
     void CheckAndSetDetectionConfLevels(Stream *s);
     Session *session_;
     PayloadBuilder *builder_;
-    static std::shared_ptr<SoundTriggerEngineGsl> eng_;
+    std::map<uint32_t, Stream*> mid_stream_map_;
+    st_module_type_t module_type_;
+    static std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
+                                                                      eng_;
     std::vector<Stream *> eng_streams_;
     SoundModelInfo *eng_sm_info_;
     bool sm_merged_;
     int32_t dev_disconnect_count_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
+    struct detection_engine_config_stage1_sva5 sva5_wakeup_config_;
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
+    struct detection_engine_multi_model_buffering_config sva5_buffer_config_;
     struct detection_event_info detection_event_info_;
+    struct detection_event_info_sva5 detection_event_info_multi_model_ ;
+    struct param_id_detection_engine_deregister_multi_sound_model_t
+                                                     deregister_config_;
 
     bool is_qcva_uuid_;
     bool is_qcmd_uuid_;

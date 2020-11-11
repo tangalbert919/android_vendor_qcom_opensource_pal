@@ -48,6 +48,7 @@
 #define CNN_FRAME_SIZE 320
 #define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
 #define CONF_LEVELS_INTF_VERSION_0002 0x02
+#define MAX_MODELS_SUPPORTED 8
 
 class Stream;
 
@@ -107,6 +108,12 @@ typedef enum {
     ST_SM_ID_CUSTOM_END   = 0xF000,
 } listen_model_indicator_enum;
 
+typedef enum {
+    ST_MODULE_TYPE_CUSTOM = 1,
+    ST_MODULE_TYPE_GMM    = 3,
+    ST_MODULE_TYPE_PDK5   = 5
+}st_module_type_t;
+
 typedef struct _SML_GlobalHeaderType {
     uint32_t    magicNumber;                    // Magic number
     uint32_t    payloadBytes;                   // Payload bytes size
@@ -122,7 +129,8 @@ typedef struct _SML_HeaderTypeV3 {
 } SML_HeaderTypeV3;
 
 typedef struct _SML_BigSoundModelTypeV3 {
-    uint32_t version;                           // version of sound model ( always 3 for now )
+    uint16_t versionMajor;
+    uint16_t versionMinor;
     uint32_t offset;                            // start address of model data
     uint32_t size;                              // model size
     listen_model_indicator_enum type;           // type : Lower 1 byte : 1Stage KW model,
@@ -272,8 +280,33 @@ typedef enum st_param_id_type {
     ENGINE_RESET,
     MODULE_VERSION,
     CUSTOM_CONFIG,
+    LOAD_MULTI_SOUND_MODEL,
+    DEREGISTER_MULTI_SOUND_MODEL,
+    WAKEUP_CONFIG_STAGE1_SVA5,
+    MULTI_MODEL_BUFFERING_CONFIG,
     MAX_PARAM_IDS
 } st_param_id_type_t;
+
+struct model_stats
+{
+    uint32_t detected_model_id;
+    uint32_t detected_keyword_id;
+    uint32_t best_channel_idx;
+    uint32_t best_confidence_level;
+    uint32_t kw_start_timestamp_lsw;
+    uint32_t kw_start_timestamp_msw;
+    uint32_t kw_end_timestamp_lsw;
+    uint32_t kw_end_timestamp_msw;
+    uint32_t detection_timestamp_lsw;
+    uint32_t detection_timestamp_msw;
+};
+
+struct detection_event_info_sva5
+{
+    uint32_t num_detected_models;
+    struct model_stats detected_model_stats[MAX_MODELS_SUPPORTED];
+    uint32_t ftrt_data_length_in_us;
+};
 
 struct detection_event_info
 {
@@ -292,7 +325,8 @@ struct detection_event_info
 class SoundTriggerEngine {
 public:
     static std::shared_ptr<SoundTriggerEngine> Create(Stream *s,
-        listen_model_indicator_enum type, bool sm_merge = false);
+        listen_model_indicator_enum type, st_module_type_t module_type,
+        bool sm_merge = false);
 
     virtual ~SoundTriggerEngine() {}
 
@@ -308,7 +342,7 @@ public:
         uint8_t *conf_levels,
         uint32_t num_conf_levels) = 0;
     virtual int32_t UpdateBufConfig(Stream *s, uint32_t hist_buffer_duration,
-                                    uint32_t pre_roll_duration) = 0;
+                          uint32_t pre_roll_duration) = 0;
     virtual void GetUpdatedBufConfig(uint32_t *hist_buffer_duration,
                                     uint32_t *pre_roll_duration) = 0;
     virtual void SetDetected(bool detected) = 0;
@@ -327,7 +361,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) = 0;
     virtual void ResetEngineInstance(Stream *s) = 0;
     virtual void SetCaptureRequested(bool is_requested) = 0;
-    virtual struct detection_event_info* GetDetectionEventInfo() = 0;
+    virtual void* GetDetectionEventInfo() = 0;
     virtual int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,
