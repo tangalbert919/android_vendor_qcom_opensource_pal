@@ -115,9 +115,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);
     int32_t HandleMultiStreamUnloadSVA5(Stream *s);
     int32_t HandleMultiStreamUnload(Stream *s);
-    void CheckOtherStreamStates(st_state_id_t *restore_state);
-    bool IsAnyStreamInState(st_state_id_t state, Stream **s);
-    bool IsOtherStreamInState(st_state_id_t state, Stream *s);
     int32_t UpdateEngineModel(Stream *s, uint8_t *data,
                               uint32_t data_size, bool add);
     int32_t AddSoundModel(Stream *s, uint8_t *data, uint32_t data_size);
@@ -149,6 +146,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     SoundModelInfo *eng_sm_info_;
     bool sm_merged_;
     int32_t dev_disconnect_count_;
+    bool ses_started_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_config_stage1_sva5 sva5_wakeup_config_;
     struct detection_engine_voice_wakeup_buffer_config buffer_config_;
