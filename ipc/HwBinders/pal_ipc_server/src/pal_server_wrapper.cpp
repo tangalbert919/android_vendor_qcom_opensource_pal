@@ -774,10 +774,13 @@ Return<void>PAL::ipc_pal_stream_get_tags_with_module_info(PalStreamHandle stream
                                ipc_pal_stream_get_tags_with_module_info_cb _hidl_cb)
 {
     int32_t ret = -EINVAL;
-    uint8_t *payload;
+    uint8_t *payload = NULL;
     size_t sz = size;
-    payload = (uint8_t *)calloc(1, size);
     hidl_vec<uint8_t> payloadRet;
+
+    if (size > 0)
+       payload = (uint8_t *)calloc(1, size);
+
     ret = pal_stream_get_tags_with_module_info((pal_stream_handle_t *)streamHandle, &sz, payload);
     if (!ret && (sz <= size)) {
          payloadRet.resize(sz);

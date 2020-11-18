@@ -470,7 +470,7 @@ int32_t StreamNonTunnel::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
 {
     int32_t status = 0;
 
-    if (!payload)
+    if (*size > 0 && !payload)
     {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "wrong params");
