@@ -439,6 +439,12 @@ int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable
 int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enable) {
     int32_t status = 0;
 
+    // TODO: add barge-in support for 3rd party graph
+    if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref for 3rd party va session");
+        return 0;
+    }
+
     PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
     if (mDevPpModifiers.size() == 0 ||
@@ -1052,6 +1058,42 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
             AddEngine(engine_cfg);
         }
+    } else {
+        // handle for generic sound model
+        common_sm = sound_model;
+        sm_size = sizeof(*common_sm) + common_sm->data_size;
+        sm_data = (uint8_t *)calloc(1, sm_size);
+        if (!sm_data) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for sm_data");
+            status = -ENOMEM;
+            goto error_exit;
+        }
+        ar_mem_cpy(sm_data, sizeof(*common_sm),
+            (uint8_t *)common_sm, sizeof(*common_sm));
+        ar_mem_cpy(sm_data + sizeof(*common_sm), common_sm->data_size,
+            (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
+        SetModelType(ST_MODULE_TYPE_GMM);
+        std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
+        streamConfigKV = this->sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
+        PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
+                    streamConfigKV.first, streamConfigKV.second);
+        this->mStreamModifiers.clear();
+        this->mStreamModifiers.push_back(streamConfigKV);
+        this->mInstanceID = this->rm->getStreamInstanceID(this);
+
+        gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
+                                common_sm->data_size, ST_SM_ID_SVA_GMM,
+                                                ST_MODULE_TYPE_GMM);
+        if (!gsl_engine_) {
+            status = -EINVAL;
+            goto error_exit;
+        }
+
+        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+        std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
+                engine_id, gsl_engine_, (void *) sm_data, sm_size));
+
+        AddEngine(engine_cfg);
     }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -1297,15 +1339,17 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                   goto error_exit;
             }
         }
-    } else if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
+    } else {
         // get history buffer duration from sound trigger platform xml
         hist_buf_duration_ = sm_cfg_->GetKwDuration();
         pre_roll_duration_ = 0;
 
-        status = FillConfLevels(config, &conf_levels, &num_conf_levels);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to parse conf levels from rc config");
-            goto error_exit;
+        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
+            status = FillConfLevels(config, &conf_levels, &num_conf_levels);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to parse conf levels from rc config");
+                goto error_exit;
+            }
         }
     }
 
@@ -1598,6 +1642,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct pal_st_recognition_event **event, uint32_t *evt_size) {
 
     struct pal_st_phrase_recognition_event *phrase_event = nullptr;
+    struct pal_st_generic_recognition_event *generic_event = nullptr;
     struct st_param_header *param_hdr = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
     struct st_timestamp_info *timestamps = nullptr;
@@ -1619,36 +1664,33 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
-            if (model_id_ > 0){
-                detection_event_info_multi_model =
-                       (struct detection_event_info_sva5 *)gsl_engine_->
-                             GetDetectionEventInfo();
-                if (!detection_event_info_multi_model){
-                    PAL_ERR(LOG_TAG, "detection info multi model not available");
-                    return -EINVAL;
-                }
-            } else {
-                det_ev_info = (struct detection_event_info *)gsl_engine_->
-                               GetDetectionEventInfo();
-                if (!det_ev_info) {
-                    PAL_ERR(LOG_TAG, "detection info not available");
-                    return -EINVAL;
-                }
+        if (model_id_ > 0){
+            detection_event_info_multi_model =
+                    (struct detection_event_info_sva5 *)gsl_engine_->
+                            GetDetectionEventInfo();
+            if (!detection_event_info_multi_model){
+                PAL_ERR(LOG_TAG, "detection info multi model not available");
+                return -EINVAL;
             }
-
-            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
-                conf_levels_size = sizeof(struct st_confidence_levels_info);
-            else
-                conf_levels_size = sizeof(struct st_confidence_levels_info_v2);
-
-            opaque_size = (3 * sizeof(struct st_param_header)) +
-                sizeof(struct st_timestamp_info) +
-                sizeof(struct st_keyword_indices_info) +
-                conf_levels_size;
         } else {
-            gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
+            det_ev_info = (struct detection_event_info *)gsl_engine_->
+                            GetDetectionEventInfo();
+            if (!det_ev_info) {
+                PAL_ERR(LOG_TAG, "detection info not available");
+                return -EINVAL;
+            }
         }
+
+        if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
+            conf_levels_size = sizeof(struct st_confidence_levels_info);
+        else
+            conf_levels_size = sizeof(struct st_confidence_levels_info_v2);
+
+        opaque_size = (3 * sizeof(struct st_param_header)) +
+            sizeof(struct st_timestamp_info) +
+            sizeof(struct st_keyword_indices_info) +
+            conf_levels_size;
+
         event_size = sizeof(struct pal_st_phrase_recognition_event) +
                      opaque_size;
         phrase_event = (struct pal_st_phrase_recognition_event *)
@@ -1683,95 +1725,123 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         opaque_data = (uint8_t *)phrase_event +
                        phrase_event->common.data_offset;
 
-        if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
-            /* Pack the opaque data confidence levels structure */
-            param_hdr = (struct st_param_header *)opaque_data;
-            param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
-            if (conf_levels_intf_version_ !=  CONF_LEVELS_INTF_VERSION_0002)
-                param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
-            else
-                param_hdr->payload_size = sizeof(struct st_confidence_levels_info_v2);
-            opaque_data += sizeof(struct st_param_header);
-            /* Copy the cached conf levels from recognition config */
-            if (model_id_ > 0){
-                for (int i = 0;
-                     i < detection_event_info_multi_model->num_detected_models;
-                     ++i){
-                    if (model_id_ ==  detection_event_info_multi_model->
-                                      detected_model_stats[i].detected_model_id){
-                        det_keyword_id = detection_event_info_multi_model->
-                                         detected_model_stats[i].
-                                         detected_keyword_id;
-                        best_conf_level = detection_event_info_multi_model->
-                                          detected_model_stats[i].
-                                          best_confidence_level;
-                        detection_timestamp_lsw = detection_event_info_multi_model->
-                                                  detected_model_stats[i].
-                                                  detection_timestamp_lsw;
-                        detection_timestamp_msw = detection_event_info_multi_model->
-                                                  detected_model_stats[i].
-                                                  detection_timestamp_msw;
-                        PAL_DBG(LOG_TAG,
-                                "keywordID : %u and best_conf_level : %u is updated",
-                                det_keyword_id, best_conf_level);
-                        break;
-                    }
+        /* Pack the opaque data confidence levels structure */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_CONFIDENCE_LEVELS;
+        if (conf_levels_intf_version_ !=  CONF_LEVELS_INTF_VERSION_0002)
+            param_hdr->payload_size = sizeof(struct st_confidence_levels_info);
+        else
+            param_hdr->payload_size = sizeof(struct st_confidence_levels_info_v2);
+        opaque_data += sizeof(struct st_param_header);
+        /* Copy the cached conf levels from recognition config */
+        if (model_id_ > 0){
+            for (int i = 0;
+                    i < detection_event_info_multi_model->num_detected_models;
+                    ++i){
+                if (model_id_ ==  detection_event_info_multi_model->
+                                    detected_model_stats[i].detected_model_id){
+                    det_keyword_id = detection_event_info_multi_model->
+                                        detected_model_stats[i].
+                                        detected_keyword_id;
+                    best_conf_level = detection_event_info_multi_model->
+                                        detected_model_stats[i].
+                                        best_confidence_level;
+                    detection_timestamp_lsw = detection_event_info_multi_model->
+                                                detected_model_stats[i].
+                                                detection_timestamp_lsw;
+                    detection_timestamp_msw = detection_event_info_multi_model->
+                                                detected_model_stats[i].
+                                                detection_timestamp_msw;
+                    PAL_DBG(LOG_TAG,
+                            "keywordID : %u and best_conf_level : %u is updated",
+                            det_keyword_id, best_conf_level);
+                    break;
                 }
-                if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002){
-                    conf_levels = (struct st_confidence_levels_info *)opaque_data;
-                    conf_levels->conf_levels[0].kw_levels[det_keyword_id].kw_level =
-                                                                    best_conf_level;
-                } else{
-                    conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-                                      opaque_data;
-                    conf_levels_v2->conf_levels[0].kw_levels[det_keyword_id].
-                                             kw_level= best_conf_level;
-                }
-            } else {
-                if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
-                    ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                            st_conf_levels_, param_hdr->payload_size);
-                else
-                    ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                        st_conf_levels_v2_, param_hdr->payload_size);
-                PackEventConfLevels(opaque_data);
             }
-            opaque_data += param_hdr->payload_size;
-
-            /* Pack the opaque data keyword indices structure */
-            param_hdr = (struct st_param_header *)opaque_data;
-            param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
-            param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
-            opaque_data += sizeof(struct st_param_header);
-            kw_indices = (struct st_keyword_indices_info *)opaque_data;
-            kw_indices->version = 0x1;
-            reader_->getIndices(&start_index, &end_index);
-            kw_indices->start_index = start_index;
-            kw_indices->end_index = end_index;
-            opaque_data += sizeof(struct st_keyword_indices_info);
-
-            /*
-             * Pack the opaque data detection time structure
-             * TODO: add support for 2nd stage detection timestamp
-             */
-            param_hdr = (struct st_param_header *)opaque_data;
-            param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
-            param_hdr->payload_size = sizeof(struct st_timestamp_info);
-            opaque_data += sizeof(struct st_param_header);
-            timestamps = (struct st_timestamp_info *)opaque_data;
-            timestamps->version = 0x1;
-            if (model_id_ > 0) {
-                timestamps->first_stage_det_event_time = 1000 *
-                          ((uint64_t)detection_timestamp_lsw +
-                          ((uint64_t)detection_timestamp_msw<<32));
-            } else {
-                timestamps->first_stage_det_event_time = 1000 *
-                    ((uint64_t)det_ev_info->detection_timestamp_lsw +
-                    ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
+            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002){
+                conf_levels = (struct st_confidence_levels_info *)opaque_data;
+                conf_levels->conf_levels[0].kw_levels[det_keyword_id].kw_level =
+                                                                best_conf_level;
+            } else{
+                conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
+                                    opaque_data;
+                conf_levels_v2->conf_levels[0].kw_levels[det_keyword_id].
+                                            kw_level= best_conf_level;
             }
         } else {
-            ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
+            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
+                ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                        st_conf_levels_, param_hdr->payload_size);
+            else
+                ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                    st_conf_levels_v2_, param_hdr->payload_size);
+            PackEventConfLevels(opaque_data);
         }
+        opaque_data += param_hdr->payload_size;
+
+        /* Pack the opaque data keyword indices structure */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_KEYWORD_INDICES;
+        param_hdr->payload_size = sizeof(struct st_keyword_indices_info);
+        opaque_data += sizeof(struct st_param_header);
+        kw_indices = (struct st_keyword_indices_info *)opaque_data;
+        kw_indices->version = 0x1;
+        reader_->getIndices(&start_index, &end_index);
+        kw_indices->start_index = start_index;
+        kw_indices->end_index = end_index;
+        opaque_data += sizeof(struct st_keyword_indices_info);
+
+        /*
+            * Pack the opaque data detection time structure
+            * TODO: add support for 2nd stage detection timestamp
+            */
+        param_hdr = (struct st_param_header *)opaque_data;
+        param_hdr->key_id = ST_PARAM_KEY_TIMESTAMP;
+        param_hdr->payload_size = sizeof(struct st_timestamp_info);
+        opaque_data += sizeof(struct st_param_header);
+        timestamps = (struct st_timestamp_info *)opaque_data;
+        timestamps->version = 0x1;
+        if (model_id_ > 0) {
+            timestamps->first_stage_det_event_time = 1000 *
+                        ((uint64_t)detection_timestamp_lsw +
+                        ((uint64_t)detection_timestamp_msw<<32));
+        } else {
+            timestamps->first_stage_det_event_time = 1000 *
+                ((uint64_t)det_ev_info->detection_timestamp_lsw +
+                ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
+        }
+    } else if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_GENERIC) {
+        gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
+        event_size = sizeof(struct pal_st_generic_recognition_event) +
+                     opaque_size;
+        generic_event = (struct pal_st_generic_recognition_event *)
+                       calloc(1, event_size);
+        if (!generic_event) {
+            PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
+            return -ENOMEM;
+        }
+
+        *event = &(generic_event->common);
+        (*event)->status = PAL_RECOGNITION_STATUS_SUCCESS;
+        (*event)->type = sound_model_type_;
+        (*event)->st_handle = (pal_st_handle_t *)this;
+        (*event)->capture_available = rec_config_->capture_requested;
+        // TODO: generate capture session
+        (*event)->capture_session = 0;
+        (*event)->capture_delay_ms = 0;
+        (*event)->capture_preamble_ms = 0;
+        (*event)->trigger_in_data = true;
+        (*event)->data_size = opaque_size;
+        (*event)->data_offset = sizeof(struct pal_st_generic_recognition_event);
+        (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
+        (*event)->media_config.bit_width = BITWIDTH_16;
+        (*event)->media_config.ch_info.channels = CHANNELS_1;
+        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+
+        // Filling Opaque data
+        opaque_data = (uint8_t *)generic_event +
+                       generic_event->common.data_offset;
+        ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
     }
     *evt_size = event_size;
     // TODO: handle for generic sound model

@@ -47,7 +47,8 @@ const std::map<std::string, uint32_t> devicePPKeyLUT {
 const std::map<std::string, uint32_t> devicePPValueLUT {
     {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS},
     {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW" }, DEVICEPP_TX_VOICE_UI_RAW},
+    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_LPI" }, DEVICEPP_TX_VOICE_UI_RAW_LPI},
+    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_NLPI" }, DEVICEPP_TX_VOICE_UI_RAW_NLPI},
 };
 
 const std::map<std::string, uint32_t> streamConfigKeyLUT {
@@ -284,7 +285,7 @@ void SecondStageConfig::HandleCharData(const char *data __unused) {
 }
 
 SoundTriggerModuleInfo::SoundTriggerModuleInfo() :
-    model_type_(0)
+    model_type_(ST_MODULE_TYPE_GMM)
 {
     for (int i = 0; i < MAX_PARAM_IDS; i++) {
         module_tag_ids_[i] = 0;
