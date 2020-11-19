@@ -554,6 +554,19 @@ err_exit:
 SoundTriggerEngineCapi::~SoundTriggerEngineCapi()
 {
     PAL_DBG(LOG_TAG, "Enter");
+    /*
+     * join thread if it is not joined, sometimes
+     * stop/unload may fail before deconstruction.
+     */
+    if (buffer_thread_handler_.joinable()) {
+        processing_started_ = false;
+        std::lock_guard<std::mutex> lck(event_mutex_);
+        exit_thread_ = true;
+        exit_buffering_ = true;
+        cv_.notify_one();
+        buffer_thread_handler_.join();
+        PAL_INFO(LOG_TAG, "Thread joined");
+    }
     if (buffer_) {
         delete buffer_;
     }
