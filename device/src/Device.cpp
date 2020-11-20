@@ -113,8 +113,14 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_OUT_PROXY:
         PAL_VERBOSE(LOG_TAG, "RTProxyOut device");
         return RTProxyOut::getInstance(device, Rm);
+    case PAL_DEVICE_OUT_HEARING_AID:
+        PAL_VERBOSE(LOG_TAG, "RTProxy Hearing Aid device");
+        return RTProxyOut::getInstance(device, Rm);
     case PAL_DEVICE_IN_PROXY:
         PAL_VERBOSE(LOG_TAG, "RTProxy device");
+        return RTProxy::getInstance(device, Rm);
+    case PAL_DEVICE_IN_TELEPHONY_RX:
+        PAL_VERBOSE(LOG_TAG, "RTProxy Telephony Rx device");
         return RTProxy::getInstance(device, Rm);
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
@@ -164,6 +170,8 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         return BtSco::getObject(dev_id);
     case PAL_DEVICE_OUT_PROXY:
     case PAL_DEVICE_IN_PROXY:
+    case PAL_DEVICE_OUT_HEARING_AID:
+    case PAL_DEVICE_IN_TELEPHONY_RX:
         PAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();
     default:

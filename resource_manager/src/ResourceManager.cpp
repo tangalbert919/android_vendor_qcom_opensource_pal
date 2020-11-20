@@ -165,6 +165,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
@@ -183,6 +184,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
+    {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
 };
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
@@ -204,6 +206,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_OUT_AUX_LINE,             0},
     {PAL_DEVICE_OUT_PROXY,                0},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
+    {PAL_DEVICE_OUT_HEARING_AID,          0},
     {PAL_DEVICE_OUT_MAX,                  0},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           0},
@@ -222,6 +225,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        0},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        0},
+    {PAL_DEVICE_IN_TELEPHONY_RX,          0},
 };
 
 // To be defined in detail
@@ -244,6 +248,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
@@ -262,7 +267,8 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_HANDSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
-    {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}}
+    {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -391,6 +397,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_OUT_AUX_LINE,             {std::string{ "" }}},
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
@@ -410,6 +417,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
+    {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
 };
 
 void agmServiceCrashHandler(uint64_t cookie __unused)
@@ -1214,6 +1222,30 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
                         deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
+            }
+            break;
+        case PAL_DEVICE_OUT_HEARING_AID:
+            {
+            /* For PAL_DEVICE_OUT_HEARING_AID, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_HEARING_AID sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+            break;
+        case PAL_DEVICE_IN_TELEPHONY_RX:
+            {
+            /* For PAL_DEVICE_IN_TELEPHONY_RX, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_IN_TELEPHONY_RX sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
             break;
         case PAL_DEVICE_OUT_AUX_DIGITAL:

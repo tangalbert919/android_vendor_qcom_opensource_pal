@@ -973,6 +973,8 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             if (sattr->direction == PAL_AUDIO_INPUT) {
                 if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD)
                     keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_WFD));
+                else if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_TELEPHONY_RX)
+                    keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_VOICE_RX));
             }
             break;
         case PAL_STREAM_DEEP_BUFFER:
@@ -1167,11 +1169,27 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
                 }
             }
             break;
+        case PAL_DEVICE_IN_TELEPHONY_RX:
+            {
+                struct pal_stream_attributes sAttr;
+                int32_t status = 0;
+                keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
+                status = s->getStreamAttributes(&sAttr);
+                PAL_DBG(LOG_TAG,"enter status %d %d", status, sAttr.info.opt_stream_info.tx_proxy_type);
+                if (status == 0) {
+                    if (sAttr.info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_TELEPHONY_RX)
+                        keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_VOICE_RX));
+                }
+            }
+            break;
         case PAL_DEVICE_OUT_PROXY:
             keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
             break;
         case PAL_DEVICE_IN_VI_FEEDBACK:
             keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
+            break;
+        case PAL_DEVICE_OUT_HEARING_AID:
+            keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX_VOICE));
             break;
         default:
             PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
