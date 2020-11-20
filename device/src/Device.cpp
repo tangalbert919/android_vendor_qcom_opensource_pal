@@ -266,6 +266,16 @@ int Device::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
+void* Device::getCustomPayload()
+{
+    return customPayload;
+}
+
+size_t Device::getCustomPayloadSize()
+{
+    return customPayloadSize;
+}
+
 int Device::getSndDeviceId()
 {
     PAL_VERBOSE(LOG_TAG,"Device Id %d acquired", deviceAttr.id);

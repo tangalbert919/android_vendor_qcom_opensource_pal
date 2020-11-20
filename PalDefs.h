@@ -82,10 +82,10 @@ typedef enum {
     PAL_AUDIO_FMT_EVRC = 0x11,
     PAL_AUDIO_FMT_G711 = 0x12,
     PAL_AUDIO_FMT_QCELP = 0x13,
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,           /* Reserved for beginning of compressed codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END = 0xF0000FFF,    /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_END = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } pal_audio_fmt_t;
 
 #define PCM_24_BIT_PACKED (0x6u)
@@ -253,40 +253,44 @@ typedef struct gef_payload_s {
 
 /** Audio channel map enumeration*/
 typedef enum {
-    PAL_CHMAP_CHANNEL_FL = 1,               /**< Front right channel. */
-    PAL_CHMAP_CHANNEL_FR = 2,               /**< Front center channel. */
-    PAL_CHMAP_CHANNEL_C = 3,                /**< Left surround channel. */
-    PAL_CHMAP_CHANNEL_LS = 4,               /** Right surround channel. */
-    PAL_CHMAP_CHANNEL_RS = 5,               /** Low frequency effect channel. */
-    PAL_CHMAP_CHANNEL_LFE = 6,              /** Center surround channel; */
-    PAL_CHMAP_CHANNEL_RC = 7,               /**< rear center channel. */
-    PAL_CHMAP_CHANNEL_LB = 8,               /**< rear left channel. */
-    PAL_CHMAP_CHANNEL_RB = 9,               /**<  rear right channel. */
-    PAL_CHMAP_CHANNEL_TS = 10,              /**< Top surround channel. */
-    PAL_CHMAP_CHANNEL_TFC = 11,             /**< Top front center channel. or Center vertical height channel.*/
-    PAL_CHMAP_CHANNEL_MS = 12,              /**< Mono surround channel. */
-    PAL_CHMAP_CHANNEL_FLC = 13,             /**< Front left of center channel. */
-    PAL_CHMAP_CHANNEL_FRC = 14,             /**< Front right of center channel. */
-    PAL_CHMAP_CHANNEL_RLC = 15,             /**< Rear left of center channel. */
-    PAL_CHMAP_CHANNEL_RRC = 16,             /**< Rear right of center channel. */
-    PAL_CHMAP_CHANNEL_LFE2 = 17,            /**< Secondary low frequency effect channel. */
-    PAL_CHMAP_CHANNEL_SL = 18,              /**< Side left channel. */
-    PAL_CHMAP_CHANNEL_SR = 19,              /**< Side right channel. */
-    PAL_CHMAP_CHANNEL_TFL = 20,             /**< Top front left channel or Left vertical height channel */
-    PAL_CHMAP_CHANNEL_TFR = 21,             /**< Top front right channel or Right vertical height channel. */
-    PAL_CHMAP_CHANNEL_TC = 22,              /**< Top center channel. */
-    PAL_CHMAP_CHANNEL_TBL = 23,             /**< Top back left channel. */
-    PAL_CHMAP_CHANNEL_TBR = 24,             /**< Top back right channel. */
-    PAL_CHMAP_CHANNEL_TSL = 25,             /**< Top side left channel. */
-    PAL_CHMAP_CHANNEL_TSR = 26,             /**< Top side right channel. */
-    PAL_CHMAP_CHANNEL_TBC = 27,             /**< Top back center channel. */
-    PAL_CHMAP_CHANNEL_BFC = 28,             /**< Bottom front center channel. */
-    PAL_CHMAP_CHANNEL_BFL = 29,             /**< Bottom front left channel. */
-    PAL_CHMAP_CHANNEL_BFR = 30,             /**< Bottom front right channel. */
-    PAL_CHMAP_CHANNEL_LW = 31,              /**< Left wide channel. */
-    PAL_CHMAP_CHANNEL_RW = 32,              /**< Right wide channel. */
-    PAL_CHMAP_CHANNEL_LSD = 33,             /**< Left side direct channel. */
-    PAL_CHMAP_CHANNEL_RSD = 34,             /**< Left side direct channel. */
+    PAL_CHMAP_CHANNEL_FL = 1,                      /**< Front right channel. */
+    PAL_CHMAP_CHANNEL_FR = 2,                      /**< Front center channel. */
+    PAL_CHMAP_CHANNEL_C = 3,                       /**< Left surround channel. */
+    PAL_CHMAP_CHANNEL_LS = 4,                      /** Right surround channel. */
+    PAL_CHMAP_CHANNEL_RS = 5,                      /** Low frequency effect channel. */
+    PAL_CHMAP_CHANNEL_LFE = 6,                     /** Center surround channel; */
+    PAL_CHMAP_CHANNEL_RC = 7,                      /**< rear center channel. */
+    PAL_CHMAP_CHANNEL_CB = PAL_CHMAP_CHANNEL_RC,   /**< center back channel. */
+    PAL_CHMAP_CHANNEL_LB = 8,                      /**< rear left channel. */
+    PAL_CHMAP_CHANNEL_RB = 9,                      /**<  rear right channel. */
+    PAL_CHMAP_CHANNEL_TS = 10,                     /**< Top surround channel. */
+    PAL_CHMAP_CHANNEL_CVH = 11,                    /**< Center vertical height channel.*/
+    PAL_CHMAP_CHANNEL_TFC = PAL_CHMAP_CHANNEL_CVH, /**< Top front center channel. */
+    PAL_CHMAP_CHANNEL_MS = 12,                     /**< Mono surround channel. */
+    PAL_CHMAP_CHANNEL_FLC = 13,                    /**< Front left of center channel. */
+    PAL_CHMAP_CHANNEL_FRC = 14,                    /**< Front right of center channel. */
+    PAL_CHMAP_CHANNEL_RLC = 15,                    /**< Rear left of center channel. */
+    PAL_CHMAP_CHANNEL_RRC = 16,                    /**< Rear right of center channel. */
+    PAL_CHMAP_CHANNEL_LFE2 = 17,                   /**< Secondary low frequency effect channel. */
+    PAL_CHMAP_CHANNEL_SL = 18,                     /**< Side left channel. */
+    PAL_CHMAP_CHANNEL_SR = 19,                     /**< Side right channel. */
+    PAL_CHMAP_CHANNEL_TFL = 20,                    /**< Top front left channel. */
+    PAL_CHMAP_CHANNEL_LVH = PAL_CHMAP_CHANNEL_TFL, /**< Right vertical height channel */
+    PAL_CHMAP_CHANNEL_TFR = 21,                    /**< Top front right channel. */
+    PAL_CHMAP_CHANNEL_RVH = PAL_CHMAP_CHANNEL_TFR, /**< Right vertical height channel. */
+    PAL_CHMAP_CHANNEL_TC = 22,                     /**< Top center channel. */
+    PAL_CHMAP_CHANNEL_TBL = 23,                    /**< Top back left channel. */
+    PAL_CHMAP_CHANNEL_TBR = 24,                    /**< Top back right channel. */
+    PAL_CHMAP_CHANNEL_TSL = 25,                    /**< Top side left channel. */
+    PAL_CHMAP_CHANNEL_TSR = 26,                    /**< Top side right channel. */
+    PAL_CHMAP_CHANNEL_TBC = 27,                    /**< Top back center channel. */
+    PAL_CHMAP_CHANNEL_BFC = 28,                    /**< Bottom front center channel. */
+    PAL_CHMAP_CHANNEL_BFL = 29,                    /**< Bottom front left channel. */
+    PAL_CHMAP_CHANNEL_BFR = 30,                    /**< Bottom front right channel. */
+    PAL_CHMAP_CHANNEL_LW = 31,                     /**< Left wide channel. */
+    PAL_CHMAP_CHANNEL_RW = 32,                     /**< Right wide channel. */
+    PAL_CHMAP_CHANNEL_LSD = 33,                    /**< Left side direct channel. */
+    PAL_CHMAP_CHANNEL_RSD = 34,                    /**< Left side direct channel. */
 } pal_channel_map;
 
 /** Audio channel info data structure */
@@ -530,14 +534,14 @@ typedef enum {
     VOICEMMODE2 = 0x11DC5000,
     VOICELBMMODE1 = 0x12006000,
     VOICELBMMODE2 = 0x121C6000,
-}pal_VSID_t;
+} pal_VSID_t;
 
 typedef enum {
     PAL_TTY_OFF = 0,
     PAL_TTY_HCO = 1,
     PAL_TTY_VCO = 2,
     PAL_TTY_FULL = 3,
-}pal_tty_t;
+} pal_tty_t;
 
 typedef union {
     struct pal_stream_info opt_stream_info; /* optional */
@@ -742,6 +746,7 @@ typedef enum {
     PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
     PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
     PAL_PARAM_ID_MODULE_CONFIG = 36, /*Clients directly configure DSP modules*/
+    PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -859,6 +864,7 @@ typedef struct pal_param_bta2dp {
     bool     reconfigured;
     bool     a2dp_suspended;
     bool     is_tws_mono_mode_on;
+    bool     is_lc3_mono_mode_on;
     uint32_t latency;
 } pal_param_bta2dp_t;
 
@@ -866,6 +872,10 @@ typedef struct pal_bt_tws_payload_s {
     bool isTwsMonoModeOn;
     uint32_t codecFormat;
 } pal_bt_tws_payload;
+
+typedef struct pal_bt_lc3_payload_s {
+    bool isLC3MonoModeOn;
+} pal_bt_lc3_payload;
 
 /**< PAL device */
 struct pal_device {

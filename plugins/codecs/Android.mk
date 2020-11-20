@@ -57,3 +57,31 @@ LOCAL_MODULE := lib_bt_aptx
 LOCAL_MODULE_OWNER := qti
 LOCAL_VENDOR_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
+
+#--------------------------------------------
+#          Build bt_ble LIB
+#--------------------------------------------
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+    bt_base.c \
+    bt_ble.c
+
+LOCAL_CFLAGS += -O2 -fvisibility=hidden
+
+LOCAL_SHARED_LIBRARIES := \
+    libcutils \
+    liblog \
+    libdl
+
+LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
+LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
+
+LOCAL_HEADER_LIBRARIES := \
+    libspf-headers
+
+LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE := lib_bt_ble
+LOCAL_MODULE_OWNER := qti
+LOCAL_VENDOR_MODULE := true
+include $(BUILD_SHARED_LIBRARY)

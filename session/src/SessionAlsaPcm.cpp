@@ -1571,6 +1571,26 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             }
             return 0;
         }
+        case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
+        {
+            pal_bt_lc3_payload *lc3_payload = (pal_bt_lc3_payload *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadLC3Config(&paramData, &paramSize, miid,
+                    lc3_payload->isLC3MonoModeOn);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                PAL_INFO(LOG_TAG, "mixer set lc3 config status=%d\n", status);
+                free(paramData);
+            }
+            return 0;
+        }
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);

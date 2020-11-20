@@ -84,6 +84,8 @@ public:
     virtual int getCodecConfig(struct pal_media_config *config);
     static std::shared_ptr<Device> getObject(pal_device_id_t dev_id);
     int updateCustomPayload(void *payload, size_t size);
+    void* getCustomPayload();
+    size_t getCustomPayloadSize();
     virtual int32_t setDeviceParameter(uint32_t param_id, void *param);
     virtual int32_t setParameter(uint32_t param_id, void *param);
     virtual int32_t getDeviceParameter(uint32_t param_id, void **param);
