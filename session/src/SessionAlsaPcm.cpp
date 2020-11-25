@@ -1419,13 +1419,9 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             goto exit;
         }
         case PAL_PARAM_ID_LOAD_SOUND_MODEL:
-        case PAL_PARAM_ID_LOAD_MULTI_SOUND_MODEL:
         case PAL_PARAM_ID_UNLOAD_SOUND_MODEL:
-        case PAL_PARAM_ID_UNLOAD_MULTI_SOUND_MODEL:
         case PAL_PARAM_ID_WAKEUP_ENGINE_CONFIG:
-        case PAL_PARAM_ID_WAKEUP_MULTI_MODEL_ENGINE_CONFIG:
         case PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG:
-        case PAL_PARAM_ID_WAKEUP_MULTI_MODEL_BUFFERING_CONFIG:
         case PAL_PARAM_ID_WAKEUP_ENGINE_RESET:
         case PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG:
         {

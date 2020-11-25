@@ -32,10 +32,11 @@
 
 #include <stdint.h>
 #include <map>
+#include <vector>
 #include <memory>
 #include <string>
 #include "PalDefs.h"
-#include "SoundTriggerEngine.h"
+#include "SoundTriggerUtils.h"
 
 #define CAPTURE_PROFILE_PRIORITY_HIGH 1
 #define CAPTURE_PROFILE_PRIORITY_LOW -1
@@ -190,7 +191,7 @@ class SoundModelConfig : public SoundTriggerXml {
         return op_modes_.at(mode_pair);
     }
     std::shared_ptr<SecondStageConfig> GetSecondStageConfig(
-        const uint32_t& sm_id) const;
+        const listen_model_indicator_enum& sm_type) const;
     std::shared_ptr<SoundTriggerModuleInfo> GetSoundTriggerModuleInfo(
         const uint32_t& type) const;
 

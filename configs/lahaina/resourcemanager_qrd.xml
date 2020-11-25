@@ -727,11 +727,10 @@
             </module_params>
             <module_params>
                 <param module_type="PDK" />
-                <param load_multi_sound_model_ids="0xC0000008, 0x0800124E"/>
+                <param load_sound_model_ids="0xC0000008, 0x0800124E"/>
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
-                <param deregister_multi_sound_model_ids="0xC0000008, 0x08001250"/>
-                <param multi_model_wakeup_config_ids="0xC0000008, 0x08001049" />
-                <param multi_model_buffering_config_ids="0xC0000008, 0x0800124F"/>
+                <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
+                <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
             </module_params>
         </sound_model_config>

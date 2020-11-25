@@ -51,13 +51,15 @@ class Stream;
 
 class SoundTriggerEngineGsl : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineGsl(Stream *s, uint32_t id,
+    SoundTriggerEngineGsl(Stream *s,
                listen_model_indicator_enum type,
-               st_module_type_t module_type);
+               st_module_type_t module_type,
+               std::shared_ptr<SoundModelConfig> sm_cfg);
     ~SoundTriggerEngineGsl();
     static std::shared_ptr<SoundTriggerEngineGsl> GetInstance(Stream *s,
-                         uint32_t id, listen_model_indicator_enum type,
-                          st_module_type_t module_type);
+                          listen_model_indicator_enum type,
+                          st_module_type_t module_type,
+                          std::shared_ptr<SoundModelConfig> sm_cfg);
     void ResetEngineInstance(Stream *s) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -149,8 +151,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     bool ses_started_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_config_stage1_sva5 sva5_wakeup_config_;
-    struct detection_engine_voice_wakeup_buffer_config buffer_config_;
-    struct detection_engine_multi_model_buffering_config sva5_buffer_config_;
+    struct detection_engine_multi_model_buffering_config buffer_config_;
     struct detection_event_info detection_event_info_;
     struct detection_event_info_sva5 detection_event_info_multi_model_ ;
     struct param_id_detection_engine_deregister_multi_sound_model_t

@@ -35,6 +35,7 @@
 
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
+#include "SoundTriggerPlatformInfo.h"
 
 void SoundTriggerEngineCapi::BufferThreadLoop(
     SoundTriggerEngineCapi *capi_engine)
@@ -471,14 +472,14 @@ exit:
 
 SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     Stream *s,
-    uint32_t id,
-    listen_model_indicator_enum type)
+    listen_model_indicator_enum type,
+    std::shared_ptr<SoundModelConfig> sm_cfg)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
-    engine_id_ = id;
     engine_type_ = type;
+    sm_cfg_ = sm_cfg;
     processing_started_ = false;
     keyword_detected_ = false;
     sm_data_ = nullptr;
@@ -494,23 +495,21 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     buffer_ = nullptr;
     stream_handle_ = s;
 
-    StreamSoundTrigger *st_str = dynamic_cast<StreamSoundTrigger *>(s);
-    status = st_str->GetEngineConfig(sample_rate_,
-        bit_width_, channels_, type);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to get engine config");
-        throw std::runtime_error("Failed to get engine config");
+    PAL_DBG(LOG_TAG, "Enter");
+    kw_start_tolerance_ = sm_cfg_->GetKwStartTolerance();
+    kw_end_tolerance_ = sm_cfg_->GetKwEndTolerance();
+
+    ss_cfg_ = sm_cfg_->GetSecondStageConfig(engine_type_);
+    if (!ss_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get second stage config");
+        throw std::runtime_error("Failed to get second stage config");
     }
 
-    status = st_str->GetSecondStageConfig(detection_type_,
-        lib_name_, type);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to get ss engine config");
-        throw std::runtime_error("Failed to get ss engine config");
-    }
-
-    kw_start_tolerance_ = st_str->GetKwStartTolerance();
-    kw_end_tolerance_ = st_str->GetKwEndTolerance();
+    sample_rate_ = ss_cfg_->GetSampleRate();
+    bit_width_ = ss_cfg_->GetBitWidth();
+    channels_ = ss_cfg_->GetChannels();
+    detection_type_ = ss_cfg_->GetDetectionType();
+    lib_name_ = ss_cfg_->GetLibName();
 
     // TODO: ST_SM_TYPE_CUSTOM_DETECTION
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {

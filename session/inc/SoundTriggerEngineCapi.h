@@ -38,11 +38,13 @@
 #include "PalRingBuffer.h"
 
 class Stream;
+class SecondStageConfig;
 
 class SoundTriggerEngineCapi : public SoundTriggerEngine {
  public:
-    SoundTriggerEngineCapi(Stream *s, uint32_t id,
-        listen_model_indicator_enum type);
+    SoundTriggerEngineCapi(Stream *s,
+        listen_model_indicator_enum type,
+        std::shared_ptr<SoundModelConfig> sm_cfg);
     ~SoundTriggerEngineCapi();
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
@@ -106,6 +108,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     bool keyword_detected_;
     int32_t confidence_threshold_;
     uint32_t buffer_size_;
+    std::shared_ptr<SecondStageConfig> ss_cfg_;
     /*
      * externally to allow engine to know where
      * it can stop and start processing
