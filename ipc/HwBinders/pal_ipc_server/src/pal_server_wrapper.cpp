@@ -63,6 +63,10 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
                session.callback_binder->client_died = true;
                pal_stream_stop((pal_stream_handle_t *)session.session_handle);
                pal_stream_close((pal_stream_handle_t *)session.session_handle);
+               /*close the dupped fds in PAL server context*/
+               for (int j=0; j < session.callback_binder->sharedMemFdList.size(); j++) {
+                    close(session.callback_binder->sharedMemFdList[j].second);
+               }
                session.callback_binder.clear();
            }
            clnt.mActiveSessions.clear();
@@ -363,6 +367,10 @@ Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
            for (sess_iter = clnt.mActiveSessions.begin();
                  sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
                 if ((*sess_iter).session_handle == streamHandle) {
+                    /*close the shared mem fds dupped in PAL server context*/
+                    for (int j=0; j < (*sess_iter).callback_binder->sharedMemFdList.size(); j++) {
+                         close((*sess_iter).callback_binder->sharedMemFdList[j].second);
+                    }
                     ALOGE("Closing the session %x", streamHandle);
                     (*sess_iter).callback_binder.clear();
                     break;

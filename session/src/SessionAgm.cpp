@@ -44,6 +44,7 @@
 void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params __unused,
                   void *client_data)
 {
+    struct pal_stream_attributes sAttr;
     SessionAgm *sessAgm = NULL;
     uint32_t event_id = 0;
     void *event_data = NULL;
@@ -62,6 +63,9 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
                          session_id, sessAgm->sessionId);
         goto done;
     }
+
+    sessAgm->streamHandle->getStreamAttributes(&sAttr);
+
     if (event_params->event_id == AGM_EVENT_READ_DONE ||
         event_params->event_id == AGM_EVENT_WRITE_DONE) {
 
@@ -85,10 +89,12 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         rw_done_payload->buff.alloc_info.offset =
                                       agm_rw_done_payload->buff.alloc_info.offset;
 
-        rw_done_payload->buff.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
-        rw_done_payload->buff.ts->tv_sec = agm_rw_done_payload->buff.timestamp/MICRO_SECS_PER_SEC;
-        rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
+        if (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP) {
+            rw_done_payload->buff.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
+            rw_done_payload->buff.ts->tv_sec = agm_rw_done_payload->buff.timestamp/MICRO_SECS_PER_SEC;
+            rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
                                           rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
+        }
 
         if (event_params->event_id == AGM_EVENT_READ_DONE)
             event_id = PAL_STREAM_CBK_EVENT_READ_DONE;
@@ -261,6 +267,8 @@ int SessionAgm::open(Stream * strm)
         PAL_ERR(LOG_TAG, "agm_session_set_metadata failed for session %d", sessionId);
         goto freeMetaData;
     }
+
+    streamHandle = strm;
 
     status = agm_session_open(sessionId, AGM_SESSION_NON_TUNNEL, &agmSessHandle);
     if (status != 0) {
@@ -436,7 +444,7 @@ int SessionAgm::read(Stream *s, int tag __unused, struct pal_buffer *buf, int *s
     agm_buffer.size = buf->size;
     agm_buffer.metadata_size = buf->metadata_size;
     agm_buffer.metadata = buf->metadata;
-    if (buf->ts) {
+    if (buf->ts && (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP)) {
        agm_buffer.flags = AGM_BUFF_FLAG_TS_VALID;
        agm_buffer.timestamp = buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
     }
@@ -494,7 +502,7 @@ int SessionAgm::write(Stream *s, int tag __unused, struct pal_buffer *buf, int *
     agm_buffer.size = buf->size;
     agm_buffer.metadata_size = buf->metadata_size;
     agm_buffer.metadata = buf->metadata;
-    if (buf->ts) {
+    if (buf->ts && (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP)) {
        agm_buffer.flags = AGM_BUFF_FLAG_TS_VALID;
        agm_buffer.timestamp = buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
     }

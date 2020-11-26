@@ -109,6 +109,7 @@ public:
     session_callback sessionCb;
     uint64_t cbCookie;
     int32_t sessionId;
+    Stream *streamHandle;
 };
 
 #endif //SESSION_AGM_H
