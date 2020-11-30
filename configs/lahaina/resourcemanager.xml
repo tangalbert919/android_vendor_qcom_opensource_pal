@@ -493,7 +493,6 @@
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
-            <param max_sessions="8" />
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
             <param transit_to_non_lpi_on_charging="false" />

@@ -620,6 +620,11 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
         }
     }
 
+    if (!strcmp(tag, "common_config") || !strcmp(tag, "capture_profile_list")) {
+        PAL_INFO(LOG_TAG, "tag:%s appeared, nothing to do", tag);
+        return;
+    }
+
     if (!strcmp(tag, "param")) {
         uint32_t i = 0;
         while (attribs[i]) {
