@@ -1633,6 +1633,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    exit_buffering_ = false;
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
@@ -1685,7 +1686,6 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
-    exit_buffering_ = false;
 
     if (ses_started_)
         ProcessStopRecognition(eng_streams_[0]);
