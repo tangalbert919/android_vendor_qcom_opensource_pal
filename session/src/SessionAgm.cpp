@@ -555,15 +555,10 @@ int SessionAgm::flush()
         PAL_ERR(LOG_TAG, "Compress is invalid");
         return -EINVAL;
     }
-    if (playback_started) {
-        PAL_VERBOSE(LOG_TAG,"Enter flush\n");
-        status = agm_session_stop(agmSessHandle);
-        if (!status) {
-            playback_started = false;
-        }
-    }
-    PAL_VERBOSE(LOG_TAG,"playback_started %d status %d\n", playback_started,
-            status);
+
+    PAL_VERBOSE(LOG_TAG,"Enter flush\n");
+    status = agm_session_flush(agmSessHandle);
+    PAL_VERBOSE(LOG_TAG,"flush complete\n");
     return status;
 }
 
