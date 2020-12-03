@@ -32,12 +32,14 @@
 #define SOUNDTRIGGERENGINEGSL_H
 
 #include <map>
+
 #include "SoundTriggerEngine.h"
 #include "SoundTriggerUtils.h"
 #include "StreamSoundTrigger.h"
 #include "PalRingBuffer.h"
 #include "PayloadBuilder.h"
 #include "detection_cmn_api.h"
+
 #define MAX_MODEL_ID_VALUE 0xFFFFFFFE
 #define MIN_MODEL_ID_VALUE 1
 #define CONFIDENCE_LEVEL_INFO    0x1

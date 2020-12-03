@@ -674,6 +674,12 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    st_info_ = SoundTriggerPlatformInfo::GetInstance();
+    if (!st_info_) {
+        PAL_ERR(LOG_TAG, "No sound trigger platform info present");
+        throw std::runtime_error("No sound trigger platform info present");
+    }
+
     if (sm_cfg) {
 
         sample_rate_ = sm_cfg_->GetSampleRate();
@@ -891,6 +897,18 @@ int32_t SoundTriggerEngineGsl::MergeSoundModels(uint32_t num_models,
         status = -EINVAL;
         goto cleanup;
     }
+
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_DECLARE(FILE *sm_fd = NULL;
+            static int sm_cnt = 0);
+        ST_DBG_FILE_OPEN_WR(sm_fd, ST_DEBUG_DUMP_LOCATION,
+            "st_smlib_output_merged_sm", "bin", sm_cnt);
+        ST_DBG_FILE_WRITE(sm_fd, out_model->data, out_model->size);
+        ST_DBG_FILE_CLOSE(sm_fd);
+        PAL_DBG(LOG_TAG, "SM returned from SML merge stored in: st_smlib_output_merged_sm_%d.bin",
+            sm_cnt);
+        sm_cnt++;
+    }
     PAL_DBG(LOG_TAG, "Exit, status: %d", status);
     return 0;
 
@@ -1098,6 +1116,17 @@ int32_t SoundTriggerEngineGsl::DeleteFromMergedModel(char **keyphrases,
         /* Used if deleting multiple keyphrases one after other */
         merge_model.data = out_model->data;
         merge_model.size = out_model->size;
+    }
+
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_DECLARE(FILE *sm_fd = NULL; static int sm_cnt = 0);
+        ST_DBG_FILE_OPEN_WR(sm_fd, ST_DEBUG_DUMP_LOCATION,
+            "st_smlib_output_deleted_sm", "bin", sm_cnt);
+        ST_DBG_FILE_WRITE(sm_fd, merge_model.data, merge_model.size);
+        ST_DBG_FILE_CLOSE(sm_fd);
+        PAL_DBG(LOG_TAG, "SM returned from SML delete stored in: st_smlib_output_deleted_sm_%d.bin",
+            sm_cnt);
+        sm_cnt++;
     }
     return 0;
 
@@ -2072,6 +2101,17 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
             return;
         }
         ar_mem_cpy(custom_detection_event, size, data, size);
+    }
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_DECLARE(FILE *det_event_fd = NULL;
+            static int det_event_cnt = 0);
+        ST_DBG_FILE_OPEN_WR(det_event_fd, ST_DEBUG_DUMP_LOCATION,
+            "det_event", "bin", det_event_cnt);
+        ST_DBG_FILE_WRITE(det_event_fd, data, size);
+        ST_DBG_FILE_CLOSE(det_event_fd);
+        PAL_DBG(LOG_TAG, "detection event stored in: det_event_%d.bin",
+            det_event_cnt);
+        det_event_cnt++;
     }
     PAL_INFO(LOG_TAG, "singal event processing thread");
     ATRACE_BEGIN("stEngine: keyword detected");

@@ -1232,6 +1232,19 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                          config->data_size);
     }
 
+    // dump recognition config opaque data
+    if (config->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+        ST_DBG_DECLARE(FILE *rec_opaque_fd = NULL; static int rec_opaque_cnt = 0);
+        ST_DBG_FILE_OPEN_WR(rec_opaque_fd, ST_DEBUG_DUMP_LOCATION,
+            "rec_config_opaque", "bin", rec_opaque_cnt);
+        ST_DBG_FILE_WRITE(rec_opaque_fd,
+            (uint8_t *)rec_config_ + config->data_offset, config->data_size);
+        ST_DBG_FILE_CLOSE(rec_opaque_fd);
+        PAL_DBG(LOG_TAG, "recognition config opaque data stored in: rec_config_opaque_%d.bin",
+            rec_opaque_cnt);
+        rec_opaque_cnt++;
+    }
+
     // Parse recognition config
     if (config->data_size > CUSTOM_CONFIG_OPAQUE_DATA_SIZE &&
         sm_cfg_->isQCVAUUID()) {
@@ -1789,6 +1802,19 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                 ((uint64_t)det_ev_info->detection_timestamp_lsw +
                 ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
         }
+
+        // dump detection event opaque data
+        if ((*event)->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
+                "det_event_opaque", "bin", det_opaque_cnt);
+            ST_DBG_FILE_WRITE(det_opaque_fd,
+                (uint8_t *)(*event) + (*event)->data_offset, (*event)->data_size);
+            ST_DBG_FILE_CLOSE(det_opaque_fd);
+            PAL_DBG(LOG_TAG, "detection event opaque data stored in: det_event_opaque_%d.bin",
+                det_opaque_cnt);
+            det_opaque_cnt++;
+        }
     } else if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_GENERIC) {
         gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
         event_size = sizeof(struct pal_st_generic_recognition_event) +
@@ -1823,7 +1849,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
     }
     *evt_size = event_size;
-    // TODO: handle for generic sound model
     PAL_DBG(LOG_TAG, "Exit");
 
     return 0;
@@ -3402,6 +3427,16 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 break;
             }
             status = st_stream_.reader_->read(buf->buffer, buf->size);
+            if (st_stream_.st_info_->GetEnableDebugDumps()) {
+                ST_DBG_DECLARE(FILE *lab_fd = NULL; static int lab_cnt = 0);
+                ST_DBG_FILE_OPEN_WR(lab_fd, ST_DEBUG_DUMP_LOCATION,
+                    "lab_reading", "bin", lab_cnt);
+                ST_DBG_FILE_WRITE(lab_fd, buf->buffer, buf->size);
+                ST_DBG_FILE_CLOSE(lab_fd);
+                PAL_DBG(LOG_TAG, "lab reading data stored in: lab_reading_%d.bin",
+                    lab_cnt);
+                lab_cnt++;
+            }
             break;
         }
         case ST_EV_START_RECOGNITION: {

@@ -211,6 +211,19 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
+        if (st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *keyword_detection_fd = NULL;
+                static int keyword_detection_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
+                "keyword_detection", "bin", keyword_detection_cnt);
+            ST_DBG_FILE_WRITE(keyword_detection_fd,
+                process_input_buff, read_size);
+            ST_DBG_FILE_CLOSE(keyword_detection_fd);
+            PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
+                keyword_detection_cnt);
+            keyword_detection_cnt++;
+        }
+
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
 
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
@@ -417,6 +430,19 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
+        if (st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *user_verification_fd = NULL;
+                static int user_verification_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
+                "user_verification", "bin", user_verification_cnt);
+            ST_DBG_FILE_WRITE(user_verification_fd,
+                process_input_buff, read_size);
+            ST_DBG_FILE_CLOSE(user_verification_fd);
+            PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
+                user_verification_cnt);
+            user_verification_cnt++;
+        }
+
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
 
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
@@ -500,6 +526,12 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     stream_handle_ = s;
 
     PAL_DBG(LOG_TAG, "Enter");
+    st_info_ = SoundTriggerPlatformInfo::GetInstance();
+    if (!st_info_) {
+        PAL_ERR(LOG_TAG, "No sound trigger platform info present");
+        throw std::runtime_error("No sound trigger platform info present");
+    }
+
     kw_start_tolerance_ = sm_cfg_->GetKwStartTolerance();
     kw_end_tolerance_ = sm_cfg_->GetKwEndTolerance();
 

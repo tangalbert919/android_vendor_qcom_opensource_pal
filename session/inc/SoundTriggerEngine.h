@@ -89,6 +89,7 @@ struct detection_event_info
 };
 
 class SoundModelConfig;
+class SoundTriggerPlatformInfo;
 
 class SoundTriggerEngine {
 public:
@@ -146,6 +147,7 @@ public:
 
 protected:
     listen_model_indicator_enum engine_type_;
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info_;
     std::shared_ptr<SoundModelConfig> sm_cfg_;
     uint8_t *sm_data_;
     uint32_t sm_data_size_;

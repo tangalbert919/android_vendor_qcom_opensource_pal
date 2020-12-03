@@ -265,6 +265,38 @@ typedef enum st_param_id_type {
     MAX_PARAM_IDS
 } st_param_id_type_t;
 
+#define ST_DEBUG_DUMP_LOCATION "/data/vendor/audio"
+#define ST_DBG_DECLARE(args...) args
+
+#define ST_DBG_FILE_OPEN_WR(fptr, fpath, fname, fextn, fcount) \
+do {\
+    char fptr_fn[100];\
+\
+    snprintf(fptr_fn, sizeof(fptr_fn), "%s/%s_%d.%s", fpath, fname, fcount, fextn);\
+    fptr = fopen(fptr_fn, "wb");\
+    if (!fptr) { \
+        ALOGE("%s: File open failed %s: %s", \
+              __func__, fptr_fn, strerror(errno)); \
+    } \
+} while (0)
+
+#define ST_DBG_FILE_CLOSE(fptr) \
+do {\
+    if (fptr) { fclose (fptr); }\
+} while (0)
+
+#define ST_DBG_FILE_WRITE(fptr, buf, buf_size) \
+do {\
+    if (fptr) {\
+        size_t ret_bytes = fwrite(buf, 1, buf_size, fptr);\
+        if (ret_bytes != (size_t)buf_size) {\
+            ALOGE("%s: fwrite %zu < %zu", __func__,\
+                  ret_bytes, (size_t)buf_size);\
+        }\
+        fflush(fptr);\
+    }\
+} while (0)
+
 /* Listen Sound Model Library APIs */
 typedef listen_status_enum (*smlib_getSoundModelHeader_t)
 (
