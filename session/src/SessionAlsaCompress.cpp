@@ -767,7 +767,8 @@ int SessionAlsaCompress::start(Stream * s)
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
-    struct sessionToPayloadParam deviceData;
+    struct pal_media_config codecConfig;
+    struct sessionToPayloadParam mfcData;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     uint32_t miid;
@@ -830,27 +831,41 @@ int SessionAlsaCompress::start(Stream * s)
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
                                                                rxAifBackEnds[i].second.data(),
                                                                TAG_DEVICE_MFC_SR, &miid);
-                if (status != 0) {
+                if (status == 0) {
+                    PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                            compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                } else {
                     PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                     return status;
                 }
-                PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                        compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                deviceData.bitWidth = dAttr.config.bit_width;
-                deviceData.sampleRate = dAttr.config.sample_rate;
-                deviceData.numChannel = dAttr.config.ch_info.channels;
-                deviceData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                deviceData.ch_info = nullptr;
+
+                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                    status = associatedDevices[i]->getCodecConfig(&codecConfig);
+                    if(0 != status) {
+                        PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                        return status;
+                    }
+                    mfcData.bitWidth = codecConfig.bit_width;
+                    mfcData.sampleRate = codecConfig.sample_rate;
+                    mfcData.numChannel = codecConfig.ch_info.channels;
+                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
+                    mfcData.ch_info = nullptr;
+                } else {
+                    mfcData.bitWidth = dAttr.config.bit_width;
+                    mfcData.sampleRate = dAttr.config.sample_rate;
+                    mfcData.numChannel = dAttr.config.ch_info.channels;
+                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
+                    mfcData.ch_info = nullptr;
+                }
                 if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
                     (2 == dAttr.config.ch_info.channels)) {
                     // Stereo Speakers. Check for the rotation type
-                    if (PAL_SPEAKER_ROTATION_RL ==
-                                                rm->getCurrentRotationType()) {
+                    if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
                         // Rotation is of RL, so need to swap the channels
-                        deviceData.rotation_type = PAL_SPEAKER_ROTATION_RL;
+                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
                     }
                 }
-                builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &deviceData);
+                builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &mfcData);
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
                     delete payload;

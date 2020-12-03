@@ -205,20 +205,25 @@ Device::~Device()
 
 int Device::getDeviceAttributes(struct pal_device *dattr)
 {
-    int status = 0;
-
     if (!dattr) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
-        goto exit;
+        PAL_ERR(LOG_TAG, "Invalid device attributes");
+        return  -EINVAL;
     }
-    ar_mem_cpy(dattr, sizeof(struct pal_device), &deviceAttr, sizeof(struct pal_device));
 
-exit:
-    return status;
+    ar_mem_cpy(dattr, sizeof(struct pal_device),
+            &deviceAttr, sizeof(struct pal_device));
+
+    return 0;
 }
 
-int Device::getDefaultConfig(pal_param_device_capability_t capability __unused) {
+int Device::getCodecConfig(struct pal_media_config *config __unused)
+{
+    return 0;
+}
+
+
+int Device::getDefaultConfig(pal_param_device_capability_t capability __unused)
+{
     return 0;
 }
 

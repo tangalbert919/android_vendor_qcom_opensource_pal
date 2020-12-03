@@ -383,25 +383,19 @@ error:
     return status;
 }
 
-int Bluetooth::getDeviceAttributes(struct pal_device *dattr)
+int Bluetooth::getCodecConfig(struct pal_media_config *config)
 {
-    int status = 0;
-
-    if (!dattr) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG,"Invalid device attributes status %d", status);
-        goto exit;
+    if (!config) {
+        PAL_ERR(LOG_TAG, "Invalid codec config");
+        return -EINVAL;
     }
 
     if (is_configured) {
-        dattr->id = deviceAttr.id;
-        ar_mem_cpy(&dattr->config, sizeof(struct pal_media_config), &codecConfig, sizeof(struct pal_media_config));
-    } else {
-        ar_mem_cpy(dattr, sizeof(struct pal_device), &deviceAttr, sizeof(struct pal_device));
+        ar_mem_cpy(config, sizeof(struct pal_media_config),
+                &codecConfig, sizeof(struct pal_media_config));
     }
 
-exit:
-    return status;
+    return 0;
 }
 
 void Bluetooth::startAbr()

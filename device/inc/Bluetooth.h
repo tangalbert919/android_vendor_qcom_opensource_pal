@@ -107,7 +107,7 @@ protected:
     void stopAbr();
 
 public:
-    int getDeviceAttributes(struct pal_device *dattr) override;
+    int getCodecConfig(struct pal_media_config *config) override;
     virtual ~Bluetooth();
 };
 
