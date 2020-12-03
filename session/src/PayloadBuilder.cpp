@@ -1081,11 +1081,20 @@ int PayloadBuilder::populateStreamDeviceKV(Stream* s, int32_t rxBeDevId,
                                            sidetone_mode_t sidetoneMode)
 {
     int status = 0;
+    std::vector <std::pair<int, int>> emptyKV;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_VERBOSE(LOG_TAG,"enter");
-    status = populateStreamKV(s, keyVectorRx, keyVectorTx, vsidinfo);
-    if (status)
-        goto exit;
+    if (rm->isOutputDevId(rxBeDevId)) {
+        status = populateStreamKV(s, keyVectorRx, emptyKV, vsidinfo);
+        if (status)
+            goto exit;
+    }
+    if (rm->isInputDevId(txBeDevId)) {
+        status = populateStreamKV(s, emptyKV, keyVectorTx, vsidinfo);
+        if (status)
+            goto exit;
+    }
 
     status = populateDeviceKV(s, rxBeDevId, keyVectorRx, txBeDevId,
             keyVectorTx, sidetoneMode);
