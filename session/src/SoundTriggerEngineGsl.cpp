@@ -705,6 +705,21 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     PAL_INFO(LOG_TAG, "Enter");
+    /*
+     * join thread if it is not joined, sometimes
+     * stop/unload may fail before deconstruction.
+     */
+    if (buffer_thread_handler_.joinable()) {
+        exit_buffering_ = true;
+        std::unique_lock<std::mutex> lck(mutex_);
+        exit_thread_ = true;
+        cv_.notify_one();
+        lck.unlock();
+        buffer_thread_handler_.join();
+        lck.lock();
+        PAL_INFO(LOG_TAG, "Thread joined");
+    }
+
     if (buffer_) {
         delete buffer_;
     }
@@ -888,6 +903,13 @@ int32_t SoundTriggerEngineGsl::AddSoundModel(Stream *s, uint8_t *data,
     PAL_VERBOSE(LOG_TAG, "Enter");
     if (st->GetSoundModelInfo()->GetModelData()) {
         PAL_DBG(LOG_TAG, "Stream model already added");
+        return 0;
+    }
+
+    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
+        st->GetSoundModelInfo()->SetModelData(data, data_size);
+        *eng_sm_info_ = *(st->GetSoundModelInfo());
+        sm_merged_ = false;
         return 0;
     }
 
@@ -1592,13 +1614,6 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         PAL_INFO(LOG_TAG, "Thread joined");
     }
 
-    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
-        status = UpdateSessionPayload(UNLOAD_SOUND_MODEL);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to unload sound model");
-        }
-    }
-
     status = session_->close(s);
     if (status)
         PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
@@ -1630,9 +1645,6 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
             status = UpdateSessionPayload(WAKEUP_CONFIG_STAGE1_SVA5);
         else
             status = UpdateSessionPayload(WAKEUP_CONFIG);
-    } else {
-        // update custom config for 3rd party wakeup module
-        status = UpdateSessionPayload(CUSTOM_CONFIG);
     }
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
@@ -1700,6 +1712,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         free(custom_detection_event);
         custom_detection_event_size = 0;
     }
+
     /*
      * TODO: This sequence RESET->STOP->START is currently required from spf
      * as ENGINE_RESET alone can't reset the graph (including DAM etc..) ready
@@ -1710,6 +1723,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to reset engine, status = %d",
                 status);
     }
+
     status = session_->stop(s);
     if (!status) {
         exit_buffering_ = false;
@@ -1736,6 +1750,7 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
     if (buffer_) {
         buffer_->reset();
     }
+
     /*
      * TODO: Currently spf requires ENGINE_RESET to close the DAM gate as stop
      * will not close the gate, rather just flushes the buffers, resulting in no
@@ -1810,6 +1825,19 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
     std::lock_guard<std::mutex> lck(mutex_);
+    if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
+        custom_data_size = config->data_size;
+        custom_data = (uint8_t *)calloc(1, custom_data_size);
+        if (!custom_data) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
+            status = -ENOMEM;
+            goto exit;
+        }
+        ar_mem_cpy(custom_data, custom_data_size,
+            (uint8_t *)config + config->data_offset, custom_data_size);
+        goto exit;
+    }
+
     if (!config || !conf_levels) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid config or conf levels, status %d", status);
@@ -1841,62 +1869,50 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         }
     }
 
-    if (is_qcva_uuid_ || is_qcmd_uuid_) {
-        if (module_type_ == ST_MODULE_TYPE_PDK5){
-            sva5_wakeup_config_.mode = config->phrases[0].recognition_modes;
-            sva5_wakeup_config_.num_keywords = num_conf_levels;
-            sva5_wakeup_config_.model_id = st->GetModelId();
-            sva5_wakeup_config_.custom_payload_size = sizeof(uint32_t) * 2 +
-                  sva5_wakeup_config_.num_keywords * sizeof(uint32_t);
-            PAL_DBG(LOG_TAG,
-            "sva5_wakeup_config_ mode : %u, custome_payload_size : %u, num_keywords : %u, model_id : %u", 
-            sva5_wakeup_config_.mode,
-            sva5_wakeup_config_.custom_payload_size,
-            sva5_wakeup_config_.num_keywords, sva5_wakeup_config_.model_id);
-            for (int i = 0; i < sva5_wakeup_config_.num_keywords; ++i){
-                sva5_wakeup_config_.confidence_levels[i] = conf_levels[i];
-                PAL_DBG(LOG_TAG, "%dth keyword confidence level : %u", i,
-                        sva5_wakeup_config_.confidence_levels[i]);
-            }
-        } else if (!CheckIfOtherStreamsAttached(s)) {
-            wakeup_config_.mode = config->phrases[0].recognition_modes;
+    if (module_type_ == ST_MODULE_TYPE_PDK5){
+        sva5_wakeup_config_.mode = config->phrases[0].recognition_modes;
+        sva5_wakeup_config_.num_keywords = num_conf_levels;
+        sva5_wakeup_config_.model_id = st->GetModelId();
+        sva5_wakeup_config_.custom_payload_size = sizeof(uint32_t) * 2 +
+                sva5_wakeup_config_.num_keywords * sizeof(uint32_t);
+        PAL_DBG(LOG_TAG,
+        "sva5_wakeup_config_ mode : %u, custome_payload_size : %u, num_keywords : %u, model_id : %u",
+        sva5_wakeup_config_.mode,
+        sva5_wakeup_config_.custom_payload_size,
+        sva5_wakeup_config_.num_keywords, sva5_wakeup_config_.model_id);
+        for (int i = 0; i < sva5_wakeup_config_.num_keywords; ++i){
+            sva5_wakeup_config_.confidence_levels[i] = conf_levels[i];
+            PAL_DBG(LOG_TAG, "%dth keyword confidence level : %u", i,
+                    sva5_wakeup_config_.confidence_levels[i]);
+        }
+    } else if (!CheckIfOtherStreamsAttached(s)) {
+        wakeup_config_.mode = config->phrases[0].recognition_modes;
+        wakeup_config_.custom_payload_size = config->data_size;
+        wakeup_config_.num_active_models = num_conf_levels;
+        wakeup_config_.reserved = 0;
+        for (int i = 0; i < wakeup_config_.num_active_models; i++) {
+            wakeup_config_.confidence_levels[i] = conf_levels[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i,
+                    wakeup_config_.confidence_levels[i]);
+        }
+    } else {
+        /* Update recognition mode considering all streams */
+        if (wakeup_config_.mode != config->phrases[0].recognition_modes)
+            wakeup_config_.mode |= config->phrases[0].recognition_modes;
             wakeup_config_.custom_payload_size = config->data_size;
-            wakeup_config_.num_active_models = num_conf_levels;
+            wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
             wakeup_config_.reserved = 0;
             for (int i = 0; i < wakeup_config_.num_active_models; i++) {
-                wakeup_config_.confidence_levels[i] = conf_levels[i];
-                wakeup_config_.keyword_user_enables[i] =
-                    (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-                PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i,
-                        wakeup_config_.confidence_levels[i]);
+            wakeup_config_.confidence_levels[i] = eng_sm_info_->
+                                                        GetConfLevels()[i];
+            wakeup_config_.keyword_user_enables[i] =
+                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i,
+                    wakeup_config_.confidence_levels[i]);
             }
-        } else {
-            /* Update recognition mode considering all streams */
-            if (wakeup_config_.mode != config->phrases[0].recognition_modes)
-                wakeup_config_.mode |= config->phrases[0].recognition_modes;
-                wakeup_config_.custom_payload_size = config->data_size;
-                wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
-                wakeup_config_.reserved = 0;
-                for (int i = 0; i < wakeup_config_.num_active_models; i++) {
-	            wakeup_config_.confidence_levels[i] = eng_sm_info_->
-                                                          GetConfLevels()[i];
-                wakeup_config_.keyword_user_enables[i] =
-                    (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-                PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i,
-                        wakeup_config_.confidence_levels[i]);
-                }
-            }
-    } else {
-        custom_data_size = config->data_size;
-        custom_data = (uint8_t *)calloc(1, custom_data_size);
-        if (!custom_data) {
-            PAL_ERR(LOG_TAG, "Failed to allocate memory for custom data");
-            status = -ENOMEM;
-            goto exit;
         }
-        ar_mem_cpy(custom_data, custom_data_size,
-            (uint8_t *)config + config->data_offset, custom_data_size);
-    }
 
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -2383,6 +2399,7 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
                 custom_data = nullptr;
                 custom_data_size = 0;
             }
+            break;
         default:
             PAL_ERR(LOG_TAG, "Invalid param id %u", param);
             return -EINVAL;
