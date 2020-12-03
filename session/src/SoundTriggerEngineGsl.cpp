@@ -81,7 +81,9 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 } else {
                     status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                     gsl_engine->CheckAndSetDetectionConfLevels(s);
+                    lck.unlock();
                     s->SetEngineDetectionState(GMM_DETECTED);
+                    lck.lock();
                 }
             }
         } else {
@@ -99,7 +101,9 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                         gsl_engine->StartBuffering(s);
                     } else {
                         status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
+                        lck.unlock();
                         s->SetEngineDetectionState(GMM_DETECTED);
+                        lck.lock();
                     }
                 }
             }
@@ -265,7 +269,9 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                                                      (GetDetectedStream());
                 if (s) {
                     this->CheckAndSetDetectionConfLevels(s);
+                    mutex_.unlock();
                     s->SetEngineDetectionState(GMM_DETECTED);
+                    mutex_.lock();
                 }
             } else {
                 for ( int i = 0;
@@ -277,8 +283,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                                             detected_model_stats[i].
                                             detected_model_id));
 
-                    if (s)
+                    if (s) {
+                        mutex_.unlock();
                         s->SetEngineDetectionState(GMM_DETECTED);
+                        mutex_.lock();
+                    }
                 }
             }
             event_notified = true;

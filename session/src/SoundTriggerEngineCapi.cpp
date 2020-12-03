@@ -78,17 +78,21 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
             if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_KEYWORD_DETECTION) {
                 status = capi_engine->StartKeywordDetection();
+                lck.unlock();
                 if (status || !capi_engine->keyword_detected_)
                     s->SetEngineDetectionState(KEYWORD_DETECTION_REJECT);
                 else
                     s->SetEngineDetectionState(KEYWORD_DETECTION_SUCCESS);
+                lck.lock();
             } else if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_USER_VERIFICATION) {
                 status = capi_engine->StartUserVerification();
+                lck.unlock();
                 if (status || !capi_engine->keyword_detected_)
                     s->SetEngineDetectionState(USER_VERIFICATION_REJECT);
                 else
                     s->SetEngineDetectionState(USER_VERIFICATION_SUCCESS);
+                lck.lock();
             }
             capi_engine->keyword_detected_ = false;
             capi_engine->processing_started_ = false;
