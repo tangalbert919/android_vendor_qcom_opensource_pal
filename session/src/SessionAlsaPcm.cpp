@@ -190,7 +190,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, uint32_t tag1,
                 status = -EINVAL;
                 goto exit;
             }
-            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+            tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
             if (!tagConfig) {
                 status = -ENOMEM;
@@ -248,7 +248,7 @@ uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32
 {
     int status = 0;
     int device = pcmDevIds.at(0);
-/* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
+    /* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
     if (backendName) {
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
             device, backendName, tagId, miid);
@@ -298,7 +298,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
 
-            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+            tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
 
             if (!tagConfig) {
@@ -310,7 +310,13 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             if (0 != status) {
                 goto exit;
             }
-            tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+
+            if (PAL_STREAM_LOOPBACK == sAttr.type) {
+                tagCntrlName<<stream<<pcmDevRxIds.at(0)<<" "<<setParamTagControl;
+            } else {
+                tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+            }
+
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
@@ -341,7 +347,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
 
-            calConfig = (struct agm_cal_config*)malloc (sizeof(struct agm_cal_config) +
+            calConfig = (struct agm_cal_config*)malloc(sizeof(struct agm_cal_config) +
                             (ckv.size() * sizeof(agm_key_value)));
 
             if (!calConfig) {
@@ -361,6 +367,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
                 return -ENOENT;
             }
+
             ckv_size = ckv.size()*sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
             if (status != 0) {
@@ -383,7 +390,7 @@ exit:
     return status;
 }
 
-int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_pal_payload_t *effectPayload)
+int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_pal_payload_t *effectPayload)
 {
     int status = 0;
     uint32_t tagsent;
@@ -393,6 +400,13 @@ int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_pal_payl
     struct mixer_ctl *ctl;
     std::ostringstream tagCntrlName;
     int tkv_size = 0;
+    pal_stream_attributes sAttr;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
 
     switch (type) {
         case MODULE:
@@ -408,7 +422,7 @@ int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_pal_payl
                 goto exit;
             }
 
-            tagConfig = (struct agm_tag_config*)malloc (sizeof(struct agm_tag_config) +
+            tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
                             (tkv.size() * sizeof(agm_key_value)));
 
             if(!tagConfig) {
@@ -421,7 +435,13 @@ int SessionAlsaPcm::setTKV(Stream * s __unused, configType type, effect_pal_payl
             if (0 != status) {
                 goto exit;
             }
-            tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+
+            if (PAL_STREAM_LOOPBACK == sAttr.type) {
+                tagCntrlName<<stream<<pcmDevRxIds.at(0)<<" "<<setParamTagControl;
+            } else {
+                tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+            }
+
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
@@ -585,8 +605,7 @@ int SessionAlsaPcm::start(Stream * s)
                     config.avail_min = config.period_size;
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
                         PCM_IN |PCM_MMAP| PCM_NOIRQ, &config);
-                }
-                else {
+                } else {
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
                 }
 
@@ -609,8 +628,7 @@ int SessionAlsaPcm::start(Stream * s)
                     config.avail_min = config.period_size;
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
                         PCM_OUT |PCM_MMAP| PCM_NOIRQ, &config);
-                }
-                else {
+                } else {
                     pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 }
 
@@ -671,8 +689,7 @@ int SessionAlsaPcm::start(Stream * s)
     switch (sAttr.direction) {
         case PAL_AUDIO_INPUT:
             if ((sAttr.type != PAL_STREAM_VOICE_UI) &&
-                  (SessionAlsaUtils::isMmapUsecase(sAttr) == false)
-                ) {
+                  (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
                 if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD)
@@ -689,8 +706,10 @@ int SessionAlsaPcm::start(Stream * s)
                 if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD) {
                     PAL_ERR(LOG_TAG, "miid : %x id = %d, data %s\n", miid,
                         pcmDevIds.at(0), txAifBackEnds[0].second.data());
-                } else
+                } else {
                     PAL_ERR(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+                }
+
                 streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
@@ -884,7 +903,7 @@ pcm_start_loopback:
     }
     // Setting the volume as in stream open, no default volume is set.
     if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
-            PAL_ERR(LOG_TAG,"Setting volume failed");
+        PAL_ERR(LOG_TAG,"Setting volume failed");
     }
 
     mState = SESSION_STARTED;
@@ -1072,6 +1091,7 @@ exit:
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }
+
 /* TODO: Check if this can be moved to Session class */
 int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
         pal_stream_type_t streamType, std::shared_ptr<Device> deviceToDisconnect)
@@ -1090,7 +1110,7 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     if (!rxAifBackEndsToDisconnect.empty()) {
         int cnt = 0;
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
-            dAttr, pcmDevIds, rxAifBackEndsToDisconnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToDisconnect);
 
         for (const auto &elem : rxAifBackEnds) {
             cnt++;
@@ -1102,9 +1122,8 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
     }
     if (!txAifBackEndsToDisconnect.empty()) {
         int cnt = 0;
-
         status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
-            dAttr, pcmDevIds, txAifBackEndsToDisconnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevTxIds), txAifBackEndsToDisconnect);
 
         for (const auto &elem : txAifBackEnds) {
             cnt++;
@@ -1134,11 +1153,11 @@ int SessionAlsaPcm::setupSessionDevice(Stream* streamHandle, pal_stream_type_t s
 
     if (!rxAifBackEndsToConnect.empty())
         status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
-            dAttr, pcmDevIds, rxAifBackEndsToConnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToConnect);
 
     if (!txAifBackEndsToConnect.empty())
         status = SessionAlsaUtils::setupSessionDevice(streamHandle, streamType, rm,
-            dAttr, pcmDevIds, txAifBackEndsToConnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevTxIds), txAifBackEndsToConnect);
 
     return status;
 }
@@ -1159,14 +1178,14 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
 
     if (!rxAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
-            dAttr, pcmDevIds, rxAifBackEndsToConnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToConnect);
         for (const auto &elem : rxAifBackEndsToConnect)
             rxAifBackEnds.push_back(elem);
     }
 
     if (!txAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
-            dAttr, pcmDevIds, txAifBackEndsToConnect);
+            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevTxIds), txAifBackEndsToConnect);
         for (const auto &elem : txAifBackEndsToConnect)
             txAifBackEnds.push_back(elem);
     }
@@ -1354,7 +1373,7 @@ int SessionAlsaPcm::writeBufferInit(Stream * /*streamHandle*/, size_t /*noOfBuf*
     return 0;
 }
 
-int SessionAlsaPcm::setParameters(Stream *streamHandle __unused, int tagId __unused, uint32_t param_id, void *payload)
+int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t param_id, void *payload)
 {
     int status = 0;
     int device = pcmDevIds.at(0);
