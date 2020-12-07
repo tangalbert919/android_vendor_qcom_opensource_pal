@@ -153,15 +153,20 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     size_t input_buf_num = 0;
     size_t output_buf_size = 0;
     size_t output_buf_num = 0;
+    uint32_t s_pre_roll = 0;
+    uint32_t bytes_to_drop = 0;
     uint64_t timestamp = 0;
     uint64_t start_timestamp = 0;
     uint64_t end_timestamp = 0;
+    uint64_t drop_duration = 0;
     size_t start_index = 0;
     size_t end_index = 0;
     size_t total_read_size = 0;
     size_t ftrt_size = 0;
     bool timestamp_recorded = false;
     bool event_notified = false;
+    bool dropped = (module_type_ != ST_MODULE_TYPE_PDK5);
+    StreamSoundTrigger *st = (StreamSoundTrigger *)s;
 
     PAL_DBG(LOG_TAG, "Enter");
     s->getBufInfo(&input_buf_size, &input_buf_num,
@@ -187,6 +192,10 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     else
         ftrt_size = UsToBytes(detection_event_info_multi_model_.ftrt_data_length_in_us);
 
+     s_pre_roll = mid_buff_cfg_[st->GetModelId()].first;
+     drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms - s_pre_roll);
+     bytes_to_drop = UsToBytes(drop_duration * 1000);
+
     ATRACE_BEGIN("stEngine: read FTRT data");
 
     while (!exit_buffering_) {
@@ -211,7 +220,18 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         }
         // write data to ring buffer
         if (size) {
-            size_t ret = buffer_->write(buf.buffer, size);
+            size_t ret = 0;
+            if (!dropped) {
+                if (size < bytes_to_drop) {
+                    bytes_to_drop -= size;
+                } else {
+                    ret = buffer_->write((void*)((uint8_t*)buf.buffer + bytes_to_drop), size -
+                                     bytes_to_drop);
+                    dropped = true;
+                }
+            } else {
+                ret = buffer_->write(buf.buffer, size);
+            }
             PAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
 
             if (!timestamp_recorded) {
@@ -226,7 +246,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                      (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
                      ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
                 } else {
-                    start_timestamp = 
+                    start_timestamp =
                      ((uint64_t)detection_event_info_multi_model_.
                                 detected_model_stats[0].
                                 kw_start_timestamp_lsw) +
@@ -240,6 +260,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                      ((uint64_t)detection_event_info_multi_model_.
                                 detected_model_stats[0].
                                 kw_end_timestamp_msw<<32);
+
+                    if (dropped) {
+                        start_timestamp -= (((uint64_t)drop_duration) * 1000);
+                        end_timestamp += (((uint64_t)drop_duration) * 1000);
+                    }
 
                     PAL_DBG(LOG_TAG, "start_timestamp_lsw : %u, start_timestamp_msw : %u",
                     detection_event_info_multi_model_.detected_model_stats[0].kw_start_timestamp_lsw,
@@ -1451,7 +1476,14 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnloadSVA5(Stream *s) {
     deleted_enteries = mid_stream_map_.erase(model_id);
     if (deleted_enteries == 0) {
         PAL_ERR(LOG_TAG, "Sound model not deleted");
-        return 2;
+        return -EINVAL;
+    }
+
+    deleted_enteries = 0;
+    deleted_enteries = mid_buff_cfg_.erase(model_id);
+    if (deleted_enteries == 0) {
+        PAL_ERR(LOG_TAG, "Buffer config map not updated");
+        return -EINVAL;
     }
 
     return status;
@@ -1980,6 +2012,9 @@ int32_t SoundTriggerEngineGsl::UpdateBufConfig(Stream *s,
         if (pre_roll_duration > buffer_config_.pre_roll_duration_in_ms)
             buffer_config_.pre_roll_duration_in_ms = pre_roll_duration;
     }
+
+    mid_buff_cfg_[buffer_config_.model_id] = std::make_pair(
+                                    pre_roll_duration, hist_buffer_duration);
     PAL_DBG(LOG_TAG, "updated hist buf:%d msec, pre roll:%d msec",
        buffer_config_.hist_buffer_duration_in_ms,
        buffer_config_.pre_roll_duration_in_ms);

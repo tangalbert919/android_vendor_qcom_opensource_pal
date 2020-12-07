@@ -143,6 +143,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     Session *session_;
     PayloadBuilder *builder_;
     std::map<uint32_t, Stream*> mid_stream_map_;
+    std::map<uint32_t, std::pair<uint32_t, uint32_t>> mid_buff_cfg_;
     st_module_type_t module_type_;
     static std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
                                                                       eng_;
