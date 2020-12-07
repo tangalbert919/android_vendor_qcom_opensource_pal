@@ -462,6 +462,10 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                 kw_start_tolerance_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "kw_end_tolerance")) {
                 kw_end_tolerance_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "data_before_kw_start")) {
+                data_before_kw_start_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "data_after_kw_end")) {
+                data_after_kw_end_ = std::stoi(attribs[++i]);
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }

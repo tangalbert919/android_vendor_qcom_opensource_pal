@@ -121,6 +121,8 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     uint32_t confidence_score_;  // used by Vop engine
     uint32_t kw_start_tolerance_;
     uint32_t kw_end_tolerance_;
+    uint32_t data_before_kw_start_;
+    uint32_t data_after_kw_end_;
     int32_t det_conf_score_;
 };
 #endif  // SOUNDTRIGGERENGINECAPI_H
