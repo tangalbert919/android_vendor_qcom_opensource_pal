@@ -176,14 +176,15 @@ int DisplayPort::configureDpEndpoint()
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
     status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_RX, &miid);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
-        return status;
+        goto exit;
     }
     cfg.channel_allocation = getDeviceChannelAllocation(deviceAttr.config.ch_info.channels);
     cfg.mst_idx = dp_stream;
@@ -194,8 +195,14 @@ int DisplayPort::configureDpEndpoint()
         delete[] payload;
         if (0 != status) {
         PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
-        return status;
+        goto exit;
         }
+    }
+
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
     }
     return status;
 }

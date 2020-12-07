@@ -254,7 +254,8 @@ int Bluetooth::configureA2dpEncoderDecoder()
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
-        return -EINVAL;
+        status = -EINVAL;
+        goto error;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
@@ -511,6 +512,10 @@ done:
     isConfigured = true;
 
 error:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -793,6 +798,10 @@ free_fe:
     fbpcmDevIds.clear();
 done:
     mAbrMutex.unlock();
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return;
 }
 

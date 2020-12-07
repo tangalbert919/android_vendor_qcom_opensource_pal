@@ -479,7 +479,10 @@ freeStreamMetaData:
     if (streamMetaData.buf)
         free(streamMetaData.buf);
 exit:
-    delete builder;
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -738,7 +741,10 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     stime->timestamp.value_msw = spr_session_time->timestamp.value_msw;
     //flags from Spf are igonred
 exit:
-    delete builder;
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -1310,6 +1316,10 @@ freeRxMetaData:
     free(deviceRxMetaData.buf);
     free(streamRxMetaData.buf);
 exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -1547,12 +1557,12 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
-        return status;
+        goto exit;
     }
     status = streamHandle->getStreamAttributes(&sAttr);
     if (status) {
         PAL_ERR(LOG_TAG, "could not get stream attributes\n");
-        return status;
+        goto exit;
     }
     switch (streamType) {
         case PAL_STREAM_COMPRESSED:
@@ -1591,7 +1601,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
                     pcmDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
             } else {
                 PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                return status;
+                goto exit;
             }
 
             if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
@@ -1599,12 +1609,13 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
                 dev = Device::getInstance((struct pal_device *)&dAttr , rm);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device getInstance failed");
-                    return -EINVAL;
+                    status = -EINVAL;
+                    goto exit;
                 }
                 status = dev->getCodecConfig(&codecConfig);
                 if(0 != status) {
                     PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                    return status;
+                    goto exit;
                 }
                 mfcData.bitWidth = codecConfig.bit_width;
                 mfcData.sampleRate = codecConfig.sample_rate;
@@ -1619,7 +1630,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
             if (!payloadSize) {
                 PAL_ERR(LOG_TAG, "payloadMFCConfig failed\n");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
 
             status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmDevIds.at(0),
@@ -1627,7 +1639,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             free(payload);
             if (status != 0) {
                 PAL_ERR(LOG_TAG,"setMixerParameter failed");
-                return status;
+                goto exit;
             }
         }
     } else if (!(SessionAlsaUtils::isMmapUsecase(sAttr))) {
@@ -1640,17 +1652,24 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
             }
         } else {
             PAL_ERR(LOG_TAG, "invalid session voice object");
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
     }
 
     connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
     if (!connectCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     status = mixer_ctl_set_enum_by_string(connectCtrl, aifBackEndsToConnect[0].second.data());
 
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -1688,13 +1707,13 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     status = rmHandle->getAudioMixer(&mixerHandle);
     if (status) {
         PAL_VERBOSE(LOG_TAG, "get mixer handle failed %d", status);
-        return status;
+        goto exit;
     }
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
+        goto exit;
     }
 
     if(sAttr.type == PAL_STREAM_VOICE_CALL){
@@ -1727,7 +1746,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     if ((status = builder->populateDeviceKV(streamHandle,
                     aifBackEndsToConnect[0].first, deviceKV)) != 0) {
         PAL_ERR(LOG_TAG, "get device KV failed %d", status);
-        return status;
+        goto exit;
     }
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateDevicePPKV(streamHandle,
@@ -1784,7 +1803,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             status = streamHandle->getStreamAttributes(&sAttr);
             if (status) {
                 PAL_ERR(LOG_TAG, "could not get stream attributes\n");
-                return status;
+                goto exit;
             }
             if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
                 sAttr.info.voice_call_info.VSID == VOICELBMMODE1)
@@ -1844,7 +1863,11 @@ freeMetaData:
     free(streamDeviceMetaData.buf);
     free(deviceMetaData.buf);
 
-    delete builder;
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 

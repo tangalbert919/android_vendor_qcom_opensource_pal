@@ -833,6 +833,10 @@ done:
         cv.notify_all();
     }
 
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     PAL_DBG(LOG_TAG, "Exiting");
     return ret;
 }
@@ -1026,7 +1030,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
                        + sizeof(pkd_reg_addr_t) * numberOfChannels);
     if (cpsRegCfg == NULL) {
         PAL_ERR(LOG_TAG,"Unable to allocate Memory for CPS config\n");
-        return;
+        goto exit;
     }
     cpsRegCfg->num_spkr = numberOfChannels;
     cpsRegCfg->lpass_wr_cmd_reg_phy_addr = LPASS_WR_CMD_REG_PHY_ADDR;
@@ -1100,7 +1104,11 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
-    delete builder;
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
 }
 
 /*
@@ -1459,14 +1467,15 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         ret = rm->getActiveStream_l(dev, activeStreams);
         if ((0 != ret) || (activeStreams.size() == 0)) {
             PAL_ERR(LOG_TAG, " no active stream available");
-            return -EINVAL;
+            ret = -EINVAL;
+            goto done;
         }
         stream = static_cast<Stream *>(activeStreams[0]);
         stream->getAssociatedSession(&session);
         ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
         if (ret) {
             PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-            return ret;
+            goto done;
         }
 
         // Set the operation mode for SP module
@@ -1559,6 +1568,10 @@ free_fe:
     }
 done:
     deviceMutex.unlock();
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return ret;
 }
 
@@ -1580,14 +1593,14 @@ void SpeakerProtection::updateSPcustomPayload()
     ret = rm->getActiveStream_l(dev, activeStreams);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
-        return;
+        goto exit;
     }
     stream = static_cast<Stream *>(activeStreams[0]);
     stream->getAssociatedSession(&session);
     ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
     if (ret) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-        return;
+        goto exit;
     }
 
     if (customPayloadSize) {
@@ -1606,6 +1619,13 @@ void SpeakerProtection::updateSPcustomPayload()
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
+
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
+    return;
 }
 
 
@@ -1695,7 +1715,7 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
     memset(&v_vali_ret, 0,sizeof(vi_th_v_vali_params_t)*numberOfChannels);
 
     if (param_id != PAL_PARAM_ID_SP_MODE)
-        return size;
+        goto exit;
 
     pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
     cntrlName<<pcmDeviceName<<" "<<getParamControl;
@@ -1703,7 +1723,8 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
     ctl = mixer_get_ctl_by_name(mixer, cntrlName.str().data());
     if (!ctl) {
         PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", cntrlName.str().data());
-        return -ENOENT;
+        status = -ENOENT;
+        goto exit;
     }
     rm->getBackendName(PAL_DEVICE_IN_VI_FEEDBACK, backendName);
 
@@ -1820,7 +1841,14 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
     }
 
 exit :
-    return size;
+    if(builder) {
+       delete builder;
+       builder = NULL;
+        }
+    if(!status)
+       return size;
+    else
+      return status;
 }
 
 /*
@@ -1837,7 +1865,7 @@ void SpeakerFeedback::updateVIcustomPayload()
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activeStreams;
-    uint32_t miid = 0, ret;
+    uint32_t miid = 0, ret = 0;
     struct vi_r0t0_cfg_t r0t0Array[numSpeaker];
     FILE *fp = NULL;
     param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
@@ -1850,14 +1878,14 @@ void SpeakerFeedback::updateVIcustomPayload()
     ret = rm->getActiveStream_l(dev, activeStreams);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
-        return;
+        goto exit;
     }
     stream = static_cast<Stream *>(activeStreams[0]);
     stream->getAssociatedSession(&session);
     ret = session->getMIID(backEndName.c_str(), MODULE_VI, &miid);
     if (ret) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-        return;
+        goto exit;
     }
 
     if (customPayloadSize) {
@@ -1933,6 +1961,12 @@ void SpeakerFeedback::updateVIcustomPayload()
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
+    return;
 }
 
 SpeakerFeedback::SpeakerFeedback(struct pal_device *device,
