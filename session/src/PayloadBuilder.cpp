@@ -1321,8 +1321,15 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                                                          DEVICEPP_RX_HFPSINK));
                 } else if(sattr->info.opt_stream_info.loopback_type ==
                                                     PAL_STREAM_LOOPBACK_HFP_TX) {
-                    keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,
-                                                         DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
+                    if (kvpair.size() == 0) { //use default HFP_SINK_FLUENCE_SMECNS
+                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,
+                                                            DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
+                    } else { //use configuration get from resourcemanager.xml
+                        for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
+                            keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
+                                                kvpair[kvsize].value));
+                        }
+                    }
                 }
                 break;
             case PAL_STREAM_VOIP_TX:
