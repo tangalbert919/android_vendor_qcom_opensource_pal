@@ -95,6 +95,7 @@ private:
     bool isGaplessFmt = false;
     bool isGaplessFormat(pal_audio_fmt_t fmt);
     int configureEarlyEOSDelay(void);
+    void updateCodecOptions(pal_param_payload *param_payload);
 public:
     SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAlsaCompress();

@@ -40,6 +40,259 @@
 #include <mutex>
 #include <fstream>
 
+void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
+{
+    pal_snd_dec_t *pal_snd_dec = nullptr;
+
+    pal_snd_dec = (pal_snd_dec_t *)param_payload->payload;
+    PAL_DBG(LOG_TAG, "compress format %x", audio_fmt);
+    switch (audio_fmt) {
+        case PAL_AUDIO_FMT_MP3:
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
+        case PAL_AUDIO_FMT_AMR_NB:
+        case PAL_AUDIO_FMT_AMR_WB:
+        case PAL_AUDIO_FMT_AMR_WB_PLUS:
+        case PAL_AUDIO_FMT_QCELP:
+        case PAL_AUDIO_FMT_EVRC:
+        case PAL_AUDIO_FMT_G711:
+        break;
+        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        break;
+        case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
+        case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
+        break;
+        case PAL_AUDIO_FMT_AAC:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_RAW;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->aac_dec.audio_obj_type;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->aac_dec.pce_bits_size;
+            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                        codec.format, codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1]);
+        }
+        break;
+        case PAL_AUDIO_FMT_AAC_ADTS:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->aac_dec.audio_obj_type;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->aac_dec.pce_bits_size;
+            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                        codec.format, codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1]);
+        }
+        break;
+        case PAL_AUDIO_FMT_AAC_ADIF:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_ADIF;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->aac_dec.audio_obj_type;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->aac_dec.pce_bits_size;
+            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                        codec.format, codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1]);
+        }
+        break;
+        case PAL_AUDIO_FMT_AAC_LATM:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_MP4LATM;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->aac_dec.audio_obj_type;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->aac_dec.pce_bits_size;
+            PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
+                        codec.format, codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1]);
+        }
+        break;
+        case PAL_AUDIO_FMT_WMA_STD:
+        {
+            codec.format = pal_snd_dec->wma_dec.fmt_tag;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->wma_dec.avg_bit_rate/8;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->wma_dec.super_block_align;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->wma_dec.bits_per_sample;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->wma_dec.channelmask;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->wma_dec.encodeopt;
+            codec.options.generic.reserved[5] =
+                                    pal_snd_dec->wma_dec.encodeopt1;
+            codec.options.generic.reserved[6] =
+                                    pal_snd_dec->wma_dec.encodeopt2;
+            PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x bits_per_sample- %x"
+                        ", channelmask - %x \n", codec.format,
+                        codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3]);
+            PAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x"
+                        ", avg_byte_rate - %x \n", codec.options.generic.reserved[4],
+                        codec.options.generic.reserved[5], codec.options.generic.reserved[6],
+                        codec.options.generic.reserved[0]);
+        }
+        break;
+        case PAL_AUDIO_FMT_WMA_PRO:
+        {
+            codec.format = pal_snd_dec->wma_dec.fmt_tag;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->wma_dec.avg_bit_rate/8;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->wma_dec.super_block_align;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->wma_dec.bits_per_sample;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->wma_dec.channelmask;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->wma_dec.encodeopt;
+            codec.options.generic.reserved[5] =
+                                    pal_snd_dec->wma_dec.encodeopt1;
+            codec.options.generic.reserved[6] =
+                                    pal_snd_dec->wma_dec.encodeopt2;
+            PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x"
+                        "bits_per_sample- %x channelmask- %x\n",
+                        codec.format, codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3]);
+            PAL_VERBOSE(LOG_TAG, "encodeopt- %x encodeopt1- %x"
+                        "encodeopt2- %x avg_byte_rate- %x\n",
+                        codec.options.generic.reserved[4],
+                        codec.options.generic.reserved[5],
+                        codec.options.generic.reserved[6],
+                        codec.options.generic.reserved[0]);
+        }
+        break;
+        case PAL_AUDIO_FMT_ALAC:
+        {
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->alac_dec.frame_length;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->alac_dec.compatible_version;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->alac_dec.bit_depth;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->alac_dec.pb;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->alac_dec.mb;
+            codec.options.generic.reserved[5] =
+                                    pal_snd_dec->alac_dec.kb;
+            codec.options.generic.reserved[6] =
+                                    pal_snd_dec->alac_dec.max_run;
+            codec.options.generic.reserved[7] =
+                                   pal_snd_dec->alac_dec.max_frame_bytes;
+            codec.options.generic.reserved[8] =
+                                   pal_snd_dec->alac_dec.avg_bit_rate;
+            codec.options.generic.reserved[9] =
+                                   pal_snd_dec->alac_dec.channel_layout_tag;
+            PAL_VERBOSE(LOG_TAG, "frame_length- %x compatible_version- %x"
+                        "bit_depth- %x pb- %x mb- %x kb- %x",
+                        codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3],
+                        codec.options.generic.reserved[4],
+                        codec.options.generic.reserved[5]);
+            PAL_VERBOSE(LOG_TAG, "max_run- %x max_frame_bytes- %x avg_bit_rate- %x"
+                        "channel_layout_tag- %x",
+                        codec.options.generic.reserved[6],
+                        codec.options.generic.reserved[7],
+                        codec.options.generic.reserved[8],
+                        codec.options.generic.reserved[9]);
+        }
+        break;
+        case PAL_AUDIO_FMT_APE:
+        {
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->ape_dec.bits_per_sample;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->ape_dec.compatible_version;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->ape_dec.compression_level;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->ape_dec.format_flags;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->ape_dec.blocks_per_frame;
+            codec.options.generic.reserved[5] =
+                                    pal_snd_dec->ape_dec.final_frame_blocks;
+            codec.options.generic.reserved[6] =
+                                    pal_snd_dec->ape_dec.total_frames;
+            codec.options.generic.reserved[7] =
+                                    pal_snd_dec->ape_dec.seek_table_present;
+            PAL_VERBOSE(LOG_TAG, "compatible_version- %x compression_level- %x "
+                        "format_flags- %x blocks_per_frame- %x "
+                        "final_frame_blocks - %x",
+                        codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3],
+                        codec.options.generic.reserved[4],
+                        codec.options.generic.reserved[5]);
+            PAL_VERBOSE(LOG_TAG, "total_frames- %x bits_per_sample- %x"
+                        " seek_table_present - %x",
+                        codec.options.generic.reserved[6],
+                        codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[7]);
+        }
+        break;
+        case PAL_AUDIO_FMT_FLAC:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_FLAC;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->flac_dec.sample_size;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->flac_dec.min_blk_size;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->flac_dec.max_blk_size;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->flac_dec.min_frame_size;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->flac_dec.max_frame_size;
+            PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
+                        "max_blk_size- %x min_frame_size- %x "
+                        "max_frame_size- %x",
+                        codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3],
+                        codec.options.generic.reserved[4]);
+        }
+        break;
+        case PAL_AUDIO_FMT_FLAC_OGG:
+        {
+            codec.format = SND_AUDIOSTREAMFORMAT_FLAC_OGG;
+            codec.options.generic.reserved[0] =
+                                    pal_snd_dec->flac_dec.sample_size;
+            codec.options.generic.reserved[1] =
+                                    pal_snd_dec->flac_dec.min_blk_size;
+            codec.options.generic.reserved[2] =
+                                    pal_snd_dec->flac_dec.max_blk_size;
+            codec.options.generic.reserved[3] =
+                                    pal_snd_dec->flac_dec.min_frame_size;
+            codec.options.generic.reserved[4] =
+                                    pal_snd_dec->flac_dec.max_frame_size;
+            PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
+                        "max_blk_size- %x min_frame_size- %x "
+                        "max_frame_size - %x",
+                        codec.options.generic.reserved[0],
+                        codec.options.generic.reserved[1],
+                        codec.options.generic.reserved[2],
+                        codec.options.generic.reserved[3],
+                        codec.options.generic.reserved[4]);
+        }
+        break;
+        case PAL_AUDIO_FMT_VORBIS:
+            codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
+        break;
+        default:
+            PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
+        break;
+    }
+}
+
 void SessionAlsaCompress::getSndCodecParam(struct snd_codec &codec, struct pal_stream_attributes &sAttr)
 {
     struct pal_media_config *config = &sAttr.out_media_config;
@@ -1116,7 +1369,6 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
     uint32_t miid = 0;
-    pal_snd_dec_t *pal_snd_dec = nullptr;
     effect_pal_payload_t *effectPalPayload = nullptr;
     struct compr_gapless_mdata mdata;
     struct pal_compr_gapless_mdata *gaplessMdata = NULL;
@@ -1182,272 +1434,35 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             return 0;
         }
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
-            pal_snd_dec = (pal_snd_dec_t *)param_payload->payload;
-            PAL_DBG(LOG_TAG, "compress format %x", audio_fmt);
-            switch (audio_fmt) {
-                case PAL_AUDIO_FMT_MP3:
-                case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
-                case PAL_AUDIO_FMT_AMR_NB:
-                case PAL_AUDIO_FMT_AMR_WB:
-                case PAL_AUDIO_FMT_AMR_WB_PLUS:
-                case PAL_AUDIO_FMT_QCELP:
-                case PAL_AUDIO_FMT_EVRC:
-                case PAL_AUDIO_FMT_G711:
-                      break;
-                case PAL_AUDIO_FMT_DEFAULT_PCM:
-                     break;
-#ifdef SND_COMPRESS_DEC_HDR
-                case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
-                case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
-                    break;
-                case PAL_AUDIO_FMT_AAC:
-                    codec.format = SND_AUDIOSTREAMFORMAT_RAW;
-                    codec.options.aac_dec.audio_obj_type =
-                                            pal_snd_dec->aac_dec.audio_obj_type;
-                    codec.options.aac_dec.pce_bits_size =
-                                            pal_snd_dec->aac_dec.pce_bits_size;
-                    PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                                codec.format, codec.options.aac_dec.audio_obj_type,
-                                codec.options.aac_dec.pce_bits_size);
-                    break;
-                case PAL_AUDIO_FMT_AAC_ADTS:
-                    codec.format = SND_AUDIOSTREAMFORMAT_MP4ADTS;
-                    codec.options.aac_dec.audio_obj_type =
-                                            pal_snd_dec->aac_dec.audio_obj_type;
-                    codec.options.aac_dec.pce_bits_size =
-                                            pal_snd_dec->aac_dec.pce_bits_size;
-                    PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                                codec.format, codec.options.aac_dec.audio_obj_type,
-                                codec.options.aac_dec.pce_bits_size);
-                    break;
-                case PAL_AUDIO_FMT_AAC_ADIF:
-                    codec.format = SND_AUDIOSTREAMFORMAT_ADIF;
-                    codec.options.aac_dec.audio_obj_type =
-                                            pal_snd_dec->aac_dec.audio_obj_type;
-                    codec.options.aac_dec.pce_bits_size =
-                                            pal_snd_dec->aac_dec.pce_bits_size;
-                    PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                                codec.format, codec.options.aac_dec.audio_obj_type,
-                                codec.options.aac_dec.pce_bits_size);
-                    break;
-                case PAL_AUDIO_FMT_AAC_LATM:
-                    codec.format = SND_AUDIOSTREAMFORMAT_MP4LATM;
-                    codec.options.aac_dec.audio_obj_type =
-                                             pal_snd_dec->aac_dec.audio_obj_type;
-                    codec.options.aac_dec.pce_bits_size =
-                                            pal_snd_dec->aac_dec.pce_bits_size;
-                    PAL_VERBOSE(LOG_TAG, "format- %x audio_obj_type- %x pce_bits_size- %x",
-                                codec.format, codec.options.aac_dec.audio_obj_type,
-                                codec.options.aac_dec.pce_bits_size);
-                    break;
-                case PAL_AUDIO_FMT_WMA_STD:
-                    codec.format = pal_snd_dec->wma_dec.fmt_tag;
-                    codec.options.wma_dec.super_block_align =
-                                        pal_snd_dec->wma_dec.super_block_align;
-                    codec.options.wma_dec.bits_per_sample =
-                                            pal_snd_dec->wma_dec.bits_per_sample;
-                    codec.options.wma_dec.channelmask =
-                                            pal_snd_dec->wma_dec.channelmask;
-                    codec.options.wma_dec.encodeopt =
-                                            pal_snd_dec->wma_dec.encodeopt;
-                    codec.options.wma_dec.encodeopt1 =
-                                            pal_snd_dec->wma_dec.encodeopt1;
-                    codec.options.wma_dec.encodeopt2 =
-                                            pal_snd_dec->wma_dec.encodeopt2;
-                    codec.options.wma_dec.avg_bit_rate =
-                                            pal_snd_dec->wma_dec.avg_bit_rate;
-                    PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x bits_per_sample- %x"
-                                         ", channelmask - %x \n", codec.format,
-                               codec.options.wma_dec.super_block_align,
-                               codec.options.wma_dec.bits_per_sample,
-                               codec.options.wma_dec.channelmask);
-                    PAL_VERBOSE(LOG_TAG, "encodeopt - %x, encodeopt1 - %x, encodeopt2 - %x"
-                                         ", avg_bit_rate - %x \n", codec.options.wma_dec.encodeopt,
-                                codec.options.wma_dec.encodeopt1, codec.options.wma_dec.encodeopt2,
-                                codec.options.wma_dec.avg_bit_rate);
-                    break;
-                case PAL_AUDIO_FMT_WMA_PRO:
-                    codec.format = pal_snd_dec->wma_dec.fmt_tag;
-                    codec.options.wma_dec.super_block_align =
-                                         pal_snd_dec->wma_dec.super_block_align;
-                    codec.options.wma_dec.bits_per_sample =
-                                         pal_snd_dec->wma_dec.bits_per_sample;
-                    codec.options.wma_dec.channelmask =
-                                         pal_snd_dec->wma_dec.channelmask;
-                    codec.options.wma_dec.encodeopt =
-                                         pal_snd_dec->wma_dec.encodeopt;
-                    codec.options.wma_dec.encodeopt1 =
-                                         pal_snd_dec->wma_dec.encodeopt1;
-                    codec.options.wma_dec.encodeopt2 =
-                                         pal_snd_dec->wma_dec.encodeopt2;
-                    codec.options.wma_dec.avg_bit_rate =
-                                         pal_snd_dec->wma_dec.avg_bit_rate;
-                    PAL_VERBOSE(LOG_TAG, "format- %x super_block_align- %x"
-                                         "bits_per_sample- %x channelmask- %x\n",
-                                codec.format, codec.options.wma_dec.super_block_align,
-                                codec.options.wma_dec.bits_per_sample,
-                                codec.options.wma_dec.channelmask);
-                    PAL_VERBOSE(LOG_TAG, "encodeopt- %x encodeopt1- %x"
-                                         "encodeopt2- %x avg_bit_rate- %x\n",
-                                codec.options.wma_dec.encodeopt,
-                                codec.options.wma_dec.encodeopt1,
-                                codec.options.wma_dec.encodeopt2,
-                                codec.options.wma_dec.avg_bit_rate);
-                    break;
-                case PAL_AUDIO_FMT_ALAC:
-                    codec.options.alac_dec.frame_length =
-                                           pal_snd_dec->alac_dec.frame_length;
-                    codec.options.alac_dec.compatible_version =
-                                           pal_snd_dec->alac_dec.compatible_version;
-                    codec.options.alac_dec.bit_depth =
-                                           pal_snd_dec->alac_dec.bit_depth;
-                    codec.options.alac_dec.pb =
-                                           pal_snd_dec->alac_dec.pb;
-                    codec.options.alac_dec.mb =
-                                           pal_snd_dec->alac_dec.mb;
-                    codec.options.alac_dec.kb =
-                                           pal_snd_dec->alac_dec.kb;
-                    codec.options.alac_dec.num_channels =
-                                           pal_snd_dec->alac_dec.num_channels;
-                    codec.options.alac_dec.max_run =
-                                           pal_snd_dec->alac_dec.max_run;
-                    codec.options.alac_dec.max_frame_bytes =
-                                           pal_snd_dec->alac_dec.max_frame_bytes;
-                    codec.options.alac_dec.avg_bit_rate =
-                                           pal_snd_dec->alac_dec.avg_bit_rate;
-                    codec.options.alac_dec.sample_rate =
-                                           pal_snd_dec->alac_dec.sample_rate;
-                    codec.options.alac_dec.channel_layout_tag =
-                                           pal_snd_dec->alac_dec.channel_layout_tag;
-                    PAL_VERBOSE(LOG_TAG, "frame_length- %x compatible_version- %x"
-                                         "bit_depth- %x pb- %x mb- %x kb- %x",
-                                codec.options.alac_dec.frame_length,
-                                codec.options.alac_dec.compatible_version,
-                                codec.options.alac_dec.bit_depth,
-                                codec.options.alac_dec.pb, codec.options.alac_dec.mb,
-                                codec.options.alac_dec.kb);
-                    PAL_VERBOSE(LOG_TAG, "num_channels- %x max_run- %x"
-                                         "max_frame_bytes- %x avg_bit_rate- %x"
-                                         "sample_rate- %x channel_layout_tag- %x",
-                                codec.options.alac_dec.num_channels,
-                                codec.options.alac_dec.max_run,
-                                codec.options.alac_dec.max_frame_bytes,
-                                codec.options.alac_dec.avg_bit_rate,
-                                codec.options.alac_dec.sample_rate,
-                                codec.options.alac_dec.channel_layout_tag);
-                    break;
-                case PAL_AUDIO_FMT_APE:
-                    codec.options.ape_dec.compatible_version =
-                                       pal_snd_dec->ape_dec.compatible_version;
-                    codec.options.ape_dec.compression_level =
-                                       pal_snd_dec->ape_dec.compression_level;
-                    codec.options.ape_dec.format_flags =
-                                       pal_snd_dec->ape_dec.format_flags;
-                    codec.options.ape_dec.blocks_per_frame =
-                                       pal_snd_dec->ape_dec.blocks_per_frame;
-                    codec.options.ape_dec.final_frame_blocks =
-                                       pal_snd_dec->ape_dec.final_frame_blocks;
-                    codec.options.ape_dec.total_frames =
-                                       pal_snd_dec->ape_dec.total_frames;
-                    codec.options.ape_dec.bits_per_sample =
-                                       pal_snd_dec->ape_dec.bits_per_sample;
-                    codec.options.ape_dec.num_channels =
-                                       pal_snd_dec->ape_dec.num_channels;
-                    codec.options.ape_dec.sample_rate =
-                                       pal_snd_dec->ape_dec.sample_rate;
-                    codec.options.ape_dec.seek_table_present =
-                                       pal_snd_dec->ape_dec.seek_table_present;
-                    PAL_VERBOSE(LOG_TAG, "compatible_version- %x compression_level- %x "
-                                         "format_flags- %x blocks_per_frame- %x "
-                                         "final_frame_blocks - %x",
-                                codec.options.ape_dec.compatible_version,
-                                codec.options.ape_dec.compression_level,
-                                codec.options.ape_dec.format_flags,
-                                codec.options.ape_dec.blocks_per_frame,
-                                codec.options.ape_dec.final_frame_blocks);
-                    PAL_VERBOSE(LOG_TAG, "total_frames- %x bits_per_sample- %x"
-                                         " num_channels- %x sample_rate- %x"
-                                         " seek_table_present - %x",
-                                codec.options.ape_dec.total_frames,
-                                codec.options.ape_dec.bits_per_sample,
-                                codec.options.ape_dec.num_channels,
-                                codec.options.ape_dec.sample_rate,
-                                codec.options.ape_dec.seek_table_present);
-                    break;
-                case PAL_AUDIO_FMT_FLAC:
-                    codec.format = SND_AUDIOSTREAMFORMAT_FLAC;
-                    codec.options.flac_dec.sample_size =
-                                       pal_snd_dec->flac_dec.sample_size;
-                    codec.options.flac_dec.min_blk_size =
-                                       pal_snd_dec->flac_dec.min_blk_size;
-                    codec.options.flac_dec.max_blk_size =
-                                       pal_snd_dec->flac_dec.max_blk_size;
-                    codec.options.flac_dec.min_frame_size =
-                                       pal_snd_dec->flac_dec.min_frame_size;
-                    codec.options.flac_dec.max_frame_size =
-                                       pal_snd_dec->flac_dec.max_frame_size;
-                    PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
-                                         "max_blk_size- %x min_frame_size- %x "
-                                         "max_frame_size- %x",
-                                codec.options.flac_dec.sample_size,
-                                codec.options.flac_dec.min_blk_size,
-                                codec.options.flac_dec.max_blk_size,
-                                codec.options.flac_dec.min_frame_size,
-                                codec.options.flac_dec.max_frame_size);
-                    break;
-                case PAL_AUDIO_FMT_FLAC_OGG:
-                    codec.format = SND_AUDIOSTREAMFORMAT_FLAC_OGG;
-                    codec.options.flac_dec.sample_size =
-                                      pal_snd_dec->flac_dec.sample_size;
-                    codec.options.flac_dec.min_blk_size =
-                                      pal_snd_dec->flac_dec.min_blk_size;
-                    codec.options.flac_dec.max_blk_size =
-                                      pal_snd_dec->flac_dec.max_blk_size;
-                    codec.options.flac_dec.min_frame_size =
-                                      pal_snd_dec->flac_dec.min_frame_size;
-                    codec.options.flac_dec.max_frame_size =
-                                      pal_snd_dec->flac_dec.max_frame_size;
-                    PAL_VERBOSE(LOG_TAG, "sample_size- %x min_blk_size- %x "
-                                         "max_blk_size- %x min_frame_size- %x "
-                                         "max_frame_size - %x",
-                                codec.options.flac_dec.sample_size,
-                                codec.options.flac_dec.min_blk_size,
-                                codec.options.flac_dec.max_blk_size,
-                                codec.options.flac_dec.min_frame_size,
-                                codec.options.flac_dec.max_frame_size);
-                    break;
-#endif
-                case PAL_AUDIO_FMT_VORBIS:
-                    codec.format = pal_snd_dec->vorbis_dec.bit_stream_fmt;
-                    break;
-                default:
-                    PAL_ERR(LOG_TAG, "Entered default, format %x", audio_fmt);
-                    break;
-            }
+            PAL_DBG(LOG_TAG, "Compress Codec Configuration");
+            updateCodecOptions((pal_param_payload *) payload);
         break;
-    case PAL_PARAM_ID_GAPLESS_MDATA:
-         if (!compress) {
-             PAL_ERR(LOG_TAG, "Compress is invalid");
-             return -EINVAL;
-         }
-         if (isGaplessFmt) {
-             gaplessMdata = (pal_compr_gapless_mdata*)param_payload->payload;
-             PAL_DBG(LOG_TAG, "Setting gapless metadata %d %d",
-                               gaplessMdata->encoderDelay, gaplessMdata->encoderPadding);
-             mdata.encoder_delay = gaplessMdata->encoderDelay;
-             mdata.encoder_padding = gaplessMdata->encoderPadding;
-             status = compress_set_gapless_metadata(compress, &mdata);
-             if (status != 0) {
-                 PAL_ERR(LOG_TAG, "set gapless metadata failed");
-                 return status;
-             }
+        case PAL_PARAM_ID_GAPLESS_MDATA:
+        {
+            if (!compress) {
+                PAL_ERR(LOG_TAG, "Compress is invalid");
+                return -EINVAL;
+            }
+            if (isGaplessFmt) {
+                gaplessMdata = (pal_compr_gapless_mdata*)param_payload->payload;
+                PAL_DBG(LOG_TAG, "Setting gapless metadata %d %d",
+                                  gaplessMdata->encoderDelay,
+                                  gaplessMdata->encoderPadding);
+                mdata.encoder_delay = gaplessMdata->encoderDelay;
+                mdata.encoder_padding = gaplessMdata->encoderPadding;
+                status = compress_set_gapless_metadata(compress, &mdata);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "set gapless metadata failed");
+                    return status;
+                }
              } else {
                  PAL_ERR(LOG_TAG, "audio fmt %x is not gapless", audio_fmt);
                  return -EINVAL;
-         }
-         break;
-    default:
-        PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
+             }
+        }
+        break;
+        default:
+            PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;
     }
 
