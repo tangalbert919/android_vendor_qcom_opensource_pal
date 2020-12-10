@@ -2081,6 +2081,9 @@ exit:
     mResourceManagerMutex.unlock();
     *enable_count = concurrencyEnableCount;
     *disable_count = concurrencyDisableCount;
+    PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
+        *enable_count, *disable_count);
+
 }
 
 bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
@@ -2211,8 +2214,15 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     pal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
     StreamSoundTrigger *st_str = nullptr;
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
+
+    if (!st_info->GetSupportDevSwitch()) {
+        PAL_INFO(LOG_TAG, "Device switch not supported, return");
+        return 0;
+    }
 
     // TODO: add support for other devices
     if (device_id == PAL_DEVICE_IN_HANDSET_MIC ||
@@ -2589,6 +2599,9 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
     }
 
+    PAL_INFO(LOG_TAG, "stream type %d active %d Tx conc %d, Rx conc %d, concurrency%s allowed",
+        type, active, tx_conc, rx_conc, conc_en? "" : " not");
+
     if (!conc_en) {
         if (active) {
             ++concurrencyDisableCount;
@@ -2627,7 +2640,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
     } else if (tx_conc || rx_conc) {
         if (!IsVoiceUILPISupported()) {
-            PAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
+            PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
         } else if (active) {
             if (++concurrencyEnableCount == 1) {
                 do_switch = true;

@@ -142,6 +142,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     prev_state_ = nullptr;
     state_for_restore_ = ST_STATE_NONE;
 
+    // Print the concurrency feature flags supported
+    PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
+        st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
+        st_info_->GetConcurrentVoipCallEnable());
+
     // check concurrency count from rm
     rm->GetSVAConcurrencyCount(&enable_concurrency_count,
         &disable_concurrency_count);
@@ -1362,7 +1367,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     gsl_engine_->GetUpdatedBufConfig(&hist_buffer_duration,
                                           &pre_roll_duration);
 
-    PAL_DBG(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
+    PAL_INFO(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
         hist_buffer_duration, pre_roll_duration);
 
     // create ring buffer for lab transfer in gsl_engine
@@ -1593,6 +1598,9 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                         PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
                             sm_info_->GetConfLevelsSize(), j);
 
+                    PAL_INFO(LOG_TAG, "First stage KW Conf levels[%d]-%d",
+                        j, sm_info_->GetDetConfLevels()[j])
+
                     for (k = 0;
                          k < conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
                          k++) {
@@ -1606,6 +1614,9 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                         else
                             PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
                                 sm_info_->GetConfLevelsSize(), user_id);
+
+                        PAL_INFO(LOG_TAG, "First stage User Conf levels[%d]-%d",
+                            k, sm_info_->GetDetConfLevels()[user_id])
                     }
                 }
             } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
