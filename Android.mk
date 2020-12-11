@@ -75,6 +75,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     device/src/HeadsetVaMic.cpp \
     device/src/RTProxy.cpp \
     device/src/SpeakerProtection.cpp \
+    device/src/FMDevice.cpp\
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \

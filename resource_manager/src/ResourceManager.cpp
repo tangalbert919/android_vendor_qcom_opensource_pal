@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1195,6 +1195,17 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
             PAL_DBG(LOG_TAG, "PAL_DEVICE_IN_PROXY sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+            break;
+        case PAL_DEVICE_IN_FM_TUNER:
+            {
+            /* For PAL_DEVICE_IN_FM_TUNER, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_IN_FM_TUNER sample rate %d bitwidth %d",
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
             break;

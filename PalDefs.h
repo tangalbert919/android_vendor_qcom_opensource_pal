@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -490,6 +490,7 @@ typedef enum {
     PAL_STREAM_LOOPBACK_HFP_RX,
     PAL_STREAM_LOOPBACK_HFP_TX,
     PAL_STREAM_LOOPBACK_COMPRESS,
+    PAL_STREAM_LOOPBACK_FM
 } pal_stream_loopback_type_t;
 
 typedef enum {
