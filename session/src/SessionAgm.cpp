@@ -506,6 +506,8 @@ int SessionAgm::write(Stream *s, int tag __unused, struct pal_buffer *buf, int *
        agm_buffer.flags = AGM_BUFF_FLAG_TS_VALID;
        agm_buffer.timestamp = buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
     }
+    if (buf->flags & PAL_STREAM_FLAG_EOF)
+       agm_buffer.flags |= AGM_BUFF_FLAG_EOF;
     agm_buffer.addr = buf->buffer;
     if (sAttr.flags & PAL_STREAM_FLAG_EXTERN_MEM) {
         agm_buffer.alloc_info.alloc_handle = buf->alloc_info.alloc_handle;
