@@ -552,6 +552,7 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     concurrent_capture_(false),
     concurrent_voice_call_(false),
     concurrent_voip_call_(false),
+    low_latency_bargein_enable_(false),
     curr_child_(nullptr)
 {
 }
@@ -666,6 +667,10 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
             } else if (!strcmp(attribs[i], "concurrent_voice_call") &&
                        concurrent_capture_) {
                 concurrent_voice_call_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "low_latency_bargein_enable") &&
+                       concurrent_capture_) {
+                low_latency_bargein_enable_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "concurrent_voip_call") &&
                        concurrent_capture_) {

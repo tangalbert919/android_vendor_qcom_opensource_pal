@@ -458,6 +458,7 @@ public:
     const std::string getPALDeviceName(const pal_device_id_t id) const;
     bool isNonALSACodec(const struct pal_device *device) const;
     bool IsVoiceUILPISupported();
+    bool IsLowLatencyBargeinSupported();
     bool IsAudioCaptureAndVoiceUIConcurrencySupported();
     bool IsVoiceCallAndVoiceUIConcurrencySupported();
     bool IsVoipAndVoiceUIConcurrencySupported();

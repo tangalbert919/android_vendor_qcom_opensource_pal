@@ -2037,6 +2037,7 @@ void ResourceManager::GetSVAConcurrencyCount(
     bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
     bool audio_capture_conc_enable =
         IsAudioCaptureAndVoiceUIConcurrencySupported();
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
 
     mResourceManagerMutex.lock();
     if (concurrencyEnableCount > 0 || concurrencyDisableCount > 0) {
@@ -2073,7 +2074,8 @@ void ResourceManager::GetSVAConcurrencyCount(
                 concurrencyEnableCount++;
             }
         } else if (st_attr.direction == PAL_AUDIO_OUTPUT &&
-                   st_attr.type != PAL_STREAM_LOW_LATENCY) {
+                   (st_attr.type != PAL_STREAM_LOW_LATENCY ||
+                    low_latency_bargein_enable)) {
             concurrencyEnableCount++;
         }
     }
@@ -2085,6 +2087,16 @@ exit:
     PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
         *enable_count, *disable_count);
 
+}
+
+bool ResourceManager::IsLowLatencyBargeinSupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetLowLatencyBargeinEnable();
+    }
+    return false;
 }
 
 bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
@@ -2549,6 +2561,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
     bool audio_capture_conc_enable =
         IsAudioCaptureAndVoiceUIConcurrencySupported();
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
     StreamSoundTrigger *st_str = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
@@ -2556,7 +2569,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
 
     if (dir == PAL_AUDIO_OUTPUT) {
-        if (type == PAL_STREAM_LOW_LATENCY) {
+        if (type == PAL_STREAM_LOW_LATENCY && !low_latency_bargein_enable) {
             PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
             goto exit;
         } else {
