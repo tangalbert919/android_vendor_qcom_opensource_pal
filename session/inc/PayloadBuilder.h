@@ -123,6 +123,8 @@ public:
                              struct pal_media_config *data);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
+    void payloadCopV2DepackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data,
+                          bool isStreamMapDirIn);
     void payloadCopV2PackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data);
     void payloadTWSConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           bool isTwsMonoModeOn, uint32_t codecFormat);
