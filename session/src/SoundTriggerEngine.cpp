@@ -34,12 +34,13 @@
 #include "SoundTriggerEngineGsl.h"
 #include "SoundTriggerEngineCapi.h"
 #include "Stream.h"
+#include "SoundTriggerPlatformInfo.h"
 
 std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     Stream *s,
     listen_model_indicator_enum type,
     st_module_type_t module_type,
-    bool sm_merge)
+    std::shared_ptr<SoundModelConfig> sm_cfg)
 {
     PAL_VERBOSE(LOG_TAG, "Enter, type %d", type);
 
@@ -48,17 +49,17 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
         return nullptr;
     }
 
-    uint32_t id = static_cast<uint32_t>(type);
     std::shared_ptr<SoundTriggerEngine> st_engine(nullptr);
 
     switch (type) {
     case ST_SM_ID_SVA_GMM:
-        if (!sm_merge && module_type != ST_MODULE_TYPE_PDK5)
-            st_engine = std::make_shared<SoundTriggerEngineGsl>(s, id,
-                                                   type, module_type);
+        if (!sm_cfg->GetMergeFirstStageSoundModels() &&
+            module_type != ST_MODULE_TYPE_PDK5)
+            st_engine = std::make_shared<SoundTriggerEngineGsl>(s, type,
+                                          module_type, sm_cfg);
         else
-            st_engine = SoundTriggerEngineGsl::GetInstance(s, id, type,
-                                                          module_type);
+            st_engine = SoundTriggerEngineGsl::GetInstance(s, type,
+                                                   module_type, sm_cfg);
 
         if (!st_engine)
             PAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
@@ -67,13 +68,14 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     case ST_SM_ID_SVA_CNN:
     case ST_SM_ID_SVA_RNN:
     case ST_SM_ID_SVA_VOP:
-        st_engine = std::make_shared<SoundTriggerEngineCapi>(s, id, type);
+        st_engine = std::make_shared<SoundTriggerEngineCapi>(s, type,
+                                                              sm_cfg);
         if (!st_engine)
             PAL_ERR(LOG_TAG, "SoundTriggerEngine capi creation failed");
         break;
 
     default:
-        PAL_ERR(LOG_TAG, "Invalid model type: %u", id);
+        PAL_ERR(LOG_TAG, "Invalid model type: %u", type);
         break;
     }
 
@@ -95,7 +97,7 @@ int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
         goto exit;
     }
 
-    if (engine_id_ != static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
+    if (engine_type_ != ST_SM_ID_SVA_GMM) {
         PAL_ERR(LOG_TAG, "Cannot create buffer in non-GMM engine");
         status = -EINVAL;
         goto exit;
@@ -147,7 +149,7 @@ int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
 {
     int32_t status = 0;
 
-    if (engine_id_ == static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
+    if (engine_type_ == ST_SM_ID_SVA_GMM) {
         PAL_DBG(LOG_TAG, "No need to set reader for GMM engine");
         return status;
     }
@@ -160,7 +162,7 @@ int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
 int32_t SoundTriggerEngine::ResetBufferReaders(
     std::vector<PalRingBufferReader *> &reader_list)
 {
-    if (engine_id_ != static_cast<uint32_t>(ST_SM_ID_SVA_GMM)) {
+    if (engine_type_ != ST_SM_ID_SVA_GMM) {
         PAL_ERR(LOG_TAG, "Cannot reset buffer readers in non-GMM engine");
         return -EINVAL;
     }

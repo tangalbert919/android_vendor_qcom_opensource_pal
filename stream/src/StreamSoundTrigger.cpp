@@ -293,7 +293,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         std::pair<int32_t,int32_t> streamConfigKV;
 
         gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
-                                                 ST_MODULE_TYPE_GMM);
+                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
             return -ENOMEM;
@@ -758,55 +758,34 @@ void StreamSoundTrigger::CancelDelayedStop() {
 }
 
 std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
-    uint8_t *sm_data, int32_t sm_size, listen_model_indicator_enum type,
-                                         st_module_type_t module_type) {
+    uint8_t *sm_data, 
+    int32_t sm_size, 
+    listen_model_indicator_enum type,
+    st_module_type_t module_type) {
 
     int status = 0;
-    bool sm_merge = false;
-    if (module_type != ST_MODULE_TYPE_PDK5){
-        sm_merge = sm_cfg_->GetMergeFirstStageSoundModels();
-    }
-
     std::shared_ptr<SoundTriggerEngine> engine = nullptr;
 
-    if (type == ST_SM_ID_SVA_GMM) {
-        PAL_DBG(LOG_TAG, "Calling Create for Gsl engine");
-        gsl_engine_ = SoundTriggerEngine::Create(this, type, module_type,
-                                                                sm_merge);
-        if (!gsl_engine_) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "engine creation failed for type %u", type);
-            goto error_exit;
-        }
-        status = gsl_engine_->LoadSoundModel(this, sm_data, sm_size);
-        if (status) {
-            PAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
-                    "failed, status %d", status);
-            goto error_exit;
-        }
-        return gsl_engine_;
-    } else {
-        engine = SoundTriggerEngine::Create(this, type, module_type);
-        if (!engine) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "engine creation failed for type %u", type);
-            goto error_exit;
-        }
-        status = engine->LoadSoundModel(this, sm_data, sm_size);
-        if (status) {
-            PAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
-                    "failed, status %d", status);
-            goto error_exit;
-        }
-        return engine;
+    engine = SoundTriggerEngine::Create(this, type, module_type, sm_cfg_);
+    if (!engine) {
+        status = -ENOMEM;
+        PAL_ERR(LOG_TAG, "engine creation failed for type %u", type);
+        goto error_exit;
     }
+    status = engine->LoadSoundModel(this, sm_data, sm_size);
+    if (status) {
+        PAL_ERR(LOG_TAG, "big_sm: gsl engine loading model"
+               "failed, status %d", status);
+        goto error_exit;
+    }
+    return engine;
 
 error_exit:
     return nullptr;
 }
 
 void StreamSoundTrigger::GetUUID(class SoundTriggerUUID *uuid,
-                                struct pal_st_sound_model *sound_model){
+                                struct pal_st_sound_model *sound_model) {
 
     uuid->timeLow = (uint32_t)sound_model->vendor_uuid.timeLow;
     uuid->timeMid = (uint16_t)sound_model->vendor_uuid.timeMid;
@@ -1251,6 +1230,19 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                          config->data_size,
                          (uint8_t *)config + config->data_offset,
                          config->data_size);
+    }
+
+    // dump recognition config opaque data
+    if (config->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+        ST_DBG_DECLARE(FILE *rec_opaque_fd = NULL; static int rec_opaque_cnt = 0);
+        ST_DBG_FILE_OPEN_WR(rec_opaque_fd, ST_DEBUG_DUMP_LOCATION,
+            "rec_config_opaque", "bin", rec_opaque_cnt);
+        ST_DBG_FILE_WRITE(rec_opaque_fd,
+            (uint8_t *)rec_config_ + config->data_offset, config->data_size);
+        ST_DBG_FILE_CLOSE(rec_opaque_fd);
+        PAL_DBG(LOG_TAG, "recognition config opaque data stored in: rec_config_opaque_%d.bin",
+            rec_opaque_cnt);
+        rec_opaque_cnt++;
     }
 
     // Parse recognition config
@@ -1810,6 +1802,19 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                 ((uint64_t)det_ev_info->detection_timestamp_lsw +
                 ((uint64_t)det_ev_info->detection_timestamp_msw << 32));
         }
+
+        // dump detection event opaque data
+        if ((*event)->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
+                "det_event_opaque", "bin", det_opaque_cnt);
+            ST_DBG_FILE_WRITE(det_opaque_fd,
+                (uint8_t *)(*event) + (*event)->data_offset, (*event)->data_size);
+            ST_DBG_FILE_CLOSE(det_opaque_fd);
+            PAL_DBG(LOG_TAG, "detection event opaque data stored in: det_event_opaque_%d.bin",
+                det_opaque_cnt);
+            det_opaque_cnt++;
+        }
     } else if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_GENERIC) {
         gsl_engine_->GetCustomDetectionEvent(&custom_event, &opaque_size);
         event_size = sizeof(struct pal_st_generic_recognition_event) +
@@ -1844,7 +1849,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
     }
     *evt_size = event_size;
-    // TODO: handle for generic sound model
     PAL_DBG(LOG_TAG, "Exit");
 
     return 0;
@@ -2348,123 +2352,6 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
         cap_prof->GetSndName().c_str());
 
     return cap_prof;
-}
-
-uint32_t StreamSoundTrigger::GetKwStartTolerance() {
-    uint32_t start_tolerance = 0;
-
-    if (sm_cfg_) {
-        start_tolerance = sm_cfg_->GetKwStartTolerance() * 1000;
-    }
-
-    PAL_DBG(LOG_TAG, "start tolerance %u us", start_tolerance);
-    return start_tolerance;
-}
-
-uint32_t StreamSoundTrigger::GetKwEndTolerance() {
-    uint32_t end_tolerance = 0;
-
-    if (sm_cfg_) {
-        end_tolerance = sm_cfg_->GetKwEndTolerance() * 1000;
-    }
-
-    PAL_DBG(LOG_TAG, "end tolerance %u us", end_tolerance);
-    return end_tolerance;
-}
-
-int32_t StreamSoundTrigger::GetEngineConfig(uint32_t &sample_rate,
-    uint32_t &bit_width, uint32_t &channels, listen_model_indicator_enum type) {
-    uint32_t sm_id = static_cast<uint32_t>(type);
-
-    if (sm_cfg_) {
-        if (type == ST_SM_ID_SVA_GMM) {
-            sample_rate = sm_cfg_->GetSampleRate();
-            bit_width = sm_cfg_->GetBitWidth();
-            channels = sm_cfg_->GetOutChannels();
-        } else if (type == ST_SM_ID_SVA_CNN ||
-                    type == ST_SM_ID_SVA_VOP ||
-                    type == ST_SM_ID_SVA_RNN) {
-            auto ss_config = sm_cfg_->GetSecondStageConfig(sm_id);
-            if (!ss_config) {
-                PAL_ERR(LOG_TAG, "No matching second stage config");
-                return -EINVAL;
-            }
-            sample_rate = ss_config->GetSampleRate();
-            bit_width = ss_config->GetBitWidth();
-            channels = ss_config->GetChannels();
-        }
-    } else {
-        PAL_ERR(LOG_TAG, "No sound model info present");
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-int32_t StreamSoundTrigger::GetSecondStageConfig(
-    st_sound_model_type_t &detection_type,
-    std::string &lib_name,
-    listen_model_indicator_enum type) {
-    uint32_t sm_id = static_cast<uint32_t>(type);
-
-    if (sm_cfg_) {
-        if (type == ST_SM_ID_SVA_CNN ||
-            type == ST_SM_ID_SVA_VOP ||
-            type == ST_SM_ID_SVA_RNN) {
-            auto ss_config = sm_cfg_->GetSecondStageConfig(sm_id);
-            if (!ss_config) {
-                PAL_ERR(LOG_TAG, "No matching second stage config");
-                return -EINVAL;
-            }
-            detection_type = ss_config->GetDetectionType();
-            lib_name = ss_config->GetLibName();
-        }
-    } else {
-        PAL_ERR(LOG_TAG, "No sound model config present");
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-int32_t StreamSoundTrigger::GetModuleIds(uint32_t *tag_ids,
-    uint32_t *param_ids) {
-
-    std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
-    st_module_type_t model_type = GetModelType();
-    PAL_DBG(LOG_TAG, "Requesting model type : %u", (uint32_t)model_type);
-
-    if (sm_cfg_) {
-        // TODO: update input type to GMM/PDK
-        sm_module_info = sm_cfg_->GetSoundTriggerModuleInfo(model_type);
-        if (!sm_module_info) {
-            PAL_ERR(LOG_TAG, "Failed to get module info");
-            return -EINVAL;
-        }
-        for (int i = LOAD_SOUND_MODEL; i < MAX_PARAM_IDS; i++) {
-            tag_ids[i] = sm_module_info->GetModuleTagId((st_param_id_type_t)i);
-            param_ids[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
-        }
-    } else {
-        PAL_ERR(LOG_TAG, "No sound model config present");
-        return -EINVAL;
-    }
-
-    return 0;
-}
-
-int32_t StreamSoundTrigger::CheckVendorUUID(bool *is_qcva_uuid,
-    bool *is_qcmd_uuid) {
-
-    if (sm_cfg_) {
-        *is_qcva_uuid = sm_cfg_->isQCVAUUID();
-        *is_qcmd_uuid = sm_cfg_->isQCMDUUID();
-    } else {
-        PAL_ERR(LOG_TAG, "No sound model config present");
-        return -EINVAL;
-    }
-
-    return 0;
 }
 
 void StreamSoundTrigger::AddState(StState* state) {
@@ -3540,6 +3427,16 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 break;
             }
             status = st_stream_.reader_->read(buf->buffer, buf->size);
+            if (st_stream_.st_info_->GetEnableDebugDumps()) {
+                ST_DBG_DECLARE(FILE *lab_fd = NULL; static int lab_cnt = 0);
+                ST_DBG_FILE_OPEN_WR(lab_fd, ST_DEBUG_DUMP_LOCATION,
+                    "lab_reading", "bin", lab_cnt);
+                ST_DBG_FILE_WRITE(lab_fd, buf->buffer, buf->size);
+                ST_DBG_FILE_CLOSE(lab_fd);
+                PAL_DBG(LOG_TAG, "lab reading data stored in: lab_reading_%d.bin",
+                    lab_cnt);
+                lab_cnt++;
+            }
             break;
         }
         case ST_EV_START_RECOGNITION: {

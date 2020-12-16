@@ -721,10 +721,6 @@ typedef enum {
     PAL_PARAM_ID_WAKEUP_MODULE_VERSION = 33,
     PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
     PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
-    PAL_PARAM_ID_LOAD_MULTI_SOUND_MODEL = 36,
-    PAL_PARAM_ID_UNLOAD_MULTI_SOUND_MODEL = 37,
-    PAL_PARAM_ID_WAKEUP_MULTI_MODEL_BUFFERING_CONFIG = 38,
-    PAL_PARAM_ID_WAKEUP_MULTI_MODEL_ENGINE_CONFIG = 39
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1039,11 +1035,6 @@ struct detection_engine_config_stage1_sva5 {
     uint32_t model_id;
     uint32_t num_keywords;
     uint32_t confidence_levels[MAX_KEYWORD_SUPPORTED];
-};
-
-struct detection_engine_voice_wakeup_buffer_config {
-    uint32_t hist_buffer_duration_in_ms;
-    uint32_t pre_roll_duration_in_ms;
 };
 
 struct detection_engine_multi_model_buffering_config {

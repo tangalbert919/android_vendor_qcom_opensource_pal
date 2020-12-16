@@ -35,6 +35,7 @@
 
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
+#include "SoundTriggerPlatformInfo.h"
 
 void SoundTriggerEngineCapi::BufferThreadLoop(
     SoundTriggerEngineCapi *capi_engine)
@@ -77,17 +78,21 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
             if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_KEYWORD_DETECTION) {
                 status = capi_engine->StartKeywordDetection();
+                lck.unlock();
                 if (status || !capi_engine->keyword_detected_)
                     s->SetEngineDetectionState(KEYWORD_DETECTION_REJECT);
                 else
                     s->SetEngineDetectionState(KEYWORD_DETECTION_SUCCESS);
+                lck.lock();
             } else if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_USER_VERIFICATION) {
                 status = capi_engine->StartUserVerification();
+                lck.unlock();
                 if (status || !capi_engine->keyword_detected_)
                     s->SetEngineDetectionState(USER_VERIFICATION_REJECT);
                 else
                     s->SetEngineDetectionState(USER_VERIFICATION_SUCCESS);
+                lck.lock();
             }
             capi_engine->keyword_detected_ = false;
             capi_engine->processing_started_ = false;
@@ -140,7 +145,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
      */
     buffer_size_ -= buffer_size_ % (UsToBytes(10000));
 
-    buffer_end_ += UsToBytes(kw_end_tolerance_);
+    buffer_end_ += UsToBytes(kw_end_tolerance_ + data_after_kw_end_);
     PAL_DBG(LOG_TAG, "buffer_start_: %u, buffer_end_: %u",
         buffer_start_, buffer_end_);
 
@@ -205,6 +210,19 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         stream_input->buf_ptr->max_data_len = buffer_size_;
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
+
+        if (st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *keyword_detection_fd = NULL;
+                static int keyword_detection_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
+                "keyword_detection", "bin", keyword_detection_cnt);
+            ST_DBG_FILE_WRITE(keyword_detection_fd,
+                process_input_buff, read_size);
+            ST_DBG_FILE_CLOSE(keyword_detection_fd);
+            PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
+                keyword_detection_cnt);
+            keyword_detection_cnt++;
+        }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
 
@@ -311,8 +329,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     }
 
     // calculate start and end index including tolerance
-    if (buffer_start_ > UsToBytes(kw_start_tolerance_)) {
-        buffer_start_ -= UsToBytes(kw_start_tolerance_);
+    if (buffer_start_ > UsToBytes(data_before_kw_start_)) {
+        buffer_start_ -= UsToBytes(data_before_kw_start_);
     } else {
         buffer_start_ = 0;
     }
@@ -412,6 +430,19 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->actual_data_len = read_size;
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
+        if (st_info_->GetEnableDebugDumps()) {
+            ST_DBG_DECLARE(FILE *user_verification_fd = NULL;
+                static int user_verification_cnt = 0);
+            ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
+                "user_verification", "bin", user_verification_cnt);
+            ST_DBG_FILE_WRITE(user_verification_fd,
+                process_input_buff, read_size);
+            ST_DBG_FILE_CLOSE(user_verification_fd);
+            PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
+                user_verification_cnt);
+            user_verification_cnt++;
+        }
+
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
 
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
@@ -471,14 +502,14 @@ exit:
 
 SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     Stream *s,
-    uint32_t id,
-    listen_model_indicator_enum type)
+    listen_model_indicator_enum type,
+    std::shared_ptr<SoundModelConfig> sm_cfg)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
-    engine_id_ = id;
     engine_type_ = type;
+    sm_cfg_ = sm_cfg;
     processing_started_ = false;
     keyword_detected_ = false;
     sm_data_ = nullptr;
@@ -494,23 +525,29 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     buffer_ = nullptr;
     stream_handle_ = s;
 
-    StreamSoundTrigger *st_str = dynamic_cast<StreamSoundTrigger *>(s);
-    status = st_str->GetEngineConfig(sample_rate_,
-        bit_width_, channels_, type);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to get engine config");
-        throw std::runtime_error("Failed to get engine config");
+    PAL_DBG(LOG_TAG, "Enter");
+    st_info_ = SoundTriggerPlatformInfo::GetInstance();
+    if (!st_info_) {
+        PAL_ERR(LOG_TAG, "No sound trigger platform info present");
+        throw std::runtime_error("No sound trigger platform info present");
     }
 
-    status = st_str->GetSecondStageConfig(detection_type_,
-        lib_name_, type);
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to get ss engine config");
-        throw std::runtime_error("Failed to get ss engine config");
+    kw_start_tolerance_ = sm_cfg_->GetKwStartTolerance();
+    kw_end_tolerance_ = sm_cfg_->GetKwEndTolerance();
+    data_before_kw_start_ = sm_cfg_->GetDataBeforeKwStart();
+    data_after_kw_end_ = sm_cfg_->GetDataAfterKwEnd();
+
+    ss_cfg_ = sm_cfg_->GetSecondStageConfig(engine_type_);
+    if (!ss_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get second stage config");
+        throw std::runtime_error("Failed to get second stage config");
     }
 
-    kw_start_tolerance_ = st_str->GetKwStartTolerance();
-    kw_end_tolerance_ = st_str->GetKwEndTolerance();
+    sample_rate_ = ss_cfg_->GetSampleRate();
+    bit_width_ = ss_cfg_->GetBitWidth();
+    channels_ = ss_cfg_->GetChannels();
+    detection_type_ = ss_cfg_->GetDetectionType();
+    lib_name_ = ss_cfg_->GetLibName();
 
     // TODO: ST_SM_TYPE_CUSTOM_DETECTION
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {

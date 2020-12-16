@@ -312,20 +312,12 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
                 uint32_t index = 0;
                 if (!strcmp(attribs[i], "load_sound_model_ids")) {
                     index = LOAD_SOUND_MODEL;
-                } else if (!strcmp(attribs[i], "load_multi_sound_model_ids")) {
-                    index = LOAD_MULTI_SOUND_MODEL;
                 } else if (!strcmp(attribs[i], "unload_sound_model_ids")) {
                     index = UNLOAD_SOUND_MODEL;
-                } else if (!strcmp(attribs[i], "deregister_multi_sound_model_ids")) {
-                    index = DEREGISTER_MULTI_SOUND_MODEL;
                 } else if (!strcmp(attribs[i], "wakeup_config_ids")) {
                     index = WAKEUP_CONFIG;
-                } else if (!strcmp(attribs[i], "multi_model_wakeup_config_ids")) {
-                    index = WAKEUP_CONFIG_STAGE1_SVA5;
                 } else if (!strcmp(attribs[i], "buffering_config_ids")) {
                     index = BUFFERING_CONFIG;
-                } else if (!strcmp(attribs[i], "multi_model_buffering_config_ids")) {
-                    index = MULTI_MODEL_BUFFERING_CONFIG;
                 } else if (!strcmp(attribs[i], "engine_reset_ids")) {
                     index = ENGINE_RESET;
                 } else if (!strcmp(attribs[i], "custom_config_ids")) {
@@ -396,8 +388,8 @@ void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
 }
 
 std::shared_ptr<SecondStageConfig> SoundModelConfig::GetSecondStageConfig(
-    const uint32_t& sm_id) const {
-
+    const listen_model_indicator_enum& sm_type) const {
+    uint32_t sm_id = static_cast<uint32_t>(sm_type);
     auto ss_config = ss_config_list_.find(sm_id);
     if (ss_config != ss_config_list_.end())
         return ss_config->second;
@@ -470,6 +462,10 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                 kw_start_tolerance_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "kw_end_tolerance")) {
                 kw_end_tolerance_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "data_before_kw_start")) {
+                data_before_kw_start_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "data_after_kw_end")) {
+                data_after_kw_end_ = std::stoi(attribs[++i]);
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
@@ -626,6 +622,11 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
             PAL_ERR(LOG_TAG,"missing name attrib for tag %s", tag);
             return;
         }
+    }
+
+    if (!strcmp(tag, "common_config") || !strcmp(tag, "capture_profile_list")) {
+        PAL_INFO(LOG_TAG, "tag:%s appeared, nothing to do", tag);
+        return;
     }
 
     if (!strcmp(tag, "param")) {

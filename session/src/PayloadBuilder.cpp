@@ -2057,6 +2057,56 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 header = (struct apm_module_param_data_t*) payloadInfo;
             }
         break;
+        case PARAM_ID_CPS_LPASS_HW_INTF_CFG:
+            {
+                lpass_swr_hw_reg_cfg_t *data = NULL;
+                lpass_swr_hw_reg_cfg_t *cfgPayload = NULL;
+                param_id_cps_lpass_hw_intf_cfg_t *spConf = NULL;
+                data = (lpass_swr_hw_reg_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(lpass_swr_hw_reg_cfg_t) +
+                                    sizeof(pkd_reg_addr_t) * data->num_spkr +
+                                    sizeof(uint32_t);
+                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+                spConf = (param_id_cps_lpass_hw_intf_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                cfgPayload = (lpass_swr_hw_reg_cfg_t * ) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t) +
+                                sizeof(uint32_t));
+                spConf->lpass_hw_intf_cfg_mode = 1;
+
+                memcpy(cfgPayload, data, sizeof(lpass_swr_hw_reg_cfg_t) +
+                                sizeof(pkd_reg_addr_t) * data->num_spkr);
+            }
+        break;
+        case PARAM_ID_SP_CPS_STATIC_CFG:
+            {
+                param_id_sp_cps_static_cfg_t *data = NULL;
+                param_id_sp_cps_static_cfg_t *spConf = NULL;
+
+                data = (param_id_sp_cps_static_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_sp_cps_static_cfg_t);
+                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+                spConf = (param_id_sp_cps_static_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+                memcpy(spConf, data, sizeof(param_id_sp_cps_static_cfg_t));
+            }
+        break;
     }
 
     header->module_instance_id = miid;
