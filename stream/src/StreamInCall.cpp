@@ -198,19 +198,7 @@ int32_t  StreamInCall::close()
 exit:
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
-    status = rm->deregisterStream(this);
-    if (mStreamAttr) {
-        free(mStreamAttr);
-        mStreamAttr = (struct pal_stream_attributes *)NULL;
-    }
-
-    if(mVolumeData)  {
-        free(mVolumeData);
-        mVolumeData = (struct pal_volume_data *)NULL;
-    }
-    delete session;
-    session = nullptr;
-    PAL_DBG(LOG_TAG, "Exit. closed the stream successfully %d status %d",
+    PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
 }
@@ -645,7 +633,7 @@ error:
     rm->unlockGraph();
     mStreamMutex.unlock();
 exit :
-    PAL_VERBOSE(LOG_TAG, "session write failed status %d", status);
+    PAL_DBG(LOG_TAG, "session write failed status %d", status);
     return status;
 }
 
@@ -987,5 +975,28 @@ exit :
 }
 
 StreamInCall::~StreamInCall(){
+
+    cachedState = STREAM_IDLE;
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        while (!ssrDone)
+            usleep(1000);
+        PAL_INFO(LOG_TAG, "ssr done, exitng");
+    }
+    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
+    rm->deregisterStream(this);
+    if (mStreamAttr) {
+        free(mStreamAttr);
+        mStreamAttr = (struct pal_stream_attributes *)NULL;
+    }
+
+    if(mVolumeData)  {
+        free(mVolumeData);
+        mVolumeData = (struct pal_volume_data *)NULL;
+    }
+
+    mDevices.clear();
+    delete session;
+    session = nullptr;
+    mStreamMutex.unlock();
 }
