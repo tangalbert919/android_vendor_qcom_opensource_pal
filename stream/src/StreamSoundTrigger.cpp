@@ -297,18 +297,13 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
         std::pair<int32_t,int32_t> streamConfigKV;
 
-        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
-                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
-        if (!gsl_engine_) {
-            PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-            return -ENOMEM;
-        }
-
         st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
         if (sm_cfg_list.size() == 0) {
             PAL_ERR(LOG_TAG, "No sound model config supports version query");
             return -EINVAL;
         }
+
+        sm_cfg_ = sm_cfg_list[0];
         if (!mDevices.size()) {
             struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
@@ -327,16 +322,31 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             delete dattr;
         }
 
+        if (mDevices.size() > 0) {
+            status = mDevices[0]->open();
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                return status;
+            }
+        }
+
         cap_prof_ = GetCurrentCaptureProfile();
         /* store the pre-proc KV selected in the config file */
         mDevPpModifiers.clear();
         mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
 
-        streamConfigKV = sm_cfg_list[0]->GetStreamConfig(ST_MODULE_TYPE_GMM);
+        streamConfigKV = sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
         mStreamModifiers.clear();
         mStreamModifiers.push_back(streamConfigKV);
 
         mInstanceID = rm->getStreamInstanceID(this);
+
+        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
+                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
+        if (!gsl_engine_) {
+            PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
+            return -ENOMEM;
+        }
 
         status = gsl_engine_->GetParameters(param_id, payload);
         if (status)
