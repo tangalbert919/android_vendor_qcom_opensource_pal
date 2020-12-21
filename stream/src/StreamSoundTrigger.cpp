@@ -2707,12 +2707,12 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_RESUME: {
-            if (!st_stream_.paused_) {
+            st_stream_.paused_ = false;
+            if (!st_stream_.isActive()) {
                 // Possible if App has stopped recognition during active
                 // concurrency.
                 break;
             }
-            st_stream_.paused_ = false;
             // fall through to start
             [[fallthrough]];
         }
@@ -2812,12 +2812,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         }
         case ST_EV_PAUSE: {
             st_stream_.paused_ = true;
-            break;
-        }
-        case ST_EV_STOP_RECOGNITION: {
-            // Possible if client is stopping during active concurrency.
-            // Reset puase flag to avoid restarting when concurrency inactive.
-            st_stream_.paused_ = false;
             break;
         }
         case ST_EV_READ_BUFFER: {
