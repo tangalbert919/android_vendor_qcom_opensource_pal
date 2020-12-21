@@ -42,9 +42,9 @@
 #include "Device.h"
 #include "SoundTriggerUtils.h"
 
-// TODO: Move to sound trigger xml files
 #define BITS_PER_BYTE 8
 #define US_PER_SEC 1000000
+#define MS_PER_SEC 1000
 #define CNN_BUFFER_SIZE 15360
 #define CNN_FRAME_SIZE 320
 #define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12

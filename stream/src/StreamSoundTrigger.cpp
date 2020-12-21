@@ -31,6 +31,7 @@
 
 #include "StreamSoundTrigger.h"
 
+#include <chrono>
 #include <unistd.h>
 
 #include "Session.h"
@@ -272,6 +273,7 @@ int32_t StreamSoundTrigger::stop() {
 
 int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     int32_t size = 0;
+    uint32_t sleep_ms = 0;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
@@ -279,6 +281,17 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
     size = cur_state_->ProcessEvent(ev_cfg);
+
+    /*
+     * st stream read pcm data from ringbuffer with no almost
+     * delay, sleep for some time after each read even if read
+     * fails.
+     */
+
+    sleep_ms = (buf->size * BITS_PER_BYTE * MS_PER_SEC) /
+        (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+         sm_cfg_->GetOutChannels());
+    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
 
     PAL_VERBOSE(LOG_TAG, "Exit, read size %d", size);
 
@@ -1383,9 +1396,9 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     // create ring buffer for lab transfer in gsl_engine
     ring_buffer_len = hist_buffer_duration + pre_roll_duration +
         client_capture_read_delay;
-    ring_buffer_size = (ring_buffer_len / 1000) * sm_cfg_->GetSampleRate() *
+    ring_buffer_size = (ring_buffer_len / MS_PER_SEC) * sm_cfg_->GetSampleRate() *
                        sm_cfg_->GetBitWidth() *
-                       sm_cfg_->GetOutChannels() / 8;
+                       sm_cfg_->GetOutChannels() / BITS_PER_BYTE;
     status = gsl_engine_->CreateBuffer(ring_buffer_size,
                                        engines_.size(), reader_list_);
     if (status) {
