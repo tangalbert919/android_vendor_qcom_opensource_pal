@@ -3728,6 +3728,11 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
                                          std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList)
 {
     int status = 0;
+
+    if (cardState == CARD_STATUS_OFFLINE) {
+        PAL_ERR(LOG_TAG, "Sound card offline");
+        return -EINVAL;
+    }
     status = streamDevDisconnect(streamDevDisconnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"disconnect failed");

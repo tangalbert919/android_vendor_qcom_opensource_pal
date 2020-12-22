@@ -592,11 +592,12 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
-        goto error_2;
+        goto error_3;
     }
     rm->registerDevice(dev, this);
     goto error_1;
-
+error_3:
+    dev->stop();
 error_2:
     mDevices.pop_back();
     rm->deregisterDevice(dev, this);

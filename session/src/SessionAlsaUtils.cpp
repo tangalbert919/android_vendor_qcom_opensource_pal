@@ -1564,7 +1564,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
         return -EINVAL;
     }
-    mixer_ctl_set_enum_by_string(connectCtrl, aifBackEndsToConnect[0].second.data());
+    status = mixer_ctl_set_enum_by_string(connectCtrl, aifBackEndsToConnect[0].second.data());
 
     return status;
 }
