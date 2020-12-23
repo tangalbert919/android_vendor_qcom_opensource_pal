@@ -737,6 +737,37 @@ int SessionAlsaPcm::start(Stream * s)
                     return status;
                 }
                 if (sAttr.type == PAL_STREAM_VOICE_CALL_RECORD) {
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                "ZERO", RAT_RENDER, &miid);
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                        return status;
+                    }
+                    PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+                    codecConfig.bit_width = sAttr.in_media_config.bit_width;
+                    codecConfig.sample_rate = sAttr.in_media_config.sample_rate;
+                    codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                    codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
+                    builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
+                    if (payloadSize) {
+                        status = updateCustomPayload(payload, payloadSize);
+                        delete payload;
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                            return status;
+                        }
+                    }
+                    status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                                 customPayload, customPayloadSize);
+                    if (customPayload) {
+                        free(customPayload);
+                        customPayload = NULL;
+                        customPayloadSize = 0;
+                    }
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"setMixerParameter failed for RAT render");
+                        return status;
+                    }
                     switch (sAttr.info.voice_rec_info.record_direction) {
                         case INCALL_RECORD_VOICE_UPLINK:
                             tagId = INCALL_RECORD_UPLINK;
@@ -762,8 +793,40 @@ int SessionAlsaPcm::start(Stream * s)
             }
             break;
         case PAL_AUDIO_OUTPUT:
-            if (sAttr.type == PAL_STREAM_VOICE_CALL_MUSIC)
+            if (sAttr.type == PAL_STREAM_VOICE_CALL_MUSIC) {
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                "ZERO", RAT_RENDER, &miid);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    return status;
+                }
+                PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+                codecConfig.bit_width = sAttr.out_media_config.bit_width;
+                codecConfig.sample_rate = sAttr.out_media_config.sample_rate;
+                codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                codecConfig.ch_info.channels = sAttr.out_media_config.ch_info.channels;
+                builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
+                if (payloadSize) {
+                    status = updateCustomPayload(payload, payloadSize);
+                    delete payload;
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        return status;
+                    }
+                }
+                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
+                                                             customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
+                }
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"setMixerParameter failed for RAT render");
+                    return status;
+                }
                 goto pcm_start;
+            }
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Exit getAssociatedDevices Failed\n");
