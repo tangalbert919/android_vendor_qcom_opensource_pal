@@ -194,11 +194,10 @@ void SpeakerProtection::spkrProtSetSpkrStatus(bool enable)
 }
 
 // Callback from DSP for the R0 value
-void SpeakerProtection::mixer_ctl_callback (void *hdl, uint32_t event_id,
+void SpeakerProtection::mixer_ctl_callback (uint64_t hdl __unused, uint32_t event_id,
                                             void *event_data, uint32_t event_size)
 {
     param_id_sp_th_vi_calib_res_cfg_t *param_data = nullptr;
-    hdl = NULL;
 
     PAL_DBG(LOG_TAG, "Got event from DSP %x", event_id);
 
@@ -571,7 +570,7 @@ int SpeakerProtection::spkrStartCalibration()
     // Register to mixtureControlEvents and wait for the R0T0 values
 
     ret = (ResourceManager::getInstance())->registerMixerEventCallback(pcmDevIdsTx,
-                    sessionCb, (void*)this, true);
+                    sessionCb, (uint64_t)this, true);
     if (ret != 0) {
         PAL_ERR(LOG_TAG, "Failed to register callback to rm");
     }
@@ -799,7 +798,7 @@ err_pcm_open :
             free (event_cfg);
         }
         status = (ResourceManager::getInstance())->registerMixerEventCallback (
-                    pcmDevIdsTx, sessionCb, (void*)this, false);
+                    pcmDevIdsTx, sessionCb, (uint64_t)this, false);
         if (status != 0) {
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }

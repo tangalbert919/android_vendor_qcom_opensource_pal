@@ -87,7 +87,7 @@ private:
     bool playback_paused;
     int ioMode;
     session_callback sessionCb;
-    void *cbCookie;
+    uint64_t cbCookie;
     pal_audio_fmt_t audio_fmt;
     int fileWrite(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag);
     std::vector <std::pair<int, int>> ckv;
@@ -118,7 +118,7 @@ public:
     int write(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag) override;
     int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
     static void offloadThreadLoop(SessionAlsaCompress *ob);
-    int registerCallBack(session_callback cb, void *cookie);
+    int registerCallBack(session_callback cb, uint64_t cookie);
     int drain(pal_drain_type_t type);
     int flush();
     int getTimestamp(struct pal_session_time *stime) override;

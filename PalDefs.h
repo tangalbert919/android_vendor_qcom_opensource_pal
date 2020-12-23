@@ -58,7 +58,7 @@ extern "C" {
 typedef uint64_t pal_stream_handle_t;
 
 /** Sound Trigger handle */
-typedef void pal_st_handle_t;
+typedef uint64_t pal_st_handle_t;
 
 /** PAL Audio format enumeration */
 typedef enum {
@@ -76,6 +76,12 @@ typedef enum {
     PAL_AUDIO_FMT_FLAC = 0xB,
     PAL_AUDIO_FMT_FLAC_OGG = 0xC,
     PAL_AUDIO_FMT_VORBIS = 0xD,
+    PAL_AUDIO_FMT_AMR_NB = 0xE,
+    PAL_AUDIO_FMT_AMR_WB = 0xF,
+    PAL_AUDIO_FMT_AMR_WB_PLUS = 0x10,
+    PAL_AUDIO_FMT_EVRC = 0x11,
+    PAL_AUDIO_FMT_G711 = 0x12,
+    PAL_AUDIO_FMT_QCELP = 0x13,
     PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
@@ -103,7 +109,13 @@ static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
     { "WMA_PRO", PAL_AUDIO_FMT_WMA_PRO},
     { "FLAC", PAL_AUDIO_FMT_FLAC},
     { "FLAC_OGG", PAL_AUDIO_FMT_FLAC_OGG},
-    { "VORBIS", PAL_AUDIO_FMT_VORBIS}
+    { "VORBIS", PAL_AUDIO_FMT_VORBIS},
+    { "AMR_NB", PAL_AUDIO_FMT_AMR_NB},
+    { "AMR_WB", PAL_AUDIO_FMT_AMR_WB},
+    { "AMR_WB_PLUS", PAL_AUDIO_FMT_AMR_WB_PLUS},
+    { "EVRC", PAL_AUDIO_FMT_EVRC},
+    { "G711", PAL_AUDIO_FMT_G711},
+    { "QCELP", PAL_AUDIO_FMT_QCELP}
 
 };
 #endif
@@ -226,6 +238,7 @@ typedef union {
     struct pal_snd_dec_vorbis vorbis_dec;
 } pal_snd_dec_t;
 
+
 /** Audio parameter data*/
 typedef struct pal_param_payload_s {
     uint32_t payload_size;
@@ -318,7 +331,8 @@ typedef enum {
     PAL_STREAM_PCM_OFFLOAD = 18,          /**< pcm offload audio */
     PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
     PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
-    PAL_STREAM_MAX                        /**< max stream types - add new ones above */
+    PAL_STREAM_NON_TUNNEL = 21,           /**< NT Mode session */
+    PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
 
 /** Audio devices available for enabling streams */
@@ -460,6 +474,7 @@ typedef enum {
     PAL_STREAM_CBK_EVENT_WRITE_READY, /* non blocking write completed */
     PAL_STREAM_CBK_EVENT_DRAIN_READY,  /* drain completed */
     PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY, /* partial drain completed */
+    PAL_STREAM_CBK_EVENT_READ_DONE, /* stream hit some error, let AF take action */
     PAL_STREAM_CBK_EVENT_ERROR, /* stream hit some error, let AF take action */
 } pal_stream_callback_event_t;
 
@@ -551,6 +566,8 @@ typedef enum {
     PAL_STREAM_FLAG_NON_BLOCKING    = 0x2,  /**< Stream IO operations are non blocking */
     PAL_STREAM_FLAG_MMAP            = 0x4,  /**< Stream Mode should be in MMAP*/
     PAL_STREAM_FLAG_MMAP_NO_IRQ     = 0x8,  /**< Stream Mode should be No IRQ */
+    PAL_STREAM_FLAG_EXTERN_MEM      = 0x10, /**< Shared memory buffers allocated by client*/
+    PAL_STREAM_FLAG_SRCM_INBAND     = 0x20, /**< MediaFormat change event inband with data buffers*/
 } pal_stream_flags_t;
 
 #define PAL_STREAM_FLAG_NON_BLOCKING_MASK 0x2
@@ -581,21 +598,23 @@ enum {
 /** metadata flags, can be OR'able */
 typedef uint32_t pal_meta_data_flags_t;
 
-typedef struct pal_meta_data {
-    size_t payload_size;
-    uint8_t payload[];
-} pal_meta_data_t;
+typedef struct pal_extern_alloc_buff_info{
+    int      alloc_handle;/**< unique memory handle identifying extern mem allocation */
+    uint32_t alloc_size;  /**< size of external allocation */
+    uint32_t offset;      /**< offset of buffer within extern allocation */
+} pal_extern_alloc_buff_info_t;
 
 /** PAL buffer structure used for reading/writing buffers from/to the stream */
 struct pal_buffer {
-    void *buffer;                  /**<  buffer pointer */
+    uint8_t *buffer;                  /**<  buffer pointer */
     size_t size;                   /**< number of bytes */
     size_t offset;                 /**< offset in buffer from where valid byte starts */
     struct timespec *ts;           /**< timestmap */
-    pal_meta_data_flags_t flags;   /**< meta data flags */
-    struct pal_meta_data metadata;   /**< meta data flags */
+    uint32_t flags;                /**< flags */
+    size_t metadata_size;          /**< size of metadata buffer in bytes */
+    uint8_t *metadata;             /**< metadata buffer. Can contain multiple metadata*/
+    pal_extern_alloc_buff_info_t alloc_info; /**< holds info for extern buff */
 };
-
 
 /** pal_mmap_buffer flags */
 enum {
@@ -721,6 +740,7 @@ typedef enum {
     PAL_PARAM_ID_WAKEUP_MODULE_VERSION = 33,
     PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG = 34,
     PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
+    PAL_PARAM_ID_MODULE_CONFIG = 36, /*Clients directly configure DSP modules*/
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -851,6 +871,33 @@ struct pal_device {
     pal_device_id_t id;                     /**<  device id */
     struct pal_media_config config;         /**<  media config of the device */
     struct pal_usb_device_address address;
+};
+
+/**
+ * Maps the modules instance id to module id for a single module
+ */
+struct module_info {
+    uint32_t module_id; /**< module id */
+    uint32_t module_iid; /**< globally unique module instance id */
+};
+
+/**
+ * Structure mapping the tag_id to module info (mid and miid)
+ */
+struct pal_tag_module_mapping {
+    uint32_t tag_id; /**< tag id of the module */
+    uint32_t num_modules; /**< number of modules matching the tag_id */
+    struct module_info mod_list[]; /**< module list */
+};
+
+/**
+ * Used to return tags and module info data to client given a graph key vector
+ */
+struct pal_tag_module_info {
+    /**< number of tags */
+    uint32_t num_tags;
+    /**< variable payload of type struct pal_tag_module_mapping*/
+    uint8_t pal_tag_module_list[];
 };
 
 #define PAL_SOUND_TRIGGER_MAX_STRING_LEN 64 /* max length of strings in properties or descriptor structs */
@@ -991,7 +1038,7 @@ struct pal_st_recognition_event {
 };
 
 typedef void(*pal_st_recognition_callback_t)(struct pal_st_recognition_event *event,
-                                             void *cookie);
+                                             uint8_t *cookie);
 
 /* Payload for pal_st_start_recognition() */
 struct pal_st_recognition_config {
@@ -1004,7 +1051,7 @@ struct pal_st_recognition_config {
     struct pal_st_phrase_recognition_extra phrases[PAL_SOUND_TRIGGER_MAX_PHRASES];
                                               /**< configuration for each key phrase */
     pal_st_recognition_callback_t callback;   /**< callback for recognition events */
-    void *        cookie;                     /**< cookie set from client*/
+    uint8_t *        cookie;                     /**< cookie set from client*/
     uint32_t      data_size;                  /**< size of opaque capture configuration data */
     uint32_t      data_offset;                /**< offset of opaque data start from start of this struct
                                               (e.g sizeof struct sound_trigger_recognition_config) */
@@ -1060,6 +1107,17 @@ struct pal_compr_gapless_mdata {
        uint32_t encoderPadding;
 };
 
+/**
+ * Event payload passed to client with PAL_STREAM_CBK_EVENT_READ_DONE and
+  * PAL_STREAM_CBK_EVENT_WRITE_READY events
+  */
+struct pal_event_read_write_done_payload {
+    uint32_t tag; /**< tag that was used to read/write this buffer */
+    uint32_t status; /**< data buffer status as defined in ar_osal_error.h */
+    uint32_t md_status; /**< meta-data status as defined in ar_osal_error.h */
+    struct pal_buffer buff; /**< buffer that was passed to pal_stream_read/pal_stream_write */
+};
+
 /** @brief Callback function prototype to be given for
  *         pal_open_stream.
  *
@@ -1075,7 +1133,7 @@ struct pal_compr_gapless_mdata {
 typedef int32_t (*pal_stream_callback)(pal_stream_handle_t *stream_handle,
                                        uint32_t event_id, uint32_t *event_data,
                                        uint32_t event_data_size,
-                                       void *cookie);
+                                       uint64_t cookie);
 
 /** @brief Callback function prototype to be given for
  *         pal_register_callback.
@@ -1087,7 +1145,7 @@ typedef int32_t (*pal_stream_callback)(pal_stream_handle_t *stream_handle,
  * \param[in] cookie - cookie specified in the
  *       pal_register_global_callback.
  */
-typedef int32_t (*pal_global_callback)(uint32_t event_id, uint32_t *event_data, void *cookie);
+typedef int32_t (*pal_global_callback)(uint32_t event_id, uint32_t *event_data, uint64_t cookie);
 
 /** Sound card state */
 typedef enum card_status_t {
@@ -1095,6 +1153,12 @@ typedef enum card_status_t {
     CARD_STATUS_ONLINE,
     CARD_STATUS_NONE,
 } card_status_t;
+
+typedef struct pal_buffer_config {
+    size_t buf_count; /**< number of buffers*/
+    size_t buf_size; /**< This would be the size of each buffer*/
+    size_t max_metadata_size; /** < max metadata size associated with each buffer*/
+} pal_buffer_config_t;
 
 #ifdef __cplusplus
 }  /* extern "C" */

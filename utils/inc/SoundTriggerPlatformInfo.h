@@ -249,6 +249,9 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool GetConcurrentCaptureEnable() const { return concurrent_capture_; }
     bool GetConcurrentVoiceCallEnable() const { return concurrent_voice_call_; }
     bool GetConcurrentVoipCallEnable() const { return concurrent_voip_call_; }
+    bool GetLowLatencyBargeinEnable() const {
+        return low_latency_bargein_enable_;
+    }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
     std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
     void GetSmConfigForVersionQuery(
@@ -276,6 +279,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool concurrent_capture_;
     bool concurrent_voice_call_;
     bool concurrent_voip_call_;
+    bool low_latency_bargein_enable_;
     std::map<UUID, std::shared_ptr<SoundModelConfig>> sound_model_cfg_list_;
     st_cap_profile_map_t capture_profile_map_;
     std::shared_ptr<SoundTriggerXml> curr_child_;

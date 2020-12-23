@@ -1646,10 +1646,10 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
         }
         case PAL_PARAM_ID_WAKEUP_MODULE_VERSION:
         {
+            payloadData = (uint8_t *)*payload;
             struct apm_module_param_data_t *header =
                 (struct apm_module_param_data_t *)payloadData;
             configSize = header->param_size;
-            payloadData = (uint8_t *)*payload;
             payloadSize = configSize + sizeof(struct apm_module_param_data_t);
             break;
         }
@@ -1690,7 +1690,7 @@ exit:
     return status;
 }
 
-int SessionAlsaPcm::registerCallBack(session_callback cb, void *cookie)
+int SessionAlsaPcm::registerCallBack(session_callback cb, uint64_t cookie)
 {
     sessionCb = cb;
     cbCookie = cookie;

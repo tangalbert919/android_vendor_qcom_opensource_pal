@@ -142,6 +142,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     prev_state_ = nullptr;
     state_for_restore_ = ST_STATE_NONE;
 
+    // Print the concurrency feature flags supported
+    PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
+        st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
+        st_info_->GetConcurrentVoipCallEnable());
+
     // check concurrency count from rm
     rm->GetSVAConcurrencyCount(&enable_concurrency_count,
         &disable_concurrency_count);
@@ -292,18 +297,13 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
         std::pair<int32_t,int32_t> streamConfigKV;
 
-        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
-                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
-        if (!gsl_engine_) {
-            PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-            return -ENOMEM;
-        }
-
         st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
         if (sm_cfg_list.size() == 0) {
             PAL_ERR(LOG_TAG, "No sound model config supports version query");
             return -EINVAL;
         }
+
+        sm_cfg_ = sm_cfg_list[0];
         if (!mDevices.size()) {
             struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
@@ -322,16 +322,31 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             delete dattr;
         }
 
+        if (mDevices.size() > 0) {
+            status = mDevices[0]->open();
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                return status;
+            }
+        }
+
         cap_prof_ = GetCurrentCaptureProfile();
         /* store the pre-proc KV selected in the config file */
         mDevPpModifiers.clear();
         mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
 
-        streamConfigKV = sm_cfg_list[0]->GetStreamConfig(ST_MODULE_TYPE_GMM);
+        streamConfigKV = sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
         mStreamModifiers.clear();
         mStreamModifiers.push_back(streamConfigKV);
 
         mInstanceID = rm->getStreamInstanceID(this);
+
+        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
+                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
+        if (!gsl_engine_) {
+            PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
+            return -ENOMEM;
+        }
 
         status = gsl_engine_->GetParameters(param_id, payload);
         if (status)
@@ -663,7 +678,7 @@ int32_t StreamSoundTrigger::isBitWidthSupported(uint32_t bitWidth) {
 }
 
 int32_t StreamSoundTrigger::registerCallBack(pal_stream_callback cb,
-                                             void * cookie) {
+                                             uint64_t cookie) {
     callback_ = cb;
     cookie_ = cookie;
 
@@ -1362,7 +1377,7 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     gsl_engine_->GetUpdatedBufConfig(&hist_buffer_duration,
                                           &pre_roll_duration);
 
-    PAL_DBG(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
+    PAL_INFO(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
         hist_buffer_duration, pre_roll_duration);
 
     // create ring buffer for lab transfer in gsl_engine
@@ -1517,7 +1532,7 @@ int32_t StreamSoundTrigger::notifyClient() {
         PAL_INFO(LOG_TAG, "Notify detection event to client");
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
-                  event_size, rec_config_->cookie);
+                  event_size, (uint64_t)rec_config_->cookie);
         mStreamMutex.lock();
     }
 
@@ -1593,6 +1608,9 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                         PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
                             sm_info_->GetConfLevelsSize(), j);
 
+                    PAL_INFO(LOG_TAG, "First stage KW Conf levels[%d]-%d",
+                        j, sm_info_->GetDetConfLevels()[j])
+
                     for (k = 0;
                          k < conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
                          k++) {
@@ -1606,6 +1624,9 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                         else
                             PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
                                 sm_info_->GetConfLevelsSize(), user_id);
+
+                        PAL_INFO(LOG_TAG, "First stage User Conf levels[%d]-%d",
+                            k, sm_info_->GetDetConfLevels()[user_id])
                     }
                 }
             } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||

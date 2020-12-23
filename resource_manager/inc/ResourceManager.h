@@ -196,7 +196,7 @@ struct nativeAudioProp {
    int na_mode;
 };
 
-typedef void (*session_callback)(void *hdl, uint32_t event_id, void *event_data,
+typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
                                    uint32_t event_size);
 
 typedef void* (*adm_init_t)();
@@ -333,7 +333,7 @@ protected:
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;
-    std::map<int, std::pair<session_callback, void *>> mixerEventCallbackMap;
+    std::map<int, std::pair<session_callback, uint64_t>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
     ResourceManager();
@@ -345,6 +345,7 @@ public:
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
     static bool isCpsEnabled;
+    static int bitWidthSupported;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
     /* Variable to store which speaker side is being used for call audio.
@@ -358,7 +359,7 @@ public:
     pal_global_callback globalCb = NULL;
     /* Flag to store the state of VI record */
     static bool isVIRecordStarted;
-    void *cookie;
+    uint64_t cookie;
     int initSndMonitor();
     adm_init_t admInitFn = NULL;
     adm_deinit_t admDeInitFn = NULL;
@@ -393,7 +394,7 @@ public:
     int deregisterDevice_l(std::shared_ptr<Device> d, Stream *s);
     int registerMixerEventCallback(const std::vector<int> &DevIds,
                                    session_callback callback,
-                                   void *cookie, bool is_register);
+                                   uint64_t cookie, bool is_register);
     bool isDeviceActive(std::shared_ptr<Device> d, Stream *s);
     bool isDeviceActive_l(std::shared_ptr<Device> d, Stream *s);
     int addPlugInDevice(std::shared_ptr<Device> d,
@@ -458,6 +459,7 @@ public:
     const std::string getPALDeviceName(const pal_device_id_t id) const;
     bool isNonALSACodec(const struct pal_device *device) const;
     bool IsVoiceUILPISupported();
+    bool IsLowLatencyBargeinSupported();
     bool IsAudioCaptureAndVoiceUIConcurrencySupported();
     bool IsVoiceCallAndVoiceUIConcurrencySupported();
     bool IsVoipAndVoiceUIConcurrencySupported();

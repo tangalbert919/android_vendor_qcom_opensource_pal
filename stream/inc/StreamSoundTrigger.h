@@ -126,7 +126,7 @@ class StreamSoundTrigger : public Stream {
 
     int32_t write(struct pal_buffer *buf __unused) { return 0; }
 
-    int32_t registerCallBack(pal_stream_callback cb,  void *cookie) override;
+    int32_t registerCallBack(pal_stream_callback cb,  uint64_t cookie) override;
     int32_t getCallBack(pal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
     int32_t setParameters(uint32_t param_id, void *payload) override;
@@ -528,7 +528,7 @@ class StreamSoundTrigger : public Stream {
     static int32_t HandleDetectionEvent(pal_stream_handle_t *stream_handle,
                                         uint32_t event_id,
                                         uint32_t *event_data,
-                                        void *cookie __unused);
+                                        uint64_t cookie __unused);
 
     static void TimerThread(StreamSoundTrigger& st_stream);
     void PostDelayedStop();
@@ -561,7 +561,7 @@ class StreamSoundTrigger : public Stream {
     uint32_t detection_state_;
     uint32_t notification_state_;
     pal_stream_callback callback_;
-    void * cookie_;
+    uint64_t cookie_;
     PalRingBufferReader *reader_;
 
     StState *st_idle_;

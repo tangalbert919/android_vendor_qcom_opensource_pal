@@ -168,7 +168,7 @@ public:
     static void stCallBack(struct gsl_event_cb_params *event_params, void *client_data);
     void checkAndConfigConcurrency(Stream *s);
     int getTimestamp(struct pal_session_time *stime) override;
-    int registerCallBack(session_callback cb, void *cookie) override;
+    int registerCallBack(session_callback cb, uint64_t cookie) override;
     int drain(pal_drain_type_t type) override;
     int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) override;

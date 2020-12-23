@@ -340,6 +340,7 @@ int ResourceManager::concurrencyDisableCount = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
+int ResourceManager::bitWidthSupported = BITWIDTH_16;
 bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
@@ -818,7 +819,8 @@ int ResourceManager::init_audio()
              resourcemanager.xml.
        TODO: Add support for form factors other than IDP/QRD.
     */
-    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))){
+    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))||
+        !strncmp(cur_snd_card_split.form_factor, "cdp", sizeof ("cdp"))){
             strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
 
@@ -1061,7 +1063,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.bit_width = bitWidthSupported;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             break;
         case PAL_DEVICE_IN_VI_FEEDBACK:
@@ -2036,6 +2038,7 @@ void ResourceManager::GetSVAConcurrencyCount(
     bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
     bool audio_capture_conc_enable =
         IsAudioCaptureAndVoiceUIConcurrencySupported();
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
 
     mResourceManagerMutex.lock();
     if (concurrencyEnableCount > 0 || concurrencyDisableCount > 0) {
@@ -2072,7 +2075,8 @@ void ResourceManager::GetSVAConcurrencyCount(
                 concurrencyEnableCount++;
             }
         } else if (st_attr.direction == PAL_AUDIO_OUTPUT &&
-                   st_attr.type != PAL_STREAM_LOW_LATENCY) {
+                   (st_attr.type != PAL_STREAM_LOW_LATENCY ||
+                    low_latency_bargein_enable)) {
             concurrencyEnableCount++;
         }
     }
@@ -2081,6 +2085,19 @@ exit:
     mResourceManagerMutex.unlock();
     *enable_count = concurrencyEnableCount;
     *disable_count = concurrencyDisableCount;
+    PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
+        *enable_count, *disable_count);
+
+}
+
+bool ResourceManager::IsLowLatencyBargeinSupported() {
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
+
+    if (st_info) {
+        return st_info->GetLowLatencyBargeinEnable();
+    }
+    return false;
 }
 
 bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
@@ -2211,8 +2228,15 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     pal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
     StreamSoundTrigger *st_str = nullptr;
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+        SoundTriggerPlatformInfo::GetInstance();
 
     PAL_DBG(LOG_TAG, "Enter");
+
+    if (!st_info->GetSupportDevSwitch()) {
+        PAL_INFO(LOG_TAG, "Device switch not supported, return");
+        return 0;
+    }
 
     // TODO: add support for other devices
     if (device_id == PAL_DEVICE_IN_HANDSET_MIC ||
@@ -2284,10 +2308,10 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfile() {
  */
 int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
                                                 session_callback callback,
-                                                void *cookie,
+                                                uint64_t cookie,
                                                 bool is_register) {
     int status = 0;
-    std::map<int, std::pair<session_callback, void *>>::iterator it;
+    std::map<int, std::pair<session_callback, uint64_t>>::iterator it;
 
     if (!callback || DevIds.size() <= 0) {
         PAL_ERR(LOG_TAG, "Invalid callback or pcm ids");
@@ -2381,7 +2405,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
 int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     int status = 0;
     int pcm_id = 0;
-    void *cookie = nullptr;
+    uint64_t cookie = 0;
     session_callback session_cb = nullptr;
     std::string event_str(mixer_str);
     // TODO: hard code in common defs
@@ -2395,7 +2419,7 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
     char *buf = nullptr;
     unsigned int num_values;
     struct agm_event_cb_params *params = nullptr;
-    std::map<int, std::pair<session_callback, void *>>::iterator it;
+    std::map<int, std::pair<session_callback, uint64_t>>::iterator it;
 
     PAL_DBG(LOG_TAG, "Enter");
     ctl = mixer_get_ctl_by_name(mixer, mixer_str);
@@ -2538,6 +2562,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
     bool audio_capture_conc_enable =
         IsAudioCaptureAndVoiceUIConcurrencySupported();
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
     StreamSoundTrigger *st_str = nullptr;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
@@ -2545,7 +2570,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
 
     if (dir == PAL_AUDIO_OUTPUT) {
-        if (type == PAL_STREAM_LOW_LATENCY) {
+        if (type == PAL_STREAM_LOW_LATENCY && !low_latency_bargein_enable) {
             PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
             goto exit;
         } else {
@@ -2589,6 +2614,9 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
     }
 
+    PAL_INFO(LOG_TAG, "stream type %d active %d Tx conc %d, Rx conc %d, concurrency%s allowed",
+        type, active, tx_conc, rx_conc, conc_en? "" : " not");
+
     if (!conc_en) {
         if (active) {
             ++concurrencyDisableCount;
@@ -2627,7 +2655,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
     } else if (tx_conc || rx_conc) {
         if (!IsVoiceUILPISupported()) {
-            PAL_DBG(LOG_TAG, "LPI not enabled by platform, skip switch");
+            PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
         } else if (active) {
             if (++concurrencyEnableCount == 1) {
                 do_switch = true;
@@ -5666,6 +5694,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "cps_enabled")) {
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
+        } else if (!strcmp(tag_name, "is_24_bit_supported")) {
+            if (atoi(data->data_buf))
+                bitWidthSupported = BITWIDTH_24;
         } else if (!strcmp(tag_name, "speaker_mono_right")) {
             if (atoi(data->data_buf))
                 isMainSpeakerRight = true;

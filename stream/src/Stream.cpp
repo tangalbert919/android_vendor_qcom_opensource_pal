@@ -306,95 +306,104 @@ exit:
     return status;
 }
 
-int32_t Stream::setBufInfo(size_t *in_buf_size, size_t in_buf_count,
-                           size_t *out_buf_size, size_t out_buf_count)
+int32_t Stream::setBufInfo(pal_buffer_config *in_buffer_cfg,
+                           pal_buffer_config *out_buffer_cfg)
 {
     int32_t status = 0;
+    struct pal_stream_attributes sattr;
     int16_t nBlockAlignIn, nBlockAlignOut ;        // block size of data
-    struct pal_stream_attributes *sattr = NULL;
-    sattr = (struct pal_stream_attributes *)calloc(1, sizeof(struct pal_stream_attributes));
-    if (!sattr) {
-        status = -ENOMEM;
-        PAL_ERR(LOG_TAG, "stream attribute malloc failed %s, status %d", strerror(errno), status);
-        goto exit;
-    }
 
-    if (!in_buf_size)
-        PAL_DBG(LOG_TAG, "In Buffer size %zu, In Buffer count %zu",
-                *in_buf_size, in_buf_count);
-
-    if (!out_buf_size)
-        PAL_DBG(LOG_TAG, "Out Buffer size %zu and Out Buffer count %zu",
-                *out_buf_size, out_buf_count);
-    inBufCount = in_buf_count;
-    outBufCount = out_buf_count;
-
-    status = getStreamAttributes(sattr);
-    if (sattr->direction == PAL_AUDIO_OUTPUT) {
-        if(!out_buf_size) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "Invalid output buffer size status %d", status);
-            goto exit;
-        }
-        outBufSize = *out_buf_size;
-        nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
-                      (sattr->out_media_config.ch_info.channels);
-        PAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
-
-        //If the read size is not a multiple of BlockAlign;
-        //Make sure we read blockaligned bytes from the file.
-        if ((outBufSize % nBlockAlignOut) != 0) {
-            outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
-        }
-        *out_buf_size = outBufSize;
-
-    } else if (sattr->direction == PAL_AUDIO_INPUT) {
-        if(!in_buf_size) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "Invalid input buffer size status %d", status);
-            goto exit;
-        }
-        inBufSize = *in_buf_size;
-        //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info.channels) * 32;
-        nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
-                      (sattr->in_media_config.ch_info.channels);
-        //If the read size is not a multiple of BlockAlign;
-        //Make sure we read blockaligned bytes from the file.
-        if ((inBufSize % nBlockAlignIn) != 0) {
-            inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
-        }
-        *in_buf_size = inBufSize;
+    status = getStreamAttributes(&sattr);
+    /*In case of extern mem mode PAL wont get any buffer size info from clients
+      If clients still call this api then it could be to notify the metadata size*/
+    if (sattr.flags & PAL_STREAM_FLAG_EXTERN_MEM) {
+        if (out_buffer_cfg)
+            outMaxMetadataSz = out_buffer_cfg->max_metadata_size;
+        if (in_buffer_cfg)
+            inMaxMetadataSz = in_buffer_cfg->max_metadata_size;
+         /*in EXTERN_MEM mode set buf count and size to 0*/
+         inBufCount = 0;
+         inBufSize = 0;
+         outBufCount = 0;
+         outBufSize = 0;
     } else {
-        if(!in_buf_size || !out_buf_size) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "Invalid buffer size status %d", status);
-            goto exit;
+        if (in_buffer_cfg) {
+            PAL_DBG(LOG_TAG, "In Buffer size %zu, In Buffer count %zu metadata sz %zu",
+                    in_buffer_cfg->buf_size, in_buffer_cfg->buf_count, in_buffer_cfg->max_metadata_size);
+            inBufCount = in_buffer_cfg->buf_count;
+            inMaxMetadataSz = in_buffer_cfg->max_metadata_size;
         }
-        outBufSize = *out_buf_size;
-        nBlockAlignOut = ((sattr->out_media_config.bit_width) / 8) *
-                      (sattr->out_media_config.ch_info.channels);
-        PAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
+        if (out_buffer_cfg) {
+            PAL_DBG(LOG_TAG, "Out Buffer size %zu and Out Buffer count %zu metaData sz %zu",
+                    out_buffer_cfg->buf_size, out_buffer_cfg->buf_count, out_buffer_cfg->max_metadata_size);
+            outBufCount = out_buffer_cfg->buf_count;
+            outMaxMetadataSz = out_buffer_cfg->max_metadata_size;
+        }
 
-        //If the read size is not a multiple of BlockAlign;
-        //Make sure we read blockaligned bytes from the file.
-        if ((outBufSize % nBlockAlignOut) != 0) {
-            outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
-        }
-        *out_buf_size = outBufSize;
+        if (sattr.direction == PAL_AUDIO_OUTPUT) {
+            if(!out_buffer_cfg) {
+               status = -EINVAL;
+               PAL_ERR(LOG_TAG, "Invalid output buffer size status %d", status);
+               goto exit;
+            }
+            outBufSize = out_buffer_cfg->buf_size;
+            nBlockAlignOut = ((sattr.out_media_config.bit_width) / 8) *
+                          (sattr.out_media_config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
 
-        inBufSize = *in_buf_size;
-        nBlockAlignIn = ((sattr->in_media_config.bit_width) / 8) *
-                      (sattr->in_media_config.ch_info.channels);
-        //If the read size is not a multiple of BlockAlign;
-        //Make sure we read blockaligned bytes from the file.
-        if ((inBufSize % nBlockAlignIn) != 0) {
-            inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
+            //If the read size is not a multiple of BlockAlign;
+            //Make sure we read blockaligned bytes from the file.
+            if ((outBufSize % nBlockAlignOut) != 0) {
+                outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
+            }
+            out_buffer_cfg->buf_size = outBufSize;
+
+        } else if (sattr.direction == PAL_AUDIO_INPUT) {
+            if (!in_buffer_cfg) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid input buffer size status %d", status);
+                goto exit;
+            }
+            inBufSize = in_buffer_cfg->buf_size;
+            //inBufSize = (sattr->in_media_config.bit_width) * (sattr->in_media_config.ch_info.channels) * 32;
+            nBlockAlignIn = ((sattr.in_media_config.bit_width) / 8) *
+                          (sattr.in_media_config.ch_info.channels);
+            //If the read size is not a multiple of BlockAlign;
+            //Make sure we read blockaligned bytes from the file.
+            if ((inBufSize % nBlockAlignIn) != 0) {
+                inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
+            }
+            in_buffer_cfg->buf_size = inBufSize;
+        } else {
+            if (!in_buffer_cfg || !out_buffer_cfg) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid buffer size status %d", status);
+                goto exit;
+            }
+            outBufSize = out_buffer_cfg->buf_size;
+            nBlockAlignOut = ((sattr.out_media_config.bit_width) / 8) *
+                          (sattr.out_media_config.ch_info.channels);
+            PAL_DBG(LOG_TAG, "no of buf %zu and send buf %zu", outBufCount, outBufSize);
+
+            //If the read size is not a multiple of BlockAlign;
+            //Make sure we read blockaligned bytes from the file.
+            if ((outBufSize % nBlockAlignOut) != 0) {
+                outBufSize = ((outBufSize / nBlockAlignOut) * nBlockAlignOut);
+            }
+            out_buffer_cfg->buf_size = outBufSize;
+
+            inBufSize = in_buffer_cfg->buf_size;
+            nBlockAlignIn = ((sattr.in_media_config.bit_width) / 8) *
+                          (sattr.in_media_config.ch_info.channels);
+            //If the read size is not a multiple of BlockAlign;
+            //Make sure we read blockaligned bytes from the file.
+            if ((inBufSize % nBlockAlignIn) != 0) {
+                inBufSize = ((inBufSize / nBlockAlignIn) * nBlockAlignIn);
+            }
+            in_buffer_cfg->buf_size = inBufSize;
         }
-        *in_buf_size = inBufSize;
     }
 exit:
-    if(sattr)
-        free(sattr);
     return status;
 }
 

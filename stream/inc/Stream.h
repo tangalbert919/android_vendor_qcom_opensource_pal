@@ -138,6 +138,8 @@ protected:
     size_t outBufSize;
     size_t inBufCount;
     size_t outBufCount;
+    size_t outMaxMetadataSz;
+    size_t inMaxMetadataSz;
     bool standBy = false;
     bool ssrDone = true;
     stream_state_t currentState;
@@ -146,7 +148,7 @@ protected:
 public:
     virtual ~Stream() {};
     pal_stream_callback streamCb;
-    void *cookie;
+    uint64_t cookie;
     bool isPaused = false;
     bool a2dp_compress_mute = false;  /* TODO : Check if this can be removed */
     pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
@@ -168,7 +170,7 @@ public:
     virtual int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
     virtual int32_t write(struct pal_buffer *buf) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
-    virtual int32_t registerCallBack(pal_stream_callback cb, void *cookie) = 0;
+    virtual int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) = 0;
     virtual int32_t getCallBack(pal_stream_callback *cb) = 0;
     virtual int32_t getParameters(uint32_t param_id, void **payload) = 0;
     virtual int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable) = 0;
@@ -187,8 +189,8 @@ public:
     int32_t getStreamDirection(pal_stream_direction_t *dir);
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
-    int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
-                       size_t *out_buf_size, size_t out_buf_count);
+    int32_t setBufInfo(pal_buffer_config *in_buffer_config,
+                       pal_buffer_config *out_buffer_config);
     int32_t getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
                        size_t *out_buf_size, size_t *out_buf_count);
     int32_t getVolumeData(struct pal_volume_data *vData);

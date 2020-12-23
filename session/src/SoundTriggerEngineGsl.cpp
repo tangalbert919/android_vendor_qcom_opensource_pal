@@ -742,7 +742,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
         throw std::runtime_error("Failed to create session");
     }
 
-    session_->registerCallBack(HandleSessionCallBack, this);
+    session_->registerCallBack(HandleSessionCallBack, (uint64_t)this);
 
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -2154,12 +2154,12 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
     cv_.notify_one();
 }
 
-void SoundTriggerEngineGsl::HandleSessionCallBack(void *hdl, uint32_t event_id,
+void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
                                                   void *data, uint32_t event_size) {
     SoundTriggerEngineGsl *engine = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
-    if (!hdl || !data) {
+    if ((hdl == 0) || !data) {
         PAL_ERR(LOG_TAG, "Invalid engine handle or event data");
         return;
     }
@@ -2212,6 +2212,7 @@ int32_t SoundTriggerEngineGsl::GetParameters(uint32_t param_id,
                 PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
                 return status;
             }
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d",
