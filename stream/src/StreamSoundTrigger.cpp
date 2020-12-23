@@ -315,8 +315,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             dev = GetPalDevice(dev_id, dattr, false);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation is failed");
-                free(mStreamAttr);
-                throw std::runtime_error("failed to create device object");
+                return -EINVAL;
             }
             mDevices.push_back(dev);
             dev = nullptr;
@@ -2436,7 +2435,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             if (!st_stream_.sm_cfg_) {
                 PAL_ERR(LOG_TAG, "Failed to get sound model platform info");
-                throw std::runtime_error("Failed to get sound model platform info");
+                status = -EINVAL;
+                goto err_exit;
             }
 
             if (!st_stream_.mDevices.size()) {
@@ -2450,8 +2450,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 dev = st_stream_.GetPalDevice(dev_id, dattr, false);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device creation is failed");
-                    free(st_stream_.mStreamAttr);
-                    throw std::runtime_error("failed to create device object");
+                    status = -EINVAL;
+                    goto err_exit;
                 }
                 st_stream_.mDevices.push_back(dev);
                 dev = nullptr;
