@@ -1264,7 +1264,6 @@ int32_t StreamPCM::ssrDownHandler()
 {
     int status = 0;
 
-    ssrDone = false;
     mStreamMutex.lock();
     /* Updating cached state here only if it's STREAM_IDLE,
      * Otherwise we can assume it is updated by hal thread
@@ -1309,7 +1308,6 @@ int32_t StreamPCM::ssrUpHandler()
 {
     int status = 0;
 
-    ssrDone = false;
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
             session, cachedState);

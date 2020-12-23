@@ -679,8 +679,9 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                 PAL_INFO(LOG_TAG, "%d state already handled", state);
             } else if (state == CARD_STATUS_OFFLINE) {
                 for (auto str: rm->mActiveStreams) {
-                    mResourceManagerMutex.unlock();
                     auto iter = std::find(mActiveStreams.begin(), mActiveStreams.end(), str);
+                    str->ssrDone = false;
+                    mResourceManagerMutex.unlock();
                     if (iter != mActiveStreams.end()) {
                         ret = str->ssrDownHandler();
                         if (0 != ret) {
@@ -693,8 +694,9 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                 prevState = state;
             } else if (state == CARD_STATUS_ONLINE) {
                 for (auto str: rm->mActiveStreams) {
-                    mResourceManagerMutex.unlock();
                     auto iter = std::find(mActiveStreams.begin(), mActiveStreams.end(), str);
+                    str->ssrDone = false;
+                    mResourceManagerMutex.unlock();
                     if (iter != mActiveStreams.end()) {
                         ret = str->ssrUpHandler();
                         if (0 != ret) {
