@@ -138,6 +138,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                bool set);
     int32_t UpdateEngineConfigOnStop(Stream *s);
     int32_t UpdateEngineConfigOnRestart(Stream *s);
+    int32_t UpdateConfigSVA5(uint32_t model_id);
+    int32_t UpdateConfigs();
     Stream* GetDetectedStream(uint32_t model_id = 0);
     void CheckAndSetDetectionConfLevels(Stream *s);
     Session *session_;
@@ -147,7 +149,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     st_module_type_t module_type_;
     static std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
                                                                       eng_;
+    std::map<uint32_t, struct detection_engine_config_stage1_sva5> mid_wakeup_cfg_;
     std::vector<Stream *> eng_streams_;
+    std::vector<uint32_t> updated_cfg_;
     SoundModelInfo *eng_sm_info_;
     bool sm_merged_;
     int32_t dev_disconnect_count_;

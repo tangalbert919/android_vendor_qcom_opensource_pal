@@ -1454,7 +1454,7 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnloadSVA5(Stream *s) {
 
     int32_t status = 0;
     uint32_t model_id = 0;
-    uint32_t deleted_enteries = 0;
+    uint32_t deleted_entries = 0;
 
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
@@ -1473,16 +1473,23 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnloadSVA5(Stream *s) {
         return -EINVAL;
     }
 
-    deleted_enteries = mid_stream_map_.erase(model_id);
-    if (deleted_enteries == 0) {
+    deleted_entries = mid_stream_map_.erase(model_id);
+    if (deleted_entries == 0) {
         PAL_ERR(LOG_TAG, "Sound model not deleted");
         return -EINVAL;
     }
 
-    deleted_enteries = 0;
-    deleted_enteries = mid_buff_cfg_.erase(model_id);
-    if (deleted_enteries == 0) {
+    deleted_entries = 0;
+    deleted_entries = mid_buff_cfg_.erase(model_id);
+    if (deleted_entries == 0) {
         PAL_ERR(LOG_TAG, "Buffer config map not updated");
+        return -EINVAL;
+    }
+
+    deleted_entries = 0;
+    deleted_entries = mid_wakeup_cfg_.erase(model_id);
+    if (deleted_entries == 0) {
+        PAL_ERR(LOG_TAG, "Wakeup config map not updated");
         return -EINVAL;
     }
 
@@ -1565,11 +1572,38 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
         }
     }
 
-    if (restore_ses_state)
-        status = ProcessStartRecognition(eng_streams_[0]);
+    if (restore_ses_state) {
+        if (module_type_ == ST_MODULE_TYPE_PDK5) {
+            std::map<uint32_t, struct detection_engine_config_stage1_sva5>::
+                                     iterator itr = mid_wakeup_cfg_.begin();
+            status = ProcessStartRecognition(mid_stream_map_[itr->first]);
+        } else {
+            status = ProcessStartRecognition(eng_streams_[0]);
+        }
+    }
 exit:
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
+}
+
+int32_t SoundTriggerEngineGsl::UpdateConfigSVA5(uint32_t model_id) {
+
+    sva5_wakeup_config_.mode = mid_wakeup_cfg_[model_id].mode;
+    sva5_wakeup_config_.num_keywords = mid_wakeup_cfg_[model_id].num_keywords;
+    sva5_wakeup_config_.model_id = model_id;
+    sva5_wakeup_config_.custom_payload_size = mid_wakeup_cfg_[model_id]
+                                              .custom_payload_size;
+    for(int i = 0; i < mid_wakeup_cfg_[model_id].num_keywords; ++i) {
+        sva5_wakeup_config_.confidence_levels[i] = mid_wakeup_cfg_[model_id]
+                                                  .confidence_levels[i];
+    }
+
+    buffer_config_.model_id = model_id;
+    buffer_config_.hist_buffer_duration_in_ms = mid_buff_cfg_[model_id]
+                                                               .second;
+    buffer_config_.pre_roll_duration_in_ms = mid_buff_cfg_[model_id]
+                                                               .first;
+    return 0;
 }
 
 int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
@@ -1699,20 +1733,8 @@ exit:
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
-
-int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
-
+int32_t SoundTriggerEngineGsl::UpdateConfigs() {
     int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter");
-
-    exit_buffering_ = false;
-    // release custom detection event before start
-    if (custom_detection_event) {
-        free(custom_detection_event);
-        custom_detection_event = nullptr;
-        custom_detection_event_size = 0;
-    }
 
     if (is_qcva_uuid_ || is_qcmd_uuid_) {
         status = UpdateSessionPayload(WAKEUP_CONFIG);
@@ -1729,6 +1751,48 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to set wake-up buffer config, status = %d",
                 status);
         goto exit;
+    }
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
+
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    exit_buffering_ = false;
+    // release custom detection event before start
+    if (custom_detection_event) {
+        free(custom_detection_event);
+        custom_detection_event = nullptr;
+        custom_detection_event_size = 0;
+    }
+
+    if (updated_cfg_.size() > 0) {
+        for (int i = 0; i < updated_cfg_.size(); ++i) {
+            UpdateConfigSVA5(updated_cfg_[i]);
+            status = UpdateConfigs();
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "Failed to Update configs");
+                goto exit;
+            }
+            s = mid_stream_map_[updated_cfg_[i]];
+        }
+        updated_cfg_.clear();
+    } else {
+        if (module_type_ == ST_MODULE_TYPE_PDK5) {
+            StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+            if (sva5_wakeup_config_.model_id != st->GetModelId())
+                UpdateConfigSVA5(st->GetModelId());
+        }
+        status = UpdateConfigs();
+        if (status != 0) {
+            PAL_ERR(LOG_TAG, "Failed to Update configs");
+            goto exit;
+        }
     }
 
     status = session_->prepare(s);
@@ -1943,13 +2007,28 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         sva5_wakeup_config_.model_id = st->GetModelId();
         sva5_wakeup_config_.custom_payload_size = sizeof(uint32_t) * 2 +
                 sva5_wakeup_config_.num_keywords * sizeof(uint32_t);
+
+        if (mid_wakeup_cfg_.find(st->GetModelId()) != mid_wakeup_cfg_.end() &&
+            std::find(updated_cfg_.begin(), updated_cfg_.end(), st->GetModelId())
+            != updated_cfg_.end() && ses_started_)
+            updated_cfg_.push_back(st->GetModelId());
+
+        mid_wakeup_cfg_[st->GetModelId()].mode = sva5_wakeup_config_.mode;
+        mid_wakeup_cfg_[st->GetModelId()].num_keywords =
+                                         sva5_wakeup_config_.num_keywords;
+        mid_wakeup_cfg_[st->GetModelId()].custom_payload_size =
+                                  sva5_wakeup_config_.custom_payload_size;
+        mid_wakeup_cfg_[st->GetModelId()].model_id = st->GetModelId();
+
         PAL_DBG(LOG_TAG,
-        "sva5_wakeup_config_ mode : %u, custome_payload_size : %u, num_keywords : %u, model_id : %u",
+        "sva5_wakeup_config_ mode : %u, custom_payload_size : %u, num_keywords : %u, model_id : %u",
         sva5_wakeup_config_.mode,
         sva5_wakeup_config_.custom_payload_size,
         sva5_wakeup_config_.num_keywords, sva5_wakeup_config_.model_id);
         for (int i = 0; i < sva5_wakeup_config_.num_keywords; ++i){
             sva5_wakeup_config_.confidence_levels[i] = conf_levels[i];
+            mid_wakeup_cfg_[st->GetModelId()].confidence_levels[i] =
+                                                        conf_levels[i];
             PAL_DBG(LOG_TAG, "%dth keyword confidence level : %u", i,
                     sva5_wakeup_config_.confidence_levels[i]);
         }
