@@ -133,6 +133,8 @@ int32_t StreamCompress::open()
     int32_t status = 0;
     mStreamMutex.lock();
 
+    PAL_DBG(LOG_TAG,"Enter, session handle - %p device count - %zu state %d",
+                       session, mDevices.size(), currentState);
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         status = -EIO;
         PAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
@@ -141,8 +143,6 @@ int32_t StreamCompress::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        PAL_VERBOSE(LOG_TAG,"start, session handle - %p device count - %zu state %d",
-                       session, mDevices.size(), currentState);
         status = session->open(this);
         if (0 != status) {
            PAL_ERR(LOG_TAG,"session open failed with status %d", status);
@@ -172,6 +172,7 @@ int32_t StreamCompress::open()
     }
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
@@ -186,7 +187,7 @@ int32_t StreamCompress::close()
         return status;
     }
 
-    PAL_VERBOSE(LOG_TAG,"start, session handle - %p mDevices count - %zu state %d",
+    PAL_DBG(LOG_TAG,"Enter, session handle - %p mDevices count - %zu state %d",
                 session, mDevices.size(), currentState);
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         mStreamMutex.unlock();
@@ -216,7 +217,7 @@ int32_t StreamCompress::close()
 
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
-    PAL_VERBOSE(LOG_TAG,"%d status - %d",__LINE__,status);
+    PAL_DBG(LOG_TAG,"Exit status: %d",status);
     return status;
 }
 
@@ -247,10 +248,9 @@ int32_t StreamCompress::stop()
     int32_t status = 0;
 
     mStreamMutex.lock();
+    PAL_DBG(LOG_TAG,"Enter. state %d session handle - %p mStreamAttr->direction %d",
+                currentState, session, mStreamAttr->direction);
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
-        PAL_VERBOSE(LOG_TAG,"Enter. state %d", currentState);
-        PAL_VERBOSE(LOG_TAG,"stop session handle - %p mStreamAttr->direction - %d",
-                    session, mStreamAttr->direction);
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
@@ -291,7 +291,7 @@ int32_t StreamCompress::stop()
     }
 exit:
     mStreamMutex.unlock();
-    PAL_VERBOSE(LOG_TAG,"Exit status - %d", status);
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
@@ -301,6 +301,9 @@ int32_t StreamCompress::start()
 
     mStreamMutex.lock();
 
+    PAL_VERBOSE(LOG_TAG,"Enter, session handle - %p mStreamAttr->direction - %d",
+                    session, mStreamAttr->direction);
+
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline");
         status = -EIO;
@@ -308,8 +311,6 @@ int32_t StreamCompress::start()
     }
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
-        PAL_VERBOSE(LOG_TAG,"start, session handle - %p mStreamAttr->direction - %d",
-                    session, mStreamAttr->direction);
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             rm->lockGraph();
@@ -375,6 +376,7 @@ session_fail:
     for (int32_t i=0; i < mDevices.size(); i++)
         status = mDevices[i]->stop();
 exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     mStreamMutex.unlock();
     return status;
 }
@@ -421,7 +423,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
 {
     int32_t status = 0;
     int32_t size;
-    PAL_DBG(LOG_TAG, "Enter. session handle - %p state %d", session,
+    PAL_VERBOSE(LOG_TAG, "Enter. session handle - %p state %d", session,
             currentState);
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -452,7 +454,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
         status = -EINVAL;
         return status;
     }
-    PAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
+    PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
     return size;
 }
 
@@ -480,6 +482,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
+    PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
         {
@@ -514,7 +517,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
     }
 
 
-    PAL_VERBOSE(LOG_TAG, "end, session parameter %u set with status %d", param_id, status);
+    PAL_DBG(LOG_TAG, "Exit, session parameter %u set with status %d", param_id, status);
     return status;
 }
 
@@ -522,7 +525,7 @@ int32_t  StreamCompress::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
 
-    PAL_VERBOSE(LOG_TAG, "start, session handle - %p", session);
+    PAL_DBG(LOG_TAG, "Enter, session handle - %p", session);
     if (!volume|| volume->no_of_volpair == 0) {
        PAL_ERR(LOG_TAG,"Invalid arguments");
        status = -EINVAL;
@@ -559,6 +562,7 @@ int32_t  StreamCompress::setVolume(struct pal_volume_data *volume)
     PAL_VERBOSE(LOG_TAG,"Volume payload No.of vol pair:%d ch mask:%x gain:%f",
              (volume->no_of_volpair), (volume->volume_pair->channel_mask),(volume->volume_pair->vol));
 exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -566,7 +570,7 @@ int32_t StreamCompress::mute(bool state)
 {
     int32_t status = 0;
 
-    PAL_VERBOSE(LOG_TAG,"start, session handle - %p", session);
+    PAL_DBG(LOG_TAG,"Enter, session handle - %p", session);
     
     PAL_VERBOSE(LOG_TAG,"%s", state == TRUE ? "Mute" : "Unmute");
     status = session->setConfig(this, MODULE, state == TRUE ? MUTE_TAG : UNMUTE_TAG);
@@ -577,6 +581,7 @@ int32_t StreamCompress::mute(bool state)
     }
     PAL_VERBOSE(LOG_TAG,"session mute successful");
 exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
@@ -592,7 +597,7 @@ int32_t StreamCompress::pause()
         return status;
     }
 
-    PAL_VERBOSE(LOG_TAG,"Pause, session handle - %p, state %d",
+    PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
     status = session->setConfig(this, MODULE, PAUSE_TAG);
@@ -606,6 +611,7 @@ int32_t StreamCompress::pause()
     PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
 
 exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
@@ -619,7 +625,7 @@ int32_t StreamCompress::resume()
         return status;
     }
 
-    PAL_VERBOSE(LOG_TAG,"Resume, session handle - %p, state %d",
+    PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
     status = session->setConfig(this, MODULE, RESUME_TAG);
@@ -633,6 +639,7 @@ int32_t StreamCompress::resume()
     PAL_VERBOSE(LOG_TAG,"session resume successful, state %d", currentState);
 
 exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
