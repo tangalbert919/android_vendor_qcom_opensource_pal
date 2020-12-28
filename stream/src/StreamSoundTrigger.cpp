@@ -718,17 +718,29 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
-    if ((det_type < GMM_DETECTED) || (det_type > USER_VERIFICATION_REJECT)) {
+    if (!(det_type & DETECTION_TYPE_ALL)) {
         PAL_ERR(LOG_TAG, "Invalid detection type %d", det_type);
         return -EINVAL;
     }
 
-    std::unique_lock<std::mutex> lck(mStreamMutex);
-    if (det_type == GMM_DETECTED)
+    // Lock stream when first stage detected
+    if (det_type == GMM_DETECTED) {
+        mStreamMutex.lock();
         reader_->updateState(READER_ENABLED);
+    }
+
     std::shared_ptr<StEventConfig> ev_cfg(
        new StDetectedEventConfig(det_type));
     status = cur_state_->ProcessEvent(ev_cfg);
+
+    /*
+     * Unlock stream when second stage detection result
+     * comes or no second stage detection required
+     */
+    if (engines_.size() == 1 ||
+        det_type & DETECTION_TYPE_SS) {
+        mStreamMutex.unlock();
+    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
