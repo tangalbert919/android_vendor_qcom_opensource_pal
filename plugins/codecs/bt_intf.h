@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,7 +34,6 @@
 #include <ar_osal_types.h>
 #include <common_enc_dec_api.h>
 #include <media_fmt_api.h>
-#include <system/audio-base.h>
 
 /*
  * Below enum values are extended from audio_base.h to
@@ -43,17 +42,17 @@
  * between IPC lib and Audio HAL.
  */
 typedef enum {
-    CODEC_TYPE_INVALID = AUDIO_FORMAT_INVALID, // 0xFFFFFFFFUL
-    CODEC_TYPE_AAC = AUDIO_FORMAT_AAC,         // 0x04000000UL
-    CODEC_TYPE_SBC = AUDIO_FORMAT_SBC,         // 0x1F000000UL
-    CODEC_TYPE_APTX = AUDIO_FORMAT_APTX,       // 0x20000000UL
-    CODEC_TYPE_APTX_HD = AUDIO_FORMAT_APTX_HD, // 0x21000000UL
-    CODEC_TYPE_APTX_DUAL_MONO = 570425344u,    // 0x22000000UL
-    CODEC_TYPE_LDAC = AUDIO_FORMAT_LDAC,       // 0x23000000UL
-    CODEC_TYPE_CELT = 603979776u,              // 0x24000000UL
-    CODEC_TYPE_APTX_AD = 620756992u,           // 0x25000000UL
-    CODEC_TYPE_APTX_AD_SPEECH = 637534208u,    // 0x26000000UL
-    CODEC_TYPE_PCM = AUDIO_FORMAT_PCM_16_BIT,  // 0x1u
+    CODEC_TYPE_INVALID        = 0xFFFFFFFFu,
+    CODEC_TYPE_AAC            = 0x04000000u,
+    CODEC_TYPE_SBC            = 0x1F000000u,
+    CODEC_TYPE_APTX           = 0x20000000u,
+    CODEC_TYPE_APTX_HD        = 0x21000000u,
+    CODEC_TYPE_APTX_DUAL_MONO = 0x22000000u,
+    CODEC_TYPE_LDAC           = 0x23000000u,
+    CODEC_TYPE_CELT           = 0x24000000u,
+    CODEC_TYPE_APTX_AD        = 0x25000000u,
+    CODEC_TYPE_APTX_AD_SPEECH = 0x26000000u,
+    CODEC_TYPE_PCM            = 0x1u,
 } codec_format_t;
 
 typedef enum {
