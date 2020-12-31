@@ -1,3 +1,4 @@
+ifneq ($(AUDIO_USE_STUB_HAL), true)
 ifeq ($(call is-board-platform-in-list, sdm845 msmnile kona lahaina),true)
 
 ifneq ($(BUILD_TINY_ANDROID),true)
@@ -119,3 +120,4 @@ include $(LOCAL_PATH)/plugins/Android.mk
 
 endif # BUILD_TINY_ANDROID
 endif # is-board-platform-in-list
+endif #AUDIO_USE_STUB_HAL
