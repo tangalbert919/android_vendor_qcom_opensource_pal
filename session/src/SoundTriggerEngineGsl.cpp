@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -163,10 +163,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     size_t end_index = 0;
     size_t total_read_size = 0;
     size_t ftrt_size = 0;
-    bool timestamp_recorded = false;
+    bool index_updated = false;
     bool event_notified = false;
     bool dropped = (module_type_ != ST_MODULE_TYPE_PDK5);
     StreamSoundTrigger *st = (StreamSoundTrigger *)s;
+    struct model_stats *detected_model_stat = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     s->getBufInfo(&input_buf_size, &input_buf_num,
@@ -179,12 +180,6 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         status = -ENOMEM;
         goto exit;
     }
-    buf.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
-    if (!buf.ts) {
-        PAL_ERR(LOG_TAG, "buf.ts allocation failed");
-        status = -ENOMEM;
-        goto exit;
-    }
     buffer_->reset();
 
     if (module_type_ != ST_MODULE_TYPE_PDK5)
@@ -192,9 +187,9 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     else
         ftrt_size = UsToBytes(detection_event_info_multi_model_.ftrt_data_length_in_us);
 
-     s_pre_roll = mid_buff_cfg_[st->GetModelId()].first;
-     drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms - s_pre_roll);
-     bytes_to_drop = UsToBytes(drop_duration * 1000);
+    s_pre_roll = mid_buff_cfg_[st->GetModelId()].first;
+    drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms - s_pre_roll);
+    bytes_to_drop = UsToBytes(drop_duration * 1000);
 
     ATRACE_BEGIN("stEngine: read FTRT data");
 
@@ -225,8 +220,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 if (size < bytes_to_drop) {
                     bytes_to_drop -= size;
                 } else {
-                    ret = buffer_->write((void*)((uint8_t*)buf.buffer + bytes_to_drop), size -
-                                     bytes_to_drop);
+                    ret = buffer_->write((void*)((uint8_t*)buf.buffer + bytes_to_drop),
+                        size - bytes_to_drop);
                     dropped = true;
                 }
             } else {
@@ -234,52 +229,42 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             }
             PAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
 
-            if (!timestamp_recorded) {
-                timestamp = ((uint64_t)buf.ts->tv_sec * 1000000000 +
-                            (uint64_t)buf.ts->tv_nsec) / 1000;
-
+            if (!index_updated) {
                 if (module_type_ != ST_MODULE_TYPE_PDK5) {
                     start_timestamp =
-                     (uint64_t)detection_event_info_.kw_start_timestamp_lsw +
-                     ((uint64_t)detection_event_info_.kw_start_timestamp_msw << 32);
+                        (uint64_t)detection_event_info_.kw_start_timestamp_lsw +
+                        ((uint64_t)detection_event_info_.kw_start_timestamp_msw << 32);
                     end_timestamp =
-                     (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
-                     ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
+                        (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
+                        ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
+                    timestamp =
+                        (uint64_t)detection_event_info_.detection_timestamp_lsw +
+                        ((uint64_t)detection_event_info_.detection_timestamp_msw << 32) -
+                        detection_event_info_.ftrt_data_length_in_us;
                 } else {
+                    detected_model_stat = &detection_event_info_multi_model_.
+                        detected_model_stats[0];
                     start_timestamp =
-                     ((uint64_t)detection_event_info_multi_model_.
-                                detected_model_stats[0].
-                                kw_start_timestamp_lsw) +
-                     ((uint64_t)detection_event_info_multi_model_.
-                                detected_model_stats[0].
-                                kw_start_timestamp_msw<<32);
+                        ((uint64_t)detected_model_stat->kw_start_timestamp_lsw) +
+                        ((uint64_t)detected_model_stat->kw_start_timestamp_msw << 32);
                     end_timestamp =
-                     ((uint64_t)detection_event_info_multi_model_.
-                                detected_model_stats[0].
-                                kw_end_timestamp_lsw) +
-                     ((uint64_t)detection_event_info_multi_model_.
-                                detected_model_stats[0].
-                                kw_end_timestamp_msw<<32);
-
-                    if (dropped) {
-                        start_timestamp -= (((uint64_t)drop_duration) * 1000);
-                        end_timestamp += (((uint64_t)drop_duration) * 1000);
-                    }
-
-                    PAL_DBG(LOG_TAG, "start_timestamp_lsw : %u, start_timestamp_msw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[0].kw_start_timestamp_lsw,
-                    detection_event_info_multi_model_.detected_model_stats[0].kw_start_timestamp_msw);
-
-                    PAL_DBG(LOG_TAG, "end_timestamp_lsw : %u, end_timestamp_msw : %u",
-                    detection_event_info_multi_model_.detected_model_stats[0].kw_end_timestamp_lsw,
-                    detection_event_info_multi_model_.detected_model_stats[0].kw_end_timestamp_msw);
+                        ((uint64_t)detected_model_stat->kw_end_timestamp_lsw) +
+                        ((uint64_t)detected_model_stat->kw_end_timestamp_msw << 32);
+                    timestamp =
+                        ((uint64_t)detected_model_stat->detection_timestamp_lsw) +
+                        ((uint64_t)detected_model_stat->detection_timestamp_msw << 32) -
+                        detection_event_info_multi_model_.ftrt_data_length_in_us +
+                        ((uint64_t)drop_duration) * 1000;
                 }
-                PAL_DBG(LOG_TAG, "Timestamp : %zu", (size_t)timestamp);
+                PAL_DBG(LOG_TAG, "start_timestamp: %llu, end_timestamp: %llu",
+                    (long long)start_timestamp, (long long)end_timestamp);
+                PAL_DBG(LOG_TAG, "Ftrt data start timestamp : %llu",
+                    (long long)timestamp);
                 start_index = UsToBytes(start_timestamp - timestamp);
                 end_index = UsToBytes(end_timestamp - timestamp);
                 PAL_DBG(LOG_TAG, "start_index : %zu, end_index : %zu", start_index, end_index);
                 buffer_->updateIndices(start_index, end_index);
-                timestamp_recorded = true;
+                index_updated = true;
             }
         }
 
