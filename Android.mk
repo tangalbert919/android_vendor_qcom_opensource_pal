@@ -110,9 +110,7 @@ LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
     capiv2-headers
 
-LOCAL_COPY_HEADERS_TO := mm-audio/pal
-LOCAL_COPY_HEADERS    := PalApi.h \
-                         PalDefs.h
+LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)
 
 LOCAL_VENDOR_MODULE := true
 

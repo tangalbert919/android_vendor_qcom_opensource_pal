@@ -22,16 +22,13 @@ LOCAL_SHARED_LIBRARIES := \
     libexpat\
     liblx-osal
 
-LOCAL_COPY_HEADERS_TO   := mm-audio/pal/adie_rtc
-LOCAL_COPY_HEADERS      := inc/adie_rtc.h
-
+LOCAL_EXPORT_C_INCLUDE_DIRS := inc
 LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/pal/adie_rtc
 LOCAL_MODULE := adie_rtc_test
 LOCAL_MODULE_OWNER := qti
 LOCAL_VENDOR_MODULE := true
