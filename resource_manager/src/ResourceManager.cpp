@@ -1870,7 +1870,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         } else if (dev) {
            dev->setEcRefDevCount(false, true);
         }
-    } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+    } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
@@ -2823,7 +2823,8 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         goto exit;
     }
-    if (rx_attr.direction != PAL_AUDIO_OUTPUT) {
+    if (!(rx_attr.direction == PAL_AUDIO_OUTPUT ||
+          rx_attr.direction == PAL_AUDIO_INPUT_OUTPUT)) {
         PAL_ERR(LOG_TAG, "Invalid stream direction %d", rx_attr.direction);
         status = -EINVAL;
         goto exit;
