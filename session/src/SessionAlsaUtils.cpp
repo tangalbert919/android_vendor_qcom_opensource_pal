@@ -39,7 +39,7 @@
 #include "SessionAlsaVoice.h"
 #include "ResourceManager.h"
 #include "StreamSoundTrigger.h"
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include "spr_api.h"
 #include "apm_api.h"
 #include <tinyalsa/asoundlib.h>

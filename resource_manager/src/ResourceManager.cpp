@@ -48,7 +48,7 @@
 #include "DisplayPort.h"
 #include "Handset.h"
 #include "SndCardMonitor.h"
-#include "agm_api.h"
+#include <agm/agm_api.h>
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mutex>

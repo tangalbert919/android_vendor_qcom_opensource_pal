@@ -35,7 +35,7 @@
 #include "ResourceManager.h"
 #include "media_fmt_api.h"
 #include "gapless_api.h"
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include <sstream>
 #include <mutex>
 #include <fstream>
