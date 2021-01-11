@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -36,6 +36,9 @@
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
 #include "SoundTriggerPlatformInfo.h"
+
+ST_DBG_DECLARE(static int keyword_detection_cnt = 0);
+ST_DBG_DECLARE(static int user_verification_cnt = 0);
 
 void SoundTriggerEngineCapi::BufferThreadLoop(
     SoundTriggerEngineCapi *capi_engine)
@@ -115,6 +118,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     bool buffer_advanced = false;
     size_t lab_buffer_size = 0;
     bool first_buffer_processed = false;
+    FILE *keyword_detection_fd = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -148,6 +152,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     buffer_end_ += UsToBytes(kw_end_tolerance_ + data_after_kw_end_);
     PAL_DBG(LOG_TAG, "buffer_start_: %u, buffer_end_: %u",
         buffer_start_, buffer_end_);
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
+            "keyword_detection", "bin", keyword_detection_cnt);
+        PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
+            keyword_detection_cnt);
+        keyword_detection_cnt++;
+    }
 
     memset(&capi_result, 0, sizeof(capi_result));
     process_input_buff = (char*)calloc(1, buffer_size_);
@@ -212,16 +223,8 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
         if (st_info_->GetEnableDebugDumps()) {
-            ST_DBG_DECLARE(FILE *keyword_detection_fd = NULL;
-                static int keyword_detection_cnt = 0);
-            ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
-                "keyword_detection", "bin", keyword_detection_cnt);
             ST_DBG_FILE_WRITE(keyword_detection_fd,
                 process_input_buff, read_size);
-            ST_DBG_FILE_CLOSE(keyword_detection_fd);
-            PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
-                keyword_detection_cnt);
-            keyword_detection_cnt++;
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
@@ -272,6 +275,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     }
 
 exit:
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_CLOSE(keyword_detection_fd);
+    }
+
     if (reader_)
         reader_->updateState(READER_DISABLED);
 
@@ -304,6 +311,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     bool buffer_advanced = false;
     StreamSoundTrigger *str = nullptr;
     struct detection_event_info *info = nullptr;
+    FILE *user_verification_fd = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -337,6 +345,14 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
 
     buffer_end_ += UsToBytes(kw_end_tolerance_);
     buffer_size_ = buffer_end_ - buffer_start_;
+
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
+            "user_verification", "bin", user_verification_cnt);
+        PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
+            user_verification_cnt);
+        user_verification_cnt++;
+    }
 
     memset(&capi_uv_ptr, 0, sizeof(capi_uv_ptr));
     memset(&capi_result, 0, sizeof(capi_result));
@@ -431,16 +447,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
         if (st_info_->GetEnableDebugDumps()) {
-            ST_DBG_DECLARE(FILE *user_verification_fd = NULL;
-                static int user_verification_cnt = 0);
-            ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
-                "user_verification", "bin", user_verification_cnt);
             ST_DBG_FILE_WRITE(user_verification_fd,
                 process_input_buff, read_size);
-            ST_DBG_FILE_CLOSE(user_verification_fd);
-            PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
-                user_verification_cnt);
-            user_verification_cnt++;
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
@@ -480,6 +488,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     }
 
 exit:
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_CLOSE(user_verification_fd);
+    }
+
     if (reader_)
         reader_->updateState(READER_DISABLED);
 

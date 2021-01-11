@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,6 +48,8 @@
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 
+ST_DBG_DECLARE(static int lab_cnt = 0);
+
 StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
                                        struct pal_device *dattr __unused,
                                        uint32_t no_of_devices,
@@ -76,6 +78,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     conf_levels_intf_version_ = 0;
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
+    lab_fd_ = nullptr;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -278,6 +281,14 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     PAL_VERBOSE(LOG_TAG, "Enter");
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (st_info_->GetEnableDebugDumps() && !lab_fd_) {
+        ST_DBG_FILE_OPEN_WR(lab_fd_, ST_DEBUG_DUMP_LOCATION,
+            "lab_reading", "bin", lab_cnt);
+        PAL_DBG(LOG_TAG, "lab data stored in: lab_reading_%d.bin",
+            lab_cnt);
+        lab_cnt++;
+    }
+
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
     size = cur_state_->ProcessEvent(ev_cfg);
@@ -388,37 +399,41 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     switch (param_id) {
-      case PAL_PARAM_ID_LOAD_SOUND_MODEL: {
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StLoadEventConfig((void *)param_payload->payload));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      case PAL_PARAM_ID_RECOGNITION_CONFIG: {
-          /*
-           * Currently spf needs graph stop and start for next detection.
-           * Handle this event similar to fresh start config.
-           */
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StRecognitionCfgEventConfig((void *)param_payload->payload));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      case PAL_PARAM_ID_STOP_BUFFERING: {
-          /*
-           * Currently spf needs graph stop and start for next detection.
-           * Handle this event similar to STOP_RECOGNITION.
-           */
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StStopRecognitionEventConfig(false));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      default: {
-          status = -EINVAL;
-          PAL_ERR(LOG_TAG, "Unsupported param %u", param_id);
-          break;
-      }
+        case PAL_PARAM_ID_LOAD_SOUND_MODEL: {
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StLoadEventConfig((void *)param_payload->payload));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            break;
+        }
+        case PAL_PARAM_ID_RECOGNITION_CONFIG: {
+            /*
+            * Currently spf needs graph stop and start for next detection.
+            * Handle this event similar to fresh start config.
+            */
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StRecognitionCfgEventConfig((void *)param_payload->payload));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            break;
+        }
+        case PAL_PARAM_ID_STOP_BUFFERING: {
+            /*
+            * Currently spf needs graph stop and start for next detection.
+            * Handle this event similar to STOP_RECOGNITION.
+            */
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StStopRecognitionEventConfig(false));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            if (st_info_->GetEnableDebugDumps()) {
+                ST_DBG_FILE_CLOSE(lab_fd_);
+                lab_fd_ = nullptr;
+            }
+            break;
+        }
+        default: {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Unsupported param %u", param_id);
+            break;
+        }
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -3485,14 +3500,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             status = st_stream_.reader_->read(buf->buffer, buf->size);
             if (st_stream_.st_info_->GetEnableDebugDumps()) {
-                ST_DBG_DECLARE(FILE *lab_fd = NULL; static int lab_cnt = 0);
-                ST_DBG_FILE_OPEN_WR(lab_fd, ST_DEBUG_DUMP_LOCATION,
-                    "lab_reading", "bin", lab_cnt);
-                ST_DBG_FILE_WRITE(lab_fd, buf->buffer, buf->size);
-                ST_DBG_FILE_CLOSE(lab_fd);
-                PAL_DBG(LOG_TAG, "lab reading data stored in: lab_reading_%d.bin",
-                    lab_cnt);
-                lab_cnt++;
+                ST_DBG_FILE_WRITE(st_stream_.lab_fd_, buf->buffer, buf->size);
             }
             break;
         }
