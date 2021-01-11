@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -553,6 +553,8 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     concurrent_voice_call_(false),
     concurrent_voip_call_(false),
     low_latency_bargein_enable_(false),
+    mmap_enable_(false),
+    mmap_buffer_duration_(0),
     curr_child_(nullptr)
 {
 }
@@ -676,6 +678,11 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                        concurrent_capture_) {
                 concurrent_voip_call_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "mmap_enable")) {
+                mmap_enable_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "mmap_buffer_duration")) {
+                mmap_buffer_duration_ = std::stoi(attribs[++i]);
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }

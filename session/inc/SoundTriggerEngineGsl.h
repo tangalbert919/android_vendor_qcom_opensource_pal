@@ -180,5 +180,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     size_t custom_data_size;
     uint8_t *custom_detection_event;
     size_t custom_detection_event_size;
+    struct pal_mmap_buffer mmap_buffer_;
+    size_t mmap_buffer_size_;
+    uint32_t mmap_write_position_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

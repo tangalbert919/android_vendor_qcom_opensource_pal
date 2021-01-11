@@ -514,6 +514,8 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
+            <param mmap_enable="false" />
+            <param mmap_buffer_duration="5000" />
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">

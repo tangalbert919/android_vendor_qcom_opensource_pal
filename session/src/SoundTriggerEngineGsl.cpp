@@ -34,6 +34,8 @@
 
 #include <cutils/trace.h>
 
+#include <chrono>
+
 #include "Session.h"
 #include "Stream.h"
 #include "StreamSoundTrigger.h"
@@ -46,6 +48,8 @@
 #ifdef ST_DBG_LOGS
 #define PAL_DBG(LOG_TAG,...)  PAL_INFO(LOG_TAG,__VA_ARGS__)
 #endif
+
+ST_DBG_DECLARE(static int dsp_output_cnt = 0);
 
 std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
                  SoundTriggerEngineGsl::eng_;
@@ -151,9 +155,6 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     struct pal_buffer buf;
     size_t input_buf_size = 0;
     size_t input_buf_num = 0;
-    size_t output_buf_size = 0;
-    size_t output_buf_num = 0;
-    uint32_t s_pre_roll = 0;
     uint32_t bytes_to_drop = 0;
     uint64_t timestamp = 0;
     uint64_t start_timestamp = 0;
@@ -163,15 +164,19 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     size_t end_index = 0;
     size_t total_read_size = 0;
     size_t ftrt_size = 0;
+    size_t size_to_read = 0;
+    size_t read_offset = 0;
+    size_t bytes_written = 0;
+    uint32_t sleep_ms = 0;
     bool index_updated = false;
     bool event_notified = false;
-    bool dropped = (module_type_ != ST_MODULE_TYPE_PDK5);
     StreamSoundTrigger *st = (StreamSoundTrigger *)s;
     struct model_stats *detected_model_stat = nullptr;
+    struct pal_mmap_position mmap_pos;
+    FILE *dsp_output_fd = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    s->getBufInfo(&input_buf_size, &input_buf_num,
-                               &output_buf_size, &output_buf_num);
+    s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);
     std::memset(&buf, 0, sizeof(struct pal_buffer));
     buf.size = input_buf_size * input_buf_num;
     buf.buffer = (uint8_t *)calloc(1, buf.size);
@@ -187,17 +192,90 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     else
         ftrt_size = UsToBytes(detection_event_info_multi_model_.ftrt_data_length_in_us);
 
-    s_pre_roll = mid_buff_cfg_[st->GetModelId()].first;
-    drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms - s_pre_roll);
-    bytes_to_drop = UsToBytes(drop_duration * 1000);
+    if (module_type_ == ST_MODULE_TYPE_PDK5) {
+        drop_duration = (uint64_t)(buffer_config_.pre_roll_duration_in_ms -
+            mid_buff_cfg_[st->GetModelId()].first);
+        bytes_to_drop = UsToBytes(drop_duration * 1000);
+    }
+
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_OPEN_WR(dsp_output_fd, ST_DEBUG_DUMP_LOCATION,
+            "dsp_output", "bin", dsp_output_cnt);
+        PAL_DBG(LOG_TAG, "DSP output data stored in: dsp_output_%d.bin",
+            dsp_output_cnt);
+        dsp_output_cnt++;
+    }
 
     ATRACE_BEGIN("stEngine: read FTRT data");
 
     while (!exit_buffering_) {
         PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
-        if (buffer_->getFreeSize() >= buf.size) {
-            ATRACE_BEGIN("stEngine: lab read");
+        ATRACE_BEGIN("stEngine: lab read");
+        if (mmap_buffer_size_ != 0) {
+            if (total_read_size >= ftrt_size) {
+                sleep_ms = (input_buf_size * input_buf_num) *
+                    BITS_PER_BYTE * MS_PER_SEC /
+                    (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+                    sm_cfg_->GetOutChannels());
+                std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+            }
+
+            /*
+             * GetMmapPosition returns total frames written for this session
+             * which will be accumulated during back to back detections, so
+             * we get mmap position in SVA start and compute the difference
+             * after detection, in this way we can get info for bytes written
+             * and read after each detection.
+             */
+            status = session_->GetMmapPosition(s, &mmap_pos);
+            if (!status) {
+                bytes_written = FrameToBytes(mmap_pos.position_frames -
+                    mmap_write_position_);
+                if (bytes_written > total_read_size) {
+                    size_to_read = bytes_written - total_read_size;
+                } else {
+                    // TODO: add timeout check & handling
+                    continue;
+                }
+                PAL_DBG(LOG_TAG, "Mmap write offset %zu, available bytes %zu",
+                    bytes_written, size_to_read);
+            } else {
+                PAL_ERR(LOG_TAG, "Failed to get read position");
+                status = -ENOMEM;
+                goto exit;
+            }
+
+            if (size_to_read != buf.size) {
+                buf.buffer = (uint8_t *)realloc(buf.buffer, size_to_read);
+                if (!buf.buffer) {
+                    PAL_ERR(LOG_TAG, "buf.buffer allocation failed");
+                    status = -ENOMEM;
+                    goto exit;
+                }
+                buf.size = size_to_read;
+            }
+
+            // TODO: directly write to PalRingBuffer with shared buffer pointer
+            if (read_offset + size_to_read <= mmap_buffer_size_) {
+                ar_mem_cpy(buf.buffer, size_to_read,
+                    (uint8_t *)mmap_buffer_.buffer + read_offset,
+                    size_to_read);
+                read_offset += size_to_read;
+            } else {
+                ar_mem_cpy(buf.buffer, mmap_buffer_size_ - read_offset,
+                    (uint8_t *)mmap_buffer_.buffer + read_offset,
+                    mmap_buffer_size_ - read_offset);
+                ar_mem_cpy(buf.buffer + mmap_buffer_size_ - read_offset,
+                    size_to_read + read_offset - mmap_buffer_size_,
+                    (uint8_t *)mmap_buffer_.buffer,
+                    size_to_read + read_offset - mmap_buffer_size_);
+                read_offset = size_to_read + read_offset - mmap_buffer_size_;
+            }
+            size = size_to_read;
+            PAL_DBG(LOG_TAG, "read %d bytes from shared buffer", size);
+            total_read_size += size;
+        } else if (buffer_->getFreeSize() >= buf.size) {
             if (total_read_size < ftrt_size &&
                 ftrt_size - total_read_size < buf.size) {
                 buf.size = ftrt_size - total_read_size;
@@ -206,26 +284,33 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             } else {
                 status = session_->read(s, SHMEM_ENDPOINT, &buf, &size);
             }
-            ATRACE_END();
             if (status) {
                 break;
             }
             PAL_DBG(LOG_TAG, "requested %zu, read %d", buf.size, size);
             total_read_size += size;
         }
+        ATRACE_END();
         // write data to ring buffer
         if (size) {
             size_t ret = 0;
-            if (!dropped) {
+            if (bytes_to_drop) {
                 if (size < bytes_to_drop) {
                     bytes_to_drop -= size;
                 } else {
-                    ret = buffer_->write((void*)((uint8_t*)buf.buffer + bytes_to_drop),
+                    ret = buffer_->write((void*)(buf.buffer + bytes_to_drop),
                         size - bytes_to_drop);
-                    dropped = true;
+                    bytes_to_drop = 0;
+                    if (st_info_->GetEnableDebugDumps()) {
+                        ST_DBG_FILE_WRITE(dsp_output_fd,
+                            buf.buffer + bytes_to_drop, size - bytes_to_drop);
+                    }
                 }
             } else {
                 ret = buffer_->write(buf.buffer, size);
+                if (st_info_->GetEnableDebugDumps()) {
+                    ST_DBG_FILE_WRITE(dsp_output_fd, buf.buffer, size);
+                }
             }
             PAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
 
@@ -278,15 +363,15 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
                                                      (GetDetectedStream());
                 if (s) {
-                    this->CheckAndSetDetectionConfLevels(s);
+                    CheckAndSetDetectionConfLevels(s);
                     mutex_.unlock();
                     s->SetEngineDetectionState(GMM_DETECTED);
                     mutex_.lock();
                 }
             } else {
-                for ( int i = 0;
+                for (int i = 0;
                     i < detection_event_info_multi_model_.num_detected_models;
-                    i++){
+                    i++) {
                     StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
                                             (GetDetectedStream(
                                             detection_event_info_multi_model_.
@@ -310,6 +395,9 @@ exit:
     }
     if (buf.ts) {
         free(buf.ts);
+    }
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_CLOSE(dsp_output_fd);
     }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -673,6 +761,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     custom_data_size = 0;
     custom_detection_event = nullptr;
     custom_detection_event_size = 0;
+    mmap_write_position_ = 0;
     std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
     builder_ = new PayloadBuilder();
     eng_sm_info_ = new SoundModelInfo();
@@ -681,6 +770,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
     std::memset(&sva5_wakeup_config_, 0, sizeof(sva5_wakeup_config_));
     std::memset(&buffer_config_, 0, sizeof(buffer_config_));
+    std::memset(&mmap_buffer_, 0, sizeof(mmap_buffer_));
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -691,7 +781,6 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     }
 
     if (sm_cfg) {
-
         sample_rate_ = sm_cfg_->GetSampleRate();
         bit_width_ = sm_cfg_->GetBitWidth();
         channels_ = sm_cfg_->GetOutChannels();
@@ -705,6 +794,19 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
             module_tag_ids_[i] = sm_module_info->
                                  GetModuleTagId((st_param_id_type_t)i);
             param_ids_[i] = sm_module_info->GetParamId((st_param_id_type_t)i);
+        }
+
+        if (st_info_->GetMmapEnable()) {
+            mmap_buffer_size_ = (st_info_->GetMmapBufferDuration() /
+                MS_PER_SEC) * sm_cfg_->GetSampleRate() *
+                sm_cfg_->GetBitWidth() *
+                sm_cfg_->GetOutChannels() / BITS_PER_BYTE;
+            if (mmap_buffer_size_ == 0) {
+                PAL_ERR(LOG_TAG, "Mmap buffer duration not set");
+                throw std::runtime_error("Mmap buffer duration not set");
+            }
+        } else {
+            mmap_buffer_size_ = 0;
         }
 
         is_qcva_uuid_ = sm_cfg->isQCVAUUID();
@@ -1762,6 +1864,7 @@ exit:
 int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     int32_t status = 0;
+    struct pal_mmap_position mmap_pos;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1803,10 +1906,35 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
         goto exit;
     }
 
+    if (mmap_buffer_size_ != 0 && !mmap_buffer_.buffer) {
+        status = session_->createMmapBuffer(s, mmap_buffer_size_,
+            &mmap_buffer_);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to create mmap buffer, status = %d",
+                status);
+            goto exit;
+        }
+        mmap_buffer_size_ = FrameToBytes(mmap_buffer_.buffer_size_frames);
+        PAL_DBG(LOG_TAG, "Resize mmap buffer size to %u",
+            (uint32_t)mmap_buffer_size_);
+    }
+
     status = session_->start(s);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "Failed to start session, status = %d", status);
         goto exit;
+    }
+
+    // Update mmap write position after start
+    if (mmap_buffer_size_) {
+        status = session_->GetMmapPosition(s, &mmap_pos);
+        if (!status) {
+            mmap_write_position_ = mmap_pos.position_frames;
+            PAL_DBG(LOG_TAG, "MMAP write position %u after start",
+                mmap_write_position_);
+        } else {
+            PAL_ERR(LOG_TAG, "Failed to get write position");
+        }
     }
 
     eng_state_ = ENG_ACTIVE;
@@ -1833,6 +1961,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 
 int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     int32_t status = 0;
+    struct pal_mmap_position mmap_pos;
 
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
@@ -1873,6 +2002,19 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "stop session failed, status = %d",
                 status);
     }
+
+    // Update mmap write position after restart
+    if (mmap_buffer_size_) {
+        status = session_->GetMmapPosition(s, &mmap_pos);
+        if (!status) {
+            mmap_write_position_ = mmap_pos.position_frames;
+            PAL_DBG(LOG_TAG, "MMAP write position %u after restart",
+                mmap_write_position_);
+        } else {
+            PAL_ERR(LOG_TAG, "Failed to get write position");
+        }
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }

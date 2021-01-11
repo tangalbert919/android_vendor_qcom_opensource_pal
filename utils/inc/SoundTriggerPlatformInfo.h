@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -252,6 +252,8 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool GetLowLatencyBargeinEnable() const {
         return low_latency_bargein_enable_;
     }
+    bool GetMmapEnable() const { return mmap_enable_; }
+    uint32_t GetMmapBufferDuration() const { return mmap_buffer_duration_; }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
     std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
     void GetSmConfigForVersionQuery(
@@ -280,6 +282,8 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool concurrent_voice_call_;
     bool concurrent_voip_call_;
     bool low_latency_bargein_enable_;
+    bool mmap_enable_;
+    uint32_t mmap_buffer_duration_;
     std::map<UUID, std::shared_ptr<SoundModelConfig>> sound_model_cfg_list_;
     st_cap_profile_map_t capture_profile_map_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
