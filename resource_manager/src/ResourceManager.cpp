@@ -3674,8 +3674,19 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
         if (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)
             is_ds_required = true;
         else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
-                (activeDevAttr->config.bit_width < inDevAttr->config.bit_width))
+                (activeDevAttr->config.bit_width < inDevAttr->config.bit_width)) {
             is_ds_required = true;
+        } else if ((PAL_STREAM_COMPRESSED == inStrAttr->type ||
+                    PAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
+            (PAL_AUDIO_OUTPUT == inStrAttr->direction) &&
+            (inStrAttr->out_media_config.sample_rate % SAMPLINGRATE_44K == 0)) {
+
+            //Native Audio usecase
+            if (activeDevAttr->config.sample_rate != inStrAttr->out_media_config.sample_rate) {
+                inDevAttr->config.sample_rate = inStrAttr->out_media_config.sample_rate;
+                is_ds_required = true;
+            }
+        }
         break;
     default:
         is_ds_required = false;
@@ -3755,7 +3766,7 @@ error:
 //stream is a higher priority stream. Priority defined in ResourceManager.h
 //(details below)
 bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
-           struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr __unused)
+           struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr)
 {
     bool isDeviceSwitch = false;
     int status = 0;
@@ -3810,7 +3821,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
              */
             if (curDevAttr.id == inDevAttr->id) {
                 if (!rm->isDeviceSwitchRequired(&curDevAttr,
-                            inDevAttr, &sAttr)) {
+                            inDevAttr, inStrAttr)) {
                     curDev->getDeviceAttributes(inDevAttr);
                     continue;
                 }
