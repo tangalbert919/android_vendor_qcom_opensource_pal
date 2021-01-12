@@ -101,8 +101,10 @@
 #define MAX_SESSIONS_VOICE_UI 8
 #define MAX_SESSIONS_PROXY 8
 #define DEFAULT_MAX_SESSIONS 8
+#define DEFAULT_MAX_NT_SESSIONS 2
 #define MAX_SESSIONS_INCALL_MUSIC 1
 #define MAX_SESSIONS_INCALL_RECORD 1
+#define MAX_SESSIONS_NON_TUNNEL 4
 
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
@@ -322,6 +324,7 @@ std::vector <int> ResourceManager::listAllPcmVoice2RxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice2TxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmInCallRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmInCallMusicFrontEnds = {0};
+std::vector <int> ResourceManager::listAllNonTunnelSessionIds = {0};
 struct audio_mixer* ResourceManager::audio_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
@@ -341,6 +344,7 @@ static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
 int ResourceManager::bitWidthSupported = BITWIDTH_16;
+static int max_nt_sessions;
 bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
@@ -477,6 +481,7 @@ ResourceManager::ResourceManager()
     na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
 
     max_session_num = DEFAULT_MAX_SESSIONS;
+    max_nt_sessions = DEFAULT_MAX_NT_SESSIONS;
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
@@ -497,6 +502,7 @@ ResourceManager::ResourceManager()
     listAllPcmPlaybackFrontEnds.clear();
     listAllPcmRecordFrontEnds.clear();
     listAllPcmLoopbackRxFrontEnds.clear();
+    listAllNonTunnelSessionIds.clear();
     listAllPcmLoopbackTxFrontEnds.clear();
     listAllCompressPlaybackFrontEnds.clear();
     listAllCompressRecordFrontEnds.clear();
@@ -513,6 +519,7 @@ ResourceManager::ResourceManager()
         PAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
     }
     for (int i=0; i < devInfo.size(); i++) {
+
         if (devInfo[i].type == PCM) {
             if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].playback == 1) {
                 listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
@@ -548,7 +555,20 @@ ResourceManager::ResourceManager()
                 listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
             }
         }
+        /*We create a master list of all the frontends*/
+        listAllFrontEndIds.push_back(devInfo[i].deviceId);
     }
+    /*
+     *Arrange all the FrontendIds in descending order, this gives the
+     *largest deviceId being used for ALSA usecases.
+     *For NON-TUNNEL usecases the sessionIds to be used are formed by incrementing the largest used deviceID
+     *with number of non-tunnel sessions supported on a platform. This way we avoid any conflict of deviceIDs.
+     */
+     sort(listAllFrontEndIds.rbegin(), listAllFrontEndIds.rend());
+     int maxDeviceIdInUse = listAllFrontEndIds.at(0);
+     for (int i = 0; i < max_nt_sessions; i++)
+          listAllNonTunnelSessionIds.push_back(maxDeviceIdInUse + i);
+
     // Get AGM service handle
     ret = agm_register_service_crash_callback(&agmServiceCrashHandler,
                                                (uint64_t)this);
@@ -580,6 +600,7 @@ ResourceManager::~ResourceManager()
     listAllPcmVoice1TxFrontEnds.clear();
     listAllPcmVoice2RxFrontEnds.clear();
     listAllPcmVoice2TxFrontEnds.clear();
+    listAllNonTunnelSessionIds.clear();
     devInfo.clear();
     deviceInfo.clear();
     txEcInfo.clear();
@@ -1330,9 +1351,9 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
     size_t cur_sessions = 0;
     size_t max_sessions = 0;
 
-    if (!attributes || !devices ||
-        (!no_of_devices && attributes->type != PAL_STREAM_VOICE_CALL_MUSIC)) {
-        PAL_ERR(LOG_TAG, "Invalid input parameter ret %d", result);
+    if (!attributes || ((no_of_devices > 0) && !devices)) {
+        PAL_ERR(LOG_TAG, "Invalid input parameter attr %p, noOfDevices %d devices %p",
+                attributes, no_of_devices, devices);
         return result;
     }
 
@@ -1390,6 +1411,11 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_incall_record.size();
             max_sessions = MAX_SESSIONS_INCALL_RECORD;
             break;
+        case PAL_STREAM_NON_TUNNEL:
+            cur_sessions = active_streams_non_tunnel.size();
+            max_sessions = max_nt_sessions;
+            break;
+
         default:
             PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -1485,7 +1511,14 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
-
+        case PAL_STREAM_NON_TUNNEL:
+            if (attributes->direction != PAL_AUDIO_INPUT_OUTPUT) {
+               PAL_ERR(LOG_TAG, "config dir %d not supported", attributes->direction);
+               return result;
+            }
+            PAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
         default:
             PAL_ERR(LOG_TAG, "unknown type");
             return false;
@@ -1579,6 +1612,13 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sPCM, active_streams_incall_record);
             break;
         }
+        case PAL_STREAM_NON_TUNNEL:
+        {
+            StreamNonTunnel* sNonTunnel = dynamic_cast<StreamNonTunnel*>(s);
+            ret = registerstream(sNonTunnel, active_streams_non_tunnel);
+            break;
+        }
+
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -1705,6 +1745,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamInCall* sPCM = dynamic_cast<StreamInCall*>(s);
             ret = deregisterstream(sPCM, active_streams_incall_record);
+            break;
+        }
+        case PAL_STREAM_NON_TUNNEL:
+        {
+            StreamNonTunnel* sNonTunnel = dynamic_cast<StreamNonTunnel*>(s);
+            ret = deregisterstream(sNonTunnel, active_streams_non_tunnel);
             break;
         }
         default:
@@ -2960,6 +3006,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_po);
     getActiveStreams(d, activestreams, active_streams_proxy);
     getActiveStreams(d, activestreams, active_streams_incall_record);
+    getActiveStreams(d, activestreams, active_streams_non_tunnel);
     getActiveStreams(d, activestreams, active_streams_incall_music);
 
     if (activestreams.empty()) {
@@ -3180,6 +3227,22 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
     std::vector<int>::iterator it;
 
     switch(sAttr.type) {
+        case PAL_STREAM_NON_TUNNEL:
+            if (howMany > listAllNonTunnelSessionIds.size()) {
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                                howMany, listAllPcmRecordFrontEnds.size());
+                 goto error;
+            }
+            id = (listAllNonTunnelSessionIds.size() - 1);
+            it =  (listAllNonTunnelSessionIds.begin() + id);
+            for (int i = 0; i < howMany; i++) {
+                f.push_back(listAllNonTunnelSessionIds.at(id));
+                listAllNonTunnelSessionIds.erase(it);
+                PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                it -= 1;
+                id -= 1;
+            }
+            break;
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
         case PAL_STREAM_GENERIC:
@@ -3405,6 +3468,11 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
              frontend.at(0));
 
     switch(sAttr.type) {
+        case PAL_STREAM_NON_TUNNEL:
+            for (int i = 0; i < frontend.size(); i++) {
+                 listAllNonTunnelSessionIds.push_back(frontend.at(i));
+            }
+            break;
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
         case PAL_STREAM_GENERIC:
@@ -4122,6 +4190,16 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                  max_session_num);
 
     }
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_MAX_NT_SESSIONS,
+                                value, len);
+    if (ret >= 0) {
+        max_nt_sessions = std::stoi(value);
+        PAL_INFO(LOG_TAG, "Max sessions supported for NON_TUNNEL stream type are %d",
+                 max_nt_sessions);
+
+    }
+
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE,
                              value, len);
@@ -5223,6 +5301,11 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
                 }
             }
             break;
+        case PAL_STREAM_NON_TUNNEL:
+            if (stream_instances[StrAttr.type - 1] > 0)
+                stream_instances[StrAttr.type - 1] -= 1;
+            str->setInstanceId(0);
+            break;
         default:
             stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
             str->setInstanceId(0);
@@ -5292,6 +5375,19 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
                           status);
                     break;
                 }
+            }
+            break;
+        case PAL_STREAM_NON_TUNNEL:
+            status = str->getInstanceId();
+            if (!status) {
+                if (stream_instances[StrAttr.type - 1] == max_nt_sessions) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                status = stream_instances[StrAttr.type - 1] + 1;
+                stream_instances[StrAttr.type - 1] = stream_instances[StrAttr.type - 1] + 1;
+                str->setInstanceId(status);
             }
             break;
         default:

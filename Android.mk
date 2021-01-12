@@ -4,6 +4,7 @@ ifeq ($(call is-board-platform-in-list, sdm845 msmnile kona lahaina taro),true)
 ifneq ($(BUILD_TINY_ANDROID),true)
 
 LOCAL_PATH := $(call my-dir)
+PAL_BASE_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_USE_VNDK := true
@@ -58,6 +59,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamCompress.cpp\
     stream/src/StreamPCM.cpp\
     stream/src/StreamInCall.cpp\
+    stream/src/StreamNonTunnel.cpp\
     stream/src/StreamSoundTrigger.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
@@ -76,6 +78,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     session/src/Session.cpp \
     session/src/PayloadBuilder.cpp \
     session/src/SessionAlsaPcm.cpp \
+    session/src/SessionAgm.cpp \
     session/src/SessionAlsaUtils.cpp \
     session/src/SessionAlsaCompress.cpp \
     session/src/SessionAlsaVoice.cpp \
@@ -116,7 +119,8 @@ LOCAL_VENDOR_MODULE := true
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
-include $(LOCAL_PATH)/plugins/Android.mk
+include $(PAL_BASE_PATH)/plugins/Android.mk
+include $(PAL_BASE_PATH)/ipc/HwBinders/Android.mk
 
 endif # BUILD_TINY_ANDROID
 endif # is-board-platform-in-list

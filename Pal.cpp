@@ -461,8 +461,9 @@ int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
                                     pal_buffer_config *in_buffer_cfg,
                                     pal_buffer_config *out_buffer_cfg)
 {
-   Stream *s = NULL;
-   int status;
+    Stream *s = NULL;
+    int status;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid input parameters status %d", status);
@@ -470,6 +471,7 @@ int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
+
     status = s->setBufInfo(in_buffer_cfg, out_buffer_cfg);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
@@ -526,6 +528,7 @@ int32_t pal_add_remove_effect(pal_stream_handle_t *stream_handle,
     return status;
 
 }
+
 int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                            uint32_t no_of_devices, struct pal_device *devices)
 {
@@ -595,10 +598,23 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     return status;
 }
 
-int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle __unused,
-                           size_t *size __unused, uint8_t *payload __unused)
+int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
+                           size_t *size, uint8_t *payload)
 {
-    return 0;
+    int status = 0;
+    Stream *s = NULL;
+
+    if (!stream_handle) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
+    }
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+
+    s =  reinterpret_cast<Stream *>(stream_handle);
+    status = s->getTagsWithModuleInfo(size, payload);
+
+    return status;
 }
 
 int32_t pal_set_param(uint32_t param_id, void *param_payload,
@@ -661,7 +677,7 @@ int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->GetMmapPosition(position);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
+        PAL_ERR(LOG_TAG, "pal_stream_get_mmap_position failed with status %d", status);
         return status;
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -683,7 +699,7 @@ int32_t pal_stream_create_mmap_buffer(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->createMmapBuffer(min_size_frames, info);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "pal_stream_set_buffer_size failed with status %d", status);
+        PAL_ERR(LOG_TAG, "pal_stream_create_mmap_buffer failed with status %d", status);
         return status;
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);

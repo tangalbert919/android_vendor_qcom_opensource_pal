@@ -995,6 +995,25 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                 goto free_sattr;
             }
             break;
+        case PAL_STREAM_NON_TUNNEL:
+            instance_id = rm->getStreamInstanceID(s);
+            if (instance_id < INSTANCE_1) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
+                goto free_sattr;
+            }
+            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
+
+            if (sattr->out_media_config.aud_fmt_id != PAL_AUDIO_FMT_DEFAULT_PCM)
+                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
+            else if (sattr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_DEFAULT_PCM)
+                keyVector.push_back(std::make_pair(STREAM, NT_ENCODE));
+            else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid format %d on write path", sattr->out_media_config.aud_fmt_id);
+                goto free_sattr;
+            }
+            break;
         case PAL_STREAM_PCM_OFFLOAD:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_OFFLOAD_PLAYBACK));

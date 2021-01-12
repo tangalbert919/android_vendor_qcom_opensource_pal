@@ -35,9 +35,9 @@
 #include "SessionGsl.h"
 #include "SessionAlsaPcm.h"
 #include "SessionAlsaCompress.h"
+#include "SessionAgm.h"
 #include "SessionAlsaUtils.h"
 #include "SessionAlsaVoice.h"
-#include "SessionAlsaUtils.h"
 
 #include <sstream>
 
@@ -69,6 +69,9 @@ Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const 
             break;
         case PAL_STREAM_VOICE_CALL:
             s = new SessionAlsaVoice(rm);
+            break;
+        case PAL_STREAM_NON_TUNNEL:
+            s = new SessionAgm(rm);
             break;
         default:
             s = new SessionAlsaPcm(rm);

@@ -28,6 +28,7 @@
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
         <param key="max_sessions" value="128"/>
+        <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
