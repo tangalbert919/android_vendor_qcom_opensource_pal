@@ -2042,8 +2042,10 @@ int32_t StreamSoundTrigger::FillConfLevels(
 
     for (i = 0; i < config->num_phrases; i++) {
         num_conf_levels++;
-        for (j = 0; j < config->phrases[i].num_levels; j++)
-            num_conf_levels++;
+        if (model_id_ == 0) {
+            for (j = 0; j < config->phrases[i].num_levels; j++)
+                num_conf_levels++;
+        }
     }
 
     conf_levels = (unsigned char*)calloc(1, num_conf_levels);
@@ -2089,26 +2091,28 @@ int32_t StreamSoundTrigger::FillConfLevels(
 
     for (i = 0; i < config->num_phrases; i++) {
         conf_levels[i] = config->phrases[i].confidence_level;
-        for (j = 0; j < config->phrases[i].num_levels; j++) {
-            user_level = config->phrases[i].levels[j].level;
-            user_id = config->phrases[i].levels[j].user_id;
-            if ((user_id < config->num_phrases) ||
-                (user_id >= num_conf_levels)) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid params user id %d status %d",
-                        user_id, status);
-                goto exit;
-            } else {
-                if (user_id_tracker[user_id] == 1) {
+        if (model_id_ == 0) {
+            for (j = 0; j < config->phrases[i].num_levels; j++) {
+                user_level = config->phrases[i].levels[j].level;
+                user_id = config->phrases[i].levels[j].user_id;
+                if ((user_id < config->num_phrases) ||
+                     (user_id >= num_conf_levels)) {
                     status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
-                            status);
+                    PAL_ERR(LOG_TAG, "Invalid params user id %d status %d",
+                            user_id, status);
                     goto exit;
+                } else {
+                    if (user_id_tracker[user_id] == 1) {
+                        status = -EINVAL;
+                        PAL_ERR(LOG_TAG, "Duplicate user id %d status %d", user_id,
+                                status);
+                        goto exit;
+                    }
+                    conf_levels[user_id] = (user_level < 100) ? user_level : 100;
+                    user_id_tracker[user_id] = 1;
+                    PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d", user_id,
+                                conf_levels[user_id]);
                 }
-                conf_levels[user_id] = (user_level < 100) ? user_level : 100;
-                user_id_tracker[user_id] = 1;
-                PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d", user_id,
-                            conf_levels[user_id]);
             }
         }
     }
@@ -2168,9 +2172,13 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
             num_conf_levels++;
-            for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++)
-                num_conf_levels++;
+            if (model_id_ == 0) {
+                for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++)
+                    num_conf_levels++;
+            }
         }
+
+        PAL_DBG(LOG_TAG, "Number of confidence levels : %d", num_conf_levels);
 
         if (!num_conf_levels) {
             status = -EINVAL;
@@ -2194,10 +2202,10 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            PAL_ERR(LOG_TAG, "[%d] kw level %d", i,
+            PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
                 sm_levels->kw_levels[i].kw_level);
             for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                PAL_ERR(LOG_TAG, "[%d] user_id %d level %d ", i,
+                PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
                     sm_levels->kw_levels[i].user_levels[j].user_id,
                     sm_levels->kw_levels[i].user_levels[j].level);
             }
@@ -2211,27 +2219,29 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
                 PAL_ERR(LOG_TAG, "ERROR. Invalid numver of kw levels");
                 goto exit;
             }
-            for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                user_level = sm_levels->kw_levels[i].user_levels[j].level;
-                user_id = sm_levels->kw_levels[i].user_levels[j].user_id;
-                if ((user_id < sm_levels->num_kw_levels) ||
-                    (user_id >= num_conf_levels)) {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
-                        user_id, num_conf_levels);
-                    goto exit;
-                } else {
-                    if (user_id_tracker[user_id] == 1) {
+            if (model_id_ == 0) {
+                for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
+                    user_level = sm_levels->kw_levels[i].user_levels[j].level;
+                    user_id = sm_levels->kw_levels[i].user_levels[j].user_id;
+                    if ((user_id < sm_levels->num_kw_levels) ||
+                        (user_id >= num_conf_levels)) {
                         status = -EINVAL;
-                        PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
-                            user_id);
+                        PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
+                                user_id, num_conf_levels);
                         goto exit;
+                    } else {
+                        if (user_id_tracker[user_id] == 1) {
+                            status = -EINVAL;
+                            PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
+                                    user_id);
+                            goto exit;
+                        }
+                        conf_levels[user_id] = (user_level < 100) ?
+                                               user_level: 100;
+                        user_id_tracker[user_id] = 1;
+                        PAL_ERR(LOG_TAG, "user_conf_levels[%d] = %d",
+                                user_id, conf_levels[user_id]);
                     }
-                    conf_levels[user_id] = (user_level < 100) ?
-                                           user_level: 100;
-                    user_id_tracker[user_id] = 1;
-                    PAL_ERR(LOG_TAG, "user_conf_levels[%d] = %d",
-                        user_id, conf_levels[user_id]);
                 }
             }
         }
@@ -2246,9 +2256,13 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
 
         for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
             num_conf_levels++;
-            for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++)
-                num_conf_levels++;
+            if (model_id_ == 0) {
+                for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++)
+                    num_conf_levels++;
+            }
         }
+
+        PAL_DBG(LOG_TAG,"number of confidence levels : %d", num_conf_levels);
 
         if (!num_conf_levels) {
             status = -EINVAL;
@@ -2289,27 +2303,29 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
                 PAL_ERR(LOG_TAG, "ERROR. Invalid numver of kw levels");
                 goto exit;
             }
-            for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                user_level = sm_levels_v2->kw_levels[i].user_levels[j].level;
-                user_id = sm_levels_v2->kw_levels[i].user_levels[j].user_id;
-                if ((user_id < sm_levels_v2->num_kw_levels) ||
-                    (user_id >= num_conf_levels)) {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
-                         user_id, num_conf_levels);
-                    goto exit;
-                } else {
-                    if (user_id_tracker[user_id] == 1) {
+            if (model_id_ == 0) {
+                for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
+                    user_level = sm_levels_v2->kw_levels[i].user_levels[j].level;
+                    user_id = sm_levels_v2->kw_levels[i].user_levels[j].user_id;
+                    if ((user_id < sm_levels_v2->num_kw_levels) ||
+                         (user_id >= num_conf_levels)) {
                         status = -EINVAL;
-                        PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
-                            user_id);
+                        PAL_ERR(LOG_TAG, "ERROR. Invalid params user id %d>%d",
+                              user_id, num_conf_levels);
                         goto exit;
-                    }
-                    conf_levels[user_id] = (user_level < 100) ?
-                                            user_level: 100;
-                    user_id_tracker[user_id] = 1;
-                    PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",
+                    } else {
+                        if (user_id_tracker[user_id] == 1) {
+                            status = -EINVAL;
+                            PAL_ERR(LOG_TAG, "ERROR. Duplicate user id %d",
+                                user_id);
+                            goto exit;
+                        }
+                        conf_levels[user_id] = (user_level < 100) ?
+                                                user_level: 100;
+                        user_id_tracker[user_id] = 1;
+                        PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",
                         user_id, conf_levels[user_id]);
+                    }
                 }
             }
         }
@@ -2317,6 +2333,7 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
 
     *out_payload = conf_levels;
     *out_payload_size = num_conf_levels;
+    PAL_DBG(LOG_TAG, "Returning number of conf levels : %d", *out_payload_size);
 exit:
     if (user_id_tracker)
         free(user_id_tracker);
