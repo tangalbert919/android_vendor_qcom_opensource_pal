@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -157,6 +157,8 @@ enum st_param_key {
     ST_PARAM_KEY_KEYWORD_INDICES,
     ST_PARAM_KEY_TIMESTAMP,
     ST_PARAM_KEY_DETECTION_PERF_MODE,
+    ST_PARAM_KEY_CONTEXT_RECOGNITION_INFO,
+    ST_PARAM_KEY_CONTEXT_EVENT_INFO,
 };
 
 typedef enum st_param_key st_param_key_t;
@@ -166,6 +168,66 @@ struct __attribute__((__packed__)) st_param_header
     st_param_key_t key_id;
     uint32_t payload_size;
 };
+
+typedef enum {
+    AUDIO_CONTEXT_ENV_HOME = 0x8001307,
+    AUDIO_CONTEXT_ENV_OFFICE = 0x8001308,
+    AUDIO_CONTEXT_ENV_RESTAURANT = 0x8001309,
+    AUDIO_CONTEXT_ENV_INDOOR = 0x800130a,
+    AUDIO_CONTEXT_ENV_INSTREET = 0x800130b,
+    AUDIO_CONTEXT_ENV_OUTDOOR = 0x800130c,
+    AUDIO_CONTEXT_ENV_INCAR = 0x800130d,
+    AUDIO_CONTEXT_ENV_INTRAIN = 0x800130e,
+    AUDIO_CONTEXT_ENV_UNKNOWN = 0x800130f,
+    AUDIO_CONTEXT_EVENT_ALARM = 0x8001310,
+    AUDIO_CONTEXT_EVENT_BABYCRYING = 0x8001311,
+    AUDIO_CONTEXT_EVENT_DOGBARKING = 0x8001312,
+    AUDIO_CONTEXT_EVENT_DOORBELL = 0x8001313,
+    AUDIO_CONTEXT_EVENT_DOORCLOSE = 0x8001314,
+    AUDIO_CONTEXT_EVENT_DOOROPEN = 0x8001315,
+    AUDIO_CONTEXT_EVENT_GLASSBREAKING = 0x8001316,
+    AUDIO_CONTEXT_EVENT_SIREN = 0x8001317,
+    AUDIO_CONTEXT_AMBIENCE_SPEECH = 0x8001318,
+    AUDIO_CONTEXT_AMBIENCE_MUSIC = 0x8001319,
+    AUDIO_CONTEXT_AMBIENCE_NOISY_SPL = 0x800131a,
+    AUDIO_CONTEXT_AMBIENCE_SILENT_SPL = 0x800131b,
+    AUDIO_CONTEXT_AMBIENCE_NOISY_SFLUX = 0x800131c,
+    AUDIO_CONTEXT_AMBIENCE_SILENT_SFLUX = 0x800131d,
+    AUDIO_CONTEXT_MAX
+} AUDIO_CONTEXT_ENUM;
+
+typedef enum {
+    AUDIO_CONTEXT_EVENT_STOPPED,
+    AUDIO_CONTEXT_EVENT_STARTED,
+    AUDIO_CONTEXT_EVENT_DETECTED
+} AUDIO_CONTEXT_EVENT_TYPE;
+
+struct __attribute__((__packed__)) acd_per_context_cfg {
+    uint32_t context_id;
+    uint32_t threshold;
+    uint32_t step_size;
+};
+
+struct __attribute__((__packed__)) acd_recognition_cfg {
+     uint32_t version;
+     uint32_t num_contexts;
+     /* followed by array of acd_per_context_cfg[acd_per_context_cfg] */
+};
+
+struct __attribute__((__packed__)) acd_per_context_event_info {
+     uint32_t context_id;
+     uint32_t event_type;
+     uint32_t confidence_score;
+     uint64_t detection_ts;
+};
+
+struct __attribute__((__packed__)) acd_context_event {
+     uint32_t version;
+     uint64_t detection_ts;
+     uint32_t num_contexts;
+     /* followed by an array of acd_per_context_event_info[num_contexts] */
+};
+
 struct __attribute__((__packed__)) st_user_levels
 {
     uint32_t user_id;
