@@ -666,7 +666,7 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(sva_threshold_config_t);
         capi_buf.max_data_len = sizeof(sva_threshold_config_t);
         threshold_cfg->smm_threshold = confidence_threshold_;
-        PAL_VERBOSE(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
+        PAL_DBG(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
             confidence_threshold_);
 
         status = capi_handle_->vtbl_ptr->set_param(capi_handle_,
@@ -717,7 +717,7 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
         capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
         threshold_cfg->user_verification_threshold = confidence_threshold_;
-        PAL_VERBOSE(LOG_TAG, "Keyword detection (VOP) confidence level = %d",
+        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %d",
                     confidence_threshold_);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
@@ -911,7 +911,7 @@ int32_t SoundTriggerEngineCapi::UpdateConfLevels(
 
     std::lock_guard<std::mutex> lck(mutex_);
     confidence_threshold_ = *conf_levels;
-    PAL_VERBOSE(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
+    PAL_DBG(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
 
     return status;
 }

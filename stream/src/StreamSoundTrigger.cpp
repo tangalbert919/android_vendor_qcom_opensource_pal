@@ -1960,7 +1960,9 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     sm_levels->kw_levels[0].user_levels[0].level;
                 PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
                 for (auto& eng: engines_) {
-                    if (sm_levels->sm_id == eng->GetEngineId()) {
+                    if (sm_levels->sm_id & eng->GetEngineId() ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_RNN) &&
+                        (sm_levels->sm_id & ST_SM_ID_SVA_CNN))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level, 1);
                     }
@@ -1999,7 +2001,9 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                 for (auto& eng: engines_) {
                     PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
                         sm_levels_v2->sm_id , eng->GetEngineId());
-                    if (sm_levels_v2->sm_id == eng->GetEngineId()) {
+                    if (sm_levels_v2->sm_id & eng->GetEngineId() ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_RNN) &&
+                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_CNN))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level_v2, 1);
                     }
@@ -2623,6 +2627,9 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
         }
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE: {
+            // Avoid handling concurrency before sound model loaded
+            if (!st_stream_.sm_config_)
+                break;
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
