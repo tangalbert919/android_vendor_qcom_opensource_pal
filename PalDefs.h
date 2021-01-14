@@ -332,6 +332,7 @@ typedef enum {
     PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
     PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
     PAL_STREAM_NON_TUNNEL = 21,           /**< NT Mode session */
+    PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
 
@@ -357,8 +358,9 @@ typedef enum {
     PAL_DEVICE_OUT_PROXY = 16,
     PAL_DEVICE_OUT_AUX_DIGITAL_1 = 17,
     PAL_DEVICE_OUT_HEARING_AID = 18,
+    PAL_DEVICE_OUT_HAPTICS_DEVICE = 19,
     // Add new OUT devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_OUT_MAX = 19,
+    PAL_DEVICE_OUT_MAX = 20,
     //INPUT DEVICES
     PAL_DEVICE_IN_MIN = PAL_DEVICE_OUT_MAX,
     PAL_DEVICE_IN_HANDSET_MIC = PAL_DEVICE_IN_MIN +1,
