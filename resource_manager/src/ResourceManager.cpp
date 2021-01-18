@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -5087,16 +5087,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     PAL_DBG(LOG_TAG, "Enter");
     memset(&conn_device, 0, sizeof(struct pal_device));
     if (is_connected && !device_available) {
-        if (isPluginDevice(device_id)) {
-            conn_device.id = device_id;
-            dev = Device::getInstance(&conn_device, rm);
-            if (dev) {
-                addPlugInDevice(dev, connection_state);
-            } else {
-                PAL_ERR(LOG_TAG, "Device creation failed");
-                throw std::runtime_error("failed to create device object");
-            }
-        } else if (isDpDevice(device_id)) {
+        if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             conn_device.id = device_id;
             dev = Device::getInstance(&conn_device, rm);
             if (dev) {
@@ -5108,27 +5099,8 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
         }
 
         PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-            dAttr.id = device_id;
-            /* Stream type is irrelevant here as we need device num channels
-               which is independent of stype for BT devices */
-            rm->getDeviceInfo(dAttr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
-            if ((devinfo.channels == 0) ||
-                   (devinfo.channels > devinfo.max_channels)) {
-                PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
-                return -EINVAL;
-            }
-            status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
-                return status;
-            }
-            dev = Device::getInstance(&dAttr, rm);
-            if (!dev) {
-                PAL_ERR(LOG_TAG, "Device creation failed");
-                return -EINVAL;
-            }
-        } else if (isBtScoDevice(device_id)) {
+        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            isBtScoDevice(device_id)) {
             dAttr.id = device_id;
             /* Stream type is irrelevant here as we need device num channels
                which is independent of stype for BT devices */
@@ -5152,11 +5124,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
         }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
-        if (isPluginDevice(device_id)) {
-            conn_device.id = device_id;
-            removePlugInDevice(device_id, connection_state);
-        } else if (isDpDevice(device_id)) {
-            conn_device.id = device_id;
+        if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
         }
 
