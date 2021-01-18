@@ -523,6 +523,12 @@ error:
     return status;
 }
 
+int32_t StreamNonTunnel::drain(pal_drain_type_t type)
+{
+    PAL_ERR(LOG_TAG, "drain");
+    return session->drain(type);
+}
+
 int32_t StreamNonTunnel::pause()
 {
     PAL_ERR(LOG_TAG, "Pause not supported yet on NON-TUNNEL session");
@@ -540,14 +546,10 @@ int32_t StreamNonTunnel::flush()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    if (isPaused == false) {
-         PAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
-         goto exit;
-    }
 
     status = session->flush();
-exit:
     mStreamMutex.unlock();
+
     return status;
 }
 

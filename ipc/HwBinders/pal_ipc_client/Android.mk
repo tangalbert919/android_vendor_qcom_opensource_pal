@@ -1,7 +1,8 @@
 LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/pal
+
+LOCAL_C_INCLUDES += vendor/qcom/opensource/pal
 LOCAL_MODULE := libpalclient
 LOCAL_MODULE_OWNER := qti
 LOCAL_VENDOR_MODULE := true
