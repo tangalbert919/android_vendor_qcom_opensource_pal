@@ -609,11 +609,13 @@ SoundTriggerEngineCapi::~SoundTriggerEngineCapi()
      */
     if (buffer_thread_handler_.joinable()) {
         processing_started_ = false;
-        std::lock_guard<std::mutex> lck(event_mutex_);
+        std::unique_lock<std::mutex> lck(event_mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;
         cv_.notify_one();
+        lck.unlock();
         buffer_thread_handler_.join();
+        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
     if (buffer_) {
@@ -644,15 +646,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
     capi_v2_buf_t capi_buf;
 
     PAL_DBG(LOG_TAG, "Enter");
-    buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
-
-    if (!buffer_thread_handler_.joinable()) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
-        return status;
-    }
-
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {
         sva_threshold_config_t *threshold_cfg = nullptr;
         threshold_cfg = (sva_threshold_config_t*)
@@ -731,6 +724,15 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
                 free(threshold_cfg);
             return status;
         }
+    }
+
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
+        return status;
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -819,6 +821,7 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
+    std::lock_guard<std::mutex> lck(mutex_);
     status = capi_handle_->vtbl_ptr->end(capi_handle_);
     if (status != CAPI_V2_EOK) {
         PAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
