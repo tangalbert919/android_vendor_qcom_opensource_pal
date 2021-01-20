@@ -668,7 +668,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     buffer_ = nullptr;
     is_qcva_uuid_ = false;
     is_qcmd_uuid_ = false;
-    ses_started_ = false;
+    eng_state_ = ENG_IDLE;
     custom_data = nullptr;
     custom_data_size = 0;
     custom_detection_event = nullptr;
@@ -1333,18 +1333,26 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsWithActiveStreams() {
     return status;
 }
 
+bool SoundTriggerEngineGsl::IsEngineActive() {
+
+    if (eng_state_ == ENG_ACTIVE || eng_state_ == ENG_BUFFERING)
+        return true;
+
+    return false;
+}
+
 int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
                                                      uint32_t data_size) {
 
     int32_t status = 0;
-    bool restore_ses_state = false;
+    bool restore_eng_state = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     std::unique_lock<std::mutex> lck(mutex_);
 
-    if (ses_started_) {
+    if (IsEngineActive()) {
         this->ProcessStopRecognition(eng_streams_[0]);
-        restore_ses_state = true;
+        restore_eng_state = true;
     }
 
     if (module_type_ != ST_MODULE_TYPE_PDK5) {
@@ -1362,6 +1370,7 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
 
+        eng_state_ = ENG_IDLE;
         /* Update the engine with merged sound model */
         status = UpdateEngineModel(s, data, data_size, true);
         if (status) {
@@ -1415,10 +1424,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
             session_->close(s);
             goto exit;
         }
-
      }
+     eng_state_ = ENG_LOADED;
 
-     if (restore_ses_state)
+     if (restore_eng_state)
         status = ProcessStartRecognition(eng_streams_[0]);
 exit:
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
@@ -1485,14 +1494,14 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
 
     int32_t status = 0;
 
-    bool restore_ses_state = false;
+    bool restore_eng_state = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     std::unique_lock<std::mutex> lck(mutex_);
 
-    if (ses_started_) {
+    if (IsEngineActive()) {
         ProcessStopRecognition(eng_streams_[0]);
-        restore_ses_state = true;
+        restore_eng_state = true;
     }
 
     if (module_type_ == ST_MODULE_TYPE_PDK5) {
@@ -1512,6 +1521,7 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
 
+        eng_state_ = ENG_IDLE;
         /* Update the engine with modified sound model after deletion */
         status = UpdateEngineModel(s, nullptr, 0, false);
         if (status) {
@@ -1555,9 +1565,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
             status = -EINVAL;
             goto exit;
         }
+        eng_state_ = ENG_LOADED;
     }
 
-    if (restore_ses_state) {
+    if (restore_eng_state) {
         if (module_type_ == ST_MODULE_TYPE_PDK5) {
             std::map<uint32_t, struct detection_engine_config_stage1_sva5>::
                                      iterator itr = mid_wakeup_cfg_.begin();
@@ -1654,7 +1665,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
             goto exit;
         }
 
-    } 
+    }
     status = UpdateSessionPayload(LOAD_SOUND_MODEL);
 
     if (0 != status) {
@@ -1674,6 +1685,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
         status = -EINVAL;
         goto exit;
     }
+    eng_state_ = ENG_LOADED;
 exit:
     if (!status)
         eng_streams_.push_back(s);
@@ -1714,10 +1726,13 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     status = UpdateEngineModel(s, nullptr, 0, false);
     if (status)
         PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+
+    eng_state_ = ENG_IDLE;
 exit:
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
+
 int32_t SoundTriggerEngineGsl::UpdateConfigs() {
     int32_t status = 0;
 
@@ -1792,7 +1807,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
         goto exit;
     }
 
-    ses_started_ = true;
+    eng_state_ = ENG_ACTIVE;
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -1804,7 +1819,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
 
-    if (ses_started_)
+    if (IsEngineActive())
         ProcessStopRecognition(eng_streams_[0]);
 
     status = ProcessStartRecognition(s);
@@ -1844,13 +1859,13 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     status = session_->stop(s);
     if (!status) {
         exit_buffering_ = false;
-        ses_started_ = false;
+        eng_state_ = ENG_LOADED;
         status = session_->start(s);
         if (status) {
             PAL_ERR(LOG_TAG, "start session failed, status = %d",
                     status);
         } else {
-            ses_started_ = true;
+            eng_state_ = ENG_ACTIVE;
         }
     } else {
         PAL_ERR(LOG_TAG, "stop session failed, status = %d",
@@ -1884,14 +1899,14 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
     }
 
-    ses_started_ = false;
+    eng_state_ = ENG_LOADED;
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
 
 int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     int32_t status = 0;
-    bool restore_ses_state = false;
+    bool restore_eng_state = false;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1899,8 +1914,8 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
 
     std::lock_guard<std::mutex> lck(mutex_);
 
-    if (ses_started_)
-        restore_ses_state = true;
+    if (IsEngineActive())
+        restore_eng_state = true;
 
     status = ProcessStopRecognition(s);
     if (0 != status) {
@@ -1909,7 +1924,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     }
 
     if (CheckIfOtherStreamsAttached(s)) {
-        if (restore_ses_state) {
+        if (restore_eng_state) {
             PAL_INFO(LOG_TAG, "Other stream is active, restart engine recognition");
             UpdateEngineConfigOnStop(s);
             status = ProcessStartRecognition(eng_streams_[0]);
@@ -1995,7 +2010,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
         if (mid_wakeup_cfg_.find(st->GetModelId()) != mid_wakeup_cfg_.end() &&
             std::find(updated_cfg_.begin(), updated_cfg_.end(), st->GetModelId())
-            != updated_cfg_.end() && ses_started_)
+            == updated_cfg_.end() && IsEngineActive())
             updated_cfg_.push_back(st->GetModelId());
 
         mid_wakeup_cfg_[st->GetModelId()].mode = sva5_wakeup_config_.mode;
@@ -2234,7 +2249,17 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
         return;
 
     engine = (SoundTriggerEngineGsl *)hdl;
-    engine->HandleSessionEvent(event_id, data, event_size);
+
+    /*
+     * In multi sound model/merged sound model case, SPF might still give detections
+     * for one model when the engine is in buffering state due to detection
+     * event received for the other sound model.
+     * Avoid handling the detection events for such detections.
+     */
+    if (engine->eng_state_ == ENG_ACTIVE)
+        engine->HandleSessionEvent(event_id, data, event_size);
+    else
+        PAL_INFO(LOG_TAG, "Engine not active or buffering might be going on, ignore");
 
     PAL_DBG(LOG_TAG, "Exit");
     return;

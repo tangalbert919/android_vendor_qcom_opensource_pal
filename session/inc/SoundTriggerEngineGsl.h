@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -47,6 +47,13 @@
 #define TIME_STAMP_INFO          0x4
 #define FTRT_INFO                0x8
 #define MULTI_MODEL_RESULT       0x20
+
+typedef enum {
+    ENG_IDLE,
+    ENG_LOADED,
+    ENG_ACTIVE,
+    ENG_BUFFERING,
+} eng_state_t;
 
 class Session;
 class Stream;
@@ -142,6 +149,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t UpdateConfigs();
     Stream* GetDetectedStream(uint32_t model_id = 0);
     void CheckAndSetDetectionConfLevels(Stream *s);
+    bool IsEngineActive();
     Session *session_;
     PayloadBuilder *builder_;
     std::map<uint32_t, Stream*> mid_stream_map_;
@@ -155,7 +163,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     SoundModelInfo *eng_sm_info_;
     bool sm_merged_;
     int32_t dev_disconnect_count_;
-    bool ses_started_;
+    eng_state_t eng_state_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
     struct detection_engine_config_stage1_sva5 sva5_wakeup_config_;
     struct detection_engine_multi_model_buffering_config buffer_config_;
