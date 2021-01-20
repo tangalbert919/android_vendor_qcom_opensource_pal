@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1299,11 +1299,6 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
 int SessionAlsaPcm::read(Stream *s, int tag __unused, struct pal_buffer *buf, int * size)
 {
     int status = 0, bytesRead = 0, bytesToRead = 0, offset = 0, pcmReadSize = 0;
-    uint64_t timestamp = 0;
-    const char *control = "bufTimestamp";
-    const char *stream = "PCM";
-    struct mixer_ctl *ctl;
-    std::ostringstream CntrlName;
     struct pal_stream_attributes sAttr;
 
     PAL_VERBOSE(LOG_TAG,"Enter")
@@ -1342,30 +1337,9 @@ int SessionAlsaPcm::read(Stream *s, int tag __unused, struct pal_buffer *buf, in
             break;
         }
 
-        if (!bytesRead && buf->ts &&
-            (sAttr.type == PAL_STREAM_VOICE_UI)) {
-            CntrlName << stream << pcmDevIds.at(0) << " " << control;
-            ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
-            if (!ctl) {
-                PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
-                status = -ENOENT;
-                goto exit;
-            }
-
-            status = mixer_ctl_get_array(ctl, (void *)&timestamp, sizeof(uint64_t));
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Get timestamp failed, status = %d", status);
-                goto exit;
-            }
-
-            buf->ts->tv_sec = timestamp / 1000000;
-            buf->ts->tv_nsec = (timestamp - buf->ts->tv_sec * 1000000) * 1000;
-            PAL_VERBOSE(LOG_TAG, "Timestamp %llu, tv_sec = %ld, tv_nsec = %ld",
-                       (long long)timestamp, buf->ts->tv_sec, buf->ts->tv_nsec);
-        }
         bytesRead += pcmReadSize;
     }
-exit:
+
     *size = bytesRead;
     PAL_VERBOSE(LOG_TAG,"exit bytesRead:%d status:%d ", bytesRead, status);
     return status;
