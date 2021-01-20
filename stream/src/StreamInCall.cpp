@@ -128,6 +128,8 @@ int32_t  StreamInCall::open()
 {
     int32_t status = 0;
 
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
+                mDevices.size());
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
@@ -137,8 +139,6 @@ int32_t  StreamInCall::open()
     }
 
     if (currentState == STREAM_IDLE) {
-        PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
-                mDevices.size());
         status = session->open(this);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session open failed with status %d", status);
@@ -160,6 +160,7 @@ int32_t  StreamInCall::open()
     }
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -453,10 +454,11 @@ int32_t  StreamInCall::setVolume(struct pal_volume_data *volume)
             goto exit;
         }
     }
-    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+    PAL_DBG(LOG_TAG, "Volume payload No.of vol pair:%d ch mask:%x gain:%f",
                       (volume->no_of_volpair), (volume->volume_pair->channel_mask),
                       (volume->volume_pair->vol));
 exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -548,12 +550,14 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
         if ((frameSize == 0) || (sampleRate == 0)) {
             PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
         PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
         mStreamMutex.unlock();
+        PAL_VERBOSE(LOG_TAG, "Exit size: %d", size);
         return size;
     }
 
@@ -604,15 +608,15 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
                 size = buf->size;
                 status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
-                goto exit;
+                goto error_exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
                 status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
-                goto exit;
+                goto error_exit;
             } else {
                 status = errno;
-                goto exit;
+                goto error_exit;
             }
          }
          PAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
@@ -623,7 +627,7 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
             status = -EIO;
         else
             status = -EINVAL;
-        goto exit;
+        goto error_exit;
     }
 
 error:
@@ -632,8 +636,11 @@ error:
     }
     rm->unlockGraph();
     mStreamMutex.unlock();
-exit :
+error_exit :
     PAL_DBG(LOG_TAG, "session write failed status %d", status);
+
+exit:
+    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 

@@ -372,6 +372,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
     }
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -465,36 +466,36 @@ int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable
 
 int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enable) {
     int32_t status = 0;
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StECRefEventConfig(dev, is_enable));
+
+    PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
     // TODO: add barge-in support for 3rd party graph
     if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
         PAL_DBG(LOG_TAG, "No need to set ec ref for 3rd party va session");
-        return 0;
+        goto exit;
     }
-
-    PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
     if (mDevPpModifiers.size() == 0 ||
         (mDevPpModifiers[0].first == DEVICEPP_TX &&
         mDevPpModifiers[0].second == DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)) {
         PAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
-        return status;
+        goto exit;
     }
 
     if (dev && !rm->checkECRef(dev, mDevices[0])) {
         PAL_DBG(LOG_TAG, "No need to set ec ref for unmatching rx device");
-        return status;
+        goto exit;
     }
 
-    std::shared_ptr<StEventConfig> ev_cfg(
-        new StECRefEventConfig(dev, is_enable));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to handle ec ref event");
     }
 
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -865,8 +866,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     PAL_DBG(LOG_TAG, "Enter");
 
     if (!sound_model) {
-        PAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
-        return -EINVAL;
+        PAL_ERR(LOG_TAG, "Exit Invalid sound_model param status %d", status);
+        status = -EINVAL;
+        goto exit;
     }
 
     sound_model_type_ = sound_model->type;
@@ -880,7 +882,8 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
                    phrase_sm->common.type, phrase_sm->num_phrases, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = (struct pal_st_sound_model*)&phrase_sm->common;
         sm_size = sizeof(*phrase_sm) + common_sm->data_size;
@@ -891,14 +894,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             PAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
                     " data offset=%d status %d", sound_model->data_size,
                     sound_model->data_offset, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = sound_model;
         sm_size = sizeof(*common_sm) + common_sm->data_size;
     } else {
         PAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
                 sound_model->type, status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
         // Cache to use during SSR and other internal events handling.
@@ -910,7 +915,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
                     status);
             status = -ENOMEM;
-            return status;
+            goto exit;
         }
 
         if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -1146,6 +1151,7 @@ error_exit:
         free(sm_config_);
         sm_config_ = nullptr;
     }
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -1161,7 +1167,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
 
     if (!sound_model) {
         PAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     sound_model_type_ = sound_model->type;
 
@@ -1174,7 +1181,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
                    phrase_sm->common.type,phrase_sm->num_phrases, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = (struct pal_st_sound_model*)&phrase_sm->common;
         sm_size = sizeof(*phrase_sm) + common_sm->data_size;
@@ -1185,14 +1193,16 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
             PAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
                     " data offset=%d status %d", sound_model->data_size,
                     sound_model->data_offset, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = sound_model;
         sm_size = sizeof(*common_sm) + common_sm->data_size;
     } else {
         PAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
                 sound_model->type, status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
         // Cache to use during SSR and other internal events handling.
@@ -1204,7 +1214,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
             PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
                     status);
             status = -ENOMEM;
-            return status;
+            goto exit;
         }
 
         if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -1223,7 +1233,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          common_sm->data_size);
         }
     }
-
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -1249,7 +1260,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     PAL_DBG(LOG_TAG, "Enter");
     if (!config) {
         PAL_ERR(LOG_TAG, "Invalid config");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if (rec_config_ != config) {
         // Possible due to subsequent detections.
@@ -1261,7 +1273,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         if (!rec_config_) {
             PAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d",
                 status);
-            return -ENOMEM;
+            status = -ENOMEM;
+            goto exit;
         }
         ar_mem_cpy(rec_config_, sizeof(struct pal_st_recognition_config),
                          config, sizeof(struct pal_st_recognition_config));
@@ -1460,9 +1473,8 @@ error_exit:
             st_conf_levels_v2_ = nullptr;
         }
     }
-
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -1473,7 +1485,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
     PAL_DBG(LOG_TAG, "Enter");
     if (!config) {
         PAL_ERR(LOG_TAG, "Invalid config");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if (rec_config_ != config) {
         // Possible due to subsequent detections.
@@ -1484,7 +1497,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
             sizeof(struct pal_st_recognition_config) + config->data_size);
         if (!rec_config_) {
             PAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d", status);
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
         }
         ar_mem_cpy(rec_config_, sizeof(struct pal_st_recognition_config),
                      config, sizeof(struct pal_st_recognition_config));
@@ -1493,7 +1507,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
                      (uint8_t *)config + config->data_offset,
                      config->data_size);
     }
-
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -1547,6 +1562,8 @@ int32_t StreamSoundTrigger::notifyClient() {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
+
+    PAL_DBG(LOG_TAG, "Enter");
 
     status = GenerateCallbackEvent(&rec_event, &event_size);
     if (status || !rec_event) {
@@ -1673,6 +1690,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
 
         }
     }
+    PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
@@ -1697,6 +1715,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     uint32_t best_conf_level = 0;
     uint32_t detection_timestamp_lsw = 0;
     uint32_t detection_timestamp_msw = 0;
+    int32_t status = 0;
+
 
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
@@ -1707,14 +1727,16 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                             GetDetectionEventInfo();
             if (!detection_event_info_multi_model){
                 PAL_ERR(LOG_TAG, "detection info multi model not available");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
         } else {
             det_ev_info = (struct detection_event_info *)gsl_engine_->
                             GetDetectionEventInfo();
             if (!det_ev_info) {
                 PAL_ERR(LOG_TAG, "detection info not available");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
         }
 
@@ -1734,7 +1756,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                        calloc(1, event_size);
         if (!phrase_event) {
             PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
         }
 
         phrase_event->num_phrases = rec_config_->num_phrases;
@@ -1868,7 +1891,9 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                        calloc(1, event_size);
         if (!generic_event) {
             PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
+
         }
 
         *event = &(generic_event->common);
@@ -1894,9 +1919,9 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
     }
     *evt_size = event_size;
+exit:
     PAL_DBG(LOG_TAG, "Exit");
-
-    return 0;
+    return status;
 }
 
 int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
@@ -1924,7 +1949,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                                  sizeof(struct st_confidence_levels_info));
              if (!st_conf_levels_) {
                  PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                 return -ENOMEM;
+                 status = -ENOMEM;
+                 goto exit;
              }
         }
         /* Cache to use during detection event processing */
@@ -1961,7 +1987,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                 sizeof(struct st_confidence_levels_info_v2));
             if (!st_conf_levels_v2_) {
                 PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                return -ENOMEM;
+                status = -ENOMEM;
+                goto exit;
             }
         }
         /* Cache to use during detection event processing */
@@ -2338,6 +2365,7 @@ exit:
     if (user_id_tracker)
         free(user_id_tracker);
 
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
