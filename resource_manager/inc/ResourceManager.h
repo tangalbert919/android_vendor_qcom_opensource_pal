@@ -334,6 +334,7 @@ protected:
     static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
+    uint64_t in_stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;

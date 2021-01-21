@@ -514,6 +514,7 @@ ResourceManager::ResourceManager()
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
+    memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -5297,8 +5298,13 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             str->setInstanceId(0);
             break;
         default:
-            stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
-            str->setInstanceId(0);
+            if (StrAttr.direction == PAL_AUDIO_INPUT) {
+                in_stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            } else {
+                stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            }
     }
 
     mResourceManagerMutex.unlock();
@@ -5382,7 +5388,20 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             break;
         default:
             status = str->getInstanceId();
-            if (!status) {
+            if (StrAttr.direction == PAL_AUDIO_INPUT && !status) {
+                if (in_stream_instances[StrAttr.type - 1] ==  -1) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                for (i = 0; i < MAX_STREAM_INSTANCES; ++i)
+                    if (!(in_stream_instances[StrAttr.type - 1] & (1 << i))) {
+                        in_stream_instances[StrAttr.type - 1] |= (1 << i);
+                        status = i + 1;
+                        break;
+                    }
+                str->setInstanceId(status);
+            } else if (!status) {
                 if (stream_instances[StrAttr.type - 1] ==  -1) {
                     PAL_ERR(LOG_TAG, "All stream instances taken");
                     status = -EINVAL;

@@ -1077,13 +1077,6 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_DEEP_BUFFER:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_DEEP_BUFFER));
-                instance_id = rm->getStreamInstanceID(s);
-                if (instance_id < INSTANCE_1) {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
-                    goto free_sattr;
-                }
-                keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             } else if (sattr->direction == PAL_AUDIO_INPUT) {
                 keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
             } else {
@@ -1091,6 +1084,13 @@ int PayloadBuilder::populateStreamKV(Stream* s,
                 PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
                 goto free_sattr;
             }
+            instance_id = rm->getStreamInstanceID(s);
+            if (instance_id < INSTANCE_1) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
+                goto free_sattr;
+            }
+            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             break;
         case PAL_STREAM_NON_TUNNEL:
             instance_id = rm->getStreamInstanceID(s);
