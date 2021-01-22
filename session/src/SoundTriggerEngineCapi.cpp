@@ -536,8 +536,8 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     reader_ = nullptr;
     buffer_ = nullptr;
     stream_handle_ = s;
+    confidence_threshold_ = 0;
 
-    PAL_DBG(LOG_TAG, "Enter");
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
         PAL_ERR(LOG_TAG, "No sound trigger platform info present");
@@ -659,8 +659,9 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(sva_threshold_config_t);
         capi_buf.max_data_len = sizeof(sva_threshold_config_t);
         threshold_cfg->smm_threshold = confidence_threshold_;
+
         PAL_DBG(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
-            confidence_threshold_);
+            threshold_cfg->smm_threshold);
 
         status = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             SVA_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
@@ -710,8 +711,8 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
         capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
         threshold_cfg->user_verification_threshold = confidence_threshold_;
-        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %d",
-                    confidence_threshold_);
+        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %f",
+                threshold_cfg->user_verification_threshold);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             VOICEPRINT2_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
