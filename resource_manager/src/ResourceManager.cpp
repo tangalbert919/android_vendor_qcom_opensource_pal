@@ -3496,6 +3496,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_VOIP_RX:
         case PAL_STREAM_VOIP_TX:
         case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PCM_OFFLOAD:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
