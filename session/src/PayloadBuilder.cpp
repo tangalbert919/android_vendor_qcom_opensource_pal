@@ -1171,6 +1171,9 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_VOICE_CALL_MUSIC:
             keyVector.push_back(std::make_pair(STREAMRX,INCALL_MUSIC));
             break;
+        case PAL_STREAM_HAPTICS:
+            keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1315,6 +1318,9 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             break;
         case PAL_DEVICE_OUT_HEARING_AID:
             keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX_VOICE));
+            break;
+        case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+            keyVector.push_back(std::make_pair(DEVICERX, HAPTICS_DEVICE));
             break;
         case PAL_DEVICE_IN_FM_TUNER:
             keyVector.push_back(std::make_pair(DEVICETX, FM_TX));
