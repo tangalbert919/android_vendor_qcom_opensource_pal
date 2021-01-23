@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -729,7 +729,7 @@ int32_t DisplayPort::checkAndUpdateSampleRate(uint32_t *sampleRate)
    ----------------------------------------------------------------------------------*/
 const char * DisplayPort::edidFormatToStr(unsigned char format)
 {
-    std::string formatStr = "??";
+    static std::string formatStr = "??";
 
     switch (format) {
     case LPCM:
