@@ -337,6 +337,9 @@ typedef enum {
     PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
     PAL_STREAM_NON_TUNNEL = 21,           /**< NT Mode session */
     PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
+    PAL_STREAM_ACD = 23,                  /**< ACD Stream */
+    PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
+    PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
 

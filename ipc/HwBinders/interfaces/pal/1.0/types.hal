@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -55,6 +55,10 @@ enum PalStreamType : uint32_t {
     PAL_STREAM_ULTRA_LOW_LATENCY = 19,    /**< pcm ULL audio */
     PAL_STREAM_PROXY = 20,                /**< pcm proxy audio */
     PAL_STREAM_NON_TUNNEL = 21,           /**< NT Mode session */
+    PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
+    PAL_STREAM_ACD = 23,                  /**< ACD Stream */
+    PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
+    PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
 };
 
 struct PalStreamInfo {
