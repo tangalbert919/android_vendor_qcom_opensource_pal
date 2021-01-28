@@ -45,10 +45,10 @@ const std::map<std::string, uint32_t> devicePPKeyLUT {
 };
 
 const std::map<std::string, uint32_t> devicePPValueLUT {
-    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_LPI" }, DEVICEPP_TX_VOICE_UI_RAW_LPI},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_NLPI" }, DEVICEPP_TX_VOICE_UI_RAW_NLPI},
+    {std::string{ "DEVICEPP_TX_FLUENCE_FFNS" }, DEVICEPP_TX_FLUENCE_FFNS},
+    {std::string{ "DEVICEPP_TX_FLUENCE_FFECNS" }, DEVICEPP_TX_FLUENCE_FFECNS},
+    {std::string{ "DEVICEPP_TX_RAW_LPI" }, DEVICEPP_TX_RAW_LPI},
+    {std::string{ "DEVICEPP_TX_RAW_NLPI" }, DEVICEPP_TX_RAW_NLPI},
 };
 
 static const struct st_uuid qcva_uuid =
@@ -125,7 +125,7 @@ CaptureProfile::CaptureProfile(const std::string name) :
     channels_(1),
     bitwidth_(16),
     device_pp_kv_(std::make_pair(DEVICEPP_TX,
-        DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)),
+        DEVICEPP_TX_FLUENCE_FFNS)),
     snd_name_("va-mic")
 {
 
