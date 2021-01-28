@@ -1,5 +1,5 @@
 ifneq ($(AUDIO_USE_STUB_HAL), true)
-ifeq ($(call is-board-platform-in-list, sdm845 msmnile kona lahaina taro),true)
+ifeq ($(call is-board-platform-in-list, sdm845 msmnile kona lahaina taro bengal),true)
 
 ifneq ($(BUILD_TINY_ANDROID),true)
 
