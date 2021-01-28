@@ -381,6 +381,7 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM)
 };
 
@@ -4910,6 +4911,7 @@ setdevparam:
         }
         break;
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
         {
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;

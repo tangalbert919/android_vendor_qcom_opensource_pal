@@ -1461,6 +1461,26 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             }
             return 0;
         }
+        case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
+        {
+            pal_bt_lc3_payload *lc3_payload = (pal_bt_lc3_payload *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadLC3Config(&alsaParamData, &alsaPayloadSize,
+                 miid, lc3_payload->isLC3MonoModeOn);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set lc3 config status=%d\n", status);
+                free(alsaParamData);
+            }
+            return 0;
+        }
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
             updateCodecOptions((pal_param_payload *) payload);

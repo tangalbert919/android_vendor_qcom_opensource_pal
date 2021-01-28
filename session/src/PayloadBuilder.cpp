@@ -32,9 +32,9 @@
 #include "PayloadBuilder.h"
 #include "SessionGsl.h"
 #include "StreamSoundTrigger.h"
-#include "plugins/codecs/bt_intf.h"
 #include "spr_api.h"
 #include <bt_intf.h>
+#include <bt_ble.h>
 #include "sp_vi.h"
 #include "sp_rx.h"
 
@@ -609,6 +609,46 @@ void PayloadBuilder::payloadTWSConfig(uint8_t** payload, size_t* size,
     *payload = payloadInfo;
 }
 
+void PayloadBuilder::payloadLC3Config(uint8_t** payload, size_t* size,
+        uint32_t miid, bool isLC3MonoModeOn)
+{
+    struct apm_module_param_data_t* header = NULL;
+    uint8_t* payloadInfo = NULL;
+    uint32_t param_id = 0, val = 2;
+    size_t payloadSize = 0, customPayloadSize = 0;
+    param_id_lc3_encoder_switch_enc_pcm_input_payload_t *lc3_payload;
+
+    param_id = PARAM_ID_LC3_ENC_DOWNMIX_2_MONO;
+    customPayloadSize = sizeof(param_id_lc3_encoder_switch_enc_pcm_input_payload_t);
+
+    payloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                        + customPayloadSize);
+    payloadInfo = (uint8_t *)calloc(1, (size_t)payloadSize);
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return;
+    }
+
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = miid;
+    header->param_id = param_id;
+    header->error_code = 0x0;
+    header->param_size = customPayloadSize;
+    val = (isLC3MonoModeOn == true) ? 1 : 2;
+
+    lc3_payload =
+        (param_id_lc3_encoder_switch_enc_pcm_input_payload_t *)(payloadInfo +
+         sizeof(struct apm_module_param_data_t));
+    lc3_payload->transition_direction = val;
+    ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                     customPayloadSize,
+                     lc3_payload,
+                     customPayloadSize);
+
+    *size = payloadSize;
+    *payload = payloadInfo;
+}
+
 void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
         uint32_t miid, struct pal_media_config *data)
 {
@@ -808,6 +848,63 @@ void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
                       copPack->sampling_rate, copPack->bits_per_sample, copPack->num_channels);
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
+}
+
+void PayloadBuilder::payloadCopV2PackConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, void *codecInfo)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_cop_v2_stream_info_t *streamInfo = NULL;
+    uint8_t* payloadInfo = NULL;
+    audio_lc3_codec_cfg_t *bleCfg = NULL;
+    struct cop_v2_stream_info_map_t* streamMap = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    uint64_t channel_mask = 0;
+    int i = 0;
+
+    bleCfg = (audio_lc3_codec_cfg_t *)codecInfo;
+    if (!bleCfg) {
+        PAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                  sizeof(struct cop_v2_stream_info_map_t) * bleCfg->enc_cfg.stream_map_size;
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo alloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    streamInfo = (struct param_id_cop_v2_stream_info_t*)(payloadInfo +
+                  sizeof(struct apm_module_param_data_t));
+    streamMap = (struct cop_v2_stream_info_map_t*)(payloadInfo +
+                 sizeof(struct apm_module_param_data_t) +
+                 sizeof(struct param_id_cop_v2_stream_info_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_COP_V2_STREAM_INFO;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    PAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    streamInfo->num_streams = bleCfg->enc_cfg.stream_map_size;;
+    for (i = 0; i < streamInfo->num_streams; i++) {
+        channel_mask = convert_channel_map(bleCfg->enc_cfg.streamMapOut[i].audio_location);
+        streamMap[i].stream_id = bleCfg->enc_cfg.streamMapOut[i].stream_id;
+        streamMap[i].direction = bleCfg->enc_cfg.streamMapOut[i].direction;
+        streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
+        streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
+    }
+
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo, *size);
 }
 
 /** Used for Loopback stream types only */
