@@ -536,8 +536,8 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     reader_ = nullptr;
     buffer_ = nullptr;
     stream_handle_ = s;
+    confidence_threshold_ = 0;
 
-    PAL_DBG(LOG_TAG, "Enter");
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
         PAL_ERR(LOG_TAG, "No sound trigger platform info present");
@@ -609,11 +609,13 @@ SoundTriggerEngineCapi::~SoundTriggerEngineCapi()
      */
     if (buffer_thread_handler_.joinable()) {
         processing_started_ = false;
-        std::lock_guard<std::mutex> lck(event_mutex_);
+        std::unique_lock<std::mutex> lck(event_mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;
         cv_.notify_one();
+        lck.unlock();
         buffer_thread_handler_.join();
+        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
     if (buffer_) {
@@ -644,15 +646,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
     capi_v2_buf_t capi_buf;
 
     PAL_DBG(LOG_TAG, "Enter");
-    buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
-
-    if (!buffer_thread_handler_.joinable()) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
-        return status;
-    }
-
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {
         sva_threshold_config_t *threshold_cfg = nullptr;
         threshold_cfg = (sva_threshold_config_t*)
@@ -666,8 +659,9 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(sva_threshold_config_t);
         capi_buf.max_data_len = sizeof(sva_threshold_config_t);
         threshold_cfg->smm_threshold = confidence_threshold_;
+
         PAL_DBG(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
-            confidence_threshold_);
+            threshold_cfg->smm_threshold);
 
         status = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             SVA_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
@@ -717,8 +711,8 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
         capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
         threshold_cfg->user_verification_threshold = confidence_threshold_;
-        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %d",
-                    confidence_threshold_);
+        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %f",
+                threshold_cfg->user_verification_threshold);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             VOICEPRINT2_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
@@ -731,6 +725,15 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
                 free(threshold_cfg);
             return status;
         }
+    }
+
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
+        return status;
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -819,6 +822,7 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
+    std::lock_guard<std::mutex> lck(mutex_);
     status = capi_handle_->vtbl_ptr->end(capi_handle_);
     if (status != CAPI_V2_EOK) {
         PAL_ERR(LOG_TAG, "Capi end function failed, status = %d",

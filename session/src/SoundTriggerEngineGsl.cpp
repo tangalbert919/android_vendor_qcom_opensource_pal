@@ -1639,6 +1639,8 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
         sm_data_ = (uint8_t *)pdk_data;
         data_size += (sizeof(param_id_detection_engine_register_multi_sound_model_t));
         sm_data_size_ = data_size;
+        PAL_DBG(LOG_TAG, "model id : %u, model size : %u", pdk_data->model_id,
+                pdk_data->model_size);
     }
     std::unique_lock<std::mutex> lck(mutex_);
 
