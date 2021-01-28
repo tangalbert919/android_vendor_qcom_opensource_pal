@@ -807,9 +807,10 @@ int ResourceManager::init_audio()
 
                 /* TODO: Needs to extend for new targets */
                 if (strstr(snd_card_name, "kona") ||
-                    strstr(snd_card_name, "sm8150")||
+                    strstr(snd_card_name, "sm8150") ||
                     strstr(snd_card_name, "lahaina") ||
-                    strstr(snd_card_name, "waipio")) {
+                    strstr(snd_card_name, "waipio") ||
+                    strstr(snd_card_name, "bengal")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_mixer = tmp_mixer;
@@ -849,6 +850,11 @@ int ResourceManager::init_audio()
             strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
 
+            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    } else if (!strncmp(cur_snd_card_split.form_factor, "scubaidp", sizeof("scubaidp"))) {
+            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
     }
