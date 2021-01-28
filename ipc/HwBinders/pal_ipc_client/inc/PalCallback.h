@@ -43,6 +43,7 @@ using PalStreamFlag = ::vendor::qti::hardware::pal::V1_0::PalStreamFlag;
 using PalStreamDirection = ::vendor::qti::hardware::pal::V1_0::PalStreamDirection;
 using PalAudioFmt = ::vendor::qti::hardware::pal::V1_0::PalAudioFmt;
 using PalDeviceId = ::vendor::qti::hardware::pal::V1_0::PalDeviceId;
+using PalDrainType = ::vendor::qti::hardware::pal::V1_0::PalDrainType;
 using PalBuffer = ::vendor::qti::hardware::pal::V1_0::PalBuffer;
 using PalBufferConfig = ::vendor::qti::hardware::pal::V1_0::PalBufferConfig;
 using PalStreamHandle = ::vendor::qti::hardware::pal::V1_0::PalStreamHandle;

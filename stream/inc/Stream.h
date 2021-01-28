@@ -235,6 +235,7 @@ public:
    int32_t mute(bool state __unused) {return 0;};
    int32_t pause() override;
    int32_t resume() override;
+   int32_t drain(pal_drain_type_t type) override;
    int32_t flush();
    int32_t getTagsWithModuleInfo(size_t *size , uint8_t *payload) override;
    int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,

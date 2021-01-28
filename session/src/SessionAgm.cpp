@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -34,7 +34,6 @@
 #include "Stream.h"
 #include "ResourceManager.h"
 #include "media_fmt_api.h"
-#include <agm_api.h>
 #include <sstream>
 #include <mutex>
 #include <fstream>
@@ -49,7 +48,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
     uint32_t event_id = 0;
     void *event_data = NULL;
     uint32_t event_size = 0;
-    struct pal_event_read_write_done_payload *rw_done_payload;
+    struct pal_event_read_write_done_payload *rw_done_payload = NULL;
     struct agm_event_read_write_done_payload *agm_rw_done_payload;
 
     if (!client_data) {
@@ -64,6 +63,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         goto done;
     }
 
+    PAL_ERR(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
     sessAgm->streamHandle->getStreamAttributes(&sAttr);
 
     if (event_params->event_id == AGM_EVENT_READ_DONE ||
@@ -103,9 +103,15 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
 
         event_data = (void *)rw_done_payload;
         event_size = sizeof(struct pal_event_read_write_done_payload);
-    } else {
-        PAL_ERR(LOG_TAG, "invalid event id %d", event_params->event_id);
-        return;
+    } else if (event_params->event_id == AGM_EVENT_EOS_RENDERED ||
+               event_params->event_id == AGM_EVENT_EARLY_EOS) {
+
+        if (event_params->event_id == AGM_EVENT_EOS_RENDERED)
+            event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
+        else
+            event_id = PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY;
+
+        event_data = NULL;
     }
 
     if (sessAgm->sessionCb) {
@@ -114,7 +120,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
        PAL_INFO(LOG_TAG, "no session cb registerd");
     }
 
-    if (rw_done_payload->buff.ts)
+    if (rw_done_payload && rw_done_payload->buff.ts)
         free(rw_done_payload->buff.ts);
 
     if (rw_done_payload)
@@ -289,7 +295,59 @@ int SessionAgm::open(Stream * strm)
         goto closeSession;
     }
 
+    sess_config = (struct agm_session_config *)calloc(1, sizeof(struct agm_session_config));
+    if (!sess_config) {
+        status = -ENOMEM;
+        goto closeSession;
+    }
+
+    in_media_cfg = (struct agm_media_config *)calloc(1, sizeof(struct agm_media_config));
+    if (!in_media_cfg) {
+        status = -ENOMEM;
+        goto freeSessCfg;
+    }
+
+    out_media_cfg = (struct agm_media_config *)calloc(1, sizeof(struct agm_media_config));
+    if (!out_media_cfg) {
+        status = -ENOMEM;
+        goto freeInMediaCfg;
+    }
+
+    sess_config->dir = (enum direction)sAttr.direction;
+    sess_config->sess_mode = AGM_SESSION_NON_TUNNEL;
+    if (sAttr.flags & PAL_STREAM_FLAG_EXTERN_MEM)
+        sess_config->data_mode = AGM_DATA_EXTERN_MEM;
+    if (sAttr.flags & PAL_STREAM_FLAG_SRCM_INBAND)
+        sess_config->sess_flags = AGM_SESSION_FLAG_INBAND_SRCM;
+
+    //read path media config
+    in_media_cfg->rate = sAttr.in_media_config.sample_rate;
+    in_media_cfg->channels = sAttr.in_media_config.ch_info.channels;
+    in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id,
+                                        sAttr.in_media_config.bit_width);
+
+    //write path media config
+    out_media_cfg->rate = sAttr.out_media_config.sample_rate;
+    out_media_cfg->channels = sAttr.out_media_config.ch_info.channels;
+    out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id,
+                                        sAttr.in_media_config.bit_width);
+
+    status = agm_session_set_non_tunnel_mode_config(agmSessHandle, sess_config,
+                                                    in_media_cfg, out_media_cfg,
+                                                    &in_buff_cfg, &out_buff_cfg);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "agm_session_set_non_tunnel_mode_config failed ret:%d", status);
+        goto freeOutMediaCfg;
+    }
+
     goto exit;
+
+freeOutMediaCfg:
+    free(out_media_cfg);
+freeInMediaCfg:
+    free(in_media_cfg);
+freeSessCfg:
+    free(sess_config);
 
 closeSession:
     agm_session_close(agmSessHandle);
@@ -322,53 +380,15 @@ int SessionAgm::close(Stream * s)
 int SessionAgm::prepare(Stream * s)
 {
    int32_t status = 0;
-   struct pal_stream_attributes sAttr;
    size_t in_max_metadata_sz,out_max_metadata_sz = 0;
-   struct agm_session_config *sess_config;
-   struct agm_media_config *in_media_cfg, *out_media_cfg;
-    struct agm_buffer_config in_buff_cfg {0,0,0}, out_buff_cfg = in_buff_cfg;
-
-   sess_config = (struct agm_session_config *)calloc(1, sizeof(struct agm_session_config));
-   if (!sess_config) {
-       status = -ENOMEM;
-       goto exit;
-   }
-
-   in_media_cfg = (struct agm_media_config *)calloc(1, sizeof(struct agm_media_config));
-   if (!in_media_cfg) {
-       status = -ENOMEM;
-       goto freeSessCfg;
-   }
-
-   out_media_cfg = (struct agm_media_config *)calloc(1, sizeof(struct agm_media_config));
-   if (!out_media_cfg) {
-       status = -ENOMEM;
-       goto freeInMediaCfg;
-   }
 
    s->getMaxMetadataSz(&in_max_metadata_sz, &out_max_metadata_sz);
-   s->getStreamAttributes(&sAttr);
-   sess_config->dir = (enum direction)sAttr.direction;
-   sess_config->sess_mode = AGM_SESSION_NON_TUNNEL;
-   if (sAttr.flags & PAL_STREAM_FLAG_EXTERN_MEM)
-       sess_config->data_mode = AGM_DATA_EXTERN_MEM;
-   if (sAttr.flags & PAL_STREAM_FLAG_SRCM_INBAND)
-       sess_config->sess_flags = AGM_SESSION_FLAG_INBAND_SRCM;
 
-   //read path media config and buffer config
-   in_media_cfg->rate = sAttr.in_media_config.sample_rate;
-   in_media_cfg->channels = sAttr.in_media_config.ch_info.channels;
-   in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id,
-                                       sAttr.in_media_config.bit_width);
-
+   /*
+    *buffer config is all 0, except for max_metadata_sz in case of EXTERN_MEM mode
+    *TODO: Do we need to support heap based NT mode session ?
+    */
    in_buff_cfg.max_metadata_size = in_max_metadata_sz;
-
-   //write path media config and buffer config
-   out_media_cfg->rate = sAttr.out_media_config.sample_rate;
-   out_media_cfg->channels = sAttr.out_media_config.ch_info.channels;
-   out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id,
-                                        sAttr.in_media_config.bit_width);
-
    out_buff_cfg.max_metadata_size = out_max_metadata_sz;
 
    status = agm_session_set_non_tunnel_mode_config(agmSessHandle, sess_config,
@@ -376,7 +396,7 @@ int SessionAgm::prepare(Stream * s)
                                                    &in_buff_cfg, &out_buff_cfg);
    if (status != 0) {
        PAL_ERR(LOG_TAG, "agm_session_set_non_tunnel_mode_config failed ret:%d", status);
-       goto freeOutMediaCfg;
+       goto exit;
    }
 
    status = agm_session_prepare(agmSessHandle);
@@ -384,12 +404,6 @@ int SessionAgm::prepare(Stream * s)
        PAL_ERR(LOG_TAG, "agm_session_prepare ret:%d", status);
    }
 
-freeOutMediaCfg:
-   free(out_media_cfg);
-freeInMediaCfg:
-   free(in_media_cfg);
-freeSessCfg:
-   free(sess_config);
 exit:
    return status;
 }
@@ -566,6 +580,8 @@ int SessionAgm::flush()
 
 int SessionAgm::drain(pal_drain_type_t type)
 {
+    int status = 0;
+
     if (!agmSessHandle) {
        PAL_ERR(LOG_TAG, "agmSessHandle is invalid");
        return -EINVAL;
@@ -574,22 +590,16 @@ int SessionAgm::drain(pal_drain_type_t type)
     PAL_VERBOSE(LOG_TAG, "drain type = %d", type);
 
     switch (type) {
-    case PAL_DRAIN:
-    {
-    }
-    break;
-
-    case PAL_DRAIN_PARTIAL:
-    {
-    }
-    break;
-
-    default:
-        PAL_ERR(LOG_TAG, "invalid drain type = %d", type);
-        return -EINVAL;
+        case PAL_DRAIN:
+        case PAL_DRAIN_PARTIAL:
+            status = agm_session_eos(agmSessHandle);
+        break;
+        default:
+             PAL_ERR(LOG_TAG, "invalid drain type = %d", type);
+             return -EINVAL;
     }
 
-    return 0;
+    return status;
 }
 
 int SessionAgm::getTagsWithModuleInfo(Stream *s __unused, size_t *size, uint8_t *payload)
