@@ -176,6 +176,7 @@ struct vsid_modepair {
 struct vsid_info {
      int vsid;
      std::vector<vsid_modepair> modepair;
+     int loopback_delay;
 };
 
 struct tx_ecinfo {
