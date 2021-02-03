@@ -107,6 +107,10 @@
 #define MAX_SESSIONS_NON_TUNNEL 4
 #define MAX_SESSIONS_HAPTICS 1
 
+#define WAKE_LOCK_NAME "audio_pal_wl"
+#define WAKE_LOCK_PATH "/sys/power/wake_lock"
+#define WAKE_UNLOCK_PATH "/sys/power/wake_unlock"
+
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 
@@ -344,6 +348,9 @@ bool ResourceManager::mixerClosed = false;
 int ResourceManager::mixerEventRegisterCount = 0;
 int ResourceManager::concurrencyEnableCount = 0;
 int ResourceManager::concurrencyDisableCount = 0;
+int ResourceManager::wake_lock_fd = -1;
+int ResourceManager::wake_unlock_fd = -1;
+uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
@@ -584,7 +591,7 @@ ResourceManager::ResourceManager()
     }
 
     ResourceManager::loadAdmLib();
-
+    ResourceManager::initWakeLocks();
 }
 
 ResourceManager::~ResourceManager()
@@ -624,6 +631,7 @@ ResourceManager::~ResourceManager()
         dlclose(admLibHdl);
     }
 
+    ResourceManager::deInitWakeLocks();
 }
 
 void ResourceManager::loadAdmLib()
@@ -662,6 +670,86 @@ void ResourceManager::loadAdmLib()
                 admData = admInitFn();
         }
     }
+}
+
+int ResourceManager::initWakeLocks(void) {
+
+    wake_lock_fd = ::open(WAKE_LOCK_PATH, O_WRONLY|O_APPEND);
+    if (wake_lock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
+            WAKE_LOCK_PATH, strerror(errno));
+        if (errno == ENOENT) {
+            PAL_INFO(LOG_TAG, "No wake lock support");
+            return -ENOENT;
+        }
+        return -EINVAL;
+    }
+    wake_unlock_fd = ::open(WAKE_UNLOCK_PATH, O_WRONLY|O_APPEND);
+    if (wake_unlock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
+            WAKE_UNLOCK_PATH, strerror(errno));
+        ::close(wake_lock_fd);
+        wake_lock_fd = -1;
+        return -EINVAL;
+    }
+    return 0;
+}
+
+void ResourceManager::deInitWakeLocks(void) {
+    if (wake_lock_fd >= 0) {
+        ::close(wake_lock_fd);
+        wake_lock_fd = -1;
+    }
+    if (wake_unlock_fd >= 0) {
+        ::close(wake_unlock_fd);
+        wake_unlock_fd = -1;
+    }
+}
+
+void ResourceManager::acquireWakeLock() {
+    int ret = 0;
+
+    mResourceManagerMutex.lock();
+    if (wake_lock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Invalid fd %d", wake_lock_fd);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
+    if (++wake_lock_cnt == 1) {
+        PAL_INFO(LOG_TAG, "Acquiring wake lock %s", WAKE_LOCK_NAME);
+        ret = ::write(wake_lock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+        if (ret < 0)
+            PAL_ERR(LOG_TAG, "Failed to acquire wakelock %d %s",
+                ret, strerror(errno));
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+}
+
+void ResourceManager::releaseWakeLock() {
+    int ret = 0;
+
+    mResourceManagerMutex.lock();
+    if (wake_unlock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Invalid fd %d", wake_unlock_fd);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
+    if (--wake_lock_cnt == 0) {
+        PAL_INFO(LOG_TAG, "Releasing wake lock %s", WAKE_LOCK_NAME);
+        ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+        if (ret < 0)
+            PAL_ERR(LOG_TAG, "Failed to release wakelock %d %s",
+                ret, strerror(errno));
+    }
+
+    if (wake_lock_cnt < 0)
+        wake_lock_cnt = 0;
+exit:
+     mResourceManagerMutex.unlock();
 }
 
 void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
