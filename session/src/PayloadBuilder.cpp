@@ -1261,6 +1261,8 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_HAPTICS:
             keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
             break;
+        case PAL_STREAM_CONTEXT_PROXY:
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);

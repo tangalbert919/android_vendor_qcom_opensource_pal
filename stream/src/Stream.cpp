@@ -34,6 +34,7 @@
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
 #include "StreamACD.h"
+#include "StreamContextProxy.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -67,7 +68,7 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     }
     PAL_VERBOSE(LOG_TAG,"get RM instance success and noOfDevices %d \n", noOfDevices);
 
-    if (sAttr->type == PAL_STREAM_NON_TUNNEL)
+    if (sAttr->type == PAL_STREAM_NON_TUNNEL || sAttr->type == PAL_STREAM_CONTEXT_PROXY)
         goto stream_create;
 
     mPalDevice = new pal_device [noOfDevices];
@@ -148,6 +149,10 @@ stream_create:
                 break;
             case PAL_STREAM_ACD:
                 stream = new StreamACD(sAttr, mPalDevice, count, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_CONTEXT_PROXY:
+                stream = new StreamContextProxy(sAttr, NULL, 0, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:

@@ -57,6 +57,8 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamNonTunnel.cpp\
     stream/src/StreamSoundTrigger.cpp\
     stream/src/StreamACD.cpp\
+    stream/src/StreamCommon.cpp\
+    stream/src/StreamContextProxy.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \

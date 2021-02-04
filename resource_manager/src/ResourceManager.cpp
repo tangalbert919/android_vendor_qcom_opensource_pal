@@ -37,6 +37,7 @@
 #include "StreamSoundTrigger.h"
 #include "StreamACD.h"
 #include "StreamInCall.h"
+#include "StreamContextProxy.h"
 #include "gsl_intf.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
@@ -336,6 +337,7 @@ std::vector <int> ResourceManager::listAllPcmVoice2TxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmInCallRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmInCallMusicFrontEnds = {0};
 std::vector <int> ResourceManager::listAllNonTunnelSessionIds = {0};
+std::vector <int> ResourceManager::listAllPcmContextProxyFrontEnds = {0};
 struct audio_mixer* ResourceManager::audio_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
@@ -530,6 +532,7 @@ ResourceManager::ResourceManager()
     listAllPcmVoice2TxFrontEnds.clear();
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
+    listAllPcmContextProxyFrontEnds.clear();
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
     memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
@@ -552,6 +555,8 @@ ResourceManager::ResourceManager()
                 listAllPcmInCallRecordFrontEnds.push_back(devInfo[i].deviceId);
             } else if (devInfo[i].sess_mode == NON_TUNNEL && devInfo[i].playback == 1) {
                 listAllPcmInCallMusicFrontEnds.push_back(devInfo[i].deviceId);
+            } else if (devInfo[i].sess_mode == NO_CONFIG && devInfo[i].record == 1) {
+                listAllPcmContextProxyFrontEnds.push_back(devInfo[i].deviceId);
             }
         } else if (devInfo[i].type == COMPRESS) {
             if (devInfo[i].playback == 1) {
@@ -1554,6 +1559,9 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_HAPTICS:
             cur_sessions = active_streams_haptics.size();
             max_sessions = MAX_SESSIONS_HAPTICS;
+            break;
+        case PAL_STREAM_CONTEXT_PROXY:
+            return true;
             break;
         default:
             PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
@@ -3677,6 +3685,22 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                 id -= 1;
             }
             break;
+       case PAL_STREAM_CONTEXT_PROXY:
+            if ( howMany > listAllPcmContextProxyFrontEnds.size()) {
+                    PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                                      howMany, listAllPcmContextProxyFrontEnds.size());
+                    goto error;
+                }
+            id = (listAllPcmContextProxyFrontEnds.size() - 1);
+            it =  (listAllPcmContextProxyFrontEnds.begin() + id);
+            for (int i = 0; i < howMany; i++) {
+                f.push_back(listAllPcmContextProxyFrontEnds.at(id));
+                listAllPcmContextProxyFrontEnds.erase(it);
+                PAL_ERR(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                it -= 1;
+                id -= 1;
+            }
+            break;
         default:
             break;
     }
@@ -3826,6 +3850,11 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                 break;
             }
             break;
+       case PAL_STREAM_CONTEXT_PROXY:
+                for (int i = 0; i < frontend.size(); i++) {
+                    listAllPcmContextProxyFrontEnds.push_back(frontend.at(i));
+                }
+                break;
         default:
             break;
     }

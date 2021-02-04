@@ -111,6 +111,8 @@ public:
     void requestAdmFocus(Stream *s, long ns);
     void releaseAdmFocus(Stream *s);
     void setEventPayload(uint32_t event_id, void *payload, size_t payload_size);
+    int register_asps_event(uint32_t reg);
+
 };
 
 #endif //SESSION_ALSAPCM_H

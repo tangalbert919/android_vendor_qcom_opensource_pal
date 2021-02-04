@@ -136,6 +136,7 @@ typedef enum {
     DEFAULT = 0,
     HOSTLESS,
     NON_TUNNEL,
+    NO_CONFIG,
 } sess_mode_t;
 
 struct deviceCap {
@@ -347,6 +348,7 @@ protected:
     static std::vector<int> listAllPcmVoice2TxFrontEnds;
     static std::vector<int> listAllPcmInCallRecordFrontEnds;
     static std::vector<int> listAllPcmInCallMusicFrontEnds;
+    static std::vector<int> listAllPcmContextProxyFrontEnds;
     static std::vector<std::pair<int32_t, std::string>> listAllBackEndIds;
     static std::vector<std::pair<int32_t, std::string>> sndDeviceNameLUT;
     static std::vector<deviceCap> devInfo;

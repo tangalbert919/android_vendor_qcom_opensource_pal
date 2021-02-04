@@ -105,6 +105,7 @@ public:
                                  void *payload, int size);
     static int setStreamMetadataType(struct mixer *mixer, int device, const char *val);
     static int registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, void *payload, int payload_size);
+    static int registerMixerEvent(struct mixer *mixer, int device, void *payload, int payload_size);
     static int setECRefPath(struct mixer *mixer, int device, const char *intf_name);
 
     static int getTimestamp(struct mixer *mixer, const std::vector<int> &DevIds, uint32_t spr_miid, struct pal_session_time *stime);

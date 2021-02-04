@@ -322,7 +322,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_HAPTICS && (sAttr.type != PAL_STREAM_ACD)) {
+    if (sAttr.type != PAL_STREAM_HAPTICS && sAttr.type != PAL_STREAM_ACD &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
         status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
                 (struct pal_volume_data **)nullptr);
         if (status) {
@@ -880,16 +881,10 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
 
 int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const char *intf_name, int tag_id, void *payload, int payload_size)
 {
-    char *pcmDeviceName = NULL;
-    char const *control = "event";
-    char *mixer_str;
     struct agm_event_reg_cfg *event_cfg;
-    struct mixer_ctl *ctl;
-    int ctl_len = 0,status = 0;
+    int status = 0;
     uint32_t miid;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
-
-    pcmDeviceName = rm->getDeviceNameFromID(device);
 
     // get module instance id
     status = SessionAlsaUtils::getModuleInstanceId(mixer, device, intf_name, tag_id, &miid);
@@ -898,6 +893,23 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
         return EINVAL;
     }
 
+    event_cfg = (struct agm_event_reg_cfg *)payload;
+    event_cfg->module_instance_id = miid;
+
+    status = registerMixerEvent(mixer, device, (void *)payload, payload_size);
+    return status;
+}
+
+int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, void *payload, int payload_size)
+{
+    char *pcmDeviceName = NULL;
+    char const *control = "event";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,status = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    pcmDeviceName = rm->getDeviceNameFromID(device);
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
@@ -912,9 +924,6 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, const 
         free(mixer_str);
         return ENOENT;
     }
-
-    event_cfg = (struct agm_event_reg_cfg *)payload;
-    event_cfg->module_instance_id = miid;
 
     status = mixer_ctl_set_array(ctl, (struct agm_event_reg_cfg *)payload,
                         payload_size);
