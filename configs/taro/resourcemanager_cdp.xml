@@ -29,6 +29,7 @@
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
         <param key="max_sessions" value="128"/>
+        <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
@@ -41,6 +42,7 @@
         <codec codec_format="CODEC_TYPE_APTX_AD" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_LC3" codec_type="enc|dec" codec_library="lib_bt_ble.so" />
     </bt_codecs>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
@@ -304,6 +306,18 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_FM_TUNER</id>
+            <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>play-fm</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_LOOPBACK</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
