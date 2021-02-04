@@ -57,20 +57,6 @@ enum StInputModes {
     ST_INPUT_MODE_HEADSET
 };
 
-class SoundTriggerUUID {
- public:
-    SoundTriggerUUID();
-    SoundTriggerUUID & operator=(SoundTriggerUUID &rhs);
-    bool operator<(const SoundTriggerUUID &rhs) const;
-    bool CompareUUID(const struct st_uuid uuid) const;
-
-    uint32_t timeLow;
-    uint16_t timeMid;
-    uint16_t timeHiAndVersion;
-    uint16_t clockSeq;
-    uint8_t  node[6];
-
-};
 using UUID = SoundTriggerUUID;
 
 class SoundTriggerXml {
@@ -274,8 +260,6 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
         override;
     void HandleEndTag(const char *tag) override;
     void HandleCharData(const char *data) override;
-
-    static int StringToUUID(const char* str, SoundTriggerUUID& UUID);
 
  private:
     SoundTriggerPlatformInfo();

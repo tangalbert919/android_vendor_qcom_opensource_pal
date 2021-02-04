@@ -30,6 +30,7 @@
 #ifndef SOUND_TRIGGER_UTILS_H
 #define SOUND_TRIGGER_UTILS_H
 
+#include "PalDefs.h"
 #include "ListenSoundModelLib.h"
 
 #define SML_LIB "liblistensoundmodel2vendor.so"
@@ -417,6 +418,21 @@ typedef listen_status_enum (*smlib_deleteFromModel_t)
     userId_t          userId,
     listen_model_type *pResultModel
 );
+
+class SoundTriggerUUID {
+ public:
+    SoundTriggerUUID();
+    SoundTriggerUUID & operator=(SoundTriggerUUID &rhs);
+    bool operator<(const SoundTriggerUUID &rhs) const;
+    bool CompareUUID(const struct st_uuid uuid) const;
+    static int StringToUUID(const char* str, SoundTriggerUUID& UUID);
+    uint32_t timeLow;
+    uint16_t timeMid;
+    uint16_t timeHiAndVersion;
+    uint16_t clockSeq;
+    uint8_t  node[6];
+
+};
 
 class SoundModelLib {
  public:

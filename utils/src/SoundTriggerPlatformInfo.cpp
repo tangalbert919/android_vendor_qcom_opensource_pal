@@ -57,67 +57,6 @@ static const struct st_uuid qcva_uuid =
 static const struct st_uuid qcmd_uuid =
     { 0x876c1b46, 0x9d4d, 0x40cc, 0xa4fd, { 0x4d, 0x5e, 0xc7, 0xa8, 0x0e, 0x47 } };
 
-SoundTriggerUUID::SoundTriggerUUID() :
-    timeLow(0),
-    timeMid(0),
-    timeHiAndVersion(0),
-    clockSeq(0) {
-}
-
-bool SoundTriggerUUID::operator<(const SoundTriggerUUID& rhs) const {
-    if (timeLow > rhs.timeLow)
-        return false;
-    else if (timeLow < rhs.timeLow)
-        return true;
-    /* timeLow is equal */
-
-    if (timeMid > rhs.timeMid)
-        return false;
-    else if (timeMid < rhs.timeMid)
-        return true;
-    /* timeLow and timeMid are equal */
-
-    if (timeHiAndVersion > rhs.timeHiAndVersion)
-        return false;
-    else if (timeHiAndVersion < rhs.timeHiAndVersion)
-        return true;
-    /* timeLow, timeMid and timeHiAndVersion are equal */
-
-    if (clockSeq > rhs.clockSeq)
-        return false;
-    else if (clockSeq < rhs.clockSeq)
-        return true;
-    /* everything is equal */
-
-    return false;
-}
-
-SoundTriggerUUID& SoundTriggerUUID::operator = (SoundTriggerUUID& rhs) {
-    this->clockSeq = rhs.clockSeq;
-    this->timeLow = rhs.timeLow;
-    this->timeMid = rhs.timeMid;
-    this->timeHiAndVersion = rhs.timeHiAndVersion;
-    memcpy(node, rhs.node, sizeof(node));
-
-    return *this;
-}
-
-bool SoundTriggerUUID::CompareUUID(const struct st_uuid uuid) const {
-    if (uuid.timeLow != timeLow ||
-        uuid.timeMid != timeMid ||
-        uuid.timeHiAndVersion != timeHiAndVersion ||
-        uuid.clockSeq != clockSeq)
-        return false;
-
-    for (int i = 0; i < 6; i++) {
-        if (uuid.node[i] != node[i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 CaptureProfile::CaptureProfile(const std::string name) :
     name_(name),
     device_id_(PAL_DEVICE_IN_MIN),
@@ -433,7 +372,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
         uint32_t i = 0;
         while (attribs[i]) {
             if (!strcmp(attribs[i], "vendor_uuid")) {
-                SoundTriggerPlatformInfo::StringToUUID(attribs[++i],
+                SoundTriggerUUID::StringToUUID(attribs[++i],
                     vendor_uuid_);
                 if (vendor_uuid_.CompareUUID(qcva_uuid)) {
                     is_qcva_uuid_ = true;
@@ -692,31 +631,4 @@ void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
 }
 
 void SoundTriggerPlatformInfo::HandleCharData(const char* data __unused) {
-}
-
-int SoundTriggerPlatformInfo::StringToUUID(const char* str,
-                                           SoundTriggerUUID& UUID) {
-    int tmp[10];
-
-    if (str == NULL) {
-        return -EINVAL;
-    }
-
-    if (sscanf(str, "%08x-%04x-%04x-%04x-%02x%02x%02x%02x%02x%02x",
-               tmp, tmp + 1, tmp + 2, tmp + 3, tmp + 4, tmp + 5, tmp + 6,
-               tmp + 7, tmp + 8, tmp + 9) < 10) {
-        return -EINVAL;
-    }
-    UUID.timeLow = (uint32_t)tmp[0];
-    UUID.timeMid = (uint16_t)tmp[1];
-    UUID.timeHiAndVersion = (uint16_t)tmp[2];
-    UUID.clockSeq = (uint16_t)tmp[3];
-    UUID.node[0] = (uint8_t)tmp[4];
-    UUID.node[1] = (uint8_t)tmp[5];
-    UUID.node[2] = (uint8_t)tmp[6];
-    UUID.node[3] = (uint8_t)tmp[7];
-    UUID.node[4] = (uint8_t)tmp[8];
-    UUID.node[5] = (uint8_t)tmp[9];
-
-    return 0;
 }
