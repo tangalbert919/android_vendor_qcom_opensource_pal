@@ -1378,7 +1378,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             status = -EINVAL;
             goto freeTxMetaData;
         }
-        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
     }
 freeTxMetaData:
     free(streamDeviceTxMetaData.buf);
