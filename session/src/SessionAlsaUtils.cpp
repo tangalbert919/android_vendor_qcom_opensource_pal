@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -322,7 +322,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_VOICE_UI) {
+    if (sAttr.type != PAL_STREAM_VOICE_UI ||
+        sAttr.type != PAL_STREAM_HAPTICS) {
         status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
                 (struct pal_volume_data **)nullptr);
         if (status) {

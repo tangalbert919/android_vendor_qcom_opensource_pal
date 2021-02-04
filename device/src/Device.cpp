@@ -49,6 +49,7 @@
 #include "DisplayPort.h"
 #include "RTProxy.h"
 #include "FMDevice.h"
+#include "HapticsDev.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -117,6 +118,9 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_OUT_HEARING_AID:
         PAL_VERBOSE(LOG_TAG, "RTProxy Hearing Aid device");
         return RTProxyOut::getInstance(device, Rm);
+    case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+        PAL_VERBOSE(LOG_TAG, "Haptics Device");
+        return HapticsDev::getInstance(device, Rm);
     case PAL_DEVICE_IN_PROXY:
         PAL_VERBOSE(LOG_TAG, "RTProxy device");
         return RTProxy::getInstance(device, Rm);

@@ -276,6 +276,7 @@ protected:
     std::vector <StreamPCM*> active_streams_db;
     std::vector <StreamPCM*> active_streams_po;
     std::vector <StreamPCM*> active_streams_proxy;
+    std::vector <StreamPCM*> active_streams_haptics;
     std::vector <StreamInCall*> active_streams_incall_record;
     std::vector <StreamNonTunnel*> active_streams_non_tunnel;
     std::vector <StreamInCall*> active_streams_incall_music;
@@ -334,6 +335,7 @@ protected:
     static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
+    uint64_t in_stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;

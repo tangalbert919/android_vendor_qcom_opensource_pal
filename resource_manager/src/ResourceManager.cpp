@@ -105,6 +105,7 @@
 #define MAX_SESSIONS_INCALL_MUSIC 1
 #define MAX_SESSIONS_INCALL_RECORD 1
 #define MAX_SESSIONS_NON_TUNNEL 4
+#define MAX_SESSIONS_HAPTICS 1
 
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
@@ -168,6 +169,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
@@ -209,6 +211,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_OUT_PROXY,                0},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
     {PAL_DEVICE_OUT_HEARING_AID,          0},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       0},
     {PAL_DEVICE_OUT_MAX,                  0},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           0},
@@ -251,6 +254,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
@@ -405,6 +409,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
@@ -514,6 +519,7 @@ ResourceManager::ResourceManager()
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
+    memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -1351,6 +1357,15 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             }
             break;
+        case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+            /* For PAL_DEVICE_OUT_HAPTICS_DEVICE, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_HAPTICS_DEVICE sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            break;
         default:
             PAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
@@ -1434,7 +1449,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_non_tunnel.size();
             max_sessions = max_nt_sessions;
             break;
-
+        case PAL_STREAM_HAPTICS:
+            cur_sessions = active_streams_haptics.size();
+            max_sessions = MAX_SESSIONS_HAPTICS;
+            break;
         default:
             PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -1458,6 +1476,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
         case PAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_HAPTICS:
             if (attributes->direction == PAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -1637,7 +1656,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sNonTunnel, active_streams_non_tunnel);
             break;
         }
-
+        case PAL_STREAM_HAPTICS:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sDB, active_streams_haptics);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -1770,6 +1794,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamNonTunnel* sNonTunnel = dynamic_cast<StreamNonTunnel*>(s);
             ret = deregisterstream(sNonTunnel, active_streams_non_tunnel);
+            break;
+        }
+        case PAL_STREAM_HAPTICS:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sDB, active_streams_haptics);
             break;
         }
         default:
@@ -3028,6 +3058,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_incall_record);
     getActiveStreams(d, activestreams, active_streams_non_tunnel);
     getActiveStreams(d, activestreams, active_streams_incall_music);
+    getActiveStreams(d, activestreams, active_streams_haptics);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -3274,6 +3305,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_PCM_OFFLOAD:
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
+        case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
@@ -5297,8 +5329,13 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             str->setInstanceId(0);
             break;
         default:
-            stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
-            str->setInstanceId(0);
+            if (StrAttr.direction == PAL_AUDIO_INPUT) {
+                in_stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            } else {
+                stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            }
     }
 
     mResourceManagerMutex.unlock();
@@ -5382,7 +5419,20 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             break;
         default:
             status = str->getInstanceId();
-            if (!status) {
+            if (StrAttr.direction == PAL_AUDIO_INPUT && !status) {
+                if (in_stream_instances[StrAttr.type - 1] ==  -1) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                for (i = 0; i < MAX_STREAM_INSTANCES; ++i)
+                    if (!(in_stream_instances[StrAttr.type - 1] & (1 << i))) {
+                        in_stream_instances[StrAttr.type - 1] |= (1 << i);
+                        status = i + 1;
+                        break;
+                    }
+                str->setInstanceId(status);
+            } else if (!status) {
                 if (stream_instances[StrAttr.type - 1] ==  -1) {
                     PAL_ERR(LOG_TAG, "All stream instances taken");
                     status = -EINVAL;
