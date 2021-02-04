@@ -110,7 +110,7 @@ public:
     void deRegisterAdmStream(Stream *s);
     void requestAdmFocus(Stream *s, long ns);
     void releaseAdmFocus(Stream *s);
-
+    void setEventPayload(uint32_t event_id, void *payload, size_t payload_size);
 };
 
 #endif //SESSION_ALSAPCM_H

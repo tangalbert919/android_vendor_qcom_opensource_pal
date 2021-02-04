@@ -1221,6 +1221,15 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_VOIP_RX:
             keyVector.push_back(std::make_pair(STREAMRX, VOIP_RX_PLAYBACK));
             break;
+        case PAL_STREAM_ACD:
+            keyVector.push_back(std::make_pair(STREAMTX, ACD));
+
+            // add key-vector for stream configuration
+            for (auto& kv: s->getStreamModifiers()) {
+                keyVector.push_back(kv);
+            }
+
+            break;
         case PAL_STREAM_VOICE_UI:
             if (!s) {
                 status = -EINVAL;
@@ -1543,6 +1552,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 }
                 break;
             case PAL_STREAM_VOICE_UI:
+            case PAL_STREAM_ACD:
                 /*
                  * add key-vector for the device pre-proc that was selected
                  * by the stream

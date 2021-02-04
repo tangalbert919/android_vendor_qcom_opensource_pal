@@ -38,6 +38,7 @@ LOCAL_CFLAGS   += -Wall -Werror
 LOCAL_CFLAGS   += -DCONFIG_GSL
 LOCAL_CFLAGS   += -D_GNU_SOURCE
 LOCAL_CFLAGS   += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
+LOCAL_CFLAGS   += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
 LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
@@ -48,6 +49,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamInCall.cpp\
     stream/src/StreamNonTunnel.cpp\
     stream/src/StreamSoundTrigger.cpp\
+    stream/src/StreamACD.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \
@@ -74,6 +76,8 @@ LOCAL_SRC_FILES        := Pal.cpp\
     session/src/SoundTriggerEngine.cpp \
     session/src/SoundTriggerEngineCapi.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
+    session/src/ContextDetectionEngine.cpp \
+    session/src/ACDEngine.cpp \
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \

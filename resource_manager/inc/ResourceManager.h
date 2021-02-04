@@ -217,6 +217,7 @@ class Stream;
 class StreamPCM;
 class StreamCompress;
 class StreamSoundTrigger;
+class StreamACD;
 class StreamInCall;
 class StreamNonTunnel;
 class SoundTriggerEngine;
@@ -305,6 +306,7 @@ protected:
     std::vector <StreamInCall*> active_streams_incall_music;
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
+    std::vector <StreamACD*> active_streams_acd;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;

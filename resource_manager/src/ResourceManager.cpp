@@ -35,6 +35,7 @@
 #include "StreamPCM.h"
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
+#include "StreamACD.h"
 #include "StreamInCall.h"
 #include "gsl_intf.h"
 #include "Headphone.h"
@@ -99,6 +100,7 @@
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 8
+#define MAX_SESSIONS_ACD 8
 #define MAX_SESSIONS_PROXY 8
 #define DEFAULT_MAX_SESSIONS 8
 #define DEFAULT_MAX_NT_SESSIONS 2
@@ -302,6 +304,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_PCM_OFFLOAD" },              PAL_STREAM_PCM_OFFLOAD},
     {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
     {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
+    {std::string{ "PAL_STREAM_ACD" },                      PAL_STREAM_ACD},
 };
 
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
@@ -1522,6 +1525,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_st.size();
             max_sessions = MAX_SESSIONS_VOICE_UI;
             break;
+        case PAL_STREAM_ACD:
+            cur_sessions = active_streams_acd.size();
+            max_sessions = MAX_SESSIONS_ACD;
+            break;
         case PAL_STREAM_PCM_OFFLOAD:
             cur_sessions = active_streams_po.size();
             max_sessions = MAX_SESSIONS_PCM_OFFLOAD;
@@ -1652,6 +1659,9 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             PAL_INFO(LOG_TAG, "config suppported");
             result = true;
             break;
+        case PAL_STREAM_ACD:
+            result = true;
+            break;
         default:
             PAL_ERR(LOG_TAG, "unknown type");
             return false;
@@ -1755,6 +1765,12 @@ int ResourceManager::registerStream(Stream *s)
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = registerstream(sDB, active_streams_haptics);
+            break;
+        }
+        case PAL_STREAM_ACD:
+        {
+            StreamACD* sAcd = dynamic_cast<StreamACD*>(s);
+            ret = registerstream(sAcd, active_streams_acd);
             break;
         }
         default:
@@ -1895,6 +1911,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
             ret = deregisterstream(sDB, active_streams_haptics);
+            break;
+        }
+        case PAL_STREAM_ACD:
+        {
+            StreamACD* sAcd = dynamic_cast<StreamACD*>(s);
+            ret = deregisterstream(sAcd, active_streams_acd);
             break;
         }
         default:
@@ -3209,6 +3231,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_db);
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
+    getActiveStreams(d, activestreams, active_streams_acd);
     getActiveStreams(d, activestreams, active_streams_po);
     getActiveStreams(d, activestreams, active_streams_proxy);
     getActiveStreams(d, activestreams, active_streams_incall_record);
@@ -3458,6 +3481,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_VOIP_RX:
         case PAL_STREAM_VOIP_TX:
         case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_ACD:
         case PAL_STREAM_PCM_OFFLOAD:
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
@@ -3708,6 +3732,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_VOIP_TX:
         case PAL_STREAM_VOICE_UI:
         case PAL_STREAM_LOOPBACK:
+        case PAL_STREAM_ACD:
         case PAL_STREAM_PCM_OFFLOAD:
         case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {

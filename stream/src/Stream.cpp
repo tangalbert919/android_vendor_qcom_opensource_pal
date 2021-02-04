@@ -33,6 +33,7 @@
 #include "StreamInCall.h"
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
+#include "StreamACD.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -143,6 +144,10 @@ stream_create:
                 break;
             case PAL_STREAM_NON_TUNNEL:
                 stream = new StreamNonTunnel(sAttr, NULL, 0, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_ACD:
+                stream = new StreamACD(sAttr, mPalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:
