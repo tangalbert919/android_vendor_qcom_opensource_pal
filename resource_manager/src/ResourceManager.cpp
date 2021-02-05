@@ -1341,29 +1341,33 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
                     deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
                     deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
-                    PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY samplereate %d bitwidth %d",
-                            deviceattr->config.sample_rate, deviceattr->config.bit_width);
                 } else {
-                    deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
-                    deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
-                    deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+                    deviceattr->config.ch_info.channels = channel;
+                    getChannelMap(&(deviceattr->config.ch_info.ch_map[0]),
+                                    channel);
+                    deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                    deviceattr->config.bit_width = BITWIDTH_16;
                     deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-                    PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
-                            deviceattr->config.sample_rate, deviceattr->config.bit_width);
                 }
             }
             else
             {
-                /* For PAL_DEVICE_OUT_PROXY, copy all config from stream attributes */
-                deviceattr->config.ch_info =sAttr->out_media_config.ch_info;
-                deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
-                deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+                if (rm->num_proxy_channels) {
+                    deviceattr->config.ch_info.channels = rm->num_proxy_channels;
+                    rm->num_proxy_channels = 0;
+                } else
+                    deviceattr->config.ch_info.channels = channel;
+                getChannelMap(&(deviceattr->config.ch_info.ch_map[0]),
+                        deviceattr->config.ch_info.channels);
+                deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                deviceattr->config.bit_width = BITWIDTH_16;
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-                PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
-                        deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
+            PAL_INFO(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d ch:%d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width,
+                    deviceattr->config.ch_info.channels);
             }
             break;
         case PAL_DEVICE_OUT_HEARING_AID:
@@ -5128,6 +5132,13 @@ setdevparam:
                 }
             }
 #endif
+        }
+        break;
+        case PAL_PARAM_ID_PROXY_CHANNEL_CONFIG:
+        {
+            pal_param_proxy_channel_config_t *param_proxy =
+                (pal_param_proxy_channel_config_t *)param_payload;
+            rm->num_proxy_channels = param_proxy->num_proxy_channels;
         }
         break;
         default:
