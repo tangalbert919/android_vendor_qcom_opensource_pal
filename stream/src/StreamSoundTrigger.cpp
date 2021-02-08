@@ -814,8 +814,8 @@ void StreamSoundTrigger::CancelDelayedStop() {
 }
 
 std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
-    uint8_t *sm_data, 
-    int32_t sm_size, 
+    uint8_t *sm_data,
+    int32_t sm_size,
     listen_model_indicator_enum type,
     st_module_type_t module_type) {
 
@@ -853,6 +853,29 @@ void StreamSoundTrigger::GetUUID(class SoundTriggerUUID *uuid,
     uuid->node[3] = (uint8_t)sound_model->vendor_uuid.node[3];
     uuid->node[4] = (uint8_t)sound_model->vendor_uuid.node[4];
     uuid->node[5] = (uint8_t)sound_model->vendor_uuid.node[5];
+}
+
+void StreamSoundTrigger::updateStreamAttributes() {
+
+    /*
+     * In case of Single mic handset/headset use cases, stream channels > 1
+     * is not a valid configuration. Override the stream attribute channels if the
+     * device channels is set to 1
+     */
+    if (mStreamAttr) {
+        if (cap_prof_->GetChannels() == CHANNELS_1 &&
+            sm_cfg_->GetOutChannels() > CHANNELS_1) {
+            mStreamAttr->in_media_config.ch_info.channels = CHANNELS_1;
+        } else {
+            mStreamAttr->in_media_config.ch_info.channels =
+                sm_cfg_->GetOutChannels();
+        }
+
+        mStreamAttr->in_media_config.sample_rate =
+            sm_cfg_->GetSampleRate();
+        mStreamAttr->in_media_config.bit_width =
+            sm_cfg_->GetBitWidth();
+    }
 }
 
 /* TODO:
@@ -952,6 +975,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     }
     GetUUID(&uuid, sound_model);
     this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+
+    /* Update stream attributes as per sound model config */
+    updateStreamAttributes();
 
     /* Create Sound Model Info for stream */
     sm_info_ = new SoundModelInfo();
@@ -1797,9 +1823,12 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         (*event)->trigger_in_data = true;
         (*event)->data_size = opaque_size;
         (*event)->data_offset = sizeof(struct pal_st_phrase_recognition_event);
-        (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
-        (*event)->media_config.bit_width = BITWIDTH_16;
-        (*event)->media_config.ch_info.channels = CHANNELS_1;
+        (*event)->media_config.sample_rate =
+            mStreamAttr->in_media_config.sample_rate;
+        (*event)->media_config.bit_width =
+            mStreamAttr->in_media_config.bit_width;
+        (*event)->media_config.ch_info.channels =
+            mStreamAttr->in_media_config.ch_info.channels;
         (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
         // Filling Opaque data
         opaque_data = (uint8_t *)phrase_event +
@@ -1928,9 +1957,12 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         (*event)->trigger_in_data = true;
         (*event)->data_size = opaque_size;
         (*event)->data_offset = sizeof(struct pal_st_generic_recognition_event);
-        (*event)->media_config.sample_rate = SAMPLINGRATE_16K;
-        (*event)->media_config.bit_width = BITWIDTH_16;
-        (*event)->media_config.ch_info.channels = CHANNELS_1;
+        (*event)->media_config.sample_rate =
+            mStreamAttr->in_media_config.sample_rate;
+        (*event)->media_config.bit_width =
+            mStreamAttr->in_media_config.bit_width;
+        (*event)->media_config.ch_info.channels =
+            mStreamAttr->in_media_config.ch_info.channels;
         (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
         // Filling Opaque data
@@ -2973,6 +3005,10 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
+            PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
+            st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.updateStreamAttributes();
+
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
                 st_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -3002,11 +3038,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-            } else {
-                PAL_DBG(LOG_TAG, "Update capture profile after device switch");
-                st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             }
-
         connect_err:
             delete pal_dev;
             break;
@@ -3252,6 +3284,10 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 goto connect_err;
             }
 
+            PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
+            st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.updateStreamAttributes();
+
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
                 st_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -3277,11 +3313,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-            } else {
-                PAL_DBG(LOG_TAG, "Update capture profile after device switch");
-                st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             }
-
         connect_err:
             delete pal_dev;
             break;

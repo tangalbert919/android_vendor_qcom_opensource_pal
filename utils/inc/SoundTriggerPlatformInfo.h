@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,6 +41,8 @@
 #define CAPTURE_PROFILE_PRIORITY_HIGH 1
 #define CAPTURE_PROFILE_PRIORITY_LOW -1
 #define CAPTURE_PROFILE_PRIORITY_SAME 0
+
+#define MAX_MODULE_CHANNELS 4
 
 enum StOperatingModes {
     ST_OPERATING_MODE_LOW_POWER,
@@ -182,6 +184,10 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t GetSampleRate() const { return sample_rate_; }
     uint32_t GetBitWidth() const { return bit_width_; }
     uint32_t GetOutChannels() const { return out_channels_; }
+    void SetOutChannels(uint32_t channels) {
+        if (channels <= MAX_MODULE_CHANNELS)
+            out_channels_ = channels;
+    }
     uint32_t GetKwDuration() const { return capture_keyword_; }
     uint32_t GetCaptureReadDelay() const { return client_capture_read_delay_; }
     uint32_t GetKwStartTolerance() const { return kw_start_tolerance_; }
