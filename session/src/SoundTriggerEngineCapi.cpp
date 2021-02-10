@@ -320,15 +320,6 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         goto exit;
     }
 
-    str = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
-    info = str->GetDetectionEventInfo();
-    if (!info) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Failed to get detection event info");
-        goto exit;;
-    }
-    confidence_score_ = info->confidence_levels[1];
-
     reader_->getIndices(&buffer_start_, &buffer_end_);
     if (buffer_start_ >= buffer_end_) {
         status = -EINVAL;
@@ -395,20 +386,31 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         goto exit;
     }
 
-    uv_cfg_ptr->sva_uv_confidence_score = confidence_score_;
-    capi_uv_ptr.data_ptr = (int8_t *)uv_cfg_ptr;
-    capi_uv_ptr.actual_data_len = sizeof(voiceprint2_sva_uv_score_t);
-    capi_uv_ptr.max_data_len = sizeof(voiceprint2_sva_uv_score_t);
+    str = dynamic_cast<StreamSoundTrigger *>(stream_handle_);
+    if (str->GetModelType() == ST_MODULE_TYPE_GMM) {
+        info = str->GetDetectionEventInfo();
+        if (!info) {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Failed to get detection event info");
+            goto exit;
+        }
+        confidence_score_ = info->confidence_levels[1];
 
-    PAL_VERBOSE(LOG_TAG, "Issuing capi_set_param for param %d",
-                VOICEPRINT2_ID_SVA_UV_SCORE);
-    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-        VOICEPRINT2_ID_SVA_UV_SCORE, nullptr, &capi_uv_ptr);
-    if (CAPI_V2_EOK != rc) {
-        PAL_ERR(LOG_TAG, "set param VOICEPRINT2_ID_SVA_UV_SCORE failed with %d",
-                rc);
-        status = -EINVAL;
-        goto exit;
+        uv_cfg_ptr->sva_uv_confidence_score = confidence_score_;
+        capi_uv_ptr.data_ptr = (int8_t *)uv_cfg_ptr;
+        capi_uv_ptr.actual_data_len = sizeof(voiceprint2_sva_uv_score_t);
+        capi_uv_ptr.max_data_len = sizeof(voiceprint2_sva_uv_score_t);
+
+        PAL_VERBOSE(LOG_TAG, "Issuing capi_set_param for param %d",
+                    VOICEPRINT2_ID_SVA_UV_SCORE);
+        rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+            VOICEPRINT2_ID_SVA_UV_SCORE, nullptr, &capi_uv_ptr);
+        if (CAPI_V2_EOK != rc) {
+            PAL_ERR(LOG_TAG, "set param VOICEPRINT2_ID_SVA_UV_SCORE failed with %d",
+                    rc);
+            status = -EINVAL;
+            goto exit;
+        }
     }
 
     if (kw_end_timestamp_ > 0)
@@ -485,6 +487,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             PAL_INFO(LOG_TAG, "KW Second Stage Detected");
         }
         det_conf_score_ = (int32_t)result_cfg_ptr->combined_user_score;
+        PAL_INFO(LOG_TAG, "User Verification output conf level %d",
+            det_conf_score_);
     }
 
 exit:
