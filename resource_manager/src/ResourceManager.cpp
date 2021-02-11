@@ -6185,15 +6185,28 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     stream_supported_type type;
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     static std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
+    static std::shared_ptr<ACDPlatformInfo> acd_info = nullptr;
 
     if (data->is_parsing_sound_trigger) {
         st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
         return;
     }
 
+    if (data->is_parsing_acd) {
+        acd_info->HandleStartTag((const char *)tag_name, (const char **)attr);
+        snd_reset_data_buf(data);
+        return;
+    }
+
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = true;
         st_info = SoundTriggerPlatformInfo::GetInstance();
+        return;
+    }
+
+    if (!strcmp(tag_name, "acd_platform_info")) {
+        data->is_parsing_acd = true;
+        acd_info = ACDPlatformInfo::GetInstance();
         return;
     }
 
@@ -6279,6 +6292,7 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     struct xml_userdata *data = (struct xml_userdata *)userdata;
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
+    std::shared_ptr<ACDPlatformInfo> acd_info = ACDPlatformInfo::GetInstance();
 
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = false;
@@ -6290,6 +6304,16 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
         return;
     }
 
+    if (!strcmp(tag_name, "acd_platform_info")) {
+        data->is_parsing_acd = false;
+        return;
+    }
+
+    if (data->is_parsing_acd) {
+        acd_info->HandleEndTag(data, (const char *)tag_name);
+        snd_reset_data_buf(data);
+        return;
+    }
     process_config_voice(data,tag_name);
     process_device_info(data,tag_name);
     process_input_streams(data,tag_name);
