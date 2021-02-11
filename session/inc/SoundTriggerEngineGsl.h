@@ -114,7 +114,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     uint32_t GenerateModelID();
     int32_t StartBuffering(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
-    int32_t ParseDetectionPayloadSVA5(void *event_data);
+    int32_t ParseDetectionPayloadPDK(void *event_data);
     int32_t ParseDetectionPayload(void *event_data);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
     void ResetEngine();
@@ -124,7 +124,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                       uint32_t event_size);
     bool CheckIfOtherStreamsAttached(Stream *s);
     int32_t HandleMultiStreamLoad(Stream *s, uint8_t *data, uint32_t data_size);
-    int32_t HandleMultiStreamUnloadSVA5(Stream *s);
+    int32_t HandleMultiStreamUnloadPDK(Stream *s);
     int32_t HandleMultiStreamUnload(Stream *s);
     int32_t UpdateEngineModel(Stream *s, uint8_t *data,
                               uint32_t data_size, bool add);
@@ -145,7 +145,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                                bool set);
     int32_t UpdateEngineConfigOnStop(Stream *s);
     int32_t UpdateEngineConfigOnRestart(Stream *s);
-    int32_t UpdateConfigSVA5(uint32_t model_id);
+    int32_t UpdateConfigPDK(uint32_t model_id);
     int32_t UpdateConfigs();
     Stream* GetDetectedStream(uint32_t model_id = 0);
     void CheckAndSetDetectionConfLevels(Stream *s);
@@ -157,7 +157,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     st_module_type_t module_type_;
     static std::map<st_module_type_t,std::shared_ptr<SoundTriggerEngineGsl>>
                                                                       eng_;
-    std::map<uint32_t, struct detection_engine_config_stage1_sva5> mid_wakeup_cfg_;
+    std::map<uint32_t, struct detection_engine_config_stage1_pdk> mid_wakeup_cfg_;
     std::vector<Stream *> eng_streams_;
     std::vector<uint32_t> updated_cfg_;
     SoundModelInfo *eng_sm_info_;
@@ -165,10 +165,10 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t dev_disconnect_count_;
     eng_state_t eng_state_;
     struct detection_engine_config_voice_wakeup wakeup_config_;
-    struct detection_engine_config_stage1_sva5 sva5_wakeup_config_;
+    struct detection_engine_config_stage1_pdk pdk_wakeup_config_;
     struct detection_engine_multi_model_buffering_config buffer_config_;
     struct detection_event_info detection_event_info_;
-    struct detection_event_info_sva5 detection_event_info_multi_model_ ;
+    struct detection_event_info_pdk detection_event_info_multi_model_ ;
     struct param_id_detection_engine_deregister_multi_sound_model_t
                                                      deregister_config_;
 

@@ -1683,31 +1683,6 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (level != -1)
             ckv.push_back(std::make_pair(GAIN, level));
         break;
-    case TAG_MODULE_CHANNELS:
-        if (sAttr.type == PAL_STREAM_VOICE_UI) {
-            stream_config_kv = s->getStreamModifiers();
-            if (stream_config_kv.size() == 0 ||
-                stream_config_kv[0].second != VUI_STREAM_CFG_SVA) {
-                PAL_DBG(LOG_TAG, "Skip fluence ckv for non-SVA case");
-                break;
-            }
-
-            cap_prof = rm->GetSVACaptureProfile();
-            if (!cap_prof) {
-                PAL_ERR(LOG_TAG, "Invalid capture profile");
-                status = -EINVAL;
-                break;
-            }
-
-            if (!cap_prof->GetChannels()) {
-                PAL_ERR(LOG_TAG, "Invalid channels");
-                status = -EINVAL;
-                break;
-            }
-            ckv.push_back(std::make_pair(CHANNELS,
-                cap_prof->GetChannels()));
-        }
-        break;
     case SPKR_PROT_ENABLE :
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {

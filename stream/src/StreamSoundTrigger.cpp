@@ -365,7 +365,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
 
         mInstanceID = rm->getStreamInstanceID(this);
 
-        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
+        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_F_STAGE_GMM,
                                                  ST_MODULE_TYPE_GMM, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
@@ -974,7 +974,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                 engine_id = static_cast<int32_t>(big_sm->type);
                 PAL_INFO(LOG_TAG, "type = %u, size = %u",
                          big_sm->type, big_sm->size);
-                if (big_sm->type == ST_SM_ID_SVA_GMM) {
+                if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
                     std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
@@ -1016,13 +1016,13 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         goto error_exit;
                     }
 
-                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
                     std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                        engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
                     AddEngine(engine_cfg);
                 } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
-                    if (big_sm->type == ST_SM_ID_SVA_VOP &&
+                    if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
                         !(phrase_sm->phrases[0].recognition_mode &
                         PAL_RECOGNITION_MODE_USER_IDENTIFICATION))
                         continue;
@@ -1047,9 +1047,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         goto error_exit;
                     }
 
-                    if (big_sm->type & ST_SM_ID_SVA_KWD) {
+                    if (big_sm->type & ST_SM_ID_SVA_S_STAGE_KWD) {
                         notification_state_ |= KEYWORD_DETECTION_SUCCESS;
-                    } else if (big_sm->type == ST_SM_ID_SVA_VOP) {
+                    } else if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER) {
                         notification_state_ |= USER_VERIFICATION_SUCCESS;
                     }
 
@@ -1088,14 +1088,14 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             this->mInstanceID = this->rm->getStreamInstanceID(this);
 
             gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
-                                 common_sm->data_size, ST_SM_ID_SVA_GMM,
+                                 common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
                                                     ST_MODULE_TYPE_GMM);
             if (!gsl_engine_) {
                 status = -EINVAL;
                 goto error_exit;
             }
 
-            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
             std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                  engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
@@ -1125,14 +1125,14 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         this->mInstanceID = this->rm->getStreamInstanceID(this);
 
         gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
-                                common_sm->data_size, ST_SM_ID_SVA_GMM,
+                                common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
                                                 ST_MODULE_TYPE_GMM);
         if (!gsl_engine_) {
             status = -EINVAL;
             goto error_exit;
         }
 
-        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
         std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                 engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
@@ -1619,7 +1619,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
     if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
         conf_levels = (struct st_confidence_levels_info *)opaque_data;
         for (i = 0; i < conf_levels->num_sound_models; i++) {
-            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 for (j = 0; j < conf_levels->conf_levels[i].num_kw_levels; j++) {
                     if (j <= sm_info_->GetConfLevelsSize())
                             conf_levels->conf_levels[i].kw_levels[j].kw_level =
@@ -1643,15 +1643,15 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                                 sm_info_->GetConfLevelsSize(), user_id);
                     }
                 }
-            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
-                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
                     if (conf_levels->conf_levels[i].sm_id ==
                             eng->GetEngineId()) {
                         conf_levels->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
                             conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
                                 eng->GetEngine()->GetDetectedConfScore();
                     }
@@ -1661,7 +1661,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
     } else {
         conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
         for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
-            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 for (j = 0; j < conf_levels_v2->conf_levels[i].num_kw_levels; j++) {
                     if (j <= sm_info_->GetConfLevelsSize())
                             conf_levels_v2->conf_levels[i].kw_levels[j].kw_level =
@@ -1691,15 +1691,15 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                             k, sm_info_->GetDetConfLevels()[user_id])
                     }
                 }
-            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
-                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
                     if (conf_levels_v2->conf_levels[i].sm_id ==
                             eng->GetEngineId()) {
                         conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
                             conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
                                 eng->GetEngine()->GetDetectedConfScore();
                         PAL_INFO(LOG_TAG, "SS Conf score %d",
@@ -1721,7 +1721,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct st_param_header *param_hdr = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
     struct st_timestamp_info *timestamps = nullptr;
-    struct detection_event_info_sva5 *detection_event_info_multi_model =
+    struct detection_event_info_pdk *detection_event_info_multi_model =
                                                                 nullptr;
     struct detection_event_info *det_ev_info = nullptr;
     struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
@@ -1743,7 +1743,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
         if (model_id_ > 0){
             detection_event_info_multi_model =
-                    (struct detection_event_info_sva5 *)gsl_engine_->
+                    (struct detection_event_info_pdk *)gsl_engine_->
                             GetDetectionEventInfo();
             if (!detection_event_info_multi_model){
                 PAL_ERR(LOG_TAG, "detection info multi model not available");
@@ -1979,21 +1979,21 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
 
         for (int i = 0; i < conf_levels->num_sound_models; i++) {
             sm_levels = &conf_levels->conf_levels[i];
-            if (sm_levels->sm_id == ST_SM_ID_SVA_GMM) {
+            if (sm_levels->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
                 FillOpaqueConfLevels((void *)sm_levels, out_conf_levels,
                                      out_num_conf_levels, version);
-            } else if (sm_levels->sm_id & ST_SM_ID_SVA_KWD ||
-                       sm_levels->sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level =
-                    (sm_levels->sm_id & ST_SM_ID_SVA_KWD) ?
+                    (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels->kw_levels[0].kw_level:
                     sm_levels->kw_levels[0].user_levels[0].level;
                 PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
                 for (auto& eng: engines_) {
                     if (sm_levels->sm_id & eng->GetEngineId() ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_RNN) &&
-                        (sm_levels->sm_id & ST_SM_ID_SVA_CNN))) {
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level, 1);
                     }
@@ -2019,14 +2019,14 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
 
         for (int i = 0; i < conf_levels_v2->num_sound_models; i++) {
             sm_levels_v2 = &conf_levels_v2->conf_levels[i];
-            if (sm_levels_v2->sm_id == ST_SM_ID_SVA_GMM) {
+            if (sm_levels_v2->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
                 FillOpaqueConfLevels((void *)sm_levels_v2, out_conf_levels,
                                      out_num_conf_levels, version);
-            } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_KWD ||
-                       sm_levels_v2->sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level_v2 =
-                    (sm_levels_v2->sm_id & ST_SM_ID_SVA_KWD) ?
+                    (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels_v2->kw_levels[0].kw_level:
                     sm_levels_v2->kw_levels[0].user_levels[0].level;
                 PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level_v2);
@@ -2034,8 +2034,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
                         sm_levels_v2->sm_id , eng->GetEngineId());
                     if (sm_levels_v2->sm_id & eng->GetEngineId() ||
-                        ((eng->GetEngineId() & ST_SM_ID_SVA_RNN) &&
-                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_CNN))) {
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level_v2, 1);
                     }
@@ -2078,7 +2078,7 @@ int32_t StreamSoundTrigger::FillConfLevels(
     }
 
     for (auto& eng: engines_) {
-        if (eng->GetEngineId() == ST_SM_ID_SVA_GMM) {
+        if (eng->GetEngineId() == ST_SM_ID_SVA_F_STAGE_GMM) {
             phrase_sm = (struct pal_st_phrase_sound_model *)eng->sm_data_;
             break;
         }
@@ -2395,7 +2395,7 @@ exit:
 
 void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
     for (auto& eng: engines_) {
-        if (eng->GetEngineId() != ST_SM_ID_SVA_GMM) {
+        if (eng->GetEngineId() != ST_SM_ID_SVA_F_STAGE_GMM) {
             PAL_VERBOSE(LOG_TAG, "Notify detection event %d to engine %d",
                     detected, eng->GetEngineId());
             eng->GetEngine()->SetDetected(detected);

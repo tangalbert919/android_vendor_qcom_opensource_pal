@@ -38,6 +38,8 @@
 #include "PalDefs.h"
 #include "SoundTriggerUtils.h"
 
+#define IS_MODULE_TYPE_PDK(type) (type == ST_MODULE_TYPE_PDK5 || type == ST_MODULE_TYPE_PDK6)
+
 #define CAPTURE_PROFILE_PRIORITY_HIGH 1
 #define CAPTURE_PROFILE_PRIORITY_LOW -1
 #define CAPTURE_PROFILE_PRIORITY_SAME 0
@@ -154,11 +156,15 @@ class SoundTriggerModuleInfo : public SoundTriggerXml {
     uint32_t GetParamId(st_param_id_type_t param_id) const {
         return param_ids_[param_id];
     }
+    std::pair<uint32_t, uint32_t> getStreamConfigKV() {
+        return stream_config_;
+    }
 
  private:
     uint32_t model_type_;
     uint32_t module_tag_ids_[MAX_PARAM_IDS];
     uint32_t param_ids_[MAX_PARAM_IDS];
+    std::pair<uint32_t, uint32_t> stream_config_;
 };
 
 class SoundModelConfig : public SoundTriggerXml {
@@ -195,7 +201,7 @@ class SoundModelConfig : public SoundTriggerXml {
     std::shared_ptr<SecondStageConfig> GetSecondStageConfig(
         const listen_model_indicator_enum& sm_type) const;
     std::shared_ptr<SoundTriggerModuleInfo> GetSoundTriggerModuleInfo(
-        const uint32_t& type) const;
+        const uint32_t type) const;
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
@@ -220,7 +226,6 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t kw_end_tolerance_;
     uint32_t data_before_kw_start_;
     uint32_t data_after_kw_end_;
-    std::map<uint32_t, std::pair<uint32_t,uint32_t>> stream_config_;
     const st_cap_profile_map_t& cap_profile_map_;
     std::map<std::pair<StOperatingModes, StInputModes>, std::shared_ptr<CaptureProfile>> op_modes_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
