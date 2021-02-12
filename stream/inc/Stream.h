@@ -255,6 +255,9 @@ public:
    int32_t setECRef_l(std::shared_ptr<Device> dev __unused, bool is_enable __unused) {return 0;};
    int32_t ssrDownHandler() override;
    int32_t ssrUpHandler() override;
+private:
+   /*This notifies that the system went through/is in a ssr*/
+   bool ssrInNTMode;
 };
 
 #endif//STREAM_H_
