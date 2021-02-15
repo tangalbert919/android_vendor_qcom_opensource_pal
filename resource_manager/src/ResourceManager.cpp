@@ -839,7 +839,7 @@ int ResourceManager::initSndMonitor()
 {
     int ret = 0;
     workerThread = std::thread(&ResourceManager::ssrHandlingLoop, this, rm);
-    sndmon = new SndCardMonitor();
+    sndmon = new SndCardMonitor(snd_card);
     if (!sndmon) {
         ret = -EINVAL;
         PAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
