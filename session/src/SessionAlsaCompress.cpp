@@ -320,7 +320,6 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_G711:
              id = -1;
             break;
-#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
@@ -344,9 +343,11 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_APE:
             id = SND_AUDIOCODEC_APE;
             break;
+#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_WMA_PRO:
             id = SND_AUDIOCODEC_WMA_PRO;
             break;
+#endif
         case PAL_AUDIO_FMT_FLAC:
         case PAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
@@ -354,7 +355,6 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
             break;
-#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
