@@ -543,6 +543,7 @@ public:
     static bool isOutputDevId(int deviceId);
     static bool isInputDevId(int deviceId);
     static bool matchDevDir(int devId1, int devId2);
+    static int convertCharToHex(std::string num);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);

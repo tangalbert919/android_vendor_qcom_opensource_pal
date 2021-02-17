@@ -4489,7 +4489,7 @@ void ResourceManager::updateBackEndName(int32_t deviceId, std::string backEndNam
     }
 }
 
-int convertCharToHex(std::string num)
+int ResourceManager::convertCharToHex(std::string num)
 {
     uint64_t hexNum = 0;
     uint32_t base = 1;
