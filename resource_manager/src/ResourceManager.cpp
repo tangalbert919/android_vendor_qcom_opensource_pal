@@ -3627,6 +3627,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_VOICE_UI:
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
