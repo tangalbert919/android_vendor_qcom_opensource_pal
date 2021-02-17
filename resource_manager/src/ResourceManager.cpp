@@ -322,8 +322,8 @@ std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmRecordFrontEnds = {0};
-std::vector <int> ResourceManager::listAllPcmLoopbackRxFrontEnds = {0};
-std::vector <int> ResourceManager::listAllPcmLoopbackTxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmHostlessRxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmHostlessTxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressPlaybackFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice1RxFrontEnds = {0};
@@ -516,9 +516,9 @@ ResourceManager::ResourceManager()
     listFreeFrontEndIds.clear();
     listAllPcmPlaybackFrontEnds.clear();
     listAllPcmRecordFrontEnds.clear();
-    listAllPcmLoopbackRxFrontEnds.clear();
+    listAllPcmHostlessRxFrontEnds.clear();
     listAllNonTunnelSessionIds.clear();
-    listAllPcmLoopbackTxFrontEnds.clear();
+    listAllPcmHostlessTxFrontEnds.clear();
     listAllCompressPlaybackFrontEnds.clear();
     listAllCompressRecordFrontEnds.clear();
     listAllPcmVoice1RxFrontEnds.clear();
@@ -538,9 +538,9 @@ ResourceManager::ResourceManager()
 
         if (devInfo[i].type == PCM) {
             if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].playback == 1) {
-                listAllPcmLoopbackRxFrontEnds.push_back(devInfo[i].deviceId);
+                listAllPcmHostlessRxFrontEnds.push_back(devInfo[i].deviceId);
             } else if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
-                listAllPcmLoopbackTxFrontEnds.push_back(devInfo[i].deviceId);
+                listAllPcmHostlessTxFrontEnds.push_back(devInfo[i].deviceId);
             } else if (devInfo[i].playback == 1 && devInfo[i].sess_mode == DEFAULT) {
                 listAllPcmPlaybackFrontEnds.push_back(devInfo[i].deviceId);
             } else if (devInfo[i].record == 1 && devInfo[i].sess_mode == DEFAULT) {
@@ -607,8 +607,8 @@ ResourceManager::~ResourceManager()
     listAllFrontEndIds.clear();
     listAllPcmPlaybackFrontEnds.clear();
     listAllPcmRecordFrontEnds.clear();
-    listAllPcmLoopbackRxFrontEnds.clear();
-    listAllPcmLoopbackTxFrontEnds.clear();
+    listAllPcmHostlessRxFrontEnds.clear();
+    listAllPcmHostlessTxFrontEnds.clear();
     listAllCompressPlaybackFrontEnds.clear();
     listAllCompressRecordFrontEnds.clear();
     listFreeFrontEndIds.clear();
@@ -3464,19 +3464,36 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
-                    if ( howMany > listAllPcmRecordFrontEnds.size()) {
-                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
-                                          howMany, listAllPcmRecordFrontEnds.size());
-                        goto error;
-                    }
-                    id = (listAllPcmRecordFrontEnds.size() - 1);
-                    it =  (listAllPcmRecordFrontEnds.begin() + id);
-                    for (int i = 0; i < howMany; i++) {
-                        f.push_back(listAllPcmRecordFrontEnds.at(id));
-                        listAllPcmRecordFrontEnds.erase(it);
-                        PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
-                        it -= 1;
-                        id -= 1;
+                    if (lDirection == TX_HOSTLESS) {
+                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
+                            PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                                              howMany, listAllPcmHostlessTxFrontEnds.size());
+                            goto error;
+                        }
+                        id = (listAllPcmHostlessTxFrontEnds.size() - 1);
+                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
+                        for (int i = 0; i < howMany; i++) {
+                           f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
+                           listAllPcmHostlessTxFrontEnds.erase(it);
+                           PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                           it -= 1;
+                           id -= 1;
+                        }
+                    } else {
+                        if ( howMany > listAllPcmRecordFrontEnds.size()) {
+                            PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
+                                              howMany, listAllPcmRecordFrontEnds.size());
+                            goto error;
+                        }
+                        id = (listAllPcmRecordFrontEnds.size() - 1);
+                        it =  (listAllPcmRecordFrontEnds.begin() + id);
+                        for (int i = 0; i < howMany; i++) {
+                            f.push_back(listAllPcmRecordFrontEnds.at(id));
+                            listAllPcmRecordFrontEnds.erase(it);
+                            PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
+                            it -= 1;
+                            id -= 1;
+                        }
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
@@ -3496,32 +3513,32 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     }
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                    if (lDirection == RXLOOPBACK) {
-                        if ( howMany > listAllPcmLoopbackRxFrontEnds.size()) {
+                    if (lDirection == RX_HOSTLESS) {
+                        if ( howMany > listAllPcmHostlessRxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
-                                              howMany, listAllPcmLoopbackRxFrontEnds.size());
+                                              howMany, listAllPcmHostlessRxFrontEnds.size());
                             goto error;
                         }
-                        id = (listAllPcmLoopbackRxFrontEnds.size() - 1);
-                        it =  (listAllPcmLoopbackRxFrontEnds.begin() + id);
+                        id = (listAllPcmHostlessRxFrontEnds.size() - 1);
+                        it =  (listAllPcmHostlessRxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
-                           f.push_back(listAllPcmLoopbackRxFrontEnds.at(id));
-                           listAllPcmLoopbackRxFrontEnds.erase(it);
+                           f.push_back(listAllPcmHostlessRxFrontEnds.at(id));
+                           listAllPcmHostlessRxFrontEnds.erase(it);
                            PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                            it -= 1;
                            id -= 1;
                         }
                     } else {
-                        if ( howMany > listAllPcmLoopbackTxFrontEnds.size()) {
+                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
-                                              howMany, listAllPcmLoopbackTxFrontEnds.size());
+                                              howMany, listAllPcmHostlessTxFrontEnds.size());
                             goto error;
                         }
-                        id = (listAllPcmLoopbackTxFrontEnds.size() - 1);
-                        it =  (listAllPcmLoopbackTxFrontEnds.begin() + id);
+                        id = (listAllPcmHostlessTxFrontEnds.size() - 1);
+                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
-                           f.push_back(listAllPcmLoopbackTxFrontEnds.at(id));
-                           listAllPcmLoopbackTxFrontEnds.erase(it);
+                           f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
+                           listAllPcmHostlessTxFrontEnds.erase(it);
                            PAL_INFO(LOG_TAG, "allocateFrontEndIds: front end %d", f[i]);
                            it -= 1;
                            id -= 1;
@@ -3575,7 +3592,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_VOICE_CALL:
             switch (sAttr.direction) {
               case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                    if (lDirection == RXLOOPBACK) {
+                    if (lDirection == RX_HOSTLESS) {
                         if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
                             sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
                             f = allocateVoiceFrontEndIds(listAllPcmVoice1RxFrontEnds, howMany);
@@ -3695,8 +3712,14 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
-                    for (int i = 0; i < frontend.size(); i++) {
-                        listAllPcmRecordFrontEnds.push_back(frontend.at(i));
+                    if (lDirection == TX_HOSTLESS) {
+                        for (int i = 0; i < frontend.size(); i++) {
+                            listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
+                        }
+                    } else {
+                        for (int i = 0; i < frontend.size(); i++) {
+                            listAllPcmRecordFrontEnds.push_back(frontend.at(i));
+                        }
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
@@ -3705,13 +3728,13 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     }
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                    if (lDirection == RXLOOPBACK) {
+                    if (lDirection == RX_HOSTLESS) {
                         for (int i = 0; i < frontend.size(); i++) {
-                            listAllPcmLoopbackRxFrontEnds.push_back(frontend.at(i));
+                            listAllPcmHostlessRxFrontEnds.push_back(frontend.at(i));
                         }
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
-                            listAllPcmLoopbackTxFrontEnds.push_back(frontend.at(i));
+                            listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
                         }
                     }
                     break;
@@ -3722,7 +3745,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             break;
 
         case PAL_STREAM_VOICE_CALL:
-            if (lDirection == RXLOOPBACK) {
+            if (lDirection == RX_HOSTLESS) {
                 for (int i = 0; i < frontend.size(); i++) {
                     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
                         sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {

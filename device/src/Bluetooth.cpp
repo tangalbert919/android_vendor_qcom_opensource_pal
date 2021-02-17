@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -584,14 +584,14 @@ void Bluetooth::startAbr()
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
         fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
-        dir = RXLOOPBACK;
+        dir = RX_HOSTLESS;
         flags = PCM_OUT;
         keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
     } else {
         fbDevice.id = ((deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ?
                        PAL_DEVICE_IN_BLUETOOTH_A2DP :
                        PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
-        dir = TXLOOPBACK;
+        dir = TX_HOSTLESS;
         flags = PCM_IN;
         keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
     }
@@ -850,7 +850,7 @@ void Bluetooth::stopAbr()
     }
 
 free_fe:
-    dir = ((codecType == DEC) ? RXLOOPBACK : TXLOOPBACK);
+    dir = ((codecType == DEC) ? RX_HOSTLESS : TX_HOSTLESS);
     if (fbpcmDevIds.size()) {
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();

@@ -119,8 +119,8 @@ int SessionAlsaPcm::open(Stream * s)
             goto exit;
         }
     } else {
-        pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RXLOOPBACK);
-        pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TXLOOPBACK);
+        pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
+        pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
         if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
             PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
             status = -EINVAL;
@@ -147,8 +147,8 @@ int SessionAlsaPcm::open(Stream * s)
                     rxAifBackEnds, txAifBackEnds);
             if (status) {
                 PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXLOOPBACK);
-                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXLOOPBACK);
+                rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+                rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
             }
             break;
         default:
@@ -1167,8 +1167,8 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
             }
-            rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXLOOPBACK);
-            rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXLOOPBACK);
+            rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+            rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
             pcmRx = NULL;
             pcmTx = NULL;
             break;

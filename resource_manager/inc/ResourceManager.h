@@ -47,8 +47,12 @@
 #include "PalDefs.h"
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
-#define RXLOOPBACK 0
-#define TXLOOPBACK 1
+
+typedef enum {
+    RX_HOSTLESS = 1,
+    TX_HOSTLESS,
+} hostless_dir_t;
+
 #define audio_mixer mixer
 
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
@@ -323,9 +327,9 @@ protected:
     static std::vector<int> listAllFrontEndIds;
     static std::vector<int> listAllPcmPlaybackFrontEnds;
     static std::vector<int> listAllPcmRecordFrontEnds;
-    static std::vector<int> listAllPcmLoopbackRxFrontEnds;
+    static std::vector<int> listAllPcmHostlessRxFrontEnds;
     static std::vector<int> listAllNonTunnelSessionIds;
-    static std::vector<int> listAllPcmLoopbackTxFrontEnds;
+    static std::vector<int> listAllPcmHostlessTxFrontEnds;
     static std::vector<int> listAllCompressPlaybackFrontEnds;
     static std::vector<int> listAllCompressRecordFrontEnds;
     static std::vector<int> listFreeFrontEndIds;
