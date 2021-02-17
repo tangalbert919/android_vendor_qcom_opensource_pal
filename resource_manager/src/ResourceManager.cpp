@@ -500,6 +500,8 @@ ResourceManager::ResourceManager()
     deviceTag.clear();
     btCodecMap.clear();
 
+    vsidInfo.loopback_delay = 0;
+
     ret = ResourceManager::init_audio();
     if (ret) {
         PAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
@@ -1063,6 +1065,7 @@ int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
     struct vsid_modepair modePair = {};
 
     info->vsid = vsidInfo.vsid;
+    info->loopback_delay = vsidInfo.loopback_delay;
     for (int size = 0; size < vsidInfo.modepair.size(); size++) {
         modePair.key = vsidInfo.modepair[size].key;
         modePair.value = vsidInfo.modepair[size].value;
@@ -5861,6 +5864,9 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
         if (strcmp(tag_name, "vsid") == 0) {
             std::string vsidvalue(data->data_buf);
             vsidInfo.vsid = convertCharToHex(vsidvalue);
+        }
+        if (strcmp(tag_name, "loopbackDelay") == 0) {
+            vsidInfo.loopback_delay = atoi(data->data_buf);
         }
     }
     if (!strcmp(tag_name, "modepair")) {
