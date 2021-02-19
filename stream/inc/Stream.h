@@ -110,7 +110,7 @@ typedef enum {
  * pause completion. But it's not the case in Gecko.
  * FIXME: load the ramp period config from acdb.
  */
-#define VOLUME_RAMP_PERIOD (40*1000)
+#define VOLUME_RAMP_PERIOD (100*1000)
 
 using KeyVect_t = std::vector<std::pair<uint32_t, uint32_t>>;
 class Device;
