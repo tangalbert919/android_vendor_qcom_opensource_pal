@@ -152,6 +152,9 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
 
     rm->registerStream(this);
 
+    // Register for Soft pause events
+    session->registerCallBack(handleSoftPauseCallBack, (uint64_t)this);
+
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     return;
@@ -1020,6 +1023,7 @@ exit:
 int32_t StreamPCM::pause()
 {
     int32_t status = 0;
+    std::unique_lock<std::mutex> pauseLock(pauseMutex);
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
     mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -1035,7 +1039,8 @@ int32_t StreamPCM::pause()
                 status);
         goto exit;
     }
-    usleep(VOLUME_RAMP_PERIOD);
+    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+    pauseCV.wait(pauseLock);
     isPaused = true;
     currentState = STREAM_PAUSED;
     PAL_DBG(LOG_TAG, "session setConfig successful");

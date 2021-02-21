@@ -44,6 +44,20 @@
 std::shared_ptr<ResourceManager> Stream::rm = nullptr;
 std::mutex Stream::mBaseStreamMutex;
 struct pal_device* Stream::mPalDevice = nullptr;
+std::mutex Stream::pauseMutex;
+std::condition_variable Stream::pauseCV;
+
+void Stream::handleSoftPauseCallBack(uint64_t hdl, uint32_t event_id,
+                                        void *data __unused,
+                                        uint32_t event_size __unused) {
+
+    PAL_DBG(LOG_TAG,"Event id %x ", event_id);
+
+    if (event_id == EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE) {
+        PAL_DBG(LOG_TAG, "Pause done");
+        pauseCV.notify_all();
+    }
+}
 
 Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *dAttr,
     uint32_t noOfDevices, struct modifier_kv *modifiers, uint32_t noOfModifiers)

@@ -62,6 +62,8 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
+#define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
+
 class Stream;
 class ResourceManager;
 class Session

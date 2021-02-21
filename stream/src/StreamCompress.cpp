@@ -39,15 +39,25 @@
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 
+std::condition_variable cvPause;
+
 static void handleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
                                   uint32_t event_size)
 {
     Stream *s = NULL;
     pal_stream_callback cb;
-    s = reinterpret_cast<Stream *>(hdl);
-    if (s->getCallBack(&cb) == 0)
-       cb(reinterpret_cast<pal_stream_handle_t *>(s), event_id, (uint32_t *)data,
-          event_size, s->cookie);
+
+    PAL_DBG(LOG_TAG,"Event id %x ", event_id);
+    if (event_id == EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE) {
+        PAL_DBG(LOG_TAG,"Pause Done");
+        cvPause.notify_all();
+    }
+    else {
+        s = reinterpret_cast<Stream *>(hdl);
+        if (s->getCallBack(&cb) == 0)
+            cb(reinterpret_cast<pal_stream_handle_t *>(s), event_id, (uint32_t *)data,
+               event_size, s->cookie);
+    }
 }
 
 StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
@@ -600,6 +610,7 @@ exit:
 int32_t StreamCompress::pause()
 {
     int32_t status = 0;
+    std::unique_lock<std::mutex> pauseLock(pauseMutex);
 
     //AF will try to pause the stream during SSR.
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -617,7 +628,8 @@ int32_t StreamCompress::pause()
        PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
-    usleep(VOLUME_RAMP_PERIOD);
+    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+    cvPause.wait(pauseLock);
     isPaused = true;
     currentState = STREAM_PAUSED;
     PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
