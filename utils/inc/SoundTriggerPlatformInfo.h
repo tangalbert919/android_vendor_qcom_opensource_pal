@@ -37,70 +37,12 @@
 #include <string>
 #include "PalDefs.h"
 #include "SoundTriggerUtils.h"
+#include "SoundTriggerXmlParser.h"
 
 #define IS_MODULE_TYPE_PDK(type) (type == ST_MODULE_TYPE_PDK5 || type == ST_MODULE_TYPE_PDK6)
-
-#define CAPTURE_PROFILE_PRIORITY_HIGH 1
-#define CAPTURE_PROFILE_PRIORITY_LOW -1
-#define CAPTURE_PROFILE_PRIORITY_SAME 0
-
 #define MAX_MODULE_CHANNELS 4
 
-enum StOperatingModes {
-    ST_OPERATING_MODE_LOW_POWER,
-    ST_OPERATING_MODE_HIGH_PERF,
-    ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING
-};
-
-enum StInputModes {
-    ST_INPUT_MODE_HANDSET,
-    ST_INPUT_MODE_HEADSET
-};
-
 using UUID = SoundTriggerUUID;
-
-class SoundTriggerXml {
- public:
-    virtual void HandleStartTag(const char *tag, const char **attribs) = 0;
-    virtual void HandleEndTag(const char *tag) = 0;
-    virtual void HandleCharData(const char *data) = 0;
-    virtual ~SoundTriggerXml() {};
-};
-
-class CaptureProfile : public SoundTriggerXml {
- public:
-    CaptureProfile(std::string name);
-    CaptureProfile() = delete;
-    CaptureProfile(CaptureProfile &rhs) = delete;
-    CaptureProfile & operator=(CaptureProfile &rhs) = delete;
-
-    void HandleStartTag(const char* tag, const char* * attribs) override;
-    void HandleEndTag(const char* tag) override;
-    void HandleCharData(const char* data) override;
-
-    std::string GetName() const { return name_; }
-    pal_device_id_t GetDevId() const { return device_id_; }
-    uint32_t GetSampleRate() const { return sample_rate_; }
-    uint32_t GetBitWidth() const { return bitwidth_; }
-    uint32_t GetChannels() const { return channels_; }
-    std::string GetSndName() const { return snd_name_; }
-    void SetSampleRate(uint32_t sample_rate) { sample_rate_ = sample_rate; }
-    void SetBitWidth(uint32_t bit_width) { bitwidth_ = bit_width; }
-    void SetChannels(uint32_t channels) { channels_ = channels; }
-    void SetSndName(std::string snd_name) { snd_name_ = snd_name; }
-    std::pair<uint32_t,uint32_t> GetDevicePpKv() const { return device_pp_kv_; }
-
-    int32_t ComparePriority(std::shared_ptr<CaptureProfile> cap_prof);
-
- private:
-    std::string name_;
-    pal_device_id_t device_id_;
-    uint32_t sample_rate_;
-    uint32_t channels_;
-    uint32_t bitwidth_;
-    std::pair<uint32_t,uint32_t> device_pp_kv_;
-    std::string snd_name_;
-};
 
 using st_cap_profile_map_t =
     std::map<std::string, std::shared_ptr<CaptureProfile>>;
