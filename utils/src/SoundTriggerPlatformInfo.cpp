@@ -89,12 +89,6 @@ void SecondStageConfig::HandleStartTag(const char *tag, const char **attribs) {
     }
 }
 
-void SecondStageConfig::HandleEndTag(const char *tag __unused) {
-}
-
-void SecondStageConfig::HandleCharData(const char *data __unused) {
-}
-
 SoundTriggerModuleInfo::SoundTriggerModuleInfo() :
     model_type_(ST_MODULE_TYPE_GMM)
 {
@@ -159,12 +153,6 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
     }
 }
 
-void SoundTriggerModuleInfo::HandleEndTag(const char *tag __unused) {
-}
-
-void SoundTriggerModuleInfo::HandleCharData(const char *data __unused) {
-}
-
 SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     is_qcva_uuid_(false),
     is_qcmd_uuid_(false),
@@ -227,9 +215,6 @@ std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleI
         return module_config->second;
     else
         return nullptr;
-}
-
-void SoundModelConfig::HandleCharData(const char* data __unused) {
 }
 
 void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
@@ -302,7 +287,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     }
 }
 
-void SoundModelConfig::HandleEndTag(const char* tag __unused) {
+void SoundModelConfig::HandleEndTag(struct xml_userdata *data, const char* tag) {
     PAL_DBG(LOG_TAG, "Got end tag %s", tag);
 
     if (!strcmp(tag, "arm_ss_usecase")) {
@@ -324,7 +309,7 @@ void SoundModelConfig::HandleEndTag(const char* tag __unused) {
     }
 
     if (curr_child_)
-        curr_child_->HandleEndTag(tag);
+        curr_child_->HandleEndTag(data, tag);
 
     return;
 }
@@ -485,7 +470,7 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
     }
 }
 
-void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
+void SoundTriggerPlatformInfo::HandleEndTag(struct xml_userdata *data, const char* tag) {
     PAL_DBG(LOG_TAG, "Got end tag %s", tag);
 
     if (!strcmp(tag, "sound_model_config")) {
@@ -506,12 +491,8 @@ void SoundTriggerPlatformInfo::HandleEndTag(const char* tag) {
         curr_child_ = nullptr;
     }
 
-
     if (curr_child_)
-        curr_child_->HandleEndTag(tag);
+        curr_child_->HandleEndTag(data, tag);
 
     return;
-}
-
-void SoundTriggerPlatformInfo::HandleCharData(const char* data __unused) {
 }

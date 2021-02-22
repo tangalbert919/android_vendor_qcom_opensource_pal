@@ -6404,7 +6404,7 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     }
 
     if (data->is_parsing_sound_trigger) {
-        st_info->HandleEndTag((const char *)tag_name);
+        st_info->HandleEndTag(data, (const char *)tag_name);
         return;
     }
 

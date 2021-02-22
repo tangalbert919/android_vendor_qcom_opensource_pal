@@ -51,8 +51,8 @@ enum StInputModes {
 class SoundTriggerXml {
  public:
     virtual void HandleStartTag(const char *tag, const char **attribs) = 0;
-    virtual void HandleEndTag(const char *tag) = 0;
-    virtual void HandleCharData(const char *data) = 0;
+    virtual void HandleEndTag(struct xml_userdata *data __unused, const char *tag __unused) {};
+    virtual void HandleCharData(const char *data __unused) {};
     virtual ~SoundTriggerXml() {};
 };
 
@@ -64,8 +64,6 @@ class CaptureProfile : public SoundTriggerXml {
     CaptureProfile & operator=(CaptureProfile &rhs) = delete;
 
     void HandleStartTag(const char* tag, const char* * attribs) override;
-    void HandleEndTag(const char* tag) override;
-    void HandleCharData(const char* data) override;
 
     std::string GetName() const { return name_; }
     pal_device_id_t GetDevId() const { return device_id_; }

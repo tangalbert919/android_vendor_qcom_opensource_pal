@@ -52,8 +52,6 @@ class SecondStageConfig : public SoundTriggerXml {
     SecondStageConfig();
 
     void HandleStartTag(const char *tag, const char **attribs) override;
-    void HandleEndTag(const char *tag) override;
-    void HandleCharData(const char *data) override;
 
     st_sound_model_type_t GetDetectionType() const { return detection_type_; }
     uint32_t GetSoundModelID() const { return sm_id_; }
@@ -76,8 +74,6 @@ class SoundTriggerModuleInfo : public SoundTriggerXml {
     SoundTriggerModuleInfo();
 
     void HandleStartTag(const char *tag, const char **attribs) override;
-    void HandleEndTag(const char *tag) override;
-    void HandleCharData(const char *data) override;
 
     uint32_t GetModelType() const { return model_type_; }
     uint32_t GetModuleTagId(st_param_id_type_t param_id) const {
@@ -139,8 +135,7 @@ class SoundModelConfig : public SoundTriggerXml {
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
-    void HandleEndTag(const char *tag) override;
-    void HandleCharData(const char *data) override;
+    void HandleEndTag(struct xml_userdata *data, const char *tag) override;
     std::pair<uint32_t,uint32_t> GetStreamConfig(uint32_t stream_type);
  private:
     /* reads capture profile names into member variables */
@@ -200,8 +195,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
 
     void HandleStartTag(const char *tag, const char **attribs)
         override;
-    void HandleEndTag(const char *tag) override;
-    void HandleCharData(const char *data) override;
+    void HandleEndTag(struct xml_userdata *data, const char *tag) override;
 
  private:
     SoundTriggerPlatformInfo();

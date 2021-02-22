@@ -35,6 +35,7 @@
 
 #include "PalCommon.h"
 #include "SoundTriggerXmlParser.h"
+#include "ResourceManager.h"
 #include "kvh2xml.h"
 
 const std::map<std::string, uint32_t> devicePPKeyLUT {
@@ -58,14 +59,6 @@ CaptureProfile::CaptureProfile(const std::string name) :
     snd_name_("va-mic")
 {
 
-}
-
-void CaptureProfile::HandleCharData(const char* data __unused) {
-}
-
-void CaptureProfile::HandleEndTag(const char* tag) {
-    PAL_DBG(LOG_TAG, "Got end tag %s", tag);
-    return;
 }
 
 void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
