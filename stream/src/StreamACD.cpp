@@ -372,17 +372,17 @@ pal_device_id_t StreamACD::GetAvailCaptureDevice()
         return PAL_DEVICE_IN_HANDSET_VA_MIC;
 }
 
-std::shared_ptr<ACDCaptureProfile> StreamACD::GetCurrentCaptureProfile()
+std::shared_ptr<CaptureProfile> StreamACD::GetCurrentCaptureProfile()
 {
-    std::shared_ptr<ACDCaptureProfile> cap_prof = nullptr;
-    enum ACDInputModes input_mode = ACD_INPUT_MODE_HANDSET;
-    enum ACDOperatingModes operating_mode = ACD_OPERATING_MODE_HIGH_PERF;
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+    enum StInputModes input_mode = ST_INPUT_MODE_HANDSET;
+    enum StOperatingModes operating_mode = ST_OPERATING_MODE_HIGH_PERF;
 
     if (GetAvailCaptureDevice() == PAL_DEVICE_IN_HEADSET_VA_MIC)
-        input_mode = ACD_INPUT_MODE_HEADSET;
+        input_mode = ST_INPUT_MODE_HEADSET;
 
     if (use_lpi_)
-        operating_mode = ACD_OPERATING_MODE_LOW_POWER;
+        operating_mode = ST_OPERATING_MODE_LOW_POWER;
 
     cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(operating_mode, input_mode));
@@ -397,7 +397,7 @@ std::shared_ptr<ACDCaptureProfile> StreamACD::GetCurrentCaptureProfile()
 
 std::shared_ptr<Device> StreamACD::GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile)
 {
-    std::shared_ptr<ACDCaptureProfile> cap_prof = nullptr;
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
     std::shared_ptr<Device> device = nullptr;
     struct pal_device dev;
 

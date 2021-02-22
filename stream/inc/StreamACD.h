@@ -120,7 +120,7 @@ class StreamACD : public Stream {
     }
 
     pal_device_id_t GetAvailCaptureDevice();
-    std::shared_ptr<ACDCaptureProfile> GetCurrentCaptureProfile();
+    std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     void NotifyClient(struct acd_context_event *event);
     int32_t GetCurrentStateId();
     void TransitTo(int32_t state_id);
@@ -391,7 +391,7 @@ class StreamACD : public Stream {
 
     std::shared_ptr<StreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
-    std::shared_ptr<ACDCaptureProfile> cap_prof_;
+    std::shared_ptr<CaptureProfile> cap_prof_;
     std::shared_ptr<ContextDetectionEngine> engine_;
 
     struct acd_recognition_cfg    *rec_config_;
