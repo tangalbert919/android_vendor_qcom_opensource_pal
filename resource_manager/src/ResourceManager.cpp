@@ -2294,30 +2294,48 @@ void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
     }
 }
 
-bool ResourceManager::IsVoiceUILPISupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+bool ResourceManager::IsLPISupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetLpiEnable();
-    } else {
-        return false;
+            if (st_info)
+                return st_info->GetLpiEnable();
+
+            break;
+        }
+        default:
+            break;
     }
+    return false;
 }
 
 // this should only be called when LPI supported by platform
-void ResourceManager::GetSVAConcurrencyCount(
+void ResourceManager::GetSoundTriggerConcurrencyCount(
+    pal_stream_type_t type,
     int32_t *enable_count, int32_t *disable_count) {
 
     pal_stream_attributes st_attr;
-    bool voice_conc_enable = IsVoiceCallAndVoiceUIConcurrencySupported();
-    bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
+    bool voice_conc_enable = IsVoiceCallConcurrencySupported(type);
+    bool voip_conc_enable = IsVoipConcurrencySupported(type);
     bool audio_capture_conc_enable =
-        IsAudioCaptureAndVoiceUIConcurrencySupported();
-    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
+        IsAudioCaptureConcurrencySupported(type);
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported(type);
+    int32_t *local_en_count = nullptr;
+    int32_t *local_dis_count = nullptr;
 
     mResourceManagerMutex.lock();
-    if (concurrencyEnableCount > 0 || concurrencyDisableCount > 0) {
+    if (type == PAL_STREAM_VOICE_UI) {
+        local_en_count = &concurrencyEnableCount;
+        local_dis_count = &concurrencyDisableCount;
+    } else {
+        PAL_ERR(LOG_TAG, "Error:%d Invalid stream type %d", -EINVAL, type);
+        mResourceManagerMutex.unlock();
+        return;
+    }
+
+    if (*local_en_count > 0 || *local_dis_count > 0) {
         PAL_DBG(LOG_TAG, "Concurrency count already updated, return");
         goto exit;
     }
@@ -2330,78 +2348,106 @@ void ResourceManager::GetSVAConcurrencyCount(
 
         if (st_attr.type == PAL_STREAM_VOICE_CALL) {
             if (!voice_conc_enable) {
-                concurrencyDisableCount++;
+                (*local_dis_count)++;
             } else {
-                concurrencyEnableCount++;
+                (*local_en_count)++;
             }
         } else if (st_attr.type == PAL_STREAM_VOIP_TX ||
                 st_attr.type == PAL_STREAM_VOIP_RX ||
                 st_attr.type == PAL_STREAM_VOIP) {
             if (!voip_conc_enable) {
-                concurrencyDisableCount++;
+                (*local_dis_count)++;
             } else {
-                concurrencyEnableCount++;
+                (*local_en_count)++;
             }
         } else if (st_attr.direction == PAL_AUDIO_INPUT &&
                    (st_attr.type == PAL_STREAM_LOW_LATENCY ||
                     st_attr.type == PAL_STREAM_DEEP_BUFFER)) {
             if (!audio_capture_conc_enable) {
-                concurrencyDisableCount++;
+                (*local_dis_count)++;
             } else {
-                concurrencyEnableCount++;
+                (*local_en_count)++;
             }
         } else if (st_attr.direction == PAL_AUDIO_OUTPUT &&
                    (st_attr.type != PAL_STREAM_LOW_LATENCY ||
                     low_latency_bargein_enable)) {
-            concurrencyEnableCount++;
+            (*local_en_count)++;
         }
     }
 
 exit:
     mResourceManagerMutex.unlock();
-    *enable_count = concurrencyEnableCount;
-    *disable_count = concurrencyDisableCount;
+    *enable_count = *local_en_count;
+    *disable_count = *local_dis_count;
     PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
         *enable_count, *disable_count);
 
 }
 
-bool ResourceManager::IsLowLatencyBargeinSupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+bool ResourceManager::IsLowLatencyBargeinSupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetLowLatencyBargeinEnable();
+            if (st_info)
+                return st_info->GetLowLatencyBargeinEnable();
+
+            break;
+        }
+        default:
+            break;
     }
     return false;
 }
 
-bool ResourceManager::IsAudioCaptureAndVoiceUIConcurrencySupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+bool ResourceManager::IsAudioCaptureConcurrencySupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetConcurrentCaptureEnable();
+            if (st_info)
+                return st_info->GetConcurrentCaptureEnable();
+
+            break;
+        }
+        default:
+            break;
     }
     return false;
 }
 
-bool ResourceManager::IsVoiceCallAndVoiceUIConcurrencySupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+bool ResourceManager::IsVoiceCallConcurrencySupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetConcurrentVoiceCallEnable();
+            if (st_info)
+                return st_info->GetConcurrentVoiceCallEnable();
+
+            break;
+        }
+        default:
+            break;
     }
     return false;
 }
 
-bool ResourceManager::IsVoipAndVoiceUIConcurrencySupported() {
-    std::shared_ptr<SoundTriggerPlatformInfo> st_info =
-        SoundTriggerPlatformInfo::GetInstance();
+bool ResourceManager::IsVoipConcurrencySupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
 
-    if (st_info) {
-        return st_info->GetConcurrentVoipCallEnable();
+            if (st_info)
+                return st_info->GetConcurrentVoipCallEnable();
+
+            break;
+        }
+        default:
+            break;
     }
     return false;
 }
@@ -2503,7 +2549,6 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
     pal_device_id_t device_to_disconnect;
     pal_device_id_t device_to_connect;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
-    StreamSoundTrigger *st_str = nullptr;
     std::shared_ptr<SoundTriggerPlatformInfo> st_info =
         SoundTriggerPlatformInfo::GetInstance();
 
@@ -2544,31 +2589,12 @@ int ResourceManager::SwitchSVADevices(bool connect_state,
         device_to_disconnect = dest_device;
     }
 
-    for (int i = 0; i < active_streams_st.size(); i++) {
-        st_str = active_streams_st[i];
-        if (st_str && isStreamActive(st_str, active_streams_st)) {
-            mResourceManagerMutex.unlock();
-            status = active_streams_st[i]->DisconnectDevice(device_to_disconnect);
-            mResourceManagerMutex.lock();
-
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to disconnect device %d for SVA",
-                    device_to_disconnect);
-            }
-        }
-    }
-    for (int i = 0; i < active_streams_st.size(); i++) {
-        st_str = active_streams_st[i];
-        if (st_str && isStreamActive(st_str, active_streams_st)) {
-            mResourceManagerMutex.unlock();
-            status = active_streams_st[i]->ConnectDevice(device_to_connect);
-            mResourceManagerMutex.lock();
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to connect device %d for SVA",
-                    device_to_connect);
-            }
-        }
-    }
+    /* This is called from mResourceManagerMutex lock, unlock before calling
+     * HandleDetectionStreamAction */
+    mResourceManagerMutex.unlock();
+    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
+    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONNECT_DEVICE, (void *)&device_to_connect);
+    mResourceManagerMutex.lock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -2781,82 +2807,103 @@ exit:
     return status;
 }
 
-int ResourceManager::StopOtherSVAStreams(StreamSoundTrigger *st) {
+int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data)
+{
     int status = 0;
-    StreamSoundTrigger *st_str = nullptr;
+    pal_stream_attributes st_attr;
 
     mResourceManagerMutex.lock();
-    for (int i = 0; i < active_streams_st.size(); i++) {
-        st_str = active_streams_st[i];
-        if (st_str && st_str != st &&
-            isStreamActive(st_str, active_streams_st)) {
-            mResourceManagerMutex.unlock();
-            status = st_str->Pause();
-            mResourceManagerMutex.lock();
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to pause SVA stream");
-            }
+    for (auto& str: mActiveStreams) {
+        str->getStreamAttributes(&st_attr);
+        if (st_attr.type != type)
+            continue;
+
+        mResourceManagerMutex.unlock();
+        switch (action) {
+            case ST_PAUSE:
+                if (str != (Stream *)data) {
+                    status = str->Pause();
+                    if (status)
+                        PAL_ERR(LOG_TAG, "Failed to pause stream");
+                }
+                break;
+            case ST_RESUME:
+                if (str != (Stream *)data) {
+                    status = str->Resume();
+                    if (status)
+                        PAL_ERR(LOG_TAG, "Failed to do resume stream");
+                }
+                break;
+            case ST_ENABLE_LPI: {
+                bool active = *(bool *)data;
+                status = str->EnableLPI(!active);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Failed to do resume stream");
+                }
+                break;
+            case ST_HANDLE_CONCURRENT_STREAM: {
+                bool enable = *(bool *)data;
+                status = str->HandleConcurrentStream(enable);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Failed to stop/unload stream");
+                }
+                break;
+            case ST_HANDLE_DISCONNECT_DEVICE: {
+                pal_device_id_t device_to_disconnect = *(pal_device_id_t*)data;
+                status = str->DisconnectDevice(device_to_disconnect);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Failed to disconnect device %d",
+                            device_to_disconnect);
+                }
+                break;
+            case ST_HANDLE_CONNECT_DEVICE: {
+                pal_device_id_t device_to_connect = *(pal_device_id_t*)data;
+                status = str->ConnectDevice(device_to_connect);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Failed to connect device %d",
+                            device_to_connect);
+                }
+                break;
+            case ST_HANDLE_CHARGING_STATE: {
+                bool enable = *(bool *)data;
+                status = str->HandleChargingStateUpdate(charging_state_, enable);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Failed to handling charging state\n");
+                }
+                break;
+            default:
+                break;
         }
+        mResourceManagerMutex.lock();
     }
     mResourceManagerMutex.unlock();
 
     return status;
 }
 
-int ResourceManager::StartOtherSVAStreams(StreamSoundTrigger *st) {
-    int status = 0;
-    StreamSoundTrigger *st_str = nullptr;
-
-    mResourceManagerMutex.lock();
-    for (int i = 0; i < active_streams_st.size(); i++) {
-        st_str = active_streams_st[i];
-        if (st_str && st_str != st &&
-            isStreamActive(st_str, active_streams_st)) {
-            mResourceManagerMutex.unlock();
-            status = st_str->Resume();
-            mResourceManagerMutex.lock();
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to do resume SVA stream");
-            }
-        }
-    }
-    mResourceManagerMutex.unlock();
-
-    return status;
+int ResourceManager::StopOtherDetectionStreams(void *st) {
+    return HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_PAUSE, st);
 }
 
-// apply for Voice UI streams only
-void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
-                                             pal_stream_direction_t dir,
-                                             bool active) {
-    int32_t status = 0;
-    bool conc_en = true;
-    bool do_switch = false;
-    bool tx_conc = false;
-    bool rx_conc = false;
-    bool voice_conc_enable = IsVoiceCallAndVoiceUIConcurrencySupported();
-    bool voip_conc_enable = IsVoipAndVoiceUIConcurrencySupported();
-    bool audio_capture_conc_enable =
-        IsAudioCaptureAndVoiceUIConcurrencySupported();
-    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported();
-    StreamSoundTrigger *st_str = nullptr;
-    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+int ResourceManager::StartOtherDetectionStreams(void *st) {
+    return HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_RESUME, st);
+}
 
-    mResourceManagerMutex.lock();
-    PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
+                         pal_stream_type_t in_type, pal_stream_direction_t dir,
+                         bool *rx_conc, bool *tx_conc, bool *conc_en)
+{
+    bool voice_conc_enable = IsVoiceCallConcurrencySupported(st_type);
+    bool voip_conc_enable = IsVoipConcurrencySupported(st_type);
+    bool low_latency_bargein_enable = IsLowLatencyBargeinSupported(st_type);
+    bool audio_capture_conc_enable = IsAudioCaptureConcurrencySupported(st_type);
 
     if (dir == PAL_AUDIO_OUTPUT) {
-        if (type == PAL_STREAM_LOW_LATENCY && !low_latency_bargein_enable) {
+        if (in_type == PAL_STREAM_LOW_LATENCY && !low_latency_bargein_enable) {
             PAL_VERBOSE(LOG_TAG, "Ignore low latency playback stream");
-            goto exit;
         } else {
-            rx_conc = true;
+            *rx_conc = true;
         }
-    }
-
-    if (active_streams_st.size() == 0) {
-        PAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
-        goto exit;
     }
 
     /*
@@ -2864,136 +2911,138 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
      * so there's no need to switch to NLPI for voip/voice rx stream
      * if corresponding voip/voice tx stream concurrency is not supported.
      */
-    if (type == PAL_STREAM_VOICE_CALL) {
-        tx_conc = true;
-        rx_conc = true;
+    if (in_type == PAL_STREAM_VOICE_CALL) {
+        *tx_conc = true;
+        *rx_conc = true;
         if (!voice_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
-            conc_en = false;
+            *conc_en = false;
         }
-    } else if (type == PAL_STREAM_VOIP_TX ||
-               type == PAL_STREAM_VOIP_RX ||
-               type == PAL_STREAM_VOIP) {
-        tx_conc = true;
-        rx_conc = true;
+    } else if (in_type == PAL_STREAM_VOIP_TX ||
+               in_type == PAL_STREAM_VOIP_RX ||
+               in_type == PAL_STREAM_VOIP) {
+        *tx_conc = true;
+        *rx_conc = true;
         if (!voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
-            conc_en = false;
+            *conc_en = false;
         }
     } else if (dir == PAL_AUDIO_INPUT &&
-               (type == PAL_STREAM_LOW_LATENCY ||
-                type == PAL_STREAM_DEEP_BUFFER)) {
-        tx_conc = true;
+               (in_type == PAL_STREAM_LOW_LATENCY ||
+                in_type == PAL_STREAM_DEEP_BUFFER)) {
+        *tx_conc = true;
         if (!audio_capture_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on audio capture concurrency");
-            conc_en = false;
+            *conc_en = false;
         }
     }
 
-    PAL_INFO(LOG_TAG, "stream type %d active %d Tx conc %d, Rx conc %d, concurrency%s allowed",
-        type, active, tx_conc, rx_conc, conc_en? "" : " not");
+    PAL_INFO(LOG_TAG, "stream type %d Tx conc %d, Rx conc %d, concurrency%s allowed",
+        in_type, *tx_conc, *rx_conc, *conc_en? "" : " not");
+}
 
-    if (!conc_en) {
-        if (active) {
-            ++concurrencyDisableCount;
-            if (concurrencyDisableCount == 1) {
-                // pause all sva streams
-                for (int i = 0; i < active_streams_st.size(); i++) {
-                    st_str = active_streams_st[i];
-                    if (st_str &&
-                        isStreamActive(st_str, active_streams_st)) {
-                        mResourceManagerMutex.unlock();
-                        status = st_str->Pause();
-                        mResourceManagerMutex.lock();
-                        if (status) {
-                            PAL_ERR(LOG_TAG, "Failed to pause SVA stream");
-                        }
-                    }
-                }
-            }
-        } else {
-            --concurrencyDisableCount;
-            if (concurrencyDisableCount == 0) {
-                // resume all sva streams
-                for (int i = 0; i < active_streams_st.size(); i++) {
-                    st_str = active_streams_st[i];
-                    if (st_str &&
-                        isStreamActive(st_str, active_streams_st)) {
-                        mResourceManagerMutex.unlock();
-                        status = st_str->Resume();
-                        mResourceManagerMutex.lock();
-                        if (status) {
-                            PAL_ERR(LOG_TAG, "Failed to resume SVA stream");
-                        }
-                    }
-                }
+void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool active)
+{
+    int32_t *local_dis_count;
+
+    if (st_type != PAL_STREAM_VOICE_UI)
+        return;
+
+    local_dis_count = &concurrencyDisableCount;
+
+    mResourceManagerMutex.lock();
+    if (active) {
+        ++(*local_dis_count);
+        if (*local_dis_count == 1) {
+            // pause all sva streams
+            if (st_type == PAL_STREAM_VOICE_UI) {
+                mResourceManagerMutex.unlock();
+                HandleDetectionStreamAction(st_type, ST_PAUSE, NULL);
+                mResourceManagerMutex.lock();
             }
         }
-    } else if (tx_conc || rx_conc) {
-        if (!IsVoiceUILPISupported()) {
+    } else {
+        --(*local_dis_count);
+        if (*local_dis_count == 0) {
+            // resume all sva streams
+            if (st_type == PAL_STREAM_VOICE_UI) {
+                mResourceManagerMutex.unlock();
+                HandleDetectionStreamAction(st_type, ST_RESUME, NULL);
+                mResourceManagerMutex.lock();
+            }
+        }
+    }
+    mResourceManagerMutex.unlock();
+}
+
+// apply for Voice UI streams only
+void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
+                                             pal_stream_direction_t dir,
+                                             bool active) {
+    int32_t status = 0;
+    bool voiceui_conc_en = true;
+    bool do_voiceui_switch = false;
+    bool voiceui_tx_conc = false;
+    bool voiceui_rx_conc = false;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+
+    mResourceManagerMutex.lock();
+    PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+
+    GetConcurrencyInfo(PAL_STREAM_VOICE_UI, type, dir,
+                         &voiceui_rx_conc, &voiceui_tx_conc, &voiceui_conc_en);
+
+    if (active_streams_st.size() == 0) {
+        PAL_DBG(LOG_TAG, "No need to concurrent as no SVA streams available");
+        goto exit;
+    }
+
+    if (!voiceui_conc_en) {
+        mResourceManagerMutex.unlock();
+        HandleStreamPauseResume(PAL_STREAM_VOICE_UI, active);
+        mResourceManagerMutex.lock();
+    }
+
+    if (voiceui_tx_conc || voiceui_rx_conc) {
+        if (!IsLPISupported(PAL_STREAM_VOICE_UI)) {
             PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
         } else if (active) {
-            if (++concurrencyEnableCount == 1) {
-                do_switch = true;
-            }
+            if (++concurrencyEnableCount == 1)
+                do_voiceui_switch = true;
         } else {
-            if (--concurrencyEnableCount == 0) {
-                do_switch = true;
-            }
+            if (--concurrencyEnableCount == 0)
+                do_voiceui_switch = true;
         }
+    }
 
-        if (do_switch) {
-            // update use_lpi_ for all sva streams
-            for (int i = 0; i < active_streams_st.size(); i++) {
-                st_str = active_streams_st[i];
-                if (st_str && isStreamActive(st_str, active_streams_st)) {
-                    mResourceManagerMutex.unlock();
-                    status = st_str->EnableLPI(!active);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to update LPI state");
-                    }
-                }
-            }
+    if (do_voiceui_switch) {
+        bool action = false;
+        // update use_lpi_ for all sva streams
 
-            // update common SVA capture profile
+        mResourceManagerMutex.unlock();
+        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_ENABLE_LPI, (void *)&active);
+        mResourceManagerMutex.lock();
+
+        // update common SVA capture profile
+        SVACaptureProfile = nullptr;
+        cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+        if (!cap_prof_priority) {
+            PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
             SVACaptureProfile = nullptr;
-            cap_prof_priority = GetCaptureProfileByPriority(nullptr);
-
-            if (!cap_prof_priority) {
-                PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
-                SVACaptureProfile = nullptr;
-            } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
-                    CAPTURE_PROFILE_PRIORITY_HIGH) {
-                SVACaptureProfile = cap_prof_priority;
-            }
-
-            // stop/unload all sva streams
-            for (int i = 0; i < active_streams_st.size(); i++) {
-                st_str = active_streams_st[i];
-                if (st_str && isStreamActive(st_str, active_streams_st)) {
-                    mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(false);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to stop/unload SVA stream");
-                    }
-                }
-            }
-
-            // load/start all sva streams
-            for (int i = 0; i < active_streams_st.size(); i++) {
-                st_str = active_streams_st[i];
-                if (st_str && isStreamActive(st_str, active_streams_st)) {
-                    mResourceManagerMutex.unlock();
-                    status = st_str->HandleConcurrentStream(true);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to load/start SVA stream");
-                    }
-                }
-            }
+        } else if (cap_prof_priority->ComparePriority(SVACaptureProfile) ==
+                CAPTURE_PROFILE_PRIORITY_HIGH) {
+            SVACaptureProfile = cap_prof_priority;
         }
+
+        // stop/unload all sva streams
+        mResourceManagerMutex.unlock();
+        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+
+        // load/start all sva streams
+        action = true;
+        HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+        mResourceManagerMutex.lock();
     }
 exit:
     mResourceManagerMutex.unlock();
@@ -5040,7 +5089,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         {
             pal_param_charging_state *battery_charging_state =
                 (pal_param_charging_state *)param_payload;
-            StreamSoundTrigger *st_str = nullptr;
+            bool action;
             if (IsTransitToNonLPIOnChargingSupported()) {
                 if (payload_size == sizeof(pal_param_charging_state)) {
                     PAL_INFO(LOG_TAG, "Charging State = %d",
@@ -5051,34 +5100,12 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         break;
                     }
                     charging_state_ = battery_charging_state->charging_state;
-                    for (int i = 0; i < active_streams_st.size(); i++) {
-                        st_str = active_streams_st[i];
-                        if (st_str &&
-                            isStreamActive(st_str, active_streams_st)) {
-                            mResourceManagerMutex.unlock();
-                            status = st_str->HandleChargingStateUpdate(
-                                battery_charging_state->charging_state, false);
-                            mResourceManagerMutex.lock();
-                            if (status) {
-                                PAL_ERR(LOG_TAG,
-                                        "Failed to handling charging state\n");
-                            }
-                        }
-                    }
-                    for (int i = 0; i < active_streams_st.size(); i++) {
-                        st_str = active_streams_st[i];
-                        if (st_str &&
-                            isStreamActive(st_str, active_streams_st)) {
-                            mResourceManagerMutex.unlock();
-                            status = st_str->HandleChargingStateUpdate(
-                                battery_charging_state->charging_state, true);
-                            mResourceManagerMutex.lock();
-                            if (status) {
-                                PAL_ERR(LOG_TAG,
-                                        "Failed to handling charging state\n");
-                            }
-                        }
-                    }
+                    action = false;
+                    mResourceManagerMutex.unlock();
+                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    action = true;
+                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    mResourceManagerMutex.lock();
                 } else {
                     PAL_ERR(LOG_TAG,
                             "Incorrect size : expected (%zu), received(%zu)",

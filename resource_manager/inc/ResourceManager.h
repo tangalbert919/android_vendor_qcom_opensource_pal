@@ -116,6 +116,16 @@ typedef enum {
     VOICE2,
 } stream_supported_type;
 
+typedef enum {
+    ST_PAUSE = 1,
+    ST_RESUME,
+    ST_ENABLE_LPI,
+    ST_HANDLE_CONCURRENT_STREAM,
+    ST_HANDLE_CONNECT_DEVICE,
+    ST_HANDLE_DISCONNECT_DEVICE,
+    ST_HANDLE_CHARGING_STATE,
+} st_action;
+
 struct xml_userdata {
     char data_buf[1024];
     size_t offs;
@@ -501,16 +511,18 @@ public:
     int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr);
     const std::string getPALDeviceName(const pal_device_id_t id) const;
     bool isNonALSACodec(const struct pal_device *device) const;
-    bool IsVoiceUILPISupported();
-    bool IsLowLatencyBargeinSupported();
-    bool IsAudioCaptureAndVoiceUIConcurrencySupported();
-    bool IsVoiceCallAndVoiceUIConcurrencySupported();
-    bool IsVoipAndVoiceUIConcurrencySupported();
+    bool IsLPISupported(pal_stream_type_t type);
+    bool IsLowLatencyBargeinSupported(pal_stream_type_t type);
+    bool IsAudioCaptureConcurrencySupported(pal_stream_type_t type);
+    bool IsVoiceCallConcurrencySupported(pal_stream_type_t type);
+    bool IsVoipConcurrencySupported(pal_stream_type_t type);
     bool IsTransitToNonLPIOnChargingSupported();
-    void GetSVAConcurrencyCount(int32_t *enable_count, int32_t *disable_count);
+    void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
+    int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
+    void HandleStreamPauseResume(pal_stream_type_t st_type, bool active);
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(
         StreamSoundTrigger *s);
     bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);
@@ -519,8 +531,11 @@ public:
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
-    int StopOtherSVAStreams(StreamSoundTrigger *st);
-    int StartOtherSVAStreams(StreamSoundTrigger *st);
+    int StopOtherDetectionStreams(void *st);
+    int StartOtherDetectionStreams(void *st);
+    void GetConcurrencyInfo(pal_stream_type_t st_type,
+                         pal_stream_type_t in_type, pal_stream_direction_t dir,
+                         bool *rx_conc, bool *tx_conc, bool *conc_en);
     void ConcurrentStreamStatus(pal_stream_type_t type,
                                 pal_stream_direction_t dir,
                                 bool active);
