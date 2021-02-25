@@ -76,7 +76,7 @@ typedef struct audio_lc3_codec_cfg_s {
     lc3_decoder_cfg_t dec_cfg;
 } audio_lc3_codec_cfg_t;
 
-uint32_t audio_location_map_array[] = {
+static uint32_t audio_location_map_array[] = {
     AUDIO_LOCATION_FRONT_LEFT,
     AUDIO_LOCATION_FRONT_RIGHT,
     AUDIO_LOCATION_FRONT_CENTER,
@@ -107,7 +107,7 @@ uint32_t audio_location_map_array[] = {
     AUDIO_LOCATION_RIGHT_SURROUND
 };
 
-int channel_map_array[] = {
+static int channel_map_array[] = {
     PCM_CHANNEL_L,
     PCM_CHANNEL_R,
     PCM_CHANNEL_C,
