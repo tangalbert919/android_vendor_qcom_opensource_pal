@@ -42,6 +42,7 @@
 #define MAX_SLEEP_RETRY 100
 
 static int fd = -1;
+static int exit_thread = 0; //by default exit thread is made false
 
 void SndCardMonitor::monitorThreadLoop()
 {
@@ -54,6 +55,8 @@ void SndCardMonitor::monitorThreadLoop()
     card_status_t status;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
     while(--tries) {
+        if (exit_thread == 1)
+            break;
         if ((fd = open(SNDCARD_PATH, O_RDWR)) < 0) {
             PAL_ERR(LOG_TAG, "Open failed snd sysfs node");
         }
@@ -63,6 +66,9 @@ void SndCardMonitor::monitorThreadLoop()
         }
         usleep(500000);
     }
+    if (fd == -1)
+        goto Done;
+
     while(1) {
         memset(buf , 0 ,sizeof(buf));
         read(fd, buf, 10);
@@ -90,11 +96,13 @@ void SndCardMonitor::monitorThreadLoop()
             rm->ssrHandler(status);
         }
     }
+Done:
     return;
 }
 
-SndCardMonitor::SndCardMonitor()
+SndCardMonitor::SndCardMonitor(int sndNum)
 {
+    sndNum = 0; //not used at present.
     mThread = std::thread(&SndCardMonitor::monitorThreadLoop, this);
     PAL_INFO(LOG_TAG, "Snd card monitor init done.");
     return;
@@ -104,6 +112,8 @@ SndCardMonitor::SndCardMonitor()
 SndCardMonitor::~SndCardMonitor()
 {
    char buf[2] = "2";
-   write(fd, &buf, 1);
+   exit_thread = 1;
+   if(fd != -1)
+      write(fd, &buf, 1);
    mThread.join();
 }

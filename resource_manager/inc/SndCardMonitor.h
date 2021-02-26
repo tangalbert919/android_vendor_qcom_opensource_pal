@@ -45,7 +45,7 @@ private :
     void monitorThreadLoop();
 
 public :
-    SndCardMonitor();
+    SndCardMonitor(int sndNum);
     ~SndCardMonitor();
 };
 
