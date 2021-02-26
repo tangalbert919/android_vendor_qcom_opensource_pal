@@ -99,11 +99,18 @@ int USB::start()
 {
     int status = 0;
 
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
+
     status = configureUsb();
     if (status != 0) {
         PAL_ERR(LOG_TAG,"USB Endpoint Configuration Failed");
         return status;
     }
+
     status = Device::start();
     return status;
 }
