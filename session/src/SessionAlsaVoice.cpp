@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,7 +37,7 @@
 #include "apm_api.h"
 #include <sstream>
 #include <string>
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include "audio_route/audio_route.h"
 
 #define PAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)

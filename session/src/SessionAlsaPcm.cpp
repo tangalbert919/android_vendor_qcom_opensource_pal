@@ -34,7 +34,7 @@
 #include "Stream.h"
 #include "ResourceManager.h"
 #include "detection_cmn_api.h"
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include <sstream>
 #include <string>
 #include "detection_cmn_api.h"

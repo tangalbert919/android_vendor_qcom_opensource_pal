@@ -41,7 +41,7 @@
 #include "PalAudioRoute.h"
 #include "PalCommon.h"
 #include <condition_variable>
-#include <agm_api.h>
+#include <agm/agm_api.h>
 
 #define EARLY_EOS_DELAY_MS 150
 
