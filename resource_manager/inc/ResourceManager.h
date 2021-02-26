@@ -382,12 +382,14 @@ protected:
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;
+    static int ACDConcurrencyEnableCount;
+    static int ACDConcurrencyDisableCount;
     static int wake_lock_fd;
     static int wake_unlock_fd;
     static uint32_t wake_lock_cnt;
     std::map<int, std::pair<session_callback, uint64_t>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
-    std::shared_ptr<CaptureProfile> SVACaptureProfile;
+    std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
     ResourceManager();
 public:
     ~ResourceManager();
@@ -523,11 +525,14 @@ public:
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
     void HandleStreamPauseResume(pal_stream_type_t st_type, bool active);
-    std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(
-        StreamSoundTrigger *s);
-    bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);
-    std::shared_ptr<CaptureProfile> GetSVACaptureProfile();
-    int SwitchSVADevices(bool connect_state, pal_device_id_t device_id);
+    std::shared_ptr<CaptureProfile> GetACDCaptureProfileByPriority(
+        StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetSVACaptureProfileByPriority(
+        StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
+    bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
+    std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();
+    int SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t device_id);
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);

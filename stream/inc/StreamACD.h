@@ -106,6 +106,8 @@ class StreamACD : public Stream {
     int32_t read(struct pal_buffer *buf __unused) {return 0; }
     int32_t write(struct pal_buffer *buf __unused) { return 0; }
 
+    int32_t DisconnectDevice(pal_device_id_t device_id) override;
+    int32_t ConnectDevice(pal_device_id_t device_id) override;
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable);
     int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable);
     int32_t ssrDownHandler() { return 0; }
@@ -118,6 +120,11 @@ class StreamACD : public Stream {
                             bool enable __unused) {
         return -ENOSYS;
     }
+
+    int32_t Resume() override;
+    int32_t Pause() override;
+    int32_t HandleConcurrentStream(bool active) override;
+    int32_t EnableLPI(bool is_enable) override;
 
     pal_device_id_t GetAvailCaptureDevice();
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
@@ -253,6 +260,24 @@ class StreamACD : public Stream {
         ~ACDDetectedEventConfig() {}
     };
 
+    class ACDConcurrentStreamEventConfigData : public ACDEventConfigData {
+     public:
+        ACDConcurrentStreamEventConfigData(bool active)
+            : is_active_(active) {}
+        ~ACDConcurrentStreamEventConfigData() {}
+
+        bool is_active_;
+    };
+
+    class ACDConcurrentStreamEventConfig : public ACDEventConfig {
+     public:
+        ACDConcurrentStreamEventConfig (bool active)
+            : ACDEventConfig(ACD_EV_CONCURRENT_STREAM) {
+            data_ = std::make_shared<ACDConcurrentStreamEventConfigData>(active);
+        }
+        ~ACDConcurrentStreamEventConfig () {}
+    };
+
     class ACDPauseEventConfig : public ACDEventConfig {
      public:
         ACDPauseEventConfig() : ACDEventConfig(ACD_EV_PAUSE) { }
@@ -382,7 +407,7 @@ class StreamACD : public Stream {
     int32_t ProcessInternalEvent(std::shared_ptr<ACDEventConfig> ev_cfg);
 
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
-    int32_t SendRecognitionConfig(struct pal_st_recognition_config *config);
+    int32_t SendRecognitionConfig(struct acd_recognition_cfg *config);
     int32_t SendContextConfig(struct pal_param_context_list *config);
     int32_t SetupDetectionEngine();
 

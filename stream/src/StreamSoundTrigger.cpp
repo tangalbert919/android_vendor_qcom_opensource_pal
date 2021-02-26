@@ -613,7 +613,7 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
     dev->id = dev_id;
 
     if (use_rm_profile) {
-        cap_prof = rm->GetSVACaptureProfile();
+        cap_prof = rm->GetSoundTriggerCaptureProfile();
         if (!cap_prof) {
             PAL_DBG(LOG_TAG, "Failed to get common capture profile");
             cap_prof = GetCurrentCaptureProfile();
@@ -2941,7 +2941,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             // Do not update capture profile when resuming stream
             if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
                     status = rm->StopOtherDetectionStreams(&st_stream_);
@@ -2960,7 +2960,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 auto& dev = st_stream_.mDevices[0];
                 dev->getDeviceAttributes(&dattr);
 
-                cap_prof = st_stream_.rm->GetSVACaptureProfile();
+                cap_prof = st_stream_.rm->GetSoundTriggerCaptureProfile();
                 if (!cap_prof) {
                     PAL_ERR(LOG_TAG, "Invalid capture profile");
                     goto err_exit;
@@ -3232,7 +3232,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             // Do not update capture profile when pausing stream
             if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
                 bool backend_update = false;
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
                     status = rm->StopOtherDetectionStreams(&st_stream_);
