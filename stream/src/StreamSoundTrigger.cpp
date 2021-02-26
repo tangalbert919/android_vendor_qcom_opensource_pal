@@ -494,7 +494,7 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
 
     if (mDevPpModifiers.size() == 0 ||
         (mDevPpModifiers[0].first == DEVICEPP_TX &&
-        mDevPpModifiers[0].second == DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)) {
+        mDevPpModifiers[0].second == DEVICEPP_TX_FLUENCE_FFNS)) {
         PAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
         goto exit;
     }

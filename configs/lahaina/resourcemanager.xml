@@ -538,7 +538,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -548,7 +548,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -558,7 +558,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -568,7 +568,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -578,7 +578,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -588,7 +588,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -598,7 +598,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -608,7 +608,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -618,7 +618,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -628,7 +628,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -638,7 +638,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-tmic" />
             </capture_profile>
@@ -648,7 +648,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-qmic" />
             </capture_profile>
@@ -658,7 +658,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -668,7 +668,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -678,7 +678,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-tmic" />
             </capture_profile>
@@ -688,7 +688,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-qmic" />
             </capture_profile>
