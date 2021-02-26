@@ -4824,7 +4824,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         device_connection->connection_state);
             if (payload_size == sizeof(pal_param_device_connection_t)) {
                 status = handleDeviceConnectionChange(*device_connection);
-                if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                    device_connection->id == PAL_DEVICE_IN_BLUETOOTH_A2DP)) {
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
                     status = dev->setDeviceParameter(param_id, param_payload);
@@ -5324,6 +5325,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
 
         PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            device_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
             isBtScoDevice(device_id)) {
             dAttr.id = device_id;
             /* Stream type is irrelevant here as we need device num channels

@@ -47,6 +47,8 @@
 #define PARAM_ID_RESET_PLACEHOLDER_MODULE          0x08001173
 #define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
 
+bool Bluetooth::isCaptureEnabled = false;
+
 Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Device(device, Rm),
       codecFormat(CODEC_TYPE_INVALID),
@@ -56,6 +58,7 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isHandoffInProgress(false),
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
+      isDummySink(false),
       abrRefCnt(0),
       swbSpeechMode(SPEECH_MODE_INVALID)
 {
@@ -72,8 +75,12 @@ int Bluetooth::updateDeviceMetadata()
     std::vector <std::pair<int, int>> keyVector;
 
     switch(deviceAttr.id) {
+    case PAL_DEVICE_IN_BLUETOOTH_A2DP:
     case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
+            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+        else
+            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
         keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
 
         switch (codecFormat) {
@@ -268,7 +275,11 @@ int Bluetooth::configureA2dpEncoderDecoder()
     codecConfig.sample_rate = out_buf->sample_rate;
     codecConfig.bit_width = out_buf->bit_format;
     codecConfig.ch_info.channels = out_buf->channel_count;
-    isAbrEnabled = out_buf->is_abr_enabled;
+
+    if (!isCaptureEnabled)
+        isAbrEnabled = out_buf->is_abr_enabled;
+    else
+        isAbrEnabled = false;
 
     /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes();
@@ -375,6 +386,42 @@ int Bluetooth::configureA2dpEncoderDecoder()
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid LC3 param size");
             goto error;
+        }
+
+        /* COP v2 DEPACKETIZER Module Configuration */
+        status = session->getMIID(backEndName.c_str(), COP_DEPACKETIZER_V2, &copMiid);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                    COP_DEPACKETIZER_V2, status);
+            goto error;
+        }
+
+        if (codecType == DEC) {
+            builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, false);
+            if (paramSize) {
+                dev->updateCustomPayload(paramData, paramSize);
+                free(paramData);
+                paramData = NULL;
+                paramSize = 0;
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid COPv2 module param size");
+                goto error;
+            }
+
+            builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, true);
+            if (paramSize) {
+                dev->updateCustomPayload(paramData, paramSize);
+                free(paramData);
+                paramData = NULL;
+                paramSize = 0;
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid COPv2 module param size");
+                goto error;
+            }
+
+            goto done;
         }
 
         /* COP v2 PACKETIZER Module Configuration */
@@ -847,6 +894,8 @@ BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     codecType = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
     pluginHandler = NULL;
     pluginCodec = NULL;
+    if (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP)
+        isCaptureEnabled = true;
 
     init();
     param_bt_a2dp.reconfigured = false;
@@ -959,7 +1008,22 @@ void BtA2dp::init_a2dp_sink()
         bt_lib_sink_handle = dlopen(BT_IPC_SINK_LIB, RTLD_NOW);
 
         if (bt_lib_sink_handle == nullptr) {
+#ifndef LINUX_ENABLED
+            // On Mobile LE VoiceBackChannel implemented as A2DPSink Profile.
+            // However - All the BT-Host IPC calls are exposed via Source LIB itself.
+            PAL_DBG(LOG_TAG, "Requesting for BT lib source handle");
+            bt_lib_sink_handle = dlopen(BT_IPC_SOURCE_LIB, RTLD_NOW);
+            if (bt_lib_sink_handle == nullptr) {
+                PAL_ERR(LOG_TAG, "DLOPEN failed");
+                return;
+            }
+            isDummySink = true;
+            audio_get_enc_config = (audio_get_enc_config_t)
+                  dlsym(bt_lib_sink_handle, "audio_get_codec_config");
+#else
+            //On Linux Builds - A2DP Sink Profile is supported via different lib   
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
+#endif
         } else {
             audio_sink_start = (audio_sink_start_t)
                           dlsym(bt_lib_sink_handle, "audio_sink_start_capture");
@@ -1165,38 +1229,54 @@ int BtA2dp::startCapture()
     PAL_DBG(LOG_TAG, "a2dp_start_capture start");
 
     codecFormat = CODEC_TYPE_INVALID;
-    if (!(bt_lib_sink_handle && audio_sink_start
-       && audio_get_dec_config)) {
-        PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
-        return -ENOSYS;
-    }
 
-    if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
-        PAL_DBG(LOG_TAG, "calling BT module stream start");
-        /* This call indicates BT IPC lib to start capture */
-        ret =  audio_sink_start();
-        PAL_ERR(LOG_TAG, "BT controller start capture return = %d",ret);
-        if (ret != 0 ) {
-           PAL_ERR(LOG_TAG, "BT controller start capture failed");
-           return ret;
+    if (!isDummySink) {
+        if (!(bt_lib_sink_handle && audio_sink_start
+            && audio_get_dec_config)) {
+            PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
+            return -ENOSYS;
         }
 
-        codecInfo = audio_get_dec_config(&codecFormat);
+        if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
+            PAL_DBG(LOG_TAG, "calling BT module stream start");
+            /* This call indicates BT IPC lib to start capture */
+            ret =  audio_sink_start();
+            PAL_ERR(LOG_TAG, "BT controller start capture return = %d",ret);
+            if (ret != 0 ) {
+                PAL_ERR(LOG_TAG, "BT controller start capture failed");
+                return ret;
+            }
+
+            codecInfo = audio_get_dec_config(&codecFormat);
+            if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
+                PAL_ERR(LOG_TAG, "invalid encoder config");
+                return -EINVAL;
+            }
+        }
+    } else {
+        uint8_t multi_cast = 0, num_dev = 1;
+        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
         if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
-            PAL_ERR(LOG_TAG, "invalid encoder config");
+            PAL_ERR(LOG_TAG, "invalid codec config");
             return -EINVAL;
         }
+    }
+    /* Update Device GKV based on Decoder type */
+    updateDeviceMetadata();
 
-        ret = configureA2dpEncoderDecoder();
-        if (ret) {
-            PAL_DBG(LOG_TAG, "unable to configure DSP decoder");
-            return ret;
-        }
+    ret = configureA2dpEncoderDecoder();
+    if (ret) {
+        PAL_DBG(LOG_TAG, "unable to configure DSP decoder");
+        return ret;
+    }
 
+    if (!isDummySink) {
         if (!a2dp_send_sink_setup_complete()) {
-           PAL_DBG(LOG_TAG, "sink_setup_complete not successful");
-           ret = -ETIMEDOUT;
+            PAL_DBG(LOG_TAG, "sink_setup_complete not successful");
+            ret = -ETIMEDOUT;
         }
+    }
+    if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
         totalActiveSessionRequests++;
         a2dpState = A2DP_STATE_STARTED;
     }
@@ -1211,7 +1291,7 @@ int BtA2dp::stopCapture()
     int ret =0;
 
     PAL_VERBOSE(LOG_TAG, "a2dp_stop_capture start");
-    if (!(bt_lib_sink_handle && audio_sink_stop)) {
+    if (!isDummySink && !(bt_lib_sink_handle && audio_sink_stop)) {
         PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring stop request");
         return -ENOSYS;
     }
@@ -1222,11 +1302,14 @@ int BtA2dp::stopCapture()
     if (a2dpState == A2DP_STATE_STARTED && !totalActiveSessionRequests) {
         PAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
         isConfigured = false;
-        ret = audio_sink_stop();
-        if (ret < 0) {
-            PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
-        } else {
-            PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
+        if (!isDummySink) {
+            ret = audio_sink_stop();
+            if (ret < 0) {
+                PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
+            } else {
+                PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
+            }
+            isDummySink = false;
         }
         a2dpState = A2DP_STATE_STOPPED;
 
@@ -1238,6 +1321,7 @@ int BtA2dp::stopCapture()
             dlclose(pluginHandler);
             pluginHandler = NULL;
         }
+        isCaptureEnabled = false;
     }
     PAL_DBG(LOG_TAG, "Stop A2DP capture, total active sessions :%d",
             totalActiveSessionRequests);

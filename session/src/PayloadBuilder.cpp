@@ -907,6 +907,84 @@ void PayloadBuilder::payloadCopV2PackConfig(uint8_t** payload, size_t* size,
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo, *size);
 }
 
+void PayloadBuilder::payloadCopV2DepackConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, void *codecInfo, bool isStreamMapDirIn)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_cop_v2_stream_info_t *streamInfo = NULL;
+    uint8_t* payloadInfo = NULL;
+    audio_lc3_codec_cfg_t *bleCfg = NULL;
+    struct cop_v2_stream_info_map_t* streamMap = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+    uint64_t channel_mask = 0;
+    int i = 0;
+
+    bleCfg = (audio_lc3_codec_cfg_t *)codecInfo;
+    if (!bleCfg) {
+        PAL_ERR(LOG_TAG, "Invalid input parameters");
+        return;
+    }
+
+    if (!isStreamMapDirIn) {
+         payloadSize = sizeof(struct apm_module_param_data_t) +
+                       sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                       sizeof(struct cop_v2_stream_info_map_t) * bleCfg->enc_cfg.stream_map_size;
+    }
+    else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size != 0) {
+         payloadSize = sizeof(struct apm_module_param_data_t) +
+                       sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                       sizeof(struct cop_v2_stream_info_map_t) * bleCfg->dec_cfg.stream_map_size;
+    }
+    else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size == 0)
+         return;
+
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo alloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    streamInfo = (struct param_id_cop_v2_stream_info_t*)(payloadInfo +
+                  sizeof(struct apm_module_param_data_t));
+    streamMap = (struct cop_v2_stream_info_map_t*)(payloadInfo +
+                 sizeof(struct apm_module_param_data_t) +
+                 sizeof(struct param_id_cop_v2_stream_info_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_COP_V2_STREAM_INFO;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    PAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    if (!isStreamMapDirIn) {
+        streamInfo->num_streams = bleCfg->enc_cfg.stream_map_size;;
+        for (i = 0; i < streamInfo->num_streams; i++) {
+             channel_mask = convert_channel_map(bleCfg->enc_cfg.streamMapOut[i].audio_location);
+             streamMap[i].stream_id = bleCfg->enc_cfg.streamMapOut[i].stream_id;
+             streamMap[i].direction = bleCfg->enc_cfg.streamMapOut[i].direction;
+             streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
+             streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
+        }
+    }
+    else {
+        streamInfo->num_streams = bleCfg->dec_cfg.stream_map_size;
+        for (i = 0; i < streamInfo->num_streams; i++) {
+             channel_mask = convert_channel_map(bleCfg->dec_cfg.streamMapIn[i].audio_location);
+             streamMap[i].stream_id = bleCfg->dec_cfg.streamMapIn[i].stream_id;
+             streamMap[i].direction = bleCfg->dec_cfg.streamMapIn[i].direction;
+             streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
+             streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
+        }
+    }
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo, *size);
+}
+
 /** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
@@ -1242,6 +1320,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case PAL_DEVICE_OUT_HANDSET :
             keyVector.push_back(std::make_pair(DEVICERX, HANDSET));
             break;
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
         case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
             // device gkv of A2DP is sent elsewhere, skip here.
             break;

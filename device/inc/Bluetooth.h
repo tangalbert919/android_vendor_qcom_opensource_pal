@@ -90,11 +90,13 @@ protected:
     bool                       isHandoffInProgress;
     bool                       isLC3MonoModeOn;
     bool                       isTwsMonoModeOn;
+    bool                       isDummySink;
     struct pcm                 *fbPcm;
     std::vector<int>           fbpcmDevIds;
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
     int                        swbSpeechMode;
+    static bool                isCaptureEnabled;
     std::mutex                 mAbrMutex;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
