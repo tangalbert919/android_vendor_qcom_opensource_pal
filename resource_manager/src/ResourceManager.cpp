@@ -1938,6 +1938,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     struct pal_stream_attributes sAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::shared_ptr<Device>> tx_devices;
     std::vector<Stream*> str_list;
     std::vector <Stream *> activeStreams;
     int rxdevcount = 0;
@@ -1962,27 +1963,25 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             mResourceManagerMutex.unlock();
             getActiveStream_l(dev, activeStreams);
             for (auto& rx_str: activeStreams) {
-                 rx_str->getStreamAttributes(&rx_attr);
-                 if (rx_attr.direction != PAL_AUDIO_INPUT) {
-                     if (getEcRefStatus(sAttr.type, rx_attr.type)) {
-                         rxdevcount++;
-                     } else {
-                         PAL_DBG(LOG_TAG, "rx stream is disabled for ec ref %d", rx_attr.type);
-                         continue;
-                     }
-                 } else {
-                     PAL_DBG(LOG_TAG, "Not rx stream type %d", rx_attr.type);
-                     continue;
-                 }
+                rx_str->getStreamAttributes(&rx_attr);
+                if (rx_attr.direction != PAL_AUDIO_INPUT) {
+                    if (getEcRefStatus(sAttr.type, rx_attr.type)) {
+                        rxdevcount++;
+                    } else {
+                        PAL_DBG(LOG_TAG, "rx stream is disabled for ec ref %d", rx_attr.type);
+                        continue;
+                    }
+                } else {
+                    PAL_DBG(LOG_TAG, "Not rx stream type %d", rx_attr.type);
+                    continue;
+                }
             }
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
             } else {
-               for (int i = 0; i < rxdevcount; i++) {
-                    dev->setEcRefDevCount(true, false);
-               }
+                updateECDeviceMap(dev, d, s, rxdevcount, false);
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
@@ -1997,15 +1996,21 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         for (auto dev: associatedDevices) {
             str_list = getConcurrentTxStream_l(s, dev);
             for (auto str: str_list) {
+                tx_devices.clear();
+                str->getAssociatedDevices(tx_devices);
                 PAL_DBG(LOG_TAG, "Enter enable EC Ref");
-                if (str && isStreamActive(str, mActiveStreams)) {
+                // TODO: add support for stream with multi Tx devices
+                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
+                if (rxdevcount <= 0) {
+                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+                } else if (rxdevcount > 1) {
+                    PAL_DBG(LOG_TAG, "EC ref already set");
+                } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
                     status = str->setECRef(dev, true);
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
-                    } else if (dev) {
-                       dev->setEcRefDevCount(true, false);
                     }
                 }
             }
@@ -2037,9 +2042,11 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
 int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
 {
     int status = 0;
+    int rxdevcount = 0;
     struct pal_stream_attributes sAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::shared_ptr<Device>> tx_devices;
     std::vector<Stream*> str_list;
 
     PAL_DBG(LOG_TAG, "Enter. dev id: %d", d->getSndDeviceId());
@@ -2058,7 +2065,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
         } else if (dev) {
-           dev->setEcRefDevCount(false, true);
+            updateECDeviceMap(dev, d, s, 0, true);
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
@@ -2070,20 +2077,20 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         for (auto dev: associatedDevices) {
             str_list = getConcurrentTxStream_l(s, dev);
             for (auto str: str_list) {
-                /*
-                 * NOTE: this check works based on sequence that
-                 * Rx stream stops device after stopping session
-                 */
-                if (dev->getEcRefDevCount() > 1) {
-                    PAL_DBG(LOG_TAG, "Rx dev still active, ignore set ECRef");
+                tx_devices.clear();
+                str->getAssociatedDevices(tx_devices);
+                // TODO: add support for stream with multi Tx devices
+                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
+                if (rxdevcount < 0) {
+                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+                } else if (rxdevcount > 0) {
+                    PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
                     status = str->setECRef(dev, false);
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-                    } else if (dev) {
-                          dev->setEcRefDevCount(false, false);
                     }
                 }
             }
@@ -3094,6 +3101,60 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
         result, rx_dev_id, tx_dev_id);
 
     return result;
+}
+
+int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
+    std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
+{
+    int rx_dev_id = 0;
+    int tx_dev_id = 0;
+    int ec_count = 0;
+    bool tx_stream_found = false;
+    std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
+    std::vector<std::pair<Stream *, int>> stream_list;
+
+    if (!rx_dev || !tx_dev || !tx_str) {
+        PAL_ERR(LOG_TAG, "Invalid operation");
+        return -EINVAL;
+    }
+
+    rx_dev_id = rx_dev->getSndDeviceId();
+    tx_dev_id = tx_dev->getSndDeviceId();
+
+    for (int i = 0; i < deviceInfo.size(); i++) {
+        if (tx_dev_id == deviceInfo[i].deviceId) {
+            stream_list = deviceInfo[i].ec_ref_count_map[rx_dev_id];
+        }
+    }
+
+    for (int j = 0; j < stream_list.size(); j++) {
+        if (stream_list[j].first == tx_str) {
+            tx_stream_found = true;
+            if (count > 0) {
+                stream_list[j].second += count;
+            } else if (count == 0) {
+                if (is_txstop) {
+                    stream_list[j].second = 0;
+                } else {
+                    stream_list[j].second--;
+                }
+            }
+            ec_count = stream_list[j].second;
+        }
+    }
+
+    if (!tx_stream_found) {
+        if (count == 0) {
+            PAL_ERR(LOG_TAG, "Cannot reset as ec ref not present");
+        } else if (count > 0) {
+            stream_list.push_back(std::make_pair(tx_str, count));
+            ec_count = count;
+        }
+    }
+
+    PAL_DBG(LOG_TAG, "EC ref count for stream device pair (%pK %d, %d) is %d",
+        tx_str, tx_dev_id, rx_dev_id, ec_count);
+    return ec_count;
 }
 
 //TBD: test this piece later, for concurrency
@@ -5984,8 +6045,11 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         if (!strcmp(tag_name, "id")) {
             std::string rxDeviceName(data->data_buf);
             pal_device_id_t rxDeviceId  = deviceIdLUT.at(rxDeviceName);
+            std::vector<std::pair<Stream *, int>> str_list;
+            str_list.clear();
             size = deviceInfo.size() - 1;
             deviceInfo[size].rx_dev_ids.push_back(rxDeviceId);
+            deviceInfo[size].ec_ref_count_map.insert({rxDeviceId, str_list});
         }
     }
     if (!strcmp(tag_name, "kvpair")) {

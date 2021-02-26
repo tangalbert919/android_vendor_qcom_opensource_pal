@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -52,7 +52,6 @@ protected:
     struct pal_device deviceAttr;
     std::shared_ptr<ResourceManager> rm;
     int deviceCount = 0;
-    int rxEcDevCount = 0;
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
     char mSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
@@ -76,8 +75,6 @@ public:
                                                std::shared_ptr<ResourceManager> Rm);
     int getSndDeviceId();
     int getDeviceCount() { return deviceCount; }
-    void setEcRefDevCount(bool is_enable, bool is_txstop);
-    int getEcRefDevCount() { return rxEcDevCount; }
     std::string getPALDeviceName();
     int setDeviceAttributes(struct pal_device dattr);
     virtual int getDeviceAttributes(struct pal_device *dattr);

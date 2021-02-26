@@ -154,14 +154,6 @@ struct usecase_info {
     sidetone_mode_t sidetoneMode;
 };
 
-struct deviceIn {
-    int deviceId;
-    int max_channel;
-    int channel;
-    std::vector<usecase_info> usecase;
-    std::vector<pal_device_id_t> rx_dev_ids;
-};
-
 struct pal_device_info {
      int channels;
      int max_channels;
@@ -224,6 +216,27 @@ class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
 
+struct deviceIn {
+    int deviceId;
+    int max_channel;
+    int channel;
+    std::vector<usecase_info> usecase;
+    // dev ids supporting ec ref
+    std::vector<pal_device_id_t> rx_dev_ids;
+    /*
+     * map dynamically maintain ec ref count, key for this map
+     * is rx device id, which is present in rx_dev_ids, and value
+     * for this map is a vector of all active tx streams using
+     * this rx device as ec ref. For each Tx stream, we have a
+     * EC ref count, indicating number of Rx streams which uses
+     * this rx device as output device and also not disabled stream
+     * type to the Tx stream. E.g., for SVA and Recording stream,
+     * LL playback with speaker may only count for Recording stream
+     * when ll barge-in is not enabled.
+     */
+    std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
+};
+
 class ResourceManager
 {
 
@@ -268,6 +281,9 @@ private:
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList);
     void ssrHandlingLoop(std::shared_ptr<ResourceManager> rm);
+    int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
+                        std::shared_ptr<Device> tx_dev,
+                        Stream *tx_str, int count, bool is_txstop);
 
 protected:
     std::vector <Stream*> mActiveStreams;

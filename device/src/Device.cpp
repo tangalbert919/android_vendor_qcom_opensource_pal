@@ -299,20 +299,6 @@ std::string Device::getPALDeviceName()
     return mPALDeviceName;
 }
 
-void Device::setEcRefDevCount(bool is_enable, bool is_txstop)
-{
-    PAL_DBG(LOG_TAG, "rxEcDevice count %d is_enable %d", rxEcDevCount, is_enable);
-    if (is_enable) {
-       rxEcDevCount++;
-    } else {
-       rxEcDevCount--;
-       if (is_txstop) {
-           rxEcDevCount = 0;
-       }
-    }
-    PAL_DBG(LOG_TAG, "rxEcDevice Count %d", rxEcDevCount);
-}
-
 int Device::init(pal_param_device_connection_t device_conn __unused)
 {
     return 0;
@@ -428,7 +414,6 @@ int Device::stop()
     if(deviceCount > 0){
        if (deviceCount == 1 && initialized) {
            disableDevice(audioRoute, mSndDeviceName);
-           rxEcDevCount = 0;
        }
        deviceCount -= 1;
     }
