@@ -67,7 +67,7 @@ struct model_stats
     uint32_t detection_timestamp_msw;
 };
 
-struct detection_event_info_sva5
+struct detection_event_info_pdk
 {
     uint32_t num_detected_models;
     struct model_stats detected_model_stats[MAX_MODELS_SUPPORTED];

@@ -80,22 +80,25 @@ enum {
 };
 
 typedef enum {
-    ST_SM_ID_SVA_NONE     = 0x0000,
-    ST_SM_ID_SVA_GMM      = 0x0001,
-    ST_SM_ID_SVA_CNN      = 0x0002,
-    ST_SM_ID_SVA_VOP      = 0x0004,
-    ST_SM_ID_SVA_RNN      = 0x0008,
-    ST_SM_ID_SVA_KWD      = 0x000A,            // ST_SM_ID_SVA_CNN | ST_SM_ID_SVA_RNN
-    SML_ID_SVA_S_STAGE_UBM = 0x0010,
-    ST_SM_ID_SVA_END      = 0x00F0,
-    ST_SM_ID_CUSTOM_START = 0x0100,
-    ST_SM_ID_CUSTOM_END   = 0xF000,
+    ST_SM_ID_SVA_NONE         = 0x0000,
+    ST_SM_ID_SVA_F_STAGE_GMM  = 0x0001,
+    ST_SM_ID_SVA_S_STAGE_PDK  = 0x0002,
+    ST_SM_ID_SVA_S_STAGE_USER = 0x0004,
+    ST_SM_ID_SVA_S_STAGE_RNN  = 0x0008,
+    ST_SM_ID_SVA_S_STAGE_KWD  = 0x000A, // S_STAGE_PDK | S_STAGE_RNN
+    SML_ID_SVA_S_STAGE_UBM    = 0x0010,
+    ST_SM_ID_SVA_END          = 0x00F0,
+    ST_SM_ID_CUSTOM_START     = 0x0100,
+    ST_SM_ID_CUSTOM_END       = 0xF000,
 } listen_model_indicator_enum;
 
 typedef enum {
     ST_MODULE_TYPE_CUSTOM = 1,
     ST_MODULE_TYPE_GMM    = 3,
-    ST_MODULE_TYPE_PDK5   = 5
+    ST_MODULE_TYPE_PDK5   = 5,
+    ST_MODULE_TYPE_PDK6   = 6,
+    ST_MODULE_TYPE_PDK    = 100, // Internal constant for local use indicating
+                                 // both PDK5 and PDK6
 }st_module_type_t;
 
 typedef struct _SML_GlobalHeaderType {

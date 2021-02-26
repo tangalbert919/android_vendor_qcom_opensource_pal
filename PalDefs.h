@@ -1095,7 +1095,7 @@ struct detection_engine_config_voice_wakeup {
     uint8_t keyword_user_enables[PAL_SOUND_TRIGGER_MAX_USERS];
 };
 
-struct detection_engine_config_stage1_sva5 {
+struct detection_engine_config_stage1_pdk {
     uint16_t mode;
     uint16_t custom_payload_size;
     uint32_t model_id;

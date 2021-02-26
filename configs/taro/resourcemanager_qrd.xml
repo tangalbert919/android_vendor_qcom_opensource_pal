@@ -700,11 +700,6 @@
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA"/> <!-- SVA Stream Config -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA5"/> <!-- SVA5 Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
                 <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
@@ -741,6 +736,10 @@
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000005"/>
+                </streamConfig-metadata>
             </module_params>
             <module_params>
                 <param module_type="PDK" />
@@ -749,6 +748,10 @@
                 <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
                 <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000006"/>
+                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
         <!-- Hotword -->
@@ -766,10 +769,6 @@
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_HW"/> <!-- Hotword Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI"/>
                 <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI"/>
@@ -782,6 +781,10 @@
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param version_ids="0xC0000008, 0x18000101" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000002"/>
+                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
     </sound_trigger_platform_info>
