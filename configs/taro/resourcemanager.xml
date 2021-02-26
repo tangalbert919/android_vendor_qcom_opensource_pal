@@ -466,6 +466,13 @@
             <channels>2</channels>
             <snd_device_name>afe-proxy</snd_device_name>
         </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_HAPTICS_DEVICE</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-6</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>haptics-dev</snd_device_name>
+        </out-device>
     </device_profile>
     <in_streams>
         <in_stream>
