@@ -174,7 +174,7 @@ int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width)
                       id = AGM_FORMAT_PCM_S16_LE;
                       break;
                  case 24:
-                      id = AGM_FORMAT_PCM_S24_LE;
+                      id = AGM_FORMAT_PCM_S24_3LE;
                       break;
                  case 32:
                       id = AGM_FORMAT_PCM_S32_LE;
