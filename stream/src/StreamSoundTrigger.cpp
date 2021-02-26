@@ -1604,14 +1604,15 @@ bool StreamSoundTrigger::compareRecognitionConfig(
     }
 }
 
-int32_t StreamSoundTrigger::notifyClient() {
+int32_t StreamSoundTrigger::notifyClient(bool detection) {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    status = GenerateCallbackEvent(&rec_event, &event_size);
+    status = GenerateCallbackEvent(&rec_event, &event_size,
+                                                detection);
     if (status || !rec_event) {
         PAL_ERR(LOG_TAG, "Failed to generate callback event");
         return status;
@@ -1739,8 +1740,94 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
+void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
+                   uint32_t det_keyword_id, uint32_t best_conf_level) {
+    int i = 0;
+    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
+    struct st_confidence_levels_info *conf_levels = nullptr;
+
+    if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
+                conf_levels = (struct st_confidence_levels_info *)opaque_data;
+                for (auto& eng : engines_) {
+
+                    if (eng->GetEngine()->GetDetectionState() ==
+                        KEYWORD_DETECTION_PENDING ||
+                        eng->GetEngine()->GetDetectionState() ==
+                        USER_VERIFICATION_PENDING)
+                        continue;
+
+                    conf_levels->conf_levels[i].sm_id =
+                       (listen_model_indicator_enum)eng->GetEngineId();
+
+                    switch (eng->GetEngineId()) {
+                       case ST_SM_ID_SVA_F_STAGE_GMM:
+                               conf_levels->conf_levels[i].
+                                   kw_levels[det_keyword_id].
+                                       kw_level = best_conf_level;
+                               break;
+                       case ST_SM_ID_SVA_S_STAGE_PDK:
+                               conf_levels->conf_levels[i].
+                                   kw_levels[det_keyword_id].
+                                       kw_level =
+                               eng->GetEngine()->GetDetectedConfScore();
+                               break;
+                       case ST_SM_ID_SVA_S_STAGE_USER:
+                               conf_levels->conf_levels[i].
+                                   kw_levels[det_keyword_id].
+                                       user_levels[0].level =
+                               eng->GetEngine()->GetDetectedConfScore();
+                               break;
+                       default :
+                               PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                       eng->GetEngineId());
+                    }
+                    i++;
+                }
+            } else {
+                conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
+                                    opaque_data;
+                for (auto& eng : engines_) {
+
+                    if (eng->GetEngine()->GetDetectionState() ==
+                        KEYWORD_DETECTION_PENDING ||
+                        eng->GetEngine()->GetDetectionState() ==
+                        USER_VERIFICATION_PENDING)
+                        continue;
+
+                    conf_levels_v2->conf_levels[i].sm_id =
+                       (listen_model_indicator_enum)eng->GetEngineId();
+
+                    switch (eng->GetEngineId()) {
+                        case ST_SM_ID_SVA_F_STAGE_GMM:
+                            conf_levels_v2->conf_levels[i].
+                                kw_levels[det_keyword_id].
+                                    kw_level = best_conf_level;
+                            break;
+                        case ST_SM_ID_SVA_S_STAGE_PDK:
+                            conf_levels_v2->conf_levels[i].
+                                kw_levels[det_keyword_id].
+                                    kw_level =
+                             eng->GetEngine()->GetDetectedConfScore();
+                            break;
+                        case ST_SM_ID_SVA_S_STAGE_USER:
+                            conf_levels_v2->conf_levels[i].
+                                kw_levels[det_keyword_id].
+                                    user_levels[0].level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                            break;
+                        default :
+                            PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                         eng->GetEngineId());
+                    }
+                    i++;
+                }
+            }
+
+}
+
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
-    struct pal_st_recognition_event **event, uint32_t *evt_size) {
+    struct pal_st_recognition_event **event, uint32_t *evt_size,
+    bool detection) {
 
     struct pal_st_phrase_recognition_event *phrase_event = nullptr;
     struct pal_st_generic_recognition_event *generic_event = nullptr;
@@ -1750,8 +1837,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct detection_event_info_pdk *detection_event_info_multi_model =
                                                                 nullptr;
     struct detection_event_info *det_ev_info = nullptr;
-    struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
-    struct st_confidence_levels_info *conf_levels = nullptr;
     size_t opaque_size = 0;
     size_t event_size = 0, conf_levels_size = 0;
     uint8_t *opaque_data = nullptr;
@@ -1762,7 +1847,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     uint32_t detection_timestamp_lsw = 0;
     uint32_t detection_timestamp_msw = 0;
     int32_t status = 0;
-
 
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
@@ -1812,7 +1896,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                sizeof(struct pal_st_phrase_recognition_extra));
 
         *event = &(phrase_event->common);
-        (*event)->status = PAL_RECOGNITION_STATUS_SUCCESS;
+        (*event)->status = detection ? PAL_RECOGNITION_STATUS_SUCCESS :
+                           PAL_RECOGNITION_STATUS_FAILURE;
         (*event)->type = sound_model_type_;
         (*event)->st_handle = (pal_st_handle_t *)this;
         (*event)->capture_available = rec_config_->capture_requested;
@@ -1867,16 +1952,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                     break;
                 }
             }
-            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002){
-                conf_levels = (struct st_confidence_levels_info *)opaque_data;
-                conf_levels->conf_levels[0].kw_levels[det_keyword_id].kw_level =
-                                                                best_conf_level;
-            } else{
-                conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-                                    opaque_data;
-                conf_levels_v2->conf_levels[0].kw_levels[det_keyword_id].
-                                            kw_level= best_conf_level;
-            }
+            FillCallbackConfLevels(opaque_data, det_keyword_id, best_conf_level);
         } else {
             if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
                 ar_mem_cpy(opaque_data, param_hdr->payload_size,
@@ -3142,7 +3218,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 st_stream_.SetDetectedToEngines(true);
             }
             if (st_stream_.engines_.size() == 1) {
-                st_stream_.notifyClient();
+                st_stream_.notifyClient(true);
             }
             break;
         }
@@ -3732,29 +3808,22 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
                 st_stream_.detection_state_ = ENGINE_IDLE;
+                st_stream_.user_verification_done_ = data->det_type_ ==
+                                         USER_VERIFICATION_REJECT ? true : false ;
 
-                for (auto& eng: st_stream_.engines_) {
-                    PAL_VERBOSE(LOG_TAG, "Restart engine %d", eng->GetEngineId());
-                    status = eng->GetEngine()->RestartRecognition(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
-                                eng->GetEngineId(), status);
-                        break;
-                    }
-                }
                 if (st_stream_.reader_) {
                     st_stream_.reader_->reset();
                 }
-                if (!status) {
-                    TransitTo(ST_STATE_ACTIVE);
-                } else {
-                    TransitTo(ST_STATE_LOADED);
-                }
+                st_stream_.notifyClient(false);
+                st_stream_.PostDelayedStop();
+
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
                 data->det_type_ == USER_VERIFICATION_SUCCESS) {
                 st_stream_.detection_state_ |=  data->det_type_;
+                st_stream_.user_verification_done_ = data->det_type_ ==
+                                         USER_VERIFICATION_SUCCESS ? true : false ;
             }
             // notify client until both keyword detection/user verification done
             if (st_stream_.detection_state_ == st_stream_.notification_state_) {
@@ -3766,7 +3835,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     }
                     TransitTo(ST_STATE_DETECTED);
                 }
-                st_stream_.notifyClient();
+                st_stream_.notifyClient(true);
                 if (!st_stream_.rec_config_->capture_requested &&
                     (st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING ||
                      st_stream_.GetCurrentStateId() == ST_STATE_DETECTED)) {

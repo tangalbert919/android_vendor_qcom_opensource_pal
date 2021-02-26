@@ -138,6 +138,7 @@ public:
     virtual int32_t GetCustomDetectionEvent(uint8_t **event __unused,
         size_t *size __unused) { return 0; }
     virtual int32_t GetDetectedConfScore() = 0;
+    virtual int32_t GetDetectionState() = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);

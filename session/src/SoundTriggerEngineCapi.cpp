@@ -82,21 +82,26 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
                 ST_SM_TYPE_KEYWORD_DETECTION) {
                 status = capi_engine->StartKeywordDetection();
                 lck.unlock();
-                if (status || !capi_engine->keyword_detected_)
+                if (status || capi_engine->detection_state_ ==
+                                                      KEYWORD_DETECTION_REJECT)
                     s->SetEngineDetectionState(KEYWORD_DETECTION_REJECT);
-                else
+                else if (capi_engine->detection_state_ ==
+                                                      KEYWORD_DETECTION_SUCCESS)
                     s->SetEngineDetectionState(KEYWORD_DETECTION_SUCCESS);
                 lck.lock();
             } else if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_USER_VERIFICATION) {
                 status = capi_engine->StartUserVerification();
                 lck.unlock();
-                if (status || !capi_engine->keyword_detected_)
+                if (status || capi_engine->detection_state_ ==
+                                                      USER_VERIFICATION_REJECT)
                     s->SetEngineDetectionState(USER_VERIFICATION_REJECT);
-                else
+                else if (capi_engine->detection_state_ ==
+                                                      USER_VERIFICATION_SUCCESS)
                     s->SetEngineDetectionState(USER_VERIFICATION_SUCCESS);
                 lck.lock();
             }
+            capi_engine->detection_state_ = ENGINE_IDLE;
             capi_engine->keyword_detected_ = false;
             capi_engine->processing_started_ = false;
         }
@@ -257,13 +262,16 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
 
         if (result_cfg_ptr->is_detected) {
             exit_buffering_ = true;
-            keyword_detected_ = true;
+            detection_state_ = KEYWORD_DETECTION_SUCCESS;
             start_idx = (result_cfg_ptr->start_position * CNN_FRAME_SIZE) +
                 buffer_start_;
             end_idx = (result_cfg_ptr->end_position * CNN_FRAME_SIZE) +
                 buffer_start_;
             PAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
+        } else if (bytes_processed_ >= buffer_end_ - buffer_start_) {
+            detection_state_ = KEYWORD_DETECTION_REJECT;
+            PAL_INFO(LOG_TAG, "KW Second Stage rejected");
         }
         det_conf_score_ = result_cfg_ptr->best_confidence;
         PAL_INFO(LOG_TAG, "KW second stage conf level %d", det_conf_score_);
@@ -483,12 +491,14 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
 
         if (result_cfg_ptr->is_detected) {
             exit_buffering_ = true;
-            keyword_detected_ = true;
-            PAL_INFO(LOG_TAG, "KW Second Stage Detected");
+            detection_state_ = USER_VERIFICATION_SUCCESS;
+            PAL_INFO(LOG_TAG, "UV Second Stage Detected");
+        } else if (bytes_processed_ >= buffer_end_ - buffer_start_) {
+            detection_state_ = USER_VERIFICATION_REJECT;
+            PAL_INFO(LOG_TAG, "UV Second Stage Rejected");
         }
         det_conf_score_ = (int32_t)result_cfg_ptr->combined_user_score;
-        PAL_INFO(LOG_TAG, "User Verification output conf level %d",
-            det_conf_score_);
+        PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
     }
 
 exit:
@@ -527,7 +537,6 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     engine_type_ = type;
     sm_cfg_ = sm_cfg;
     processing_started_ = false;
-    keyword_detected_ = false;
     sm_data_ = nullptr;
     exit_thread_ = false;
     exit_buffering_ = false;
@@ -541,6 +550,7 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     buffer_ = nullptr;
     stream_handle_ = s;
     confidence_threshold_ = 0;
+    detection_state_ = ENGINE_IDLE;
 
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
@@ -692,6 +702,7 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
                 free(threshold_cfg);
             return status;
         }
+        detection_state_ = KEYWORD_DETECTION_PENDING;
     } else if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
         voiceprint2_threshold_config_t *threshold_cfg = nullptr;
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
@@ -729,6 +740,7 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
                 free(threshold_cfg);
             return status;
         }
+        detection_state_ =  USER_VERIFICATION_PENDING;
     }
 
     buffer_thread_handler_ =
