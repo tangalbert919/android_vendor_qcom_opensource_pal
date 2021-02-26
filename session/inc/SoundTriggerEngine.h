@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -144,6 +144,7 @@ public:
     int32_t SetBufferReader(PalRingBufferReader *reader);
     int32_t ResetBufferReaders(std::vector<PalRingBufferReader *> &reader_list);
     uint32_t UsToBytes(uint64_t input_us);
+    uint32_t FrameToBytes(uint32_t frames);
 
 protected:
     listen_model_indicator_enum engine_type_;

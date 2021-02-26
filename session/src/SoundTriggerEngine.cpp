@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -180,4 +180,8 @@ uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
         (BITS_PER_BYTE * US_PER_SEC);
 
     return bytes;
+}
+
+uint32_t SoundTriggerEngine::FrameToBytes(uint32_t frames) {
+    return frames * bit_width_ * channels_ / BITS_PER_BYTE;
 }

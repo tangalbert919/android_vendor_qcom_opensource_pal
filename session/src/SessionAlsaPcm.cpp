@@ -593,15 +593,6 @@ int SessionAlsaPcm::start(Stream * s)
 
         switch(sAttr.direction) {
             case PAL_AUDIO_INPUT:
-                if (sAttr.type == PAL_STREAM_VOICE_UI) {
-                    SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0), customPayload, customPayloadSize);
-                    if (customPayload) {
-                        free(customPayload);
-                        customPayload = NULL;
-                        customPayloadSize = 0;
-                    }
-                }
-
                 if(SessionAlsaUtils::isMmapUsecase(sAttr)) {
                     config.start_threshold = 0;
                     config.stop_threshold = INT32_MAX;
@@ -797,6 +788,14 @@ int SessionAlsaPcm::start(Stream * s)
                     status = setConfig(s, MODULE, tagId);
                     if (status)
                         PAL_ERR(LOG_TAG, "Failed to set incall record params status = %d", status);
+                }
+            } else if (sAttr.type == PAL_STREAM_VOICE_UI) {
+                SessionAlsaUtils::setMixerParameter(mixer,
+                    pcmDevIds.at(0), customPayload, customPayloadSize);
+                if (customPayload) {
+                    free(customPayload);
+                    customPayload = NULL;
+                    customPayloadSize = 0;
                 }
             }
             status = pcm_start(pcm);
@@ -1878,8 +1877,9 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
         return -EINVAL;
     }
 
-    if (!((sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
-                    (sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ))) {
+    if (!(((sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
+            (sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ)) ||
+            sAttr.type == PAL_STREAM_VOICE_UI)) {
          PAL_ERR(LOG_TAG, "called on stream type [%d] flags[%d]",
             sAttr.type, sAttr.flags);
          return -ENOSYS;
@@ -2050,8 +2050,9 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
          return -EINVAL;
      }
 
-     if (!((sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
-                    (sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ))) {
+    if (!(((sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) &&
+            (sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ)) ||
+            sAttr.type == PAL_STREAM_VOICE_UI)) {
          PAL_ERR(LOG_TAG, "called on stream type [%d] flags[%d]",
             sAttr.type, sAttr.flags);
          return -ENOSYS;
