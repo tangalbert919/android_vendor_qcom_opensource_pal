@@ -92,6 +92,12 @@ int32_t pal_init(void)
 
     ri->init();
 
+    ret = ri->initContextManager();
+    if (ret != 0) {
+        PAL_ERR(LOG_TAG, "ContextManager init failed, error:%d", ret);
+        return ret;
+    }
+
     PAL_DBG(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }

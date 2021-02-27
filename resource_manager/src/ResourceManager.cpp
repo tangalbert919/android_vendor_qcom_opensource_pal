@@ -616,6 +616,12 @@ ResourceManager::ResourceManager()
 
     ResourceManager::loadAdmLib();
     ResourceManager::initWakeLocks();
+    PAL_ERR(LOG_TAG, "Creating ContextManager");
+    ctxMgr = new ContextManager();
+    if (!ctxMgr) {
+        throw std::runtime_error("Failed to allocate ContextManager");
+
+    }
 }
 
 ResourceManager::~ResourceManager()
@@ -656,6 +662,8 @@ ResourceManager::~ResourceManager()
     }
 
     ResourceManager::deInitWakeLocks();
+    ctxMgr->DeInit();
+    delete ctxMgr;
 }
 
 void ResourceManager::loadAdmLib()
@@ -993,6 +1001,18 @@ int ResourceManager::init_audio()
     PAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
             snd_card, mixer_xml_file);
     return 0;
+}
+
+int ResourceManager::initContextManager()
+{
+    int ret = ctxMgr->Init();
+    if (ret != 0) {
+        PAL_ERR(LOG_TAG, "context manager init failed :%d", ret);
+    }
+
+    PAL_ERR(LOG_TAG, "context manager inited :%d", ret);
+
+    return ret;
 }
 
 int ResourceManager::init()

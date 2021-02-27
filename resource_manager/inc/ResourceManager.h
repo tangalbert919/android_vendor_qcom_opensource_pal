@@ -48,6 +48,7 @@
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
 #include "ACDPlatformInfo.h"
+#include "ContextManager.h"
 
 typedef enum {
     RX_HOSTLESS = 1,
@@ -238,6 +239,7 @@ class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
 class StreamUltraSound;
+class ContextManager;
 
 struct deviceIn {
     int deviceId;
@@ -391,6 +393,7 @@ protected:
     static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
     ResourceManager();
+    ContextManager *ctxMgr;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -416,6 +419,7 @@ public:
     static bool isVIRecordStarted;
     uint64_t cookie;
     int initSndMonitor();
+    int initContextManager();
     adm_init_t admInitFn = NULL;
     adm_deinit_t admDeInitFn = NULL;
     adm_register_output_stream_t admRegisterOutputStreamFn = NULL;
