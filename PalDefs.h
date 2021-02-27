@@ -755,6 +755,7 @@ typedef enum {
     PAL_PARAM_ID_UNLOAD_SOUND_MODEL = 35,
     PAL_PARAM_ID_MODULE_CONFIG = 36, /*Clients directly configure DSP modules*/
     PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
+    PAL_PARAM_ID_PROXY_CHANNEL_CONFIG = 38,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -764,6 +765,10 @@ typedef enum {
 // END: MST ==================================================
 
 /** Audio parameter data*/
+
+typedef struct pal_param_proxy_channel_config {
+    uint32_t num_proxy_channels;
+} pal_param_proxy_channel_config_t;
 
 struct pal_param_disp_port_config_params {
     int controller;
