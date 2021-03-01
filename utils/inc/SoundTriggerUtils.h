@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -32,7 +32,7 @@
 
 #include "ListenSoundModelLib.h"
 
-#define SML_LIB "liblistensoundmodel2.so"
+#define SML_LIB "liblistensoundmodel2vendor.so"
 #define MAX_KW_USERS_NAME_LEN (2 * MAX_STRING_LEN)
 #define MAX_CONF_LEVEL_VALUE 100
 
