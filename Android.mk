@@ -108,7 +108,7 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
-    capiv2-headers \
+    libcapiv2_headers \
     libagm_headers \
     libacdb_headers
 
