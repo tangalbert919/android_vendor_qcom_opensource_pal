@@ -9,9 +9,6 @@ LOCAL_VENDOR_MODULE := true
 LOCAL_SRC_FILES := \
     src/pal_client_wrapper.cpp
 
-LOCAL_C_INCLUDES += \
-    $(TARGET_OUT_HEADERS)/mm-audio/
-
 LOCAL_SHARED_LIBRARIES := \
     libhidlbase \
     libhidltransport \
@@ -25,7 +22,6 @@ LOCAL_SHARED_LIBRARIES := \
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
-#LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/pal
 #LOCAL_MODULE := paltest1
 #LOCAL_MODULE_OWNER := qti
 #LOCAL_VENDOR_MODULE := true
@@ -34,8 +30,6 @@ include $(CLEAR_VARS)
 
 #LOCAL_CFLAGS += -v
 
-#LOCAL_C_INCLUDES += \
-#    $(TARGET_OUT_HEADERS)/mm-audio/pal
 
 #LOCAL_SHARED_LIBRARIES := \
     libutils \
