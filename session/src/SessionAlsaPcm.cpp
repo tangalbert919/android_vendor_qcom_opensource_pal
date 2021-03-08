@@ -855,6 +855,12 @@ int SessionAlsaPcm::start(Stream * s)
                     customPayloadSize = 0;
                 }
             }
+            if (ResourceManager::isLpiLoggingEnabled()) {
+                PAL_INFO(LOG_TAG, "LPI data logging Param ON");
+                /* No error check as TAG/TKV may not required for non LPI usecases */
+                setConfig(s, MODULE, LPI_LOGGING_ON);
+            }
+
             status = pcm_start(pcm);
             if (status) {
                 PAL_ERR(LOG_TAG, "pcm_start failed %d", status);

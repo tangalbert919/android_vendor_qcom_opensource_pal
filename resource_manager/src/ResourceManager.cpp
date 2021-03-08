@@ -59,6 +59,7 @@
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
+#include <cutils/properties.h>
 #endif
 
 #define XML_FILE_DELIMITER "_"
@@ -380,6 +381,7 @@ int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
 bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
+bool ResourceManager::lpi_logging_ = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -1050,6 +1052,20 @@ int ResourceManager::init()
         PAL_INFO(LOG_TAG, "Speaker instance not created");
 
     return 0;
+}
+
+bool ResourceManager::isLpiLoggingEnabled()
+{
+    char value[256] = {0};
+    bool lpi_logging_prop = false;
+
+#ifndef FEATURE_IPQ_OPENWRT
+    property_get("vendor.audio.lpi_logging", value, "");
+    if (!strncmp("true", value, sizeof("true"))) {
+        lpi_logging_prop = true;
+    }
+#endif
+    return (lpi_logging_prop | lpi_logging_);
 }
 
 bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype)
@@ -4989,10 +5005,33 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setLoggingLevelParams(parms, value, len);
 
     ret = setContextManagerEnableParam(parms, value, len);
+
+    /* Not checking return value as this is optional */
+    setLpiLoggingParams(parms, value, len);
+
 done:
     PAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
     if(value != NULL)
         free(value);
+    return ret;
+}
+
+int ResourceManager::setLpiLoggingParams(struct str_parms *parms,
+                                          char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_LPI_LOGGING,
+                                value, len);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            lpi_logging_ =  true;
+        PAL_INFO(LOG_TAG, "LPI logging is set to %d", lpi_logging_);
+        ret = 0;
+    }
     return ret;
 }
 
@@ -5011,7 +5050,6 @@ int ResourceManager::setLoggingLevelParams(struct str_parms *parms,
         PAL_INFO(LOG_TAG, "pal logging level is set to 0x%x",
                  pal_log_lvl);
         ret = 0;
-
     }
     return ret;
 }

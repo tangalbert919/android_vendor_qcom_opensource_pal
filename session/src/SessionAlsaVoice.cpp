@@ -490,6 +490,12 @@ int SessionAlsaVoice::start(Stream * s)
         goto exit;
     }
 
+    if (ResourceManager::isLpiLoggingEnabled()) {
+        status = payloadTaged(s, MODULE, LPI_LOGGING_ON, pcmDevTxIds.at(0), TX_HOSTLESS);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to set data logging param status = %d", status);
+    }
+
     status = pcm_start(pcmRx);
     if (status) {
         PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);

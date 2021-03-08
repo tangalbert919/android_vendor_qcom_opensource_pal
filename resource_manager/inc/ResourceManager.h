@@ -64,6 +64,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
 #define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
 #define AUDIO_PARAMETER_KEY_HIFI_FILTER "hifi_filter"
+#define AUDIO_PARAMETER_KEY_LPI_LOGGING "lpi_logging_enable"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
@@ -409,6 +410,7 @@ protected:
     static int wake_lock_fd;
     static int wake_unlock_fd;
     static uint32_t wake_lock_cnt;
+    static bool lpi_logging_;
     std::map<int, std::pair<session_callback, uint64_t>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
@@ -611,6 +613,8 @@ public:
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
     static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
     static int setContextManagerEnableParam(struct str_parms *parms,char *value, int len);
+    static int setLpiLoggingParams(struct str_parms *parms, char *value, int len);
+    static bool isLpiLoggingEnabled();
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);
     static bool isOutputDevId(int deviceId);
