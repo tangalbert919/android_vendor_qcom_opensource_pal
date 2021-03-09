@@ -569,7 +569,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-mono" />
+                <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
@@ -589,7 +589,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-dmic" />
+                <param snd_name="va-mic-dmic-lpi" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
@@ -609,7 +609,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-mono" />
+                <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -619,7 +619,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-dmic" />
+                <param snd_name="va-mic-dmic-lpi" />
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -629,7 +629,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-tmic" />
+                <param snd_name="va-mic-tmic-lpi" />
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
@@ -639,7 +639,7 @@
                     <!-- see kvh2xml.h -->
                     <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
-                <param snd_name="va-mic-qmic" />
+                <param snd_name="va-mic-qmic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
