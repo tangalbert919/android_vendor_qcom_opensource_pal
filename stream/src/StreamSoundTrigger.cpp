@@ -3027,7 +3027,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                     goto connect_err;
                 }
-                st_stream_.rm->registerDevice(dev, &st_stream_);
             }
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
@@ -3038,6 +3037,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+            } else if (st_stream_.isActive()) {
+                st_stream_.rm->registerDevice(dev, &st_stream_);
             }
         connect_err:
             delete pal_dev;
@@ -3304,7 +3305,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     dev->getSndDeviceId(), status);
                 goto connect_err;
             }
-            st_stream_.rm->registerDevice(dev, &st_stream_);
 
             status = st_stream_.gsl_engine_->ConnectSessionDevice(&st_stream_,
                 st_stream_.mStreamAttr->type, dev);
@@ -3313,6 +3313,8 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+            } else {
+                st_stream_.rm->registerDevice(dev, &st_stream_);
             }
         connect_err:
             delete pal_dev;
