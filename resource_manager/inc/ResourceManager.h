@@ -63,6 +63,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_MAX_NT_SESSIONS "max_nonTunnel_sessions"
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
 #define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
+#define AUDIO_PARAMETER_KEY_HIFI_FILTER "hifi_filter"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
