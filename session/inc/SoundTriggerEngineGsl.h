@@ -108,6 +108,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
     int32_t GetDetectedConfScore() { return 0; }
     int32_t GetDetectionState() { return 0; }
+    std::chrono::time_point<std::chrono::steady_clock> GetDetectedTime() {
+        return detection_time_;
+    }
 
  private:
     uint32_t AddModelID(Stream *s);
@@ -117,6 +120,8 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     int32_t ParseDetectionPayloadPDK(void *event_data);
     int32_t ParseDetectionPayload(void *event_data);
+    void UpdateKeywordIndex(uint64_t kwd_start_timestamp,
+        uint64_t kwd_end_timestamp, uint64_t ftrt_start_timestamp);
     void HandleSessionEvent(uint32_t event_id __unused, void *data, uint32_t size);
     void ResetEngine();
 
@@ -184,5 +189,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     struct pal_mmap_buffer mmap_buffer_;
     size_t mmap_buffer_size_;
     uint32_t mmap_write_position_;
+    uint64_t kw_transfer_latency_;
+    std::chrono::time_point<std::chrono::steady_clock> detection_time_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

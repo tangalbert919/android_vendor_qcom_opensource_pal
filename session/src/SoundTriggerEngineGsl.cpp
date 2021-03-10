@@ -34,8 +34,6 @@
 
 #include <cutils/trace.h>
 
-#include <chrono>
-
 #include "Session.h"
 #include "Stream.h"
 #include "StreamSoundTrigger.h"
@@ -156,24 +154,19 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     size_t input_buf_size = 0;
     size_t input_buf_num = 0;
     uint32_t bytes_to_drop = 0;
-    uint64_t timestamp = 0;
-    uint64_t start_timestamp = 0;
-    uint64_t end_timestamp = 0;
     uint64_t drop_duration = 0;
-    size_t start_index = 0;
-    size_t end_index = 0;
     size_t total_read_size = 0;
     size_t ftrt_size = 0;
     size_t size_to_read = 0;
     size_t read_offset = 0;
     size_t bytes_written = 0;
     uint32_t sleep_ms = 0;
-    bool index_updated = false;
     bool event_notified = false;
     StreamSoundTrigger *st = (StreamSoundTrigger *)s;
-    struct model_stats *detected_model_stat = nullptr;
     struct pal_mmap_position mmap_pos;
     FILE *dsp_output_fd = nullptr;
+    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_begin;
+    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_end;
 
     PAL_DBG(LOG_TAG, "Enter");
     s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);
@@ -185,7 +178,6 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         status = -ENOMEM;
         goto exit;
     }
-    buffer_->reset();
 
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
         ftrt_size = UsToBytes(detection_event_info_.ftrt_data_length_in_us);
@@ -205,7 +197,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     }
 
     ATRACE_BEGIN("stEngine: read FTRT data");
-
+    kw_transfer_begin = std::chrono::steady_clock::now();
     while (!exit_buffering_) {
         PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
@@ -236,7 +228,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     // TODO: add timeout check & handling
                     continue;
                 }
-                PAL_DBG(LOG_TAG, "Mmap write offset %zu, available bytes %zu",
+                PAL_VERBOSE(LOG_TAG, "Mmap write offset %zu, available bytes %zu",
                     bytes_written, size_to_read);
             } else {
                 PAL_ERR(LOG_TAG, "Failed to get read position");
@@ -271,7 +263,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 read_offset = size_to_read + read_offset - mmap_buffer_size_;
             }
             size = size_to_read;
-            PAL_DBG(LOG_TAG, "read %d bytes from shared buffer", size);
+            PAL_VERBOSE(LOG_TAG, "read %d bytes from shared buffer", size);
             total_read_size += size;
         } else if (buffer_->getFreeSize() >= buf.size) {
             if (total_read_size < ftrt_size &&
@@ -285,7 +277,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             if (status) {
                 break;
             }
-            PAL_DBG(LOG_TAG, "requested %zu, read %d", buf.size, size);
+            PAL_VERBOSE(LOG_TAG, "requested %zu, read %d", buf.size, size);
             total_read_size += size;
         }
         ATRACE_END();
@@ -310,52 +302,17 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     ST_DBG_FILE_WRITE(dsp_output_fd, buf.buffer, size);
                 }
             }
-            PAL_INFO(LOG_TAG, "%zu written to ring buffer", ret);
-
-            if (!index_updated) {
-                if (module_type_ != ST_MODULE_TYPE_PDK5) {
-                    start_timestamp =
-                        (uint64_t)detection_event_info_.kw_start_timestamp_lsw +
-                        ((uint64_t)detection_event_info_.kw_start_timestamp_msw << 32);
-                    end_timestamp =
-                        (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
-                        ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
-                    timestamp =
-                        (uint64_t)detection_event_info_.detection_timestamp_lsw +
-                        ((uint64_t)detection_event_info_.detection_timestamp_msw << 32) -
-                        detection_event_info_.ftrt_data_length_in_us;
-                } else {
-                    detected_model_stat = &detection_event_info_multi_model_.
-                        detected_model_stats[0];
-                    start_timestamp =
-                        ((uint64_t)detected_model_stat->kw_start_timestamp_lsw) +
-                        ((uint64_t)detected_model_stat->kw_start_timestamp_msw << 32);
-                    end_timestamp =
-                        ((uint64_t)detected_model_stat->kw_end_timestamp_lsw) +
-                        ((uint64_t)detected_model_stat->kw_end_timestamp_msw << 32);
-                    timestamp =
-                        ((uint64_t)detected_model_stat->detection_timestamp_lsw) +
-                        ((uint64_t)detected_model_stat->detection_timestamp_msw << 32) -
-                        detection_event_info_multi_model_.ftrt_data_length_in_us +
-                        ((uint64_t)drop_duration) * 1000;
-                }
-                PAL_DBG(LOG_TAG, "start_timestamp: %llu, end_timestamp: %llu",
-                    (long long)start_timestamp, (long long)end_timestamp);
-                PAL_DBG(LOG_TAG, "Ftrt data start timestamp : %llu",
-                    (long long)timestamp);
-                start_index = UsToBytes(start_timestamp - timestamp);
-                end_index = UsToBytes(end_timestamp - timestamp);
-                PAL_DBG(LOG_TAG, "start_index : %zu, end_index : %zu", start_index, end_index);
-                buffer_->updateIndices(start_index, end_index);
-                index_updated = true;
-            }
+            PAL_VERBOSE(LOG_TAG, "%zu written to ring buffer", ret);
         }
 
         // notify client until ftrt data read
         if (!event_notified && total_read_size >= ftrt_size) {
-            PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu",
-                    total_read_size, ftrt_size);
+            kw_transfer_end = std::chrono::steady_clock::now();
             ATRACE_END();
+            kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                kw_transfer_end - kw_transfer_begin).count();
+            PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
+                    total_read_size, ftrt_size, (long long)kw_transfer_latency_);
 
             if (!IS_MODULE_TYPE_PDK(module_type_)) {
                 StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
@@ -407,12 +364,16 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
     uint32_t parsed_size = 0;
     uint32_t event_size = 0;
     uint32_t keyId = 0;
+    uint64_t kwd_start_timestamp = 0;
+    uint64_t kwd_end_timestamp = 0;
+    uint64_t ftrt_start_timestamp = 0;
     uint8_t *ptr = nullptr;
     struct event_id_detection_engine_generic_info_t *generic_info = nullptr;
     struct detection_event_info_header_t *event_header = nullptr;
     struct ftrt_data_info_t *ftrt_info = nullptr;
     struct voice_ui_multi_model_result_info_t *multi_model_result = nullptr;
     struct model_stats *model_stat = nullptr;
+    struct model_stats *detected_model_stat = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!event_data) {
@@ -542,6 +503,23 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
 
     }
 
+    detected_model_stat =
+        &detection_event_info_multi_model_.detected_model_stats[0];
+
+    kwd_start_timestamp =
+        (uint64_t)detected_model_stat->kw_start_timestamp_lsw +
+        ((uint64_t)detected_model_stat->kw_start_timestamp_msw << 32);
+    kwd_end_timestamp =
+        (uint64_t)detected_model_stat->kw_end_timestamp_lsw +
+        ((uint64_t)detected_model_stat->kw_end_timestamp_msw << 32);
+    ftrt_start_timestamp =
+        (uint64_t)detected_model_stat->detection_timestamp_lsw +
+        ((uint64_t)detected_model_stat->detection_timestamp_msw << 32) -
+        detection_event_info_multi_model_.ftrt_data_length_in_us;
+
+    UpdateKeywordIndex(kwd_start_timestamp, kwd_end_timestamp,
+        ftrt_start_timestamp);
+
 exit :
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -554,6 +532,9 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
     uint32_t parsed_size = 0;
     uint32_t payload_size = 0;
     uint32_t event_size = 0;
+    uint64_t kwd_start_timestamp = 0;
+    uint64_t kwd_end_timestamp = 0;
+    uint64_t ftrt_start_timestamp = 0;
     uint8_t *ptr = nullptr;
     struct event_id_detection_engine_generic_info_t *generic_info = nullptr;
     struct detection_event_info_header_t *event_header = nullptr;
@@ -568,99 +549,133 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayload(void *event_data) {
         return -EINVAL;
     }
 
-    if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
+    std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
 
-        generic_info =
-            (struct event_id_detection_engine_generic_info_t *)event_data;
-        payload_size = sizeof(struct event_id_detection_engine_generic_info_t);
-        detection_event_info_.status = generic_info->status;
-        event_size = generic_info->payload_size;
-        ptr = (uint8_t *)event_data + payload_size;
-        PAL_INFO(LOG_TAG, "status = %u, event_size = %u",
-                 detection_event_info_.status, event_size);
-        if (status || !event_size) {
+    generic_info =
+        (struct event_id_detection_engine_generic_info_t *)event_data;
+    payload_size = sizeof(struct event_id_detection_engine_generic_info_t);
+    detection_event_info_.status = generic_info->status;
+    event_size = generic_info->payload_size;
+    ptr = (uint8_t *)event_data + payload_size;
+    PAL_INFO(LOG_TAG, "status = %u, event_size = %u",
+                detection_event_info_.status, event_size);
+    if (status || !event_size) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid detection payload");
+        goto exit;
+    }
+
+    // parse variable payload
+    while (parsed_size < event_size) {
+        PAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
+                parsed_size, event_size);
+        event_header = (struct detection_event_info_header_t *)ptr;
+        uint32_t keyId = event_header->key_id;
+        payload_size = event_header->payload_size;
+        PAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
+                keyId, payload_size);
+        ptr += sizeof(struct detection_event_info_header_t);
+        parsed_size += sizeof(struct detection_event_info_header_t);
+
+        switch (keyId) {
+        case KEY_ID_CONFIDENCE_LEVELS_INFO:
+            confidence_info = (struct confidence_level_info_t *)ptr;
+            detection_event_info_.num_confidence_levels =
+                confidence_info->number_of_confidence_values;
+            PAL_DBG(LOG_TAG, "num_confidence_levels = %u",
+                    detection_event_info_.num_confidence_levels);
+            for (i = 0; i < detection_event_info_.num_confidence_levels; i++) {
+                detection_event_info_.confidence_levels[i] =
+                    confidence_info->confidence_levels[i];
+                PAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
+                            detection_event_info_.confidence_levels[i]);
+            }
+            break;
+        case KEY_ID_KWD_POSITION_INFO:
+            keyword_position_info = (struct keyword_position_info_t *)ptr;
+            detection_event_info_.kw_start_timestamp_lsw =
+                keyword_position_info->kw_start_timestamp_lsw;
+            detection_event_info_.kw_start_timestamp_msw =
+                keyword_position_info->kw_start_timestamp_msw;
+            detection_event_info_.kw_end_timestamp_lsw =
+                keyword_position_info->kw_end_timestamp_lsw;
+            detection_event_info_.kw_end_timestamp_msw =
+                keyword_position_info->kw_end_timestamp_msw;
+            PAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
+                    "end_lsw = %u, end_msw = %u",
+                    detection_event_info_.kw_start_timestamp_lsw,
+                    detection_event_info_.kw_start_timestamp_msw,
+                    detection_event_info_.kw_end_timestamp_lsw,
+                    detection_event_info_.kw_end_timestamp_msw);
+            break;
+        case KEY_ID_TIMESTAMP_INFO:
+            detection_timestamp_info = (struct detection_timestamp_info_t *)ptr;
+            detection_event_info_.detection_timestamp_lsw =
+                detection_timestamp_info->detection_timestamp_lsw;
+            detection_event_info_.detection_timestamp_msw =
+                detection_timestamp_info->detection_timestamp_msw;
+            PAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
+                    detection_event_info_.detection_timestamp_lsw,
+                    detection_event_info_.detection_timestamp_msw);
+            break;
+        case KEY_ID_FTRT_DATA_INFO:
+            ftrt_info = (struct ftrt_data_info_t *)ptr;
+            detection_event_info_.ftrt_data_length_in_us =
+                ftrt_info->ftrt_data_length_in_us;
+            PAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
+                    detection_event_info_.ftrt_data_length_in_us);
+            break;
+        default:
             status = -EINVAL;
-            PAL_ERR(LOG_TAG, "Invalid detection payload");
+            PAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
             goto exit;
         }
-
-        // parse variable payload
-        while (parsed_size < event_size) {
-            PAL_DBG(LOG_TAG, "parsed_size = %u, event_size = %u",
-                    parsed_size, event_size);
-            event_header = (struct detection_event_info_header_t *)ptr;
-            uint32_t keyId = event_header->key_id;
-            payload_size = event_header->payload_size;
-            PAL_DBG(LOG_TAG, "key id = %u, payload_size = %u",
-                    keyId, payload_size);
-            ptr += sizeof(struct detection_event_info_header_t);
-            parsed_size += sizeof(struct detection_event_info_header_t);
-
-            switch (keyId) {
-            case KEY_ID_CONFIDENCE_LEVELS_INFO:
-                confidence_info = (struct confidence_level_info_t *)ptr;
-                detection_event_info_.num_confidence_levels =
-                    confidence_info->number_of_confidence_values;
-                PAL_DBG(LOG_TAG, "num_confidence_levels = %u",
-                        detection_event_info_.num_confidence_levels);
-                for (i = 0; i < detection_event_info_.num_confidence_levels; i++) {
-                    detection_event_info_.confidence_levels[i] =
-                        confidence_info->confidence_levels[i];
-                    PAL_VERBOSE(LOG_TAG, "confidence_levels[%d] = %u", i,
-                                detection_event_info_.confidence_levels[i]);
-                }
-                break;
-            case KEY_ID_KWD_POSITION_INFO:
-                keyword_position_info = (struct keyword_position_info_t *)ptr;
-                detection_event_info_.kw_start_timestamp_lsw =
-                    keyword_position_info->kw_start_timestamp_lsw;
-                detection_event_info_.kw_start_timestamp_msw =
-                    keyword_position_info->kw_start_timestamp_msw;
-                detection_event_info_.kw_end_timestamp_lsw =
-                    keyword_position_info->kw_end_timestamp_lsw;
-                detection_event_info_.kw_end_timestamp_msw =
-                    keyword_position_info->kw_end_timestamp_msw;
-                PAL_DBG(LOG_TAG, "start_lsw = %u, start_msw = %u, "
-                        "end_lsw = %u, end_msw = %u",
-                        detection_event_info_.kw_start_timestamp_lsw,
-                        detection_event_info_.kw_start_timestamp_msw,
-                        detection_event_info_.kw_end_timestamp_lsw,
-                        detection_event_info_.kw_end_timestamp_msw);
-                break;
-            case KEY_ID_TIMESTAMP_INFO:
-                detection_timestamp_info = (struct detection_timestamp_info_t *)ptr;
-                detection_event_info_.detection_timestamp_lsw =
-                    detection_timestamp_info->detection_timestamp_lsw;
-                detection_event_info_.detection_timestamp_msw =
-                    detection_timestamp_info->detection_timestamp_msw;
-                PAL_DBG(LOG_TAG, "timestamp_lsw = %u, timestamp_msw = %u",
-                        detection_event_info_.detection_timestamp_lsw,
-                        detection_event_info_.detection_timestamp_msw);
-                break;
-            case KEY_ID_FTRT_DATA_INFO:
-                ftrt_info = (struct ftrt_data_info_t *)ptr;
-                detection_event_info_.ftrt_data_length_in_us =
-                    ftrt_info->ftrt_data_length_in_us;
-                PAL_DBG(LOG_TAG, "ftrt_data_length_in_us = %u",
-                        detection_event_info_.ftrt_data_length_in_us);
-                break;
-            default:
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid key id %u status %d", keyId, status);
-                goto exit;
-            }
-            ptr += payload_size;
-            parsed_size += payload_size;
-        }
-    } else {
-        return ParseDetectionPayloadPDK(event_data);
+        ptr += payload_size;
+        parsed_size += payload_size;
     }
+
+    kwd_start_timestamp =
+        (uint64_t)detection_event_info_.kw_start_timestamp_lsw +
+        ((uint64_t)detection_event_info_.kw_start_timestamp_msw << 32);
+    kwd_end_timestamp =
+        (uint64_t)detection_event_info_.kw_end_timestamp_lsw +
+        ((uint64_t)detection_event_info_.kw_end_timestamp_msw << 32);
+    ftrt_start_timestamp =
+        (uint64_t)detection_event_info_.detection_timestamp_lsw +
+        ((uint64_t)detection_event_info_.detection_timestamp_msw << 32) -
+        detection_event_info_.ftrt_data_length_in_us;
+
+    UpdateKeywordIndex(kwd_start_timestamp, kwd_end_timestamp,
+        ftrt_start_timestamp);
 
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
+}
+
+void SoundTriggerEngineGsl::UpdateKeywordIndex(uint64_t kwd_start_timestamp,
+    uint64_t kwd_end_timestamp, uint64_t ftrt_start_timestamp) {
+
+    size_t start_index = 0;
+    size_t end_index = 0;
+
+    PAL_VERBOSE(LOG_TAG, "kwd start timestamp: %llu, kwd end timestamp: %llu",
+        (long long)kwd_start_timestamp, (long long)kwd_end_timestamp);
+    PAL_VERBOSE(LOG_TAG, "Ftrt data start timestamp : %llu",
+        (long long)ftrt_start_timestamp);
+
+    if (kwd_start_timestamp >= kwd_end_timestamp ||
+        kwd_start_timestamp < ftrt_start_timestamp) {
+        PAL_DBG(LOG_TAG, "Invalid timestamp, cannot compute keyword index");
+        return;
+    }
+
+    start_index = UsToBytes(kwd_start_timestamp - ftrt_start_timestamp);
+    end_index = UsToBytes(kwd_end_timestamp - ftrt_start_timestamp);
+    PAL_DBG(LOG_TAG, "start_index : %zu, end_index : %zu",
+        start_index, end_index);
+    buffer_->updateIndices(start_index, end_index);
 }
 
 Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
@@ -760,6 +775,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     custom_detection_event = nullptr;
     custom_detection_event_size = 0;
     mmap_write_position_ = 0;
+    kw_transfer_latency_ = 0;
     std::shared_ptr<SoundTriggerModuleInfo> sm_module_info = nullptr;
     builder_ = new PayloadBuilder();
     eng_sm_info_ = new SoundModelInfo();
@@ -2341,8 +2357,16 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
     int32_t status = 0;
 
     std::unique_lock<std::mutex> lck(mutex_);
+    /*
+     * reset ring buffer before parsing detection payload as
+     * keyword index will be updated in parsing.
+     */
+    buffer_->reset();
     if (is_qcva_uuid_ || is_qcmd_uuid_) {
-        status = ParseDetectionPayload(data);
+        if (!IS_MODULE_TYPE_PDK(module_type_))
+            status = ParseDetectionPayload(data);
+        else
+            status = ParseDetectionPayloadPDK(data);
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
                     status);
@@ -2398,10 +2422,12 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
      * event received for the other sound model.
      * Avoid handling the detection events for such detections.
      */
-    if (engine->eng_state_ == ENG_ACTIVE)
+    if (engine->eng_state_ == ENG_ACTIVE) {
+        engine->detection_time_ = std::chrono::steady_clock::now();
         engine->HandleSessionEvent(event_id, data, event_size);
-    else
+    } else {
         PAL_INFO(LOG_TAG, "Engine not active or buffering might be going on, ignore");
+    }
 
     PAL_DBG(LOG_TAG, "Exit");
     return;
@@ -2443,6 +2469,9 @@ int32_t SoundTriggerEngineGsl::GetParameters(uint32_t param_id,
                 PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
                 return status;
             }
+            break;
+        case PAL_PARAM_ID_KW_TRANSFER_LATENCY:
+            *(uint64_t **)payload = &kw_transfer_latency_;
             break;
         default:
             status = -EINVAL;

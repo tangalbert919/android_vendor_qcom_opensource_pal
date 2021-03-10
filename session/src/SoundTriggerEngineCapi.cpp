@@ -78,6 +78,7 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
 
         if (capi_engine->processing_started_) {
             s = dynamic_cast<StreamSoundTrigger *>(capi_engine->stream_handle_);
+            capi_engine->bytes_processed_ = 0;
             if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_KEYWORD_DETECTION) {
                 status = capi_engine->StartKeywordDetection();
@@ -124,6 +125,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     size_t lab_buffer_size = 0;
     bool first_buffer_processed = false;
     FILE *keyword_detection_fd = nullptr;
+    std::chrono::time_point<std::chrono::steady_clock> process_start;
+    std::chrono::time_point<std::chrono::steady_clock> process_end;
+    std::chrono::time_point<std::chrono::steady_clock> capi_call_start;
+    std::chrono::time_point<std::chrono::steady_clock> capi_call_end;
+    uint64_t process_duration = 0;
+    uint64_t total_capi_process_duration = 0;
+    uint64_t total_capi_get_param_duration = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -197,8 +205,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         goto exit;
     }
 
-    bytes_processed_ = 0;
-
+    process_start = std::chrono::steady_clock::now();
     while (!exit_buffering_ &&
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
@@ -233,10 +240,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
-
+        capi_call_start = std::chrono::steady_clock::now();
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
             &stream_input, nullptr);
-
+        capi_call_end = std::chrono::steady_clock::now();
+        total_capi_process_duration +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                capi_call_end - capi_call_start).count();
         if (CAPI_V2_EFAILED == rc) {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "capi process failed, status %d", status);
@@ -250,10 +260,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         capi_result.max_data_len = sizeof(sva_result_t);
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi get param for status");
-
+        capi_call_start = std::chrono::steady_clock::now();
         rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
             SVA_ID_RESULT, nullptr, &capi_result);
-
+        capi_call_end = std::chrono::steady_clock::now();
+        total_capi_get_param_duration +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                capi_call_end - capi_call_start).count();
         if (CAPI_V2_EFAILED == rc) {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "capi get param failed, status %d", status);
@@ -283,6 +296,14 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     }
 
 exit:
+    process_end = std::chrono::steady_clock::now();
+    process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        process_end - process_start).count();
+    PAL_INFO(LOG_TAG, "KW processing time: Bytes processed %u, Total processing "
+        "time %llums, Algo process time %llums, get result time %llums",
+        bytes_processed_, (long long)process_duration,
+        (long long)total_capi_process_duration,
+        (long long)total_capi_get_param_duration);
     if (st_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(keyword_detection_fd);
     }
@@ -320,6 +341,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     StreamSoundTrigger *str = nullptr;
     struct detection_event_info *info = nullptr;
     FILE *user_verification_fd = nullptr;
+    std::chrono::time_point<std::chrono::steady_clock> process_start;
+    std::chrono::time_point<std::chrono::steady_clock> process_end;
+    std::chrono::time_point<std::chrono::steady_clock> capi_call_start;
+    std::chrono::time_point<std::chrono::steady_clock> capi_call_end;
+    uint64_t process_duration = 0;
+    uint64_t total_capi_process_duration = 0;
+    uint64_t total_capi_get_param_duration = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -427,8 +455,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     if (kw_start_timestamp_ > 0)
         buffer_start_ = UsToBytes(kw_start_timestamp_);
 
-    bytes_processed_ = 0;
-
+    process_start = std::chrono::steady_clock::now();
     while (!exit_buffering_ &&
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
@@ -462,10 +489,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
-
+        capi_call_start = std::chrono::steady_clock::now();
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
             &stream_input, nullptr);
-
+        capi_call_end = std::chrono::steady_clock::now();
+        total_capi_process_duration +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                capi_call_end - capi_call_start).count();
         if (CAPI_V2_EFAILED == rc) {
             PAL_ERR(LOG_TAG, "capi process failed\n");
             status = -EINVAL;
@@ -479,10 +509,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         capi_result.max_data_len = sizeof(voiceprint2_result_t);
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi get param for result\n");
-
+        capi_call_start = std::chrono::steady_clock::now();
         rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
             VOICEPRINT2_ID_RESULT, nullptr, &capi_result);
-
+        capi_call_end = std::chrono::steady_clock::now();
+        total_capi_get_param_duration +=
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                capi_call_end - capi_call_start).count();
         if (CAPI_V2_EFAILED == rc) {
             PAL_ERR(LOG_TAG, "capi get param failed\n");
             status = -EINVAL;
@@ -502,6 +535,14 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     }
 
 exit:
+    process_end = std::chrono::steady_clock::now();
+    process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        process_end - process_start).count();
+    PAL_INFO(LOG_TAG, "UV processing time: Bytes processed %u, Total processing "
+        "time %llums, Algo process time %llums, get result time %llums",
+        bytes_processed_, (long long)process_duration,
+        (long long)total_capi_process_duration,
+        (long long)total_capi_get_param_duration);
     if (st_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(user_verification_fd);
     }

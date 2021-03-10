@@ -1612,8 +1612,8 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
-
-    PAL_DBG(LOG_TAG, "Enter");
+    std::chrono::time_point<std::chrono::steady_clock> notify_time;
+    uint64_t total_process_duration = 0;
 
     status = GenerateCallbackEvent(&rec_event, &event_size,
                                                 detection);
@@ -1622,7 +1622,13 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         return status;
     }
     if (callback_) {
-        PAL_INFO(LOG_TAG, "Notify detection event to client");
+        notify_time = std::chrono::steady_clock::now();
+        total_process_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                notify_time - gsl_engine_->GetDetectedTime()).count();
+        PAL_INFO(LOG_TAG, "Notify detection event to client,"
+            " total processing time: %llums",
+            (long long)total_process_duration);
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
                   event_size, (uint64_t)rec_config_->cookie);
