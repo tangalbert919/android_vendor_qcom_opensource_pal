@@ -53,6 +53,7 @@ LOCAL_SRC_FILES := \
     stream/src/StreamCommon.cpp \
     stream/src/StreamContextProxy.cpp \
     stream/src/StreamUltraSound.cpp \
+    stream/src/StreamSensorPCMData.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \

@@ -277,7 +277,7 @@ int32_t StreamCommon::start()
             goto exit;
         }
         PAL_VERBOSE(LOG_TAG, "device started successfully");
-        status = start_session();
+        status = startSession();
         if (0 != status) {
             goto exit;
         }
@@ -315,7 +315,7 @@ int32_t StreamCommon::start_device()
     return status;
 }
 
-int32_t StreamCommon::start_session()
+int32_t StreamCommon::startSession()
 {
     int32_t status = 0, devStatus = 0;
     status = session->prepare(this);
@@ -469,6 +469,25 @@ int32_t  StreamCommon::registerCallBack(pal_stream_callback cb, uint64_t cookie)
     PAL_VERBOSE(LOG_TAG, "callback_ = %pK", callback_);
 
     return 0;
+}
+
+int32_t StreamCommon::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
+{
+    int32_t status = -EINVAL;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "payload is NULL");
+        goto exit;
+    }
+
+    if (session)
+        status = session->getTagsWithModuleInfo(this, size, payload);
+    else
+        PAL_ERR(LOG_TAG, "session handle is NULL");
+
+exit:
+    return status;
 }
 
 int32_t StreamCommon::ssrDownHandler()

@@ -1379,6 +1379,9 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_HAPTICS:
             keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
             break;
+        case PAL_STREAM_SENSOR_PCM_DATA:
+            keyVector.push_back(std::make_pair(STREAMTX, SENSOR_PCM_DATA));
+            break;
         case PAL_STREAM_CONTEXT_PROXY:
             break;
         case PAL_STREAM_RAW:
@@ -1696,6 +1699,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 break;
             case PAL_STREAM_VOICE_UI:
             case PAL_STREAM_ACD:
+            case PAL_STREAM_SENSOR_PCM_DATA:
                 /*
                  * add key-vector for the device pre-proc that was selected
                  * by the stream
@@ -1806,6 +1810,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                                                    dAttr.config.ch_info.channels));
                 break;
             case PAL_STREAM_ACD:
+            case PAL_STREAM_SENSOR_PCM_DATA:
                 PAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
                 /* Push Channels CKV for FFECNS channel based calibration */
                 keyVector.push_back(std::make_pair(CHANNELS,

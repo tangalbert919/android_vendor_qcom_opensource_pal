@@ -36,6 +36,7 @@
 #include "StreamACD.h"
 #include "StreamContextProxy.h"
 #include "StreamUltraSound.h"
+#include "StreamSensorPCMData.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -184,6 +185,10 @@ stream_create:
             case PAL_STREAM_ULTRASOUND:
                 stream = new StreamUltraSound(sAttr, mPalDevice, count, modifiers,
                                             noOfModifiers, rm);
+                break;
+            case PAL_STREAM_SENSOR_PCM_DATA:
+                stream = new StreamSensorPCMData(sAttr, mPalDevice, count,
+                                            modifiers, noOfModifiers, rm);
                 break;
             default:
                 PAL_ERR(LOG_TAG, "unsupported stream type 0x%x", sAttr->type);

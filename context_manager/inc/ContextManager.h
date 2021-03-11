@@ -39,10 +39,9 @@
 #include <PalCommon.h>
 #include "kvh2xml.h"
 
-enum USECASE {
-    ASPS_USECASE_ID_ACD = 1,
-    USECASE_RAW_DATA = 2,
-    ASPS_USECASE_ID_UPD = 3,
+enum PCM_DATA_EFFECT {
+    PCM_DATA_EFFECT_RAW = 1,
+    PCM_DATA_EFFECT_NS = 2,
 };
 
 class ContextManager; /* forward declaration for RequestCommand */
@@ -114,13 +113,16 @@ public:
     int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data);
 };
 
-class UsecaseRawData :public Usecase
+class UsecasePCMData : public Usecase
 {
 private:
     std::vector<int32_t> tags;
+    uint32_t pcm_data_type;
 public:
-    UsecaseRawData(uint32_t usecase_id);
-    ~UsecaseRawData();
+    UsecasePCMData(uint32_t usecase_id);
+    ~UsecasePCMData();
+    int32_t SetUseCaseData(uint32_t size, void *data);
+    int32_t Configure();
 
     // caller can allocate sufficient memory the first time to avoid
     // calling this api twice. Size, will be updated to actual size;

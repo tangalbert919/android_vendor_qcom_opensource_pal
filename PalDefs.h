@@ -318,6 +318,7 @@ typedef enum {
 
 /** Audio Voip TX Effect enumeration */
 typedef enum {
+    PAL_AUDIO_EFFECT_NONE      = 0x0, /**< No audio effect ie., EC_OFF_NS_OFF*/
     PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation ie., EC_ON_NS_OFF*/
     PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression ie., NS_ON_EC_OFF*/
     PAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
@@ -349,7 +350,7 @@ typedef enum {
     PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
     PAL_STREAM_ACD = 23,                  /**< ACD Stream */
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
-    PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
+    PAL_STREAM_SENSOR_PCM_DATA = 25,      /**< Sensor Pcm Data Stream */
     PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;

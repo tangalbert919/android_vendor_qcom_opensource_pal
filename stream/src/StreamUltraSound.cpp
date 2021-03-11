@@ -54,22 +54,6 @@ StreamUltraSound::~StreamUltraSound()
     mStreamMutex.unlock();
 }
 
-int32_t StreamUltraSound::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
-{
-    int32_t status = 0;
-
-    if (*size > 0 && !payload)
-    {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "wrong params");
-        goto exit;
-    }
-
-    status = session->getTagsWithModuleInfo(this, size, payload);
-exit:
-    return status;
-}
-
 void StreamUltraSound::HandleEvent(uint32_t event_id, void *data, uint32_t event_size) {
     struct event_id_upd_detection_event_t *event_info = nullptr;
     event_info = (struct event_id_upd_detection_event_t *)data;

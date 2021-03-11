@@ -280,8 +280,12 @@ void StreamConfig::HandleStartTag(const char* tag, const char** attribs) {
         }
     }  else if (!strcmp(tag, "low_power")) {
         ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
+    } else if (!strcmp(tag, "low_power_ns")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER_NS, attribs);
     } else if (!strcmp(tag, "high_performance")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
+    } else if (!strcmp(tag, "high_performance_ns")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_NS, attribs);
     } else if (!strcmp(tag, "high_performance_and_charging")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {

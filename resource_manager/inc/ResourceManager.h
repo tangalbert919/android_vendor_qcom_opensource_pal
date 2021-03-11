@@ -278,6 +278,7 @@ class SoundTriggerEngine;
 class SndCardMonitor;
 class StreamUltraSound;
 class ContextManager;
+class StreamSensorPCMData;
 
 struct deviceIn {
     int deviceId;
@@ -369,6 +370,7 @@ protected:
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <StreamACD*> active_streams_acd;
     std::vector <StreamUltraSound*> active_streams_ultrasound;
+    std::vector <StreamSensorPCMData*> active_streams_sensor_pcm_data;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
@@ -430,6 +432,8 @@ protected:
     static int concurrencyDisableCount;
     static int ACDConcurrencyEnableCount;
     static int ACDConcurrencyDisableCount;
+    static int SNSPCMDataConcurrencyEnableCount;
+    static int SNSPCMDataConcurrencyDisableCount;
     static int wake_lock_fd;
     static int wake_unlock_fd;
     static uint32_t wake_lock_cnt;
@@ -590,6 +594,8 @@ public:
         StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
     std::shared_ptr<CaptureProfile> GetSVACaptureProfileByPriority(
         StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetSPDCaptureProfileByPriority(
+        StreamSensorPCMData *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
     bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
     std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();

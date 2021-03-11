@@ -115,7 +115,8 @@ int SessionAlsaPcm::open(Stream * s)
         goto exit;
     }
     if (sAttr.direction == PAL_AUDIO_INPUT) {
-        if (sAttr.type == PAL_STREAM_ACD)
+        if (sAttr.type == PAL_STREAM_ACD ||
+            sAttr.type == PAL_STREAM_SENSOR_PCM_DATA)
             ldir = TX_HOSTLESS;
 
         pcmDevIds = rm->allocateFrontEndIds(sAttr, ldir);
@@ -758,6 +759,7 @@ int SessionAlsaPcm::start(Stream * s)
             if ((sAttr.type != PAL_STREAM_VOICE_UI) &&
                 (sAttr.type != PAL_STREAM_ACD) &&
                 (sAttr.type != PAL_STREAM_CONTEXT_PROXY) &&
+                (sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) &&
                 (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
@@ -1265,7 +1267,8 @@ int SessionAlsaPcm::close(Stream * s)
             if (status) {
                 PAL_ERR(LOG_TAG, "pcm_close failed %d", status);
             }
-            if (sAttr.type == PAL_STREAM_ACD)
+            if (sAttr.type == PAL_STREAM_ACD ||
+                sAttr.type == PAL_STREAM_SENSOR_PCM_DATA)
                 ldir = TX_HOSTLESS;
 
             rm->freeFrontEndIds(pcmDevIds, sAttr, ldir);
