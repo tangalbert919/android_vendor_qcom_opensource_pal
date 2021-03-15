@@ -1553,24 +1553,25 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
         case PAL_DEVICE_OUT_BLUETOOTH_SCO:
         case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-        {
-            std::shared_ptr<BtSco> scoDev;
+            {
+                std::shared_ptr<BtSco> scoDev;
 
-            dev_ch_info.channels = channel;
-            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
-            deviceattr->config.ch_info = dev_ch_info;
-            deviceattr->config.sample_rate = SAMPLINGRATE_8K;  /* Updated when WBS set param is received */
-            deviceattr->config.bit_width = BITWIDTH_16;
-            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-            scoDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(deviceattr, rm));
-            if (!scoDev) {
-                PAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
-                return -EINVAL;
+                dev_ch_info.channels = channel;
+                getChannelMap(&(dev_ch_info.ch_map[0]), channel);
+                deviceattr->config.ch_info = dev_ch_info;
+                deviceattr->config.sample_rate = SAMPLINGRATE_8K;
+                deviceattr->config.bit_width = BITWIDTH_16;
+                deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+                scoDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(deviceattr, rm));
+                if (!scoDev) {
+                    PAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
+                    return -EINVAL;
+                }
+                // update device sample rate based on sco mode
+                scoDev->updateSampleRate(&deviceattr->config.sample_rate);
+                PAL_DBG(LOG_TAG, "BT SCO device samplerate %d, bitwidth %d",
+                      deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
-            scoDev->updateSampleRate(&deviceattr->config.sample_rate);
-            PAL_DBG(LOG_TAG, "BT SCO device samplerate %d, bitwidth %d",
-                  deviceattr->config.sample_rate, deviceattr->config.bit_width);
-        }
             break;
         case PAL_DEVICE_OUT_USB_DEVICE:
         case PAL_DEVICE_OUT_USB_HEADSET:
