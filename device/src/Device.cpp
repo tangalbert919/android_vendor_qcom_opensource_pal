@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,6 +48,8 @@
 #include "Bluetooth.h"
 #include "DisplayPort.h"
 #include "RTProxy.h"
+#include "FMDevice.h"
+#include "HapticsDev.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -116,12 +118,18 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_OUT_HEARING_AID:
         PAL_VERBOSE(LOG_TAG, "RTProxy Hearing Aid device");
         return RTProxyOut::getInstance(device, Rm);
+    case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+        PAL_VERBOSE(LOG_TAG, "Haptics Device");
+        return HapticsDev::getInstance(device, Rm);
     case PAL_DEVICE_IN_PROXY:
         PAL_VERBOSE(LOG_TAG, "RTProxy device");
         return RTProxy::getInstance(device, Rm);
     case PAL_DEVICE_IN_TELEPHONY_RX:
         PAL_VERBOSE(LOG_TAG, "RTProxy Telephony Rx device");
         return RTProxy::getInstance(device, Rm);
+    case PAL_DEVICE_IN_FM_TUNER:
+        PAL_VERBOSE(LOG_TAG, "FM device");
+        return FMDevice::getInstance(device, Rm);
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -174,6 +182,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_TELEPHONY_RX:
         PAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();
+    case PAL_DEVICE_IN_FM_TUNER:
+        PAL_VERBOSE(LOG_TAG, "FMDevice %d", dev_id);
+        return FMDevice::getObject();
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
@@ -264,6 +275,16 @@ int Device::updateCustomPayload(void *payload, size_t size)
     customPayloadSize += size;
     PAL_INFO(LOG_TAG, "customPayloadSize = %zu", customPayloadSize);
     return 0;
+}
+
+void* Device::getCustomPayload()
+{
+    return customPayload;
+}
+
+size_t Device::getCustomPayloadSize()
+{
+    return customPayloadSize;
 }
 
 int Device::getSndDeviceId()

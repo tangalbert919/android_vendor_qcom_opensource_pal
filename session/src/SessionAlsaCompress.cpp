@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -35,7 +35,7 @@
 #include "ResourceManager.h"
 #include "media_fmt_api.h"
 #include "gapless_api.h"
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include <sstream>
 #include <mutex>
 #include <fstream>
@@ -320,7 +320,6 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_G711:
              id = -1;
             break;
-#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END:
@@ -344,9 +343,11 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_APE:
             id = SND_AUDIOCODEC_APE;
             break;
+#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_WMA_PRO:
             id = SND_AUDIOCODEC_WMA_PRO;
             break;
+#endif
         case PAL_AUDIO_FMT_FLAC:
         case PAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
@@ -354,7 +355,6 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_VORBIS:
             id = SND_AUDIOCODEC_VORBIS;
             break;
-#endif
         default:
             PAL_ERR(LOG_TAG, "Entered default format %x", fmt);
             break;
@@ -379,6 +379,7 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_AAC_ADTS:
         case PAL_AUDIO_FMT_AAC_ADIF:
         case PAL_AUDIO_FMT_AAC_LATM:
+        case PAL_AUDIO_FMT_FLAC:
             isSupported = true;
             break;
         case PAL_AUDIO_FMT_WMA_STD:
@@ -391,7 +392,6 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_WMA_PRO:
             break;
-        case PAL_AUDIO_FMT_FLAC:
         case PAL_AUDIO_FMT_FLAC_OGG:
             break;
         case PAL_AUDIO_FMT_VORBIS:
@@ -579,21 +579,23 @@ int SessionAlsaCompress::open(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<std::pair<int32_t, std::string>> emptyBackEnds;
 
+    PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
+        goto exit;
     }
 
     ioMode = sAttr.flags & PAL_STREAM_FLAG_NON_BLOCKING_MASK;
     if (!ioMode) {
         PAL_ERR(LOG_TAG, "IO mode 0x%x not supported", ioMode);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-        return status;
+        goto exit;
     }
 
     compressDevIds = rm->allocateFrontEndIds(sAttr, 0);
@@ -609,7 +611,7 @@ int SessionAlsaCompress::open(Stream * s)
     status = rm->getAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG,"mixer error");
-        return status;
+        goto exit;
     }
     status = SessionAlsaUtils::open(s, rm, compressDevIds, rxAifBackEnds);
     if (status) {
@@ -618,6 +620,8 @@ int SessionAlsaCompress::open(Stream * s)
     }
     audio_fmt = sAttr.out_media_config.aud_fmt_id;
     isGaplessFmt = isGaplessFormat(audio_fmt);
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -816,6 +820,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
     struct mixer_ctl *ctl = nullptr;
     uint32_t tkv_size = 0;
 
+    PAL_DBG(LOG_TAG, "Enter");
     switch (type) {
         case MODULE:
             tkv.clear();
@@ -865,6 +870,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, uint32_t tag1,
 exit:
     if(tagConfig)
         free(tagConfig);
+    PAL_DBG(LOG_TAG,"exit status:%d ", status);
     return status;
 }
 
@@ -883,6 +889,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
     int tkv_size = 0;
     int ckv_size = 0;
 
+    PAL_DBG(LOG_TAG, "Enter");
     switch (type) {
         case MODULE:
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
@@ -1034,6 +1041,7 @@ int SessionAlsaCompress::start(Stream * s)
     size_t payloadSize = 0;
     uint32_t miid;
 
+    PAL_DBG(LOG_TAG,"Enter");
     /** create an offload thread for posting callbacks */
     worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
 
@@ -1048,12 +1056,12 @@ int SessionAlsaCompress::start(Stream * s)
     if (!compress) {
         PAL_ERR(LOG_TAG, "compress open failed");
         status = -EINVAL;
-        goto free_feIds;
+        goto exit;
     }
     if (!is_compress_ready(compress)) {
         PAL_ERR(LOG_TAG, "compress open not ready %s", compress_get_error(compress));
         status = -EINVAL;
-        goto free_feIds;
+        goto exit;
     }
     /** set non blocking mode for writes */
     compress_nonblock(compress, !!ioMode);
@@ -1063,12 +1071,12 @@ int SessionAlsaCompress::start(Stream * s)
             status = s->getAssociatedDevices(associatedDevices);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-                return status;
+                goto exit;
             }
             rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
             if (rxAifBackEnds.empty() && txAifBackEnds.empty()) {
                 PAL_ERR(LOG_TAG, "no backend specified for this stream");
-                return status;
+                goto exit;
 
             }
 
@@ -1076,7 +1084,7 @@ int SessionAlsaCompress::start(Stream * s)
                      rxAifBackEnds[0].second.data(), STREAM_SPR, &spr_miid);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
-                return status;
+                goto exit;;
             }
 
             setCustomFormatParam(audio_fmt);
@@ -1084,7 +1092,7 @@ int SessionAlsaCompress::start(Stream * s)
                 status = associatedDevices[i]->getDeviceAttributes(&dAttr);
                 if(0 != status) {
                     PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-                    return status;
+                    goto exit;
                 }
 
                 /* Get PSPD MFC MIID and configure to match to device config */
@@ -1097,14 +1105,14 @@ int SessionAlsaCompress::start(Stream * s)
                             compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
                 } else {
                     PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                    return status;
+                    goto exit;
                 }
 
                 if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
                     status = associatedDevices[i]->getCodecConfig(&codecConfig);
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                        return status;
+                        goto exit;
                     }
                     mfcData.bitWidth = codecConfig.bit_width;
                     mfcData.sampleRate = codecConfig.sample_rate;
@@ -1132,7 +1140,7 @@ int SessionAlsaCompress::start(Stream * s)
                     delete payload;
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-                        return status;
+                        goto exit;
                     }
                 }
                 if (isGaplessFmt) {
@@ -1149,7 +1157,7 @@ int SessionAlsaCompress::start(Stream * s)
 
                 if (status != 0) {
                     PAL_ERR(LOG_TAG,"setMixerParameter failed");
-                    return status;
+                    goto exit;
                 }
             }
             break;
@@ -1162,47 +1170,61 @@ int SessionAlsaCompress::start(Stream * s)
             PAL_ERR(LOG_TAG,"Setting volume failed");
     }
 
-free_feIds:
-   return status;
+exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::pause(Stream * s __unused)
 {
     int32_t status = 0;
 
+    PAL_DBG(LOG_TAG,"Enter");
+
     if (compress && playback_started) {
         status = compress_pause(compress);
         if (status == 0)
             playback_paused = true;
     }
-   return status;
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::resume(Stream * s __unused)
 {
     int32_t status = 0;
 
+    PAL_DBG(LOG_TAG,"Enter");
+
     if (compress && playback_paused) {
         status = compress_resume(compress);
         if (status == 0)
             playback_paused = false;
     }
-   return status;
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::stop(Stream * s __unused)
 {
     int32_t status = 0;
 
+    PAL_DBG(LOG_TAG,"Enter");
     if (compress && playback_started)
         status = compress_stop(compress);
-   return status;
+
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::close(Stream * s)
 {
     struct pal_stream_attributes sAttr;
     std::ostringstream disconnectCtrlName;
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG,"Enter");
+
     s->getStreamAttributes(&sAttr);
     if (!compress) {
         if (compressDevIds.size() != 0)
@@ -1211,13 +1233,15 @@ int SessionAlsaCompress::close(Stream * s)
             if (sessionCb)
                 sessionCb(cbCookie, PAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
         }
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
     disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
     if (!disconnectCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     /** Disconnect FE to BE */
     mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
@@ -1252,7 +1276,9 @@ int SessionAlsaCompress::close(Stream * s)
     while (!msg_queue_.empty())
         msg_queue_.pop();
 
-    return 0;
+ exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::read(Stream *s __unused, int tag __unused, struct pal_buffer *buf __unused, int * size __unused)
@@ -1273,7 +1299,7 @@ int SessionAlsaCompress::fileWrite(Stream *s __unused, int tag __unused, struct 
     fs.close();
     PAL_ERR(LOG_TAG, "file close success");
     *size = (int)(buf->size);
-    PAL_ERR(LOG_TAG,"iExit. size: %d", *size);
+    PAL_ERR(LOG_TAG,"Exit. size: %d", *size);
     return 0;
 }
 
@@ -1373,6 +1399,8 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     struct compr_gapless_mdata mdata;
     struct pal_compr_gapless_mdata *gaplessMdata = NULL;
 
+    PAL_DBG(LOG_TAG,"Enter");
+
     switch (param_id) {
         case PAL_PARAM_ID_DEVICE_ROTATION:
         {
@@ -1433,6 +1461,26 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             }
             return 0;
         }
+        case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
+        {
+            pal_bt_lc3_payload *lc3_payload = (pal_bt_lc3_payload *)payload;
+            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                               rxAifBackEnds[0].second.data(), tagId, &miid);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
+                return status;
+            }
+
+            builder->payloadLC3Config(&alsaParamData, &alsaPayloadSize,
+                 miid, lc3_payload->isLC3MonoModeOn);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set lc3 config status=%d\n", status);
+                free(alsaParamData);
+            }
+            return 0;
+        }
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
             updateCodecOptions((pal_param_payload *) payload);
@@ -1441,7 +1489,8 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         {
             if (!compress) {
                 PAL_ERR(LOG_TAG, "Compress is invalid");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
             if (isGaplessFmt) {
                 gaplessMdata = (pal_compr_gapless_mdata*)param_payload->payload;
@@ -1453,11 +1502,12 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                 status = compress_set_gapless_metadata(compress, &mdata);
                 if (status != 0) {
                     PAL_ERR(LOG_TAG, "set gapless metadata failed");
-                    return status;
+                    goto exit;
                 }
              } else {
                  PAL_ERR(LOG_TAG, "audio fmt %x is not gapless", audio_fmt);
-                 return -EINVAL;
+                 status = -EINVAL;
+                 goto exit;
              }
         }
         break;
@@ -1465,8 +1515,9 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;
     }
-
-    return 0;
+exit:
+    PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
 }
 
 int SessionAlsaCompress::registerCallBack(session_callback cb, uint64_t cookie)

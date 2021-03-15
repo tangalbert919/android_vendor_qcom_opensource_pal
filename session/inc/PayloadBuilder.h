@@ -115,12 +115,17 @@ public:
                             uint32_t paramId, uint32_t querySize);
     template <typename T>
     void populateChannelMap(T pcmChannel, uint8_t numChannel);
+    void payloadLC3Config(uint8_t** payload, size_t* size,
+                          uint32_t miid, bool isLC3MonoModeOn);
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
     void payloadPcmCnvConfig(uint8_t** payload, size_t* size, uint32_t miid,
                              struct pal_media_config *data);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
+    void payloadCopV2DepackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data,
+                          bool isStreamMapDirIn);
+    void payloadCopV2PackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data);
     void payloadTWSConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           bool isTwsMonoModeOn, uint32_t codecFormat);
     void payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid,

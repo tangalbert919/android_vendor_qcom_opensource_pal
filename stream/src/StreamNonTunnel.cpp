@@ -75,6 +75,7 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
     outMaxMetadataSz = 0;
     mDevices.clear();
     currentState = STREAM_IDLE;
+    ssrInNTMode = false;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
 
@@ -137,10 +138,10 @@ int32_t  StreamNonTunnel::open()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    if (rm->cardState == CARD_STATUS_OFFLINE) {
+    if (rm->cardState == CARD_STATUS_OFFLINE || ssrInNTMode == true) {
         PAL_ERR(LOG_TAG, "Sound card offline, can not open stream");
         usleep(SSR_RECOVERY);
-        status = -EIO;
+        status = -ENETRESET;
         goto exit;
     }
 
@@ -170,7 +171,6 @@ exit:
     return status;
 }
 
-//TBD: move this to Stream, why duplicate code?
 int32_t  StreamNonTunnel::close()
 {
     int32_t status = 0;
@@ -180,13 +180,6 @@ int32_t  StreamNonTunnel::close()
             session, currentState);
 
     if (currentState == STREAM_IDLE) {
-        /* If current state is STREAM_IDLE, that means :
-         * 1. SSR down has happened
-         * Session is already closed as part of ssr handling, so just
-         * close device and destroy the objects.
-         * 2. Stream created but opened failed.
-         * No need to call session close for this case too.
-         */
         PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
         goto exit;
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
@@ -195,9 +188,7 @@ int32_t  StreamNonTunnel::close()
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
     }
 
-    rm->lockGraph();
     status = session->close(this);
-    rm->unlockGraph();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "session close failed with status %d", status);
     }
@@ -219,10 +210,10 @@ int32_t StreamNonTunnel::start()
 {
     int32_t status = 0;
     mStreamMutex.lock();
-    if (rm->cardState == CARD_STATUS_OFFLINE) {
-        cachedState = STREAM_STARTED;
-        PAL_ERR(LOG_TAG, "Sound card offline. Update the cached state %d",
-                cachedState);
+    if (rm->cardState == CARD_STATUS_OFFLINE || ssrInNTMode == true) {
+        PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        status = -ENETRESET;
         goto exit;
     }
 
@@ -230,33 +221,27 @@ int32_t StreamNonTunnel::start()
               session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
-        rm->lockGraph();
         status = session->prepare(this);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
                     status);
-            rm->unlockGraph();
             goto exit;
         }
         PAL_VERBOSE(LOG_TAG, "session prepare successful");
 
         status = session->start(this);
-        if (errno == -ENETRESET &&
+        if (status == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
                 PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
-                cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto exit;
         }
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Rx session start is failed with status %d",
                     status);
-            rm->unlockGraph();
             goto exit;
         }
         PAL_VERBOSE(LOG_TAG, "session start successful");
-        rm->unlockGraph();
         currentState = STREAM_STARTED;
     } else if (currentState == STREAM_STARTED) {
         PAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
@@ -279,7 +264,7 @@ int32_t StreamNonTunnel::stop()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    PAL_ERR(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
@@ -312,6 +297,15 @@ int32_t StreamNonTunnel::prepare()
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
 
     mStreamMutex.lock();
+
+    if ((rm->cardState == CARD_STATUS_OFFLINE)
+            || ssrInNTMode == true) {
+        PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        mStreamMutex.unlock();
+        return -ENETRESET;
+    }
+
     status = session->prepare(this);
     if (0 != status)
         PAL_ERR(LOG_TAG, "session prepare failed with status = %d", status);
@@ -328,25 +322,10 @@ int32_t  StreamNonTunnel::read(struct pal_buffer* buf)
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
-    if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
-       /* calculate sleep time based on buf->size, sleep and return buf->size */
-        uint32_t streamSize;
-        uint32_t byteWidth = mStreamAttr->in_media_config.bit_width / 8;
-        uint32_t sampleRate = mStreamAttr->in_media_config.sample_rate;
-        struct pal_channel_info chInfo = mStreamAttr->in_media_config.ch_info;
-
-        streamSize = byteWidth * chInfo.channels;
-        if ((streamSize == 0) || (sampleRate == 0)) {
-            PAL_ERR(LOG_TAG, "stream_size= %d, srate = %d",
-                    streamSize, sampleRate);
-            status =  -EINVAL;
-            goto exit;
-        }
-        size = buf->size;
-        memset(buf->buffer, 0, size);
-        usleep((uint64_t)size * 1000000 / streamSize / sampleRate);
-        PAL_DBG(LOG_TAG, "Sound card offline, dropped buffer size - %d", size);
-        status = size;
+    if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
+         PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        status = -ENETRESET;
         goto exit;
     }
 
@@ -354,21 +333,18 @@ int32_t  StreamNonTunnel::read(struct pal_buffer* buf)
         status = session->read(this, SHMEM_ENDPOINT, buf, &size);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session read is failed with status %d", status);
-            if (errno == -ENETRESET &&
+            if (status == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
                 PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
-                status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
-                status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
         }
@@ -388,10 +364,6 @@ int32_t  StreamNonTunnel::write(struct pal_buffer* buf)
 {
     int32_t status = 0;
     int32_t size = 0;
-    uint32_t frameSize = 0;
-    uint32_t byteWidth = 0;
-    uint32_t sampleRate = 0;
-    uint32_t channelCount = 0;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
@@ -400,22 +372,11 @@ int32_t  StreamNonTunnel::write(struct pal_buffer* buf)
 
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
     if ((rm->cardState == CARD_STATUS_OFFLINE)
-            || cachedState != STREAM_IDLE) {
-        byteWidth = mStreamAttr->out_media_config.bit_width / 8;
-        sampleRate = mStreamAttr->out_media_config.sample_rate;
-        channelCount = mStreamAttr->out_media_config.ch_info.channels;
-
-        frameSize = byteWidth * channelCount;
-        if ((frameSize == 0) || (sampleRate == 0)) {
-            PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
-            mStreamMutex.unlock();
-            return -EINVAL;
-        }
+            || ssrInNTMode == true) {
         size = buf->size;
-        usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
-        PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
+        PAL_DBG(LOG_TAG, "sound card offline dropped buffer size - %d", size);
         mStreamMutex.unlock();
-        return size;
+        return -ENETRESET;
     }
     mStreamMutex.unlock();
 
@@ -425,21 +386,18 @@ int32_t  StreamNonTunnel::write(struct pal_buffer* buf)
             PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
 
             /* ENETRESET is the error code returned by AGM during SSR */
-            if (errno == -ENETRESET &&
+            if (status == -ENETRESET &&
                 rm->cardState != CARD_STATUS_OFFLINE) {
                 PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 size = buf->size;
-                status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
-                status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
          }
@@ -503,9 +461,16 @@ int32_t  StreamNonTunnel::setParameters(uint32_t param_id, void *payload)
         goto error;
     }
 
+    mStreamMutex.lock();
+    if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
+         PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        status = -ENETRESET;
+        goto error;
+    }
+
     PAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
-    mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
         case PAL_PARAM_ID_MODULE_CONFIG:
@@ -517,10 +482,21 @@ int32_t  StreamNonTunnel::setParameters(uint32_t param_id, void *payload)
             break;
     }
 
+error:
     mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
-error:
     return status;
+}
+
+int32_t StreamNonTunnel::drain(pal_drain_type_t type)
+{
+    PAL_ERR(LOG_TAG, "drain");
+    if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
+         PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        return -ENETRESET;
+    }
+    return session->drain(type);
 }
 
 int32_t StreamNonTunnel::pause()
@@ -540,12 +516,15 @@ int32_t StreamNonTunnel::flush()
     int32_t status = 0;
 
     mStreamMutex.lock();
-    if (isPaused == false) {
-         PAL_ERR(LOG_TAG, "Error, flush called while stream is not Paused isPaused:%d", isPaused);
-         goto exit;
+    if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode == true) {
+         PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        status = -ENETRESET;
+        goto exit;
     }
 
     status = session->flush();
+
 exit:
     mStreamMutex.unlock();
     return status;
@@ -617,101 +596,28 @@ int32_t StreamNonTunnel::ssrDownHandler()
 {
     int status = 0;
 
+
     mStreamMutex.lock();
-    /* Updating cached state here only if it's STREAM_IDLE,
-     * Otherwise we can assume it is updated by hal thread
-     * already.
+    /* In NonTunnelMode once SSR happens, that session is not reusuable
+     * Hence set the ssr to true and return all subsequent calls with
+     * -ENETRESET, untill the client sets up a new session.
+     *
      */
-    if (cachedState == STREAM_IDLE)
-        cachedState = currentState;
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK cached State %d",
-            session, cachedState);
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK currentState State %d",
+            session, currentState);
 
-    if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
-        //Not calling stream close here, as we don't want to delete the session
-        //and device objects.
-        rm->lockGraph();
-        status = session->close(this);
-        rm->unlockGraph();
-        currentState = STREAM_IDLE;
-        mStreamMutex.unlock();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session close failed. status %d", status);
-            goto exit;
-        }
-    } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
-        mStreamMutex.unlock();
-        status = stop();
-        if (0 != status)
-            PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
-        mStreamMutex.lock();
-        rm->lockGraph();
-        status = session->close(this);
-        rm->unlockGraph();
-        currentState = STREAM_IDLE;
-        mStreamMutex.unlock();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session close failed. status %d", status);
-            goto exit;
-        }
-    } else {
-       PAL_ERR(LOG_TAG, "stream state is %d, nothing to handle", currentState);
-       mStreamMutex.unlock();
-       goto exit;
-    }
+    ssrInNTMode = true;
+    if (streamCb)
+        streamCb(reinterpret_cast<pal_stream_handle_t *>(this), PAL_STREAM_CBK_EVENT_ERROR, NULL, 0, this->cookie);
 
-exit :
+    mStreamMutex.unlock();
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int32_t StreamNonTunnel::ssrUpHandler()
 {
-    int status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d",
-            session, cachedState);
-
-    if (cachedState == STREAM_INIT) {
-        status = open();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
-            goto exit;
-        }
-    } else if (cachedState == STREAM_STARTED) {
-        status = open();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
-            goto exit;
-        }
-        status = start();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-            goto exit;
-        }
-    } else if (cachedState == STREAM_PAUSED) {
-        status = open();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
-            goto exit;
-        }
-        status = start();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-            goto exit;
-        }
-        status = pause();
-        if (0 != status) {
-           PAL_ERR(LOG_TAG, "stream set pause failed. status %d", status);
-            goto exit;
-        }
-    } else {
-        PAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
-        goto exit;
-    }
-exit :
-    cachedState = STREAM_IDLE;
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
+    return 0;
 }
 

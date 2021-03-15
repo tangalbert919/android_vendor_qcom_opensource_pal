@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,7 +48,7 @@
 #include "DisplayPort.h"
 #include "Handset.h"
 #include "SndCardMonitor.h"
-#include "agm_api.h"
+#include <agm/agm_api.h>
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mutex>
@@ -105,6 +105,11 @@
 #define MAX_SESSIONS_INCALL_MUSIC 1
 #define MAX_SESSIONS_INCALL_RECORD 1
 #define MAX_SESSIONS_NON_TUNNEL 4
+#define MAX_SESSIONS_HAPTICS 1
+
+#define WAKE_LOCK_NAME "audio_pal_wl"
+#define WAKE_LOCK_PATH "/sys/power/wake_lock"
+#define WAKE_UNLOCK_PATH "/sys/power/wake_unlock"
 
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
@@ -168,6 +173,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
@@ -209,6 +215,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_OUT_PROXY,                0},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
     {PAL_DEVICE_OUT_HEARING_AID,          0},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       0},
     {PAL_DEVICE_OUT_MAX,                  0},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           0},
@@ -251,6 +258,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
@@ -340,6 +348,9 @@ bool ResourceManager::mixerClosed = false;
 int ResourceManager::mixerEventRegisterCount = 0;
 int ResourceManager::concurrencyEnableCount = 0;
 int ResourceManager::concurrencyDisableCount = 0;
+int ResourceManager::wake_lock_fd = -1;
+int ResourceManager::wake_unlock_fd = -1;
+uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
@@ -381,6 +392,7 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_CELT),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
+    MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM)
 };
 
@@ -404,6 +416,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_OUT_PROXY,                {std::string{ "" }}},
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
+    {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
@@ -487,6 +500,8 @@ ResourceManager::ResourceManager()
     deviceTag.clear();
     btCodecMap.clear();
 
+    vsidInfo.loopback_delay = 0;
+
     ret = ResourceManager::init_audio();
     if (ret) {
         PAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
@@ -513,6 +528,7 @@ ResourceManager::ResourceManager()
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
+    memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
     ret = ResourceManager::XmlParser(SNDPARSER);
     if (ret) {
@@ -577,7 +593,7 @@ ResourceManager::ResourceManager()
     }
 
     ResourceManager::loadAdmLib();
-
+    ResourceManager::initWakeLocks();
 }
 
 ResourceManager::~ResourceManager()
@@ -617,6 +633,7 @@ ResourceManager::~ResourceManager()
         dlclose(admLibHdl);
     }
 
+    ResourceManager::deInitWakeLocks();
 }
 
 void ResourceManager::loadAdmLib()
@@ -655,6 +672,86 @@ void ResourceManager::loadAdmLib()
                 admData = admInitFn();
         }
     }
+}
+
+int ResourceManager::initWakeLocks(void) {
+
+    wake_lock_fd = ::open(WAKE_LOCK_PATH, O_WRONLY|O_APPEND);
+    if (wake_lock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
+            WAKE_LOCK_PATH, strerror(errno));
+        if (errno == ENOENT) {
+            PAL_INFO(LOG_TAG, "No wake lock support");
+            return -ENOENT;
+        }
+        return -EINVAL;
+    }
+    wake_unlock_fd = ::open(WAKE_UNLOCK_PATH, O_WRONLY|O_APPEND);
+    if (wake_unlock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Unable to open %s, err:%s",
+            WAKE_UNLOCK_PATH, strerror(errno));
+        ::close(wake_lock_fd);
+        wake_lock_fd = -1;
+        return -EINVAL;
+    }
+    return 0;
+}
+
+void ResourceManager::deInitWakeLocks(void) {
+    if (wake_lock_fd >= 0) {
+        ::close(wake_lock_fd);
+        wake_lock_fd = -1;
+    }
+    if (wake_unlock_fd >= 0) {
+        ::close(wake_unlock_fd);
+        wake_unlock_fd = -1;
+    }
+}
+
+void ResourceManager::acquireWakeLock() {
+    int ret = 0;
+
+    mResourceManagerMutex.lock();
+    if (wake_lock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Invalid fd %d", wake_lock_fd);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
+    if (++wake_lock_cnt == 1) {
+        PAL_INFO(LOG_TAG, "Acquiring wake lock %s", WAKE_LOCK_NAME);
+        ret = ::write(wake_lock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+        if (ret < 0)
+            PAL_ERR(LOG_TAG, "Failed to acquire wakelock %d %s",
+                ret, strerror(errno));
+    }
+
+exit:
+    mResourceManagerMutex.unlock();
+}
+
+void ResourceManager::releaseWakeLock() {
+    int ret = 0;
+
+    mResourceManagerMutex.lock();
+    if (wake_unlock_fd < 0) {
+        PAL_ERR(LOG_TAG, "Invalid fd %d", wake_unlock_fd);
+        goto exit;
+    }
+
+    PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
+    if (--wake_lock_cnt == 0) {
+        PAL_INFO(LOG_TAG, "Releasing wake lock %s", WAKE_LOCK_NAME);
+        ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
+        if (ret < 0)
+            PAL_ERR(LOG_TAG, "Failed to release wakelock %d %s",
+                ret, strerror(errno));
+    }
+
+    if (wake_lock_cnt < 0)
+        wake_lock_cnt = 0;
+exit:
+     mResourceManagerMutex.unlock();
 }
 
 void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
@@ -806,8 +903,10 @@ int ResourceManager::init_audio()
 
                 /* TODO: Needs to extend for new targets */
                 if (strstr(snd_card_name, "kona") ||
-                    strstr(snd_card_name, "sm8150")||
-                    strstr(snd_card_name, "lahaina") ) {
+                    strstr(snd_card_name, "sm8150") ||
+                    strstr(snd_card_name, "lahaina") ||
+                    strstr(snd_card_name, "waipio") ||
+                    strstr(snd_card_name, "bengal")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_mixer = tmp_mixer;
@@ -847,6 +946,11 @@ int ResourceManager::init_audio()
             strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
 
+            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    } else if (!strncmp(cur_snd_card_split.form_factor, "scubaidp", sizeof("scubaidp"))) {
+            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
     }
@@ -961,6 +1065,7 @@ int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
     struct vsid_modepair modePair = {};
 
     info->vsid = vsidInfo.vsid;
+    info->loopback_delay = vsidInfo.loopback_delay;
     for (int size = 0; size < vsidInfo.modepair.size(); size++) {
         modePair.key = vsidInfo.modepair[size].key;
         modePair.value = vsidInfo.modepair[size].value;
@@ -1198,6 +1303,17 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
             break;
+        case PAL_DEVICE_IN_FM_TUNER:
+            {
+            /* For PAL_DEVICE_IN_FM_TUNER, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_IN_FM_TUNER sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+            break;
         case PAL_DEVICE_OUT_PROXY:
             {
             // check if wfd session in progress
@@ -1225,29 +1341,33 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
                     deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
                     deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
-                    PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY samplereate %d bitwidth %d",
-                            deviceattr->config.sample_rate, deviceattr->config.bit_width);
                 } else {
-                    deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
-                    deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
-                    deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+                    deviceattr->config.ch_info.channels = channel;
+                    getChannelMap(&(deviceattr->config.ch_info.ch_map[0]),
+                                    channel);
+                    deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                    deviceattr->config.bit_width = BITWIDTH_16;
                     deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-                    PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
-                            deviceattr->config.sample_rate, deviceattr->config.bit_width);
                 }
             }
             else
             {
-                /* For PAL_DEVICE_OUT_PROXY, copy all config from stream attributes */
-                deviceattr->config.ch_info =sAttr->out_media_config.ch_info;
-                deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
-                deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+                if (rm->num_proxy_channels) {
+                    deviceattr->config.ch_info.channels = rm->num_proxy_channels;
+                    rm->num_proxy_channels = 0;
+                } else
+                    deviceattr->config.ch_info.channels = channel;
+                getChannelMap(&(deviceattr->config.ch_info.ch_map[0]),
+                        deviceattr->config.ch_info.channels);
+                deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+                deviceattr->config.bit_width = BITWIDTH_16;
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
 
-                PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d",
-                        deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
+            PAL_INFO(LOG_TAG, "PAL_DEVICE_OUT_PROXY sample rate %d bitwidth %d ch:%d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width,
+                    deviceattr->config.ch_info.channels);
             }
             break;
         case PAL_DEVICE_OUT_HEARING_AID:
@@ -1332,6 +1452,15 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
             }
             break;
+        case PAL_DEVICE_OUT_HAPTICS_DEVICE:
+            /* For PAL_DEVICE_OUT_HAPTICS_DEVICE, copy all config from stream attributes */
+            deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
+            deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
+            deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_HAPTICS_DEVICE sample rate %d bitwidth %d",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            break;
         default:
             PAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
@@ -1415,7 +1544,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_non_tunnel.size();
             max_sessions = max_nt_sessions;
             break;
-
+        case PAL_STREAM_HAPTICS:
+            cur_sessions = active_streams_haptics.size();
+            max_sessions = MAX_SESSIONS_HAPTICS;
+            break;
         default:
             PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
         return result;
@@ -1439,6 +1571,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
         case PAL_STREAM_VOICE_CALL_MUSIC:
+        case PAL_STREAM_HAPTICS:
             if (attributes->direction == PAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -1618,7 +1751,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sNonTunnel, active_streams_non_tunnel);
             break;
         }
-
+        case PAL_STREAM_HAPTICS:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sDB, active_streams_haptics);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -1751,6 +1889,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamNonTunnel* sNonTunnel = dynamic_cast<StreamNonTunnel*>(s);
             ret = deregisterstream(sNonTunnel, active_streams_non_tunnel);
+            break;
+        }
+        case PAL_STREAM_HAPTICS:
+        {
+            StreamPCM* sDB = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sDB, active_streams_haptics);
             break;
         }
         default:
@@ -1916,7 +2060,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         } else if (dev) {
            dev->setEcRefDevCount(false, true);
         }
-    } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+    } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
@@ -2869,7 +3013,8 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
         PAL_ERR(LOG_TAG, "stream get attributes failed");
         goto exit;
     }
-    if (rx_attr.direction != PAL_AUDIO_OUTPUT) {
+    if (!(rx_attr.direction == PAL_AUDIO_OUTPUT ||
+          rx_attr.direction == PAL_AUDIO_INPUT_OUTPUT)) {
         PAL_ERR(LOG_TAG, "Invalid stream direction %d", rx_attr.direction);
         status = -EINVAL;
         goto exit;
@@ -3008,6 +3153,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_incall_record);
     getActiveStreams(d, activestreams, active_streams_non_tunnel);
     getActiveStreams(d, activestreams, active_streams_incall_music);
+    getActiveStreams(d, activestreams, active_streams_haptics);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -3254,6 +3400,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_PCM_OFFLOAD:
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
+        case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if ( howMany > listAllPcmRecordFrontEnds.size()) {
@@ -3482,7 +3629,9 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_VOIP_RX:
         case PAL_STREAM_VOIP_TX:
         case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PCM_OFFLOAD:
+        case PAL_STREAM_HAPTICS:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     for (int i = 0; i < frontend.size(); i++) {
@@ -4679,7 +4828,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         device_connection->connection_state);
             if (payload_size == sizeof(pal_param_device_connection_t)) {
                 status = handleDeviceConnectionChange(*device_connection);
-                if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                if (!status && (device_connection->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                    device_connection->id == PAL_DEVICE_IN_BLUETOOTH_A2DP)) {
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
                     status = dev->setDeviceParameter(param_id, param_payload);
@@ -4897,6 +5047,7 @@ setdevparam:
         }
         break;
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
+        case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
         {
             std::shared_ptr<Device> dev = nullptr;
             struct pal_device dattr;
@@ -4982,6 +5133,13 @@ setdevparam:
                 }
             }
 #endif
+        }
+        break;
+        case PAL_PARAM_ID_PROXY_CHANNEL_CONFIG:
+        {
+            pal_param_proxy_channel_config_t *param_proxy =
+                (pal_param_proxy_channel_config_t *)param_payload;
+            rm->num_proxy_channels = param_proxy->num_proxy_channels;
         }
         break;
         default:
@@ -5165,16 +5323,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     PAL_DBG(LOG_TAG, "Enter");
     memset(&conn_device, 0, sizeof(struct pal_device));
     if (is_connected && !device_available) {
-        if (isPluginDevice(device_id)) {
-            conn_device.id = device_id;
-            dev = Device::getInstance(&conn_device, rm);
-            if (dev) {
-                addPlugInDevice(dev, connection_state);
-            } else {
-                PAL_ERR(LOG_TAG, "Device creation failed");
-                throw std::runtime_error("failed to create device object");
-            }
-        } else if (isDpDevice(device_id)) {
+        if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             conn_device.id = device_id;
             dev = Device::getInstance(&conn_device, rm);
             if (dev) {
@@ -5186,27 +5335,9 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
         }
 
         PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
-        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-            dAttr.id = device_id;
-            /* Stream type is irrelevant here as we need device num channels
-               which is independent of stype for BT devices */
-            rm->getDeviceInfo(dAttr.id, PAL_STREAM_LOW_LATENCY, &devinfo);
-            if ((devinfo.channels == 0) ||
-                   (devinfo.channels > devinfo.max_channels)) {
-                PAL_ERR(LOG_TAG, "Invalid num channels [%d], exiting", devinfo.channels);
-                return -EINVAL;
-            }
-            status = getDeviceConfig(&dAttr, NULL, devinfo.channels);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
-                return status;
-            }
-            dev = Device::getInstance(&dAttr, rm);
-            if (!dev) {
-                PAL_ERR(LOG_TAG, "Device creation failed");
-                return -EINVAL;
-            }
-        } else if (isBtScoDevice(device_id)) {
+        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+            device_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
+            isBtScoDevice(device_id)) {
             dAttr.id = device_id;
             /* Stream type is irrelevant here as we need device num channels
                which is independent of stype for BT devices */
@@ -5230,11 +5361,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
         }
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
-        if (isPluginDevice(device_id)) {
-            conn_device.id = device_id;
-            removePlugInDevice(device_id, connection_state);
-        } else if (isDpDevice(device_id)) {
-            conn_device.id = device_id;
+        if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
         }
 
@@ -5307,8 +5434,13 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
             str->setInstanceId(0);
             break;
         default:
-            stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
-            str->setInstanceId(0);
+            if (StrAttr.direction == PAL_AUDIO_INPUT) {
+                in_stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            } else {
+                stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
+                str->setInstanceId(0);
+            }
     }
 
     mResourceManagerMutex.unlock();
@@ -5392,7 +5524,20 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
             break;
         default:
             status = str->getInstanceId();
-            if (!status) {
+            if (StrAttr.direction == PAL_AUDIO_INPUT && !status) {
+                if (in_stream_instances[StrAttr.type - 1] ==  -1) {
+                    PAL_ERR(LOG_TAG, "All stream instances taken");
+                    status = -EINVAL;
+                    break;
+                }
+                for (i = 0; i < MAX_STREAM_INSTANCES; ++i)
+                    if (!(in_stream_instances[StrAttr.type - 1] & (1 << i))) {
+                        in_stream_instances[StrAttr.type - 1] |= (1 << i);
+                        status = i + 1;
+                        break;
+                    }
+                str->setInstanceId(status);
+            } else if (!status) {
                 if (stream_instances[StrAttr.type - 1] ==  -1) {
                     PAL_ERR(LOG_TAG, "All stream instances taken");
                     status = -EINVAL;
@@ -5733,6 +5878,9 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
         if (strcmp(tag_name, "vsid") == 0) {
             std::string vsidvalue(data->data_buf);
             vsidInfo.vsid = convertCharToHex(vsidvalue);
+        }
+        if (strcmp(tag_name, "loopbackDelay") == 0) {
+            vsidInfo.loopback_delay = atoi(data->data_buf);
         }
     }
     if (!strcmp(tag_name, "modepair")) {

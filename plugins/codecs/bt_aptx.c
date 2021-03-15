@@ -48,9 +48,6 @@ typedef enum {
 } swap_status_t;
 
 #define DEFAULT_FADE_DURATION           255
-#define SAMPLING_RATE_32K               32000
-#define CH_MONO                         1
-#define DEFAULT_ENCODER_BIT_FORMAT      16
 
 static int aptx_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
 {
@@ -131,7 +128,7 @@ static int aptx_dual_mono_pack_enc_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format    = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->bit_format    = ENCODER_BIT_FORMAT_DEFAULT;
     enc_payload->sample_rate   = aptx_dm_bt_cfg->sampling_rate;
     enc_payload->channel_count = aptx_dm_bt_cfg->channels;
     enc_payload->num_blks      = num_blks;
@@ -243,13 +240,13 @@ static int aptx_ad_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         case APTX_AD_SR_UNCHANGED:
         case APTX_AD_48:
         default:
-            enc_payload->sample_rate = 48000;
+            enc_payload->sample_rate = SAMPLING_RATE_48K;
             break;
         case APTX_AD_44_1:
-            enc_payload->sample_rate = 44100;
+            enc_payload->sample_rate = SAMPLING_RATE_44K;
             break;
         case APTX_AD_96:
-            enc_payload->sample_rate = 96000;
+            enc_payload->sample_rate = SAMPLING_RATE_96K;
             break;
     }
 
@@ -423,7 +420,7 @@ static int aptx_ad_speech_pack_enc_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format     = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->bit_format     = ENCODER_BIT_FORMAT_DEFAULT;
     enc_payload->sample_rate    = SAMPLING_RATE_32K;
     enc_payload->channel_count  = CH_MONO;
     enc_payload->num_blks       = num_blks;
@@ -495,7 +492,7 @@ static int aptx_ad_speech_pack_dec_config(bt_codec_t *codec, void *src, void **d
         ALOGE("%s: fail to allocate memory", __func__);
         return -ENOMEM;
     }
-    enc_payload->bit_format     = DEFAULT_ENCODER_BIT_FORMAT;
+    enc_payload->bit_format     = ENCODER_BIT_FORMAT_DEFAULT;
     enc_payload->sample_rate    = SAMPLING_RATE_32K;
     enc_payload->channel_count  = CH_MONO;
     enc_payload->num_blks       = num_blks;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -67,7 +67,7 @@ struct model_stats
     uint32_t detection_timestamp_msw;
 };
 
-struct detection_event_info_sva5
+struct detection_event_info_pdk
 {
     uint32_t num_detected_models;
     struct model_stats detected_model_stats[MAX_MODELS_SUPPORTED];
@@ -144,6 +144,7 @@ public:
     int32_t SetBufferReader(PalRingBufferReader *reader);
     int32_t ResetBufferReaders(std::vector<PalRingBufferReader *> &reader_list);
     uint32_t UsToBytes(uint64_t input_us);
+    uint32_t FrameToBytes(uint32_t frames);
 
 protected:
     listen_model_indicator_enum engine_type_;

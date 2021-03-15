@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -37,7 +37,7 @@
 #include "apm_api.h"
 #include <sstream>
 #include <string>
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include "audio_route/audio_route.h"
 
 #define PAL_PADDING_8BYTE_ALIGN(x)  ((((x) + 7) & 7) ^ 7)
@@ -169,7 +169,7 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
         pcmId = pcmDevRxIds.at(0);
         status = populate_rx_mfc_payload(s, &payload, &payloadSize);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
+            PAL_ERR(LOG_TAG,"populating mfc payload failed :%d", status);
             goto exit;
         }
 
@@ -213,6 +213,7 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
     uint8_t *vsid_pl;
     vcpm_param_vsid_payload_t vsid_payload;
 
+
     vsidpayloadSize = sizeof(struct apm_module_param_data_t)+
                   sizeof(vcpm_param_vsid_payload_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(vsidpayloadSize);
@@ -241,6 +242,60 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
     ar_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
 
+    /* call loopback delay playload if in loopback mode*/
+    if ((vsid == VOICELBMMODE1 || vsid == VOICELBMMODE2)) {
+        populateVSIDLoopbackPayload(payload,payloadSize);
+    }
+
+    return status;
+}
+
+int SessionAlsaVoice::populateVSIDLoopbackPayload(uint8_t **payload, size_t *payloadSize){
+    int status = 0;
+    struct vsid_info vsidInfo;
+    apm_module_param_data_t* header;
+    uint8_t* loopbackPayload = NULL;
+    size_t loopbackPayloadSize = 0, padBytes = 0;
+    uint8_t *loopback_pl;
+    vcpm_param_id_voc_pkt_loopback_delay_t vsid_loopback_payload;
+
+    rm->getVsidInfo(&vsidInfo);
+
+    PAL_DBG(LOG_TAG, "loopback delay is %d", vsidInfo.loopback_delay);
+
+    if (vsidInfo.loopback_delay == 0) {
+        goto exit;
+    }
+
+    loopbackPayloadSize = sizeof(struct apm_module_param_data_t)+
+                  sizeof(vcpm_param_id_voc_pkt_loopback_delay_t);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(loopbackPayloadSize);
+
+    loopbackPayload =  (uint8_t *) realloc((void *)*payload,
+                                       (*payloadSize + loopbackPayloadSize + padBytes));
+    if (!loopbackPayload) {
+        PAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        return -EINVAL;
+    }
+    //set base out pointer to new address
+    *payload = loopbackPayload;
+    //update payloadinfo so vsid can be added
+    loopbackPayload = loopbackPayload + (*payloadSize);
+    //update overall payload size
+    *payloadSize += (loopbackPayloadSize + padBytes);
+
+    header = (apm_module_param_data_t*)loopbackPayload;
+    header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
+    header->param_id = VCPM_PARAM_ID_VOC_PKT_LOOPBACK_DELAY;
+    header->error_code = 0x0;
+    header->param_size = loopbackPayloadSize - sizeof(struct apm_module_param_data_t);
+
+    vsid_loopback_payload.vsid = vsid;
+    vsid_loopback_payload.delay_ms = vsidInfo.loopback_delay;
+    loopback_pl = (uint8_t*)loopbackPayload + sizeof(apm_module_param_data_t);
+    ar_mem_cpy(loopback_pl,  sizeof(vcpm_param_id_voc_pkt_loopback_delay_t),
+                     &vsid_loopback_payload,  sizeof(vcpm_param_id_voc_pkt_loopback_delay_t));
+exit:
     return status;
 }
 
@@ -826,6 +881,11 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+
+    /* call loopback delay playload if in loopback mode*/
+    if ((vsid == VOICELBMMODE1 || vsid == VOICELBMMODE2)) {
+        populateVSIDLoopbackPayload(payload,size);
+    }
 
 
     return status;

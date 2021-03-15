@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -41,6 +41,7 @@
 #include "PalAudioRoute.h"
 #include "PalCommon.h"
 #include <condition_variable>
+#include <agm/agm_api.h>
 
 #define EARLY_EOS_DELAY_MS 150
 
@@ -72,6 +73,9 @@ private:
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
     int getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width);
+    struct agm_session_config *sess_config;
+    struct agm_media_config *in_media_cfg, *out_media_cfg;
+    struct agm_buffer_config in_buff_cfg {0,0,0}, out_buff_cfg = in_buff_cfg;
 public:
     SessionAgm(std::shared_ptr<ResourceManager> Rm);
     virtual ~SessionAgm();

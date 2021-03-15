@@ -319,7 +319,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
@@ -328,7 +328,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
@@ -337,7 +337,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFECNS">
@@ -346,7 +346,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFECNS">
@@ -355,7 +355,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFECNS">
@@ -364,7 +364,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
             </capture_profile>
         </capture_profile_list>

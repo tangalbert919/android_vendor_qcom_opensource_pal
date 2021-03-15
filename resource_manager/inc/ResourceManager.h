@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -176,6 +176,7 @@ struct vsid_modepair {
 struct vsid_info {
      int vsid;
      std::vector<vsid_modepair> modepair;
+     int loopback_delay;
 };
 
 struct tx_ecinfo {
@@ -276,6 +277,7 @@ protected:
     std::vector <StreamPCM*> active_streams_db;
     std::vector <StreamPCM*> active_streams_po;
     std::vector <StreamPCM*> active_streams_proxy;
+    std::vector <StreamPCM*> active_streams_haptics;
     std::vector <StreamInCall*> active_streams_incall_record;
     std::vector <StreamNonTunnel*> active_streams_non_tunnel;
     std::vector <StreamInCall*> active_streams_incall_music;
@@ -334,9 +336,13 @@ protected:
     static std::thread workerThread;
     std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
+    uint64_t in_stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;
+    static int wake_lock_fd;
+    static int wake_unlock_fd;
+    static uint32_t wake_lock_cnt;
     std::map<int, std::pair<session_callback, uint64_t>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
     std::shared_ptr<CaptureProfile> SVACaptureProfile;
@@ -361,6 +367,7 @@ public:
     /* Variable to store the mode request for Speaker protection */
     pal_spkr_prot_payload mSpkrProtModeValue;
     pal_global_callback globalCb = NULL;
+    uint32_t num_proxy_channels = 0;
     /* Flag to store the state of VI record */
     static bool isVIRecordStarted;
     uint64_t cookie;
@@ -546,6 +553,10 @@ public:
     int resetStreamInstanceID(Stream *str);
     int resetStreamInstanceID(Stream *str, uint32_t sInstanceID);
     static void setGaplessMode(const XML_Char **attr);
+    static int initWakeLocks(void);
+    static void deInitWakeLocks(void);
+    void acquireWakeLock();
+    void releaseWakeLock();
 };
 
 #endif

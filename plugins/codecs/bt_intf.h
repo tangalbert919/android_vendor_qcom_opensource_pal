@@ -52,6 +52,7 @@ typedef enum {
     CODEC_TYPE_CELT           = 0x24000000u,
     CODEC_TYPE_APTX_AD        = 0x25000000u,
     CODEC_TYPE_APTX_AD_SPEECH = 0x26000000u,
+    CODEC_TYPE_LC3            = 0x2B000000u,
     CODEC_TYPE_PCM            = 0x1u,
 } codec_format_t;
 

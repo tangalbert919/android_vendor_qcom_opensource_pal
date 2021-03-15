@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -52,7 +52,7 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     std::shared_ptr<SoundTriggerEngine> st_engine(nullptr);
 
     switch (type) {
-    case ST_SM_ID_SVA_GMM:
+    case ST_SM_ID_SVA_F_STAGE_GMM:
         if (!sm_cfg->GetMergeFirstStageSoundModels() &&
             module_type != ST_MODULE_TYPE_PDK5)
             st_engine = std::make_shared<SoundTriggerEngineGsl>(s, type,
@@ -65,9 +65,9 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
             PAL_ERR(LOG_TAG, "SoundTriggerEngine GSL creation failed");
         break;
 
-    case ST_SM_ID_SVA_CNN:
-    case ST_SM_ID_SVA_RNN:
-    case ST_SM_ID_SVA_VOP:
+    case ST_SM_ID_SVA_S_STAGE_PDK:
+    case ST_SM_ID_SVA_S_STAGE_RNN:
+    case ST_SM_ID_SVA_S_STAGE_USER:
         st_engine = std::make_shared<SoundTriggerEngineCapi>(s, type,
                                                               sm_cfg);
         if (!st_engine)
@@ -97,7 +97,7 @@ int32_t SoundTriggerEngine::CreateBuffer(uint32_t buffer_size,
         goto exit;
     }
 
-    if (engine_type_ != ST_SM_ID_SVA_GMM) {
+    if (engine_type_ != ST_SM_ID_SVA_F_STAGE_GMM) {
         PAL_ERR(LOG_TAG, "Cannot create buffer in non-GMM engine");
         status = -EINVAL;
         goto exit;
@@ -149,7 +149,7 @@ int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
 {
     int32_t status = 0;
 
-    if (engine_type_ == ST_SM_ID_SVA_GMM) {
+    if (engine_type_ == ST_SM_ID_SVA_F_STAGE_GMM) {
         PAL_DBG(LOG_TAG, "No need to set reader for GMM engine");
         return status;
     }
@@ -162,7 +162,7 @@ int32_t SoundTriggerEngine::SetBufferReader(PalRingBufferReader *reader)
 int32_t SoundTriggerEngine::ResetBufferReaders(
     std::vector<PalRingBufferReader *> &reader_list)
 {
-    if (engine_type_ != ST_SM_ID_SVA_GMM) {
+    if (engine_type_ != ST_SM_ID_SVA_F_STAGE_GMM) {
         PAL_ERR(LOG_TAG, "Cannot reset buffer readers in non-GMM engine");
         return -EINVAL;
     }
@@ -180,4 +180,8 @@ uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
         (BITS_PER_BYTE * US_PER_SEC);
 
     return bytes;
+}
+
+uint32_t SoundTriggerEngine::FrameToBytes(uint32_t frames) {
+    return frames * bit_width_ * channels_ / BITS_PER_BYTE;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -48,6 +48,8 @@
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 
+ST_DBG_DECLARE(static int lab_cnt = 0);
+
 StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
                                        struct pal_device *dattr __unused,
                                        uint32_t no_of_devices,
@@ -76,6 +78,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     conf_levels_intf_version_ = 0;
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
+    lab_fd_ = nullptr;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -278,6 +281,14 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     PAL_VERBOSE(LOG_TAG, "Enter");
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (st_info_->GetEnableDebugDumps() && !lab_fd_) {
+        ST_DBG_FILE_OPEN_WR(lab_fd_, ST_DEBUG_DUMP_LOCATION,
+            "lab_reading", "bin", lab_cnt);
+        PAL_DBG(LOG_TAG, "lab data stored in: lab_reading_%d.bin",
+            lab_cnt);
+        lab_cnt++;
+    }
+
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
     size = cur_state_->ProcessEvent(ev_cfg);
@@ -354,7 +365,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
 
         mInstanceID = rm->getStreamInstanceID(this);
 
-        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_GMM,
+        gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_F_STAGE_GMM,
                                                  ST_MODULE_TYPE_GMM, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
@@ -372,6 +383,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
     }
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -388,37 +400,41 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     switch (param_id) {
-      case PAL_PARAM_ID_LOAD_SOUND_MODEL: {
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StLoadEventConfig((void *)param_payload->payload));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      case PAL_PARAM_ID_RECOGNITION_CONFIG: {
-          /*
-           * Currently spf needs graph stop and start for next detection.
-           * Handle this event similar to fresh start config.
-           */
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StRecognitionCfgEventConfig((void *)param_payload->payload));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      case PAL_PARAM_ID_STOP_BUFFERING: {
-          /*
-           * Currently spf needs graph stop and start for next detection.
-           * Handle this event similar to STOP_RECOGNITION.
-           */
-          std::shared_ptr<StEventConfig> ev_cfg(
-              new StStopRecognitionEventConfig(false));
-          status = cur_state_->ProcessEvent(ev_cfg);
-          break;
-      }
-      default: {
-          status = -EINVAL;
-          PAL_ERR(LOG_TAG, "Unsupported param %u", param_id);
-          break;
-      }
+        case PAL_PARAM_ID_LOAD_SOUND_MODEL: {
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StLoadEventConfig((void *)param_payload->payload));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            break;
+        }
+        case PAL_PARAM_ID_RECOGNITION_CONFIG: {
+            /*
+            * Currently spf needs graph stop and start for next detection.
+            * Handle this event similar to fresh start config.
+            */
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StRecognitionCfgEventConfig((void *)param_payload->payload));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            break;
+        }
+        case PAL_PARAM_ID_STOP_BUFFERING: {
+            /*
+            * Currently spf needs graph stop and start for next detection.
+            * Handle this event similar to STOP_RECOGNITION.
+            */
+            std::shared_ptr<StEventConfig> ev_cfg(
+                new StStopRecognitionEventConfig(false));
+            status = cur_state_->ProcessEvent(ev_cfg);
+            if (st_info_->GetEnableDebugDumps()) {
+                ST_DBG_FILE_CLOSE(lab_fd_);
+                lab_fd_ = nullptr;
+            }
+            break;
+        }
+        default: {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Unsupported param %u", param_id);
+            break;
+        }
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -465,36 +481,36 @@ int32_t StreamSoundTrigger::setECRef(std::shared_ptr<Device> dev, bool is_enable
 
 int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enable) {
     int32_t status = 0;
+    std::shared_ptr<StEventConfig> ev_cfg(
+        new StECRefEventConfig(dev, is_enable));
+
+    PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
     // TODO: add barge-in support for 3rd party graph
     if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
         PAL_DBG(LOG_TAG, "No need to set ec ref for 3rd party va session");
-        return 0;
+        goto exit;
     }
-
-    PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
     if (mDevPpModifiers.size() == 0 ||
         (mDevPpModifiers[0].first == DEVICEPP_TX &&
-        mDevPpModifiers[0].second == DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)) {
+        mDevPpModifiers[0].second == DEVICEPP_TX_FLUENCE_FFNS)) {
         PAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
-        return status;
+        goto exit;
     }
 
     if (dev && !rm->checkECRef(dev, mDevices[0])) {
         PAL_DBG(LOG_TAG, "No need to set ec ref for unmatching rx device");
-        return status;
+        goto exit;
     }
 
-    std::shared_ptr<StEventConfig> ev_cfg(
-        new StECRefEventConfig(dev, is_enable));
     status = cur_state_->ProcessEvent(ev_cfg);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to handle ec ref event");
     }
 
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -726,6 +742,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     // Lock stream when first stage detected
     if (det_type == GMM_DETECTED) {
         mStreamMutex.lock();
+        rm->acquireWakeLock();
         reader_->updateState(READER_ENABLED);
     }
 
@@ -865,8 +882,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     PAL_DBG(LOG_TAG, "Enter");
 
     if (!sound_model) {
-        PAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
-        return -EINVAL;
+        PAL_ERR(LOG_TAG, "Exit Invalid sound_model param status %d", status);
+        status = -EINVAL;
+        goto exit;
     }
 
     sound_model_type_ = sound_model->type;
@@ -880,7 +898,8 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
                    phrase_sm->common.type, phrase_sm->num_phrases, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = (struct pal_st_sound_model*)&phrase_sm->common;
         sm_size = sizeof(*phrase_sm) + common_sm->data_size;
@@ -891,14 +910,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             PAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
                     " data offset=%d status %d", sound_model->data_size,
                     sound_model->data_offset, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = sound_model;
         sm_size = sizeof(*common_sm) + common_sm->data_size;
     } else {
         PAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
                 sound_model->type, status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
         // Cache to use during SSR and other internal events handling.
@@ -910,7 +931,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
                     status);
             status = -ENOMEM;
-            return status;
+            goto exit;
         }
 
         if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -953,7 +974,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                 engine_id = static_cast<int32_t>(big_sm->type);
                 PAL_INFO(LOG_TAG, "type = %u, size = %u",
                          big_sm->type, big_sm->size);
-                if (big_sm->type == ST_SM_ID_SVA_GMM) {
+                if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
                     std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
@@ -995,12 +1016,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         goto error_exit;
                     }
 
-                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+                    engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
                     std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                        engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
                     AddEngine(engine_cfg);
                 } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
+                    if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
+                        !(phrase_sm->phrases[0].recognition_mode &
+                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION))
+                        continue;
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload +
                         sizeof(SML_GlobalHeaderType) +
@@ -1022,9 +1047,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                         goto error_exit;
                     }
 
-                    if (big_sm->type & ST_SM_ID_SVA_KWD) {
+                    if (big_sm->type & ST_SM_ID_SVA_S_STAGE_KWD) {
                         notification_state_ |= KEYWORD_DETECTION_SUCCESS;
-                    } else if (big_sm->type == ST_SM_ID_SVA_VOP) {
+                    } else if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER) {
                         notification_state_ |= USER_VERIFICATION_SUCCESS;
                     }
 
@@ -1063,14 +1088,14 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             this->mInstanceID = this->rm->getStreamInstanceID(this);
 
             gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
-                                 common_sm->data_size, ST_SM_ID_SVA_GMM,
+                                 common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
                                                     ST_MODULE_TYPE_GMM);
             if (!gsl_engine_) {
                 status = -EINVAL;
                 goto error_exit;
             }
 
-            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+            engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
             std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                  engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
@@ -1100,14 +1125,14 @@ int32_t StreamSoundTrigger::LoadSoundModel(
         this->mInstanceID = this->rm->getStreamInstanceID(this);
 
         gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
-                                common_sm->data_size, ST_SM_ID_SVA_GMM,
+                                common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
                                                 ST_MODULE_TYPE_GMM);
         if (!gsl_engine_) {
             status = -EINVAL;
             goto error_exit;
         }
 
-        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_GMM);
+        engine_id = static_cast<int32_t>(ST_SM_ID_SVA_F_STAGE_GMM);
         std::shared_ptr<EngineCfg> engine_cfg(new EngineCfg(
                 engine_id, gsl_engine_, (void *) sm_data, sm_size));
 
@@ -1146,6 +1171,7 @@ error_exit:
         free(sm_config_);
         sm_config_ = nullptr;
     }
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -1161,7 +1187,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
 
     if (!sound_model) {
         PAL_ERR(LOG_TAG, "Invalid sound_model param status %d", status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     sound_model_type_ = sound_model->type;
 
@@ -1174,7 +1201,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                    "data offset=%d, type=%d phrases=%d status %d",
                    phrase_sm->common.data_size, phrase_sm->common.data_offset,
                    phrase_sm->common.type,phrase_sm->num_phrases, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = (struct pal_st_sound_model*)&phrase_sm->common;
         sm_size = sizeof(*phrase_sm) + common_sm->data_size;
@@ -1185,14 +1213,16 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
             PAL_ERR(LOG_TAG, "Invalid generic sound model params data size=%d,"
                     " data offset=%d status %d", sound_model->data_size,
                     sound_model->data_offset, status);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         common_sm = sound_model;
         sm_size = sizeof(*common_sm) + common_sm->data_size;
     } else {
         PAL_ERR(LOG_TAG, "Unknown sound model type - %d status %d",
                 sound_model->type, status);
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if ((struct pal_st_sound_model *)sm_config_ != sound_model) {
         // Cache to use during SSR and other internal events handling.
@@ -1204,7 +1234,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
             PAL_ERR(LOG_TAG, "sound model config allocation failed, status %d",
                     status);
             status = -ENOMEM;
-            return status;
+            goto exit;
         }
 
         if (sound_model->type == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
@@ -1223,7 +1253,8 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          common_sm->data_size);
         }
     }
-
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -1249,7 +1280,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     PAL_DBG(LOG_TAG, "Enter");
     if (!config) {
         PAL_ERR(LOG_TAG, "Invalid config");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if (rec_config_ != config) {
         // Possible due to subsequent detections.
@@ -1261,7 +1293,8 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         if (!rec_config_) {
             PAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d",
                 status);
-            return -ENOMEM;
+            status = -ENOMEM;
+            goto exit;
         }
         ar_mem_cpy(rec_config_, sizeof(struct pal_st_recognition_config),
                          config, sizeof(struct pal_st_recognition_config));
@@ -1460,9 +1493,8 @@ error_exit:
             st_conf_levels_v2_ = nullptr;
         }
     }
-
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -1473,7 +1505,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
     PAL_DBG(LOG_TAG, "Enter");
     if (!config) {
         PAL_ERR(LOG_TAG, "Invalid config");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     if (rec_config_ != config) {
         // Possible due to subsequent detections.
@@ -1484,7 +1517,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
             sizeof(struct pal_st_recognition_config) + config->data_size);
         if (!rec_config_) {
             PAL_ERR(LOG_TAG, "Failed to allocate rec_config status %d", status);
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
         }
         ar_mem_cpy(rec_config_, sizeof(struct pal_st_recognition_config),
                      config, sizeof(struct pal_st_recognition_config));
@@ -1493,7 +1527,8 @@ int32_t StreamSoundTrigger::UpdateRecognitionConfig(
                      (uint8_t *)config + config->data_offset,
                      config->data_size);
     }
-
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -1548,6 +1583,8 @@ int32_t StreamSoundTrigger::notifyClient() {
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
 
+    PAL_DBG(LOG_TAG, "Enter");
+
     status = GenerateCallbackEvent(&rec_event, &event_size);
     if (status || !rec_event) {
         PAL_ERR(LOG_TAG, "Failed to generate callback event");
@@ -1582,7 +1619,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
     if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
         conf_levels = (struct st_confidence_levels_info *)opaque_data;
         for (i = 0; i < conf_levels->num_sound_models; i++) {
-            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 for (j = 0; j < conf_levels->conf_levels[i].num_kw_levels; j++) {
                     if (j <= sm_info_->GetConfLevelsSize())
                             conf_levels->conf_levels[i].kw_levels[j].kw_level =
@@ -1606,15 +1643,15 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                                 sm_info_->GetConfLevelsSize(), user_id);
                     }
                 }
-            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
-                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
                     if (conf_levels->conf_levels[i].sm_id ==
                             eng->GetEngineId()) {
                         conf_levels->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
                             conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
                                 eng->GetEngine()->GetDetectedConfScore();
                     }
@@ -1624,7 +1661,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
     } else {
         conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
         for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
-            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_GMM) {
+            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 for (j = 0; j < conf_levels_v2->conf_levels[i].num_kw_levels; j++) {
                     if (j <= sm_info_->GetConfLevelsSize())
                             conf_levels_v2->conf_levels[i].kw_levels[j].kw_level =
@@ -1654,15 +1691,15 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                             k, sm_info_->GetDetConfLevels()[user_id])
                     }
                 }
-            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_KWD ||
-                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
                     if (conf_levels_v2->conf_levels[i].sm_id ==
                             eng->GetEngineId()) {
                         conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_VOP)
+                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
                             conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
                                 eng->GetEngine()->GetDetectedConfScore();
                         PAL_INFO(LOG_TAG, "SS Conf score %d",
@@ -1673,6 +1710,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
 
         }
     }
+    PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
@@ -1683,7 +1721,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct st_param_header *param_hdr = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
     struct st_timestamp_info *timestamps = nullptr;
-    struct detection_event_info_sva5 *detection_event_info_multi_model =
+    struct detection_event_info_pdk *detection_event_info_multi_model =
                                                                 nullptr;
     struct detection_event_info *det_ev_info = nullptr;
     struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
@@ -1697,24 +1735,28 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     uint32_t best_conf_level = 0;
     uint32_t detection_timestamp_lsw = 0;
     uint32_t detection_timestamp_msw = 0;
+    int32_t status = 0;
+
 
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
         if (model_id_ > 0){
             detection_event_info_multi_model =
-                    (struct detection_event_info_sva5 *)gsl_engine_->
+                    (struct detection_event_info_pdk *)gsl_engine_->
                             GetDetectionEventInfo();
             if (!detection_event_info_multi_model){
                 PAL_ERR(LOG_TAG, "detection info multi model not available");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
         } else {
             det_ev_info = (struct detection_event_info *)gsl_engine_->
                             GetDetectionEventInfo();
             if (!det_ev_info) {
                 PAL_ERR(LOG_TAG, "detection info not available");
-                return -EINVAL;
+                status = -EINVAL;
+                goto exit;
             }
         }
 
@@ -1734,7 +1776,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                        calloc(1, event_size);
         if (!phrase_event) {
             PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
         }
 
         phrase_event->num_phrases = rec_config_->num_phrases;
@@ -1868,7 +1911,9 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
                        calloc(1, event_size);
         if (!generic_event) {
             PAL_ERR(LOG_TAG, "Failed to alloc memory for recognition event");
-            return -ENOMEM;
+            status =  -ENOMEM;
+            goto exit;
+
         }
 
         *event = &(generic_event->common);
@@ -1894,9 +1939,9 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         ar_mem_cpy(opaque_data, opaque_size, custom_event, opaque_size);
     }
     *evt_size = event_size;
+exit:
     PAL_DBG(LOG_TAG, "Exit");
-
-    return 0;
+    return status;
 }
 
 int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
@@ -1924,7 +1969,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                                  sizeof(struct st_confidence_levels_info));
              if (!st_conf_levels_) {
                  PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                 return -ENOMEM;
+                 status = -ENOMEM;
+                 goto exit;
              }
         }
         /* Cache to use during detection event processing */
@@ -1933,19 +1979,21 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
 
         for (int i = 0; i < conf_levels->num_sound_models; i++) {
             sm_levels = &conf_levels->conf_levels[i];
-            if (sm_levels->sm_id == ST_SM_ID_SVA_GMM) {
+            if (sm_levels->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
                 FillOpaqueConfLevels((void *)sm_levels, out_conf_levels,
                                      out_num_conf_levels, version);
-            } else if (sm_levels->sm_id & ST_SM_ID_SVA_KWD ||
-                       sm_levels->sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level =
-                    (sm_levels->sm_id & ST_SM_ID_SVA_KWD) ?
+                    (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels->kw_levels[0].kw_level:
                     sm_levels->kw_levels[0].user_levels[0].level;
                 PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
                 for (auto& eng: engines_) {
-                    if (sm_levels->sm_id == eng->GetEngineId()) {
+                    if (sm_levels->sm_id & eng->GetEngineId() ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level, 1);
                     }
@@ -1961,7 +2009,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                 sizeof(struct st_confidence_levels_info_v2));
             if (!st_conf_levels_v2_) {
                 PAL_ERR(LOG_TAG, "failed to alloc stream conf_levels_");
-                return -ENOMEM;
+                status = -ENOMEM;
+                goto exit;
             }
         }
         /* Cache to use during detection event processing */
@@ -1970,21 +2019,23 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
 
         for (int i = 0; i < conf_levels_v2->num_sound_models; i++) {
             sm_levels_v2 = &conf_levels_v2->conf_levels[i];
-            if (sm_levels_v2->sm_id == ST_SM_ID_SVA_GMM) {
+            if (sm_levels_v2->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
                 FillOpaqueConfLevels((void *)sm_levels_v2, out_conf_levels,
                                      out_num_conf_levels, version);
-            } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_KWD ||
-                       sm_levels_v2->sm_id & ST_SM_ID_SVA_VOP) {
+            } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
+                       sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level_v2 =
-                    (sm_levels_v2->sm_id & ST_SM_ID_SVA_KWD) ?
+                    (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels_v2->kw_levels[0].kw_level:
                     sm_levels_v2->kw_levels[0].user_levels[0].level;
                 PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level_v2);
                 for (auto& eng: engines_) {
                     PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
                         sm_levels_v2->sm_id , eng->GetEngineId());
-                    if (sm_levels_v2->sm_id == eng->GetEngineId()) {
+                    if (sm_levels_v2->sm_id & eng->GetEngineId() ||
+                        ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
+                        (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
                             &confidence_level_v2, 1);
                     }
@@ -2027,7 +2078,7 @@ int32_t StreamSoundTrigger::FillConfLevels(
     }
 
     for (auto& eng: engines_) {
-        if (eng->GetEngineId() == ST_SM_ID_SVA_GMM) {
+        if (eng->GetEngineId() == ST_SM_ID_SVA_F_STAGE_GMM) {
             phrase_sm = (struct pal_st_phrase_sound_model *)eng->sm_data_;
             break;
         }
@@ -2338,12 +2389,13 @@ exit:
     if (user_id_tracker)
         free(user_id_tracker);
 
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 void StreamSoundTrigger::SetDetectedToEngines(bool detected) {
     for (auto& eng: engines_) {
-        if (eng->GetEngineId() != ST_SM_ID_SVA_GMM) {
+        if (eng->GetEngineId() != ST_SM_ID_SVA_F_STAGE_GMM) {
             PAL_VERBOSE(LOG_TAG, "Notify detection event %d to engine %d",
                     detected, eng->GetEngineId());
             eng->GetEngine()->SetDetected(detected);
@@ -2608,6 +2660,9 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
         }
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE: {
+            // Avoid handling concurrency before sound model loaded
+            if (!st_stream_.sm_config_)
+                break;
             std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
             bool active = false;
 
@@ -3063,6 +3118,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             // fall through to stop
             [[fallthrough]];
         }
+        case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
@@ -3103,6 +3159,13 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             if (st_stream_.mDevices.size() > 0) {
                 auto& dev = st_stream_.mDevices[0];
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
+            }
+            if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
+                status = st_stream_.ProcessInternalEvent(ev_cfg);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d",
+                            status);
+                }
             }
             break;
         }
@@ -3323,6 +3386,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             } else {
                 TransitTo(ST_STATE_LOADED);
             }
+            rm->releaseWakeLock();
             break;
         }
         case ST_EV_PAUSE: {
@@ -3331,6 +3395,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             // fall through to stop
             [[fallthrough]];
         }
+        case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION: {
             st_stream_.CancelDelayedStop();
             for (auto& eng: st_stream_.engines_) {
@@ -3355,6 +3420,15 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 auto& dev = st_stream_.mDevices[0];
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
             }
+
+            if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
+                status = st_stream_.ProcessInternalEvent(ev_cfg);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d",
+                            status);
+                }
+            }
+            rm->releaseWakeLock();
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
@@ -3391,6 +3465,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
                         status);
             }
+            rm->releaseWakeLock();
             // START event will be handled in loaded state.
             break;
         }
@@ -3441,6 +3516,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
                         status);
             }
+            rm->releaseWakeLock();
             break;
         }
         case ST_EV_SSR_OFFLINE: {
@@ -3455,6 +3531,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg2);
             TransitTo(ST_STATE_SSR);
+            rm->releaseWakeLock();
             break;
         }
         default: {
@@ -3485,14 +3562,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             }
             status = st_stream_.reader_->read(buf->buffer, buf->size);
             if (st_stream_.st_info_->GetEnableDebugDumps()) {
-                ST_DBG_DECLARE(FILE *lab_fd = NULL; static int lab_cnt = 0);
-                ST_DBG_FILE_OPEN_WR(lab_fd, ST_DEBUG_DUMP_LOCATION,
-                    "lab_reading", "bin", lab_cnt);
-                ST_DBG_FILE_WRITE(lab_fd, buf->buffer, buf->size);
-                ST_DBG_FILE_CLOSE(lab_fd);
-                PAL_DBG(LOG_TAG, "lab reading data stored in: lab_reading_%d.bin",
-                    lab_cnt);
-                lab_cnt++;
+                ST_DBG_FILE_WRITE(st_stream_.lab_fd_, buf->buffer, buf->size);
             }
             break;
         }
@@ -3523,6 +3593,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             } else {
                 TransitTo(ST_STATE_LOADED);
             }
+            rm->releaseWakeLock();
             break;
         }
         case ST_EV_RECOGNITION_CONFIG: {
@@ -3563,6 +3634,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
                         status);
             }
+            rm->releaseWakeLock();
             // START event will be handled in loaded state.
             break;
         }
@@ -3572,6 +3644,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             // fall through to stop
             [[fallthrough]];
         }
+        case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION:  {
             // Possible with deffered stop if client doesn't start next recognition.
             st_stream_.CancelDelayedStop();
@@ -3601,6 +3674,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 auto& dev = st_stream_.mDevices[0];
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
             }
+
+            if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
+                status = st_stream_.ProcessInternalEvent(ev_cfg);
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d",
+                            status);
+                }
+            }
+            rm->releaseWakeLock();
             break;
         }
         case ST_EV_DETECTED: {
@@ -3707,6 +3789,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
                         status);
             }
+            rm->releaseWakeLock();
             // device connection event will be handled in loaded state.
             break;
         }
@@ -3723,6 +3806,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg3);
             TransitTo(ST_STATE_SSR);
+            rm->releaseWakeLock();
             break;
         }
         default: {

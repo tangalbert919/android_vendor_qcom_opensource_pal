@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -53,18 +53,40 @@ using android::sp;
 
 bool pal_server_died = false;
 android::sp<IPAL> pal_client = NULL;
+sp<server_death_notifier> Server_death_notifier = NULL;
+
+void server_death_notifier::serviceDied(uint64_t cookie,
+                   const android::wp<::android::hidl::base::V1_0::IBase>& who)
+{
+    ALOGE("%s : PAL Service died ,cookie : %lu",__func__,cookie);
+    pal_server_died = true;
+    // We exit the client process here, so that it also can restart
+    // leading to a fresh start on both the sides.
+    _exit(1);
+}
 
 android::sp<IPAL> get_pal_server() {
-    if (pal_client == NULL)
+    if (pal_client == NULL) {
         pal_client = IPAL::getService();
+        if (pal_client == nullptr) {
+            ALOGE("PAL service not initialized\n");
+            goto exit;
+        }
+        if(Server_death_notifier == NULL) {
+            Server_death_notifier = new server_death_notifier();
+            pal_client->linkToDeath(Server_death_notifier, 0);
+            ALOGE("palclient linked to death server death \n", __func__);
+        }
+    }
+exit:
     return pal_client ;
 }
 
 int32_t pal_init(void)
 {
    if (pal_client == NULL)
-       pal_client = IPAL::getService();
-   return pal_client == NULL?-1:0;
+       pal_client = get_pal_server();
+   return pal_client == NULL ?-1:0;
 }
 
 void pal_deinit(void)
@@ -77,13 +99,12 @@ Return<int32_t> PalCallback::event_callback(uint64_t strm_handle,
                                  uint32_t event_data_size,
                                  const hidl_vec<uint8_t>& event_data,
                                  uint64_t cookie) {
-    ALOGE("%s called \n", __func__);
     uint32_t *ev_data = NULL;
     ev_data = (uint32_t *)calloc(1, event_data_size);
     int8_t *src = (int8_t *)event_data.data();
     memcpy(ev_data, src, event_data_size);
 
-    ALOGE("event_payload_size %d", event_data_size);
+    ALOGV("event_payload_size %d", event_data_size);
     this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
                                     cookie);
     free(ev_data);
@@ -95,7 +116,7 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
                                  uint32_t event_data_size,
                                  const hidl_vec<PalEventReadWriteDonePayload>& event_data,
                                  uint64_t cookie) {
-    ALOGE("%s called \n", __func__);
+    ALOGV("%s called \n", __func__);
 
     struct pal_event_read_write_done_payload *rw_done_payload;
     struct pal_buffer *buffer;
@@ -127,7 +148,7 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     if (rwDonePayloadHidl->buff.metadataSz) {
         buffer->metadata_size = rwDonePayloadHidl->buff.metadataSz;
         buffer->metadata = (uint8_t *)calloc(1, buffer->metadata_size);
-        ALOGE("metadatasize %d \n", buffer->metadata_size);
+        ALOGV("metadatasize %d \n", buffer->metadata_size);
         memcpy(buffer->metadata, rwDonePayloadHidl->buff.metadata.data(),
                buffer->metadata_size);
     }
@@ -137,9 +158,9 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     buffer->alloc_info.alloc_handle = allochandle->data[1];
     buffer->alloc_info.alloc_size = rwDonePayloadHidl->buff.alloc_info.alloc_size;
     buffer->alloc_info.offset = rwDonePayloadHidl->buff.alloc_info.offset;
-    ALOGE("%s:%d Bufsize %d  ret bufSize %d", __func__, __LINE__, rwDonePayloadHidl->buff.size, buffer->size);
-    ALOGE("event_payload_size %d alloc_handle %d", event_data_size, allochandle->data[1]);
-    ALOGE("alloc size %d alloc_size ret %d", rwDonePayloadHidl->buff.alloc_info.alloc_size,buffer->alloc_info.alloc_size);
+    ALOGV("%s:%d Bufsize %d  ret bufSize %d", __func__, __LINE__, rwDonePayloadHidl->buff.size, buffer->size);
+    ALOGV("event_payload_size %d alloc_handle %d", event_data_size, allochandle->data[1]);
+    ALOGV("alloc size %d alloc_size ret %d", rwDonePayloadHidl->buff.alloc_info.alloc_size,buffer->alloc_info.alloc_size);
     this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
                                     cookie);
     if (buffer->metadata)
@@ -162,6 +183,9 @@ int32_t pal_stream_open(struct pal_stream_attributes *attr,
     if (!pal_server_died) {
         sp<IPALCallback> ClbkBinder = new PalCallback(cb);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         hidl_vec<PalStreamAttributes> attr_hidl;
         hidl_vec<PalDevice> devs_hidl;
         hidl_vec<ModifierKV> modskv_hidl;
@@ -174,8 +198,8 @@ int32_t pal_stream_open(struct pal_stream_attributes *attr,
         in_channels = attr->in_media_config.ch_info.channels;
         out_channels = attr->out_media_config.ch_info.channels;
 
-        ALOGE("%s:%d in_ch %d out_ch %d size_of %d %d",__func__,__LINE__, in_channels, out_channels, sizeof(::vendor::qti::hardware::pal::V1_0::PalStreamAttributes), sizeof(struct pal_stream_attributes));
-        ALOGE("ver [%ld] sz [%ld] dur[%ld] has_video [%d] is_streaming [%d] lpbk_type [%d]",
+        ALOGD("%s:%d in_ch %d out_ch %d flags %d",__func__,__LINE__, in_channels, out_channels, attr->flags);
+        ALOGV("ver [%ld] sz [%ld] dur[%ld] has_video [%d] is_streaming [%d] lpbk_type [%d]",
             info.version, info.size, info.duration_us, info.has_video, info.is_streaming,
             info.loopback_type);
 
@@ -192,13 +216,13 @@ int32_t pal_stream_open(struct pal_stream_attributes *attr,
         attr_hidl.data()->in_media_config.sample_rate = attr->in_media_config.sample_rate;
         attr_hidl.data()->in_media_config.bit_width = attr->in_media_config.bit_width;
 
-        ALOGE("%s:%d",__func__,__LINE__);
         if (in_channels) {
             attr_hidl.data()->in_media_config.ch_info.channels = attr->in_media_config.ch_info.channels;
             attr_hidl.data()->in_media_config.ch_info.ch_map = attr->in_media_config.ch_info.ch_map;
         }
         attr_hidl.data()->in_media_config.aud_fmt_id = (PalAudioFmt)attr->in_media_config.aud_fmt_id;
-        ALOGE("%s:%d in_fmt_id %d",__func__,__LINE__, attr->in_media_config.aud_fmt_id);
+        ALOGD("%s:%d in_fmt_id %d out_fmt_id",__func__,__LINE__, attr->in_media_config.aud_fmt_id,
+             attr->out_media_config.aud_fmt_id);
         attr_hidl.data()->out_media_config.sample_rate = attr->out_media_config.sample_rate;
         attr_hidl.data()->out_media_config.bit_width = attr->out_media_config.bit_width;
         if (out_channels) {
@@ -206,10 +230,8 @@ int32_t pal_stream_open(struct pal_stream_attributes *attr,
             attr_hidl.data()->out_media_config.ch_info.ch_map = attr->out_media_config.ch_info.ch_map;
         }
         attr_hidl.data()->out_media_config.aud_fmt_id = (PalAudioFmt)attr->out_media_config.aud_fmt_id;
-        ALOGE("%s:%d out_fmt_id %d",__func__,__LINE__, attr->out_media_config.aud_fmt_id);
         if (devices) {
             dev_size = no_of_devices * sizeof(struct pal_device);
-            ALOGE("dev_size %d", dev_size);
             devs_hidl.resize(dev_size);
             PalDevice *dev_hidl = devs_hidl.data();
             for ( cnt = 0; cnt < no_of_devices; cnt++) {
@@ -244,6 +266,9 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
         return pal_client->ipc_pal_stream_close((PalStreamHandle)stream_handle);
     }
     return -EINVAL;
@@ -252,8 +277,11 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGD("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
         return pal_client->ipc_pal_stream_start((PalStreamHandle)stream_handle);
     }
     return -EINVAL;
@@ -263,7 +291,10 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        ALOGE("%s:%d:", __func__, __LINE__);
+        if (pal_client == nullptr)
+            return -EINVAL;
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         return pal_client->ipc_pal_stream_stop((PalStreamHandle)stream_handle);
     }
     return -EINVAL;
@@ -274,7 +305,10 @@ int32_t pal_stream_pause(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        ALOGE("%s:%d:", __func__, __LINE__);
+        if (pal_client == nullptr)
+            return -EINVAL;
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         return pal_client->ipc_pal_stream_pause((PalStreamHandle)stream_handle);
     }
     return -EINVAL;
@@ -284,8 +318,11 @@ int32_t pal_stream_pause(pal_stream_handle_t *stream_handle)
 int32_t pal_stream_resume(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGD("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
         return pal_client->ipc_pal_stream_resume((PalStreamHandle)stream_handle);
     }
     return -EINVAL;
@@ -295,9 +332,25 @@ int32_t pal_stream_resume(pal_stream_handle_t *stream_handle)
 int32_t pal_stream_flush(pal_stream_handle_t *stream_handle)
 {
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGD("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
         return pal_client->ipc_pal_stream_flush((PalStreamHandle)stream_handle);
+    }
+    return -EINVAL;
+}
+
+int32_t pal_stream_drain(pal_stream_handle_t *stream_handle, pal_drain_type_t drain)
+{
+    if (!pal_server_died) {
+        ALOGD("%s:%d:", __func__, __LINE__);
+        android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
+        return pal_client->ipc_pal_stream_drain((PalStreamHandle)stream_handle, (PalDrainType) drain);
     }
     return -EINVAL;
 }
@@ -309,17 +362,20 @@ int32_t pal_stream_set_buffer_size(pal_stream_handle_t *stream_handle,
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         PalBufferConfig out_buffer_cfg, in_buffer_cfg;
 
         if (in_buff_cfg) {
-         ALOGE("%s:%d input incnt %d buf_sz %d max_metadata_size %d", __func__,__LINE__,
+         ALOGD("%s:%d input incnt %d buf_sz %d max_metadata_size %d", __func__,__LINE__,
                in_buff_cfg->buf_count, in_buff_cfg->buf_size, in_buff_cfg->max_metadata_size);
                in_buffer_cfg.buf_count = in_buff_cfg->buf_count;
                in_buffer_cfg.buf_size = in_buff_cfg->buf_size;
                in_buffer_cfg.max_metadata_size = in_buff_cfg->max_metadata_size;
         }
         if (out_buff_cfg) {
-         ALOGE("%s:%d output incnt %d buf_sz %d max_metadata_size %d", __func__,__LINE__,
+         ALOGD("%s:%d output incnt %d buf_sz %d max_metadata_size %d", __func__,__LINE__,
                out_buff_cfg->buf_count, out_buff_cfg->buf_size, out_buff_cfg->max_metadata_size);
                out_buffer_cfg.buf_count = out_buff_cfg->buf_count;
                out_buffer_cfg.buf_size = out_buff_cfg->buf_size;
@@ -355,8 +411,11 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
        goto done;
 
     if (!pal_server_died) {
-        ALOGE("%s:%d hndl %p",__func__, __LINE__, stream_handle );
+        ALOGV("%s:%d hndl %p",__func__, __LINE__, stream_handle );
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         hidl_vec<PalBuffer> buf_hidl;
         buf_hidl.resize(sizeof(struct pal_buffer));
         PalBuffer *palBuff = buf_hidl.data();
@@ -383,7 +442,7 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
          }
          palBuff->alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle", hidl_handle(allocHidlHandle),
                                                          buf->alloc_info.alloc_size);
-         ALOGE("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
+         ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
          palBuff->alloc_info.alloc_size = buf->alloc_info.alloc_size;
          palBuff->alloc_info.offset = buf->alloc_info.offset;
          ret = pal_client->ipc_pal_stream_write((PalStreamHandle)stream_handle, buf_hidl);
@@ -398,11 +457,13 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
 {
     int ret = -EINVAL;
 
-    ALOGE("%s:%d size %d",__func__,__LINE__, buf->size);
     if (stream_handle == NULL)
        goto done;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         hidl_vec<PalBuffer> buf_hidl;
         buf_hidl.resize(sizeof(struct pal_buffer));
         PalBuffer *palBuff = buf_hidl.data();
@@ -419,8 +480,8 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         palBuff->alloc_info.alloc_size = buf->alloc_info.alloc_size;
         palBuff->alloc_info.offset = buf->alloc_info.offset;
 
-        ALOGE("%s:%d size %d %d",__func__,__LINE__,buf_hidl.data()->size, buf->size);
-        ALOGE("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
+        ALOGV("%s:%d size %d %d",__func__,__LINE__,buf_hidl.data()->size, buf->size);
+        ALOGV("%s:%d alloc handle %d sending %d",__func__,__LINE__, buf->alloc_info.alloc_handle, allocHidlHandle->data[0]);
         pal_client->ipc_pal_stream_read((PalStreamHandle)stream_handle, buf_hidl,
                [&](int32_t ret_, hidl_vec<PalBuffer> ret_buf_hidl)
                   {
@@ -463,11 +524,14 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle,
                              pal_param_payload *param_payload)
 {   int32_t ret = -EINVAL;
 
-    ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     if (stream_handle == NULL || !param_payload)
        goto done;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         hidl_vec<PalParamPayload> paramPayload;
         paramPayload.resize(sizeof(PalParamPayload));
         paramPayload.data()->payload.resize(param_payload->payload_size);
@@ -486,12 +550,15 @@ int32_t pal_stream_get_param(pal_stream_handle_t *stream_handle,
                              pal_param_payload **param_payload)
 {
     int32_t ret = -EINVAL;
-    ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     if (stream_handle == NULL || !(*param_payload))
        goto done;
 
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
 
         pal_client->ipc_pal_stream_get_param((PalStreamHandle)stream_handle, param_id,
                   [&](int32_t ret_, hidl_vec<PalParamPayload> paramPayload) 
@@ -514,7 +581,7 @@ int32_t pal_stream_get_device(pal_stream_handle_t *stream_handle,
                               uint32_t no_of_devices,
                               struct pal_device *devices)
 {
-        ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     return -EINVAL;
 }
 
@@ -528,12 +595,15 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     int32_t ret = -EINVAL;
 
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGD("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
 
         if (devices) {
            dev_size = no_of_devices * sizeof(struct pal_device);
-           ALOGE("dev_size %d", dev_size);
+           ALOGD("dev_size %d", dev_size);
            devs_hidl.resize(dev_size);
            PalDevice *dev_hidl = devs_hidl.data();
            for (cnt = 0; cnt < no_of_devices; cnt++) {
@@ -556,7 +626,7 @@ int32_t pal_stream_get_volume(pal_stream_handle_t *stream_handle,
                               struct pal_volume_data *volume __unused)
 {
 
-        ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     return -EINVAL;
 }
 
@@ -570,8 +640,11 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
        goto done;
     }
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGD("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
         uint32_t noOfVolPair = volume->no_of_volpair;
         uint32_t volSize = sizeof(PalVolumeData);
         vol.resize(volSize);
@@ -589,7 +662,7 @@ done:
 
 int32_t pal_stream_get_mute(pal_stream_handle_t *stream_handle, bool *state)
 {
-        ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     return -EINVAL;
 }
 
@@ -599,8 +672,11 @@ int32_t pal_stream_set_mute(pal_stream_handle_t *stream_handle, bool state)
 
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
 
-        ALOGE("%s:%d:", __func__, __LINE__);
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         ret = pal_client->ipc_pal_stream_set_mute((PalStreamHandle)stream_handle,
                                                    state);
     }
@@ -609,13 +685,13 @@ int32_t pal_stream_set_mute(pal_stream_handle_t *stream_handle, bool state)
 
 int32_t pal_get_mic_mute(bool *state)
 {
-        ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     return -EINVAL;
 }
 
 int32_t pal_set_mic_mute(bool state)
 {
-        ALOGE("%s:%d:", __func__, __LINE__);
+    ALOGD("%s:%d:", __func__, __LINE__);
     return -EINVAL;
 }
 
@@ -625,7 +701,10 @@ int32_t pal_get_timestamp(pal_stream_handle_t *stream_handle,
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        ALOGE("%s:%d:", __func__, __LINE__);
+        if (pal_client == nullptr)
+            return ret;
+
+        ALOGV("%s:%d:", __func__, __LINE__);
         pal_client->ipc_pal_get_timestamp((PalStreamHandle)stream_handle,
                     [&](int32_t ret_, hidl_vec<PalSessionTime> sessTime_hidl)
                        {
@@ -646,7 +725,10 @@ int32_t pal_add_remove_effect(pal_stream_handle_t *stream_handle,
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        ALOGE("%s:%d:", __func__, __LINE__);
+        if (pal_client == nullptr)
+            return ret;
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         ret = pal_client->ipc_pal_add_remove_effect((PalStreamHandle)stream_handle,
                                                     (PalAudioEffect) effect,
                                                      enable);
@@ -660,7 +742,10 @@ int32_t pal_set_param(uint32_t param_id, void *param_payload,
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
-        ALOGE("%s:%d:", __func__, __LINE__);
+        if (pal_client == nullptr)
+            return ret;
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         hidl_vec<uint8_t> paramPayload;
         paramPayload.resize(payload_size);
         memcpy(paramPayload.data(), param_payload, payload_size);
@@ -677,8 +762,11 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
     int32_t ret = -EINVAL;
 
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
+
+        ALOGD("%s:%d:", __func__, __LINE__);
         pal_client->ipc_pal_get_param(param_id,
                  [&](int32_t ret_, hidl_vec<uint8_t>paramPayload,
                      uint32_t size)
@@ -702,8 +790,10 @@ int32_t pal_stream_create_mmap_buffer(pal_stream_handle_t *stream_handle,
 {
    int32_t ret = -EINVAL;
    if (!pal_server_died) {
-       ALOGE("%s:%d:", __func__, __LINE__);
+       ALOGD("%s:%d:", __func__, __LINE__);
        android::sp<IPAL> pal_client = get_pal_server();
+       if (pal_client == nullptr)
+           return ret;
        pal_client->ipc_pal_stream_create_mmap_buffer((PalStreamHandle)stream_handle,
                          min_size_frames,
                           [&](int32_t ret_, hidl_vec<PalMmapBuffer> mMapBuffer_hidl)
@@ -730,8 +820,10 @@ int32_t pal_stream_get_mmap_position(pal_stream_handle_t *stream_handle,
 {
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
-        ALOGE("%s:%d:", __func__, __LINE__);
+        ALOGV("%s:%d:", __func__, __LINE__);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
         pal_client->ipc_pal_stream_get_mmap_position((PalStreamHandle)stream_handle,
                              [&](int32_t ret_, hidl_vec<PalMmapPosition> position_hidl)
                               {
@@ -762,8 +854,10 @@ int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
 {
     int32_t ret = -EINVAL;
     if (!pal_server_died) {
-        ALOGE("%s:%d: size %d", __func__, __LINE__, *size);
+        ALOGD("%s:%d: size %d", __func__, __LINE__, *size);
         android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return ret;
         pal_client->ipc_pal_stream_get_tags_with_module_info((PalStreamHandle)stream_handle,(uint32_t)*size,
                              [&](int32_t ret_, uint32_t size_ret, hidl_vec<uint8_t> payload_ret)
                               {
@@ -775,7 +869,7 @@ int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
                                         }
                                         *size = size_ret;
                                     }
-                                    ALOGE("ret %d size_ret %d", ret_, size_ret);
+                                    ALOGD("ret %d size_ret %d", ret_, size_ret);
                                     ret = ret_;
                               });
     }

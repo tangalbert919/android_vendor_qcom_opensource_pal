@@ -27,27 +27,25 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SNDCARD_MONITOR_H
-#define SNDCARD_MONITOR_H
-#include <list>
-#include "PalDefs.h"
+#ifndef FM_DEVICE_H
+#define FM_DEVICE_H
 
-typedef struct {
-    int card;
-    int fd;
-    card_status_t status;
-} sndcard_t;
+#include "Device.h"
+#include "PalAudioRoute.h"
 
-class SndCardMonitor
+class FMDevice : public Device
 {
-private :
-    std::thread mThread;
-    void monitorThreadLoop();
-
-public :
-    SndCardMonitor(int sndNum);
-    ~SndCardMonitor();
+protected:
+    static std::shared_ptr<Device> obj;
+    FMDevice(struct pal_device *device, std::shared_ptr<ResourceManager> rm) : Device(device, rm) {};
+public:
+    static std::shared_ptr<Device> getInstance(struct pal_device*, std::shared_ptr<ResourceManager>);
+    static int32_t isSampleRateSupported(uint32_t sampleRate);
+    static int32_t isChannelSupported(uint32_t numChannels);
+    static int32_t isBitWidthSupported(uint32_t bitWidth);
+    static std::shared_ptr<Device> getObject() {return obj;}
+    FMDevice() = default;
+    virtual ~FMDevice() = default;
 };
 
-#endif
-
+#endif //FM_DEVICE_H

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -27,27 +27,25 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SNDCARD_MONITOR_H
-#define SNDCARD_MONITOR_H
-#include <list>
-#include "PalDefs.h"
+#ifndef HapticsDev_H
+#define HapticsDev_H
 
-typedef struct {
-    int card;
-    int fd;
-    card_status_t status;
-} sndcard_t;
+#include "Device.h"
 
-class SndCardMonitor
+class HapticsDev : public Device
 {
-private :
-    std::thread mThread;
-    void monitorThreadLoop();
-
-public :
-    SndCardMonitor(int sndNum);
-    ~SndCardMonitor();
+protected:
+    static std::shared_ptr<Device> obj;
+    HapticsDev(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
+public:
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
+    static int32_t isSampleRateSupported(uint32_t sampleRate);
+    static int32_t isChannelSupported(uint32_t numChannels);
+    static int32_t isBitWidthSupported(uint32_t bitWidth);
+    static std::shared_ptr<Device> getObject();
+    virtual ~HapticsDev();
 };
 
-#endif
 
+#endif //HapticsDev_H

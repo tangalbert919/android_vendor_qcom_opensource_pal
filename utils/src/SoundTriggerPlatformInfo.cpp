@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,21 +45,10 @@ const std::map<std::string, uint32_t> devicePPKeyLUT {
 };
 
 const std::map<std::string, uint32_t> devicePPValueLUT {
-    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS" }, DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_LPI" }, DEVICEPP_TX_VOICE_UI_RAW_LPI},
-    {std::string{ "DEVICEPP_TX_VOICE_UI_RAW_NLPI" }, DEVICEPP_TX_VOICE_UI_RAW_NLPI},
-};
-
-const std::map<std::string, uint32_t> streamConfigKeyLUT {
-    {std::string{ "VOICE_UI_STREAM_CONFIG" }, VOICE_UI_STREAM_CONFIG},
-};
-
-const std::map<std::string, uint32_t> streamConfigValueLUT {
-    {std::string{ "VUI_STREAM_CFG_SVA" }, VUI_STREAM_CFG_SVA},
-    {std::string{ "VUI_STREAM_CFG_HW" }, VUI_STREAM_CFG_HW},
-    {std::string{ "VUI_STREAM_CFG_SVA5" }, VUI_STREAM_CFG_SVA5},
-    {std::string{ "VUI_STREAM_CFG_CUSTOM" }, VUI_STREAM_CFG_CUSTOM},
+    {std::string{ "DEVICEPP_TX_FLUENCE_FFNS" }, DEVICEPP_TX_FLUENCE_FFNS},
+    {std::string{ "DEVICEPP_TX_FLUENCE_FFECNS" }, DEVICEPP_TX_FLUENCE_FFECNS},
+    {std::string{ "DEVICEPP_TX_RAW_LPI" }, DEVICEPP_TX_RAW_LPI},
+    {std::string{ "DEVICEPP_TX_RAW_NLPI" }, DEVICEPP_TX_RAW_NLPI},
 };
 
 static const struct st_uuid qcva_uuid =
@@ -136,7 +125,7 @@ CaptureProfile::CaptureProfile(const std::string name) :
     channels_(1),
     bitwidth_(16),
     device_pp_kv_(std::make_pair(DEVICEPP_TX,
-        DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS)),
+        DEVICEPP_TX_FLUENCE_FFNS)),
     snd_name_("va-mic")
 {
 
@@ -303,10 +292,10 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
                 i++;
                 if (!strcmp(attribs[i], "GMM")) {
                     model_type_ = ST_MODULE_TYPE_GMM;
-                    PAL_DBG(LOG_TAG, "GMM block is being parsed");
+                    PAL_DBG(LOG_TAG, "GMM module");
                 } else if (!strcmp(attribs[i], "PDK")) {
-                    model_type_ = ST_MODULE_TYPE_PDK5;
-                    PAL_DBG(LOG_TAG, "PDK5 block is being parsed");
+                    model_type_ = ST_MODULE_TYPE_PDK;
+                    PAL_DBG(LOG_TAG, "PDK module");
                 }
             } else {
                 uint32_t index = 0;
@@ -332,6 +321,17 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
             }
             ++i;
         }
+    } else if (!strcmp(tag, "kvpair")) {
+        uint32_t key = 0, value = 0;
+        if (strcmp(attribs[0], "key") || strcmp(attribs[2], "value")) {
+            PAL_ERR(LOG_TAG, "stream key/value not found");
+            return;
+        }
+        key = strtoul(attribs[1], NULL, 0);
+        value = strtoul(attribs[3], NULL, 0);
+        stream_config_ = std::make_pair(key, value);
+        PAL_DBG(LOG_TAG, "stream_config_, key = %x, value = %x, %x",
+            value, stream_config_.first, stream_config_.second);
     } else {
         PAL_ERR(LOG_TAG, "Invalid tag %s", tag);
     }
@@ -358,16 +358,8 @@ SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
 }
 
 std::pair<uint32_t, uint32_t> SoundModelConfig::GetStreamConfig(
-                                                uint32_t module_type){
-    if (module_type == ST_MODULE_TYPE_PDK5){
-        PAL_DBG(LOG_TAG, "Returnung SVA5 stream config");
-        return stream_config_[VUI_STREAM_CFG_SVA5];
-    } else if (module_type == ST_MODULE_TYPE_GMM && stream_config_.size() == 1){
-        PAL_DBG(LOG_TAG, "Returning hotword stream config");
-        return stream_config_[VUI_STREAM_CFG_HW];
-    }
-    PAL_DBG(LOG_TAG, "Returning SVA4 stream config");
-    return stream_config_[VUI_STREAM_CFG_SVA];
+    uint32_t type) {
+    return GetSoundTriggerModuleInfo(type)->getStreamConfigKV();
 }
 
 void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
@@ -399,10 +391,16 @@ std::shared_ptr<SecondStageConfig> SoundModelConfig::GetSecondStageConfig(
 
 
 std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleInfo(
-    const uint32_t& type) const {
+    const uint32_t type) const {
 
-    PAL_DBG(LOG_TAG, "Quering for type : %u", type);
-    auto module_config = st_module_info_list_.find(type);
+    uint32_t module_type = type;
+
+    PAL_DBG(LOG_TAG, "search module for model type %u", type);
+    if (IS_MODULE_TYPE_PDK(type)) {
+        PAL_DBG(LOG_TAG, "PDK module");
+        module_type = ST_MODULE_TYPE_PDK;
+    }
+    auto module_config = st_module_info_list_.find(module_type);
     if (module_config != st_module_info_list_.end())
         return module_config->second;
     else
@@ -471,35 +469,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             }
             ++i; /* move to next attribute */
         }
-    } else if (!strcmp(tag, "kvpair")) {
-        uint32_t i = 0;
-        uint32_t key = 0, value = 0;
-        while (attribs[i]) {
-            if (!strcmp(attribs[i], "key")) {
-                auto keyItr = streamConfigKeyLUT.find(attribs[++i]);
-                if (keyItr == streamConfigKeyLUT.end()) {
-                    PAL_ERR(LOG_TAG, "could not find key %s in lookup table",
-                        attribs[i]);
-                } else {
-                    key = keyItr->second;
-                }
-            } else if(!strcmp(attribs[i], "value")) {
-                auto valItr = streamConfigValueLUT.find(attribs[++i]);
-                if (valItr == streamConfigValueLUT.end()) {
-                    PAL_ERR(LOG_TAG, "could not find value %s in lookup table",
-                        attribs[i]);
-                } else {
-                    PAL_DBG(LOG_TAG, "LUT Value %d in lookup table",
-                        valItr->second);
-                    value = valItr->second;
-                }
-                stream_config_[value] = std::make_pair(key, value);
-                PAL_DBG(LOG_TAG, "stream_config_, key = %x, value = %x, %x",
-                value, stream_config_[value].first, stream_config_[value].second);
-            }
-            ++i; /* move to next attribute */
-        }
-    }  else if (!strcmp(tag, "low_power")) {
+    } else if (!strcmp(tag, "low_power")) {
         ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
     } else if (!strcmp(tag, "high_performance")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
@@ -553,6 +523,8 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     concurrent_voice_call_(false),
     concurrent_voip_call_(false),
     low_latency_bargein_enable_(false),
+    mmap_enable_(false),
+    mmap_buffer_duration_(0),
     curr_child_(nullptr)
 {
 }
@@ -676,6 +648,11 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                        concurrent_capture_) {
                 concurrent_voip_call_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "mmap_enable")) {
+                mmap_enable_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "mmap_buffer_duration")) {
+                mmap_buffer_duration_ = std::stoi(attribs[++i]);
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }

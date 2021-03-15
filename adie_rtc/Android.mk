@@ -1,7 +1,5 @@
 ifeq ($(call is-board-platform-in-list, msmnile kona),true)
 
-ifneq ($(BUILD_TINY_ANDROID),true)
-
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 adie_rtc-def += -D_ANDROID_
@@ -9,7 +7,6 @@ adie_rtc-def += -D_ANDROID_
 LOCAL_CFLAGS += -Wall -Werror
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/inc
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
 LOCAL_SRC_FILES := \
     src/adie_rtc.c
 
@@ -22,16 +19,12 @@ LOCAL_SHARED_LIBRARIES := \
     libexpat\
     liblx-osal
 
-LOCAL_COPY_HEADERS_TO   := mm-audio/pal/adie_rtc
-LOCAL_COPY_HEADERS      := inc/adie_rtc.h
-
+LOCAL_EXPORT_C_INCLUDE_DIRS := inc
 LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/ar/ar_osal
-LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/include/mm-audio/pal/adie_rtc
 LOCAL_MODULE := adie_rtc_test
 LOCAL_MODULE_OWNER := qti
 LOCAL_VENDOR_MODULE := true
@@ -46,5 +39,4 @@ LOCAL_SHARED_LIBRARIES := \
 
 include $(BUILD_EXECUTABLE)
 
-endif # BUILD_TINY_ANDROID
 endif # is-board-platform-in-list

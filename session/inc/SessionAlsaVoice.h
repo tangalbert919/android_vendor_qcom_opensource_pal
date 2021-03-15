@@ -102,6 +102,7 @@ private:
     int getTXDeviceId(Stream *s, int *id);
     int populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
     int populate_vsid_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
+    int populateVSIDLoopbackPayload(uint8_t **payload, size_t *payloadSize);
 };
 
 #endif //SESSION_ALSAVOICE_H

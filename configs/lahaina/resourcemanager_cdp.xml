@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<!-- Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.       -->
+<!-- Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.       -->
 <!--                                                                           -->
 <!-- Redistribution and use in source and binary forms, with or without        -->
 <!-- modification, are permitted provided that the following conditions are    -->
@@ -50,6 +50,7 @@
     </gain_db_to_level_mapping>
     <config_voice>
         <vsid>0xB3000000</vsid>
+        <loopbackDelay>1000</loopbackDelay>
         <mode_map>
             <modepair key="0x11C05000" value="0xB3000001"/>
             <modepair key="0x11DC5000" value="0xB3000001"/>
@@ -352,6 +353,8 @@
             <channels>2</channels>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
+            <cps_enabled>0</cps_enabled>
+            <is_24_bit_supported>0</is_24_bit_supported>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from
@@ -448,6 +451,13 @@
             <channels>2</channels>
             <snd_device_name>afe-proxy</snd_device_name>
         </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_HAPTICS_DEVICE</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-6</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>haptics-dev</snd_device_name>
+        </out-device>
     </device_profile>
     <in_streams>
         <in_stream>
@@ -492,7 +502,6 @@
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
-            <param max_sessions="8" />
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
             <param transit_to_non_lpi_on_charging="false" />
@@ -505,6 +514,8 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
+            <param mmap_enable="false" />
+            <param mmap_buffer_duration="5000" />
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
@@ -513,7 +524,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -523,7 +534,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -533,7 +544,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -543,7 +554,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
@@ -553,7 +564,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -563,7 +574,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -573,7 +584,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_LPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -583,7 +594,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_RAW_NLPI"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -593,7 +604,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -603,7 +614,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -613,7 +624,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-tmic" />
             </capture_profile>
@@ -623,7 +634,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-qmic" />
             </capture_profile>
@@ -633,7 +644,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
@@ -643,7 +654,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
@@ -653,7 +664,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-tmic" />
             </capture_profile>
@@ -663,7 +674,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                     <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
+                    <kvpair key="DEVICEPP_TX" value="DEVICEPP_TX_FLUENCE_FFECNS"/>
                 </devicePP-metadata>
                 <param snd_name="va-mic-qmic" />
             </capture_profile>
@@ -674,8 +685,11 @@
         <!-- QTI SVA -->
         <sound_model_config>
             <param vendor_uuid="68ab2d40-e860-11e3-95ef-0002a5d5c51b"/>
-            <param kw_start_tolerance="100" />
-            <param kw_end_tolerance="100" />
+            <!-- durations in us -->
+            <param kw_start_tolerance="300000" />
+            <param kw_end_tolerance="240000" />
+            <param data_before_kw_start="360000" />
+            <param data_after_kw_end="200000" />
             <param merge_first_stage_sound_models="false"/>
             <!-- Profile specific data which the algorithm can support -->
             <param sample_rate="16000" />
@@ -683,11 +697,6 @@
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA"/> <!-- SVA Stream Config -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_SVA5"/> <!-- SVA5 Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
                 <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
@@ -724,20 +733,28 @@
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000001"/>
+                </streamConfig-metadata>
             </module_params>
             <module_params>
                 <param module_type="PDK" />
-                <param load_multi_sound_model_ids="0xC0000008, 0x0800124E"/>
-                <param deregister_multi_sound_model_ids="0xC0000008, 0x08001250"/>
-                <param multi_model_wakeup_config_ids="0xC0000008, 0x08001049" />
-                <param multi_model_buffering_config_ids="0xC0000008, 0x0800124F"/>
+                <param load_sound_model_ids="0xC0000008, 0x0800124E"/>
+                <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
+                <param wakeup_config_ids="0xC0000008, 0x08001049" />
+                <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000003"/>
+                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
         <!-- Hotword -->
         <sound_model_config>
             <param vendor_uuid="7038ddc8-30f2-11e6-b0ac-40a8f03d3f15"/>
-            <param get_module_version="true" />
+            <param get_module_version="false" />
             <param kw_start_tolerance="100" />
             <param kw_end_tolerance="100" />
             <param merge_first_stage_sound_models="false"/>
@@ -749,10 +766,6 @@
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG" value="VUI_STREAM_CFG_HW"/> <!-- Hotword Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI"/>
                 <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI"/>
@@ -765,6 +778,10 @@
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param version_ids="0xC0000008, 0x18000101" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
+                <streamConfig-metadata>
+                    <!-- refer kvh2xml.h -->
+                    <kvpair key="0xBC000000" value="0xBC000002"/>
+                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
     </sound_trigger_platform_info>

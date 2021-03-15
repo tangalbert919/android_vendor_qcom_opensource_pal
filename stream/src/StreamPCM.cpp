@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -784,12 +784,14 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         if ((frameSize == 0) || (sampleRate == 0)) {
             PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
-            return -EINVAL;
+            status =  -EINVAL;
+            goto exit;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
         PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
         mStreamMutex.unlock();
+        PAL_VERBOSE(LOG_TAG, "Exit size: %d", size);
         return size;
     }
 
@@ -1000,9 +1002,10 @@ int32_t StreamPCM::mute(bool state)
                 status);
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -1027,9 +1030,10 @@ int32_t StreamPCM::pause()
     usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -1052,9 +1056,10 @@ int32_t StreamPCM::resume()
     }
     isPaused = false;
     currentState = STREAM_STARTED;
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -1126,7 +1131,6 @@ int32_t StreamPCM::flush()
     }
 
     status = session->flush();
-    currentState = STREAM_STOPPED;
 exit:
     mStreamMutex.unlock();
     return status;

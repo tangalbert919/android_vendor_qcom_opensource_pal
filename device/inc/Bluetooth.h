@@ -49,7 +49,7 @@ enum A2DP_STATE {
 
 #define SPEECH_MODE_INVALID 0xFFFF
 
-enum a2dp_role {
+enum A2DP_ROLE {
     SOURCE = 0,
     SINK,
 };
@@ -79,30 +79,33 @@ class Bluetooth : public Device
 protected:
     Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 
-    struct pal_media_config codecConfig;
-    codec_format_t          codecFormat;
-    codec_type              type;
-    void                    *pluginHandler;
-    bt_codec_t              *pluginCodec;
-    bool                    is_configured;
-    bool                    is_handoff_in_progress;
-
-    int getPluginPayload(void **handle, bt_codec_t **btCodec,
-                         bt_enc_payload_t **out_buf, void *codec_info,
-                         codec_type ctype);
-    int configureA2dpEncoderDecoder(void *codec_info);
-    int updateDeviceMetadata(void);
-    void updateDeviceAttributes(void);
-    bool isPlaceholderEncoder(void);
-
+    codec_type                 codecType;
+    struct pal_media_config    codecConfig;
+    codec_format_t             codecFormat;
+    void                       *codecInfo;
+    void                       *pluginHandler;
+    bt_codec_t                 *pluginCodec;
     bool                       isAbrEnabled;
+    bool                       isConfigured;
+    bool                       isHandoffInProgress;
+    bool                       isLC3MonoModeOn;
     bool                       isTwsMonoModeOn;
-    int                        bt_swb_speech_mode;
+    bool                       isDummySink;
     struct pcm                 *fbPcm;
     std::vector<int>           fbpcmDevIds;
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
+    int                        swbSpeechMode;
+    static bool                isCaptureEnabled;
     std::mutex                 mAbrMutex;
+
+    int getPluginPayload(void **handle, bt_codec_t **btCodec,
+                         bt_enc_payload_t **out_buf,
+                         codec_type codecType);
+    int configureA2dpEncoderDecoder();
+    int updateDeviceMetadata();
+    void updateDeviceAttributes();
+    bool isPlaceholderEncoder();
     void startAbr();
     void stopAbr();
 
@@ -143,10 +146,11 @@ private:
     static audio_sink_check_a2dp_ready_t        audio_sink_check_a2dp_ready;
 
     /* member variables */
-    uint8_t         a2dp_role;  // source or sink
-    enum A2DP_STATE bt_state;
-    bool            is_a2dp_offload_supported;
-    int             total_active_session_requests;
+    uint8_t         a2dpRole;  // source or sink
+    enum A2DP_STATE a2dpState;
+    bool            isA2dpOffloadSupported;
+    int             totalActiveSessionRequests;
+
     int startPlayback();
     int stopPlayback();
     int startCapture();
@@ -182,8 +186,8 @@ protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
     BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
-    bool bt_sco_on;
-    bool bt_wb_speech_enabled;
+    bool isScoOn;
+    bool isWbSpeechEnabled;
     int startSwb();
 
 public:

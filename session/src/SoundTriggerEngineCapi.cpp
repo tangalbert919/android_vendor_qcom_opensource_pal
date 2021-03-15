@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -36,6 +36,9 @@
 #include "StreamSoundTrigger.h"
 #include "Stream.h"
 #include "SoundTriggerPlatformInfo.h"
+
+ST_DBG_DECLARE(static int keyword_detection_cnt = 0);
+ST_DBG_DECLARE(static int user_verification_cnt = 0);
 
 void SoundTriggerEngineCapi::BufferThreadLoop(
     SoundTriggerEngineCapi *capi_engine)
@@ -115,6 +118,7 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     bool buffer_advanced = false;
     size_t lab_buffer_size = 0;
     bool first_buffer_processed = false;
+    FILE *keyword_detection_fd = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -148,6 +152,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     buffer_end_ += UsToBytes(kw_end_tolerance_ + data_after_kw_end_);
     PAL_DBG(LOG_TAG, "buffer_start_: %u, buffer_end_: %u",
         buffer_start_, buffer_end_);
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
+            "keyword_detection", "bin", keyword_detection_cnt);
+        PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
+            keyword_detection_cnt);
+        keyword_detection_cnt++;
+    }
 
     memset(&capi_result, 0, sizeof(capi_result));
     process_input_buff = (char*)calloc(1, buffer_size_);
@@ -212,16 +223,8 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
         if (st_info_->GetEnableDebugDumps()) {
-            ST_DBG_DECLARE(FILE *keyword_detection_fd = NULL;
-                static int keyword_detection_cnt = 0);
-            ST_DBG_FILE_OPEN_WR(keyword_detection_fd, ST_DEBUG_DUMP_LOCATION,
-                "keyword_detection", "bin", keyword_detection_cnt);
             ST_DBG_FILE_WRITE(keyword_detection_fd,
                 process_input_buff, read_size);
-            ST_DBG_FILE_CLOSE(keyword_detection_fd);
-            PAL_DBG(LOG_TAG, "keyword detection data stored in: keyword_detection_%d.bin",
-                keyword_detection_cnt);
-            keyword_detection_cnt++;
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
@@ -272,6 +275,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     }
 
 exit:
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_CLOSE(keyword_detection_fd);
+    }
+
     if (reader_)
         reader_->updateState(READER_DISABLED);
 
@@ -304,6 +311,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     bool buffer_advanced = false;
     StreamSoundTrigger *str = nullptr;
     struct detection_event_info *info = nullptr;
+    FILE *user_verification_fd = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!reader_) {
@@ -337,6 +345,14 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
 
     buffer_end_ += UsToBytes(kw_end_tolerance_);
     buffer_size_ = buffer_end_ - buffer_start_;
+
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
+            "user_verification", "bin", user_verification_cnt);
+        PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
+            user_verification_cnt);
+        user_verification_cnt++;
+    }
 
     memset(&capi_uv_ptr, 0, sizeof(capi_uv_ptr));
     memset(&capi_result, 0, sizeof(capi_result));
@@ -431,16 +447,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         stream_input->buf_ptr->data_ptr = (int8_t *)process_input_buff;
 
         if (st_info_->GetEnableDebugDumps()) {
-            ST_DBG_DECLARE(FILE *user_verification_fd = NULL;
-                static int user_verification_cnt = 0);
-            ST_DBG_FILE_OPEN_WR(user_verification_fd, ST_DEBUG_DUMP_LOCATION,
-                "user_verification", "bin", user_verification_cnt);
             ST_DBG_FILE_WRITE(user_verification_fd,
                 process_input_buff, read_size);
-            ST_DBG_FILE_CLOSE(user_verification_fd);
-            PAL_DBG(LOG_TAG, "User Verification data stored in: user_verification_%d.bin",
-                user_verification_cnt);
-            user_verification_cnt++;
         }
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
@@ -480,6 +488,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     }
 
 exit:
+    if (st_info_->GetEnableDebugDumps()) {
+        ST_DBG_FILE_CLOSE(user_verification_fd);
+    }
+
     if (reader_)
         reader_->updateState(READER_DISABLED);
 
@@ -524,8 +536,8 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     reader_ = nullptr;
     buffer_ = nullptr;
     stream_handle_ = s;
+    confidence_threshold_ = 0;
 
-    PAL_DBG(LOG_TAG, "Enter");
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
         PAL_ERR(LOG_TAG, "No sound trigger platform info present");
@@ -597,11 +609,13 @@ SoundTriggerEngineCapi::~SoundTriggerEngineCapi()
      */
     if (buffer_thread_handler_.joinable()) {
         processing_started_ = false;
-        std::lock_guard<std::mutex> lck(event_mutex_);
+        std::unique_lock<std::mutex> lck(event_mutex_);
         exit_thread_ = true;
         exit_buffering_ = true;
         cv_.notify_one();
+        lck.unlock();
         buffer_thread_handler_.join();
+        lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
     }
     if (buffer_) {
@@ -632,15 +646,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
     capi_v2_buf_t capi_buf;
 
     PAL_DBG(LOG_TAG, "Enter");
-    buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
-
-    if (!buffer_thread_handler_.joinable()) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
-        return status;
-    }
-
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {
         sva_threshold_config_t *threshold_cfg = nullptr;
         threshold_cfg = (sva_threshold_config_t*)
@@ -654,8 +659,9 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(sva_threshold_config_t);
         capi_buf.max_data_len = sizeof(sva_threshold_config_t);
         threshold_cfg->smm_threshold = confidence_threshold_;
-        PAL_VERBOSE(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
-            confidence_threshold_);
+
+        PAL_DBG(LOG_TAG, "Keyword detection (CNN) confidence level = %d",
+            threshold_cfg->smm_threshold);
 
         status = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             SVA_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
@@ -705,8 +711,8 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
         capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
         threshold_cfg->user_verification_threshold = confidence_threshold_;
-        PAL_VERBOSE(LOG_TAG, "Keyword detection (VOP) confidence level = %d",
-                    confidence_threshold_);
+        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %f",
+                threshold_cfg->user_verification_threshold);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
             VOICEPRINT2_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
@@ -719,6 +725,15 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
                 free(threshold_cfg);
             return status;
         }
+    }
+
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
+        return status;
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -807,6 +822,7 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
+    std::lock_guard<std::mutex> lck(mutex_);
     status = capi_handle_->vtbl_ptr->end(capi_handle_);
     if (status != CAPI_V2_EOK) {
         PAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
@@ -899,7 +915,7 @@ int32_t SoundTriggerEngineCapi::UpdateConfLevels(
 
     std::lock_guard<std::mutex> lck(mutex_);
     confidence_threshold_ = *conf_levels;
-    PAL_VERBOSE(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
+    PAL_DBG(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
 
     return status;
 }

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -39,7 +39,7 @@
 #include "SessionAlsaVoice.h"
 #include "ResourceManager.h"
 #include "StreamSoundTrigger.h"
-#include <agm_api.h>
+#include <agm/agm_api.h>
 #include "spr_api.h"
 #include "apm_api.h"
 #include <tinyalsa/asoundlib.h>
@@ -322,7 +322,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_VOICE_UI) {
+    if (sAttr.type != PAL_STREAM_VOICE_UI ||
+        sAttr.type != PAL_STREAM_HAPTICS) {
         status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
                 (struct pal_volume_data **)nullptr);
         if (status) {
@@ -1377,7 +1378,7 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             status = -EINVAL;
             goto freeTxMetaData;
         }
-        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
     }
 freeTxMetaData:
     free(streamDeviceTxMetaData.buf);
