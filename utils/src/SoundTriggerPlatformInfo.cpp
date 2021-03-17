@@ -451,7 +451,7 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             } else if (!strcmp(attribs[i], "bit_width")) {
                 bit_width_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "out_channels")) {
-                out_channels_ = std::stoi(attribs[++i]);
+                SetOutChannels(std::stoi(attribs[++i]));
             } else if (!strcmp(attribs[i], "client_capture_read_delay")) {
                 client_capture_read_delay_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "capture_keyword")) {
