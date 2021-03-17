@@ -112,7 +112,7 @@ static int ble_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     }
 
     ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_LC3_ENC_INIT,
-            enc_init, sizeof(struct param_id_lc3_encoder_config_payload_t));
+            enc_init, payload_sz);
     free(enc_init);
     if (ret)
         goto free_payload;
@@ -209,7 +209,7 @@ static int ble_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
     }
 
     ret = bt_base_populate_enc_cmn_param(blk[0], PARAM_ID_LC3_DEC_INIT,
-            dec_init, sizeof(struct param_id_lc3_decoder_config_payload_t));
+            dec_init, payload_sz);
     free(dec_init);
     if (ret)
         goto free_payload;
