@@ -2553,7 +2553,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
 void ResourceManager::mixerEventWaitThreadLoop(
     std::shared_ptr<ResourceManager> rm) {
     int ret = 0;
-    struct snd_ctl_event mixer_event = {0, {.data8 = {0}}};
+    struct ctl_event mixer_event = {0, {.data8 = {0}}};
     struct mixer *mixer = nullptr;
 
     ret = rm->getAudioMixer(&mixer);
