@@ -517,7 +517,7 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
-            <param mmap_enable="true" />
+            <param mmap_enable="false" />
             <param mmap_buffer_duration="5000" />
         </common_config>
         <capture_profile_list>
@@ -683,7 +683,7 @@
             </capture_profile>
         </capture_profile_list>
         <!-- Multiple sound_model_config tags can be listed, each with unique   -->
-        <!-- vendor_uuid. The below tag represents QTI SVA sound model   -->
+        <!-- vendor_uuid. The below tag represents QTI SVA sound model          -->
         <!-- configuration. ISV must use their own unique vendor_uuid.          -->
         <!-- QTI SVA -->
         <sound_model_config>
@@ -738,19 +738,19 @@
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000005"/>
+                    <kvpair key="0xBC000000" value="0xBC000001"/>
                 </streamConfig-metadata>
             </module_params>
             <module_params>
                 <param module_type="PDK" />
                 <param load_sound_model_ids="0xC0000008, 0x0800124E"/>
-                <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
+                <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000006"/>
+                    <kvpair key="0xBC000000" value="0xBC000003"/>
                 </streamConfig-metadata>
             </module_params>
         </sound_model_config>
