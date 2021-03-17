@@ -32,7 +32,7 @@
 
 #include "ListenSoundModelLib.h"
 
-#define SML_LIB "liblistensoundmodel2.so"
+#define SML_LIB "liblistensoundmodel2vendor.so"
 #define MAX_KW_USERS_NAME_LEN (2 * MAX_STRING_LEN)
 #define MAX_CONF_LEVEL_VALUE 100
 
