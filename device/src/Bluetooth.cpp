@@ -1013,6 +1013,8 @@ void BtA2dp::init_a2dp_sink()
             isDummySink = true;
             audio_get_enc_config = (audio_get_enc_config_t)
                   dlsym(bt_lib_sink_handle, "audio_get_codec_config");
+            audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
+                dlsym(bt_lib_sink_handle, "audio_sink_get_a2dp_latency");
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1452,6 +1454,7 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
         *param = &param_bt_a2dp;
         break;
+    case PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY:
     case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
     {
         uint32_t slatency = 0;

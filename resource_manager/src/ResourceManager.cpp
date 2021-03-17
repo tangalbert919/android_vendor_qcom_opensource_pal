@@ -5110,6 +5110,25 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             }
             break;
         }
+        case PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct pal_device dattr;
+            pal_param_bta2dp_t* param_bt_a2dp = nullptr;
+
+            dattr.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr, rm);
+                status = dev->getDeviceParameter(param_id, (void**)&param_bt_a2dp);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                    goto exit;
+                }
+                *param_payload = param_bt_a2dp;
+                *payload_size = sizeof(pal_param_bta2dp_t);
+            }
+            break;
+        }
         case PAL_PARAM_ID_GAIN_LVL_MAP:
         {
             pal_param_gain_lvl_map_t *param_gain_lvl_map =
