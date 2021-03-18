@@ -358,9 +358,6 @@ int32_t StreamCompress::start()
             PAL_ERR(LOG_TAG, "direction %d not supported for compress streams", mStreamAttr->direction);
             break;
         }
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
         currentState = STREAM_OPENED;
         goto exit;
     } else if (currentState == STREAM_OPENED) {
@@ -447,8 +444,13 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
                 status = errno;
                 return status;
         }
-        if (currentState != STREAM_STARTED)
+        if (currentState != STREAM_STARTED) {
             currentState = STREAM_STARTED;
+            // register device only after graph is actually started
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+        }
     } else {
         PAL_ERR(LOG_TAG, "Stream not opened yet, state %d", currentState);
         status = -EINVAL;
