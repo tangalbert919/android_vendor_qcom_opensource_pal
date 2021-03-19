@@ -2380,8 +2380,8 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
     SoundTriggerEngineGsl *engine = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
-    if ((hdl == 0) || !data) {
-        PAL_ERR(LOG_TAG, "Invalid engine handle or event data");
+    if ((hdl == 0) || !data || !event_size) {
+        PAL_ERR(LOG_TAG, "Invalid engine handle or event data or event size");
         return;
     }
 
