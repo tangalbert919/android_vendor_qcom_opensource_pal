@@ -1643,15 +1643,6 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 /* Push Channels CKV for FFNS or FFECNS channel based calibration */
                 keyVector.push_back(std::make_pair(CHANNELS,
                                                    dAttr.config.ch_info.channels));
-                PAL_INFO(LOG_TAG,"stream channels %d\n",
-                    sattr->in_media_config.ch_info.channels);
-                /*
-                 * Push stream channels CKV for DAM module calibration
-                 * TODO: Add handling for multi stream use cases with different
-                 * channels if required
-                 */
-                keyVector.push_back(std::make_pair(STREAM_CHANNELS,
-                    sattr->in_media_config.ch_info.channels));
                 break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
