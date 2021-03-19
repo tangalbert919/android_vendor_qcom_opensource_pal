@@ -105,6 +105,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         PAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
         throw std::runtime_error("Failed to get sound trigger platform info");
     }
+
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
         sizeof(struct pal_stream_attributes));
     if (!mStreamAttr) {
@@ -1467,6 +1468,17 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
     PAL_INFO(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
         hist_buffer_duration, pre_roll_duration);
+
+    // update input buffer size for mmap usecase
+    if (st_info_->GetMmapEnable()) {
+        inBufSize = st_info_->GetMmapFrameLength() *
+            sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+            sm_cfg_->GetOutChannels() / (MS_PER_SEC * BITS_PER_BYTE);
+        if (!inBufSize) {
+            PAL_ERR(LOG_TAG, "Invalid frame size, use default value");
+            inBufSize = BUF_SIZE_CAPTURE;
+        }
+    }
 
     // create ring buffer for lab transfer in gsl_engine
     ring_buffer_len = hist_buffer_duration + pre_roll_duration +

@@ -332,6 +332,7 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     low_latency_bargein_enable_(false),
     mmap_enable_(false),
     mmap_buffer_duration_(0),
+    mmap_frame_length_(0),
     curr_child_(nullptr)
 {
 }
@@ -460,6 +461,8 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "mmap_buffer_duration")) {
                 mmap_buffer_duration_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "mmap_frame_length")) {
+                mmap_frame_length_ = std::stoi(attribs[++i]);
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }

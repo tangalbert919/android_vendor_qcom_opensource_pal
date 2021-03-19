@@ -188,6 +188,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     }
     bool GetMmapEnable() const { return mmap_enable_; }
     uint32_t GetMmapBufferDuration() const { return mmap_buffer_duration_; }
+    uint32_t GetMmapFrameLength() const { return mmap_frame_length_; }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
     std::shared_ptr<CaptureProfile> GetCapProfile(const std::string& name) const;
     void GetSmConfigForVersionQuery(
@@ -215,6 +216,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool low_latency_bargein_enable_;
     bool mmap_enable_;
     uint32_t mmap_buffer_duration_;
+    uint32_t mmap_frame_length_;
     std::map<UUID, std::shared_ptr<SoundModelConfig>> sound_model_cfg_list_;
     st_cap_profile_map_t capture_profile_map_;
     std::shared_ptr<SoundTriggerXml> curr_child_;

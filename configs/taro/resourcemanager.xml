@@ -700,6 +700,7 @@
             <param low_latency_bargein_enable="false" />
             <param mmap_enable="true" />
             <param mmap_buffer_duration="5000" />
+            <param mmap_frame_length="5" /> <!-- 5ms duration of data -->
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
