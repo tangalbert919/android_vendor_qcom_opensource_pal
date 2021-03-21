@@ -54,7 +54,7 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     switch (type) {
     case ST_SM_ID_SVA_F_STAGE_GMM:
         if (!sm_cfg->GetMergeFirstStageSoundModels() &&
-            module_type != ST_MODULE_TYPE_PDK5)
+            !IS_MODULE_TYPE_PDK(module_type))
             st_engine = std::make_shared<SoundTriggerEngineGsl>(s, type,
                                           module_type, sm_cfg);
         else
