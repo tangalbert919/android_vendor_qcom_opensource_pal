@@ -1563,21 +1563,42 @@ exit:
     return status;
 }
 
-int PayloadBuilder::populateStreamCkv(Stream *s __unused, std::vector <std::pair<int,int>> &keyVector __unused, int tag __unused,
+int PayloadBuilder::populateStreamCkv(Stream *s,
+        std::vector <std::pair<int,int>> &keyVector,
+        int tag __unused,
         struct pal_volume_data **volume_data __unused)
 {
     int status = 0;
+    struct pal_stream_attributes sAttr;
 
     PAL_DBG(LOG_TAG, "Enter");
+    memset(&sAttr, 0, sizeof(struct pal_stream_attributes));
 
-    /*
-     * Sending volume minimum as we want to ramp up instead of ramping
-     * down while setting the desired volume. Thus avoiding glitch
-     * TODO: Decide what to send as ckv in graph open
-     */
-    keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-    PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
+        goto exit;
+    }
 
+    switch (sAttr.type) {
+        case PAL_STREAM_VOICE_UI:
+            PAL_INFO(LOG_TAG, "stream channels %d",
+                sAttr.in_media_config.ch_info.channels);
+            /* Push stream channels CKV for SVA/PDK module calibration */
+            keyVector.push_back(std::make_pair(STREAM_CHANNELS,
+                sAttr.in_media_config.ch_info.channels));
+            break;
+        default:
+            /*
+             * Sending volume minimum as we want to ramp up instead of ramping
+             * down while setting the desired volume. Thus avoiding glitch
+             * TODO: Decide what to send as ckv in graph open
+             */
+            keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+            PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+            break;
+     }
+exit:
     return status;
 }
 
@@ -1622,6 +1643,15 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 /* Push Channels CKV for FFNS or FFECNS channel based calibration */
                 keyVector.push_back(std::make_pair(CHANNELS,
                                                    dAttr.config.ch_info.channels));
+                PAL_INFO(LOG_TAG,"stream channels %d\n",
+                    sattr->in_media_config.ch_info.channels);
+                /*
+                 * Push stream channels CKV for DAM module calibration
+                 * TODO: Add handling for multi stream use cases with different
+                 * channels if required
+                 */
+                keyVector.push_back(std::make_pair(STREAM_CHANNELS,
+                    sattr->in_media_config.ch_info.channels));
                 break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:

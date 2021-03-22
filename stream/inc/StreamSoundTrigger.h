@@ -505,6 +505,7 @@ class StreamSoundTrigger : public Stream {
                          int32_t sm_size, listen_model_indicator_enum type,
                          st_module_type_t module_type);
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
+    void updateStreamAttributes();
     int32_t LoadSoundModel(struct pal_st_sound_model *sm_data);
     int32_t UpdateSoundModel(struct pal_st_sound_model *sm_data);
     int32_t SendRecognitionConfig(struct pal_st_recognition_config *config);

@@ -529,7 +529,7 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
-            <param mmap_enable="true" />
+            <param mmap_enable="false" />
             <param mmap_buffer_duration="5000" />
         </common_config>
         <capture_profile_list>
@@ -721,7 +721,7 @@
                 <!-- Options are "KEYWORD_DETECTION", "USER_VERIFICATION", "CUSTOM_DETECTION"  -->
                 <param sm_detection_type= "KEYWORD_DETECTION" />
                 <param sm_id="0x2" />
-                <param module_lib="libcapiv2svacnn.so"/>
+                <param module_lib="libcapiv2svacnnvendor.so"/>
                 <param sample_rate="16000"/>
                 <param bit_width="16"/>
                 <param channel_count="1"/>
@@ -729,7 +729,7 @@
             <arm_ss_usecase>
                 <param sm_detection_type= "USER_VERIFICATION" />
                 <param sm_id="0x4" />
-                <param module_lib="libcapiv2vop.so"/>
+                <param module_lib="libcapiv2vopvendor.so"/>
                 <param sample_rate="16000"/>
                 <param bit_width="16"/>
                 <param channel_count="1"/>
@@ -737,7 +737,7 @@
             <arm_ss_usecase>
                 <param sm_detection_type= "KEYWORD_DETECTION" />
                 <param sm_id="0x8" />
-                <param module_lib="libcapiv2svarnn.so"/>
+                <param module_lib="libcapiv2svarnnvendor.so"/>
                 <param sample_rate="16000"/>
                 <param bit_width="16"/>
                 <param channel_count="1"/>
@@ -750,7 +750,7 @@
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000005"/>
+                    <kvpair key="0xBC000000" value="0xBC000001"/>
                 </streamConfig-metadata>
             </module_params>
             <module_params>
@@ -762,7 +762,7 @@
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000006"/>
+                    <kvpair key="0xBC000000" value="0xBC000003"/>
                 </streamConfig-metadata>
             </module_params>
         </sound_model_config>
