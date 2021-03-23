@@ -757,6 +757,8 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
     PAL_PARAM_ID_PROXY_CHANNEL_CONFIG = 38,
     PAL_PARAM_ID_CONTEXT_LIST = 39,
+    PAL_PARAM_ID_HAPTICS_INTENSITY = 40,
+    PAL_PARAM_ID_HAPTICS_VOLUME = 41,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -895,6 +897,10 @@ typedef struct pal_bt_tws_payload_s {
 typedef struct pal_bt_lc3_payload_s {
     bool isLC3MonoModeOn;
 } pal_bt_lc3_payload;
+
+typedef struct pal_param_haptics_intensity {
+    int intensity;
+} pal_param_haptics_intensity_t;
 
 /**< PAL device */
 struct pal_device {
