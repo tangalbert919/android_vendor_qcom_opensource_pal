@@ -96,7 +96,6 @@ protected:
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
     int                        swbSpeechMode;
-    static bool                isCaptureEnabled;
     std::mutex                 mAbrMutex;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
