@@ -44,6 +44,7 @@
 
 Session::Session()
 {
+    isPauseRegistrationDone = false;
 
 }
 

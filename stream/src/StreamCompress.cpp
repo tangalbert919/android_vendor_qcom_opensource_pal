@@ -629,7 +629,10 @@ int32_t StreamCompress::pause()
        goto exit;
     }
     PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
-    cvPause.wait(pauseLock);
+    if (session->isPauseRegistrationDone)
+        cvPause.wait(pauseLock);
+    else
+        usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
     PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);

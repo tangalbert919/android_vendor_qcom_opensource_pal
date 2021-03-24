@@ -83,6 +83,7 @@ protected:
     void *eventPayload;
     size_t eventPayloadSize;
 public:
+    bool isPauseRegistrationDone;
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
     int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,

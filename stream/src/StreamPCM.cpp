@@ -153,7 +153,8 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     rm->registerStream(this);
 
     // Register for Soft pause events
-    session->registerCallBack(handleSoftPauseCallBack, (uint64_t)this);
+    if (mStreamAttr->direction == PAL_AUDIO_OUTPUT )
+        session->registerCallBack(handleSoftPauseCallBack, (uint64_t)this);
 
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
@@ -1040,7 +1041,10 @@ int32_t StreamPCM::pause()
         goto exit;
     }
     PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
-    pauseCV.wait(pauseLock);
+    if (session->isPauseRegistrationDone)
+        pauseCV.wait(pauseLock);
+    else
+        usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
     PAL_DBG(LOG_TAG, "session setConfig successful");
