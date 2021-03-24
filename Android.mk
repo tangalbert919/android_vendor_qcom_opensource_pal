@@ -123,6 +123,28 @@ endif
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_USE_VNDK := true
+
+LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal
+
+LOCAL_CFLAGS += -Wno-tautological-compare
+LOCAL_CFLAGS += -Wno-macro-redefined
+
+LOCAL_SRC_FILES  := test/PalUsecaseTest.c \
+                    test/PalTest_main.c
+
+LOCAL_MODULE               := PalTest
+LOCAL_MODULE_OWNER         := qti
+LOCAL_MODULE_TAGS          := optional
+
+LOCAL_SHARED_LIBRARIES := \
+                          libpalclient
+LOCAL_VENDOR_MODULE := true
+
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
 include $(PAL_BASE_PATH)/plugins/Android.mk
 include $(PAL_BASE_PATH)/ipc/HwBinders/Android.mk
 
