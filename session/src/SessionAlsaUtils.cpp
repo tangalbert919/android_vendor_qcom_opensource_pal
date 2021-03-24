@@ -1347,6 +1347,17 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
 
     txDevNum = !rxDevNum;
 
+    if (sAttr.type != PAL_STREAM_VOICE_CALL) {
+        txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
+        if (!txFeMixerCtrls[FE_LOOPBACK]) {
+            PAL_ERR(LOG_TAG, "invalid mixer control %s%s",
+                    txFeName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeTxMetaData;
+        }
+        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
+    }
+
     /** set TX mixer controls */
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], "ZERO");
     mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamTxMetaData.buf,
@@ -1369,16 +1380,6 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
             streamDeviceRxMetaData.size);
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_DISCONNECT], rxBackEnds[0].second.data());
 
-    if (sAttr.type != PAL_STREAM_VOICE_CALL) {
-        txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
-        if (!txFeMixerCtrls[FE_LOOPBACK]) {
-            PAL_ERR(LOG_TAG, "invalid mixer control %s%s",
-                    txFeName.str().data(), feCtrlNames[i]);
-            status = -EINVAL;
-            goto freeTxMetaData;
-        }
-        mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
-    }
 freeTxMetaData:
     free(streamDeviceTxMetaData.buf);
     free(deviceTxMetaData.buf);
