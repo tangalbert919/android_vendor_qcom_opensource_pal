@@ -70,7 +70,11 @@ typedef enum {
 #define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
 #endif
 #else
+#ifdef __LP64__
+#define ADM_LIBRARY_PATH "/vendor/lib64/libadm.so"
+#else
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
+#endif
 #endif
 
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
