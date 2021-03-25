@@ -140,6 +140,17 @@ void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
         case PAL_AUDIO_FMT_WMA_PRO:
         {
             codec.format = pal_snd_dec->wma_dec.fmt_tag;
+            if (pal_snd_dec->wma_dec.fmt_tag == 0x161)
+                codec.profile = SND_AUDIOPROFILE_WMA9;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x162)
+                codec.profile = SND_AUDIOPROFILE_WMA9_PRO;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x163)
+                codec.profile = SND_AUDIOPROFILE_WMA9_LOSSLESS;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x166)
+                codec.profile = SND_AUDIOPROFILE_WMA10;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x167)
+                codec.profile = SND_AUDIOPROFILE_WMA10_LOSSLESS;
+
             codec.options.generic.reserved[0] =
                                     pal_snd_dec->wma_dec.avg_bit_rate/8;
             codec.options.generic.reserved[1] =
@@ -343,11 +354,9 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_APE:
             id = SND_AUDIOCODEC_APE;
             break;
-#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_WMA_PRO:
-            id = SND_AUDIOCODEC_WMA_PRO;
+            id = SND_AUDIOCODEC_WMA;
             break;
-#endif
         case PAL_AUDIO_FMT_FLAC:
         case PAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
