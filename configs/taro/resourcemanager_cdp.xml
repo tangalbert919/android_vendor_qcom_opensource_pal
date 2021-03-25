@@ -618,6 +618,28 @@
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_RAW_LPI-->
+                    <kvpair key="0xAD000000" value="0xAD00000C"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic-lpi" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFNS-->
+                    <kvpair key="0xAD000000" value="0xAD00000B"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic-lpi" />
+            </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
@@ -629,13 +651,46 @@
                 </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFEC">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFEC-->
+                    <kvpair key="0xAD000000" value="0xAD000012"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
                 <devicePP-metadata>
                 </devicePP-metadata>
-                <param snd_name="va-mic-mono" />
+                <param snd_name="va-mic-mono-lpi" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_RAW_LPI-->
+                    <kvpair key="0xAD000000" value="0xAD00000C"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono-lpi" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFNS-->
+                    <kvpair key="0xAD000000" value="0xAD00000B"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
@@ -648,7 +703,19 @@
                 </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFEC">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFEC-->
+                    <kvpair key="0xAD000000" value="0xAD000012"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
+            </capture_profile>
         </capture_profile_list>
+        <!-- ACD -->
         <stream_config>
             <name>qc_acd</name>
             <param vendor_uuid="4e93281b-296e-4d73-9833-2710c3c7c1db"/>
@@ -709,6 +776,21 @@
                     </contexts>
                 </model>
             </sound_models>
+        </stream_config>
+        <!-- Sensor PCM Data -->
+        <stream_config>
+            <name>qc_sensor_pcm_data</name>
+            <param vendor_uuid="c88a2c89-7a55-498c-836f-5d7ec8582990" />
+            <!-- Profile specific data which the algorithm can support -->
+            <param sample_rate="16000" />
+            <param bit_width="16" />
+            <param out_channels="1" /> <!-- Module output channels -->
+            <operating_modes>
+                <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI"/>
+                <low_power_ns capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
+                <high_performance capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFEC" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFEC"/>
+                <high_performance_ns capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+            </operating_modes>
         </stream_config>
     </acd_platform_info>
     <sound_trigger_platform_info>
