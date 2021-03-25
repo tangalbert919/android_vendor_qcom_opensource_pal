@@ -388,15 +388,15 @@ int Bluetooth::configureA2dpEncoderDecoder()
             goto error;
         }
 
-        /* COP v2 DEPACKETIZER Module Configuration */
-        status = session->getMIID(backEndName.c_str(), COP_DEPACKETIZER_V2, &copMiid);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
-                    COP_DEPACKETIZER_V2, status);
-            goto error;
-        }
-
         if (codecType == DEC) {
+            /* COP v2 DEPACKETIZER Module Configuration */
+            status = session->getMIID(backEndName.c_str(), COP_DEPACKETIZER_V2, &copMiid);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                        COP_DEPACKETIZER_V2, status);
+                goto error;
+            }
+
             builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, false);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
