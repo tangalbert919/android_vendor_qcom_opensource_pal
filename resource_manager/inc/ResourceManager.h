@@ -486,6 +486,10 @@ public:
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
+    int rwParameterACDB(uint32_t param_id, void *param_payload,
+                     size_t payload_size, pal_device_id_t pal_device_id,
+                     pal_stream_type_t pal_stream_type, uint32_t sample_rate,
+                     uint32_t instance_id, bool is_param_write, bool is_play);
     int getParameter(uint32_t param_id, void **param_payload,
                      size_t *payload_size, void *query = nullptr);
     int getParameter(uint32_t param_id, void *param_payload,
@@ -506,6 +510,7 @@ public:
     int getMixerTag(std::vector <int> &tag);
     int getStreamPpTag(std::vector <int> &tag);
     int getDevicePpTag(std::vector <int> &tag);
+    int getDeviceDirection(uint32_t beDevId);
     const std::vector<int> allocateFrontEndIds (const struct pal_stream_attributes,
                                                 int lDirection);
     void freeFrontEndIds (const std::vector<int> f,

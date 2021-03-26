@@ -33,6 +33,7 @@
 #include "SessionGsl.h"
 #include "StreamSoundTrigger.h"
 #include "spr_api.h"
+#include <agm/agm_api.h>
 #include <bt_intf.h>
 #include <bt_ble.h>
 #include "sp_vi.h"
@@ -351,7 +352,7 @@ uint16_t numOfBitsSet(uint32_t lines)
 void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name __unused,
     const XML_Char **attr __unused)
 {
-	return;
+    return;
 }
 
 void PayloadBuilder::endTag(void *userdata __unused, const XML_Char *tag_name __unused)
@@ -440,6 +441,111 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     *size = payloadSize + padBytes;;
     *payload = payloadInfo;
     PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+}
+
+int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
+            uint8_t *payload,
+            uint32_t moduleInstanceId, uint32_t sampleRate) {
+    struct apm_module_param_data_t* header;
+    //uint8_t* payloadInfo = NULL;
+    struct agm_acdb_param *payloadInfo = NULL;
+    size_t paddedSize = 0;
+    uint32_t payloadSize = 0;
+    uint32_t dataLength = 0;
+    struct agm_acdb_param *acdbParam = (struct agm_acdb_param *)payload;
+    uint32_t appendSampleRateInCKV = 1;
+    uint8_t *ptrSrc = nullptr;
+    uint8_t *ptrDst = nullptr;
+    uint32_t *ptr = nullptr;
+    pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+
+    if (!acdbParam)
+        return -EINVAL;
+
+    if (sampleRate != 0 && acdbParam->isTKV == PARAM_TKV) {
+        PAL_ERR(LOG_TAG, "Sample Rate %d CKV and TKV are not compatible.",
+                    sampleRate);
+        return -EINVAL;
+    }
+
+    // step 1: get param data size = blob size - kv size - param id size
+    payloadSize = acdbParam->blob_size -
+                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                    - sizeof(pal_effect_custom_payload_t);
+
+    paddedSize = PAL_ALIGN_8BYTE(payloadSize);
+    if (sampleRate) {
+        //CKV
+        // step 1. check sample rate is in kv or not
+        PAL_INFO(LOG_TAG, "CKV param to ACDB");
+        pal_key_value_pair_t *rawCKVPair = nullptr;
+        rawCKVPair = (pal_key_value_pair_t *)acdbParam->blob;
+        for (int k = 0; k < acdbParam->num_kvs; k++) {
+            if (rawCKVPair[k].key == SAMPLINGRATE) {
+                PAL_INFO(LOG_TAG, "Sample rate is in CKV. No need to append.");
+                appendSampleRateInCKV = 0;
+                break;
+            }
+        }
+        PAL_DBG(LOG_TAG, "is sample rate appended in CKV? %x",
+                                appendSampleRateInCKV);
+    } else {
+        //TKV
+        appendSampleRateInCKV = 0;
+    }
+
+    payloadInfo = (struct agm_acdb_param *)calloc(1,
+        sizeof(struct agm_acdb_param) +
+        (acdbParam->num_kvs + appendSampleRateInCKV) *
+        sizeof(struct gsl_key_value_pair) +
+        sizeof(struct apm_module_param_data_t) + paddedSize -
+        sizeof(pal_effect_custom_payload_t));
+
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return -ENOMEM;
+    }
+
+    // copy acdb meta + kv
+    dataLength = sizeof(struct agm_acdb_param) +
+                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+    ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
+                (uint8_t *)acdbParam, dataLength);
+    //update blob size
+    payloadInfo->blob_size = payloadInfo->blob_size +
+                            sizeof(struct apm_module_param_data_t) -
+                            sizeof(pal_effect_custom_payload_t) +
+                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+    payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
+    if (appendSampleRateInCKV) {
+        ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
+        *ptr++ = SAMPLINGRATE;
+        *ptr = sampleRate;
+        header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
+                    dataLength + sizeof(struct gsl_key_value_pair));
+    } else {
+        header = (struct apm_module_param_data_t *)
+                    ((uint8_t *)payloadInfo + dataLength);
+    }
+
+    effectCustomPayload = (pal_effect_custom_payload_t *)
+                                ((uint8_t *)acdbParam + dataLength);
+    header->module_instance_id = moduleInstanceId;
+    header->param_id = effectCustomPayload->paramId;
+    header->param_size = paddedSize;
+    header->error_code = 0x0;
+
+    if (paddedSize) {
+        ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
+        ptrSrc = (uint8_t *)effectCustomPayload->data;
+        // padded bytes are zereo by calloc. no need to copy.
+        ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+    }
+    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t);
+    *alsaPayload = (uint8_t *)payloadInfo;
+    PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
+
+    return 0;
 }
 
 int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,

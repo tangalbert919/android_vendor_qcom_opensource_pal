@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019, 2021 The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -139,6 +139,10 @@ public:
                         const std::vector <std::pair<int, int>> &ckv,
                         struct prop_data *propData,
                         struct agmMetaData &md);
+    static int rwParameterACDB(Stream * streamHandle, struct mixer *mixer,
+                        void *inParamPayload, size_t inPayloadSize,
+                        pal_device_id_t palDeviceId, uint32_t sampleRate,
+                        uint32_t instanceId, bool isParamWrite);
 };
 
 #endif //SESSION_ALSA_UTILS

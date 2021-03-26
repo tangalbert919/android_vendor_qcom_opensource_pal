@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -763,6 +763,31 @@ int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
                 PAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
                         param_id, status);
             }
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
+        status = -EINVAL;
+    }
+    PAL_DBG(LOG_TAG, "Exit:");
+
+    return status;
+}
+
+int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
+                      size_t payload_size __unused, pal_device_id_t pal_device_id,
+                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
+                      uint32_t instance_id, uint32_t dir, bool is_play )
+{
+    int status = 0;
+    std::shared_ptr<ResourceManager> rm = NULL;
+    rm = ResourceManager::getInstance();
+    if (rm) {
+        status = rm->rwParameterACDB(param_id, param_payload, payload_size,
+                                        pal_device_id, pal_stream_type,
+                                        sample_rate, instance_id, dir, is_play);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to rw global parameter %u, status %d",
+                        param_id, status);
         }
     } else {
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");

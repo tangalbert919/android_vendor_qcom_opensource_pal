@@ -242,6 +242,12 @@ int32_t Stream::getEffectParameters(void *effect_query)
     return status;
 }
 
+int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
+                                    bool isParamWrite)
+{
+    return session->rwACDBParameters(payload, sampleRate, isParamWrite);
+}
+
 int32_t Stream::getStreamType (pal_stream_type_t* streamType)
 {
     int32_t status = 0;

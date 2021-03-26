@@ -3760,6 +3760,18 @@ int ResourceManager::getDevicePpTag(std::vector <int> &tag)
     return status;
 }
 
+int ResourceManager::getDeviceDirection(uint32_t beDevId)
+{
+    int dir = -EINVAL;
+
+    if (beDevId < PAL_DEVICE_OUT_MAX)
+        dir = PAL_AUDIO_OUTPUT;
+    else if (beDevId < PAL_DEVICE_IN_MAX)
+        dir = PAL_AUDIO_INPUT;
+
+    return dir;
+}
+
 int ResourceManager::getNumFEs(const pal_stream_type_t sType) const
 {
     int n = 1;
@@ -5215,7 +5227,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
                                   pal_device_id_t pal_device_id,
                                   pal_stream_type_t pal_stream_type)
 {
-    int status = 0;
+    int status = -EINVAL;
 
     PAL_INFO(LOG_TAG, "param_id=%d", param_id);
     switch (param_id) {
@@ -5690,7 +5702,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   pal_device_id_t pal_device_id,
                                   pal_stream_type_t pal_stream_type)
 {
-    int status = 0;
+    int status = -EINVAL;
 
     PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
@@ -5719,6 +5731,120 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
     }
 
     PAL_DBG(LOG_TAG, "Exit status: %d",status);
+    return status;
+}
+
+
+int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
+                 size_t payloadSize  __unused, pal_device_id_t palDeviceId,
+                 pal_stream_type_t palStreamType, uint32_t sampleRate,
+                 uint32_t instanceId, bool isParamWrite, bool isPlay)
+{
+    int status = -EINVAL;
+    Stream *s = NULL;
+    struct pal_stream_attributes sattr;
+    struct pal_device dattr;
+    bool match = false;
+    uint32_t matchCount = 0;
+    std::vector<Stream*>::iterator sIter;
+
+    PAL_DBG(LOG_TAG, "Enter: device=%d type=%d rate=%d instance=%d is_param_write=%d\n",
+            palDeviceId, palStreamType, sampleRate,
+            instanceId, isParamWrite);
+
+    switch (paramId) {
+        case PAL_PARAM_ID_UIEFFECT:
+        {
+            /*
+             * set default stream type (low latency) for device-only effect.
+             * the instance is shared by streams.
+             */
+            if (palStreamType == PAL_STREAM_GENERIC) {
+                palStreamType = PAL_STREAM_LOW_LATENCY;
+                PAL_INFO(LOG_TAG, "change PAL stream from %d to %d for device effect",
+                            PAL_STREAM_GENERIC, palStreamType);
+            }
+
+            /*
+             * set default device (speaker) for stream-only effect.
+             * the instance is shared by devices.
+             */
+            if (palDeviceId == PAL_DEVICE_NONE) {
+                if (isPlay)
+                    palDeviceId = PAL_DEVICE_OUT_SPEAKER;
+                else
+                    palDeviceId = PAL_DEVICE_IN_HANDSET_MIC;
+
+                PAL_INFO(LOG_TAG, "change PAL device id from %d to %d for stream effect",
+                            PAL_DEVICE_NONE, palDeviceId);
+            }
+
+            mResourceManagerMutex.lock();
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
+                    sIter++) {
+                match = (*sIter)->checkStreamMatch(palDeviceId, palStreamType);
+                if (match)
+                    matchCount++;
+
+                if (match) {
+                    status = (*sIter)->rwACDBParameters(paramPayload,
+                                        sampleRate, isParamWrite);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "failed to set param for palDeviceId=%x stream_type=%x",
+                                palDeviceId, palStreamType);
+                    }
+                }
+            }
+            mResourceManagerMutex.unlock();
+
+            PAL_DBG(LOG_TAG, "%d active stream match with device %d type %d",
+                        matchCount, palDeviceId, palStreamType);
+            if (!matchCount) {
+                sattr.type = palStreamType;
+                sattr.direction = (pal_stream_direction_t)getDeviceDirection(palDeviceId);
+                sattr.flags = PAL_STREAM_FLAG_NON_BLOCKING;
+                sattr.out_media_config.ch_info.channels = 2;
+                sattr.out_media_config.sample_rate = 48000;
+                sattr.out_media_config.bit_width = 16;
+                dattr.id = palDeviceId;
+                try {
+                    s = Stream::create(&sattr, &dattr, 1, nullptr, 0);
+                } catch (const std::exception& e) {
+                    PAL_ERR(LOG_TAG, "Stream create failed: %s", e.what());
+                    return -EINVAL;
+                }
+                if (!s) {
+                    status = -EINVAL;
+                    PAL_ERR(LOG_TAG, "stream creation failed status %d", status);
+                    goto error;
+                }
+                mResourceManagerMutex.lock();
+                status = s->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "pal_stream_open failed with status %d", status);
+                    mResourceManagerMutex.unlock();
+                    if (s->close() != 0) {
+                        PAL_ERR(LOG_TAG, "stream closed failed.");
+                    }
+                    delete s;
+                    goto error;
+                }
+                status = s->rwACDBParameters(paramPayload, sampleRate, isParamWrite);
+                mResourceManagerMutex.unlock();
+                status = s->close();
+                delete s;
+            }
+        }
+
+        break;
+        default:
+            PAL_ERR(LOG_TAG, "Unknown ParamID:%d", paramId);
+            break;
+    }
+
+error:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+
     return status;
 }
 
