@@ -28,8 +28,6 @@
  */
 
 #define LOG_TAG "PAL: StreamPCM"
-#define RXDIR 0
-#define TXDIR 1
 
 #include "StreamPCM.h"
 #include "Session.h"

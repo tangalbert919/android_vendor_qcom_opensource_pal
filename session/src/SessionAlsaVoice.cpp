@@ -130,8 +130,8 @@ int SessionAlsaVoice::open(Stream * s)
         goto exit;
     }
 
-    pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RXDIR);
-    pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TXDIR);
+    pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
+    pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
 
     vsid = sAttr.info.voice_call_info.VSID;
     ttyMode = sAttr.info.voice_call_info.tty_mode;
@@ -149,8 +149,8 @@ int SessionAlsaVoice::open(Stream * s)
 
     if (status) {
         PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
-        rm->freeFrontEndIds(pcmDevRxIds, sAttr, RXDIR);
-        rm->freeFrontEndIds(pcmDevTxIds, sAttr, TXDIR);
+        rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+        rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
     }
 
 exit:
@@ -165,7 +165,7 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
     uint8_t *payload = NULL;
     size_t payloadSize = 0;
 
-    if (dir == RXDIR) {
+    if (dir == RX_HOSTLESS) {
         pcmId = pcmDevRxIds.at(0);
         status = populate_rx_mfc_payload(s, &payload, &payloadSize);
         if (0 != status) {
@@ -192,7 +192,7 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
                                                  payload, payloadSize);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed:%d for dir:%s",
-                status, (dir == RXDIR)?"RX":"TX");
+                status, (dir == RX_HOSTLESS)?"RX":"TX");
         goto exit;
     }
 
@@ -417,7 +417,7 @@ int SessionAlsaVoice::start(Stream * s)
         return -EINVAL;
     }
 
-    SessionAlsaVoice::setConfig(s, MODULE, VSID, RXDIR);
+    SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
     /*if no volume is set set a default volume*/
     if ((s->getVolumeData(volume))) {
         PAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
@@ -435,7 +435,7 @@ int SessionAlsaVoice::start(Stream * s)
         /*call will cache the volume but not apply it as stream has not moved to start state*/
         s->setVolume(volume);
         /*call to apply volume*/
-        setConfig(s, CALIBRATION, TAG_STREAM_VOLUME, RXDIR);
+        setConfig(s, CALIBRATION, TAG_STREAM_VOLUME, RX_HOSTLESS);
 
 
     };
@@ -543,14 +543,14 @@ int SessionAlsaVoice::close(Stream * s)
             PAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
         }
     }
-    rm->freeFrontEndIds(pcmDevRxIds, sAttr, 0);
+    rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
     if (pcmTx) {
         status = pcm_close(pcmTx);
         if (status) {
             PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
         }
     }
-    rm->freeFrontEndIds(pcmDevTxIds, sAttr, 1);
+    rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
     pcmRx = NULL;
     pcmTx = NULL;
 
@@ -581,7 +581,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
                 goto exit;
             }
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
-                                            RXDIR);
+                                            RX_HOSTLESS);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -592,7 +592,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
         case VOICE_SLOW_TALK_ON:
             device = pcmDevRxIds.at(0);
             slow_talk = *((bool *)PalPayload->payload);
-            status = payloadTaged(s, MODULE, tagId, device, RXDIR);
+            status = payloadTaged(s, MODULE, tagId, device, RX_HOSTLESS);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice slow_Talk params status = %d",
                         status);
@@ -605,7 +605,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
             status = payloadSetTTYMode(&paramData, &paramSize,
                                        tty_mode);
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
-                                            RXDIR);
+                                            RX_HOSTLESS);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice tty params status = %d",
                         status);
@@ -629,7 +629,7 @@ int SessionAlsaVoice::setParameters(Stream *s, int tagId, uint32_t param_id __un
                 goto exit;
             }
             status = setVoiceMixerParameter(s, mixer, paramData, paramSize,
-                                            RXDIR);
+                                            RX_HOSTLESS);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -674,7 +674,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
-                                                              RXDIR);
+                                                              RX_HOSTLESS);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
@@ -688,7 +688,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
         case MUTE_TAG:
         case UNMUTE_TAG:
             device = pcmDevTxIds.at(0);
-            status = payloadTaged(s, type, tag, device, TXDIR);
+            status = payloadTaged(s, type, tag, device, TX_HOSTLESS);
             break;
 
         default:
@@ -743,7 +743,7 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
         case MUTE_TAG:
         case UNMUTE_TAG:
             device = pcmDevTxIds.at(0);
-            status = payloadTaged(s, type, tag, device, TXDIR);
+            status = payloadTaged(s, type, tag, device, TX_HOSTLESS);
             break;
 
         case VSID:
@@ -1249,13 +1249,13 @@ char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
     s->getStreamAttributes(&sAttr);
     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
         sAttr.info.voice_call_info.VSID == VOICELBMMODE1) {
-        if (dir == TXDIR) {
+        if (dir == TX_HOSTLESS) {
             stream = (char*)"VOICEMMODE1c";
         } else {
             stream = (char*)"VOICEMMODE1p";
         }
     } else {
-        if (dir == TXDIR) {
+        if (dir == TX_HOSTLESS) {
             stream = (char*)"VOICEMMODE2c";
         } else {
             stream = (char*)"VOICEMMODE2p";
