@@ -517,7 +517,7 @@
             <param concurrent_voice_call="true" />
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
-            <param mmap_enable="false" />
+            <param mmap_enable="true" />
             <param mmap_buffer_duration="5000" />
         </common_config>
         <capture_profile_list>
@@ -738,7 +738,7 @@
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000001"/>
+                    <kvpair key="0xBC000000" value="0xBC000005"/>
                 </streamConfig-metadata>
             </module_params>
             <module_params>
@@ -750,7 +750,7 @@
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000003"/>
+                    <kvpair key="0xBC000000" value="0xBC000006"/>
                 </streamConfig-metadata>
             </module_params>
         </sound_model_config>
