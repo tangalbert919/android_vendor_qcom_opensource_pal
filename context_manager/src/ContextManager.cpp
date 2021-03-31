@@ -135,7 +135,7 @@ int32_t ContextManager::build_and_send_register_ack(Usecase *uc, uint32_t see_id
     uint32_t payload_size = 0;
     void *ack_payload = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter");
+    PAL_VERBOSE(LOG_TAG, "Enter seeid: %d ucid:%d", see_id, uc_id);
 
     ack_payload = calloc(1, ack_payload_size);
     if (!ack_payload) {
@@ -1029,6 +1029,8 @@ int32_t Usecase::GetModuleIIDs(std::vector<int32_t> tags,
         //compare against all tags on the usecase
         if (std::find(tags.begin(), tags.end(), tag_entry->tag_id) != tags.end()) {
             for (uint32_t i = 0; i < tag_entry->num_modules; ++i) {
+                PAL_VERBOSE(LOG_TAG, "tag_id:0x%x -> miid:0x%x",
+                    tag_entry->mod_list[i].module_iid,tag_entry->tag_id);
                 tag_miid_map[tag_entry->tag_id].push_back(tag_entry->mod_list[i].module_iid);
             }
         }
@@ -1098,13 +1100,13 @@ int32_t UsecaseACD::Configure()
     PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
 
     context_payload = (pal_param_payload *) calloc (1, sizeof(pal_param_payload)
-        + sizeof(this->requested_context_list));
+        + sizeof(uint32_t) * (1 + this->requested_context_list->num_contexts));
     if (!context_payload) {
         rc = -ENOMEM;
         goto exit;
     }
     context_payload->payload_size = sizeof(this->requested_context_list);
-    memcpy(context_payload->payload, this->requested_context_list, sizeof(this->requested_context_list));
+    memcpy(context_payload->payload, this->requested_context_list, sizeof(uint32_t) * (1 + this->requested_context_list->num_contexts));
     rc = pal_stream_set_param(this->pal_stream, PAL_PARAM_ID_CONTEXT_LIST, context_payload);
     if (rc) {
         PAL_ERR(LOG_TAG, "Error:%d setting parameters to stream usecase:%d", rc, this->usecase_id);
