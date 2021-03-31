@@ -125,6 +125,26 @@ StreamACD::~StreamACD()
     PAL_DBG(LOG_TAG, "Exit");
 }
 
+int32_t StreamACD::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
+{
+    int32_t status = 0;
+
+    if (!payload) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Error:%d, Invalid payload", status);
+        goto exit;
+    }
+
+    if (!engine_) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Error:%d, Engine not initialized yet", status);
+        goto exit;
+    }
+    status = engine_->getTagsWithModuleInfo(this, size, payload);
+exit:
+    return status;
+}
+
 int32_t StreamACD::close()
 {
     int32_t status = 0;

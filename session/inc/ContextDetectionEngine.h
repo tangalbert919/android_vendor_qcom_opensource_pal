@@ -84,6 +84,7 @@ public:
         Stream *s,
         std::shared_ptr<Device> dev,
         bool is_enable);
+    int32_t getTagsWithModuleInfo(Stream *s, size_t *size, uint8_t *payload);
 private:
     virtual int32_t LoadSoundModel() = 0;
     virtual int32_t UnloadSoundModel() = 0;
