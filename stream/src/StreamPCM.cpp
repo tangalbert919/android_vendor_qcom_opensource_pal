@@ -976,11 +976,19 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
             bool slow_talk = false;
             param_payload = (pal_param_payload *)payload;
             slow_talk = *((bool *)param_payload->payload);
-            PAL_ERR(LOG_TAG,"slow talk %d", slow_talk);
 
             uint32_t slow_talk_tag =
                           slow_talk ? VOICE_SLOW_TALK_ON : VOICE_SLOW_TALK_OFF;
             status = session->setParameters(this, slow_talk_tag,
+                                            param_id, payload);
+            if (status)
+               PAL_ERR(LOG_TAG, "setParam for slow talk failed with %d",
+                       status);
+            break;
+        }
+        case PAL_PARAM_ID_DEVICE_MUTE:
+        {
+            status = session->setParameters(this, DEVICE_MUTE,
                                             param_id, payload);
             if (status)
                PAL_ERR(LOG_TAG, "setParam for slow talk failed with %d",

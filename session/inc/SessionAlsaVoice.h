@@ -61,6 +61,7 @@ private:
     bool volume_boost = vol_boost_disable;
     bool slow_talk = false;
     bool hd_voice = false;
+    pal_device_mute_t dev_mute = {};
 
 public:
 
