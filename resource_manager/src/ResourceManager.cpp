@@ -377,6 +377,7 @@ bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
+bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 
 //TODO:Needs to define below APIs so that functionality won't break
@@ -662,8 +663,9 @@ ResourceManager::~ResourceManager()
     }
 
     ResourceManager::deInitWakeLocks();
-    ctxMgr->DeInit();
-    delete ctxMgr;
+    if (ctxMgr) {
+        delete ctxMgr;
+    }
 }
 
 void ResourceManager::loadAdmLib()
@@ -1005,14 +1007,24 @@ int ResourceManager::init_audio()
 
 int ResourceManager::initContextManager()
 {
-    int ret = ctxMgr->Init();
-    if (ret != 0) {
-        PAL_ERR(LOG_TAG, "context manager init failed :%d", ret);
+    int ret = 0;
+
+    PAL_INFO(LOG_TAG," isContextManagerEnabled: %s", isContextManagerEnabled? "true":"false");
+    if (isContextManagerEnabled) {
+        ret = ctxMgr->Init();
+        if (ret != 0) {
+            PAL_ERR(LOG_TAG, "ContextManager init failed :%d", ret);
+        }
     }
 
-    PAL_ERR(LOG_TAG, "context manager inited :%d", ret);
-
     return ret;
+}
+
+void ResourceManager::deInitContextManager()
+{
+    if (isContextManagerEnabled) {
+        ctxMgr->DeInit();
+    }
 }
 
 int ResourceManager::init()
@@ -4740,6 +4752,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setNativeAudioParams(parms, value, len);
 
     ret = setLoggingLevelParams(parms, value, len);
+
+    ret = setContextManagerEnableParam(parms, value, len);
 done:
     PAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
     if(value != NULL)
@@ -4764,6 +4778,28 @@ int ResourceManager::setLoggingLevelParams(struct str_parms *parms,
         ret = 0;
 
     }
+    return ret;
+}
+
+int ResourceManager::setContextManagerEnableParam(struct str_parms *parms,
+                                          char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE,
+                            value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isContextManagerEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE);
+    }
+
     return ret;
 }
 

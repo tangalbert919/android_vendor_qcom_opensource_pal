@@ -30,6 +30,7 @@
         <param key="max_sessions" value="128"/>
         <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
+        <param key="context_manager_enable" value ="false" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>

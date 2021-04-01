@@ -62,6 +62,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define AUDIO_PARAMETER_KEY_MAX_NT_SESSIONS "max_nonTunnel_sessions"
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
+#define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
@@ -405,6 +406,7 @@ public:
     static int bitWidthSupported;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
+    static bool isContextManagerEnabled;
     /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
@@ -420,6 +422,7 @@ public:
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
+    void deInitContextManager();
     adm_init_t admInitFn = NULL;
     adm_deinit_t admDeInitFn = NULL;
     adm_register_output_stream_t admRegisterOutputStreamFn = NULL;
@@ -578,6 +581,7 @@ public:
     static int setConfigParams(struct str_parms *parms);
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
     static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
+    static int setContextManagerEnableParam(struct str_parms *parms,char *value, int len);
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);
     static bool isOutputDevId(int deviceId);
