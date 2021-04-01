@@ -53,13 +53,13 @@
 #include "SndCardMonitor.h"
 #include "UltrasoundDevice.h"
 #include <agm/agm_api.h>
+#include <cutils/properties.h>
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mutex>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
-#include <cutils/properties.h>
 #endif
 
 #define XML_FILE_DELIMITER "_"
@@ -68,22 +68,13 @@
 #define HW_INFO_ARRAY_MAX_SIZE 32
 
 #if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
-#define MIXER_XML_BASE_STRING "/etc/mixer_paths"
-#define MIXER_XML_DEFAULT_PATH "/etc/mixer_paths_wsa.xml"
-#define DEFAULT_ACDB_FILES "/etc/acdbdata/MTP/acdb_cal.acdb"
-#define XMLFILE "/etc/resourcemanager.xml"
-#define RMNGR_XMLFILE_BASE_STRING  "/etc/resourcemanager"
 #define SNDPARSER "/etc/card-defs.xml"
-#define STXMLFILE "/etc/sound_trigger_platform_info.xml"
 #else
-#define MIXER_XML_BASE_STRING "/vendor/etc/mixer_paths"
-#define MIXER_XML_DEFAULT_PATH "/vendor/etc/mixer_paths_wsa.xml"
-#define DEFAULT_ACDB_FILES "/vendor/etc/acdbdata/MTP/acdb_cal.acdb"
-#define XMLFILE "/vendor/etc/resourcemanager.xml"
-#define RMNGR_XMLFILE_BASE_STRING  "/vendor/etc/resourcemanager"
 #define SNDPARSER "/vendor/etc/card-defs.xml"
-#define STXMLFILE "/vendor/etc/sound_trigger_platform_info.xml"
 #endif
+
+#define MIXER_XML_BASE_STRING_NAME "mixer_paths"
+#define RMNGR_XMLFILE_BASE_STRING_NAME "resourcemanager"
 
 #define MAX_SND_CARD 10
 #define MAX_RETRY_CNT 20
@@ -124,6 +115,8 @@ uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 static struct str_parms *configParamKVPairs;
 
 char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
+
+char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
 struct snd_card_split {
     char device[HW_INFO_ARRAY_MAX_SIZE];
@@ -987,8 +980,15 @@ int ResourceManager::init_audio()
 
     split_snd_card(snd_card_name);
 
-    strlcpy(mixer_xml_file, MIXER_XML_BASE_STRING, XML_PATH_MAX_LENGTH);
-    strlcpy(rmngr_xml_file, RMNGR_XMLFILE_BASE_STRING, XML_PATH_MAX_LENGTH);
+    getVendorConfigPath(vendor_config_path, sizeof(vendor_config_path));
+
+    /* Get path for platorm_info_xml_path_name in vendor */
+    snprintf(mixer_xml_file, sizeof(mixer_xml_file),
+            "%s/%s", vendor_config_path, MIXER_XML_BASE_STRING_NAME);
+
+    snprintf(rmngr_xml_file, sizeof(rmngr_xml_file),
+            "%s/%s", vendor_config_path, RMNGR_XMLFILE_BASE_STRING_NAME);
+
     /* Note: This assumes IDP/MTP form factor will use mixer_paths.xml /
              resourcemanager.xml.
        TODO: Add support for form factors other than IDP/QRD.
@@ -7457,4 +7457,23 @@ closeFile:
     fclose(file);
 done:
     return ret;
+}
+
+/* Function to get audio vendor configs path */
+void ResourceManager::getVendorConfigPath (char* config_file_path, int path_size)
+{
+   char vendor_sku[PROPERTY_VALUE_MAX] = {'\0'};
+   if (property_get("ro.boot.product.vendor.sku", vendor_sku, "") <= 0) {
+#if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
+       /* Audio configs are stored in /etc */
+       snprintf(config_file_path, path_size, "%s", "/etc");
+#else
+       /* Audio configs are stored in /vendor/etc */
+       snprintf(config_file_path, path_size, "%s", "/vendor/etc");
+#endif
+    } else {
+       /* Audio configs are stored in /vendor/etc/audio/sku_${vendor_sku} */
+       snprintf(config_file_path, path_size,
+                       "%s%s", "/vendor/etc/audio/sku_", vendor_sku);
+    }
 }

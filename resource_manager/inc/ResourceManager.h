@@ -57,6 +57,7 @@ typedef enum {
 
 #define audio_mixer mixer
 
+#define VENDOR_CONFIG_PATH_MAX_LENGTH 128
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
@@ -666,6 +667,7 @@ public:
     void releaseWakeLock();
     static void process_custom_config(const XML_Char **attr);
     static void process_usecase();
+    void getVendorConfigPath(char* config_file_path, int path_size);
 };
 
 #endif
