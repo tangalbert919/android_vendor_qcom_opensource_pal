@@ -38,17 +38,6 @@
 #include "ResourceManager.h"
 #include "kvh2xml.h"
 
-const std::map<std::string, uint32_t> devicePPKeyLUT {
-    {std::string{ "DEVICEPP_TX" }, DEVICEPP_TX},
-};
-
-const std::map<std::string, uint32_t> devicePPValueLUT {
-    {std::string{ "DEVICEPP_TX_FLUENCE_FFNS" }, DEVICEPP_TX_FLUENCE_FFNS},
-    {std::string{ "DEVICEPP_TX_FLUENCE_FFECNS" }, DEVICEPP_TX_FLUENCE_FFECNS},
-    {std::string{ "DEVICEPP_TX_RAW_LPI" }, DEVICEPP_TX_RAW_LPI},
-    {std::string{ "DEVICEPP_TX_RAW_NLPI" }, DEVICEPP_TX_RAW_NLPI},
-};
-
 CaptureProfile::CaptureProfile(const std::string name) :
     name_(name),
     device_id_(PAL_DEVICE_IN_MIN),
@@ -93,22 +82,12 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
         uint32_t key = 0, value = 0;
         while (attribs[i]) {
             if (!strcmp(attribs[i], "key")) {
-                auto keyItr = devicePPKeyLUT.find(attribs[++i]);
-                if (keyItr == devicePPKeyLUT.end()) {
-                    PAL_ERR(LOG_TAG, "could not find key %s in lookup table",
-                        attribs[i]);
-                } else {
-                    key = keyItr->second;
-                }
+                std::string tagkey(attribs[++i]);
+                key = ResourceManager::convertCharToHex(tagkey);
             } else if(!strcmp(attribs[i], "value")) {
-                auto valItr = devicePPValueLUT.find(attribs[++i]);
-                if (valItr == devicePPValueLUT.end()) {
-                    PAL_ERR(LOG_TAG, "could not find value %s in lookup table",
-                        attribs[i]);
-                } else {
-                    value = valItr->second;
-                }
-
+                std::string tagvalue(attribs[++i]);
+                value = ResourceManager::convertCharToHex(tagvalue);
+                PAL_DBG(LOG_TAG, "key = 0x%x, val 0x%x", key, value);
                 device_pp_kv_ = std::make_pair(key, value);
             }
             ++i; /* move to next attribute */
