@@ -514,6 +514,119 @@
                 </policies>
         </in_stream>
     </in_streams>
+    <acd_platform_info>
+        <common_config>
+            <param acd_enable="true" />
+            <param support_device_switch="true" />
+            <param lpi_enable="true" />
+            <param enable_debug_dumps="false" />
+            <param concurrent_capture="true" />
+            <param concurrent_voice_call="true" />
+            <param concurrent_voip_call="true" />
+            <param low_latency_bargein_enable="false" />
+        </common_config>
+        <capture_profile_list>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFECNS-->
+                    <kvpair key="0xAD000000" value="0xAD000001"/>
+                </devicePP-metadata>
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <devicePP-metadata>
+                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFECNS-->
+                    <kvpair key="0xAD000000" value="0xAD000001"/>
+                </devicePP-metadata>
+                <param snd_name="va-mic-mono" />
+            </capture_profile>
+        </capture_profile_list>
+        <stream_config>
+            <name>qc_acd</name>
+            <param vendor_uuid="4e93281b-296e-4d73-9833-2710c3c7c1db"/>
+            <!-- Profile specific data which the algorithm can support -->
+            <param sample_rate="16000" />
+            <param bit_width="16" />
+            <param out_channels="1"/> <!-- Module output channels -->
+            <streamConfig-metadata>
+                <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                <!-- key=STREAM_CONFIG value=STREAM_CFG_ACD_QC-->
+                <kvpair key="0xBC000000" value="0xBC000007"/> <!-- ACD QC Stream Config -->
+            </streamConfig-metadata>
+            <operating_modes>
+                <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI"/>
+                <high_performance capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+            </operating_modes>
+            <sound_models>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_EVENT</name>
+                    <bin>event.eai</bin>
+                    <uuid>0x0B001007</uuid>
+                    <contexts>
+                        <context id="0x0800132D"/> <!-- EVENT_ALARM -->
+                        <context id="0x0800132E"/> <!-- EVENT_BABYCRYING -->
+                        <context id="0x0800132F"/> <!-- EVENT_DOGBARKING -->
+                        <context id="0x08001330"/> <!-- EVENT_DOORBELL -->
+                        <context id="0x08001331"/> <!-- EVENT_DOORCLOSE -->
+                        <context id="0x08001332"/> <!-- EVENT_DOOROPEN -->
+                        <context id="0x08001333"/> <!-- EVENT_GLASSBREAKING -->
+                        <context id="0x08001334"/> <!-- EVENT_SIREN -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_SPEECH</name>
+                    <bin>speech.eai</bin>
+                    <uuid>0x0B001008</uuid>
+                    <contexts>
+                        <context id="0x08001335"/> <!-- AMBIENCE_SPEECH -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_MUSIC</name>
+                    <bin>music.eai</bin>
+                    <uuid>0x0B001009</uuid>
+                    <contexts>
+                        <context id="0x08001336"/> <!-- AMBIENCE_MUSIC -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_AMBIENCE_NOISE_SILENCE</name>
+                    <bin></bin> <!-- Following contexts dont have a model, hence empty bin -->
+                    <uuid>0xFFFFFFFF</uuid> <!-- Indicates no sound model -->
+                    <contexts>
+                        <context id="0x08001337"/> <!-- AMBIENCE_NOISY_SPL -->
+                        <context id="0x08001338"/> <!-- AMBIENCE_SILENT_SPL -->
+                        <context id="0x08001339"/> <!-- AMBIENCE_NOISY_SFLUX -->
+                        <context id="0x0800133A"/> <!-- AMBIENCE_SILENT_SFLUX -->
+                    </contexts>
+                </model>
+            </sound_models>
+        </stream_config>
+    </acd_platform_info>
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
