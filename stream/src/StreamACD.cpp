@@ -404,14 +404,80 @@ exit:
     return status;
 }
 
+void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *payload)
+{
+    struct pal_st_recognition_event *recognition_event = NULL;
+    struct st_param_header *st_header = NULL;
+    int offset = 0;
+    int data_size = sizeof(struct st_param_header) +
+                    sizeof(struct acd_context_event) +
+                    (event->num_contexts * sizeof(struct acd_per_context_event_info));
+
+    recognition_event = (struct pal_st_recognition_event *) payload;
+    recognition_event->status = PAL_RECOGNITION_STATUS_SUCCESS;
+    recognition_event->type = PAL_SOUND_MODEL_TYPE_GENERIC;
+    recognition_event->st_handle = (pal_st_handle_t *)this;
+    recognition_event->data_size = data_size;
+    recognition_event->data_offset = sizeof(struct pal_st_recognition_event);
+    recognition_event->media_config.bit_width = BITWIDTH_16;
+    recognition_event->media_config.ch_info.channels = CHANNELS_1;
+    recognition_event->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+
+    st_header = (struct st_param_header *)((uint8_t *)payload + sizeof(struct pal_st_recognition_event));
+    st_header->key_id = ST_PARAM_KEY_CONTEXT_EVENT_INFO;
+    st_header->payload_size = recognition_event->data_size - sizeof(struct st_param_header);
+
+    offset = sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header);
+    memcpy((uint8_t *)payload + offset, event, st_header->payload_size);
+}
+
+void StreamACD::CacheEventData(struct acd_context_event *event)
+{
+    size_t new_event_size = sizeof(struct pal_st_recognition_event) +
+                            sizeof(st_param_header) +
+                            sizeof(struct acd_context_event) +
+                            (event->num_contexts * sizeof(struct acd_per_context_event_info));
+    struct acd_context_event *current_context_event;
+    uint8_t *event_data = NULL;
+    struct acd_per_context_event_info *per_context_info;
+    int offset = 0;
+
+    if (cached_event_data_) {
+        offset = cached_event_data_->data_offset + sizeof(st_param_header);
+        current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
+        new_event_size +=  current_context_event->num_contexts * sizeof(struct acd_per_context_event_info);
+
+        cached_event_data_ = (struct pal_st_recognition_event *)realloc(cached_event_data_, new_event_size);
+        current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
+        cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
+        per_context_info = (struct acd_per_context_event_info *) ((uint8_t *) current_context_event +
+                            sizeof(struct acd_context_event) +
+                            (current_context_event->num_contexts * sizeof(struct acd_per_context_event_info)));
+        event_data = (uint8_t *)event + sizeof(struct acd_context_event);
+        for (int i = 0; i < event->num_contexts; i++) {
+            memcpy(per_context_info, event_data, sizeof(struct acd_per_context_event_info));
+            event_data += sizeof(struct acd_per_context_event_info);
+        }
+        current_context_event->num_contexts += event->num_contexts;
+    } else {
+        cached_event_data_ = (struct pal_st_recognition_event *) calloc(1, new_event_size);
+        PopulateCallbackPayload(event, cached_event_data_);
+    }
+}
+
+void StreamACD::SendCachedEventData()
+{
+    size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
+    callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
+                  event_size, cookie_);
+}
 void StreamACD::NotifyClient(struct acd_context_event *event)
 {
     uint8_t *event_data = NULL;
     int offset = 0;
     struct pal_st_recognition_event *recognition_event = NULL;
-    struct st_param_header *st_header = NULL;
     size_t event_size = sizeof(struct pal_st_recognition_event) +
-                        sizeof(st_param_header) +
+                        sizeof(struct st_param_header) +
                         sizeof(struct acd_context_event) +
                         (event->num_contexts * sizeof(struct acd_per_context_event_info));
 
@@ -419,22 +485,7 @@ void StreamACD::NotifyClient(struct acd_context_event *event)
 
     if (callback_) {
         PAL_INFO(LOG_TAG, "Notify detection event to client");
-        recognition_event = (struct pal_st_recognition_event *) event_data;
-        recognition_event->status = PAL_RECOGNITION_STATUS_SUCCESS;
-        recognition_event->type = PAL_SOUND_MODEL_TYPE_GENERIC;
-        recognition_event->st_handle = (pal_st_handle_t *)this;
-        recognition_event->data_size = event_size - sizeof(struct pal_st_recognition_event);
-        recognition_event->data_offset = sizeof(struct pal_st_recognition_event);
-        recognition_event->media_config.bit_width = BITWIDTH_16;
-        recognition_event->media_config.ch_info.channels = CHANNELS_1;
-        recognition_event->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
-
-        st_header = (struct st_param_header *)(event_data + sizeof(struct pal_st_recognition_event));
-        st_header->key_id = ST_PARAM_KEY_CONTEXT_EVENT_INFO;
-        st_header->payload_size = recognition_event->data_size - sizeof(st_param_header);
-
-        offset = sizeof(struct pal_st_recognition_event) + sizeof(st_param_header);
-        memcpy(event_data + offset, event, st_header->payload_size);
+        PopulateCallbackPayload(event, event_data);
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)event_data,
                   event_size, cookie_);
     }
@@ -1313,6 +1364,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (curr_device_id != device_id) {
                 PAL_ERR(LOG_TAG, "Error:%d Device %d not connected, ignore",
                     -EINVAL, device_id);
+                if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                    TransitTo(ACD_STATE_DETECTED);
+                    acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+                }
                 break;
             }
             auto& dev = acd_stream_.mDevices[0];
@@ -1335,6 +1390,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
         disconnect_err:
             acd_stream_.mDevices.clear();
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            }
             break;
         }
         case ACD_EV_DEVICE_CONNECTED: {
@@ -1387,6 +1446,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             acd_stream_.mDevices.push_back(dev);
 
         connect_err:
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            }
             break;
         }
         case ACD_EV_RECOGNITION_CONFIG: {
@@ -1397,6 +1460,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Error:%d Failed to send recog config", status);
 
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            }
             break;
         }
         case ACD_EV_CONTEXT_CONFIG: {
@@ -1406,6 +1473,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                (struct pal_param_context_list *)data->data_);
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Error:%d Failed to send context config", status);
+
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            }
             break;
         }
         case ACD_EV_EC_REF: {
@@ -1416,6 +1488,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 data->is_enable_);
             if (status) {
                 PAL_ERR(LOG_TAG, "Error:%d Failed to set EC Ref in engine", status);
+            }
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
             }
             break;
         }
@@ -1479,10 +1555,37 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
     PAL_DBG(LOG_TAG, "ACDDetected: handle event %d for stream instance %u",
         ev_cfg->id_, acd_stream_.mInstanceID);
 
-    TransitTo(ACD_STATE_ACTIVE);
-    status = acd_stream_.ProcessInternalEvent(ev_cfg);
-    if (status)
-        PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
+    switch (ev_cfg->id_) {
+        case ACD_EV_DETECTED: {
+            ACDDetectedEventConfigData *data =
+                (ACDDetectedEventConfigData *) ev_cfg->data_.get();
+            acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
+            break;
+        }
+        case ACD_EV_START_RECOGNITION: {
+            /* notify client if events are present , else move to active */
+            if (acd_stream_.cached_event_data_)
+                acd_stream_.SendCachedEventData();
+            else
+                TransitTo(ACD_STATE_ACTIVE);
+
+            break;
+        }
+        case ACD_EV_RECOGNITION_CONFIG:
+        case ACD_EV_CONTEXT_CONFIG:
+        case ACD_EV_EC_REF:
+        case ACD_EV_DEVICE_DISCONNECTED:
+        case ACD_EV_DEVICE_CONNECTED:
+            acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
+        default: {
+            TransitTo(ACD_STATE_ACTIVE);
+            status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
+
+            break;
+        }
+    }
 
     return status;
 }
