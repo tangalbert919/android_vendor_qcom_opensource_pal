@@ -459,13 +459,16 @@ void ACDEngine::UpdateModelCount(struct pal_param_context_list *context_cfg, boo
     for (model_id = 0; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
         if (model_to_update[model_id] == true) {
             if (enable) {
-                if (++model_count_[model_id] == 1)
+                if (++model_count_[model_id] == 1) {
                     model_load_needed_[model_id] = true;
+                }
             } else {
-                if (--model_count_[model_id] == 0)
-                   model_unload_needed_[model_id] = true;
+                if (--model_count_[model_id] == 0) {
+                    model_unload_needed_[model_id] = true;
+                }
             }
         }
+        PAL_DBG(LOG_TAG, "model_count for %d, after = %d", model_id, model_count_[model_id]);
     }
 }
 
@@ -642,9 +645,12 @@ int32_t ACDEngine::UnloadSoundModel()
     for (model_id = 0; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
         if (model_unload_needed_[model_id]) {
             /* Ignore if same model is supposed to be loaded again */
+            PAL_DBG(LOG_TAG, "Model unload needed for %d, model_load_needed = %d",
+                     model_id, model_load_needed_[model_id]);
             if (model_load_needed_[model_id])
                 continue;
 
+            PAL_INFO(LOG_TAG, "Unloading model %d", model_id);
             deregister_config.model_id = model_id;
             status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
                                  sizeof(deregister_config));
@@ -713,9 +719,12 @@ int32_t ACDEngine::LoadSoundModel()
     for (model_id  = ACD_SOUND_MODEL_ID_ENV; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
         if (model_load_needed_[model_id]) {
             /* Ignore is same model is already loaded */
+            PAL_DBG(LOG_TAG, "Model load needed for %d, model_unload_needed = %d",
+                     model_id, model_unload_needed_[model_id]);
             if (model_unload_needed_[model_id])
                 continue;
 
+            PAL_INFO(LOG_TAG, "Loading model %d", model_id);
             sm_info = sm_cfg_->GetSoundModelInfoByModelId(model_id);
             bin_name = sm_info->GetModelBinName();
             if (!bin_name.empty()) {
