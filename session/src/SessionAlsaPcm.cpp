@@ -595,24 +595,16 @@ int SessionAlsaPcm::start(Stream * s)
 
         if (sAttr.direction == PAL_AUDIO_INPUT) {
             config.rate = sAttr.in_media_config.sample_rate;
-            if (sAttr.in_media_config.bit_width == 32)
-                config.format = PCM_FORMAT_S32_LE;
-            else if (sAttr.in_media_config.bit_width == 24)
-                config.format = PCM_FORMAT_S24_3LE;
-            else if (sAttr.in_media_config.bit_width == 16)
-                config.format = PCM_FORMAT_S16_LE;
+            config.format =
+                   SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
             config.channels = sAttr.in_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                 config.channels, config.format);
             config.period_count = in_buf_count;
         } else {
             config.rate = sAttr.out_media_config.sample_rate;
-            if (sAttr.out_media_config.bit_width == 32)
-                config.format = PCM_FORMAT_S32_LE;
-            else if (sAttr.out_media_config.bit_width == 24)
-                config.format = PCM_FORMAT_S24_3LE;
-            else if (sAttr.out_media_config.bit_width == 16)
-                config.format = PCM_FORMAT_S16_LE;
+            config.format =
+                   SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.out_media_config.aud_fmt_id);
             config.channels = sAttr.out_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                 config.channels, config.format);
@@ -771,7 +763,10 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_ERR(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                 }
 
-                streamData.bitWidth = sAttr.in_media_config.bit_width;
+                if (isPalPCMFormat(sAttr.in_media_config.aud_fmt_id))
+                    streamData.bitWidth = palFormatToBitwidthTable[sAttr.in_media_config.aud_fmt_id];
+                else
+                    streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
                 streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
@@ -806,7 +801,7 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                     codecConfig.bit_width = sAttr.in_media_config.bit_width;
                     codecConfig.sample_rate = sAttr.in_media_config.sample_rate;
-                    codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                    codecConfig.aud_fmt_id =  sAttr.in_media_config.aud_fmt_id;
                     codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize) {
@@ -871,7 +866,7 @@ int SessionAlsaPcm::start(Stream * s)
                 PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                 codecConfig.bit_width = sAttr.out_media_config.bit_width;
                 codecConfig.sample_rate = sAttr.out_media_config.sample_rate;
-                codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                codecConfig.aud_fmt_id = sAttr.out_media_config.aud_fmt_id;
                 codecConfig.ch_info.channels = sAttr.out_media_config.ch_info.channels;
                 builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                 if (payloadSize) {
@@ -2089,12 +2084,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             case PAL_AUDIO_INPUT:
                 pcm_flags = PCM_IN | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC;
                 config.rate = sAttr.in_media_config.sample_rate;
-                if (sAttr.in_media_config.bit_width == 32)
-                    config.format = PCM_FORMAT_S32_LE;
-                else if (sAttr.in_media_config.bit_width == 24)
-                    config.format = PCM_FORMAT_S24_3LE;
-                else if (sAttr.in_media_config.bit_width == 16)
-                    config.format = PCM_FORMAT_S16_LE;
+                config.format =
+                    SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
                 config.channels = sAttr.in_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                     config.channels, config.format);
@@ -2108,12 +2099,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             case PAL_AUDIO_OUTPUT:
                 pcm_flags = PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC;
                 config.rate = sAttr.out_media_config.sample_rate;
-                if (sAttr.out_media_config.bit_width == 32)
-                    config.format = PCM_FORMAT_S32_LE;
-                else if (sAttr.out_media_config.bit_width == 24)
-                    config.format = PCM_FORMAT_S24_3LE;
-                else if (sAttr.out_media_config.bit_width == 16)
-                    config.format = PCM_FORMAT_S16_LE;
+                config.format =
+                    SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.out_media_config.aud_fmt_id);
                 config.channels = sAttr.out_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                     config.channels, config.format);
@@ -2297,12 +2284,8 @@ int SessionAlsaPcm::openGraph(Stream *s) {
         memset(&config, 0, sizeof(config));
 
         config.rate = sAttr.in_media_config.sample_rate;
-        if (sAttr.in_media_config.bit_width == 32)
-            config.format = PCM_FORMAT_S32_LE;
-        else if (sAttr.in_media_config.bit_width == 24)
-            config.format = PCM_FORMAT_S24_3LE;
-        else if (sAttr.in_media_config.bit_width == 16)
-            config.format = PCM_FORMAT_S16_LE;
+        config.format =
+            SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
         config.channels = sAttr.in_media_config.ch_info.channels;
         config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
             config.channels, config.format);

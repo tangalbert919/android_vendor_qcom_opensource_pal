@@ -1308,15 +1308,10 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             }
             keyVector.push_back(std::make_pair(INSTANCE, instance_id));
 
-            if (sattr->out_media_config.aud_fmt_id != PAL_AUDIO_FMT_DEFAULT_PCM)
-                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
-            else if (sattr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_DEFAULT_PCM)
+            if (isPalPCMFormat(sattr->out_media_config.aud_fmt_id))
                 keyVector.push_back(std::make_pair(STREAM, NT_ENCODE));
-            else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid format %d on write path", sattr->out_media_config.aud_fmt_id);
-                goto free_sattr;
-            }
+            else
+                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
             break;
         case PAL_STREAM_PCM_OFFLOAD:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {

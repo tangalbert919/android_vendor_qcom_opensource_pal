@@ -72,7 +72,7 @@ private:
     int fileWrite(Stream *s, int tag, struct pal_buffer *buf, int * size, int flag);
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
-    int getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width);
+    int getAgmCodecId(pal_audio_fmt_t fmt);
     struct agm_session_config *sess_config;
     struct agm_media_config *in_media_cfg, *out_media_cfg;
     struct agm_buffer_config in_buff_cfg {0,0,0}, out_buff_cfg = in_buff_cfg;

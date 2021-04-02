@@ -139,7 +139,7 @@ done:
     return;
 }
 
-int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width)
+int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt)
 {
     int id = -1;
 
@@ -174,23 +174,20 @@ int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width)
         case PAL_AUDIO_FMT_WMA_STD:
             id = AGM_FORMAT_WMASTD;
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
-            switch (bit_width) {
-                 case 8:
-                      id = AGM_FORMAT_PCM_S8;
-                      break;
-                 case 16:
-                      id = AGM_FORMAT_PCM_S16_LE;
-                      break;
-                 case 24:
-                      id = AGM_FORMAT_PCM_S24_3LE;
-                      break;
-                 case 32:
-                      id = AGM_FORMAT_PCM_S32_LE;
-                      break;
-                 default:
-                      id = AGM_FORMAT_PCM_S16_LE;
-            }
+        case PAL_AUDIO_FMT_PCM_S8:
+            id = AGM_FORMAT_PCM_S8;
+            break;
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+            id = AGM_FORMAT_PCM_S16_LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+            id = AGM_FORMAT_PCM_S24_LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+            id = AGM_FORMAT_PCM_S24_3LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+            id = AGM_FORMAT_PCM_S32_LE;
             break;
         case PAL_AUDIO_FMT_ALAC:
             id = AGM_FORMAT_ALAC;
@@ -332,14 +329,12 @@ int SessionAgm::open(Stream * strm)
     //read path media config
     in_media_cfg->rate = sAttr.in_media_config.sample_rate;
     in_media_cfg->channels = sAttr.in_media_config.ch_info.channels;
-    in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id,
-                                        sAttr.in_media_config.bit_width);
+    in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id);
 
     //write path media config
     out_media_cfg->rate = sAttr.out_media_config.sample_rate;
     out_media_cfg->channels = sAttr.out_media_config.ch_info.channels;
-    out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id,
-                                        sAttr.in_media_config.bit_width);
+    out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id);
 
     status = agm_session_set_non_tunnel_mode_config(agmSessHandle, sess_config,
                                                     in_media_cfg, out_media_cfg,
