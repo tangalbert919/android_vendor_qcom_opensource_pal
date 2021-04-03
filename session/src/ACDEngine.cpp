@@ -438,11 +438,17 @@ void ACDEngine::UpdateModelCount(struct pal_param_context_list *context_cfg, boo
     std::shared_ptr<ACDSoundModelInfo> sm_info;
     bool model_to_update[ACD_SOUND_MODEL_ID_MAX];
 
-    /* Step 1 . Initialize all to false */
+    /* Step 1 . Initialize appropriate arrays to false
+     *          When we call this back-to-back in ReconfigureEngine we must preserve the
+     *          list of models to deregister.
+     */
     for (model_id = 0; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
         model_to_update[model_id] = false;
-        model_load_needed_[model_id] = false;
-        model_unload_needed_[model_id] = false;
+        if (enable) {
+            model_load_needed_[model_id] = false;
+        } else {
+            model_unload_needed_[model_id] = false;
+        }
     }
 
     /* Step 2. Update model_to_update based on model associated with context id */
@@ -651,9 +657,10 @@ int32_t ACDEngine::UnloadSoundModel()
                 continue;
 
             PAL_INFO(LOG_TAG, "Unloading model %d", model_id);
-            deregister_config.model_id = model_id;
+            deregister_config.model_id = sm_cfg_->GetSoundModelInfoByModelId(model_id)->GetModelUUID();
             status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
                                  sizeof(deregister_config));
+            model_unload_needed_[model_id] = false;
         }
     }
     return status;
@@ -731,6 +738,7 @@ int32_t ACDEngine::LoadSoundModel()
                 uuid = sm_info->GetModelUUID();
                 status = PopulateSoundModel(bin_name, uuid);
             }
+            model_load_needed_[model_id] = false;
         }
     }
     return status;
