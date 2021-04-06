@@ -4802,7 +4802,6 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
     int status = 0;
 
     PAL_INFO(LOG_TAG, "param_id=%d", param_id);
-    mResourceManagerMutex.lock();
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
         {
@@ -4822,8 +4821,6 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
     }
-
-    mResourceManagerMutex.unlock();
 
     return status;
 }
@@ -5272,7 +5269,6 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
     PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
-    mResourceManagerMutex.lock();
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
         {
@@ -5297,7 +5293,6 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             break;
     }
 
-    mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit status: %d",status);
     return status;
 }
