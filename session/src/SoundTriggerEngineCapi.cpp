@@ -784,15 +784,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         detection_state_ =  USER_VERIFICATION_PENDING;
     }
 
-    buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
-
-    if (!buffer_thread_handler_.joinable()) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
-        return status;
-    }
-
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -812,6 +803,7 @@ int32_t SoundTriggerEngineCapi::StopSoundEngine()
         cv_.notify_one();
     }
     if (buffer_thread_handler_.joinable()) {
+        PAL_DBG(LOG_TAG, "Thread joined");
         buffer_thread_handler_.join();
     }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -868,6 +860,15 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         goto exit;
     }
 
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineCapi::BufferThreadLoop, this);
+
+    if (!buffer_thread_handler_.joinable()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to create buffer thread = %d", status);
+        goto exit;
+    }
+
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -885,7 +886,16 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
         PAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
             status);
         status = -EINVAL;
+        goto exit;
     }
+
+    status = StopSoundEngine();
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
+    }
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }
@@ -941,11 +951,6 @@ int32_t SoundTriggerEngineCapi::StopRecognition(Stream *s __unused)
         reader_->reset();
     } else {
         status = -EINVAL;
-        goto exit;
-    }
-    status = StopSoundEngine();
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
         goto exit;
     }
 

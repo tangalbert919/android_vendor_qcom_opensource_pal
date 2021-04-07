@@ -737,6 +737,7 @@ struct detection_event_info* StreamSoundTrigger::GetDetectionEventInfo() {
 
 int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
+    bool lock_status = false;
 
     PAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
     if (!(det_type & DETECTION_TYPE_ALL)) {
@@ -744,9 +745,25 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
         return -EINVAL;
     }
 
-    // Lock stream when first stage detected
+    /*
+     * setEngineDetectionState should only be called when stream
+     * is in ACTIVE state(for first stage) or in BUFFERING state
+     * (for second stage)
+     */
+    do {
+        lock_status = mStreamMutex.try_lock();
+    } while (!lock_status && (GetCurrentStateId() == ST_STATE_ACTIVE ||
+        GetCurrentStateId() == ST_STATE_BUFFERING));
+
+    if (GetCurrentStateId() != ST_STATE_ACTIVE &&
+        GetCurrentStateId() != ST_STATE_BUFFERING) {
+        if (lock_status)
+            mStreamMutex.unlock();
+        PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
+        return status;
+    }
+
     if (det_type == GMM_DETECTED) {
-        mStreamMutex.lock();
         rm->acquireWakeLock();
         reader_->updateState(READER_ENABLED);
     }
@@ -756,11 +773,12 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     status = cur_state_->ProcessEvent(ev_cfg);
 
     /*
-     * Unlock stream when second stage detection result
-     * comes or no second stage detection required
+     * mStreamMutex may get unlocked in handling detection event
+     * and not locked back when stream gets stopped/unloaded, check
+     * stream state here to avoid mStreamMutex unlock twice.
      */
-    if (engines_.size() == 1 ||
-        det_type & DETECTION_TYPE_SS) {
+    if (GetCurrentStateId() == ST_STATE_DETECTED ||
+        GetCurrentStateId() == ST_STATE_BUFFERING) {
         mStreamMutex.unlock();
     }
 
@@ -1626,6 +1644,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     uint32_t event_size;
     std::chrono::time_point<std::chrono::steady_clock> notify_time;
     uint64_t total_process_duration = 0;
+    bool lock_status = false;
 
     status = GenerateCallbackEvent(&rec_event, &event_size,
                                                 detection);
@@ -1644,7 +1663,29 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
                   event_size, (uint64_t)rec_config_->cookie);
-        mStreamMutex.lock();
+
+        /*
+         * client may call unload when we are doing callback with mutex
+         * unlocked, which will be blocked in second stage thread exiting
+         * as it needs notifyClient to finish. Try lock mutex and check
+         * stream states when try lock fails so that we can skip lock
+         * when stream is already stopped by client.
+         */
+        do {
+            lock_status = mStreamMutex.try_lock();
+        } while (!lock_status && (GetCurrentStateId() == ST_STATE_DETECTED ||
+            GetCurrentStateId() == ST_STATE_BUFFERING));
+
+        /*
+         * NOTE: Not unlock stream mutex here if mutex is locked successfully
+         * in above loop to make stream mutex lock/unlock consistent in vairous
+         * cases for calling SetEngineDetectionState(caller of notifyClient).
+         * This is because SetEngineDetectionState may also be called by
+         * gsl engine to notify GMM detected with second stage enabled, and in
+         * this case notifyClient is not called, so we need to unlock stream
+         * mutex at end of SetEngineDetectionState, that's why we don't need
+         * to unlock stream mutex here.
+         */
     }
 
     free(rec_event);

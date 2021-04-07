@@ -53,6 +53,7 @@ typedef enum {
     ENG_LOADED,
     ENG_ACTIVE,
     ENG_BUFFERING,
+    ENG_DETECTED,
 } eng_state_t;
 
 class Session;

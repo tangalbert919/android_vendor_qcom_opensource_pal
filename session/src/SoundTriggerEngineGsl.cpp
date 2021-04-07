@@ -74,6 +74,12 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             break;
         }
 
+        // skip detection handling if it is stopped/restarted
+        if (gsl_engine->eng_state_ != ENG_DETECTED) {
+            PAL_DBG(LOG_TAG, "Engine stopped/restarted after notification");
+            continue;
+        }
+
         if (!IS_MODULE_TYPE_PDK(gsl_engine->module_type_)) {
             StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
                                      (gsl_engine->GetDetectedStream());
@@ -2396,6 +2402,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
     PAL_INFO(LOG_TAG, "singal event processing thread");
     ATRACE_BEGIN("stEngine: keyword detected");
     ATRACE_END();
+    eng_state_ = ENG_DETECTED;
     cv_.notify_one();
 }
 
