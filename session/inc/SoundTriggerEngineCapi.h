@@ -90,7 +90,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
         bool is_enable __unused) { return 0; }
     int32_t GetDetectedConfScore() { return det_conf_score_; }
     int32_t GetDetectionState() { return detection_state_; }
-    std::chrono::time_point<std::chrono::steady_clock> GetDetectedTime() {
+    ChronoSteadyClock_t GetDetectedTime() {
         return std::chrono::steady_clock::time_point::min();
     }
 

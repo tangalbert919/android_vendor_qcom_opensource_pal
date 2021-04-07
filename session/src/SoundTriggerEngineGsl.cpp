@@ -171,8 +171,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     StreamSoundTrigger *st = (StreamSoundTrigger *)s;
     struct pal_mmap_position mmap_pos;
     FILE *dsp_output_fd = nullptr;
-    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_begin;
-    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_end;
+    ChronoSteadyClock_t kw_transfer_begin;
+    ChronoSteadyClock_t kw_transfer_end;
 
     PAL_DBG(LOG_TAG, "Enter");
     s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);

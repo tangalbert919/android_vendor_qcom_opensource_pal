@@ -139,6 +139,7 @@ class ACDPlatformInfo : public SoundTriggerXml {
 
     static std::shared_ptr<ACDPlatformInfo> GetInstance();
     bool GetSupportDevSwitch() const;
+    bool GetSupportNLPISwitch() const;
     bool GetDedicatedSvaPath() const;
     bool GetDedicatedHeadsetPath() const;
     bool GetLpiEnable() const;
@@ -156,6 +157,7 @@ class ACDPlatformInfo : public SoundTriggerXml {
     static std::shared_ptr<ACDPlatformInfo> me_;
     bool acd_enable_;
     bool support_device_switch_;
+    bool support_nlpi_switch_;
     bool dedicated_sva_path_;
     bool dedicated_headset_path_;
     bool lpi_enable_;
