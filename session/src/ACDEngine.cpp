@@ -601,6 +601,135 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
     }
 }
 
+void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *recog_cfg)
+{
+    std::map<Stream *, struct stream_context_info *> *stream_ctx_data;
+    uint32_t context_id;
+    int i, num_contexts;
+    struct acd_per_context_cfg *context_cfg = NULL;
+    struct stream_context_info *context_info = NULL, *per_stream_context_info = NULL;
+    uint8_t *opaque_data = (uint8_t *)recog_cfg;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    num_contexts = recog_cfg->num_contexts;
+    context_cfg = (struct acd_per_context_cfg *)(opaque_data + sizeof(struct acd_recognition_cfg));
+
+    /* 1. Add/Update existing context id threshold values and
+     *    delete stream entries with older context id
+     */
+    for (auto iter1 = contextinfo_stream_map_.begin();
+              iter1 != contextinfo_stream_map_.end();) {
+        bool found = false;
+        struct stream_context_info *context_info = NULL;
+
+        context_id = iter1->first;
+        stream_ctx_data = iter1->second;
+
+        iter1++;
+        /* For each context id, find context data associated with stream s,
+         * add/update threshold value and step size.
+         */
+        auto iter2 = stream_ctx_data->find(s);
+
+        for (i = 0; i < num_contexts; i++) {
+            if (context_id == context_cfg[i].context_id) {
+                if (iter2 == stream_ctx_data->end())
+                    context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+                else
+                    context_info = iter2->second;
+
+                context_info->threshold = context_cfg[i].threshold;
+                context_info->step_size = context_cfg[i].step_size;
+
+                if (iter2 == stream_ctx_data->end())
+                    stream_ctx_data->insert(std::make_pair(s, context_info));
+
+                found = true;
+                PAL_INFO(LOG_TAG, "Added/Updated Context id 0x%x, Threshold %d, step_size %d",
+                                   context_id, context_info->threshold, context_info->step_size);
+            }
+        }
+        /* Delete entry associated with stream s, if new config does not have context_id */
+        if (found == false) {
+            stream_ctx_data->erase(s);
+            if (stream_ctx_data->size() == 0)
+                 contextinfo_stream_map_.erase(context_id);
+        }
+    }
+
+    /* Add new entries to contextinfo_stream_map_ */
+    for (i = 0; i < num_contexts; i++) {
+        std::map<Stream *, struct stream_context_info *> *stream_ctx_data;
+
+        /* Update contextinfo per stream */
+        auto iter1 = contextinfo_stream_map_.find(context_cfg[i].context_id);
+        if (iter1 == contextinfo_stream_map_.end()) {
+            // if entry is not found, create entry and insert it to map
+            stream_ctx_data = new std::map<Stream *, struct stream_context_info *>;
+            context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+
+            context_info->threshold = context_cfg[i].threshold;
+            context_info->step_size = context_cfg[i].step_size;
+            stream_ctx_data->insert(std::make_pair(s, context_info));
+            contextinfo_stream_map_.insert(std::make_pair(context_cfg[i].context_id,
+                stream_ctx_data));
+            PAL_INFO(LOG_TAG, "Added Context id 0x%x, Threshold %d, step_size %d",
+                         context_cfg[i].context_id, context_info->threshold, context_info->step_size);
+        }
+    }
+
+    for (auto iter1 = cumulative_contextinfo_map_.begin();
+              iter1 != cumulative_contextinfo_map_.end();) {
+        context_id = iter1->first;
+        context_info = iter1->second;
+
+        iter1++;
+        auto iter2 = contextinfo_stream_map_.find(context_id);
+        if (iter2 == contextinfo_stream_map_.end()) {
+            cumulative_contextinfo_map_.erase(context_id);
+            PAL_INFO(LOG_TAG, "Removed context id 0x%x from cumulative contextinfo map", context_id);
+            is_confidence_value_updated_ = true;
+        }
+     }
+
+    for (auto iter1 = contextinfo_stream_map_.begin();
+              iter1 != contextinfo_stream_map_.end(); ++iter1) {
+        context_id = iter1->first;
+        stream_ctx_data = iter1->second;
+        /* update/add cumulative contextinfo per context id */
+        for (auto iter2 = stream_ctx_data->begin();
+                 iter2 != stream_ctx_data->end(); ++iter2) {
+            per_stream_context_info = iter2->second;
+            auto iter3 = cumulative_contextinfo_map_.find(context_id);
+            if (iter3 != cumulative_contextinfo_map_.end()) {
+                context_info = iter3->second;
+
+                if (per_stream_context_info->threshold < context_info->threshold) {
+                    PAL_INFO(LOG_TAG, "Updated threshold value for context id 0x%x, old = %d, new = %d",
+                            context_info->threshold, per_stream_context_info->threshold);
+                    context_info->threshold = per_stream_context_info->threshold;
+                    is_confidence_value_updated_ = true;
+                }
+                if (per_stream_context_info->step_size < context_info->step_size) {
+                    PAL_INFO(LOG_TAG, "Updated step_size for context id 0x%x, old = %d, new = %d",
+                            context_info->step_size, per_stream_context_info->step_size);
+                    context_info->step_size = per_stream_context_info->step_size;
+                    is_confidence_value_updated_ = true;
+                }
+            } else {
+                context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+                context_info->threshold = context_cfg[i].threshold;
+                context_info->step_size = context_cfg[i].step_size;
+                cumulative_contextinfo_map_.insert(std::make_pair(context_cfg[i].context_id,
+                    context_info));
+                PAL_INFO(LOG_TAG, "Added context id 0x%x from cumulative contextinfo map", context_id);
+                is_confidence_value_updated_ = true;
+            }
+        }
+    }
+    PAL_INFO(LOG_TAG, "Exit, is_confidence_value_updated = %d", is_confidence_value_updated_);
+}
+
 bool ACDEngine::IsModelBinAvailable(uint32_t model_id)
 {
     std::shared_ptr<ACDSoundModelInfo> sm_info = NULL;
@@ -709,6 +838,8 @@ int32_t ACDEngine::PopulateEventPayload()
         context_cfg->context_id = iter1->first;
         context_cfg->threshold = context_info->threshold;
         context_cfg->step_size = context_info->step_size;
+        PAL_INFO(LOG_TAG, "Registering event for context id 0x%x, threshold %d, step_size %d",
+                     context_cfg->context_id, context_cfg->threshold, context_cfg->step_size);
         offset += sizeof(struct acd_per_context_cfg);
     }
     session_->setEventPayload(EVENT_ID_ACD_DETECTION_EVENT, (void *)event_payload, event_payload_size);
@@ -862,10 +993,8 @@ int32_t ACDEngine::ReconfigureEngine(Stream *st, void *old_cfg, void *new_cfg)
     UpdateModelCount((struct pal_param_context_list *)new_cfg, true);
 
     recog_cfg = s->GetRecognitionConfig();
-    if (recog_cfg) {
-        RemoveEventInfoForStream(s);
-        AddEventInfoForStream(s, recog_cfg);
-    }
+    if (recog_cfg)
+        UpdateEventInfoForStream(s, recog_cfg);
 
     if (IsModelLoadNeeded() || IsModelUnloadNeeded() || is_confidence_value_updated_) {
         lck.unlock();
