@@ -82,20 +82,25 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     currentState = STREAM_IDLE;
 
     // Setting default volume to unity
-    mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
-                          +sizeof(struct pal_channel_vol_kv));
+    mVolumeData = (struct pal_volume_data *)calloc(1, sizeof(struct pal_volume_data)
+                          + sizeof(struct pal_channel_vol_kv));
+    if (!mVolumeData) {
+        PAL_ERR(LOG_TAG, "malloc for volume data failed");
+        mStreamMutex.unlock();
+        throw std::runtime_error("failed to malloc for volume data");
+    }
     mVolumeData->no_of_volpair = 1;
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;
 
-    mStreamAttr = (struct pal_stream_attributes *) calloc(1, sizeof(struct pal_stream_attributes));
+    mStreamAttr = (struct pal_stream_attributes *)calloc(1, sizeof(struct pal_stream_attributes));
     if (!mStreamAttr) {
-        PAL_ERR(LOG_TAG,"malloc for stream attributes failed");
+        PAL_ERR(LOG_TAG, "malloc for stream attributes failed");
         mStreamMutex.unlock();
         throw std::runtime_error("failed to malloc for stream attributes");
     }
     ar_mem_cpy(mStreamAttr, sizeof(pal_stream_attributes), sattr, sizeof(pal_stream_attributes));
-    PAL_VERBOSE(LOG_TAG,"Create new compress session");
+    PAL_VERBOSE(LOG_TAG, "Create new compress session");
 
     session = Session::makeSession(rm, sattr);
     if (session == NULL){
@@ -523,30 +528,35 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
     return status;
 }
 
-int32_t  StreamCompress::setVolume(struct pal_volume_data *volume)
+int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, session handle - %p", session);
     if (!volume|| volume->no_of_volpair == 0) {
-       PAL_ERR(LOG_TAG,"Invalid arguments");
+       PAL_ERR(LOG_TAG, "Invalid arguments");
        status = -EINVAL;
        goto exit;
     }
 
-    if(mVolumeData) {
-        //if mVolumeDate is already allocated- free it before updating
+    if (mVolumeData) {
+        // if mVolumeDate is already allocated, free it before updating
         free(mVolumeData);
         mVolumeData = (struct pal_volume_data *)NULL;
     }
 
     mVolumeData = (struct pal_volume_data *)calloc(1, sizeof(struct pal_volume_data) +
                  (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
+    if (!mVolumeData) {
+       PAL_ERR(LOG_TAG, "failed to calloc for volume data");
+       status = -ENOMEM;
+       goto exit;
+    }
 
-    memcpy (mVolumeData, volume, (sizeof(struct pal_volume_data) +
+    memcpy(mVolumeData, volume, (sizeof(struct pal_volume_data) +
              (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
     for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
-       PAL_VERBOSE(LOG_TAG,"Volume payload mask:%x vol:%f\n",
+       PAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
     /* Allow caching of stream volume as part of mVolumeData
@@ -557,11 +567,11 @@ int32_t  StreamCompress::setVolume(struct pal_volume_data *volume)
         && currentState != STREAM_INIT) {
         status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         if (0 != status) {
-           PAL_ERR(LOG_TAG,"session setConfig for VOLUME_TAG failed with status %d",status);
+           PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",status);
            goto exit;
         }
     }
-    PAL_VERBOSE(LOG_TAG,"Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+    PAL_VERBOSE(LOG_TAG, "Volume payload No.of vol pair:%d ch mask:%x gain:%f",
              (volume->no_of_volpair), (volume->volume_pair->channel_mask),(volume->volume_pair->vol));
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
