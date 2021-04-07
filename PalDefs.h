@@ -767,6 +767,7 @@ typedef enum {
     PAL_PARAM_ID_HAPTICS_INTENSITY = 40,
     PAL_PARAM_ID_HAPTICS_VOLUME = 41,
     PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY = 42,
+    PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -902,6 +903,15 @@ typedef struct pal_bt_tws_payload_s {
     uint32_t codecFormat;
 } pal_bt_tws_payload;
 
+/* Payload For Custom Config
+ * Description : Used by PAL client to customize
+ *               the device related information.
+*/
+#define PAL_MAX_CUSTOM_KEY_SIZE 128
+typedef struct pal_device_custom_config {
+    char custom_key[PAL_MAX_CUSTOM_KEY_SIZE];
+} pal_device_custom_config_t;
+
 typedef struct pal_bt_lc3_payload_s {
     bool isLC3MonoModeOn;
 } pal_bt_lc3_payload;
@@ -915,6 +925,7 @@ struct pal_device {
     pal_device_id_t id;                     /**<  device id */
     struct pal_media_config config;         /**<  media config of the device */
     struct pal_usb_device_address address;
+    pal_device_custom_config_t custom_config;        /**<  Optional */
 };
 
 /**

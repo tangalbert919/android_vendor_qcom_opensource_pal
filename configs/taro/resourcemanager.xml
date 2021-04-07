@@ -101,6 +101,24 @@
                     <!-- VOICE_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
+                <custom-config key="dual-mic">
+                    <channels>2</channels>
+                    <snd_device_name>handset-dmic-endfire</snd_device_name>
+                    <devicePP-metadata>
+                        <kvpair key="0xAD000000" value="0xAD000009"/>
+                        <!-- VOICE_FLUENCE_ENDFIRE -->
+                        <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    </devicePP-metadata>
+                </custom-config>
+                <custom-config key="quad-mic">
+                    <channels>4</channels>
+                    <snd_device_name>quad-mic</snd_device_name>
+                    <devicePP-metadata>
+                        <kvpair key="0xAD000000" value="0xAD00000A"/>
+                        <!-- VOICE_FLUENCE_ENDFIRE -->
+                        <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    </devicePP-metadata>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -147,6 +165,15 @@
                     <!-- VOICE_FLUENCE_SMECNS -->
                     <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
                 </devicePP-metadata>
+                <custom-config key="dual-mic">
+                    <channels>2</channels>
+                    <snd_device_name>handset-dmic-endfire</snd_device_name>
+                    <devicePP-metadata>
+                        <kvpair key="0xAD000000" value="0xAD000009"/>
+                        <!-- VOICE_FLUENCE_ENDFIRE -->
+                        <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
+                    </devicePP-metadata>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
@@ -385,6 +412,11 @@
             <speaker_mono_right>0</speaker_mono_right>
             <!-- Time in seconds for Quick cal. Set 0 to disable -->
             <quick_cal_time>0</quick_cal_time>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <snd_device_name>speaker-mono-2</snd_device_name>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>

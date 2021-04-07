@@ -1085,17 +1085,164 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
             devinfo->max_channels = deviceInfo[size1].max_channel;
             for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
                 if (type == deviceInfo[size1].usecase[size2].type) {
+                    /*set kv pairs*/
                     for (int32_t kvsize = 0;
-                    kvsize < deviceInfo[size1].usecase[size2].kvpair.size(); kvsize++) {
-                       kv.key =  deviceInfo[size1].usecase[size2].kvpair[kvsize].key;
-                       kv.value =  deviceInfo[size1].usecase[size2].kvpair[kvsize].value;
+                    kvsize < deviceInfo[size1].kvpair.size(); kvsize++) {
+                       kv.key =  deviceInfo[size1].kvpair[kvsize].key;
+                       kv.value =  deviceInfo[size1].kvpair[kvsize].value;
                        devinfo->kvpair.push_back(kv);
+                    }
+                    if (deviceInfo[size1].usecase[size2].channel) {
+                        PAL_DBG(LOG_TAG, "channels overwitten to %d", deviceInfo[size1].usecase[size2].channel);
+                        devinfo->channels = deviceInfo[size1].usecase[size2].channel;
                     }
                     return;
                }
             }
         }
      }
+}
+
+void ResourceManager::setDeviceInfo(pal_device_id_t deviceId,
+                                    pal_stream_type_t type)
+{
+    bool found = false;
+    struct kvpair_info kv = {};
+
+    for (int32_t i = 0; i < deviceInfo.size(); i++) {
+        if (deviceId == deviceInfo[i].deviceId) {
+            for (int32_t j = 0; j < deviceInfo[i].usecase.size(); j++) {
+                if (type == deviceInfo[i].usecase[j].type) {
+                    /*overwrite the channels if needed*/
+                    if (deviceInfo[i].usecase[j].channel) {
+                        deviceInfo[i].channel = deviceInfo[i].usecase[j].channel;
+                        PAL_DBG(LOG_TAG, "channels overwitten to %d", deviceInfo[i].channel);
+                    }
+                    /*overwrite the kv pairs if needed*/
+                    if (deviceInfo[i].usecase[j].kvpair.size()) {
+                        deviceInfo[i].kvpair.clear();
+                        for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].kvpair.size(); kvsize++) {
+                              kv.key =  deviceInfo[i].usecase[j].kvpair[kvsize].key;
+                              kv.value =  deviceInfo[i].usecase[j].kvpair[kvsize].value;
+                              PAL_DBG(LOG_TAG, "kv overwitten to key 0X%x value 0X%x", kv.key, kv.value);
+                              deviceInfo[i].kvpair.push_back(kv);
+                        }
+                    }
+
+                    if (!(deviceInfo[i].usecase[j].sndDevName).empty()) {
+                        PAL_DBG(LOG_TAG, "snd device name overwritten %s",
+                                deviceInfo[i].usecase[j].sndDevName.c_str());
+                                updateSndName(deviceId, deviceInfo[i].usecase[j].sndDevName);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (found) {
+            break;
+        }
+    }
+}
+
+void ResourceManager::setDeviceInfo(pal_device_id_t deviceId,
+                                    pal_stream_type_t type,
+                                    std::string key)
+{
+    struct kvpair_info kv = {};
+    bool found = false;
+
+    for (int32_t i = 0; i < deviceInfo.size(); i++) {
+        if (deviceId == deviceInfo[i].deviceId) {
+            for (int32_t j = 0; j < deviceInfo[i].usecase.size(); j++) {
+                if (type == deviceInfo[i].usecase[j].type) {
+                    for (int32_t k = 0; k < deviceInfo[i].usecase[j].config.size(); k++) {
+                        if (!deviceInfo[i].usecase[j].config[k].key.compare(key)) {
+                            PAL_DBG(LOG_TAG, "found device info to overwrite");
+                            /*overwrite the channels if needed*/
+                            if (deviceInfo[i].usecase[j].config[k].channel) {
+                                deviceInfo[i].channel = deviceInfo[i].usecase[j].config[k].channel;
+                                PAL_DBG(LOG_TAG, "channels overwitten to %d", deviceInfo[i].channel);
+                            }
+                            /*overwrite the kv pairs if needed*/
+                            if (deviceInfo[i].usecase[j].config[k].kvpair.size()) {
+                                deviceInfo[i].kvpair.clear();
+                                for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].config[k].kvpair.size(); kvsize++) {
+                                    kv.key =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].key;
+                                    kv.value =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].value;
+                                    PAL_DBG(LOG_TAG, "kv overwitten to key 0X%x value 0X%x", kv.key, kv.value);
+                                    deviceInfo[i].kvpair.push_back(kv);
+                                }
+                            }
+                            if (!(deviceInfo[i].usecase[j].config[k].sndDevName).empty()) {
+                                PAL_DBG(LOG_TAG, "snd device name overwritten %s",
+                                        deviceInfo[i].usecase[j].config[k].sndDevName.c_str());
+                                updateSndName(deviceId, deviceInfo[i].usecase[j].config[k].sndDevName);
+                            } else {
+                                if (!(deviceInfo[i].usecase[j].sndDevName).empty()) {
+                                        PAL_DBG(LOG_TAG, "snd device name overwritten %s",
+                                        deviceInfo[i].usecase[j].sndDevName.c_str());
+                                        updateSndName(deviceId, deviceInfo[i].usecase[j].sndDevName);
+
+                                }
+                            }
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (found) {
+                    break;
+                }
+            }
+        }
+        if (found) {
+            break;
+        }
+    }
+}
+
+void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type, std::string key, struct pal_device_info *devinfo)
+{
+    struct kvpair_info kv = {};
+    bool found = false;
+
+    for (int32_t i = 0; i < deviceInfo.size(); i++) {
+        if (deviceId == deviceInfo[i].deviceId) {
+            devinfo->channels = deviceInfo[i].channel;
+            devinfo->max_channels = deviceInfo[i].max_channel;
+            for (int32_t j = 0; j < deviceInfo[i].usecase.size(); j++) {
+                if (type == deviceInfo[i].usecase[j].type) {
+                    for (int32_t k = 0; k < deviceInfo[i].usecase[j].config.size(); k++) {
+                        if (!deviceInfo[i].usecase[j].config[k].key.compare(key)) {
+                            PAL_DBG(LOG_TAG, "found device info to overwrite");
+                            if (deviceInfo[i].usecase[j].config[k].channel) {
+                                devinfo->channels = deviceInfo[i].usecase[j].config[k].channel;
+                                PAL_DBG(LOG_TAG, "channels overwitten to %d", devinfo->channels);
+                            }
+                            /*get kv pairs*/
+                            if (deviceInfo[i].usecase[j].config[k].kvpair.size()) {
+                                for (int32_t kvsize = 0; kvsize < deviceInfo[i].kvpair.size(); kvsize++) {
+                                    kv.key =  deviceInfo[i].kvpair[kvsize].key;
+                                    kv.value =  deviceInfo[i].kvpair[kvsize].value;
+                                    PAL_DBG(LOG_TAG, "kv overwitten to key 0X%x value 0X%x", kv.key, kv.value);
+                                    devinfo->kvpair.push_back(kv);
+                                }
+                            }
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (found) {
+                    break;
+                }
+            }
+        }
+        if (found) {
+            break;
+        }
+    }
 }
 
 int32_t ResourceManager::getSidetoneMode(pal_device_id_t deviceId,
@@ -4397,6 +4544,8 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
     case PAL_DEVICE_OUT_AUX_DIGITAL:
     case PAL_DEVICE_OUT_AUX_DIGITAL_1:
     case PAL_DEVICE_OUT_HDMI:
+    case PAL_DEVICE_IN_SPEAKER_MIC:
+    case PAL_DEVICE_IN_HANDSET_MIC:
         if (activeDevAttr->config.ch_info.channels < inDevAttr->config.ch_info.channels)
             is_ds_required = true;
         else if ((activeDevAttr->config.sample_rate < inDevAttr->config.sample_rate) ||
@@ -4498,10 +4647,18 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     int status = 0;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
+    std::shared_ptr<Device> dev = nullptr;
+    std::string ck;
+    std::string InfoSndDev;
+
+    PAL_DBG(LOG_TAG, "Enter");
 
     if (!inDev || !inDevAttr) {
         goto error;
     }
+
+    if (strlen(inDevAttr->custom_config.custom_key))
+        ck.assign(inDevAttr->custom_config.custom_key);
 
     //get the active streams on the device
     //if higher priority stream exists on any of the incoming device, update the config of incoming device
@@ -4531,6 +4688,15 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
             }
             curDev->getDeviceAttributes(&curDevAttr);
             sharedStream->getStreamAttributes(&sAttr);
+
+            /*update device info based on custom key if dev switch is needed*/
+            if (strlen(inDevAttr->custom_config.custom_key)) {
+                PAL_DBG(LOG_TAG, "custom key is %s",inDevAttr->custom_config.custom_key);
+                rm->setDeviceInfo(inDevAttr->id, inStrAttr->type, ck);
+                /* if sound device is overwritten in the usecase need to set it*/
+            } else {
+                rm->setDeviceInfo(inDevAttr->id, inStrAttr->type);
+            }
 
             if ((PAL_STREAM_VOICE_CALL == sAttr.type)) {
                 PAL_INFO(LOG_TAG, "Active voice stream running on %d, Force switch",
@@ -4565,6 +4731,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
             streamDevDisconnect.push_back(elem);
             StreamDevConnect.push_back({std::get<0>(elem), inDevAttr});
         }
+    } else {
+        /*update device info based on custom key if there are no other concurrencies on this device*/
+        if (strlen(inDevAttr->custom_config.custom_key)){
+            PAL_DBG(LOG_TAG, "custom key is %s", ck.c_str());
+            rm->setDeviceInfo(inDevAttr->id, inStrAttr->type, ck);
+        } else {
+            rm->setDeviceInfo(inDevAttr->id, inStrAttr->type);
+        }
     }
 
     //if device switch is needed, perform it
@@ -4577,6 +4751,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
     inDev->setDeviceAttributes(*inDevAttr);
 
 error:
+    PAL_DBG(LOG_TAG, "Exit");
     return isDeviceSwitch;
 }
 
@@ -6600,10 +6775,10 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
     }
 }
 
-void ResourceManager::process_kvinfo(const XML_Char **attr)
+void ResourceManager::process_kvinfo(const XML_Char **attr, bool overwrite)
 {
     struct kvpair_info kv;
-    int size = 0, sizeusecase = 0;
+    int size = 0, sizeusecase = 0, sizecustomconfig = 0;
     std::string tagkey(attr[1]);
     std::string tagvalue(attr[3]);
 
@@ -6620,16 +6795,53 @@ void ResourceManager::process_kvinfo(const XML_Char **attr)
 
     size = deviceInfo.size() - 1;
     sizeusecase = deviceInfo[size].usecase.size() - 1;
-    deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
+
+    if (!overwrite) {
+        deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
+    } else {
+        sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
+        deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].kvpair.push_back(kv);
+    }
     PAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
+}
+
+void ResourceManager::process_usecase()
+{
+    struct usecase_info usecase_data = {};
+    usecase_data.kvpair = {};
+    usecase_data.config = {};
+    int size = 0;
+
+    size = deviceInfo.size() - 1;
+    deviceInfo[size].usecase.push_back(usecase_data);
+}
+
+void ResourceManager::process_custom_config(const XML_Char **attr){
+    struct usecase_custom_config_info custom_config_data = {};
+    int size = 0, sizeusecase = 0;
+
+    std::string key(attr[1]);
+
+    custom_config_data.sndDevName = "";
+    custom_config_data.channel = 0;
+    custom_config_data.key = "";
+    custom_config_data.kvpair = {};
+
+    if (attr[0] && !strcmp(attr[0], "key")) {
+        custom_config_data.key = key;
+    }
+
+    size = deviceInfo.size() - 1;
+    sizeusecase = deviceInfo[size].usecase.size() - 1;
+    deviceInfo[size].usecase[sizeusecase].config.push_back(custom_config_data);
+    PAL_DBG(LOG_TAG, "custom config key is %s", custom_config_data.key.c_str());
 }
 
 void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
 {
 
     struct deviceIn dev = {};
-    struct usecase_info usecase_data = {};
-    int size = -1 , sizeusecase = -1;
+    int size = 0 , sizeusecase = 0, sizecustomconfig = 0;
 
     if (data->offs <= 0)
         return;
@@ -6678,14 +6890,23 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
     } else if (data->tag == TAG_USECASE) {
         if (!strcmp(tag_name, "name")) {
             std::string userIdname(data->data_buf);
-            usecase_data.type  = usecaseIdLUT.at(userIdname);
             size = deviceInfo.size() - 1;
-            deviceInfo[size].usecase.push_back(usecase_data);
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].type = usecaseIdLUT.at(userIdname);
         } else if (!strcmp(tag_name, "sidetone_mode")) {
             std::string mode(data->data_buf);
             size = deviceInfo.size() - 1;
             sizeusecase = deviceInfo[size].usecase.size() - 1;
             deviceInfo[size].usecase[sizeusecase].sidetoneMode = sidetoneModetoId.at(mode);
+        }else if (!strcmp(tag_name, "snd_device_name")) {
+            std::string sndDev(data->data_buf);
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].sndDevName = sndDev;
+        }  else if (!strcmp(tag_name, "channels")) {
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].channel = atoi(data->data_buf);
         }
     } else if (data->tag == TAG_ECREF) {
         if (!strcmp(tag_name, "id")) {
@@ -6697,11 +6918,35 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             deviceInfo[size].rx_dev_ids.push_back(rxDeviceId);
             deviceInfo[size].ec_ref_count_map.insert({rxDeviceId, str_list});
         }
+    } else if (data->tag == TAG_CUSTOMCONFIG) {
+        if (!strcmp(tag_name, "snd_device_name")) {
+            std::string sndDev(data->data_buf);
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].sndDevName = sndDev;
+        }  else if (!strcmp(tag_name, "channels")) {
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].channel = atoi(data->data_buf);
+        }  else if (!strcmp(tag_name, "sidetone_mode")) {
+            std::string mode(data->data_buf);
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].sidetoneMode = sidetoneModetoId.at(mode);
+        }
+
     }
     if (!strcmp(tag_name, "kvpair")) {
         data->tag = TAG_DEVICEPP;
     } else if (!strcmp(tag_name, "devicePP-metadata")) {
-        data->tag = TAG_USECASE;
+        if (data->inCustomConfig) {
+            data->tag = TAG_CUSTOMCONFIG;
+        }else {
+            data->tag = TAG_USECASE;
+        }
     } else if (!strcmp(tag_name, "usecase")) {
         data->tag = TAG_IN_DEVICE;
     } else if (!strcmp(tag_name, "in-device") || !strcmp(tag_name, "out-device")) {
@@ -6715,6 +6960,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
     } else if (!strcmp(tag_name, "resource_manager_info")) {
         data->tag = TAG_RESOURCE_ROOT;
         data->resourcexml_parsed = true;
+    } else if (!strcmp(tag_name, "custom-config")) {
+        data->tag = TAG_USECASE;
+        data->inCustomConfig = 0;
     }
 }
 
@@ -6872,11 +7120,12 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "out-device")) {
         data->tag = TAG_OUT_DEVICE;
     } else if (!strcmp(tag_name, "usecase")) {
+        process_usecase();
         data->tag = TAG_USECASE;
     } else if (!strcmp(tag_name, "devicePP-metadata")) {
         data->tag = TAG_DEVICEPP;
     } else if (!strcmp(tag_name, "kvpair")) {
-        process_kvinfo(attr);
+        process_kvinfo(attr, data->inCustomConfig);
         data->tag = TAG_KVPAIR;
     } else if (!strcmp(tag_name, "in_streams")) {
         data->tag = TAG_INSTREAMS;
@@ -6888,10 +7137,13 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_ECREF;
     } else if (!strcmp(tag_name, "ec_rx_device")) {
         data->tag = TAG_ECREF;
-    }else if (!strcmp(tag_name, "sidetone_mode")) {
+    } else if (!strcmp(tag_name, "sidetone_mode")) {
         data->tag = TAG_USECASE;
+    } else if (!strcmp(tag_name, "custom-config")) {
+        process_custom_config(attr);
+        data->inCustomConfig = 1;
+        data->tag = TAG_CUSTOMCONFIG;
     }
-
     if (!strcmp(tag_name, "card"))
         data->current_tag = TAG_CARD;
     if (strcmp(tag_name, "pcm-device") == 0) {
