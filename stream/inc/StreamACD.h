@@ -110,8 +110,8 @@ class StreamACD : public Stream {
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable);
     int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable);
-    int32_t ssrDownHandler() { return 0; }
-    int32_t ssrUpHandler() { return 0; }
+    int32_t ssrDownHandler();
+    int32_t ssrUpHandler();
     int32_t registerCallBack(pal_stream_callback cb,  uint64_t cookie) override;
     int32_t getCallBack(pal_stream_callback *cb) override;
     int32_t getParameters(uint32_t param_id, void **payload) override;
@@ -347,6 +347,18 @@ class StreamACD : public Stream {
         ~ACDECRefEventConfig() {}
     };
 
+    class ACDSSROfflineConfig : public ACDEventConfig {
+     public:
+        ACDSSROfflineConfig() : ACDEventConfig(ACD_EV_SSR_OFFLINE) { }
+        ~ACDSSROfflineConfig() {}
+    };
+
+    class ACDSSROnlineConfig : public ACDEventConfig {
+     public:
+        ACDSSROnlineConfig() : ACDEventConfig(ACD_EV_SSR_ONLINE) { }
+        ~ACDSSROnlineConfig() {}
+    };
+
     class ACDState {
      public:
         ACDState(StreamACD& acd_stream, int32_t state_id)
@@ -411,6 +423,8 @@ class StreamACD : public Stream {
     int32_t ProcessInternalEvent(std::shared_ptr<ACDEventConfig> ev_cfg);
 
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
+    int32_t UpdateRecognitionConfig(struct acd_recognition_cfg *config);
+    int32_t UpdateContextConfig(struct pal_param_context_list *config);
     int32_t SendRecognitionConfig(struct acd_recognition_cfg *config);
     int32_t SendContextConfig(struct pal_param_context_list *config);
     int32_t SetupDetectionEngine();
