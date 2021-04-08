@@ -1394,6 +1394,88 @@ exit:
     return status;
 }
 
+int SessionAlsaUtils::openDev(std::shared_ptr<ResourceManager> rmHandle,
+    const std::vector<int> &DevIds, int32_t backEndId, std::string backEndName)
+{
+    std::vector <std::pair<int, int>> deviceKV;
+    std::vector <std::pair<int, int>> emptyKV;
+    int status = 0;
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceMetaData(nullptr, 0);
+    std::ostringstream feName;
+    struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+    struct mixer *mixerHandle;
+    uint32_t i;
+    /** gsl_subgraph_platform_driver_props.xml */
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
+    struct pal_device_info devinfo = {};
+
+    PayloadBuilder* builder = new PayloadBuilder();
+
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getAudioMixer failed");
+        goto freeMetaData;
+    }
+
+    PAL_DBG(LOG_TAG, "Ext EC Ref Open Dev is called");
+
+    /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
+    feName << "ExtEC" << DevIds.at(0);
+    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+        feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, feName.str(), i);
+        if (!feMixerCtrls[i]) {
+            PAL_ERR(LOG_TAG, "invalid mixer control: %s%s", feName.str().data(),
+                   feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeMetaData;
+        }
+    }
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], "ZERO");
+
+    if ((status = builder->populateDeviceKV(NULL, backEndId, deviceKV)) != 0) {
+        PAL_ERR(LOG_TAG, "get device KV failed %d", status);
+        goto freeMetaData;
+    }
+
+    if (deviceKV.size() > 0) {
+        getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+                deviceMetaData);
+        if (!deviceMetaData.size) {
+            PAL_ERR(LOG_TAG, "device metadata is zero");
+            status = -ENOMEM;
+            goto freeMetaData;
+        }
+    }
+
+    beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, backEndName, BE_METADATA);
+    if (!beMetaDataMixerCtrl) {
+        PAL_ERR(LOG_TAG, "invalid mixer control: %s %s", backEndName.data(),
+                beCtrlNames[BE_METADATA]);
+        status = -EINVAL;
+        goto freeMetaData;
+    }
+
+    /** set mixer controls */
+    if (deviceMetaData.size)
+        mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                deviceMetaData.size);
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONNECT], backEndName.data());
+    deviceKV.clear();
+    free(deviceMetaData.buf);
+    deviceMetaData.buf = nullptr;
+
+freeMetaData:
+    if (deviceMetaData.buf)
+        free(deviceMetaData.buf);
+
+    delete builder;
+    return status;
+}
+
+
+
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,

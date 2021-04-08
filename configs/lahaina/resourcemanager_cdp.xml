@@ -347,6 +347,13 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_EXT_EC_REF</id>
+            <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
+            <snd_device_name>ext_ec_ref_tx</snd_device_name>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
@@ -356,6 +363,8 @@
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
+            <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
+            <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <is_24_bit_supported>0</is_24_bit_supported>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
@@ -375,6 +384,8 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
+            <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>

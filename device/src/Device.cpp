@@ -51,6 +51,7 @@
 #include "FMDevice.h"
 #include "HapticsDev.h"
 #include "UltrasoundDevice.h"
+#include "ExtEC.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -138,6 +139,9 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_OUT_ULTRASOUND:
         PAL_VERBOSE(LOG_TAG, "Ultrasound device");
         return UltrasoundDevice::getInstance(device, Rm);
+    case PAL_DEVICE_IN_EXT_EC_REF:
+        PAL_VERBOSE(LOG_TAG, "ExtEC device");
+        return ExtEC::getInstance(device, Rm);
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -200,6 +204,9 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_OUT_ULTRASOUND:
         PAL_VERBOSE(LOG_TAG, "Ultrasound device %d", dev_id);
         return UltrasoundDevice::getObject(dev_id);
+    case PAL_DEVICE_IN_EXT_EC_REF:
+        PAL_VERBOSE(LOG_TAG, "ExtEC device %d", dev_id);
+        return ExtEC::getObject();
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;

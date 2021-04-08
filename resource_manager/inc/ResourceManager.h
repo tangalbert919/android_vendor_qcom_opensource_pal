@@ -120,6 +120,7 @@ typedef enum {
     COMPRESS,
     VOICE1,
     VOICE2,
+    ExtEC,
 } stream_supported_type;
 
 typedef enum {
@@ -204,6 +205,7 @@ struct pal_device_info {
      int samplerate;
      std::vector<kvpair_info> kvpair;
      std::string sndDevName;
+     bool isExternalECRefEnabledFlag;
 };
 
 struct vsid_modepair {
@@ -299,6 +301,7 @@ struct deviceIn {
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
     std::vector<kvpair_info> kvpair;
     std::string sndDevName;
+    bool isExternalECRefEnabled;
 };
 
 class ResourceManager
@@ -400,6 +403,7 @@ protected:
     static std::vector<int> listAllPcmVoice1TxFrontEnds;
     static std::vector<int> listAllPcmVoice2RxFrontEnds;
     static std::vector<int> listAllPcmVoice2TxFrontEnds;
+    static std::vector<int> listAllPcmExtEcTxFrontEnds;
     static std::vector<int> listAllPcmInCallRecordFrontEnds;
     static std::vector<int> listAllPcmInCallMusicFrontEnds;
     static std::vector<int> listAllPcmContextProxyFrontEnds;
@@ -554,6 +558,8 @@ public:
     int getDeviceDirection(uint32_t beDevId);
     const std::vector<int> allocateFrontEndIds (const struct pal_stream_attributes,
                                                 int lDirection);
+    const std::vector<int> allocateFrontEndExtEcIds ();
+    void freeFrontEndEcTxIds (const std::vector<int> f);
     void freeFrontEndIds (const std::vector<int> f,
                           const struct pal_stream_attributes,
                           int lDirection);

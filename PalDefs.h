@@ -401,8 +401,9 @@ typedef enum {
     PAL_DEVICE_IN_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 17,
     PAL_DEVICE_IN_TELEPHONY_RX = PAL_DEVICE_IN_MIN + 18,
     PAL_DEVICE_IN_ULTRASOUND_MIC = PAL_DEVICE_IN_MIN +19,
+    PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 20,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 21,
 } pal_device_id_t;
 
 #ifdef __cplusplus
@@ -448,6 +449,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_VI_FEEDBACK" },           PAL_DEVICE_IN_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_TELEPHONY_RX" },          PAL_DEVICE_IN_TELEPHONY_RX},
     {std::string{ "PAL_DEVICE_IN_ULTRASOUND_MIC" },        PAL_DEVICE_IN_ULTRASOUND_MIC},
+    {std::string{ "PAL_DEVICE_IN_EXT_EC_REF" },            PAL_DEVICE_IN_EXT_EC_REF},
 };
 
 //reverse mapping
@@ -492,7 +494,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HEADSET_VA_MIC"}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           std::string{"PAL_DEVICE_IN_VI_FEEDBACK"}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}},
-    {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}}
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}},
+    {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}}
 };
 #endif
 

@@ -347,6 +347,7 @@ std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmHostlessRxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmHostlessTxFrontEnds = {0};
+std::vector <int> ResourceManager::listAllPcmExtEcTxFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressPlaybackFrontEnds = {0};
 std::vector <int> ResourceManager::listAllCompressRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmVoice1RxFrontEnds = {0};
@@ -562,6 +563,7 @@ ResourceManager::ResourceManager()
     listAllPcmInCallRecordFrontEnds.clear();
     listAllPcmInCallMusicFrontEnds.clear();
     listAllPcmContextProxyFrontEnds.clear();
+    listAllPcmExtEcTxFrontEnds.clear();
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
     memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
@@ -606,6 +608,10 @@ ResourceManager::ResourceManager()
             }
             if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
                 listAllPcmVoice2TxFrontEnds.push_back(devInfo[i].deviceId);
+            }
+        } else if (devInfo[i].type == ExtEC) {
+            if (devInfo[i].sess_mode == HOSTLESS && devInfo[i].record == 1) {
+                listAllPcmExtEcTxFrontEnds.push_back(devInfo[i].deviceId);
             }
         }
         /*We create a master list of all the frontends*/
@@ -660,6 +666,7 @@ ResourceManager::~ResourceManager()
     listAllPcmVoice2RxFrontEnds.clear();
     listAllPcmVoice2TxFrontEnds.clear();
     listAllNonTunnelSessionIds.clear();
+    listAllPcmExtEcTxFrontEnds.clear();
     devInfo.clear();
     deviceInfo.clear();
     txEcInfo.clear();
@@ -1155,6 +1162,7 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
             devinfo->channels = deviceInfo[i].channel;
             devinfo->sndDevName = deviceInfo[i].sndDevName;
             devinfo->samplerate = deviceInfo[i].samplerate;
+            devinfo->isExternalECRefEnabledFlag = deviceInfo[i].isExternalECRefEnabled;
             for (int32_t j = 0; j < deviceInfo[i].usecase.size(); j++) {
                 if (type == deviceInfo[i].usecase[j].type) {
                     if (deviceInfo[i].usecase[j].channel) {
@@ -2476,6 +2484,23 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                 }
             }
         }
+    } else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT &&
+        sAttr.type == PAL_STREAM_VOICE_CALL) {
+        if (d->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
+            PAL_DBG(LOG_TAG, "Enter enable EC Ref");
+            status = s->setECRef_l(d, true);
+            s->getAssociatedDevices(tx_devices);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+            } else {
+                for(auto dev: tx_devices) {
+                    if (dev->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+                       dev->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
+                        updateECDeviceMap(d, dev, s, 1, false);
+                    }
+                }
+            }
+        }
     }
 
 exit:
@@ -2529,6 +2554,23 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
         } else if (dev) {
             updateECDeviceMap(dev, d, s, 0, true);
+        }
+    }  else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT &&
+        sAttr.type == PAL_STREAM_VOICE_CALL) {
+        if (d->getSndDeviceId() < PAL_DEVICE_OUT_MAX) {
+            PAL_DBG(LOG_TAG, "Enter disable EC Ref");
+            status = s->setECRef_l(d, false);
+            s->getAssociatedDevices(tx_devices);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+            } else {
+                for(auto dev: tx_devices) {
+                    if (dev->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+                       dev->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
+                        updateECDeviceMap(d, dev, s, 0, false);
+                    }
+                }
+            }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
@@ -4217,6 +4259,40 @@ int ResourceManager::getNumFEs(const pal_stream_type_t sType) const
 
     return n;
 }
+
+const std::vector<int> ResourceManager::allocateFrontEndExtEcIds()
+{
+    std::vector<int> f;
+    f.clear();
+    const int howMany = 1;
+    int id = 0;
+    std::vector<int>::iterator it;
+    if (howMany > listAllPcmExtEcTxFrontEnds.size()) {
+        PAL_ERR(LOG_TAG, "allocateFrontEndExtEcIds: requested for %d external ec front ends, have only %zu error",
+                        howMany, listAllPcmExtEcTxFrontEnds.size());
+        return f;
+    }
+    id = (listAllPcmExtEcTxFrontEnds.size() - 1);
+    it =  (listAllPcmExtEcTxFrontEnds.begin() + id);
+    for (int i = 0; i < howMany; i++) {
+        f.push_back(listAllPcmExtEcTxFrontEnds.at(id));
+        listAllPcmExtEcTxFrontEnds.erase(it);
+        PAL_INFO(LOG_TAG, "allocateFrontEndExtEcIds: front end %d", f[i]);
+        it -= 1;
+        id -= 1;
+    }
+    return f;
+}
+
+void ResourceManager::freeFrontEndEcTxIds(const std::vector<int> frontend)
+{
+    PAL_INFO(LOG_TAG, "freeing ext ec dev %d\n", frontend.at(0));
+    for (int i = 0; i < frontend.size(); i++) {
+        listAllPcmExtEcTxFrontEnds.push_back(frontend.at(i));
+    }
+    return;
+}
+
 
 const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_stream_attributes sAttr, int lDirection)
 {
@@ -6974,6 +7050,8 @@ void ResourceManager::processDeviceIdProp(struct xml_userdata *data, const XML_C
             devInfo[size].type = VOICE1;
         } else if (strstr(data->data_buf,"VOICEMMODE2")){
             devInfo[size].type = VOICE2;
+        } else if (strstr(data->data_buf,"ExtEC")){
+            devInfo[size].type = ExtEC;
         }
     }
 }
@@ -7211,6 +7289,13 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "speaker_protection_enabled")) {
             if (atoi(data->data_buf))
                 isSpeakerProtectionEnabled = true;
+        } else if (!strcmp(tag_name, "ext_ec_ref_enabled")) {
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].isExternalECRefEnabled = atoi(data->data_buf);
+            if (deviceInfo[size].isExternalECRefEnabled) {
+                PAL_DBG(LOG_TAG, "found ext ec ref enabled device is %d",
+                    deviceInfo[size].deviceId);
+            }
         } else if (!strcmp(tag_name, "cps_enabled")) {
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
