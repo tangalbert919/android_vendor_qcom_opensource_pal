@@ -83,6 +83,10 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
                       +sizeof(struct pal_channel_vol_kv));
+    if (mVolumeData == NULL) {
+        PAL_ERR(LOG_TAG, "Failed to allocate memory for volume data");
+        throw std::runtime_error("Failed to allocate memory for volume data");
+    }
     mVolumeData->no_of_volpair = 1;
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;

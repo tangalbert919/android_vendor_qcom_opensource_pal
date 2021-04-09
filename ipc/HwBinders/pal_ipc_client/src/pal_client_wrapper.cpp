@@ -100,14 +100,22 @@ Return<int32_t> PalCallback::event_callback(uint64_t strm_handle,
                                  const hidl_vec<uint8_t>& event_data,
                                  uint64_t cookie) {
     uint32_t *ev_data = NULL;
+    int8_t *src = NULL;
     ev_data = (uint32_t *)calloc(1, event_data_size);
-    int8_t *src = (int8_t *)event_data.data();
+    if (!ev_data) {
+        ALOGE("%s:%d Failed to allocate memory to event data", __func__, __LINE__);
+        goto exit;
+    }
+    src = (int8_t *)event_data.data();
     memcpy(ev_data, src, event_data_size);
 
     ALOGV("event_payload_size %d", event_data_size);
     this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
                                     cookie);
-    free(ev_data);
+
+exit:
+    if(ev_data)
+        free(ev_data);
     return int32_t {};
 }
 
@@ -121,10 +129,15 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     struct pal_event_read_write_done_payload *rw_done_payload;
     struct pal_buffer *buffer;
     uint32_t *ev_data = NULL;
+    const native_handle *allochandle = nullptr;
     const PalEventReadWriteDonePayload *rwDonePayloadHidl = event_data.data();
     PalBuffer *bufferHidl;
     rw_done_payload = (struct pal_event_read_write_done_payload *)
                           calloc(1, sizeof(pal_event_read_write_done_payload));
+    if (!rw_done_payload) {
+        ALOGE("%s:%d Failed to allocate memory to rw_done_payload", __func__, __LINE__);
+        goto exit;
+    }
 
     ev_data = (uint32_t *)rw_done_payload;
     rw_done_payload->tag = rwDonePayloadHidl->tag;
@@ -136,12 +149,21 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     buffer->size = rwDonePayloadHidl->buff.size;
     if (rwDonePayloadHidl->buff.buffer.size() == buffer->size) {
         buffer->buffer = (uint8_t *)calloc(1, buffer->size);
+        if (!buffer->buffer) {
+            ALOGE("%s:%d Failed to allocate memory to buffer", __func__, __LINE__);
+            goto exit;
+        }
         memcpy(buffer->buffer, rwDonePayloadHidl->buff.buffer.data(),
                buffer->size);
     }
 
     buffer->offset = rwDonePayloadHidl->buff.offset;
     buffer->ts = (struct timespec *) calloc(1, sizeof(struct timespec));
+    if (!buffer->ts) {
+        ALOGE("%s:%d Failed to allocate memory to buffer->ts", __func__, __LINE__);
+        goto exit;
+    }
+
     buffer->ts->tv_sec = rwDonePayloadHidl->buff.timeStamp.tvSec;
     buffer->ts->tv_nsec = rwDonePayloadHidl->buff.timeStamp.tvNSec;
     buffer->flags = rwDonePayloadHidl->buff.flags;
@@ -152,7 +174,7 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
         memcpy(buffer->metadata, rwDonePayloadHidl->buff.metadata.data(),
                buffer->metadata_size);
     }
-    const native_handle *allochandle = nullptr;
+
     allochandle = rwDonePayloadHidl->buff.alloc_info.alloc_handle.handle();
 
     buffer->alloc_info.alloc_handle = allochandle->data[1];
@@ -163,13 +185,16 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     ALOGV("alloc size %d alloc_size ret %d", rwDonePayloadHidl->buff.alloc_info.alloc_size,buffer->alloc_info.alloc_size);
     this->cb((pal_stream_handle_t *)strm_handle, event_id, ev_data, event_data_size,
                                     cookie);
+
+exit:
     if (buffer->metadata)
         free(buffer->metadata);
     if (buffer->buffer)
         free(buffer->buffer);
     if (buffer->ts)
         free(buffer->ts);
-    free(rw_done_payload);
+    if (rw_done_payload)
+        free(rw_done_payload);
     return int32_t {};
 }
 
@@ -421,6 +446,10 @@ ssize_t pal_stream_write(pal_stream_handle_t *stream_handle, struct pal_buffer *
         PalBuffer *palBuff = buf_hidl.data();
         native_handle_t *allocHidlHandle = nullptr;
         allocHidlHandle = native_handle_create(1, 1);
+        if (!allocHidlHandle) {
+            ALOGE("%s:%d Failed to create allocHidlHandle", __func__, __LINE__);
+            return ret;
+        }
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
         allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
 
@@ -469,6 +498,10 @@ ssize_t pal_stream_read(pal_stream_handle_t *stream_handle, struct pal_buffer *b
         PalBuffer *palBuff = buf_hidl.data();
         native_handle_t *allocHidlHandle = nullptr;
         allocHidlHandle = native_handle_create(1, 1);
+        if (!allocHidlHandle) {
+            ALOGE("%s:%d Failed to create allocHidlHandle", __func__, __LINE__);
+            return ret;
+        }
         allocHidlHandle->data[0] = buf->alloc_info.alloc_handle;
         allocHidlHandle->data[1] = buf->alloc_info.alloc_handle;
 
@@ -566,9 +599,15 @@ int32_t pal_stream_get_param(pal_stream_handle_t *stream_handle,
                      if (!ret_) {
                          *param_payload = (pal_param_payload *)
                                  calloc (1, sizeof(pal_param_payload) + paramPayload.data()->size);
-                         (*param_payload)->payload_size = paramPayload.data()->size;
-                         memcpy((*param_payload)->payload, paramPayload.data()->payload.data(),
-                                 (*param_payload)->payload_size);
+                         if (!param_payload) {
+                             ALOGE("%s:%d Failed to allocate memory for param_payload",
+                                     __func__, __LINE__);
+                             ret_ = -ENOMEM;
+                         } else {
+                             (*param_payload)->payload_size = paramPayload.data()->size;
+                             memcpy((*param_payload)->payload, paramPayload.data()->payload.data(),
+                                     (*param_payload)->payload_size);
+                         }
                      }
                      ret = ret_;
                   });
@@ -773,10 +812,15 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
                      {
                          if(!ret_) {
                              *param_payload = calloc(1, size);
-                             memcpy(*param_payload,
-                                    paramPayload.data(),
-                                    size);
-                             *payload_size = size;
+                             if (!param_payload) {
+                                 ALOGE("Failed to allocate memory to param payload");
+                                 ret_ = -ENOMEM;
+                             } else {
+                                 memcpy(*param_payload,
+                                        paramPayload.data(),
+                                        size);
+                                 *payload_size = size;
+                             }
                           }
                           ret = ret_;
                      });

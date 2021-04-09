@@ -709,7 +709,7 @@ int SpeakerProtection::spkrStartCalibration()
         }
 
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
@@ -1072,7 +1072,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
             PARAM_ID_CPS_LPASS_HW_INTF_CFG,(void *)cpsRegCfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         free(cpsRegCfg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
@@ -1099,7 +1099,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
             PARAM_ID_SP_CPS_STATIC_CFG,(void *)&cpsStaticConf);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
@@ -1185,7 +1185,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         spkrProtSetSpkrStatus(flag);
         // Speaker in use. Start the Processing Mode
         rm = ResourceManager::getInstance();
-
+        if (!rm) {
+            PAL_ERR(LOG_TAG, "Failed to get resource manager instance");
+            goto done;
+        }
         memset(&device, 0, sizeof(device));
         memset(&sAttr, 0, sizeof(sAttr));
         memset(&config, 0, sizeof(config));
@@ -1338,7 +1341,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
             }
@@ -1352,7 +1355,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
             }
@@ -1366,7 +1369,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
             }
@@ -1393,7 +1396,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                     viParamId, (void *) &viFtmConfg);
             if (payloadSize) {
                 ret = updateCustomPayload(payload, payloadSize);
-                delete payload;
+                free(payload);
                 if (0 != ret) {
                     PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
                 }
@@ -1433,7 +1436,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             free(spR0T0confg);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
@@ -1503,7 +1506,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 customPayload = NULL;
             }
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
@@ -1614,7 +1617,7 @@ void SpeakerProtection::updateSPcustomPayload()
                     PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
@@ -1905,7 +1908,7 @@ void SpeakerFeedback::updateVIcustomPayload()
                              PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
         }
@@ -1919,7 +1922,7 @@ void SpeakerFeedback::updateVIcustomPayload()
                     PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
         }
@@ -1955,7 +1958,7 @@ void SpeakerFeedback::updateVIcustomPayload()
                     PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         free(spR0T0confg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
