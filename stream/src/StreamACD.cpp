@@ -1265,6 +1265,38 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                     status, dev->getSndDeviceId());
                 goto connect_err;
             }
+
+            status = acd_stream_.engine_->SetupSessionDevice(&acd_stream_,
+                acd_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Error:%d setupSessionDevice for %d failed",
+                        status, dev->getSndDeviceId());
+                dev->close();
+                goto connect_err;
+            }
+            if (acd_stream_.isActive()) {
+                status = dev->start();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Error:%d device %d start failed",
+                        status, dev->getSndDeviceId());
+                    goto connect_err;
+                }
+            }
+
+            status = acd_stream_.engine_->ConnectSessionDevice(&acd_stream_,
+                acd_stream_.mStreamAttr->type, dev);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Error:%d connectSessionDevice for %d failed",
+                      status, dev->getSndDeviceId());
+                dev->close();
+            } else {
+                if (acd_stream_.isActive())
+                    acd_stream_.rm->registerDevice(dev, &acd_stream_);
+
+                PAL_INFO(LOG_TAG, "Update capture profile after device switch");
+                acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
+            }
+
             acd_stream_.mDevices.clear();
             acd_stream_.mDevices.push_back(dev);
 
@@ -1476,7 +1508,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                     status, dev->getSndDeviceId());
                 goto connect_err;
             }
-            acd_stream_.rm->registerDevice(dev, &acd_stream_);
 
             status = acd_stream_.engine_->ConnectSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
@@ -1486,6 +1517,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 dev->close();
             } else {
                 PAL_DBG(LOG_TAG, "Update capture profile after device switch");
+                acd_stream_.rm->registerDevice(dev, &acd_stream_);
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
             }
             acd_stream_.mDevices.clear();
