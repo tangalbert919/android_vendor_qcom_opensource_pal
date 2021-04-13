@@ -1224,6 +1224,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             PAL_DBG(LOG_TAG, "deviceattr->config.ch_info.channels %d", deviceattr->config.ch_info.channels);
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
@@ -1265,6 +1269,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
@@ -1352,6 +1360,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_IN_PROXY:
             {
             /* For PAL_DEVICE_IN_PROXY, copy all config from stream attributes */
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.ch_info =sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
@@ -1364,6 +1376,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_IN_FM_TUNER:
             {
             /* For PAL_DEVICE_IN_FM_TUNER, copy all config from stream attributes */
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
@@ -1431,6 +1447,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_OUT_HEARING_AID:
             {
             /* For PAL_DEVICE_OUT_HEARING_AID, copy all config from stream attributes */
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
@@ -1443,6 +1463,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_IN_TELEPHONY_RX:
             {
             /* For PAL_DEVICE_IN_TELEPHONY_RX, copy all config from stream attributes */
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
@@ -1462,6 +1486,11 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 if (!dp_device) {
                     PAL_ERR(LOG_TAG, "Failed to get DisplayPort object.");
                     return -EINVAL;
+                }
+
+                if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
                 }
                 /**
                  * Comparision of stream channel and device supported max channel.
@@ -1512,6 +1541,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
         case PAL_DEVICE_OUT_HAPTICS_DEVICE:
             /* For PAL_DEVICE_OUT_HAPTICS_DEVICE, copy all config from stream attributes */
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             deviceattr->config.ch_info = sAttr->out_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->out_media_config.sample_rate;
             deviceattr->config.bit_width = sAttr->out_media_config.bit_width;
@@ -2107,8 +2140,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         sAttr.type != PAL_STREAM_PROXY &&
         sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
         status = s->getAssociatedDevices(associatedDevices);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+        if ((0 != status) || associatedDevices.empty()) {
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
             return status;
         }
 
@@ -2188,8 +2221,8 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
         status = s->getAssociatedDevices(associatedDevices);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+        if ((0 != status) || associatedDevices.empty()) {
+            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty");
             return status;
         }
 
@@ -5136,13 +5169,15 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr , rm);
-                status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
-                    goto exit;
+                if (dev) {
+                    status = dev->getDeviceParameter(param_id, (void **)&param_bt_a2dp);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
+                        goto exit;
+                    }
+                    *param_payload = param_bt_a2dp;
+                    *payload_size = sizeof(pal_param_bta2dp_t);
                 }
-                *param_payload = param_bt_a2dp;
-                *payload_size = sizeof(pal_param_bta2dp_t);
             }
             break;
         }
@@ -5366,7 +5401,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     device_connection->id == PAL_DEVICE_IN_BLUETOOTH_A2DP)) {
                     dattr.id = device_connection->id;
                     dev = Device::getInstance(&dattr, rm);
-                    status = dev->setDeviceParameter(param_id, param_payload);
+                    if (dev)
+                        status = dev->setDeviceParameter(param_id, param_payload);
                 } else {
                     status = SwitchSoundTriggerDevices(
                         device_connection->connection_state,
@@ -5425,13 +5461,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
-                status = dev->setDeviceParameter(param_id, param_payload);
+                if (dev)
+                    status = dev->setDeviceParameter(param_id, param_payload);
             }
 
             dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
-                status = dev->setDeviceParameter(param_id, param_payload);
+                if (dev)
+                    status = dev->setDeviceParameter(param_id, param_payload);
             }
         }
         break;
@@ -5445,6 +5483,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
+                if (dev == nullptr)
+                    goto exit;
+
                 status = dev->setDeviceParameter(param_id, param_payload);
                 if (status) {
                     PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
@@ -5512,6 +5553,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
             param_bt_a2dp = (pal_param_bta2dp_t *)param_payload;
             a2dp_dev = Device::getInstance(&a2dp_dattr , rm);
+            if (a2dp_dev == nullptr)
+                goto exit;
             status = a2dp_dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
             if (current_param_bt_a2dp->a2dp_suspended == param_bt_a2dp->a2dp_suspended) {
                 PAL_INFO(LOG_TAG, "A2DP already in requested state, ignoring\n");
@@ -5567,10 +5610,12 @@ setdevparam:
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
-                status = dev->setDeviceParameter(param_id, param_payload);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
-                    goto exit;
+                if (dev) {
+                    status = dev->setDeviceParameter(param_id, param_payload);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
+                        goto exit;
+                    }
                 }
             }
         }
@@ -6323,6 +6368,11 @@ void ResourceManager::processBTCodecInfo(const XML_Char **attr)
         token = strtok_r(NULL, "|", &saveptr);
     }
 
+    if (codec_formats.empty() || codec_types.empty()) {
+        PAL_INFO(LOG_TAG,"BT codec formats or types empty!");
+        goto done;
+    }
+
     for (iter1 = codec_formats.begin(); iter1 != codec_formats.end(); ++iter1) {
         for (iter2 = codec_types.begin(); iter2 != codec_types.end(); ++iter2) {
             PAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s, %s=%s",
@@ -6370,9 +6420,11 @@ void ResourceManager::processConfigParams(const XML_Char **attr)
     }
     PAL_VERBOSE(LOG_TAG, "String %s %s %s %s ",attr[0],attr[1],attr[2],attr[3]);
     configParamKVPairs = str_parms_create();
-    str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
-    setConfigParams(configParamKVPairs);
-    str_parms_destroy(configParamKVPairs);
+    if (configParamKVPairs) {
+        str_parms_add_str(configParamKVPairs, (char*)attr[1], (char*)attr[3]);
+        setConfigParams(configParamKVPairs);
+        str_parms_destroy(configParamKVPairs);
+    }
 done:
     return;
 }
@@ -6759,7 +6811,8 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     static std::shared_ptr<ACDPlatformInfo> acd_info = nullptr;
 
     if (data->is_parsing_sound_trigger) {
-        st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
+        if (st_info)
+           st_info->HandleStartTag((const char *)tag_name, (const char **)attr);
         return;
     }
 

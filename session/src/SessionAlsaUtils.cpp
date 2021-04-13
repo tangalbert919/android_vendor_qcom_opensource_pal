@@ -703,6 +703,11 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(DevIds.at(0));
+
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id not found");
+        return -EINVAL;
+    }
     CntrlName<<pcmDeviceName<<" "<<getParamControl;
     ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
     if (!ctl) {
@@ -752,6 +757,10 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
 
     ret = setStreamMetadataType(mixer, device, intf_name);
     if (ret)
@@ -877,6 +886,10 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
 
     PAL_DBG(LOG_TAG, "- mixer -%s-\n", pcmDeviceName);
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
@@ -911,6 +924,10 @@ int SessionAlsaUtils::setStreamMetadataType(struct mixer *mixer, int device, con
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if(mixer_str == NULL) {
@@ -995,6 +1012,10 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
 
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);

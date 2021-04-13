@@ -445,11 +445,11 @@ int32_t Stream::getMaxMetadataSz(size_t *in_max_metdata_sz, size_t *out_max_meta
     if (out_max_metadata_sz)
         *out_max_metadata_sz = outMaxMetadataSz;
 
-    if (!in_max_metdata_sz)
+    if (in_max_metdata_sz)
         PAL_DBG(LOG_TAG, "in max metadataSize %zu",
                 *in_max_metdata_sz);
 
-    if (!out_max_metadata_sz)
+    if (out_max_metadata_sz)
         PAL_DBG(LOG_TAG, "in max metadataSize %zu",
                 *out_max_metadata_sz);
 

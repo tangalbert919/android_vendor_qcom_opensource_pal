@@ -71,6 +71,10 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
 
         rw_done_payload = (struct pal_event_read_write_done_payload *) calloc(1,
                                      sizeof(struct pal_event_read_write_done_payload));
+        if(!rw_done_payload){
+            PAL_ERR(LOG_TAG, "Calloc allocation failed for rw_done_payload");
+            goto done;
+        }
 
         agm_rw_done_payload = (struct agm_event_read_write_done_payload *)event_params->event_payload;
 
@@ -91,6 +95,11 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
 
         if (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP) {
             rw_done_payload->buff.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
+
+            if(!rw_done_payload->buff.ts){
+                PAL_ERR(LOG_TAG, "Calloc allocation failed rw_done_payload buff");
+                goto done;
+            }
             rw_done_payload->buff.ts->tv_sec = agm_rw_done_payload->buff.timestamp/MICRO_SECS_PER_SEC;
             rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
                                           rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
