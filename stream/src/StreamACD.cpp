@@ -468,8 +468,14 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
 void StreamACD::SendCachedEventData()
 {
     size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
-    callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
+
+    if (callback_) {
+        PAL_INFO(LOG_TAG, "Notify detection event to client");
+        callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
                   event_size, cookie_);
+    }
+    free(cached_event_data_);
+    cached_event_data_ = NULL;
 }
 void StreamACD::NotifyClient(struct acd_context_event *event)
 {
@@ -1136,6 +1142,9 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             dattr.config.ch_info.channels = cap_prof->GetChannels();
             dattr.config.sample_rate = cap_prof->GetSampleRate();
             dev->setDeviceAttributes(dattr);
+
+            PAL_INFO(LOG_TAG, "updated device attr dev_id=0x%x, chs=%d, sr=%d\n",
+                    cap_prof->GetDevId(), cap_prof->GetChannels(), cap_prof->GetSampleRate());
 
             /* now start the device */
             PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
