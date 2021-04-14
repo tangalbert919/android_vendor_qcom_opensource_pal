@@ -438,27 +438,14 @@ void ACDEngine::UpdateModelCount(struct pal_param_context_list *context_cfg, boo
     std::shared_ptr<ACDSoundModelInfo> sm_info;
     bool model_to_update[ACD_SOUND_MODEL_ID_MAX];
 
-    /* Step 1 . Initialize appropriate arrays to false
-     *          When we call this back-to-back in ReconfigureEngine we must preserve the
-     *          list of models to deregister.
-     */
-    for (model_id = 0; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
-        model_to_update[model_id] = false;
-        if (enable) {
-            model_load_needed_[model_id] = false;
-        } else {
-            model_unload_needed_[model_id] = false;
-        }
-    }
-
-    /* Step 2. Update model_to_update based on model associated with context id */
+    /* Step 1. Update model_to_update based on model associated with context id */
     for (i = 0; i < context_cfg->num_contexts; i++) {
         sm_info = sm_cfg_->GetSoundModelInfoByContextId(context_cfg->context_id[i]);
         model_id = sm_info->GetModelId();
         model_to_update[model_id] = true;
     }
 
-    /* Step 3. a. Update model_count based on enable/disable flag
+    /* Step 2. a. Update model_count based on enable/disable flag
      *         b. For enable, if model_count is 1, then set model_load_needed to true
      *         c. For disble, if model count is 0, then set model_unload_needed to true.
      */
@@ -789,7 +776,6 @@ int32_t ACDEngine::UnloadSoundModel()
             deregister_config.model_id = sm_cfg_->GetSoundModelInfoByModelId(model_id)->GetModelUUID();
             status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
                                  sizeof(deregister_config));
-            model_unload_needed_[model_id] = false;
         }
     }
     return status;
@@ -869,7 +855,6 @@ int32_t ACDEngine::LoadSoundModel()
                 uuid = sm_info->GetModelUUID();
                 status = PopulateSoundModel(bin_name, uuid);
             }
-            model_load_needed_[model_id] = false;
         }
     }
     return status;
@@ -917,6 +902,15 @@ exit:
     return status;
 }
 
+void ACDEngine::ResetModelLoadUnloadFlags()
+{
+    is_confidence_value_updated_ = false;
+    for (int model_id = ACD_SOUND_MODEL_ID_ENV; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
+        model_load_needed_[model_id] = false;
+        model_unload_needed_[model_id] = false;
+    }
+}
+
 int32_t ACDEngine::SetupEngine(Stream *st, void *config)
 {
     int32_t status = 0;
@@ -925,8 +919,7 @@ int32_t ACDEngine::SetupEngine(Stream *st, void *config)
     StreamACD *s = dynamic_cast<StreamACD *>(st);
 
     std::unique_lock<std::mutex> lck(mutex_);
-
-    is_confidence_value_updated_ = false;
+    ResetModelLoadUnloadFlags();
     UpdateModelCount(context_cfg, true);
     recog_cfg = s->GetRecognitionConfig();
     if (recog_cfg)
@@ -988,7 +981,7 @@ int32_t ACDEngine::ReconfigureEngine(Stream *st, void *old_cfg, void *new_cfg)
     StreamACD *s = dynamic_cast<StreamACD *>(st);
 
     std::unique_lock<std::mutex> lck(mutex_);
-    is_confidence_value_updated_ = false;
+    ResetModelLoadUnloadFlags();
     UpdateModelCount((struct pal_param_context_list *)old_cfg, false);
     UpdateModelCount((struct pal_param_context_list *)new_cfg, true);
 
@@ -1012,7 +1005,7 @@ int32_t ACDEngine::TeardownEngine(Stream *st, void *config)
     StreamACD *s = dynamic_cast<StreamACD *>(st);
 
     std::unique_lock<std::mutex> lck(mutex_);
-    is_confidence_value_updated_ = false;
+    ResetModelLoadUnloadFlags();
     UpdateModelCount(cfg, false);
 
     recog_cfg = s->GetRecognitionConfig();
