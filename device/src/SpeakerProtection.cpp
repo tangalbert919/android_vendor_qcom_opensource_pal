@@ -768,7 +768,7 @@ int SpeakerProtection::spkrStartCalibration()
                 for (i = 0; i < numberOfChannels; i++) {
                     fwrite(&callback_data->r0_cali_q24[i],
                                 sizeof(callback_data->r0_cali_q24[i]), 1, fp);
-                    fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
+                    fwrite(&spkerTempList[i], sizeof(int16_t), 1, fp);
                 }
                 spkrCalState = SPKR_CALIBRATED;
                 free(callback_data);
@@ -1428,8 +1428,13 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                             sizeof(vi_r0t0_cfg_t) * numberOfChannels);
         spR0T0confg->num_speakers = numberOfChannels;
 
-        memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
-                numberOfChannels);
+        for (int i = 0; i < numberOfChannels; i++) {
+            spR0T0confg->vi_r0t0_cfg[i].r0_cali_q24 = r0t0Array[i].r0_cali_q24;
+            spR0T0confg->vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
+            PAL_DBG (LOG_TAG,"R0 %x ", spR0T0confg->vi_r0t0_cfg[i].r0_cali_q24);
+            PAL_DBG (LOG_TAG,"T0 %x ", spR0T0confg->vi_r0t0_cfg[i].t0_cali_q6);
+
+        }
 
         payloadSize = 0;
         builder->payloadSPConfig(&payload, &payloadSize, miid,
