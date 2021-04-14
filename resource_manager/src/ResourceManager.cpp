@@ -2671,8 +2671,8 @@ int ResourceManager::handleMixerEvent(struct mixer *mixer, char *mixer_str) {
             params->source_module_id, params->event_id,
             params->event_payload_size);
 
-    if (!params->source_module_id || !params->event_payload_size) {
-        PAL_ERR(LOG_TAG, "Invalid source module id or payload size");
+    if (!params->source_module_id) {
+        PAL_ERR(LOG_TAG, "Invalid source module id");
         goto exit;
     }
 
