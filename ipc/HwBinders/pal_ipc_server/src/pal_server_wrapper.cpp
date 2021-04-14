@@ -198,9 +198,12 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         } else
             ALOGE("Client died dropping this event %d", event_id);
     } else {
+        hidl_vec<uint8_t> PayloadHidl;
+        PayloadHidl.resize(event_data_size);
+        memcpy(PayloadHidl.data(), event_data, event_data_size);
         if (!sr_clbk_dat->client_died)
             clbk_bdr->event_callback((uint64_t)stream_handle, event_id,
-                              0, NULL,
+                              event_data_size, PayloadHidl,
                               sr_clbk_dat->client_data_);
         else
             ALOGE("Client died dropping this event %d", event_id);
