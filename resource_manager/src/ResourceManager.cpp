@@ -65,6 +65,7 @@
 #include <cutils/str_parms.h>
 #endif
 
+#define XML_PATH_EXTN_MAX_SIZE 80
 #define XML_FILE_DELIMITER "_"
 #define XML_FILE_EXT ".xml"
 #define XML_PATH_MAX_LENGTH 100
@@ -132,16 +133,6 @@ static struct str_parms *configParamKVPairs;
 char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
-
-struct snd_card_split {
-    char device[HW_INFO_ARRAY_MAX_SIZE];
-    char form_factor[HW_INFO_ARRAY_MAX_SIZE];
-};
-
-static struct snd_card_split cur_snd_card_split{
-    .device = {0},
-    .form_factor = {0},
-};
 
 // default properties which will be updated based on platform configuration
 static struct pal_st_properties qst_properties = {
@@ -518,39 +509,36 @@ pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
     return type;
 }
 
-void ResourceManager::split_snd_card(const char* in_snd_card_name)
+void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_name_extn)
 {
     /* Sound card name follows below mentioned convention:
-       <target name>-<form factor>-snd-card.
-       Parse target name and form factor.
+       <target name>-<form factor>-<variant>-snd-card.
     */
     char *snd_card_name = NULL;
     char *tmp = NULL;
-    char *device = NULL;
-    char *form_factor = NULL;
+    char *card_sub_str = NULL;
 
-    if (in_snd_card_name == NULL) {
-        PAL_ERR(LOG_TAG,"snd_card_name passed is NULL");
+    snd_card_name = strdup(in_snd_card_name);
+    if (snd_card_name == NULL) {
         goto err;
     }
-    snd_card_name = strdup(in_snd_card_name);
 
-    device = strtok_r(snd_card_name, "-", &tmp);
-    if (device == NULL) {
+    card_sub_str = strtok_r(snd_card_name, "-", &tmp);
+    if (card_sub_str == NULL) {
         PAL_ERR(LOG_TAG,"called on invalid snd card name");
         goto err;
     }
-    strlcpy(cur_snd_card_split.device, device, HW_INFO_ARRAY_MAX_SIZE);
+    strlcat(file_name_extn, card_sub_str, XML_PATH_EXTN_MAX_SIZE);
 
-    form_factor = strtok_r(NULL, "-", &tmp);
-    if (form_factor == NULL) {
-        PAL_ERR(LOG_TAG, "called on invalid snd card name");
-        goto err;
+    while ((card_sub_str = strtok_r(NULL, "-", &tmp))) {
+        if (strncmp(card_sub_str, "snd", strlen("snd"))) {
+            strlcat(file_name_extn, XML_FILE_DELIMITER, XML_PATH_EXTN_MAX_SIZE);
+            strlcat(file_name_extn, card_sub_str, XML_PATH_EXTN_MAX_SIZE);
+        }
+        else
+            break;
     }
-    strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
-
-    PAL_INFO(LOG_TAG, "snd_card_name(%s) device(%s) form_factor(%s)",
-             in_snd_card_name, device, form_factor);
+    PAL_DBG(LOG_TAG,"file path extension(%s)", file_name_extn);
 
 err:
     if (snd_card_name)
@@ -1019,6 +1007,7 @@ int ResourceManager::init_audio()
     char *snd_card_name = NULL;
 
     char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
+    char file_name_extn[XML_PATH_EXTN_MAX_SIZE] = {0};
 
     PAL_DBG(LOG_TAG, "Enter.");
 
@@ -1081,7 +1070,7 @@ int ResourceManager::init_audio()
         return -EIO;
     }
 
-    split_snd_card(snd_card_name);
+    getFileNameExtn(snd_card_name, file_name_extn);
 
     getVendorConfigPath(vendor_config_path, sizeof(vendor_config_path));
 
@@ -1092,29 +1081,11 @@ int ResourceManager::init_audio()
     snprintf(rmngr_xml_file, sizeof(rmngr_xml_file),
             "%s/%s", vendor_config_path, RMNGR_XMLFILE_BASE_STRING_NAME);
 
-    /* Note: This assumes IDP/MTP form factor will use mixer_paths.xml /
-             resourcemanager.xml.
-       TODO: Add support for form factors other than IDP/QRD.
-    */
-    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))||
-        !strncmp(cur_snd_card_split.form_factor, "cdp", sizeof ("cdp"))){
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+    strlcat(mixer_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
 
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-    } else if (!strncmp(cur_snd_card_split.form_factor, "scubaidp", sizeof("scubaidp"))) {
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-    }
-    if (strstr(snd_card_name, "slate")) {
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, "slate", XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, "slate", XML_PATH_MAX_LENGTH);
-    }
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
