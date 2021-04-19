@@ -3649,6 +3649,17 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             rm->releaseWakeLock();
             break;
         }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -3915,6 +3926,17 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             status = st_stream_.ProcessInternalEvent(ev_cfg3);
             TransitTo(ST_STATE_SSR);
             rm->releaseWakeLock();
+            break;
+        }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
             break;
         }
         default: {
