@@ -902,7 +902,7 @@
             <arm_ss_usecase>
                 <param sm_detection_type= "USER_VERIFICATION" />
                 <param sm_id="0x4" />
-                <param module_lib="libcapiv2vopvendor.so"/>
+                <param module_lib="libcapiv2uvvendor.so"/>
                 <param sample_rate="16000"/>
                 <param bit_width="16"/>
                 <param channel_count="1"/>
