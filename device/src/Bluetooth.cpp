@@ -402,7 +402,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
             builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, false);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
-                free(paramData);
+                delete [] paramData;
                 paramData = NULL;
                 paramSize = 0;
             } else {
@@ -414,7 +414,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
             builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, true);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
-                free(paramData);
+                delete [] paramData;
                 paramData = NULL;
                 paramSize = 0;
             } else {
@@ -438,7 +438,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         builder->payloadCopV2PackConfig(&paramData, &paramSize, copMiid, codecInfo);
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
-            free(paramData);
+                delete [] paramData;
             paramData = NULL;
             paramSize = 0;
         } else {
@@ -458,7 +458,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         paramData = NULL;
         paramSize = 0;
     } else {
@@ -478,7 +478,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         paramData = NULL;
         paramSize = 0;
     } else {
@@ -505,7 +505,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         paramData = NULL;
         paramSize = 0;
     } else {
@@ -755,7 +755,7 @@ void Bluetooth::startAbr()
 
         ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                 paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         if (ret) {
             PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d", fbDevice.id);
             goto err_pcm_open;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -174,7 +174,7 @@ public:
     bool isSupportedBps(edidAudioInfo* info, int bps);
     int getHighestSupportedSR();
     int getHighestSupportedBps();
-    ssize_t updateSysfsNode(const char *path, const char *data, size_t len);
+    int updateSysfsNode(const char *path, const char *data, size_t len);
     int getExtDispSysfsNodeIndex(int ext_disp_type);
     int updateExtDispSysfsNode(int node_value, int controller, int stream);
     int updateAudioAckState(int node_value, int controller, int stream);
