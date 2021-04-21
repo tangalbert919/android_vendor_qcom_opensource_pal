@@ -1206,7 +1206,7 @@ bool BtA2dp::isDeviceReady()
         (isA2dpOffloadSupported)) {
         if (a2dpRole == SOURCE) {
             if (audio_source_check_a2dp_ready)
-               ret = audio_source_check_a2dp_ready();
+                ret = audio_source_check_a2dp_ready();
         } else {
             if (audio_sink_check_a2dp_ready)
                 ret = audio_sink_check_a2dp_ready();
@@ -1348,7 +1348,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     }
     case PAL_PARAM_ID_BT_A2DP_RECONFIG:
     {
-        if (a2dpState == A2DP_STATE_STARTED) {
+        if (a2dpState != A2DP_STATE_DISCONNECTED) {
             param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
             isHandoffInProgress = param_a2dp->reconfigured;
         }
