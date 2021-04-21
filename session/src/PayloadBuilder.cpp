@@ -1111,7 +1111,13 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_LOW_LATENCY:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
+                instance_id = rm->getStreamInstanceID(s);
+                if (instance_id < INSTANCE_1) {
+                    status = -EINVAL;
+                    PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
+                    goto free_sattr;
+                }
+                keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             } else if (sattr->direction == PAL_AUDIO_INPUT) {
                 keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
             } else if (sattr->direction == (PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT)) {
