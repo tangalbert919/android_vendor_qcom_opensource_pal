@@ -8,6 +8,7 @@ h_sources = ./stream/inc/Stream.h \
             ./stream/inc/StreamCompress.h \
             ./stream/inc/StreamPCM.h \
             ./stream/inc/StreamSoundTrigger.h \
+            ./stream/inc/StreamUltraSound.h \
             ./device/inc/Device.h \
             ./device/inc/Speaker.h \
             ./device/inc/Bluetooth.h \
@@ -19,6 +20,7 @@ h_sources = ./stream/inc/Stream.h \
             ./device/inc/Handset.h \
             ./device/inc/HandsetMic.h \
             ./device/inc/HandsetVaMic.h \
+            ./device/inc/UltrasoundDevice.h \
             ./session/inc/Session.h \
             ./session/inc/PayloadBuilder.h \
             ./session/inc/SessionGsl.h \
@@ -48,6 +50,7 @@ pal_sources = ./stream/src/Stream.cpp \
               ./stream/src/StreamCompress.cpp \
               ./stream/src/StreamPCM.cpp \
               ./stream/src/StreamSoundTrigger.cpp \
+              ./stream/src/StreamUltraSound.cpp \
               ./device/src/Device.cpp \
               ./device/src/Speaker.cpp \
               ./device/src/Headphone.cpp \
@@ -58,6 +61,7 @@ pal_sources = ./stream/src/Stream.cpp \
               ./device/src/HandsetMic.cpp \
               ./device/src/HandsetVaMic.cpp \
               ./device/src/Handset.cpp \
+              ./device/src/UltrasoundDevice.cpp \
               ./session/src/Session.cpp \
               ./session/src/PayloadBuilder.cpp \
               ./session/src/SessionAlsaUtils.cpp \
@@ -76,6 +80,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/stream/inc/StreamCompress.h \
             ${top_srcdir}/stream/inc/StreamPCM.h \
             ${top_srcdir}/stream/inc/StreamSoundTrigger.h \
+            ${top_srcdir}/stream/inc/StreamUltraSound.h \
             ${top_srcdir}/device/inc/Device.h \
             ${top_srcdir}/device/inc/Speaker.h \
             ${top_srcdir}/device/inc/Headphone.h \
@@ -89,6 +94,7 @@ h_sources = ${top_srcdir}/stream/inc/Stream.h \
             ${top_srcdir}/device/inc/HandsetMic.h \
             ${top_srcdir}/device/inc/HandsetVaMic.h \
             ${top_srcdir}/device/inc/DisplayPort.h \
+            ${top_srcdir}/device/inc/UltrasoundDevice.h \
             ${top_srcdir}/session/inc/Session.h \
             ${top_srcdir}/session/inc/PayloadBuilder.h \
             ${top_srcdir}/session/inc/SessionGsl.h \
@@ -136,6 +142,7 @@ pal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/stream/src/StreamCompress.cpp \
               ${top_srcdir}/stream/src/StreamPCM.cpp \
               ${top_srcdir}/stream/src/StreamSoundTrigger.cpp \
+              ${top_srcdir}/stream/src/StreamUltraSound.cpp \
               ${top_srcdir}/device/src/Device.cpp \
               ${top_srcdir}/device/src/Speaker.cpp \
               ${top_srcdir}/device/src/Headphone.cpp \
@@ -146,6 +153,7 @@ pal_sources = ${top_srcdir}/stream/src/Stream.cpp \
               ${top_srcdir}/device/src/HandsetMic.cpp \
               ${top_srcdir}/device/src/HandsetVaMic.cpp \
               ${top_srcdir}/device/src/DisplayPort.cpp \
+              ${top_srcdir}/device/src/UltrasoundDevice.cpp \
               ${top_srcdir}/session/src/Session.cpp \
               ${top_srcdir}/session/src/PayloadBuilder.cpp \
               ${top_srcdir}/session/src/SessionAlsaUtils.cpp \

@@ -38,6 +38,7 @@
 #include "StreamACD.h"
 #include "StreamInCall.h"
 #include "StreamContextProxy.h"
+#include "StreamUltraSound.h"
 #include "gsl_intf.h"
 #include "Headphone.h"
 #include "PayloadBuilder.h"
@@ -50,6 +51,7 @@
 #include "DisplayPort.h"
 #include "Handset.h"
 #include "SndCardMonitor.h"
+#include "UltrasoundDevice.h"
 #include <agm/agm_api.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -109,6 +111,7 @@
 #define MAX_SESSIONS_INCALL_RECORD 1
 #define MAX_SESSIONS_NON_TUNNEL 4
 #define MAX_SESSIONS_HAPTICS 1
+#define MAX_SESSIONS_ULTRASOUND 1
 
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
@@ -177,6 +180,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_ULTRASOUND,           {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "none" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "tdm-pri" }}},
@@ -196,6 +200,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::deviceLinkName {
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        {std::string{ "" }}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
 };
 
 std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
@@ -219,6 +224,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        0},
     {PAL_DEVICE_OUT_HEARING_AID,          0},
     {PAL_DEVICE_OUT_HAPTICS_DEVICE,       0},
+    {PAL_DEVICE_OUT_ULTRASOUND,           1},
     {PAL_DEVICE_OUT_MAX,                  0},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           0},
@@ -238,6 +244,7 @@ std::vector<std::pair<int32_t, int32_t>> ResourceManager::devicePcmId {
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        0},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        0},
     {PAL_DEVICE_IN_TELEPHONY_RX,          0},
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        0},
 };
 
 // To be defined in detail
@@ -262,6 +269,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_ULTRASOUND,           {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "" }}},
@@ -282,6 +290,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "" }}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
 };
 
 const std::map<std::string, uint32_t> usecaseIdLUT {
@@ -306,6 +315,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
     {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
     {std::string{ "PAL_STREAM_ACD" },                      PAL_STREAM_ACD},
+    {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
 };
 
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
@@ -422,6 +432,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        {std::string{ "" }}},
     {PAL_DEVICE_OUT_HEARING_AID,          {std::string{ "" }}},
     {PAL_DEVICE_OUT_HAPTICS_DEVICE,       {std::string{ "" }}},
+    {PAL_DEVICE_OUT_ULTRASOUND,           {std::string{ "" }}},
     {PAL_DEVICE_OUT_MAX,                  {std::string{ "" }}},
 
     {PAL_DEVICE_IN_HANDSET_MIC,           {std::string{ "none" }}},
@@ -442,6 +453,7 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds 
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        {std::string{ "none" }}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           {std::string{ "" }}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          {std::string{ "" }}},
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "none" }}},
 };
 
 void agmServiceCrashHandler(uint64_t cookie __unused)
@@ -1469,6 +1481,24 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             PAL_DBG(LOG_TAG, "PAL_DEVICE_OUT_HAPTICS_DEVICE sample rate %d bitwidth %d",
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             break;
+        case PAL_DEVICE_IN_ULTRASOUND_MIC:
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
+            deviceattr->config.ch_info = dev_ch_info;
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info.channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_96K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
+        case PAL_DEVICE_OUT_ULTRASOUND:
+            dev_ch_info.channels = channel;
+            getChannelMap(&(dev_ch_info.ch_map[0]), channel);
+            deviceattr->config.ch_info = dev_ch_info;
+            PAL_DBG(LOG_TAG, "deviceattr->config.ch_info->channels %d", deviceattr->config.ch_info.channels);
+            deviceattr->config.sample_rate = SAMPLINGRATE_96K;
+            deviceattr->config.bit_width = BITWIDTH_16;
+            deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+            break;
         default:
             PAL_ERR(LOG_TAG, "No matching device id %d", deviceattr->id);
             status = -EINVAL;
@@ -1562,6 +1592,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             break;
         case PAL_STREAM_CONTEXT_PROXY:
             return true;
+            break;
+        case PAL_STREAM_ULTRASOUND:
+            cur_sessions = active_streams_ultrasound.size();
+            max_sessions = MAX_SESSIONS_ULTRASOUND;
             break;
         default:
             PAL_ERR(LOG_TAG, "Invalid stream type = %d", type);
@@ -1668,6 +1702,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             result = true;
             break;
         case PAL_STREAM_ACD:
+        case PAL_STREAM_ULTRASOUND:
             result = true;
             break;
         default:
@@ -1779,6 +1814,12 @@ int ResourceManager::registerStream(Stream *s)
         {
             StreamACD* sAcd = dynamic_cast<StreamACD*>(s);
             ret = registerstream(sAcd, active_streams_acd);
+            break;
+        }
+        case PAL_STREAM_ULTRASOUND:
+        {
+            StreamUltraSound* sUPD = dynamic_cast<StreamUltraSound*>(s);
+            ret = registerstream(sUPD, active_streams_ultrasound);
             break;
         }
         default:
@@ -1925,6 +1966,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamACD* sAcd = dynamic_cast<StreamACD*>(s);
             ret = deregisterstream(sAcd, active_streams_acd);
+            break;
+        }
+        case PAL_STREAM_ULTRASOUND:
+        {
+            StreamUltraSound* sUPD = dynamic_cast<StreamUltraSound*>(s);
+            ret = deregisterstream(sUPD, active_streams_ultrasound);
             break;
         }
         default:
@@ -3246,6 +3293,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_non_tunnel);
     getActiveStreams(d, activestreams, active_streams_incall_music);
     getActiveStreams(d, activestreams, active_streams_haptics);
+    getActiveStreams(d, activestreams, active_streams_ultrasound);
 
     if (activestreams.empty()) {
         ret = -ENOENT;
@@ -3494,6 +3542,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_PROXY:
         case PAL_STREAM_HAPTICS:
+        case PAL_STREAM_ULTRASOUND:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
@@ -3759,6 +3808,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_ACD:
         case PAL_STREAM_PCM_OFFLOAD:
         case PAL_STREAM_HAPTICS:
+        case PAL_STREAM_ULTRASOUND:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
@@ -3851,10 +3901,10 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             }
             break;
        case PAL_STREAM_CONTEXT_PROXY:
-                for (int i = 0; i < frontend.size(); i++) {
-                    listAllPcmContextProxyFrontEnds.push_back(frontend.at(i));
-                }
-                break;
+            for (int i = 0; i < frontend.size(); i++) {
+                 listAllPcmContextProxyFrontEnds.push_back(frontend.at(i));
+            }
+            break;
         default:
             break;
     }

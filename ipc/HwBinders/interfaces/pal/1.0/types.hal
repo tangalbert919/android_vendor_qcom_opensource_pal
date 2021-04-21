@@ -59,6 +59,7 @@ enum PalStreamType : uint32_t {
     PAL_STREAM_ACD = 23,                  /**< ACD Stream */
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
     PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
+    PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
 };
 
 struct PalStreamInfo {
