@@ -200,7 +200,11 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
 
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo new failed %s", strerror(errno));
+        return;
+    }
 
     header = (struct apm_module_param_data_t*)payloadInfo;
     usbConfig = (struct param_id_usb_audio_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
