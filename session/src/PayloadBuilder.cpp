@@ -1683,6 +1683,12 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 keyVector.push_back(std::make_pair(CHANNELS,
                                                    dAttr.config.ch_info.channels));
                 break;
+            case PAL_STREAM_ACD:
+                PAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
+                /* Push Channels CKV for FFECNS channel based calibration */
+                keyVector.push_back(std::make_pair(CHANNELS,
+                                                   dAttr.config.ch_info.channels));
+                break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
             case PAL_STREAM_PCM_OFFLOAD:

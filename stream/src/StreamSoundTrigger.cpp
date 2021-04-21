@@ -152,11 +152,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         st_info_->GetConcurrentVoipCallEnable());
 
     // check concurrency count from rm
-    rm->GetSVAConcurrencyCount(&enable_concurrency_count,
+    rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI, &enable_concurrency_count,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsVoiceUILPISupported() && !enable_concurrency_count) {
+    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) && !enable_concurrency_count) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
@@ -457,7 +457,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
 
 int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    if (!rm->IsVoiceUILPISupported()) {
+    if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
     } else {
         use_lpi_ = is_enable;
@@ -613,7 +613,7 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
     dev->id = dev_id;
 
     if (use_rm_profile) {
-        cap_prof = rm->GetSVACaptureProfile();
+        cap_prof = rm->GetSoundTriggerCaptureProfile();
         if (!cap_prof) {
             PAL_DBG(LOG_TAG, "Failed to get common capture profile");
             cap_prof = GetCurrentCaptureProfile();
@@ -2941,15 +2941,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             // Do not update capture profile when resuming stream
             if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
-                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
                     }
 
-                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    status = rm->StartOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }
@@ -2960,7 +2960,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 auto& dev = st_stream_.mDevices[0];
                 dev->getDeviceAttributes(&dattr);
 
-                cap_prof = st_stream_.rm->GetSVACaptureProfile();
+                cap_prof = st_stream_.rm->GetSoundTriggerCaptureProfile();
                 if (!cap_prof) {
                     PAL_ERR(LOG_TAG, "Invalid capture profile");
                     goto err_exit;
@@ -3232,15 +3232,15 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             // Do not update capture profile when pausing stream
             if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
                 bool backend_update = false;
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
-                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
                     }
 
-                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    status = rm->StartOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }

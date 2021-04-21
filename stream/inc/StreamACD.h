@@ -94,7 +94,7 @@ class StreamACD : public Stream {
     int32_t prepare() override { return 0; }
     int32_t start() override;
     int32_t stop() override;
-
+    int32_t getTagsWithModuleInfo(size_t *size, uint8_t *payload) override;
     int32_t setStreamAttributes(struct pal_stream_attributes *sattr __unused) {
         return 0;
     }
@@ -106,6 +106,8 @@ class StreamACD : public Stream {
     int32_t read(struct pal_buffer *buf __unused) {return 0; }
     int32_t write(struct pal_buffer *buf __unused) { return 0; }
 
+    int32_t DisconnectDevice(pal_device_id_t device_id) override;
+    int32_t ConnectDevice(pal_device_id_t device_id) override;
     int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable);
     int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable);
     int32_t ssrDownHandler() { return 0; }
@@ -119,9 +121,18 @@ class StreamACD : public Stream {
         return -ENOSYS;
     }
 
+    int32_t Resume() override;
+    int32_t Pause() override;
+    int32_t HandleConcurrentStream(bool active) override;
+    int32_t EnableLPI(bool is_enable) override;
+
     pal_device_id_t GetAvailCaptureDevice();
-    std::shared_ptr<ACDCaptureProfile> GetCurrentCaptureProfile();
+    std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
     void NotifyClient(struct acd_context_event *event);
+    void CacheEventData(struct acd_context_event *event);
+    void SendCachedEventData();
+    void PopulateCallbackPayload(struct acd_context_event *event, void *payload);
+
     int32_t GetCurrentStateId();
     void TransitTo(int32_t state_id);
     void GetUUID(class SoundTriggerUUID *uuid,
@@ -253,6 +264,24 @@ class StreamACD : public Stream {
         ~ACDDetectedEventConfig() {}
     };
 
+    class ACDConcurrentStreamEventConfigData : public ACDEventConfigData {
+     public:
+        ACDConcurrentStreamEventConfigData(bool active)
+            : is_active_(active) {}
+        ~ACDConcurrentStreamEventConfigData() {}
+
+        bool is_active_;
+    };
+
+    class ACDConcurrentStreamEventConfig : public ACDEventConfig {
+     public:
+        ACDConcurrentStreamEventConfig (bool active)
+            : ACDEventConfig(ACD_EV_CONCURRENT_STREAM) {
+            data_ = std::make_shared<ACDConcurrentStreamEventConfigData>(active);
+        }
+        ~ACDConcurrentStreamEventConfig () {}
+    };
+
     class ACDPauseEventConfig : public ACDEventConfig {
      public:
         ACDPauseEventConfig() : ACDEventConfig(ACD_EV_PAUSE) { }
@@ -382,7 +411,7 @@ class StreamACD : public Stream {
     int32_t ProcessInternalEvent(std::shared_ptr<ACDEventConfig> ev_cfg);
 
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
-    int32_t SendRecognitionConfig(struct pal_st_recognition_config *config);
+    int32_t SendRecognitionConfig(struct acd_recognition_cfg *config);
     int32_t SendContextConfig(struct pal_param_context_list *config);
     int32_t SetupDetectionEngine();
 
@@ -391,11 +420,12 @@ class StreamACD : public Stream {
 
     std::shared_ptr<StreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
-    std::shared_ptr<ACDCaptureProfile> cap_prof_;
+    std::shared_ptr<CaptureProfile> cap_prof_;
     std::shared_ptr<ContextDetectionEngine> engine_;
 
     struct acd_recognition_cfg    *rec_config_;
     struct pal_param_context_list *context_config_;
+    struct pal_st_recognition_event *cached_event_data_;
     uint32_t                      detection_state_;
     bool                          paused_;
 

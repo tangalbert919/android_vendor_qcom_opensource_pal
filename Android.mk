@@ -20,6 +20,7 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc \
     $(LOCAL_PATH)/device/inc                 \
     $(LOCAL_PATH)/session/inc                \
     $(LOCAL_PATH)/resource_manager/inc       \
+    $(LOCAL_PATH)/context_manager/inc        \
     $(LOCAL_PATH)/utils/inc                  \
     $(LOCAL_PATH)/plugins/codecs
 
@@ -88,9 +89,11 @@ LOCAL_SRC_FILES        := Pal.cpp\
     session/src/SoundTriggerEngineCapi.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
     session/src/ContextDetectionEngine.cpp \
+    context_manager/src/ContextManager.cpp \
     session/src/ACDEngine.cpp \
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
+    utils/src/SoundTriggerXmlParser.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \
     utils/src/ACDPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \

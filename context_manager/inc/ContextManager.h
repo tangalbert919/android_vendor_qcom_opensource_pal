@@ -31,14 +31,23 @@
 
 #include <vector>
 #include <thread>
+#include <queue>
+#include <condition_variable>
 
 #include <PalApi.h>
+#include "ACDPlatformInfo.h"
+#include <PalCommon.h>
+#include "kvh2xml.h"
 
 enum USECASE {
-    USECASE_ACD = 1,
+    ASPS_USECASE_ID_ACD = 1,
     USECASE_RAW_DATA = 2,
-    USECASE_UPD = 3,
+    ASPS_USECASE_ID_UPD = 3,
 };
+
+class ContextManager; /* forward declaration for RequestCommand */
+class ACDPlatformInfo;
+using ACDUUID = SoundTriggerUUID;
 
 class Usecase
 {
@@ -50,41 +59,72 @@ protected:
     pal_stream_handle_t *pal_stream;
 
 public:
-
     Usecase(uint32_t usecase_id);
-    ~Usecase();
+    virtual ~Usecase();
     uint32_t GetUseCaseID();
-    virtual int32_t SetUseCaseData(uint32_t size, void *data);
     int32_t Open();
-    virtual int32_t Configure();
     int32_t Start();
     int32_t StopAndClose();
+
+    int32_t GetModuleIIDs(std::vector<int32_t> tags,
+        std::map<int32_t, std::vector<uint32_t>> &tag_miid_map);
+
+    //virtual fucntions
+    virtual int32_t SetUseCaseData(uint32_t size, void *data);
+    virtual int32_t Configure();
+
+    // caller should allocate sufficient memory the first time to avoid
+    // calling this api twice. Size, will be updated to actual size;
+    virtual int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data) = 0;
 };
 
 class UsecaseACD :public Usecase
 {
 private:
-    struct pal_param_context_list *context_list;
+    struct pal_param_context_list *requested_context_list;
+    std::vector<int32_t> tags;
 
 public:
     UsecaseACD(uint32_t usecase_id);
     ~UsecaseACD();
     int32_t SetUseCaseData(uint32_t size, void *data);
     int32_t Configure();
+
+    // caller can allocate sufficient memory the first time to avoid
+    // calling this api twice. Size, will be updated to actual size;
+    int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data);
+
+    //static functions
+    // caller should allocate sufficient memory the first time to avoid
+    // calling this api twice. Size, will be updated to actual size;
+    static int32_t GetSupportedContextIDs(std::vector<uint32_t> &context_ids);
+    static std::shared_ptr<ACDPlatformInfo> GetAcdPlatformInfo();
 };
 
 class UsecaseUPD : public Usecase
 {
+private:
+    std::vector<int32_t> tags;
 public:
     UsecaseUPD(uint32_t usecase_id);
     ~UsecaseUPD();
+
+    // caller can allocate sufficient memory the first time to avoid
+    // calling this api twice. Size, will be updated to actual size;
+    int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data);
 };
 
 class UsecaseRawData :public Usecase
 {
+private:
+    std::vector<int32_t> tags;
 public:
     UsecaseRawData(uint32_t usecase_id);
     ~UsecaseRawData();
+
+    // caller can allocate sufficient memory the first time to avoid
+    // calling this api twice. Size, will be updated to actual size;
+    int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data);
 };
 
 class UsecaseFactory
@@ -109,13 +149,67 @@ public:
     void CloseAllUsecases();
 };
 
+class RequestCommand {
+public:
+    RequestCommand(uint32_t event_id, uint32_t *event_data);
+    virtual ~RequestCommand();
+
+    virtual int32_t Process(ContextManager& cm) = 0;
+};
+
+class CommandRegister : public RequestCommand {
+public:
+    CommandRegister(uint32_t event_id, uint32_t* event_data);
+    ~CommandRegister();
+
+    int32_t Process(ContextManager& cm);
+private:
+    uint32_t see_sensor_iid;
+    uint32_t usecase_id;
+    uint32_t payload_size;
+    uint32_t *payload;
+};
+
+class CommandDeregister : public RequestCommand {
+public:
+    CommandDeregister(uint32_t event_id, uint32_t* event_data);
+    int32_t Process(ContextManager& cm);
+private:
+    uint32_t see_sensor_iid;
+    uint32_t usecase_id;
+};
+
+class CommandGetContextIDs : public RequestCommand {
+public:
+    CommandGetContextIDs(uint32_t event_id, uint32_t* event_data);
+    int32_t Process(ContextManager& cm);
+private:
+    uint32_t see_sensor_iid;
+};
+
+class CommandCloseAll : public RequestCommand {
+public:
+    CommandCloseAll(uint32_t event_id, uint32_t* event_data);
+    int32_t Process(ContextManager& cm);
+};
+
+class RequestCommandFactory
+{
+public:
+    static RequestCommand *RequestCommandCreate(uint32_t event_id,
+        uint32_t* event_data);
+};
+
 class ContextManager
 {
 private:
     std::map<uint32_t, see_client *> see_clients;
     pal_stream_handle_t *proxy_stream;
     bool exit_cmd_thread_;
+    std::condition_variable request_queue_cv;
+    std::mutex request_queue_mtx;
     std::thread cmd_thread_;
+    std::queue<RequestCommand *> request_cmd_queue;
 
     see_client* SEE_Client_CreateIf_And_Get(uint32_t see_id);
     see_client * SEE_Client_Get_Existing(uint32_t see_id);
@@ -125,6 +219,7 @@ private:
     void DestroyCommandProcessingThread();
     void CloseAll();
     static void CommandThreadRunner(ContextManager& cm);
+    int32_t build_and_send_register_ack(Usecase *uc, uint32_t see_id, uint32_t uc_id);
 
 public:
     //functions
@@ -132,12 +227,18 @@ public:
     ~ContextManager();
     int32_t Init();
     void DeInit();
-
-    //test only, should be removed when integrating on linux.
+    static int32_t StreamProxyCallback(pal_stream_handle_t *stream_handle,
+                                   uint32_t event_id, uint32_t *event_data,
+                                   uint32_t event_size, uint64_t cookie);
     int32_t process_deregister_request(uint32_t see_id, uint32_t usecase_id);
-    int32_t process_register_request(uint32_t see_id, uint32_t usecase, uint32_t size, void * payload);
+    int32_t process_register_request(uint32_t see_id, uint32_t usecase, uint32_t payload_size,
+        void *payload);
     int32_t process_close_all();
-    int32_t test();
+
+    int32_t send_asps_response(uint32_t param_id, pal_param_payload *payload);
+    int32_t send_asps_basic_response(int32_t status, uint32_t event_id, uint32_t see_id);
+
+    static ACDUUID GetUUID();
 };
 
 #endif /*CONTEXTMANAGER_H*/

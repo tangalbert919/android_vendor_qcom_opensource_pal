@@ -48,6 +48,7 @@
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
 #include "ACDPlatformInfo.h"
+#include "ContextManager.h"
 
 typedef enum {
     RX_HOSTLESS = 1,
@@ -61,6 +62,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_MAX_SESSIONS "max_sessions"
 #define AUDIO_PARAMETER_KEY_MAX_NT_SESSIONS "max_nonTunnel_sessions"
 #define AUDIO_PARAMETER_KEY_LOG_LEVEL "logging_level"
+#define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
@@ -115,6 +117,16 @@ typedef enum {
     VOICE1,
     VOICE2,
 } stream_supported_type;
+
+typedef enum {
+    ST_PAUSE = 1,
+    ST_RESUME,
+    ST_ENABLE_LPI,
+    ST_HANDLE_CONCURRENT_STREAM,
+    ST_HANDLE_CONNECT_DEVICE,
+    ST_HANDLE_DISCONNECT_DEVICE,
+    ST_HANDLE_CHARGING_STATE,
+} st_action;
 
 struct xml_userdata {
     char data_buf[1024];
@@ -228,6 +240,7 @@ class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
 class StreamUltraSound;
+class ContextManager;
 
 struct deviceIn {
     int deviceId;
@@ -372,13 +385,16 @@ protected:
     static int mixerEventRegisterCount;
     static int concurrencyEnableCount;
     static int concurrencyDisableCount;
+    static int ACDConcurrencyEnableCount;
+    static int ACDConcurrencyDisableCount;
     static int wake_lock_fd;
     static int wake_unlock_fd;
     static uint32_t wake_lock_cnt;
     std::map<int, std::pair<session_callback, uint64_t>> mixerEventCallbackMap;
     static std::thread mixerEventTread;
-    std::shared_ptr<CaptureProfile> SVACaptureProfile;
+    std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
     ResourceManager();
+    ContextManager *ctxMgr;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -390,6 +406,7 @@ public:
     static int bitWidthSupported;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
+    static bool isContextManagerEnabled;
     /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
@@ -404,6 +421,8 @@ public:
     static bool isVIRecordStarted;
     uint64_t cookie;
     int initSndMonitor();
+    int initContextManager();
+    void deInitContextManager();
     adm_init_t admInitFn = NULL;
     adm_deinit_t admDeInitFn = NULL;
     adm_register_output_stream_t admRegisterOutputStreamFn = NULL;
@@ -501,26 +520,34 @@ public:
     int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr);
     const std::string getPALDeviceName(const pal_device_id_t id) const;
     bool isNonALSACodec(const struct pal_device *device) const;
-    bool IsVoiceUILPISupported();
-    bool IsLowLatencyBargeinSupported();
-    bool IsAudioCaptureAndVoiceUIConcurrencySupported();
-    bool IsVoiceCallAndVoiceUIConcurrencySupported();
-    bool IsVoipAndVoiceUIConcurrencySupported();
+    bool IsLPISupported(pal_stream_type_t type);
+    bool IsLowLatencyBargeinSupported(pal_stream_type_t type);
+    bool IsAudioCaptureConcurrencySupported(pal_stream_type_t type);
+    bool IsVoiceCallConcurrencySupported(pal_stream_type_t type);
+    bool IsVoipConcurrencySupported(pal_stream_type_t type);
     bool IsTransitToNonLPIOnChargingSupported();
-    void GetSVAConcurrencyCount(int32_t *enable_count, int32_t *disable_count);
+    void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
-    std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(
-        StreamSoundTrigger *s);
-    bool UpdateSVACaptureProfile(StreamSoundTrigger *s, bool is_active);
-    std::shared_ptr<CaptureProfile> GetSVACaptureProfile();
-    int SwitchSVADevices(bool connect_state, pal_device_id_t device_id);
+    int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
+    void HandleStreamPauseResume(pal_stream_type_t st_type, bool active);
+    std::shared_ptr<CaptureProfile> GetACDCaptureProfileByPriority(
+        StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetSVACaptureProfileByPriority(
+        StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
+    bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
+    std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();
+    int SwitchSoundTriggerDevices(bool connect_state, pal_device_id_t device_id);
     static void mixerEventWaitThreadLoop(std::shared_ptr<ResourceManager> rm);
     bool isCallbackRegistered() { return (mixerEventRegisterCount > 0); }
     int handleMixerEvent(struct mixer *mixer, char *mixer_str);
-    int StopOtherSVAStreams(StreamSoundTrigger *st);
-    int StartOtherSVAStreams(StreamSoundTrigger *st);
+    int StopOtherDetectionStreams(void *st);
+    int StartOtherDetectionStreams(void *st);
+    void GetConcurrencyInfo(pal_stream_type_t st_type,
+                         pal_stream_type_t in_type, pal_stream_direction_t dir,
+                         bool *rx_conc, bool *tx_conc, bool *conc_en);
     void ConcurrentStreamStatus(pal_stream_type_t type,
                                 pal_stream_direction_t dir,
                                 bool active);
@@ -554,6 +581,7 @@ public:
     static int setConfigParams(struct str_parms *parms);
     static int setNativeAudioParams(struct str_parms *parms,char *value, int len);
     static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
+    static int setContextManagerEnableParam(struct str_parms *parms,char *value, int len);
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);
     static bool isOutputDevId(int deviceId);

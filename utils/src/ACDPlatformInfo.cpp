@@ -48,89 +48,6 @@ static const std::map<std::string, int32_t> acdContextTypeMap {
     {std::string{"ACD_SOUND_MODEL_AMBIENCE_NOISE_SILENCE"}, ACD_SOUND_MODEL_AMBIENCE_NOISE_SILENCE},
 };
 
-ACDCaptureProfile::ACDCaptureProfile(const std::string name) :
-    name_(name),
-    device_id_(PAL_DEVICE_IN_MIN),
-    sample_rate_(16000),
-    channels_(1),
-    bitwidth_(16),
-    snd_name_("va-mic-mono")
-{
-
-}
-
-void ACDCaptureProfile::HandleEndTag(struct xml_userdata *data __unused, const char* tag) {
-    PAL_DBG(LOG_TAG, "Got end tag %s", tag);
-    return;
-}
-
-void ACDCaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
-
-    PAL_DBG(LOG_TAG, "Got start tag %s", tag);
-    if (!strcmp(tag, "param")) {
-        uint32_t i = 0;
-        while (attribs[i]) {
-            if (!strcmp(attribs[i], "sample_rate")) {
-                sample_rate_ = std::stoi(attribs[++i]);
-            } else if (!strcmp(attribs[i], "bit_width")) {
-                bitwidth_ = std::stoi(attribs[++i]);
-            } else if (!strcmp(attribs[i], "channels")) {
-                channels_ = std::stoi(attribs[++i]);
-            } else if (!strcmp(attribs[i], "snd_name")) {
-                snd_name_ = attribs[++i];
-            } else {
-                PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
-            }
-            ++i; /* move to next attribute */
-        }
-    } else if (!strcmp(tag, "kvpair")) {
-        uint32_t i = 0;
-        uint32_t key = 0, value = 0;
-        while (attribs[i]) {
-            if (!strcmp(attribs[i], "key")) {
-                std::string tagkey(attribs[++i]);
-                key = ResourceManager::convertCharToHex(tagkey);
-            } else if(!strcmp(attribs[i], "value")) {
-                std::string tagvalue(attribs[++i]);
-                value = ResourceManager::convertCharToHex(tagvalue);
-                PAL_DBG(LOG_TAG, "key = 0x%x, val 0x%x", key, value);
-                device_pp_kv_ = std::make_pair(key, value);
-            }
-            ++i; /* move to next attribute */
-        }
-    } else {
-        PAL_INFO(LOG_TAG, "Invalid tag %s", (char *)tag);
-    }
-}
-
-/*
- * Priority compare result indicated by return value as below:
- * 1. CAPTURE_PROFILE_PRIORITY_HIGH
- *     current capture profile has higher priority than cap_prof
- * 2. CAPTURE_PROFILE_PRIORITY_LOW
- *     current capture profile has lower priority than cap_prof
- * 3. CAPTURE_PROFILE_PRIORITY_SAME
- *     current capture profile has same priority than cap_prof
- */
-int32_t ACDCaptureProfile::ComparePriority(std::shared_ptr<ACDCaptureProfile> cap_prof) {
-    int32_t priority_check = 0;
-
-    if (!cap_prof) {
-        priority_check = CAPTURE_PROFILE_PRIORITY_HIGH;
-    } else {
-        // only compare channels for priority for now
-        if (channels_ < cap_prof->GetChannels()) {
-            priority_check = CAPTURE_PROFILE_PRIORITY_LOW;
-        } else if (channels_ > cap_prof->GetChannels()) {
-            priority_check = CAPTURE_PROFILE_PRIORITY_HIGH;
-        } else {
-            priority_check = CAPTURE_PROFILE_PRIORITY_SAME;
-        }
-    }
-
-    return priority_check;
-}
-
 ACDContextInfo::ACDContextInfo(uint32_t context_id, uint32_t type) :
     context_id_(context_id),
     context_type_(type)
@@ -265,8 +182,8 @@ std::string StreamConfig::GetStreamConfigName() {
     return name_;
 }
 
-std::shared_ptr<ACDCaptureProfile> StreamConfig::GetCaptureProfile(
-        std::pair<ACDOperatingModes, ACDInputModes> mode_pair) {
+std::shared_ptr<CaptureProfile> StreamConfig::GetCaptureProfile(
+        std::pair<StOperatingModes, StInputModes> mode_pair) {
     return op_modes_.at(mode_pair);
 }
 
@@ -274,15 +191,15 @@ std::vector<std::shared_ptr<ACDSoundModelInfo>> StreamConfig::GetSoundModelList(
     return acd_soundmodel_info_list_;
 }
 
-void StreamConfig::ReadCapProfileNames(ACDOperatingModes mode,
+void StreamConfig::ReadCapProfileNames(StOperatingModes mode,
     const char** attribs) {
     uint32_t i = 0;
     while (attribs[i]) {
         if (!strcmp(attribs[i], "capture_profile_handset")) {
-            op_modes_[std::make_pair(mode, ACD_INPUT_MODE_HANDSET)] =
+            op_modes_[std::make_pair(mode, ST_INPUT_MODE_HANDSET)] =
                 cap_profile_map_.at(std::string(attribs[++i]));
         } else if(!strcmp(attribs[i], "capture_profile_headset")) {
-            op_modes_[std::make_pair(mode, ACD_INPUT_MODE_HEADSET)] =
+            op_modes_[std::make_pair(mode, ST_INPUT_MODE_HEADSET)] =
                 cap_profile_map_.at(std::string(attribs[++i]));
         } else {
             PAL_ERR(LOG_TAG, "Error:%d got unexpected attribute: %s", -EINVAL, attribs[i]);
@@ -323,7 +240,7 @@ void StreamConfig::HandleStartTag(const char* tag, const char** attribs) {
     }
 
     if (!strcmp(tag, "model")) {
-        curr_child_ = std::static_pointer_cast<ACDXml>(
+        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
             std::make_shared<ACDSoundModelInfo>(this));
         return;
     }
@@ -362,11 +279,11 @@ void StreamConfig::HandleStartTag(const char* tag, const char** attribs) {
             ++i; /* move to next attribute */
         }
     }  else if (!strcmp(tag, "low_power")) {
-        ReadCapProfileNames(ACD_OPERATING_MODE_LOW_POWER, attribs);
+        ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
     } else if (!strcmp(tag, "high_performance")) {
-        ReadCapProfileNames(ACD_OPERATING_MODE_HIGH_PERF, attribs);
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
     } else if (!strcmp(tag, "high_performance_and_charging")) {
-        ReadCapProfileNames(ACD_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {
           PAL_INFO(LOG_TAG, "Invalid tag %s", (char *)tag);
     }
@@ -466,7 +383,7 @@ std::shared_ptr<StreamConfig> ACDPlatformInfo::GetStreamConfig(
         return nullptr;
 }
 
-std::shared_ptr<ACDCaptureProfile> ACDPlatformInfo::GetCapProfile(
+std::shared_ptr<CaptureProfile> ACDPlatformInfo::GetCapProfile(
     const std::string& name) const {
     auto capProfile = capture_profile_map_.find(name);
     if (capProfile != capture_profile_map_.end())
@@ -495,15 +412,15 @@ void ACDPlatformInfo::HandleStartTag(const char* tag,
 
     PAL_DBG(LOG_TAG, "Got start tag %s", tag);
     if (!strcmp(tag, "stream_config")) {
-        curr_child_ = std::static_pointer_cast<ACDXml>(
+        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
             std::make_shared<StreamConfig>(capture_profile_map_));
         return;
     }
 
     if (!strcmp(tag, "capture_profile")) {
         if (attribs[0] && !strcmp(attribs[0], "name")) {
-            curr_child_ = std::static_pointer_cast<ACDXml>(
-                    std::make_shared<ACDCaptureProfile>(attribs[1]));
+            curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
+                    std::make_shared<CaptureProfile>(attribs[1]));
             return;
         } else {
             PAL_ERR(LOG_TAG, "Error:%d missing name attrib for tag %s", -EINVAL, tag);
@@ -570,8 +487,8 @@ void ACDPlatformInfo::HandleEndTag(struct xml_userdata *data, const char* tag) {
             PAL_ERR(LOG_TAG, "Error:%d Failed to insert to map", -EINVAL);
         curr_child_ = nullptr;
     } else if (!strcmp(tag, "capture_profile")) {
-        std::shared_ptr<ACDCaptureProfile> cap_prof(
-            std::static_pointer_cast<ACDCaptureProfile>(curr_child_));
+        std::shared_ptr<CaptureProfile> cap_prof(
+            std::static_pointer_cast<CaptureProfile>(curr_child_));
         const auto res = capture_profile_map_.insert(
             std::make_pair(cap_prof->GetName(), cap_prof));
         if (!res.second)
