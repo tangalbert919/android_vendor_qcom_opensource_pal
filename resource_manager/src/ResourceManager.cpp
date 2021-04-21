@@ -5280,6 +5280,37 @@ setdevparam:
             rm->num_proxy_channels = param_proxy->num_proxy_channels;
         }
         break;
+        case PAL_PARAM_ID_HAPTICS_INTENSITY:
+        {
+            pal_param_haptics_intensity *hInt =
+                (pal_param_haptics_intensity *)param_payload;
+            PAL_DBG(LOG_TAG, "Haptics Intensity %d", hInt->intensity);
+            char mixer_ctl_name[128] =  "Haptics Amplitude Step";
+            struct mixer_ctl *ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
+            if (!ctl) {
+                PAL_ERR(LOG_TAG, "Could not get ctl for mixer cmd - %s", mixer_ctl_name);
+                status = -EINVAL;
+                goto exit;
+            }
+            mixer_ctl_set_value(ctl, 0, hInt->intensity);
+        }
+        break;
+        case PAL_PARAM_ID_HAPTICS_VOLUME:
+        {
+            std::vector<Stream*>::iterator sIter;
+            pal_stream_attributes st_attr;
+            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
+                (*sIter)->getStreamAttributes(&st_attr);
+                if (st_attr.type == PAL_STREAM_HAPTICS) {
+                    status = (*sIter)->setVolume((struct pal_volume_data *)param_payload);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "Failed to set volume for haptics");
+                        goto exit;
+                    }
+                }
+            }
+        }
+        break;
         default:
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
             break;
