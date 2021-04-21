@@ -1216,6 +1216,20 @@ typedef struct pal_buffer_config {
     size_t max_metadata_size; /** < max metadata size associated with each buffer*/
 } pal_buffer_config_t;
 
+#define PAL_DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
+#define PAL_PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
+#define PAL_LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
+#define PAL_MMAP_PLATFORM_DELAY        (3*1000LL)
+#define PAL_ULL_PLATFORM_DELAY         (4*1000LL)
+
+#define PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION 40
+#define PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION 80
+#define PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION 5
+
+#define PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT 2
+#define PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT 2
+#define PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT 2
+
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif

@@ -150,7 +150,7 @@ public:
     uint64_t cookie;
     bool ssrDone = true;
     bool isPaused = false;
-    bool a2dp_compress_mute = false;  /* TODO : Check if this can be removed */
+    bool a2dpMuted = false;
     pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -187,6 +187,8 @@ public:
     const KeyVect_t& getStreamModifiers() const;
     int32_t getStreamType(pal_stream_type_t* streamType);
     int32_t getStreamDirection(pal_stream_direction_t *dir);
+    uint32_t getRenderLatency();
+    uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,

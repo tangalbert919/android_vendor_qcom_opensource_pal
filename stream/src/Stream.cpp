@@ -285,6 +285,67 @@ int32_t Stream::getStreamDirection(pal_stream_direction_t *dir)
     return status;
 }
 
+uint32_t Stream::getRenderLatency()
+{
+    uint32_t delayMs = 0;
+
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "invalid mStreamAttr");
+        return delayMs;
+    }
+
+    switch (mStreamAttr->type) {
+    case PAL_STREAM_DEEP_BUFFER:
+        delayMs = PAL_DEEP_BUFFER_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_LOW_LATENCY:
+        delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_COMPRESSED:
+    case PAL_STREAM_PCM_OFFLOAD:
+        delayMs = PAL_PCM_OFFLOAD_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_ULTRA_LOW_LATENCY:
+        delayMs = PAL_ULL_PLATFORM_DELAY / 1000;
+        break;
+    default:
+        break;
+    }
+
+    return delayMs;
+}
+
+uint32_t Stream::getLatency()
+{
+    uint32_t latencyMs = 0;
+
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "invalid mStreamAttr");
+        return latencyMs;
+    }
+
+    switch (mStreamAttr->type) {
+    case PAL_STREAM_DEEP_BUFFER:
+        latencyMs = PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION *
+            PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_LOW_LATENCY:
+        latencyMs = PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION *
+            PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_COMPRESSED:
+    case PAL_STREAM_PCM_OFFLOAD:
+        latencyMs = PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
+            PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT;
+        break;
+    default:
+        break;
+    }
+
+    latencyMs += getRenderLatency();
+    return latencyMs;
+}
+
 int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;
@@ -293,7 +354,6 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     for (int32_t i=0; i < mDevices.size(); i++) {
         aDevices.push_back(mDevices[i]);
     }
-
 
     return status;
 }
@@ -825,10 +885,10 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         goto done;
     }
 
-    if (a2dp_compress_mute && (mStreamAttr->type == PAL_STREAM_COMPRESSED) &&
-        !isNewDeviceA2dp) {
+    if (a2dpMuted && !isNewDeviceA2dp) {
         mute(false);
-        a2dp_compress_mute = false;
+        a2dpMuted = false;
+        suspendedDevId = PAL_DEVICE_NONE;
     }
 
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
@@ -845,7 +905,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         // get active stream device pairs sharing the same backend with new devices.
         rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDevices[newDeviceSlots[i]].id);
 
-	/* This can result in below situation:
+        /* This can result in below situation:
          * 1) No matching SharedBEStreamDev (handled in else part).
          *    e.g. - case 1a, 2.
          * 2) sharedBEStreamDev having same stream as current stream but different device id.
