@@ -25,8 +25,15 @@ LOCAL_C_INCLUDES := $(LOCAL_PATH)/stream/inc \
 
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio_route/include
 LOCAL_C_INCLUDES += $(TOP)/system/media/audio/include
+
+#if android version is R, use qtitinyxxx headers otherwise use upstream ones
+#This assumes we would be using AR code only for Android R and subsequent versions.
+ifneq ($(filter 11 R, $(PLATFORM_VERSION)),)
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinyalsa/include
 LOCAL_C_INCLUDES += $(TOP)/vendor/qcom/opensource/tinycompress/include
+else
+LOCAL_C_INCLUDES += $(TOP)/external/tinycompress/include
+endif
 
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
@@ -38,6 +45,7 @@ LOCAL_CFLAGS   += -Wall -Werror
 LOCAL_CFLAGS   += -DCONFIG_GSL
 LOCAL_CFLAGS   += -D_GNU_SOURCE
 LOCAL_CFLAGS   += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
+LOCAL_CFLAGS   += -DACD_SM_FILEPATH=\"/vendor/etc/models/acd/\"
 LOCAL_CPPFLAGS += -fexceptions -frtti
 
 
@@ -48,6 +56,7 @@ LOCAL_SRC_FILES        := Pal.cpp\
     stream/src/StreamInCall.cpp\
     stream/src/StreamNonTunnel.cpp\
     stream/src/StreamSoundTrigger.cpp\
+    stream/src/StreamACD.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \
@@ -74,9 +83,12 @@ LOCAL_SRC_FILES        := Pal.cpp\
     session/src/SoundTriggerEngine.cpp \
     session/src/SoundTriggerEngineCapi.cpp \
     session/src/SoundTriggerEngineGsl.cpp \
+    session/src/ContextDetectionEngine.cpp \
+    session/src/ACDEngine.cpp \
     resource_manager/src/ResourceManager.cpp \
     resource_manager/src/SndCardMonitor.cpp \
     utils/src/SoundTriggerPlatformInfo.cpp \
+    utils/src/ACDPlatformInfo.cpp \
     utils/src/PalRingBuffer.cpp \
     utils/src/SoundTriggerUtils.cpp
 
@@ -91,9 +103,17 @@ LOCAL_SHARED_LIBRARIES := \
     liblx-osal\
     libaudioroute\
     libcutils \
-    libqti-tinyalsa \
-    libqti-tinycompress\
     libagmclient
+
+#if android version is R, include qtitinyxxx libs otherwise use upstream ones
+#This assumes we would be using AR code only for Android R and subsequent versions.
+ifneq ($(filter R 11,$(PLATFORM_VERSION)),)
+LOCAL_SHARED_LIBRARIES += libqti-tinyalsa \
+                          libqti-tinycompress
+else
+LOCAL_SHARED_LIBRARIES += libtinyalsa \
+                          libtinycompress
+endif
 
 LOCAL_HEADER_LIBRARIES := \
     libspf-headers \

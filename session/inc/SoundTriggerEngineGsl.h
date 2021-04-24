@@ -107,6 +107,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         bool is_enable) override;
     int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
     int32_t GetDetectedConfScore() { return 0; }
+    int32_t GetDetectionState() { return 0; }
 
  private:
     uint32_t AddModelID(Stream *s);

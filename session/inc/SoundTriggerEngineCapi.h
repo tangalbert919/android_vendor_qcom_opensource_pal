@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -89,6 +89,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
         std::shared_ptr<Device> dev __unused,
         bool is_enable __unused) { return 0; }
     int32_t GetDetectedConfScore() { return det_conf_score_; }
+    int32_t GetDetectionState() { return detection_state_; }
 
  private:
     int32_t StartSoundEngine();
@@ -124,6 +125,7 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     uint32_t data_before_kw_start_;
     uint32_t data_after_kw_end_;
     int32_t det_conf_score_;
+    int32_t detection_state_;
 };
 #endif  // SOUNDTRIGGERENGINECAPI_H
 

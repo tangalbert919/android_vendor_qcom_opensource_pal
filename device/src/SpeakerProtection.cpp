@@ -435,7 +435,7 @@ int SpeakerProtection::spkrStartCalibration()
 
     sAttr.type = PAL_STREAM_LOW_LATENCY;
     sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
-    dir = TXLOOPBACK;
+    dir = TX_HOSTLESS;
     pcmDevIdsTx = rm->allocateFrontEndIds(sAttr, dir);
     if (pcmDevIdsTx.size() == 0) {
         PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
@@ -654,7 +654,7 @@ int SpeakerProtection::spkrStartCalibration()
     /* Retrieve Hostless PCM device id */
     sAttr.type = PAL_STREAM_LOW_LATENCY;
     sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
-    dir = RXLOOPBACK;
+    dir = RX_HOSTLESS;
     pcmDevIdsRx = rm->allocateFrontEndIds(sAttr, dir);
     if (pcmDevIdsRx.size() == 0) {
         PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
@@ -816,11 +816,11 @@ err_pcm_open :
 
 free_fe:
     if (pcmDevIdsRx.size() != 0) {
-        rm->freeFrontEndIds(pcmDevIdsRx, sAttr, RXLOOPBACK);
+        rm->freeFrontEndIds(pcmDevIdsRx, sAttr, RX_HOSTLESS);
     }
 
     if (pcmDevIdsTx.size() != 0) {
-        rm->freeFrontEndIds(pcmDevIdsTx, sAttr, TXLOOPBACK);
+        rm->freeFrontEndIds(pcmDevIdsTx, sAttr, TX_HOSTLESS);
     }
     pcmDevIdsRx.clear();
     pcmDevIdsTx.clear();
@@ -1111,7 +1111,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
  */
 int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 {
-    int ret = 0, dir = TXLOOPBACK;
+    int ret = 0, dir = TX_HOSTLESS;
     PayloadBuilder* builder = new PayloadBuilder();
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
@@ -1271,7 +1271,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         /* Retrieve Hostless PCM device id */
         sAttr.type = PAL_STREAM_LOW_LATENCY;
         sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
-        dir = TXLOOPBACK;
+        dir = TX_HOSTLESS;
         pcmDevIdTx = rm->allocateFrontEndIds(sAttr, dir);
         if (pcmDevIdTx.size() == 0) {
             PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");

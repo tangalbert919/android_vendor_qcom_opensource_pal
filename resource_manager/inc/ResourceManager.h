@@ -47,8 +47,13 @@
 #include "PalDefs.h"
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
-#define RXLOOPBACK 0
-#define TXLOOPBACK 1
+#include "ACDPlatformInfo.h"
+
+typedef enum {
+    RX_HOSTLESS = 1,
+    TX_HOSTLESS,
+} hostless_dir_t;
+
 #define audio_mixer mixer
 
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
@@ -65,7 +70,11 @@
 #define ADM_LIBRARY_PATH "/usr/lib/libadm.so"
 #endif
 #else
+#ifdef __LP64__
+#define ADM_LIBRARY_PATH "/vendor/lib64/libadm.so"
+#else
 #define ADM_LIBRARY_PATH "/vendor/lib/libadm.so"
+#endif
 #endif
 
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
@@ -119,6 +128,7 @@ struct xml_userdata {
     bool gain_lvl_parsed;
     snd_card_defs_xml_tags_t current_tag;
     bool is_parsing_sound_trigger;
+    bool is_parsing_acd;
     resource_xml_tags_t tag;
 };
 
@@ -152,14 +162,6 @@ struct usecase_info {
     int type;
     std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
-};
-
-struct deviceIn {
-    int deviceId;
-    int max_channel;
-    int channel;
-    std::vector<usecase_info> usecase;
-    std::vector<pal_device_id_t> rx_dev_ids;
 };
 
 struct pal_device_info {
@@ -219,10 +221,32 @@ class Stream;
 class StreamPCM;
 class StreamCompress;
 class StreamSoundTrigger;
+class StreamACD;
 class StreamInCall;
 class StreamNonTunnel;
 class SoundTriggerEngine;
 class SndCardMonitor;
+
+struct deviceIn {
+    int deviceId;
+    int max_channel;
+    int channel;
+    std::vector<usecase_info> usecase;
+    // dev ids supporting ec ref
+    std::vector<pal_device_id_t> rx_dev_ids;
+    /*
+     * map dynamically maintain ec ref count, key for this map
+     * is rx device id, which is present in rx_dev_ids, and value
+     * for this map is a vector of all active tx streams using
+     * this rx device as ec ref. For each Tx stream, we have a
+     * EC ref count, indicating number of Rx streams which uses
+     * this rx device as output device and also not disabled stream
+     * type to the Tx stream. E.g., for SVA and Recording stream,
+     * LL playback with speaker may only count for Recording stream
+     * when ll barge-in is not enabled.
+     */
+    std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
+};
 
 class ResourceManager
 {
@@ -268,6 +292,9 @@ private:
     int32_t streamDevDisconnect(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList);
     int32_t streamDevConnect(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList);
     void ssrHandlingLoop(std::shared_ptr<ResourceManager> rm);
+    int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
+                        std::shared_ptr<Device> tx_dev,
+                        Stream *tx_str, int count, bool is_txstop);
 
 protected:
     std::vector <Stream*> mActiveStreams;
@@ -283,6 +310,7 @@ protected:
     std::vector <StreamInCall*> active_streams_incall_music;
     std::vector <StreamCompress*> active_streams_comp;
     std::vector <StreamSoundTrigger*> active_streams_st;
+    std::vector <StreamACD*> active_streams_acd;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
@@ -307,9 +335,9 @@ protected:
     static std::vector<int> listAllFrontEndIds;
     static std::vector<int> listAllPcmPlaybackFrontEnds;
     static std::vector<int> listAllPcmRecordFrontEnds;
-    static std::vector<int> listAllPcmLoopbackRxFrontEnds;
+    static std::vector<int> listAllPcmHostlessRxFrontEnds;
     static std::vector<int> listAllNonTunnelSessionIds;
-    static std::vector<int> listAllPcmLoopbackTxFrontEnds;
+    static std::vector<int> listAllPcmHostlessTxFrontEnds;
     static std::vector<int> listAllCompressPlaybackFrontEnds;
     static std::vector<int> listAllCompressRecordFrontEnds;
     static std::vector<int> listFreeFrontEndIds;
@@ -527,6 +555,7 @@ public:
     static bool isOutputDevId(int deviceId);
     static bool isInputDevId(int deviceId);
     static bool matchDevDir(int devId1, int devId2);
+    static int convertCharToHex(std::string num);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);

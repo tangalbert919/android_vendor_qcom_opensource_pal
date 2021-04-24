@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -46,8 +46,6 @@
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
 #define PARAM_ID_RESET_PLACEHOLDER_MODULE          0x08001173
 #define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
-
-bool Bluetooth::isCaptureEnabled = false;
 
 Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Device(device, Rm),
@@ -276,10 +274,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     codecConfig.bit_width = out_buf->bit_format;
     codecConfig.ch_info.channels = out_buf->channel_count;
 
-    if (!isCaptureEnabled)
-        isAbrEnabled = out_buf->is_abr_enabled;
-    else
-        isAbrEnabled = false;
+    isAbrEnabled = out_buf->is_abr_enabled;
 
     /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes();
@@ -388,15 +383,15 @@ int Bluetooth::configureA2dpEncoderDecoder()
             goto error;
         }
 
-        /* COP v2 DEPACKETIZER Module Configuration */
-        status = session->getMIID(backEndName.c_str(), COP_DEPACKETIZER_V2, &copMiid);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
-                    COP_DEPACKETIZER_V2, status);
-            goto error;
-        }
-
         if (codecType == DEC) {
+            /* COP v2 DEPACKETIZER Module Configuration */
+            status = session->getMIID(backEndName.c_str(), COP_DEPACKETIZER_V2, &copMiid);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                        COP_DEPACKETIZER_V2, status);
+                goto error;
+            }
+
             builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, false);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
@@ -584,14 +579,14 @@ void Bluetooth::startAbr()
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
         fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
-        dir = RXLOOPBACK;
+        dir = RX_HOSTLESS;
         flags = PCM_OUT;
         keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
     } else {
         fbDevice.id = ((deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ?
                        PAL_DEVICE_IN_BLUETOOTH_A2DP :
                        PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
-        dir = TXLOOPBACK;
+        dir = TX_HOSTLESS;
         flags = PCM_IN;
         keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
     }
@@ -850,7 +845,7 @@ void Bluetooth::stopAbr()
     }
 
 free_fe:
-    dir = ((codecType == DEC) ? RXLOOPBACK : TXLOOPBACK);
+    dir = ((codecType == DEC) ? RX_HOSTLESS : TX_HOSTLESS);
     if (fbpcmDevIds.size()) {
         rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
         fbpcmDevIds.clear();
@@ -894,8 +889,6 @@ BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     codecType = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
     pluginHandler = NULL;
     pluginCodec = NULL;
-    if (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP)
-        isCaptureEnabled = true;
 
     init();
     param_bt_a2dp.reconfigured = false;
@@ -1021,7 +1014,7 @@ void BtA2dp::init_a2dp_sink()
             audio_get_enc_config = (audio_get_enc_config_t)
                   dlsym(bt_lib_sink_handle, "audio_get_codec_config");
 #else
-            //On Linux Builds - A2DP Sink Profile is supported via different lib   
+            // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
 #endif
         } else {
@@ -1321,7 +1314,6 @@ int BtA2dp::stopCapture()
             dlclose(pluginHandler);
             pluginHandler = NULL;
         }
-        isCaptureEnabled = false;
     }
     PAL_DBG(LOG_TAG, "Stop A2DP capture, total active sessions :%d",
             totalActiveSessionRequests);

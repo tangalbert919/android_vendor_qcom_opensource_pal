@@ -47,6 +47,8 @@ enum {
     KEYWORD_DETECTION_REJECT = 0x4,
     USER_VERIFICATION_SUCCESS = 0x8,
     USER_VERIFICATION_REJECT = 0x10,
+    KEYWORD_DETECTION_PENDING = 0x20,
+    USER_VERIFICATION_PENDING = 0x40,
     DETECTION_TYPE_SS = 0x1E,
     DETECTION_TYPE_ALL = 0x1F,
 };
@@ -142,7 +144,7 @@ class StreamSoundTrigger : public Stream {
     int32_t ParseDetectionPayload(uint32_t *event_data);
     void SetDetectedToEngines(bool detected);
     int32_t SetEngineDetectionState(int32_t state);
-    int32_t notifyClient();
+    int32_t notifyClient(bool detection);
 
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
@@ -526,8 +528,10 @@ class StreamSoundTrigger : public Stream {
                                  uint32_t *out_payload_size,
                                  uint32_t version);
     void PackEventConfLevels(uint8_t *opaque_data);
+    void FillCallbackConfLevels(uint8_t *opaque_data, uint32_t det_keyword_id,
+                             uint32_t best_conf_level);
     int32_t GenerateCallbackEvent(struct pal_st_recognition_event **event,
-                                  uint32_t *event_size);
+                                  uint32_t *event_size, bool detection);
     static int32_t HandleDetectionEvent(pal_stream_handle_t *stream_handle,
                                         uint32_t event_id,
                                         uint32_t *event_data,
@@ -590,5 +594,6 @@ class StreamSoundTrigger : public Stream {
     bool use_lpi_;
     uint32_t model_id_;
     FILE *lab_fd_;
+    bool user_verification_done_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

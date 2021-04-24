@@ -756,6 +756,7 @@ typedef enum {
     PAL_PARAM_ID_MODULE_CONFIG = 36, /*Clients directly configure DSP modules*/
     PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
     PAL_PARAM_ID_PROXY_CHANNEL_CONFIG = 38,
+    PAL_PARAM_ID_CONTEXT_LIST = 39,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -769,6 +770,11 @@ typedef enum {
 typedef struct pal_param_proxy_channel_config {
     uint32_t num_proxy_channels;
 } pal_param_proxy_channel_config_t;
+
+struct pal_param_context_list {
+    uint32_t num_contexts;
+    uint32_t context_id[]; /* list of num_contexts context_id */
+};
 
 struct pal_param_disp_port_config_params {
     int controller;

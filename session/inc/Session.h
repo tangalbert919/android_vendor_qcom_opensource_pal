@@ -77,6 +77,9 @@ protected:
     void *customPayload;
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
+    uint32_t eventId;
+    void *eventPayload;
+    size_t eventPayloadSize;
 public:
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
@@ -105,6 +108,7 @@ public:
     virtual int registerCallBack(session_callback cb __unused, uint64_t cookie __unused) {return 0;};
     virtual int drain(pal_drain_type_t type __unused) {return 0;};
     virtual int flush() {return 0;};
+    virtual void setEventPayload(uint32_t event_id __unused, void *payload __unused, size_t payload_size __unused) {  };
     virtual int getTimestamp(struct pal_session_time *stime __unused) {return 0;};
     /*TODO need to implement connect/disconnect in basecase*/
     virtual int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -28,8 +28,6 @@
  */
 
 #define LOG_TAG "StreamInCall"
-#define RXDIR 0
-#define TXDIR 1
 
 #include "StreamInCall.h"
 #include "Session.h"
@@ -693,9 +691,9 @@ int32_t StreamInCall::mute(bool state)
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
     mStreamMutex.lock();
     if (state)
-        status = session->setConfig(this, MODULE, MUTE_TAG, TXDIR);
+        status = session->setConfig(this, MODULE, MUTE_TAG, TX_HOSTLESS);
     else
-        status = session->setConfig(this, MODULE, UNMUTE_TAG, TXDIR);
+        status = session->setConfig(this, MODULE, UNMUTE_TAG, TX_HOSTLESS);
 
     if (0 != status) {
         PAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
