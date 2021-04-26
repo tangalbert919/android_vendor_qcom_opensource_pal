@@ -353,6 +353,7 @@ struct audio_route* ResourceManager::audio_route = NULL;
 int ResourceManager::snd_card = 0;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
+static bool isHifiFilterEnabled = false;
 SndCardMonitor* ResourceManager::sndmon = NULL;
 std::mutex ResourceManager::cvMutex;
 std::queue<card_status_t> ResourceManager::msgQ;
@@ -531,6 +532,9 @@ ResourceManager::ResourceManager()
     if (ret) {
         PAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
     }
+
+    if (isHifiFilterEnabled)
+        audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
 
     listAllFrontEndIds.clear();
     listFreeFrontEndIds.clear();
@@ -4323,9 +4327,11 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
         break;
     case PAL_DEVICE_OUT_WIRED_HEADSET:
     case PAL_DEVICE_OUT_WIRED_HEADPHONE:
-        if ((PAL_STREAM_VOICE_CALL == inStrAttr->type) && ((activeDevAttr->config.sample_rate != inDevAttr->config.sample_rate) ||
-            (activeDevAttr->config.bit_width != inDevAttr->config.bit_width) ||
-            (activeDevAttr->config.ch_info.channels != inDevAttr->config.ch_info.channels))) {
+        if (PAL_STREAM_VOICE_CALL == inStrAttr->type || PAL_STREAM_VOIP == inStrAttr->type ||
+            PAL_STREAM_VOIP_RX == inStrAttr->type) {
+            is_ds_required = true;
+        } else if (isHifiFilterEnabled &&
+                  (PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type)) {
             is_ds_required = true;
         } else if ((PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
@@ -4488,6 +4494,15 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
                 continue;
             }
 
+            if (isHifiFilterEnabled &&
+               (inDevAttr->id == PAL_DEVICE_OUT_WIRED_HEADSET || inDevAttr->id == PAL_DEVICE_OUT_WIRED_HEADPHONE) &&
+               ((PAL_STREAM_VOICE_CALL == sAttr.type) || (PAL_STREAM_VOIP == sAttr.type)) &&
+               (PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type)) {
+                PAL_INFO(LOG_TAG, "Active voice/voip stream running on %d, Force switch",
+                                  curDevAttr.id);
+                curDev->getDeviceAttributes(inDevAttr);
+                continue;
+            }
             /* If other stream is currently running on same device, then
              * check if it needs device switch. If not needed, then use the
              * same device attribute as current running device, do not
@@ -4831,7 +4846,6 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
 
     }
 
-
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE,
                              value, len);
     PAL_VERBOSE(LOG_TAG," value %s", value);
@@ -4850,6 +4864,16 @@ int ResourceManager::setNativeAudioParams(struct str_parms *parms,
         }
         PAL_VERBOSE(LOG_TAG,"napb: updating mode (%d) from XML", mode);
         setNativeAudioSupport(mode);
+    }
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_HIFI_FILTER,
+                             value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (!strncmp("true", value, sizeof("true"))) {
+            isHifiFilterEnabled = true;
+            PAL_VERBOSE(LOG_TAG,"HIFI filter enabled from XML");
+        }
     }
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_NATIVE_AUDIO,

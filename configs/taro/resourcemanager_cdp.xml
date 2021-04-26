@@ -28,6 +28,9 @@
 <resource_manager_info>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
+        <!-- Uncomment HIFI Filter Headphones related sections when set this
+             hifi_filter key to true -->
+        <param key="hifi_filter" value="false"/>
         <param key="max_sessions" value="128"/>
         <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
@@ -396,6 +399,16 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>headphones</snd_device_name>
+        <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <snd_device_name>headphones-hifi-filter</snd_device_name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_PCM_OFFLOAD</name>
+                <snd_device_name>headphones-hifi-filter</snd_device_name>
+            </usecase>
+        -->
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
@@ -403,6 +416,16 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>headphones</snd_device_name>
+        <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
+            <usecase>
+                <name>PAL_STREAM_COMPRESSED</name>
+                <snd_device_name>headphones-hifi-filter</snd_device_name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_PCM_OFFLOAD</name>
+                <snd_device_name>headphones-hifi-filter</snd_device_name>
+            </usecase>
+        -->
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
