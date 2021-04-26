@@ -1577,6 +1577,16 @@ int BtSco::start()
         status = startSwb();
         if (status)
             return status;
+    } else {
+        // For SCO NB and WB that don't have encoder and decoder in place,
+        // just override codec configurations with device attributions.
+        codecConfig.bit_width = deviceAttr.config.bit_width;
+        codecConfig.sample_rate = deviceAttr.config.sample_rate;
+        codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        codecConfig.ch_info.channels = deviceAttr.config.ch_info.channels;
+        isConfigured = true;
+        PAL_DBG(LOG_TAG, "SCO WB/NB codecConfig is same as deviceAttr bw = %d,sr = %d,ch = %d",
+            codecConfig.bit_width, codecConfig.sample_rate, codecConfig.ch_info.channels);
     }
 
     status = Device::start();

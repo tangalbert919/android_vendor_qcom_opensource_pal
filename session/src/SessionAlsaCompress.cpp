@@ -1117,7 +1117,8 @@ int SessionAlsaCompress::start(Stream * s)
                     goto exit;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
                     status = associatedDevices[i]->getCodecConfig(&codecConfig);
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");

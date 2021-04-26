@@ -1573,7 +1573,8 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
                 return status;
             }
 
-            if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
                 dev = Device::getInstance((struct pal_device *)&dAttr , rm);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device getInstance failed");
