@@ -439,7 +439,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
                             (event->num_contexts * sizeof(struct acd_per_context_event_info));
     struct acd_context_event *current_context_event;
     uint8_t *event_data = NULL;
-    struct acd_per_context_event_info *per_context_info;
+    uint8_t *per_context_info;
     int offset = 0;
 
     if (cached_event_data_) {
@@ -448,14 +448,14 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         new_event_size +=  current_context_event->num_contexts * sizeof(struct acd_per_context_event_info);
 
         cached_event_data_ = (struct pal_st_recognition_event *)realloc(cached_event_data_, new_event_size);
-        current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
         cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
-        per_context_info = (struct acd_per_context_event_info *) ((uint8_t *) current_context_event +
+        per_context_info = (uint8_t *) ((uint8_t *) current_context_event +
                             sizeof(struct acd_context_event) +
                             (current_context_event->num_contexts * sizeof(struct acd_per_context_event_info)));
         event_data = (uint8_t *)event + sizeof(struct acd_context_event);
         for (int i = 0; i < event->num_contexts; i++) {
             memcpy(per_context_info, event_data, sizeof(struct acd_per_context_event_info));
+            per_context_info += sizeof(struct acd_per_context_event_info);
             event_data += sizeof(struct acd_per_context_event_info);
         }
         current_context_event->num_contexts += event->num_contexts;
@@ -468,9 +468,11 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
 void StreamACD::SendCachedEventData()
 {
     size_t event_size = cached_event_data_->data_size + sizeof(struct pal_st_recognition_event);
+    struct acd_context_event *context_event = NULL;
 
     if (callback_) {
-        PAL_INFO(LOG_TAG, "Notify detection event to client");
+        context_event = (struct acd_context_event *)(((uint8_t*) cached_event_data_) + sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header));
+        PAL_INFO(LOG_TAG, "Notify cached detection event to client with no of contexts=%d", context_event->num_contexts);
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)cached_event_data_,
                   event_size, cookie_);
     }

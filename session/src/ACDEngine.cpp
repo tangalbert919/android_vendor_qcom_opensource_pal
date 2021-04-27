@@ -769,8 +769,10 @@ int32_t ACDEngine::UnloadSoundModel()
             /* Ignore if same model is supposed to be loaded again */
             PAL_DBG(LOG_TAG, "Model unload needed for %d, model_load_needed = %d",
                      model_id, model_load_needed_[model_id]);
-            if (model_load_needed_[model_id])
+            if (model_load_needed_[model_id] || !IsModelBinAvailable(model_id)) {
+                PAL_INFO(LOG_TAG, " Skipping Unloading  of model %d", model_id);
                 continue;
+            }
 
             PAL_INFO(LOG_TAG, "Unloading model %d", model_id);
             deregister_config.model_id = sm_cfg_->GetSoundModelInfoByModelId(model_id)->GetModelUUID();
