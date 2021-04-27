@@ -787,7 +787,7 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
                   sizeof(uint16_t)*numChannel;
     padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
     if (!payloadInfo) {
         PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
