@@ -868,8 +868,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                  */
                 if (curDevAttr.id == newDevices[newDeviceSlots[i]].id) {
                     if (!rm->isDeviceSwitchRequired(&curDevAttr,
-                                &newDevices[newDeviceSlots[i]], mStreamAttr))
+                                &newDevices[newDeviceSlots[i]], mStreamAttr)) {
+                        PAL_DBG(LOG_TAG, "DS not required, updating new device attributes");
+                        curDev->getDeviceAttributes(&newDevices[newDeviceSlots[i]]);
                         continue;
+                    }
                 }
 
                 sharedStream->getStreamAttributes(&sAttr);
