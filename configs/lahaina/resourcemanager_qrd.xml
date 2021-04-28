@@ -913,7 +913,6 @@
             <module_params>
                 <param load_sound_model_ids="0xC0000008, 0x0800104C" />
                 <param unload_sound_model_ids="0xC0000008, 0x00012C15" />
-                <param custom_config_ids="0xC0000008, 0x00012C20" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param version_ids="0xC0000008, 0x18000101" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
