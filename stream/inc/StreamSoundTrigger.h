@@ -594,6 +594,6 @@ class StreamSoundTrigger : public Stream {
     bool use_lpi_;
     uint32_t model_id_;
     FILE *lab_fd_;
-    bool user_verification_done_;
+    bool rejection_notified_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

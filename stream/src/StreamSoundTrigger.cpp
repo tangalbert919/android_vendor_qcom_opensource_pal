@@ -79,6 +79,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
     lab_fd_ = nullptr;
+    rejection_notified_ = false;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -251,6 +252,7 @@ int32_t StreamSoundTrigger::start() {
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    rejection_notified_ = false;
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
@@ -3880,15 +3882,31 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             // If second stage has rejected, stop buffering and restart recognition
             if (data->det_type_ == KEYWORD_DETECTION_REJECT ||
                 data->det_type_ == USER_VERIFICATION_REJECT) {
+                if (st_stream_.rejection_notified_) {
+                    PAL_DBG(LOG_TAG, "Already notified client with second stage rejection");
+                    break;
+                }
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
+
+                for (auto& eng : st_stream_.engines_) {
+                    if ((data->det_type_ == USER_VERIFICATION_REJECT &&
+                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_KWD) ||
+                        (data->det_type_ == KEYWORD_DETECTION_REJECT &&
+                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_USER)) {
+
+                        status = eng->GetEngine()->StopRecognition(&st_stream_);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "Failed to stop recognition for engines");
+                        }
+                    }
+                }
                 st_stream_.detection_state_ = ENGINE_IDLE;
-                st_stream_.user_verification_done_ = data->det_type_ ==
-                                         USER_VERIFICATION_REJECT ? true : false ;
 
                 if (st_stream_.reader_) {
                     st_stream_.reader_->reset();
                 }
+                st_stream_.rejection_notified_ = true;
                 st_stream_.notifyClient(false);
                 st_stream_.PostDelayedStop();
 
@@ -3897,8 +3915,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
                 data->det_type_ == USER_VERIFICATION_SUCCESS) {
                 st_stream_.detection_state_ |=  data->det_type_;
-                st_stream_.user_verification_done_ = data->det_type_ ==
-                                         USER_VERIFICATION_SUCCESS ? true : false ;
             }
             // notify client until both keyword detection/user verification done
             if (st_stream_.detection_state_ == st_stream_.notification_state_) {

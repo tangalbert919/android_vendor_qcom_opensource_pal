@@ -45,6 +45,7 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
 {
     StreamSoundTrigger *s = nullptr;
     int32_t status = 0;
+    int32_t detection_state = ENGINE_IDLE;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!capi_engine) {
@@ -82,25 +83,39 @@ void SoundTriggerEngineCapi::BufferThreadLoop(
             if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_KEYWORD_DETECTION) {
                 status = capi_engine->StartKeywordDetection();
-                lck.unlock();
-                if (status || capi_engine->detection_state_ ==
-                                                      KEYWORD_DETECTION_REJECT)
-                    s->SetEngineDetectionState(KEYWORD_DETECTION_REJECT);
-                else if (capi_engine->detection_state_ ==
-                                                      KEYWORD_DETECTION_SUCCESS)
-                    s->SetEngineDetectionState(KEYWORD_DETECTION_SUCCESS);
-                lck.lock();
+                /*
+                 * StreamSoundTrigger may call stop recognition to second stage
+                 * engines when one of the second stage engine reject detection.
+                 * So check processing_started_ before notify stream in case
+                 * stream has already stopped recognition.
+                 */
+                if (capi_engine->processing_started_) {
+                    if (status)
+                        detection_state = KEYWORD_DETECTION_REJECT;
+                    else
+                        detection_state = capi_engine->detection_state_;
+                    lck.unlock();
+                    s->SetEngineDetectionState(detection_state);
+                    lck.lock();
+                }
             } else if (capi_engine->detection_type_ ==
                 ST_SM_TYPE_USER_VERIFICATION) {
                 status = capi_engine->StartUserVerification();
-                lck.unlock();
-                if (status || capi_engine->detection_state_ ==
-                                                      USER_VERIFICATION_REJECT)
-                    s->SetEngineDetectionState(USER_VERIFICATION_REJECT);
-                else if (capi_engine->detection_state_ ==
-                                                      USER_VERIFICATION_SUCCESS)
-                    s->SetEngineDetectionState(USER_VERIFICATION_SUCCESS);
-                lck.lock();
+                /*
+                 * StreamSoundTrigger may call stop recognition to second stage
+                 * engines when one of the second stage engine reject detection.
+                 * So check processing_started_ before notify stream in case
+                 * stream has already stopped recognition.
+                 */
+                if (capi_engine->processing_started_) {
+                    if (status)
+                        detection_state = USER_VERIFICATION_REJECT;
+                    else
+                        detection_state = capi_engine->detection_state_;
+                    lck.unlock();
+                    s->SetEngineDetectionState(detection_state);
+                    lck.lock();
+                }
             }
             capi_engine->detection_state_ = ENGINE_IDLE;
             capi_engine->keyword_detected_ = false;

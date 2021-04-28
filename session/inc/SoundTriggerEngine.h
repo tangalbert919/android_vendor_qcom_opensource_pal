@@ -148,6 +148,7 @@ public:
     int32_t ResetBufferReaders(std::vector<PalRingBufferReader *> &reader_list);
     uint32_t UsToBytes(uint64_t input_us);
     uint32_t FrameToBytes(uint32_t frames);
+    listen_model_indicator_enum GetEngineType() { return engine_type_; }
 
 protected:
     listen_model_indicator_enum engine_type_;
