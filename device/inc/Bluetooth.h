@@ -87,7 +87,6 @@ protected:
     bt_codec_t                 *pluginCodec;
     bool                       isAbrEnabled;
     bool                       isConfigured;
-    bool                       isHandoffInProgress;
     bool                       isLC3MonoModeOn;
     bool                       isTwsMonoModeOn;
     bool                       isDummySink;

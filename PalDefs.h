@@ -779,6 +779,7 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY = 42,
     PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
     PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
+    PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -902,10 +903,11 @@ typedef struct pal_param_btsco {
 */
 typedef struct pal_param_bta2dp {
     int32_t  reconfig_supported;
-    bool     reconfigured;
+    bool     reconfig;
     bool     a2dp_suspended;
     bool     is_tws_mono_mode_on;
     bool     is_lc3_mono_mode_on;
+    bool     is_force_switch;
     uint32_t latency;
 } pal_param_bta2dp_t;
 

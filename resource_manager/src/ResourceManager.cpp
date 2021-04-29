@@ -4657,6 +4657,25 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
             is_ds_required = true;
         }
         break;
+    case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        {
+            std::shared_ptr<Device> dev = nullptr;
+            struct pal_device dattr;
+            pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+            int status = 0;
+
+            dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            if (isDeviceAvailable(dattr.id)) {
+                dev = Device::getInstance(&dattr , rm);
+                status = dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH, (void **)&param_bt_a2dp);
+                if (status == 0) {
+                    is_ds_required = param_bt_a2dp->is_force_switch;
+                } else {
+                    PAL_ERR(LOG_TAG, "get device parameter failed");
+                }
+            }
+            break;
+        }
     case PAL_DEVICE_OUT_AUX_DIGITAL:
     case PAL_DEVICE_OUT_AUX_DIGITAL_1:
     case PAL_DEVICE_OUT_HDMI:
@@ -5811,14 +5830,14 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 }
                 dev->setDeviceParameter(param_id, param_payload);
                 dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
-                if (current_param_bt_a2dp->reconfigured == true) {
+                if (current_param_bt_a2dp->reconfig == true) {
                     param_bt_a2dp.a2dp_suspended = true;
                     dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
 
                     param_bt_a2dp.a2dp_suspended = false;
                     dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
 
-                    param_bt_a2dp.reconfigured = false;
+                    param_bt_a2dp.reconfig = false;
                     dev->setDeviceParameter(param_id, &param_bt_a2dp);
                 }
             }

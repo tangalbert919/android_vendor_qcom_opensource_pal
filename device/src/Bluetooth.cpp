@@ -53,7 +53,6 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       codecInfo(NULL),
       isAbrEnabled(false),
       isConfigured(false),
-      isHandoffInProgress(false),
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
       isDummySink(false),
@@ -287,7 +286,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         goto error;
     }
 
-    if (isHandoffInProgress && isPlaceholderEncoder()) {
+    if (isPlaceholderEncoder()) {
         PAL_ERR(LOG_TAG, "Resetting placeholder module");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
@@ -900,8 +899,9 @@ BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     pluginCodec = NULL;
 
     init();
-    param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.reconfig = false;
     param_bt_a2dp.a2dp_suspended = false;
+    param_bt_a2dp.is_force_switch = false;
     isA2dpOffloadSupported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
@@ -951,7 +951,7 @@ int BtA2dp::close_audio_source()
     }
     totalActiveSessionRequests = 0;
     param_bt_a2dp.a2dp_suspended = false;
-    param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.reconfig = false;
     param_bt_a2dp.latency = 0;
     a2dpState = A2DP_STATE_DISCONNECTED;
 
@@ -1360,8 +1360,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     case PAL_PARAM_ID_BT_A2DP_RECONFIG:
     {
         if (a2dpState != A2DP_STATE_DISCONNECTED) {
-            param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
-            isHandoffInProgress = param_a2dp->reconfigured;
+            param_bt_a2dp.reconfig = param_a2dp->reconfig;
         }
         break;
     }
@@ -1475,6 +1474,14 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
         } else {
             param_bt_a2dp.latency = 0;
         }
+        *param = &param_bt_a2dp;
+        break;
+    }
+    case PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH:
+    {
+        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED))
+            param_bt_a2dp.is_force_switch = true;
+
         *param = &param_bt_a2dp;
         break;
     }
