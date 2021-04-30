@@ -169,6 +169,7 @@ bool SpeakerProtection::isSpeakerInUse(unsigned long *sec)
     struct timespec temp;
     if (!sec) {
         PAL_ERR(LOG_TAG, "Improper argument time");
+        return false;
     }
 
     if (isSpkrInUse) {
@@ -208,10 +209,14 @@ void SpeakerProtection::mixer_ctl_callback (uint64_t hdl __unused, uint32_t even
             // TODO : Add a lock
             PAL_DBG(LOG_TAG, "Calibration is successfull");
             callback_data = (param_id_sp_th_vi_calib_res_cfg_t *) calloc(1, event_size);
-            callback_data->num_ch = param_data->num_ch;
-            callback_data->state = param_data->state;
-            for (int i = 0; i < callback_data->num_ch; i++) {
-                callback_data->r0_cali_q24[i] = param_data->r0_cali_q24[i];
+            if (!callback_data) {
+                PAL_ERR(LOG_TAG, "Invalid callback data to update: \n");
+            } else {
+                callback_data->num_ch = param_data->num_ch;
+                callback_data->state = param_data->state;
+                for (int i = 0; i < callback_data->num_ch; i++) {
+                  callback_data->r0_cali_q24[i] = param_data->r0_cali_q24[i];
+                }
             }
             mDspCallbackRcvd = true;
             calibrationCallbackStatus = CALIBRATION_STATUS_SUCCESS;
@@ -273,6 +278,8 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
         case WSA_SPKR_LEFT:
             mixer_ctl_name = SPKR_LEFT_WSA_TEMP;
         break;
+        default:
+            mixer_ctl_name = SPKR_RIGHT_WSA_TEMP;
     }
 
     PAL_DBG(LOG_TAG, "audio_mixer %pK", mixer);
@@ -490,7 +497,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
         }
@@ -504,7 +511,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
         }
@@ -518,7 +525,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
         }
@@ -1426,6 +1433,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
                             sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
                             sizeof(vi_r0t0_cfg_t) * numberOfChannels);
+        if (!spR0T0confg) {
+            PAL_ERR(LOG_TAG," unable to create speaker config payload\n");
+            goto free_fe;
+        }
         spR0T0confg->num_speakers = numberOfChannels;
 
         memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
@@ -1721,7 +1732,8 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
         goto exit;
 
     pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
-    cntrlName<<pcmDeviceName<<" "<<getParamControl;
+    if (pcmDeviceName)
+        cntrlName<<pcmDeviceName<<" "<<getParamControl;
 
     ctl = mixer_get_ctl_by_name(mixer, cntrlName.str().data());
     if (!ctl) {
@@ -1948,6 +1960,10 @@ void SpeakerFeedback::updateVIcustomPayload()
     spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
                         sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
                         sizeof(vi_r0t0_cfg_t) * numSpeaker);
+    if (!spR0T0confg) {
+        PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        return;
+    }
     spR0T0confg->num_speakers = numSpeaker;
 
     memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
