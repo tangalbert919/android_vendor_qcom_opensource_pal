@@ -1885,49 +1885,46 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (voldB == 0.0f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
         }
-        else if (voldB < 0.002172f) {
-            ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
-        }
-        else if (voldB < 0.004660f) {
+        else if (voldB <= 0.002172f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
         }
-        else if (voldB < 0.01f) {
+        else if (voldB <= 0.004660f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
         }
-        else if (voldB < 0.014877f) {
+        else if (voldB <= 0.01f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
         }
-        else if (voldB < 0.023646f) {
+        else if (voldB <= 0.014877f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
         }
-        else if (voldB < 0.037584f) {
+        else if (voldB <= 0.023646f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
         }
-        else if (voldB < 0.055912f) {
+        else if (voldB <= 0.037584f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
         }
-        else if (voldB < 0.088869f) {
+        else if (voldB <= 0.055912f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
         }
-        else if (voldB < 0.141254f) {
+        else if (voldB <= 0.088869f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
         }
-        else if (voldB < 0.189453f) {
+        else if (voldB <= 0.141254f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
         }
-        else if (voldB < 0.266840f) {
+        else if (voldB <= 0.189453f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
         }
-        else if (voldB < 0.375838f) {
+        else if (voldB <= 0.266840f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
         }
-        else if (voldB < 0.504081f) {
+        else if (voldB <= 0.375838f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
         }
-        else if (voldB < 0.709987f) {
+        else if (voldB <= 0.504081f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
         }
-        else if (voldB < 0.9f) {
+        else if (voldB <= 0.709987f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
         }
         else if (voldB <= 1.0f) {
