@@ -2449,27 +2449,6 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                                 sizeof(pkd_reg_addr_t) * data->num_spkr);
             }
         break;
-        case PARAM_ID_SP_CPS_STATIC_CFG:
-            {
-                param_id_sp_cps_static_cfg_t *data = NULL;
-                param_id_sp_cps_static_cfg_t *spConf = NULL;
-
-                data = (param_id_sp_cps_static_cfg_t *) param;
-                payloadSize = sizeof(struct apm_module_param_data_t) +
-                                    sizeof(param_id_sp_cps_static_cfg_t);
-                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-
-                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
-                if (!payloadInfo) {
-                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
-                    return;
-                }
-                header = (struct apm_module_param_data_t*) payloadInfo;
-                spConf = (param_id_sp_cps_static_cfg_t *) (payloadInfo +
-                                sizeof(struct apm_module_param_data_t));
-                memcpy(spConf, data, sizeof(param_id_sp_cps_static_cfg_t));
-            }
-        break;
         default:
             {
                 PAL_ERR(LOG_TAG, "unknown param id 0x%x", param_id);

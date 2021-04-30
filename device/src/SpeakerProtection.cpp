@@ -1025,12 +1025,10 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     lpass_swr_hw_reg_cfg_t *cpsRegCfg = NULL;
-    param_id_sp_cps_static_cfg_t cpsStaticConf;
     pkd_reg_addr_t pkedRegAddr[numberOfChannels];
     int dev_num;
     int val, ret = 0;
 
-    memset(&cpsStaticConf, 0, sizeof(param_id_sp_cps_static_cfg_t));
 
     // Payload for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
     cpsRegCfg = (lpass_swr_hw_reg_cfg_t *) calloc(1, sizeof(lpass_swr_hw_reg_cfg_t)
@@ -1054,6 +1052,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
                 dev_num = getCpsDevNumber(SPKR_LEFT_WSA_DEV_NUM);
             break;
         }
+        PAL_DBG(LOG_TAG, "CPS Dev number%d for Channel %d",dev_num,i);
         pkedRegAddr[i].vbatt_pkd_reg_addr = CPS_WSA_VBATT_REG_ADDR;
         pkedRegAddr[i].temp_pkd_reg_addr = CPS_WSA_TEMP_REG_ADDR;
 
@@ -1067,7 +1066,15 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         /* bits 24:27 carry read length in bytes */
         val |= 1 << 24;
 
+        /* bits 16:19 carry command id */
+        val |= (i*2) << 16;
+
+        /* Update dev num in packed reg addr */
         pkedRegAddr[i].vbatt_pkd_reg_addr |= val;
+
+        val &= 0xFF0FFFF;
+        val |= ((i*2)+1) << 16;
+
         pkedRegAddr[i].temp_pkd_reg_addr |= val;
     }
     memcpy(cpsRegCfg->pkd_reg_addr, pkedRegAddr, sizeof(pkd_reg_addr_t) *
@@ -1086,31 +1093,6 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         }
     }
 
-    // Payload for ParamID : PARAM_ID_SP_CPS_STATIC_CFG
-    cpsStaticConf.limiter_cps_en_flag = 1;
-    cpsStaticConf.limiter_cps_smooth_VbDT_en_flag = 1;
-    cpsStaticConf.limiter_cps_margin_dB_q15 = 0xccd;
-
-    memcpy(cpsStaticConf.FourOhmTable_GaindB_q24, FourOhmTable_GaindB_q24,
-            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
-
-    memcpy(cpsStaticConf.SixOhmTable_GaindB_q24, SixOhmTable_GaindB_q24,
-            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
-
-    memcpy(cpsStaticConf.EightOhmTable_GaindB_q24, EightOhmTable_GaindB_q24,
-            sizeof(int32_t)*SP_NDTEMP_DISCRETE * SP_NVBATT_DISCRETE);
-
-    // Payload builder for ParamID : PARAM_ID_SP_CPS_STATIC_CFG
-    payloadSize = 0;
-    builder->payloadSPConfig(&payload, &payloadSize, miid,
-            PARAM_ID_SP_CPS_STATIC_CFG,(void *)&cpsStaticConf);
-    if (payloadSize) {
-        ret = updateCustomPayload(payload, payloadSize);
-        free(payload);
-        if (0 != ret) {
-            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
-        }
-    }
 exit:
     if(builder) {
        delete builder;
