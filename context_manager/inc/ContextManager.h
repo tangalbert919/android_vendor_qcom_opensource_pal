@@ -230,6 +230,8 @@ public:
     static int32_t StreamProxyCallback(pal_stream_handle_t *stream_handle,
                                    uint32_t event_id, uint32_t *event_data,
                                    uint32_t event_size, uint64_t cookie);
+    int32_t ssrDownHandler();
+    int32_t ssrUpHandler();
     int32_t process_deregister_request(uint32_t see_id, uint32_t usecase_id);
     int32_t process_register_request(uint32_t see_id, uint32_t usecase, uint32_t payload_size,
         void *payload);

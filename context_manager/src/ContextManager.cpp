@@ -337,7 +337,7 @@ stop_and_close_proxy_stream:
     StopAndCloseProxyStream();
 
 exit:
-    PAL_VERBOSE(LOG_TAG, "Exit");
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
     return rc;
 }
 
@@ -350,6 +350,34 @@ void ContextManager::DeInit()
     DestroyCommandProcessingThread();
 
     PAL_VERBOSE(LOG_TAG, "Exit");
+}
+
+int32_t ContextManager::ssrDownHandler()
+{
+    int32_t rc = 0;
+    std::unique_lock<std::mutex> lck(request_queue_mtx, std::defer_lock);
+    PAL_VERBOSE(LOG_TAG, "Enter");
+
+    this->CloseAll();
+
+    lck.lock();
+    while (!request_cmd_queue.empty()) {
+        free(request_cmd_queue.front());
+        request_cmd_queue.pop();
+    }
+    lck.unlock();
+
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
+    return rc;
+}
+
+int32_t ContextManager::ssrUpHandler()
+{
+    int32_t rc = 0;
+    PAL_VERBOSE(LOG_TAG, "Enter");
+
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
+    return rc;
 }
 
 int32_t ContextManager::StreamProxyCallback (pal_stream_handle_t *stream_handle,
@@ -383,7 +411,6 @@ void ContextManager::CloseAll()
 
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
-
 
 int32_t ContextManager::OpenAndStartProxyStream()
 {
@@ -448,25 +475,30 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
 {
     RequestCommand *request_command;
     int32_t rc = 0;
-    std::unique_lock<std::mutex> lck(cm.request_queue_mtx);
+    std::unique_lock<std::mutex> lck(cm.request_queue_mtx, std::defer_lock);
     PAL_VERBOSE(LOG_TAG, "Entering CommandThreadRunner");
 
     while (!cm.exit_cmd_thread_) {
+        lck.lock();
         // wait until we have a command to process.
         cm.request_queue_cv.wait(lck);
 
         // Continue so that we can terminate properly
-        if (cm.request_cmd_queue.empty())
+        if (cm.request_cmd_queue.empty()) {
+            lck.unlock();
             continue;
+        }
 
         request_command = cm.request_cmd_queue.front();
+        cm.request_cmd_queue.pop();
+        lck.unlock();
+
         rc = request_command->Process(cm);
         if (rc) {
             PAL_ERR(LOG_TAG, "Error:%d failed to process request", rc);
         }
 
         free(request_command);
-        cm.request_cmd_queue.pop();
     }
     PAL_VERBOSE(LOG_TAG, "Exiting CommandThreadRunner");
 }
