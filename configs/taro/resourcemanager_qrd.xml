@@ -354,6 +354,18 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_ULTRASOUND_MIC</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-4</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-mic</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_ULTRASOUND</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+        </in-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
@@ -488,6 +500,13 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>haptics-dev</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_ULTRASOUND</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-handset</snd_device_name>
         </out-device>
     </device_profile>
     <in_streams>
