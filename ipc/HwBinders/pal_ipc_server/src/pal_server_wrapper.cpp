@@ -181,7 +181,7 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
 
         allocHidlHandle->data[0] = rw_done_payload->buff.alloc_info.alloc_handle;
         allocHidlHandle->data[1] = input_fd;
-        ALOGD("returning fd %d for dup fd %d\n", allocHidlHandle->data[1], rw_done_payload->buff.alloc_info.alloc_handle);
+        ALOGV("returning fd %d for dup fd %d\n", allocHidlHandle->data[1], rw_done_payload->buff.alloc_info.alloc_handle);
         rwDonePayload->buff.alloc_info.alloc_handle = hidl_memory("arpal_alloc_handle",
                                                        hidl_handle(allocHidlHandle),
                                                        rw_done_payload->buff.alloc_info.alloc_size);
@@ -213,44 +213,44 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
 
 static void print_stream_info(pal_stream_info_t *info_)
 {
-   ALOGD("%s",__func__);
+   ALOGV("%s",__func__);
    pal_stream_info *info = &info_->opt_stream_info;
-   ALOGD("ver [%lld] sz [%lld] dur[%lld] has_video [%d] is_streaming [%d] lpbk_type [%d]",
+   ALOGV("ver [%lld] sz [%lld] dur[%lld] has_video [%d] is_streaming [%d] lpbk_type [%d]",
            info->version, info->size, info->duration_us, info->has_video, info->is_streaming,
            info->loopback_type);
 }
 
 static void print_media_config(struct pal_media_config *cfg)
 {
-   ALOGD("%s",__func__);
-   ALOGD("sr[%d] bw[%d] aud_fmt_id[%d]", cfg->sample_rate, cfg->bit_width, cfg->aud_fmt_id);
-   ALOGD("channel [%d]", cfg->ch_info.channels);
+   ALOGV("%s",__func__);
+   ALOGV("sr[%d] bw[%d] aud_fmt_id[%d]", cfg->sample_rate, cfg->bit_width, cfg->aud_fmt_id);
+   ALOGV("channel [%d]", cfg->ch_info.channels);
    for (int i = 0; i < 8; i++)
-        ALOGD("ch[%d] map%d", i, cfg->ch_info.ch_map[i]);
+        ALOGV("ch[%d] map%d", i, cfg->ch_info.ch_map[i]);
 }
 
 static void print_devices(uint32_t noDevices, struct pal_device *devices)
 {
-   ALOGD("%s",__func__);
+   ALOGV("%s",__func__);
    for (int i = 0 ; i < noDevices; i++) {
-     ALOGD("id [%d]", devices[i].id);
+     ALOGV("id [%d]", devices[i].id);
      print_media_config(&(devices[i].config));
    }
 }
 
 static void print_kv_modifier(uint32_t noOfMods, struct modifier_kv *kv)
 {
-   ALOGD("%s",__func__);
+   ALOGV("%s",__func__);
    for (int i = 0 ; i < noOfMods; i++) {
-     ALOGD("key [%d] value [%d]", kv[i].key, kv[i].value);
+     ALOGV("key [%d] value [%d]", kv[i].key, kv[i].value);
    }
 }
 
 
 static void print_attr(struct pal_stream_attributes *attr)
 {
-   ALOGD("%s",__func__);
-   ALOGD("type [%d] flags [%0x] dir[%d]\n", attr->type, attr->flags, attr->direction);
+   ALOGV("%s",__func__);
+   ALOGV("type [%d] flags [%0x] dir[%d]\n", attr->type, attr->flags, attr->direction);
    print_stream_info(&attr->info);
    print_media_config(&attr->in_media_config);
    print_media_config(&attr->out_media_config);
@@ -393,7 +393,7 @@ Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
                     for (int j=0; j < (*sess_iter).callback_binder->sharedMemFdList.size(); j++) {
                          close((*sess_iter).callback_binder->sharedMemFdList[j].second);
                     }
-                    ALOGD("Closing the session %x", streamHandle);
+                    ALOGV("Closing the session %x", streamHandle);
                     (*sess_iter).callback_binder->sharedMemFdList.clear();
                     (*sess_iter).callback_binder.clear();
                     break;
@@ -401,12 +401,12 @@ Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
            }
 
            if (sess_iter != clnt.mActiveSessions.end()) {
-               ALOGD("Delete session info");
+               ALOGV("Delete session info");
                clnt.mActiveSessions.erase(sess_iter);
            }
 
            if (clnt.mActiveSessions.empty()) {
-               ALOGD("Delete client info");
+               ALOGV("Delete client info");
                mClients_.erase(client_iter);
            }
 
@@ -521,13 +521,13 @@ Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
     buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
     add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
 
-    ALOGD("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
+    ALOGV("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
     buf.alloc_info.alloc_size = buff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = buff_hidl.data()->alloc_info.offset;
 
     if (buf.buffer != NULL)
         memcpy(buf.buffer, buff_hidl.data()->buffer.data(), bufSize);
-    ALOGD("%s:%d sz %d", __func__,__LINE__,bufSize);
+    ALOGV("%s:%d sz %d", __func__,__LINE__,bufSize);
     ret = pal_stream_write((pal_stream_handle_t *)streamHandle, &buf);
     free(buf.buffer);
     return ret;
@@ -553,7 +553,7 @@ Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
 
     buf.alloc_info.alloc_handle = dup(allochandle->data[0]);
     add_input_and_dup_fd(streamHandle, allochandle->data[1], buf.alloc_info.alloc_handle);
-    ALOGD("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
+    ALOGV("%s:%d input fd %d dup fd %d \n", __func__,__LINE__, allochandle->data[1], buf.alloc_info.alloc_handle);
 
     buf.alloc_info.alloc_size = inBuff_hidl.data()->alloc_info.alloc_size;
     buf.alloc_info.offset = inBuff_hidl.data()->alloc_info.offset;
@@ -818,7 +818,7 @@ Return<void>PAL::ipc_pal_stream_get_tags_with_module_info(PalStreamHandle stream
 
 
 IPAL* HIDL_FETCH_IPAL(const char* /* name */) {
-     ALOGD("%s");
+     ALOGV("%s");
      return new PAL();
 }
 
