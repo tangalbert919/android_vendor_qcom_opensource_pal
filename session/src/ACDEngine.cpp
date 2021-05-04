@@ -982,7 +982,7 @@ int32_t ACDEngine::ReconfigureEngine(Stream *st, void *old_cfg, void *new_cfg)
     struct acd_recognition_cfg *recog_cfg = NULL;
     StreamACD *s = dynamic_cast<StreamACD *>(st);
 
-    std::unique_lock<std::mutex> lck(mutex_);
+
     ResetModelLoadUnloadFlags();
     UpdateModelCount((struct pal_param_context_list *)old_cfg, false);
     UpdateModelCount((struct pal_param_context_list *)new_cfg, true);
@@ -992,9 +992,7 @@ int32_t ACDEngine::ReconfigureEngine(Stream *st, void *old_cfg, void *new_cfg)
         UpdateEventInfoForStream(s, recog_cfg);
 
     if (IsModelLoadNeeded() || IsModelUnloadNeeded() || is_confidence_value_updated_) {
-        lck.unlock();
         status = HandleMultiStreamLoadUnload(s);
-        lck.lock();
     }
     return status;
 }
