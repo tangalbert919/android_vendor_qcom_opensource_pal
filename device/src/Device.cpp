@@ -163,7 +163,7 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_OUT_AUX_DIGITAL_1:
     case PAL_DEVICE_OUT_HDMI:
         PAL_VERBOSE(LOG_TAG, "Display Port device");
-        return DisplayPort::getObject();
+        return DisplayPort::getObject(dev_id);
     case PAL_DEVICE_IN_HANDSET_MIC:
         PAL_VERBOSE(LOG_TAG, "handset mic device");
         return HandsetMic::getObject();

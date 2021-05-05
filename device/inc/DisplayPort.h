@@ -132,8 +132,9 @@ class DisplayPort : public Device
     uint32_t dp_controller;
     uint32_t dp_stream;
 protected:
-    static std::shared_ptr<Device> obj;
     int configureDpEndpoint();
+    static std::shared_ptr<Device> objRx;
+    static std::shared_ptr<Device> objTx;
     DisplayPort(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
     int start();
@@ -141,7 +142,7 @@ public:
     int deinit(pal_param_device_connection_t device_conn);
     static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
-    static std::shared_ptr<Device> getObject();
+    static std::shared_ptr<Device> getObject(pal_device_id_t id);
     static int32_t isSampleRateSupported(uint32_t sampleRate);
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
