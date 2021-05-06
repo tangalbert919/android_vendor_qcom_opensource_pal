@@ -94,6 +94,11 @@ int Bluetooth::updateDeviceMetadata()
             keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
             break;
         case CODEC_TYPE_AAC:
+            if (isAbrEnabled) {
+                PAL_INFO(LOG_TAG, "Setting BT_FORMAT = AAC_ABR");
+                keyVector.push_back(std::make_pair(BT_FORMAT, AAC_ABR));
+                break;
+            }
         case CODEC_TYPE_SBC:
         case CODEC_TYPE_CELT:
         case CODEC_TYPE_APTX:
@@ -169,6 +174,8 @@ bool Bluetooth::isPlaceholderEncoder()
         case CODEC_TYPE_APTX_AD_SPEECH:
         case CODEC_TYPE_LC3:
             return false;
+        case CODEC_TYPE_AAC:
+            return isAbrEnabled ? false : true;
         default:
             return true;
     }
@@ -287,7 +294,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     }
 
     if (isPlaceholderEncoder()) {
-        PAL_ERR(LOG_TAG, "Resetting placeholder module");
+        PAL_DBG(LOG_TAG, "Resetting placeholder module");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
         if (!paramData) {
@@ -1110,7 +1117,7 @@ int BtA2dp::startPlayback()
     }
 
     if (param_bt_a2dp.a2dp_suspended) {
-        //session will be restarted after suspend completion
+        // session will be restarted after suspend completion
         PAL_INFO(LOG_TAG, "a2dp start requested during suspend state");
         return 0;
     }
@@ -1145,6 +1152,11 @@ int BtA2dp::startPlayback()
             audio_source_stop();
             return ret;
         }
+
+        /* Reset device GKV for AAC ABR */
+        if ((codecFormat == CODEC_TYPE_AAC) && isAbrEnabled)
+            updateDeviceMetadata();
+
         a2dpState = A2DP_STATE_STARTED;
     } else {
         /* Update Device GKV based on Already received encoder. */
