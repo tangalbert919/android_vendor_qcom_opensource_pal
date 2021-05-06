@@ -69,7 +69,7 @@
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
-            <max_channels>2</max_channels>
+            <max_channels>4</max_channels>
             <channels>1</channels>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
@@ -124,6 +124,22 @@
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_RAW</name>
+                <channels>4</channels>
+                <custom-config key="unprocessed-hdr-mic-landscape">
+                    <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-portrait">
+                    <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
+                </custom-config>
+                <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
+                </custom-config>
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
@@ -563,6 +579,17 @@
         </in_stream>
         <in_stream>
             <name>PAL_STREAM_PROXY</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
+                        <disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>PAL_STREAM_RAW</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
