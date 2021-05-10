@@ -958,7 +958,8 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "sm8150") ||
                     strstr(snd_card_name, "lahaina") ||
                     strstr(snd_card_name, "waipio") ||
-                    strstr(snd_card_name, "bengal")) {
+                    strstr(snd_card_name, "bengal") ||
+                    strstr(snd_card_name, "monaco")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_mixer = tmp_mixer;
@@ -1005,6 +1006,12 @@ int ResourceManager::init_audio()
             strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
             strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    }
+    if (strstr(snd_card_name, "slate")) {
+            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(mixer_xml_file, "slate", XML_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+            strlcat(rmngr_xml_file, "slate", XML_PATH_MAX_LENGTH);
     }
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
