@@ -1666,6 +1666,13 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 if (channels > sAttr->out_media_config.ch_info.channels)
                     channels = sAttr->out_media_config.ch_info.channels;
 
+                /**
+                 * According to HDMI spec CEA-861-E, 1 channel is not
+                 * supported, thus converting 1 channel to 2 channels.
+                 */
+                if (channels == 1)
+                    channels = 2;
+
                 dev_ch_info.channels = channels;
 
                 getChannelMap(&(dev_ch_info.ch_map[0]), channels);
