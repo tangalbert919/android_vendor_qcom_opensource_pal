@@ -1043,56 +1043,7 @@ int32_t StreamACD::ACDIdle::ProcessEvent(
             break;
         }
         case ACD_EV_CONCURRENT_STREAM: {
-            // Avoid handling concurrency if context_config_ is not received
-            if (!acd_stream_.context_config_)
-                break;
-
-            std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
-            bool active = false;
-
-            ACDConcurrentStreamEventConfigData *data =
-                (ACDConcurrentStreamEventConfigData *)ev_cfg->data_.get();
-            active = data->is_active_;
-            new_cap_prof = acd_stream_.GetCurrentCaptureProfile();
-            if (acd_stream_.cap_prof_ != new_cap_prof) {
-                PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
-                    acd_stream_.cap_prof_->GetName().c_str(),
-                    acd_stream_.cap_prof_->GetDevId(),
-                    acd_stream_.cap_prof_->GetChannels(),
-                    acd_stream_.cap_prof_->GetSampleRate());
-                PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
-                    new_cap_prof->GetName().c_str(),
-                    new_cap_prof->GetDevId(),
-                    new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
-                if (active) {
-                    if (acd_stream_.rec_config_) {
-                        status = acd_stream_.SendRecognitionConfig(
-                            acd_stream_.rec_config_);
-                        if (0 != status) {
-                            PAL_ERR(LOG_TAG, "Error:%d Failed to send recognition config",
-                                    status);
-                            break;
-                        }
-                    } else if (acd_stream_.context_config_) {
-                         status = acd_stream_.SendContextConfig(acd_stream_.context_config_);
-                         if (0 != status)
-                             PAL_ERR(LOG_TAG, "Error:%d Failed to send context config", status);
-                         break;
-                    }
-                    if (acd_stream_.isActive()) {
-                        std::shared_ptr<ACDEventConfig> ev_cfg2(
-                            new ACDStartRecognitionEventConfig(false));
-                        status = acd_stream_.ProcessInternalEvent(ev_cfg2);
-                        if (status)
-                            PAL_ERR(LOG_TAG, "Error:%d Failed to Start", status);
-                    }
-                }
-            } else {
-                PAL_INFO(LOG_TAG,"no action needed, same capture profile");
-            }
+            PAL_INFO(LOG_TAG, "no action needed for concurrent stream in idle state");
             break;
         }
         default:
@@ -1266,6 +1217,9 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 goto connect_err;
             }
 
+            acd_stream_.mDevices.clear();
+            acd_stream_.mDevices.push_back(dev);
+
             status = acd_stream_.engine_->SetupSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -1297,8 +1251,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
             }
 
-            acd_stream_.mDevices.clear();
-            acd_stream_.mDevices.push_back(dev);
 
         connect_err:
             break;
@@ -1355,15 +1307,24 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                     new_cap_prof->GetSampleRate());
                 if (!active) {
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
-                        new ACDUnloadEventConfig());
+                        new ACDDeviceDisconnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
+                    status = acd_stream_.ProcessInternalEvent(ev_cfg1);
+                    if (status)
+                        PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
+                                    acd_stream_.GetAvailCaptureDevice());
+                } else {
+                    acd_stream_.mDevPpModifiers.clear();
+                    if (new_cap_prof->GetDevicePpKv().first != 0)
+                        acd_stream_.mDevPpModifiers.push_back(new_cap_prof->GetDevicePpKv());
+
+                    std::shared_ptr<ACDEventConfig> ev_cfg1(
+                        new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
                     status = acd_stream_.ProcessInternalEvent(ev_cfg1);
                     if (status) {
-                        PAL_ERR(LOG_TAG, "Error:%d Failed to Unload", status);
-                        break;
+                        PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
+                    } else {
+                        acd_stream_.cap_prof_ = new_cap_prof;
                     }
-                } else {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "Error:%d Invalid operation", -EINVAL);
                 }
             } else {
               PAL_INFO(LOG_TAG,"no action needed, same capture profile");
@@ -1493,6 +1454,9 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 goto connect_err;
             }
 
+            acd_stream_.mDevices.clear();
+            acd_stream_.mDevices.push_back(dev);
+
             status = acd_stream_.engine_->SetupSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -1520,8 +1484,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 acd_stream_.rm->registerDevice(dev, &acd_stream_);
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
             }
-            acd_stream_.mDevices.clear();
-            acd_stream_.mDevices.push_back(dev);
 
         connect_err:
             if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
@@ -1596,21 +1558,25 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                     new_cap_prof->GetSampleRate());
                 if (!active) {
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
-                        new ACDStopRecognitionEventConfig(false));
+                        new ACDDeviceDisconnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
+                    status = acd_stream_.ProcessInternalEvent(ev_cfg1);
+                    if (status)
+                        PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
+                                    acd_stream_.GetAvailCaptureDevice());
+                } else {
+                    acd_stream_.mDevPpModifiers.clear();
+                    if (new_cap_prof->GetDevicePpKv().first != 0)
+                        acd_stream_.mDevPpModifiers.push_back(new_cap_prof->GetDevicePpKv());
+
+                    std::shared_ptr<ACDEventConfig> ev_cfg1(
+                        new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
                     status = acd_stream_.ProcessInternalEvent(ev_cfg1);
                     if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
-                        break;
+                        PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
+                    } else {
+                        acd_stream_.cap_prof_ = new_cap_prof;
                     }
-                    std::shared_ptr<ACDEventConfig> ev_cfg2(new ACDUnloadEventConfig());
-                    status = acd_stream_.ProcessInternalEvent(ev_cfg2);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-                        break;
-                    }
-                } else {
-                    PAL_ERR(LOG_TAG, "Invalid operation");
-                    status = -EINVAL;
+
                 }
             } else {
               PAL_INFO(LOG_TAG,"no action needed, same capture profile");
