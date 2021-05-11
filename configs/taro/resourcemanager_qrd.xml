@@ -332,8 +332,8 @@
             <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
             <max_channels>2</max_channels>
-            <channels>1</channels>
-            <snd_device_name>vi-feedback-mono-2</snd_device_name>
+            <channels>2</channels>
+            <snd_device_name>vi-feedback</snd_device_name>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
