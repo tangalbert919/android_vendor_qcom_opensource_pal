@@ -1314,10 +1314,12 @@ int32_t SoundTriggerEngineGsl::DeleteSoundModel(Stream *s) {
         *eng_sm_info_ = *(rem_st->GetSoundModelInfo());
         wakeup_config_.num_active_models = eng_sm_info_->GetConfLevelsSize();
         for (int i = 0; i < eng_sm_info_->GetConfLevelsSize(); i++) {
-            wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
-            wakeup_config_.keyword_user_enables[i] =
-                (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
-            PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+            if (eng_sm_info_->GetConfLevels()) {
+                wakeup_config_.confidence_levels[i] = eng_sm_info_->GetConfLevels()[i];
+                wakeup_config_.keyword_user_enables[i] =
+                    (wakeup_config_.confidence_levels[i] == 100) ? 0 : 1;
+                PAL_DBG(LOG_TAG, "cf levels[%d] = %d", i, wakeup_config_.confidence_levels[i]);
+            }
         }
         sm_merged_ = false;
         return 0;
@@ -2701,9 +2703,9 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
             ses_param_id = PAL_PARAM_ID_WAKEUP_BUFFERING_CONFIG;
             if (!IS_MODULE_TYPE_PDK(module_type_)) {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
-                       (uint8_t *)&buffer_config_ + sizeof(uint32_t),
-                       sizeof(struct detection_engine_multi_model_buffering_config),
-                       miid, param_id);
+                       (uint8_t *)(&buffer_config_.hist_buffer_duration_in_ms),
+                       sizeof(struct detection_engine_multi_model_buffering_config)
+                       - sizeof(uint32_t), miid, param_id);
             } else {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                         (uint8_t *)&buffer_config_,
