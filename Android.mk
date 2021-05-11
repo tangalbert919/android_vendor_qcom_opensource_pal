@@ -91,7 +91,8 @@ LOCAL_HEADER_LIBRARIES := \
     libspf-headers \
     libcapiv2_headers \
     libagm_headers \
-    libacdb_headers
+    libacdb_headers \
+    liblisten_headers
 
 LOCAL_SHARED_LIBRARIES := \
     libar-gsl\
