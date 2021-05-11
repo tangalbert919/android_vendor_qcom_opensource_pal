@@ -436,27 +436,26 @@ int SessionAlsaVoice::start(Stream * s)
     }
 
     SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
+    volume = (struct pal_volume_data *)malloc(sizeof(uint32_t) +
+                                                (sizeof(struct pal_channel_vol_kv)));
+    if (!volume) {
+        status = -ENOMEM;
+        PAL_ERR(LOG_TAG, "volume malloc failed %s", strerror(errno));
+        goto exit;
+    }
+
     /*if no volume is set set a default volume*/
     if ((s->getVolumeData(volume))) {
         PAL_INFO(LOG_TAG, "no volume set, setting default vol to %f",
                  default_volume);
-        volume = (struct pal_volume_data *)malloc(sizeof(uint32_t) +
-                                                  (sizeof(struct pal_channel_vol_kv)));
-        if (!volume) {
-            status = -ENOMEM;
-            PAL_ERR(LOG_TAG, "volume malloc failed %s", strerror(errno));
-            goto exit;
-        }
         volume->no_of_volpair = 1;
         volume->volume_pair[0].channel_mask = 1;
         volume->volume_pair[0].vol = default_volume;
         /*call will cache the volume but not apply it as stream has not moved to start state*/
         s->setVolume(volume);
-        /*call to apply volume*/
-        setConfig(s, CALIBRATION, TAG_STREAM_VOLUME, RX_HOSTLESS);
-
-
     };
+    /*call to apply volume*/
+    setConfig(s, CALIBRATION, TAG_STREAM_VOLUME, RX_HOSTLESS);
 
     /*set tty mode*/
     if (ttyMode) {
@@ -749,6 +748,11 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
        case TAG_STREAM_VOLUME:
             device = pcmDevRxIds.at(0);
             status = payloadCalKeys(s, &paramData, &paramSize);
+            if (status || !paramData) {
+                status = -ENOMEM;
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
                                                               paramData,
                                                               paramSize,
