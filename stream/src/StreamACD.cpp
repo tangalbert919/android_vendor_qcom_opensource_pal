@@ -73,7 +73,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
                      sattr, sizeof(pal_stream_attributes));
     mStreamAttr->in_media_config.sample_rate = 16000;
     mStreamAttr->in_media_config.bit_width = 16;
-    mStreamAttr->in_media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    mStreamAttr->in_media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
     mStreamAttr->in_media_config.ch_info.channels = 1;
     mStreamAttr->direction = PAL_AUDIO_INPUT;
 
@@ -421,7 +421,7 @@ void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *p
     recognition_event->data_offset = sizeof(struct pal_st_recognition_event);
     recognition_event->media_config.bit_width = BITWIDTH_16;
     recognition_event->media_config.ch_info.channels = CHANNELS_1;
-    recognition_event->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    recognition_event->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
     st_header = (struct st_param_header *)((uint8_t *)payload + sizeof(struct pal_st_recognition_event));
     st_header->key_id = ST_PARAM_KEY_CONTEXT_EVENT_INFO;
@@ -595,7 +595,7 @@ std::shared_ptr<Device> StreamACD::GetPalDevice(pal_device_id_t dev_id, bool use
     dev.config.bit_width = cap_prof->GetBitWidth();
     dev.config.ch_info.channels = cap_prof->GetChannels();
     dev.config.sample_rate = cap_prof->GetSampleRate();
-    dev.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
     device = Device::getInstance(&dev, rm);
     if (!device) {

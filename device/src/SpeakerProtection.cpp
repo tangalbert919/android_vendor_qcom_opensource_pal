@@ -369,7 +369,7 @@ int SpeakerProtection::spkrStartCalibration()
     device.config.ch_info = ch_info;
     device.config.sample_rate = SAMPLINGRATE_48K;
     device.config.bit_width = BITWIDTH_32;
-    device.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
 
     // Setup TX path
     ret = rm->getAudioRoute(&audioRoute);
@@ -602,7 +602,7 @@ int SpeakerProtection::spkrStartCalibration()
     }
     deviceRx.config.sample_rate = SAMPLINGRATE_48K;
     deviceRx.config.bit_width = BITWIDTH_16;
-    deviceRx.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    deviceRx.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
     rm->getBackendName(deviceRx.id, backEndNameRx);
 
@@ -1220,7 +1220,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         device.config.ch_info = ch_info;
         device.config.sample_rate = SAMPLINGRATE_48K;
         device.config.bit_width = BITWIDTH_32;
-        device.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
 
         // Setup TX path
         device.id = PAL_DEVICE_IN_VI_FEEDBACK;

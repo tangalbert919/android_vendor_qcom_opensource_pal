@@ -117,7 +117,39 @@ unsigned int SessionAlsaUtils::bitsToAlsaFormat(unsigned int bits)
     };
 }
 
+static unsigned int palToSndDriverFormat(uint32_t fmt_id)
+{
+    switch (fmt_id) {
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+            return SNDRV_PCM_FORMAT_S32_LE;
+        case PAL_AUDIO_FMT_PCM_S8:
+            return SNDRV_PCM_FORMAT_S8;
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+            return SNDRV_PCM_FORMAT_S24_3LE;
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+            return SNDRV_PCM_FORMAT_S24_LE;
+        default:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+            return SNDRV_PCM_FORMAT_S16_LE;
+    };
+}
 
+pcm_format SessionAlsaUtils::palToAlsaFormat(uint32_t fmt_id)
+{
+    switch (fmt_id) {
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+            return PCM_FORMAT_S32_LE;
+        case PAL_AUDIO_FMT_PCM_S8:
+            return PCM_FORMAT_S8;
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+            return PCM_FORMAT_S24_3LE;
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+            return PCM_FORMAT_S24_LE;
+        default:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+            return PCM_FORMAT_S16_LE;
+    };
+}
 
 int SessionAlsaUtils::setMixerCtlData(struct mixer_ctl *ctl, MixerCtlType id, void *data, int size)
 {
@@ -678,11 +710,18 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
 
     aif_media_config[0] = dAttr->config.sample_rate;
     aif_media_config[1] = dAttr->config.ch_info.channels;
-    aif_media_config[2] = bitsToAlsaFormat(dAttr->config.bit_width);
-    aif_media_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
 
-    if (dAttr->config.aud_fmt_id != PAL_AUDIO_FMT_DEFAULT_PCM)
+    if (!isPalPCMFormat((uint32_t)dAttr->config.aud_fmt_id)) {
+        /*
+         *Only for configuring the BT A2DP device backend we use
+         *bitwidth instead of aud_fmt_id
+         */
+        aif_media_config[2] = bitsToAlsaFormat(dAttr->config.bit_width);
         aif_media_config[3] = AGM_DATA_FORMAT_COMPR_OVER_PCM_PACKETIZED;
+    } else {
+        aif_media_config[2] = palToSndDriverFormat((uint32_t)dAttr->config.aud_fmt_id);
+        aif_media_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
+    }
 
     PAL_INFO(LOG_TAG, "%s rate ch fmt data_fmt %ld %ld %ld %ld\n", backEndName.c_str(),
                      aif_media_config[0], aif_media_config[1],

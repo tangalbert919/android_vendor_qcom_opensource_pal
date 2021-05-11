@@ -56,7 +56,11 @@ void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
         case PAL_AUDIO_FMT_EVRC:
         case PAL_AUDIO_FMT_G711:
         break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
         break;
         case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
@@ -345,7 +349,11 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_WMA_STD:
             id = SND_AUDIOCODEC_WMA;
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
             id = SND_AUDIOCODEC_PCM;
             break;
         case PAL_AUDIO_FMT_ALAC:
@@ -393,7 +401,11 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_WMA_STD:
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
             break;
         case PAL_AUDIO_FMT_ALAC:
             break;
@@ -562,7 +574,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     builder = new PayloadBuilder();
 
     /** set default snd codec params */
-    codec.id = getSndCodecId(PAL_AUDIO_FMT_DEFAULT_PCM);
+    codec.id = getSndCodecId(PAL_AUDIO_FMT_PCM_S16_LE);
     codec.ch_in = 2;
     codec.ch_out = codec.ch_in;
     codec.sample_rate = 48000;

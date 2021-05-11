@@ -62,8 +62,9 @@ typedef uint64_t pal_st_handle_t;
 
 /** PAL Audio format enumeration */
 typedef enum {
-    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
-    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,            /**< Default Compressed*/
+    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                         /**< PCM*/
+    PAL_AUDIO_FMT_PCM_S16_LE = PAL_AUDIO_FMT_DEFAULT_PCM,   /**< 16 bit little endian PCM*/
+    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,                  /**< Default Compressed*/
     PAL_AUDIO_FMT_MP3 = PAL_AUDIO_FMT_DEFAULT_COMPRESSED,
     PAL_AUDIO_FMT_AAC = 0x3,
     PAL_AUDIO_FMT_AAC_ADTS = 0x4,
@@ -82,10 +83,14 @@ typedef enum {
     PAL_AUDIO_FMT_EVRC = 0x11,
     PAL_AUDIO_FMT_G711 = 0x12,
     PAL_AUDIO_FMT_QCELP = 0x13,
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,           /* Reserved for beginning of compressed codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END = 0xF0000FFF,    /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_END = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_PCM_S8 = 0x14,            /**< 8 Bit PCM*/
+    PAL_AUDIO_FMT_PCM_S24_3LE = 0x15,       /**<24 bit packed little endian PCM*/
+    PAL_AUDIO_FMT_PCM_S24_LE = 0x16,        /**<24bit in 32bit word (LSB aligned) little endian PCM*/
+    PAL_AUDIO_FMT_PCM_S32_LE = 0x17,        /**< 32bit little endian PCM*/
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } pal_audio_fmt_t;
 
 #define PCM_24_BIT_PACKED (0x6u)
@@ -97,7 +102,12 @@ typedef enum {
 #ifdef __cplusplus
 static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
 {
-    { "PCM",  PAL_AUDIO_FMT_DEFAULT_PCM},
+    { "PCM",  PAL_AUDIO_FMT_PCM_S16_LE},
+    { "PCM_S8",  PAL_AUDIO_FMT_PCM_S8},
+    { "PCM_S16_LE",  PAL_AUDIO_FMT_PCM_S16_LE},
+    { "PCM_S24_3LE",  PAL_AUDIO_FMT_PCM_S24_3LE},
+    { "PCM_S24_LE",  PAL_AUDIO_FMT_PCM_S24_LE},
+    { "PCM_S32_LE",  PAL_AUDIO_FMT_PCM_S32_LE},
     { "MP3",  PAL_AUDIO_FMT_MP3},
     { "AAC",  PAL_AUDIO_FMT_AAC},
     { "AAC_ADTS",  PAL_AUDIO_FMT_AAC_ADTS},

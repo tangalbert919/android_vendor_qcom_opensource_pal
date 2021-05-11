@@ -551,7 +551,11 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
 bool Stream::isStreamAudioOutFmtSupported(pal_audio_fmt_t format)
 {
     switch (format) {
-    case PAL_AUDIO_FMT_DEFAULT_PCM:
+    case PAL_AUDIO_FMT_PCM_S8:
+    case PAL_AUDIO_FMT_PCM_S16_LE:
+    case PAL_AUDIO_FMT_PCM_S24_3LE:
+    case PAL_AUDIO_FMT_PCM_S24_LE:
+    case PAL_AUDIO_FMT_PCM_S32_LE:
     case PAL_AUDIO_FMT_MP3:
     case PAL_AUDIO_FMT_AAC:
     case PAL_AUDIO_FMT_AAC_ADTS:

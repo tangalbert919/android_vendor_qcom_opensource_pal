@@ -125,6 +125,7 @@ public:
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
     static std::shared_ptr<Device> getDeviceObj(int32_t beDevId,
         std::vector<std::shared_ptr<Device>> &associatedDevices);
+    static pcm_format palToAlsaFormat(uint32_t fmt_id);
     static int setDeviceMetadata(std::shared_ptr<ResourceManager> rmHandle,
                                 std::string backEndName,
                                 std::vector <std::pair<int, int>> &deviceKV);
