@@ -37,6 +37,7 @@
 #include <sstream>
 #include <mutex>
 #include <fstream>
+#include <climits>
 
 #define MICRO_SECS_PER_SEC (1000000LL)
 
@@ -63,7 +64,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         goto done;
     }
 
-    PAL_ERR(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
+    PAL_INFO(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
     sessAgm->streamHandle->getStreamAttributes(&sAttr);
 
     if (event_params->event_id == AGM_EVENT_READ_DONE ||
@@ -92,9 +93,16 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         if (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP) {
             rw_done_payload->buff.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
             rw_done_payload->buff.ts->tv_sec = agm_rw_done_payload->buff.timestamp/MICRO_SECS_PER_SEC;
-            rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
-                                          rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
+            if (ULONG_MAX/MICRO_SECS_PER_SEC > rw_done_payload->buff.ts->tv_sec) {
+                rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
+                                             rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
+            } else {
+                rw_done_payload->buff.ts->tv_sec = 0;
+                rw_done_payload->buff.ts->tv_nsec = 0;
+            }
         }
+        PAL_VERBOSE(LOG_TAG, "tv_sec %llu", (unsigned long long)rw_done_payload->buff.ts->tv_sec);
+        PAL_VERBOSE(LOG_TAG, "tv_nsec %llu", (unsigned long long)rw_done_payload->buff.ts->tv_nsec);
 
         if (event_params->event_id == AGM_EVENT_READ_DONE)
             event_id = PAL_STREAM_CBK_EVENT_READ_DONE;
