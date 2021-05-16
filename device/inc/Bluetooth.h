@@ -35,6 +35,7 @@
 #include <bt_intf.h>
 #include <vector>
 #include <mutex>
+#include <system/audio.h>
 
 #define DISALLOW_COPY_AND_ASSIGN(name) \
     name(const name &); \
@@ -63,12 +64,12 @@ typedef int (*audio_source_suspend_t)(void);
 typedef void (*audio_source_handoff_triggered_t)(void);
 typedef void (*clear_source_a2dpsuspend_flag_t)(void);
 typedef void * (*audio_get_enc_config_t)(uint8_t *multicast_status,
-                                        uint8_t *num_dev, codec_format_t *codec_format);
+                                        uint8_t *num_dev, audio_format_t *codec_format);
 typedef int (*audio_source_check_a2dp_ready_t)(void);
 typedef bool (*audio_is_tws_mono_mode_enable_t)(void);
 typedef int (*audio_sink_start_t)(void);
 typedef int (*audio_sink_stop_t)(void);
-typedef void * (*audio_get_dec_config_t)(codec_format_t *codec_format);
+typedef void * (*audio_get_dec_config_t)(audio_format_t *codec_format);
 typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
 typedef int (*audio_sink_check_a2dp_ready_t)(void);
 typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);

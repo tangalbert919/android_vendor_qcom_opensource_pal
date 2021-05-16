@@ -1134,7 +1134,7 @@ int BtA2dp::startPlayback()
         }
 
         PAL_DBG(LOG_TAG, "configure_a2dp_encoder_format start");
-        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
+        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
         if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
             PAL_ERR(LOG_TAG, "invalid encoder config");
             audio_source_stop();
@@ -1263,7 +1263,7 @@ int BtA2dp::startCapture()
                 return ret;
             }
 
-            codecInfo = audio_get_dec_config(&codecFormat);
+            codecInfo = audio_get_dec_config((audio_format_t *)&codecFormat);
             if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
                 PAL_ERR(LOG_TAG, "invalid encoder config");
                 return -EINVAL;
@@ -1271,7 +1271,7 @@ int BtA2dp::startCapture()
         }
     } else {
         uint8_t multi_cast = 0, num_dev = 1;
-        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
+        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
         if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
             PAL_ERR(LOG_TAG, "invalid codec config");
             return -EINVAL;
