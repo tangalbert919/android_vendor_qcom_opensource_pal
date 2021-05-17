@@ -238,12 +238,12 @@ struct __attribute__((__packed__)) acd_context_event {
 struct __attribute__((__packed__)) st_user_levels
 {
     uint32_t user_id;
-    uint32_t level;
+    uint8_t level;
 };
 
 struct __attribute__((__packed__)) st_keyword_levels
 {
-    uint32_t kw_level;
+    uint8_t kw_level;
     uint32_t num_user_levels;
     struct st_user_levels user_levels[ST_MAX_USERS];
 };
