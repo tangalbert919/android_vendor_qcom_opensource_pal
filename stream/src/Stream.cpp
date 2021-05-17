@@ -112,14 +112,17 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
 
         if (strlen(dAttr[i].custom_config.custom_key)) {
             strlcpy(mPalDevice[count].custom_config.custom_key, dAttr[i].custom_config.custom_key, PAL_MAX_CUSTOM_KEY_SIZE);
-            rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, dAttr[i].custom_config.custom_key, &devinfo);
+            PAL_DBG(LOG_TAG, "found custom key %s", dAttr[i].custom_config.custom_key);
+
         } else {
             strlcpy(mPalDevice[count].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
-            rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, &devinfo);
+            PAL_DBG(LOG_TAG, "no custom key found");
         }
-         if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
-            PAL_ERR(LOG_TAG, "Invalid num channels[%d], failed to create stream",
-                    devinfo.channels);
+        rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, dAttr[i].custom_config.custom_key, &devinfo);
+        if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
+            PAL_ERR(LOG_TAG, "Invalid num channels[%d], max channels[%d] failed to create stream",
+                    devinfo.channels,
+                    devinfo.max_channels);
             goto exit;
         }
         status = rm->getDeviceConfig((struct pal_device *)&mPalDevice[count], sAttr, devinfo.channels);
@@ -686,6 +689,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     int32_t status = -EINVAL;
     std::shared_ptr<Device> dev = nullptr;
 
+
     if (!dattr) {
         PAL_ERR(LOG_TAG, "invalid params");
         status = -EINVAL;
@@ -874,7 +878,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             (isCurDeviceA2dp == true) && !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
             newDevices[i].id = PAL_DEVICE_OUT_SPEAKER;
 
-            rm->getDeviceInfo(newDevices[i].id, mStreamAttr->type, &devinfo);
+            rm->getDeviceInfo(newDevices[i].id, mStreamAttr->type,
+                              newDevices[i].custom_config.custom_key, &devinfo);
             if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
                 PAL_ERR(LOG_TAG, "Invalid num channels[%d], failed to create stream",
                         devinfo.channels);
@@ -969,28 +974,20 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
                 sharedStream->getStreamAttributes(&sAttr);
                 /* Check here for stream handle too along with stream type.
-                 * In case of voice call switch from speaker to handset,
+                 * In case of voice call or VOIP switch from speaker to handset,
                  * spkr needs to be disconnected and hanset needs to be
                  * connected and not just update its attributes.
                  */
-                if ((PAL_STREAM_VOICE_CALL == sAttr.type) &&
+                if ((PAL_STREAM_VOICE_CALL == sAttr.type ||
+                     PAL_STREAM_VOIP_RX == sAttr.type ||
+                     PAL_STREAM_VOIP == sAttr.type) &&
                                  (sharedStream != streamHandle)) {
-                    PAL_INFO(LOG_TAG, "Active voice stream running on %d, Force switch",
+                    PAL_INFO(LOG_TAG, "Active voice or voip stream running on %d, Force switch",
                                       curDevAttr.id);
                     curDev->getDeviceAttributes(&newDevices[newDeviceSlots[i]]);
                 } else {
                     streamDevDisconnect.push_back(elem);
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
-                    if (strlen(newDevices[newDeviceSlots[i]].custom_config.custom_key)) {
-                        PAL_DBG(LOG_TAG, "new device has custom key %s",
-                                          newDevices[newDeviceSlots[i]].custom_config.custom_key);
-                        rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type,
-                                          newDevices[newDeviceSlots[i]].custom_config.custom_key);
-                    } else {
-                        PAL_DBG(LOG_TAG, "Setting device info for device %d",
-                                          newDevices[newDeviceSlots[i]].id);
-                        rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type);
-                    }
                 }
             }
         }
@@ -1000,17 +997,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDevices[newDeviceSlots[i]].id))
                 streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
         }
-        if (strlen(newDevices[newDeviceSlots[i]].custom_config.custom_key)) {
-            PAL_DBG(LOG_TAG, "new device has custom key %s",
-                             newDevices[newDeviceSlots[i]].custom_config.custom_key);
-            rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type,
-                              newDevices[newDeviceSlots[i]].custom_config.custom_key);
-        } else {
-            PAL_DBG(LOG_TAG, "Setting device info for device %d",
-                              newDevices[newDeviceSlots[i]].id);
-            rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type);
-        }
-
         StreamDevConnect.push_back({streamHandle, &newDevices[newDeviceSlots[i]]});
     }
 

@@ -333,6 +333,9 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     struct pal_device_info devinfo = {};
+    struct pal_device dAttr;
+
+    PAL_DBG(LOG_TAG,"Entry \n");
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
@@ -405,7 +408,19 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
                     emptyKV, devinfo.kvpair);
         else {
-            rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type, &devinfo);
+            for (i = 0; i < associatedDevices.size(); i++) {
+                associatedDevices[i]->getDeviceAttributes(&dAttr);
+                if (be->first == dAttr.id) {
+                    break;
+                }
+            }
+            if (i >= associatedDevices.size() ) {
+                PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
+
+            } else{
+                rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type,
+                                        dAttr.custom_config.custom_key, &devinfo);
+            }
             if (devinfo.kvpair.size() == 0) {
                 PAL_DBG(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                         be->first, sAttr.type);
@@ -1122,6 +1137,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct pal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
+    struct pal_device dAttr;
 
     if (RxDevIds.empty() || TxDevIds.empty()) {
         PAL_ERR(LOG_TAG, "RX and TX FE Dev Ids are empty");
@@ -1148,7 +1164,18 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     // get keyvalue pair info
-    rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type, &devinfo);
+    for (i = 0; i < associatedDevices.size(); i++) {
+        associatedDevices[i]->getDeviceAttributes(&dAttr);
+        if (txBackEnds[0].first == dAttr.id) {
+            break;
+        }
+    }
+    if (i >= associatedDevices.size() ) {
+        PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
+    } else{
+        rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type,
+                                dAttr.custom_config.custom_key, &devinfo);
+    }
     if (devinfo.kvpair.size() == 0) {
         PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                 txBackEnds[0].first, sAttr.type);
@@ -1797,7 +1824,8 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
                 aifBackEndsToConnect[0].first, streamDeviceKV,
                 0, emptyKV,devinfo.kvpair);
     else {
-        rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
+        rmHandle->getDeviceInfo(dAttr.id, streamType,
+                                dAttr.custom_config.custom_key, &devinfo);
         if (devinfo.kvpair.size() == 0) {
             PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                     dAttr.id, streamType);

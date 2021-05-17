@@ -92,6 +92,7 @@ public:
     virtual bool isDeviceReady() { return true;}
     void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
     virtual ~Device();
+    void getCurrentSndDevName(char *name);
 };
 
 

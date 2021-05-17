@@ -981,7 +981,7 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
     isSpkrInUse = false;
 
-    rm->getDeviceInfo(PAL_DEVICE_OUT_SPEAKER, PAL_STREAM_PROXY, &devinfo);
+    rm->getDeviceInfo(PAL_DEVICE_OUT_SPEAKER, PAL_STREAM_PROXY, "", &devinfo);
     numberOfChannels = devinfo.channels;
     PAL_DBG(LOG_TAG, "Number of Channels %d", numberOfChannels);
 
@@ -1985,7 +1985,7 @@ SpeakerFeedback::SpeakerFeedback(struct pal_device *device,
     rm = Rm;
 
 
-    rm->getDeviceInfo(mDeviceAttr.id, PAL_STREAM_PROXY, &devinfo);
+    rm->getDeviceInfo(mDeviceAttr.id, PAL_STREAM_PROXY, mDeviceAttr.custom_config.custom_key, &devinfo);
     numSpeaker = devinfo.channels;
 }
 
