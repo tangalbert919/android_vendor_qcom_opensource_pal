@@ -155,11 +155,11 @@ class StreamSoundTrigger : public Stream {
     std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id,
                                          struct pal_device *dev,
                                          bool use_rm_profile);
-    int32_t DisconnectDevice(pal_device_id_t device_id);
-    int32_t ConnectDevice(pal_device_id_t device_id);
-    int32_t HandleChargingStateUpdate(bool state, bool active);
-    int32_t Resume();
-    int32_t Pause();
+    int32_t DisconnectDevice(pal_device_id_t device_id) override;
+    int32_t ConnectDevice(pal_device_id_t device_id) override;
+    int32_t HandleChargingStateUpdate(bool state, bool active) override;
+    int32_t Resume() override;
+    int32_t Pause() override;
     int32_t GetCurrentStateId();
     int32_t HandleConcurrentStream(bool active);
     int32_t EnableLPI(bool is_enable);
@@ -594,6 +594,6 @@ class StreamSoundTrigger : public Stream {
     bool use_lpi_;
     uint32_t model_id_;
     FILE *lab_fd_;
-    bool user_verification_done_;
+    bool rejection_notified_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

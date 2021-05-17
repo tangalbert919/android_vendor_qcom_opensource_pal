@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -107,6 +107,10 @@ public:
     int payloadCustomParam(uint8_t **alsaPayload, size_t *size,
                             uint32_t *customayload, uint32_t customPayloadSize,
                             uint32_t moduleInstanceId, uint32_t dspParamId);
+    int payloadACDBParam(uint8_t **alsaPayload, size_t *size,
+                            uint8_t *acdbParam,
+                            uint32_t moduleInstanceId,
+                            uint32_t sampleRate);
     int payloadSVAConfig(uint8_t **payload, size_t *size,
                         uint8_t *config, size_t config_size,
                         uint32_t miid, uint32_t param_id);

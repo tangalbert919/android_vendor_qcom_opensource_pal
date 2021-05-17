@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -536,6 +536,37 @@ int32_t pal_register_global_callback(pal_global_callback cb, uint64_t cookie);
 int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
                       size_t payload_size, pal_device_id_t pal_device_id,
                       pal_stream_type_t pal_stream_type, unsigned int dir);
+
+/**
+  * \brief Set and get pal parameters for generic effect framework with ACDB
+  *
+  * \param[in] param_id - param id whose parameters are to be
+  *       set.
+  * \param[in/out] param_payload - param data applicable to the
+  *       param_id
+  * \param[in] payload_size - size of payload
+  *
+  * \param[in] pal_stream_type - type of stream to apply the GEF param
+  *
+  * \param[in] pal_device_id - device id to apply the effect
+  *
+  * \param[i] pal_stream_type - stream type to apply the effect
+  *
+  * \param[in] sample_rate - sample_rate value for CKV. 0 for default CKV
+  *
+  * \param[in] instance_id - instance id
+  *
+  * \param[in] dir - param read or write
+  *
+  * \param[in] is_play - stream direction. true for playback. false for recording.
+  *
+  * \return 0 on success, error code otherwise
+  */
+
+int32_t pal_gef_rw_param_acdb(uint32_t param_id, void *param_payload,
+                      size_t payload_size, pal_device_id_t pal_device_id,
+                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
+                      uint32_t instance_id, uint32_t dir, bool is_play);
 
 extern void  __gcov_flush();
 

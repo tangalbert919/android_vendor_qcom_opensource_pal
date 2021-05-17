@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -98,6 +98,9 @@ typedef enum {
 #define INCALL_RECORD_UPLINK_DOWNLINK_STEREO 35
 #define SPKR_VI_ENABLE 36
 #define VOICE_HD_VOICE 37
+#define LPI_LOGGING_ON 38
+#define LPI_LOGGING_OFF 39
+
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
  * not continously try to open a session if it fails
@@ -110,7 +113,7 @@ typedef enum {
  * pause completion. But it's not the case in Gecko.
  * FIXME: load the ramp period config from acdb.
  */
-#define VOLUME_RAMP_PERIOD (40*1000)
+#define VOLUME_RAMP_PERIOD (100*1000)
 
 using KeyVect_t = std::vector<std::pair<uint32_t, uint32_t>>;
 class Device;
@@ -150,7 +153,7 @@ public:
     uint64_t cookie;
     bool ssrDone = true;
     bool isPaused = false;
-    bool a2dp_compress_mute = false;  /* TODO : Check if this can be removed */
+    bool a2dpMuted = false;
     pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -187,6 +190,8 @@ public:
     const KeyVect_t& getStreamModifiers() const;
     int32_t getStreamType(pal_stream_type_t* streamType);
     int32_t getStreamDirection(pal_stream_direction_t *dir);
+    uint32_t getRenderLatency();
+    uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
@@ -214,7 +219,17 @@ public:
     bool checkStreamMatch(pal_device_id_t pal_device_id,
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
+    int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
+                                bool isParamWrite);
     bool isActive() { return currentState == STREAM_STARTED; }
+    /* Detection stream related APIs */
+    virtual int32_t Resume() { return 0; }
+    virtual int32_t Pause() { return 0; }
+    virtual int32_t EnableLPI(bool is_enable) { return 0; }
+    virtual int32_t HandleConcurrentStream(bool active) { return 0; }
+    virtual int32_t DisconnectDevice(pal_device_id_t device_id) { return 0; }
+    virtual int32_t ConnectDevice(pal_device_id_t device_id) { return 0; }
+    virtual int32_t HandleChargingStateUpdate(bool state, bool active) { return 0; }
 };
 
 class StreamNonTunnel : public Stream

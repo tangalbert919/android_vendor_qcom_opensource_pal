@@ -256,12 +256,14 @@ static int bt_ble_populate_payload(bt_codec_t *codec, void *src, void **dst)
 }
 
 static uint64_t bt_ble_get_decoder_latency(bt_codec_t *codec,
-                                       uint32_t slatency __unused)
+                                       uint32_t slatency)
 {
     uint32_t latency = 0;
 
     switch (codec->codecFmt) {
         case CODEC_TYPE_LC3:
+            latency = slatency;
+            break;
         default:
             latency = 200;
             ALOGD("No valid decoder defined, setting latency to %dms", latency);

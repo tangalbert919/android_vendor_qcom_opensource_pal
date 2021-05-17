@@ -36,11 +36,13 @@
 #include "detection_cmn_api.h"
 #include "acd_api.h"
 #include <agm/agm_api.h>
+#include <asps/asps_acm_api.h>
 #include <sstream>
 #include <string>
 #include "detection_cmn_api.h"
 #include "audio_dam_buffer_api.h"
 #include "apm_api.h"
+#include "us_detect_api.h"
 
 #define SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE (48000)
 #define SESSION_ALSA_MMAP_PERIOD_SIZE (SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE/1000)
@@ -81,6 +83,7 @@ int SessionAlsaPcm::open(Stream * s)
     struct pal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
+    std::vector<int> pcmId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -88,7 +91,9 @@ int SessionAlsaPcm::open(Stream * s)
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
-    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD && sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC) {
+    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD &&
+        sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC  &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
@@ -163,9 +168,27 @@ int SessionAlsaPcm::open(Stream * s)
             break;
     }
 
-    if (!status && (sAttr.type == PAL_STREAM_VOICE_UI || sAttr.type == PAL_STREAM_ACD)) {
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, true);
+    if (status)
+        goto exit;
+
+    if (sAttr.type == PAL_STREAM_VOICE_UI ||
+        sAttr.type == PAL_STREAM_ACD ||
+        sAttr.type == PAL_STREAM_CONTEXT_PROXY ||
+        sAttr.type == PAL_STREAM_ULTRASOUND) {
+        switch (sAttr.type) {
+            case PAL_STREAM_VOICE_UI:
+            case PAL_STREAM_CONTEXT_PROXY:
+            case PAL_STREAM_ACD:
+                pcmId = pcmDevIds;
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                pcmId = pcmDevTxIds;
+                break;
+            default:
+                break;
+        }
+        status = rm->registerMixerEventCallback(pcmId,
+                             sessionCb, cbCookie, true);
         if (status != 0) {
             PAL_ERR(LOG_TAG, "Failed to register callback to rm");
         }
@@ -556,6 +579,7 @@ int SessionAlsaPcm::start(Stream * s)
     int payload_size = 0;
     struct agm_event_reg_cfg *event_cfg;
     int tagId;
+    int DeviceId;
 
     PAL_DBG(LOG_TAG,"Enter");
 
@@ -571,24 +595,16 @@ int SessionAlsaPcm::start(Stream * s)
 
         if (sAttr.direction == PAL_AUDIO_INPUT) {
             config.rate = sAttr.in_media_config.sample_rate;
-            if (sAttr.in_media_config.bit_width == 32)
-                config.format = PCM_FORMAT_S32_LE;
-            else if (sAttr.in_media_config.bit_width == 24)
-                config.format = PCM_FORMAT_S24_3LE;
-            else if (sAttr.in_media_config.bit_width == 16)
-                config.format = PCM_FORMAT_S16_LE;
+            config.format =
+                   SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
             config.channels = sAttr.in_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                 config.channels, config.format);
             config.period_count = in_buf_count;
         } else {
             config.rate = sAttr.out_media_config.sample_rate;
-            if (sAttr.out_media_config.bit_width == 32)
-                config.format = PCM_FORMAT_S32_LE;
-            else if (sAttr.out_media_config.bit_width == 24)
-                config.format = PCM_FORMAT_S24_3LE;
-            else if (sAttr.out_media_config.bit_width == 16)
-                config.format = PCM_FORMAT_S16_LE;
+            config.format =
+                   SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.out_media_config.aud_fmt_id);
             config.channels = sAttr.out_media_config.ch_info.channels;
             config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                 config.channels, config.format);
@@ -682,21 +698,29 @@ int SessionAlsaPcm::start(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
             registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
-    if (sAttr.type == PAL_STREAM_VOICE_UI) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
         if (!event_cfg) {
             status = -ENOMEM;
+            return status;
         }
-        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
         event_cfg->event_config_payload_size = 0;
         event_cfg->is_register = 1;
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), DEVICE_SVA, (void *)event_cfg,
+        if(sAttr.type == PAL_STREAM_VOICE_UI) {
+           event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+           tagId = DEVICE_SVA;
+           DeviceId = pcmDevIds.at(0);
+        } else {
+           event_cfg->event_id = EVENT_ID_GENERIC_US_DETECTION;
+           tagId = ULTRASOUND_DETECTION_MODULE;
+           DeviceId = pcmDevTxIds.at(0);
+        }
+        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                txAifBackEnds[0].second.data(), tagId, (void *)event_cfg,
                 payload_size);
-    }
-    if (sAttr.type == PAL_STREAM_ACD) {
+    } else if(sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload) {
             payload_size = sizeof(struct agm_event_reg_cfg) + eventPayloadSize;
 
@@ -709,12 +733,16 @@ int SessionAlsaPcm::start(Stream * s)
                 txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)event_cfg,
                 payload_size);
         }
+    } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
+        status = register_asps_event(1);
     }
 
     switch (sAttr.direction) {
         case PAL_AUDIO_INPUT:
-            if (((sAttr.type != PAL_STREAM_VOICE_UI) && (sAttr.type != PAL_STREAM_ACD)) &&
-                  (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
+            if ((sAttr.type != PAL_STREAM_VOICE_UI) &&
+                (sAttr.type != PAL_STREAM_ACD) &&
+                (sAttr.type != PAL_STREAM_CONTEXT_PROXY) &&
+                (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
                 if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD)
@@ -735,7 +763,10 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_ERR(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                 }
 
-                streamData.bitWidth = sAttr.in_media_config.bit_width;
+                if (isPalPCMFormat(sAttr.in_media_config.aud_fmt_id))
+                    streamData.bitWidth = palFormatToBitwidthTable[sAttr.in_media_config.aud_fmt_id];
+                else
+                    streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
                 streamData.numChannel = sAttr.in_media_config.ch_info.channels;
                 streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
@@ -770,7 +801,7 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                     codecConfig.bit_width = sAttr.in_media_config.bit_width;
                     codecConfig.sample_rate = sAttr.in_media_config.sample_rate;
-                    codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                    codecConfig.aud_fmt_id =  sAttr.in_media_config.aud_fmt_id;
                     codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize) {
@@ -819,6 +850,12 @@ int SessionAlsaPcm::start(Stream * s)
                     customPayloadSize = 0;
                 }
             }
+            if (ResourceManager::isLpiLoggingEnabled()) {
+                PAL_INFO(LOG_TAG, "LPI data logging Param ON");
+                /* No error check as TAG/TKV may not required for non LPI usecases */
+                setConfig(s, MODULE, LPI_LOGGING_ON);
+            }
+
             status = pcm_start(pcm);
             if (status) {
                 PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
@@ -835,7 +872,7 @@ int SessionAlsaPcm::start(Stream * s)
                 PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                 codecConfig.bit_width = sAttr.out_media_config.bit_width;
                 codecConfig.sample_rate = sAttr.out_media_config.sample_rate;
-                codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+                codecConfig.aud_fmt_id = sAttr.out_media_config.aud_fmt_id;
                 codecConfig.ch_info.channels = sAttr.out_media_config.ch_info.channels;
                 builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                 if (payloadSize) {
@@ -884,7 +921,8 @@ int SessionAlsaPcm::start(Stream * s)
                     goto exit;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
                     status = associatedDevices[i]->getCodecConfig(&codecConfig);
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
@@ -974,7 +1012,8 @@ pcm_start:
                     goto pcm_start_loopback;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                    dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO  ) {
                     status = associatedDevices[i]->getCodecConfig(&codecConfig);
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
@@ -1021,7 +1060,9 @@ pcm_start_loopback:
            break;
     }
     // Setting the volume as in stream open, no default volume is set.
-    if (sAttr.type != PAL_STREAM_ACD) {
+    if (sAttr.type != PAL_STREAM_ACD &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
+        sAttr.type != PAL_STREAM_ULTRASOUND) {
         if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
              PAL_ERR(LOG_TAG,"Setting volume failed");
         }
@@ -1040,6 +1081,8 @@ int SessionAlsaPcm::stop(Stream * s)
     struct pal_stream_attributes sAttr;
     struct agm_event_reg_cfg *event_cfg;
     int payload_size = 0;
+    int tagId;
+    int DeviceId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -1074,22 +1117,29 @@ int SessionAlsaPcm::stop(Stream * s)
     }
     mState = SESSION_STOPPED;
 
-    if (sAttr.type == PAL_STREAM_VOICE_UI) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
         if (!event_cfg) {
             status = -ENOMEM;
+            return status;
         }
-        event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
         event_cfg->event_config_payload_size = 0;
         event_cfg->is_register = 0;
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-            txAifBackEnds[0].second.data(), DEVICE_SVA, (void *) event_cfg,
-            payload_size);
-    }
-
-    if (sAttr.type == PAL_STREAM_ACD) {
+        if(sAttr.type == PAL_STREAM_VOICE_UI) {
+           event_cfg->event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+           tagId = DEVICE_SVA;
+           DeviceId = pcmDevIds.at(0);
+        } else {
+           event_cfg->event_id = EVENT_ID_GENERIC_US_DETECTION;
+           tagId = ULTRASOUND_DETECTION_MODULE;
+           DeviceId = pcmDevTxIds.at(0);
+        }
+        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                txAifBackEnds[0].second.data(), tagId, (void *)event_cfg,
+                payload_size);
+    } else if (sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload == NULL)
             goto done;
 
@@ -1102,6 +1152,8 @@ int SessionAlsaPcm::stop(Stream * s)
         SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
             txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *) event_cfg,
             payload_size);
+    } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
+        status = register_asps_event(0);
     }
 done:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
@@ -1117,6 +1169,7 @@ int SessionAlsaPcm::close(Stream * s)
     int32_t beDevId = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
+    std::vector<int> pcmId;
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
@@ -1124,7 +1177,9 @@ int SessionAlsaPcm::close(Stream * s)
         PAL_ERR(LOG_TAG,"stream get attributes failed");
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD && sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC) {
+    if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD &&
+        sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC  &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
         status = s->getAssociatedDevices(associatedDevices);
         if (status != 0) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
@@ -1217,9 +1272,24 @@ int SessionAlsaPcm::close(Stream * s)
 
     mState = SESSION_IDLE;
 
-    if (sAttr.type == PAL_STREAM_VOICE_UI || sAttr.type == PAL_STREAM_ACD) {
-        status = rm->registerMixerEventCallback(pcmDevIds,
-            sessionCb, cbCookie, false);
+    if (sAttr.type == PAL_STREAM_VOICE_UI ||
+        sAttr.type == PAL_STREAM_ACD ||
+        sAttr.type == PAL_STREAM_CONTEXT_PROXY ||
+        sAttr.type == PAL_STREAM_ULTRASOUND) {
+        switch (sAttr.type) {
+            case PAL_STREAM_VOICE_UI:
+            case PAL_STREAM_ACD:
+            case PAL_STREAM_CONTEXT_PROXY:
+                pcmId = pcmDevIds;
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                pcmId = pcmDevTxIds;
+                break;
+            default:
+                break;
+        }
+        status = rm->registerMixerEventCallback(pcmId,
+                      sessionCb, cbCookie, false);
         if (status != 0) {
             PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
         }
@@ -1640,6 +1710,17 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             }
             return 0;
         }
+        case PAL_PARAM_ID_MODULE_CONFIG:
+        {
+            pal_param_payload *param_payload = (pal_param_payload *)payload;
+            if (param_payload->payload_size) {
+                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                                              param_payload->payload,
+                                                              param_payload->payload_size);
+                 PAL_INFO(LOG_TAG, "mixer set module config status=%d\n", status);
+            }
+            return 0;
+        }
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unsupported param id %u status %d", param_id, status);
@@ -1658,6 +1739,38 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
 free_payload :
     free(paramData);
 exit:
+    return status;
+}
+
+int SessionAlsaPcm::register_asps_event(uint32_t reg)
+{
+    int32_t status = 0;
+    struct agm_event_reg_cfg *event_cfg;
+    uint32_t payload_size = sizeof(struct agm_event_reg_cfg);
+    event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
+    if (!event_cfg) {
+        status = -ENOMEM;
+        return status;
+    }
+    event_cfg->event_config_payload_size = 0;
+    event_cfg->is_register = reg;
+    event_cfg->event_id = EVENT_ID_ASPS_GET_SUPPORTED_CONTEXT_IDS;
+    event_cfg->module_instance_id = ASPS_MODULE_INSTANCE_ID;
+
+    SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)event_cfg, payload_size);
+
+    event_cfg->event_id = EVENT_ID_ASPS_SENSOR_REGISTER_REQUEST;
+    SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)event_cfg, payload_size);
+
+    event_cfg->event_id = EVENT_ID_ASPS_SENSOR_DEREGISTER_REQUEST;
+    SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)event_cfg, payload_size);
+
+    event_cfg->event_id = EVENT_ID_ASPS_CLOSE_ALL;
+    SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)event_cfg, payload_size);
     return status;
 }
 
@@ -1852,6 +1965,7 @@ int SessionAlsaPcm::getTimestamp(struct pal_session_time *stime)
 
     return status;
 }
+
 int SessionAlsaPcm::drain(pal_drain_type_t type __unused)
 {
     return 0;
@@ -1884,6 +1998,31 @@ bool SessionAlsaPcm::isActive()
     return mState == SESSION_STARTED;
 }
 
+int SessionAlsaPcm::getTagsWithModuleInfo(Stream *s, size_t *size __unused, uint8_t *payload)
+{
+    int status = 0;
+    struct pal_stream_attributes sAttr;
+    int DeviceId;
+
+    PAL_DBG(LOG_TAG,"Enter");
+    status = s->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        return status;
+    }
+
+    if(sAttr.type == PAL_STREAM_ULTRASOUND)
+       DeviceId = pcmDevTxIds.at(0);
+    else
+       DeviceId = pcmDevIds.at(0);
+
+    status = SessionAlsaUtils::getTagsWithModuleInfo(mixer, DeviceId,
+                                  txAifBackEnds[0].second.data(), payload);
+    if (0 != status)
+        PAL_ERR(LOG_TAG, "get tags failed = %d", status);
+
+    return status;
+}
 
 void SessionAlsaPcm::adjustMmapPeriodCount(struct pcm_config *config, int32_t min_size_frames)
 {
@@ -1951,12 +2090,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             case PAL_AUDIO_INPUT:
                 pcm_flags = PCM_IN | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC;
                 config.rate = sAttr.in_media_config.sample_rate;
-                if (sAttr.in_media_config.bit_width == 32)
-                    config.format = PCM_FORMAT_S32_LE;
-                else if (sAttr.in_media_config.bit_width == 24)
-                    config.format = PCM_FORMAT_S24_3LE;
-                else if (sAttr.in_media_config.bit_width == 16)
-                    config.format = PCM_FORMAT_S16_LE;
+                config.format =
+                    SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
                 config.channels = sAttr.in_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
                     config.channels, config.format);
@@ -1970,12 +2105,8 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             case PAL_AUDIO_OUTPUT:
                 pcm_flags = PCM_OUT | PCM_MMAP | PCM_NOIRQ | PCM_MONOTONIC;
                 config.rate = sAttr.out_media_config.sample_rate;
-                if (sAttr.out_media_config.bit_width == 32)
-                    config.format = PCM_FORMAT_S32_LE;
-                else if (sAttr.out_media_config.bit_width == 24)
-                    config.format = PCM_FORMAT_S24_3LE;
-                else if (sAttr.out_media_config.bit_width == 16)
-                    config.format = PCM_FORMAT_S16_LE;
+                config.format =
+                    SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.out_media_config.aud_fmt_id);
                 config.channels = sAttr.out_media_config.ch_info.channels;
                 config.period_size = SessionAlsaUtils::bytesToFrames(out_buf_size,
                     config.channels, config.format);
@@ -2159,12 +2290,8 @@ int SessionAlsaPcm::openGraph(Stream *s) {
         memset(&config, 0, sizeof(config));
 
         config.rate = sAttr.in_media_config.sample_rate;
-        if (sAttr.in_media_config.bit_width == 32)
-            config.format = PCM_FORMAT_S32_LE;
-        else if (sAttr.in_media_config.bit_width == 24)
-            config.format = PCM_FORMAT_S24_3LE;
-        else if (sAttr.in_media_config.bit_width == 16)
-            config.format = PCM_FORMAT_S16_LE;
+        config.format =
+            SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.in_media_config.aud_fmt_id);
         config.channels = sAttr.in_media_config.ch_info.channels;
         config.period_size = SessionAlsaUtils::bytesToFrames(in_buf_size,
             config.channels, config.format);

@@ -62,8 +62,9 @@ typedef uint64_t pal_st_handle_t;
 
 /** PAL Audio format enumeration */
 typedef enum {
-    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                   /**< Default PCM*/
-    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,            /**< Default Compressed*/
+    PAL_AUDIO_FMT_DEFAULT_PCM = 0x1,                         /**< PCM*/
+    PAL_AUDIO_FMT_PCM_S16_LE = PAL_AUDIO_FMT_DEFAULT_PCM,   /**< 16 bit little endian PCM*/
+    PAL_AUDIO_FMT_DEFAULT_COMPRESSED = 0x2,                  /**< Default Compressed*/
     PAL_AUDIO_FMT_MP3 = PAL_AUDIO_FMT_DEFAULT_COMPRESSED,
     PAL_AUDIO_FMT_AAC = 0x3,
     PAL_AUDIO_FMT_AAC_ADTS = 0x4,
@@ -82,10 +83,14 @@ typedef enum {
     PAL_AUDIO_FMT_EVRC = 0x11,
     PAL_AUDIO_FMT_G711 = 0x12,
     PAL_AUDIO_FMT_QCELP = 0x13,
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,           /* Reserved for beginning of compressed codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END = 0xF0000FFF,    /* Reserved for beginning of 3rd party codecs */
-    PAL_AUDIO_FMT_COMPRESSED_RANGE_END = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_PCM_S8 = 0x14,            /**< 8 Bit PCM*/
+    PAL_AUDIO_FMT_PCM_S24_3LE = 0x15,       /**<24 bit packed little endian PCM*/
+    PAL_AUDIO_FMT_PCM_S24_LE = 0x16,        /**<24bit in 32bit word (LSB aligned) little endian PCM*/
+    PAL_AUDIO_FMT_PCM_S32_LE = 0x17,        /**< 32bit little endian PCM*/
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
+    PAL_AUDIO_FMT_COMPRESSED_RANGE_END   = PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END /* Reserved for beginning of 3rd party codecs */
 } pal_audio_fmt_t;
 
 #define PCM_24_BIT_PACKED (0x6u)
@@ -97,7 +102,12 @@ typedef enum {
 #ifdef __cplusplus
 static const std::map<std::string, pal_audio_fmt_t> PalAudioFormatMap
 {
-    { "PCM",  PAL_AUDIO_FMT_DEFAULT_PCM},
+    { "PCM",  PAL_AUDIO_FMT_PCM_S16_LE},
+    { "PCM_S8",  PAL_AUDIO_FMT_PCM_S8},
+    { "PCM_S16_LE",  PAL_AUDIO_FMT_PCM_S16_LE},
+    { "PCM_S24_3LE",  PAL_AUDIO_FMT_PCM_S24_3LE},
+    { "PCM_S24_LE",  PAL_AUDIO_FMT_PCM_S24_LE},
+    { "PCM_S32_LE",  PAL_AUDIO_FMT_PCM_S32_LE},
     { "MP3",  PAL_AUDIO_FMT_MP3},
     { "AAC",  PAL_AUDIO_FMT_AAC},
     { "AAC_ADTS",  PAL_AUDIO_FMT_AAC_ADTS},
@@ -340,6 +350,7 @@ typedef enum {
     PAL_STREAM_ACD = 23,                  /**< ACD Stream */
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
     PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
+    PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
 
@@ -366,8 +377,9 @@ typedef enum {
     PAL_DEVICE_OUT_AUX_DIGITAL_1 = 17,
     PAL_DEVICE_OUT_HEARING_AID = 18,
     PAL_DEVICE_OUT_HAPTICS_DEVICE = 19,
+    PAL_DEVICE_OUT_ULTRASOUND = 20,
     // Add new OUT devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_OUT_MAX = 20,
+    PAL_DEVICE_OUT_MAX = 21,
     //INPUT DEVICES
     PAL_DEVICE_IN_MIN = PAL_DEVICE_OUT_MAX,
     PAL_DEVICE_IN_HANDSET_MIC = PAL_DEVICE_IN_MIN +1,
@@ -388,8 +400,9 @@ typedef enum {
     PAL_DEVICE_IN_HEADSET_VA_MIC = PAL_DEVICE_IN_MIN + 16,
     PAL_DEVICE_IN_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 17,
     PAL_DEVICE_IN_TELEPHONY_RX = PAL_DEVICE_IN_MIN + 18,
+    PAL_DEVICE_IN_ULTRASOUND_MIC = PAL_DEVICE_IN_MIN +19,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 19,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 20,
 } pal_device_id_t;
 
 #ifdef __cplusplus
@@ -414,6 +427,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_OUT_AUX_DIGITAL_1" },        PAL_DEVICE_OUT_AUX_DIGITAL_1},
     {std::string{ "PAL_DEVICE_OUT_HEARING_AID" },          PAL_DEVICE_OUT_HEARING_AID},
     {std::string{ "PAL_DEVICE_OUT_HAPTICS_DEVICE" },       PAL_DEVICE_OUT_HAPTICS_DEVICE},
+    {std::string{ "PAL_DEVICE_OUT_ULTRASOUND" },           PAL_DEVICE_OUT_ULTRASOUND},
     {std::string{ "PAL_DEVICE_OUT_MAX" },                  PAL_DEVICE_OUT_MAX},
     {std::string{ "PAL_DEVICE_IN_HANDSET_MIC" },           PAL_DEVICE_IN_HANDSET_MIC},
     {std::string{ "PAL_DEVICE_IN_SPEAKER_MIC" },           PAL_DEVICE_IN_SPEAKER_MIC},
@@ -433,6 +447,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_HEADSET_VA_MIC" },        PAL_DEVICE_IN_HEADSET_VA_MIC},
     {std::string{ "PAL_DEVICE_IN_VI_FEEDBACK" },           PAL_DEVICE_IN_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_TELEPHONY_RX" },          PAL_DEVICE_IN_TELEPHONY_RX},
+    {std::string{ "PAL_DEVICE_IN_ULTRASOUND_MIC" },        PAL_DEVICE_IN_ULTRASOUND_MIC},
 };
 
 //reverse mapping
@@ -457,6 +472,7 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_OUT_AUX_DIGITAL_1,        std::string{"PAL_DEVICE_OUT_AUX_DIGITAL_1"}},
     {PAL_DEVICE_OUT_HEARING_AID,          std::string{"PAL_DEVICE_OUT_HEARING_AID"}},
     {PAL_DEVICE_OUT_HAPTICS_DEVICE,       std::string{"PAL_DEVICE_OUT_HAPTICS_DEVICE"}},
+    {PAL_DEVICE_OUT_ULTRASOUND,           std::string{"PAL_DEVICE_OUT_ULTRASOUND"}},
     {PAL_DEVICE_OUT_MAX,                  std::string{"PAL_DEVICE_OUT_MAX"}},
     {PAL_DEVICE_IN_HANDSET_MIC,           std::string{"PAL_DEVICE_IN_HANDSET_MIC"}},
     {PAL_DEVICE_IN_SPEAKER_MIC,           std::string{"PAL_DEVICE_IN_SPEAKER_MIC"}},
@@ -475,7 +491,8 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_BLUETOOTH_A2DP,        std::string{"PAL_DEVICE_IN_BLUETOOTH_A2DP"}},
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HEADSET_VA_MIC"}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           std::string{"PAL_DEVICE_IN_VI_FEEDBACK"}},
-    {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}}
+    {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}},
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}}
 };
 #endif
 
@@ -757,6 +774,12 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_LC3_CONFIG = 37,
     PAL_PARAM_ID_PROXY_CHANNEL_CONFIG = 38,
     PAL_PARAM_ID_CONTEXT_LIST = 39,
+    PAL_PARAM_ID_HAPTICS_INTENSITY = 40,
+    PAL_PARAM_ID_HAPTICS_VOLUME = 41,
+    PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY = 42,
+    PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
+    PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
+    PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -880,10 +903,11 @@ typedef struct pal_param_btsco {
 */
 typedef struct pal_param_bta2dp {
     int32_t  reconfig_supported;
-    bool     reconfigured;
+    bool     reconfig;
     bool     a2dp_suspended;
     bool     is_tws_mono_mode_on;
     bool     is_lc3_mono_mode_on;
+    bool     is_force_switch;
     uint32_t latency;
 } pal_param_bta2dp_t;
 
@@ -892,15 +916,29 @@ typedef struct pal_bt_tws_payload_s {
     uint32_t codecFormat;
 } pal_bt_tws_payload;
 
+/* Payload For Custom Config
+ * Description : Used by PAL client to customize
+ *               the device related information.
+*/
+#define PAL_MAX_CUSTOM_KEY_SIZE 128
+typedef struct pal_device_custom_config {
+    char custom_key[PAL_MAX_CUSTOM_KEY_SIZE];
+} pal_device_custom_config_t;
+
 typedef struct pal_bt_lc3_payload_s {
     bool isLC3MonoModeOn;
 } pal_bt_lc3_payload;
+
+typedef struct pal_param_haptics_intensity {
+    int intensity;
+} pal_param_haptics_intensity_t;
 
 /**< PAL device */
 struct pal_device {
     pal_device_id_t id;                     /**<  device id */
     struct pal_media_config config;         /**<  media config of the device */
     struct pal_usb_device_address address;
+    pal_device_custom_config_t custom_config;        /**<  Optional */
 };
 
 /**
@@ -1189,6 +1227,20 @@ typedef struct pal_buffer_config {
     size_t buf_size; /**< This would be the size of each buffer*/
     size_t max_metadata_size; /** < max metadata size associated with each buffer*/
 } pal_buffer_config_t;
+
+#define PAL_DEEP_BUFFER_PLATFORM_DELAY (29*1000LL)
+#define PAL_PCM_OFFLOAD_PLATFORM_DELAY (30*1000LL)
+#define PAL_LOW_LATENCY_PLATFORM_DELAY (13*1000LL)
+#define PAL_MMAP_PLATFORM_DELAY        (3*1000LL)
+#define PAL_ULL_PLATFORM_DELAY         (4*1000LL)
+
+#define PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION 40
+#define PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION 80
+#define PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION 5
+
+#define PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT 2
+#define PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT 2
+#define PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT 2
 
 #ifdef __cplusplus
 }  /* extern "C" */

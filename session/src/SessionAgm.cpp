@@ -37,6 +37,7 @@
 #include <sstream>
 #include <mutex>
 #include <fstream>
+#include <climits>
 
 #define MICRO_SECS_PER_SEC (1000000LL)
 
@@ -63,7 +64,7 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
         goto done;
     }
 
-    PAL_ERR(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
+    PAL_INFO(LOG_TAG, "event_callback session id %d event id %d", session_id, event_params->event_id);
     sessAgm->streamHandle->getStreamAttributes(&sAttr);
 
     if (event_params->event_id == AGM_EVENT_READ_DONE ||
@@ -71,6 +72,10 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
 
         rw_done_payload = (struct pal_event_read_write_done_payload *) calloc(1,
                                      sizeof(struct pal_event_read_write_done_payload));
+        if(!rw_done_payload){
+            PAL_ERR(LOG_TAG, "Calloc allocation failed for rw_done_payload");
+            goto done;
+        }
 
         agm_rw_done_payload = (struct agm_event_read_write_done_payload *)event_params->event_payload;
 
@@ -91,10 +96,22 @@ void eventCallback(uint32_t session_id, struct agm_event_cb_params *event_params
 
         if (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP) {
             rw_done_payload->buff.ts = (struct timespec *)calloc(1, sizeof(struct timespec));
+
+            if(!rw_done_payload->buff.ts){
+                PAL_ERR(LOG_TAG, "Calloc allocation failed rw_done_payload buff");
+                goto done;
+            }
             rw_done_payload->buff.ts->tv_sec = agm_rw_done_payload->buff.timestamp/MICRO_SECS_PER_SEC;
-            rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
-                                          rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
+            if (ULONG_MAX/MICRO_SECS_PER_SEC > rw_done_payload->buff.ts->tv_sec) {
+                rw_done_payload->buff.ts->tv_nsec = (agm_rw_done_payload->buff.timestamp -
+                                             rw_done_payload->buff.ts->tv_sec * MICRO_SECS_PER_SEC)*1000;
+            } else {
+                rw_done_payload->buff.ts->tv_sec = 0;
+                rw_done_payload->buff.ts->tv_nsec = 0;
+            }
         }
+        PAL_VERBOSE(LOG_TAG, "tv_sec %llu", (unsigned long long)rw_done_payload->buff.ts->tv_sec);
+        PAL_VERBOSE(LOG_TAG, "tv_nsec %llu", (unsigned long long)rw_done_payload->buff.ts->tv_nsec);
 
         if (event_params->event_id == AGM_EVENT_READ_DONE)
             event_id = PAL_STREAM_CBK_EVENT_READ_DONE;
@@ -130,7 +147,7 @@ done:
     return;
 }
 
-int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width)
+int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt)
 {
     int id = -1;
 
@@ -165,23 +182,20 @@ int SessionAgm::getAgmCodecId(pal_audio_fmt_t fmt, uint32_t bit_width)
         case PAL_AUDIO_FMT_WMA_STD:
             id = AGM_FORMAT_WMASTD;
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
-            switch (bit_width) {
-                 case 8:
-                      id = AGM_FORMAT_PCM_S8;
-                      break;
-                 case 16:
-                      id = AGM_FORMAT_PCM_S16_LE;
-                      break;
-                 case 24:
-                      id = AGM_FORMAT_PCM_S24_3LE;
-                      break;
-                 case 32:
-                      id = AGM_FORMAT_PCM_S32_LE;
-                      break;
-                 default:
-                      id = AGM_FORMAT_PCM_S16_LE;
-            }
+        case PAL_AUDIO_FMT_PCM_S8:
+            id = AGM_FORMAT_PCM_S8;
+            break;
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+            id = AGM_FORMAT_PCM_S16_LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+            id = AGM_FORMAT_PCM_S24_LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+            id = AGM_FORMAT_PCM_S24_3LE;
+            break;
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+            id = AGM_FORMAT_PCM_S32_LE;
             break;
         case PAL_AUDIO_FMT_ALAC:
             id = AGM_FORMAT_ALAC;
@@ -323,14 +337,12 @@ int SessionAgm::open(Stream * strm)
     //read path media config
     in_media_cfg->rate = sAttr.in_media_config.sample_rate;
     in_media_cfg->channels = sAttr.in_media_config.ch_info.channels;
-    in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id,
-                                        sAttr.in_media_config.bit_width);
+    in_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.in_media_config.aud_fmt_id);
 
     //write path media config
     out_media_cfg->rate = sAttr.out_media_config.sample_rate;
     out_media_cfg->channels = sAttr.out_media_config.ch_info.channels;
-    out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id,
-                                        sAttr.in_media_config.bit_width);
+    out_media_cfg->format = (enum agm_media_format)getAgmCodecId(sAttr.out_media_config.aud_fmt_id);
 
     status = agm_session_set_non_tunnel_mode_config(agmSessHandle, sess_config,
                                                     in_media_cfg, out_media_cfg,

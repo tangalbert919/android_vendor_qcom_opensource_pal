@@ -35,6 +35,7 @@
 #include <thread>
 #include <mutex>
 #include <vector>
+#include <chrono>
 
 #include "PalDefs.h"
 #include "PalCommon.h"
@@ -139,6 +140,7 @@ public:
         size_t *size __unused) { return 0; }
     virtual int32_t GetDetectedConfScore() = 0;
     virtual int32_t GetDetectionState() = 0;
+    virtual std::chrono::time_point<std::chrono::steady_clock> GetDetectedTime() = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);
@@ -146,6 +148,7 @@ public:
     int32_t ResetBufferReaders(std::vector<PalRingBufferReader *> &reader_list);
     uint32_t UsToBytes(uint64_t input_us);
     uint32_t FrameToBytes(uint32_t frames);
+    listen_model_indicator_enum GetEngineType() { return engine_type_; }
 
 protected:
     listen_model_indicator_enum engine_type_;

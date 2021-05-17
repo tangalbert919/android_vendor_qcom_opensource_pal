@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, 2018-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016, 2018-2021, The Linux Foundation. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -135,7 +135,8 @@ int USB::configureUsb()
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
@@ -151,16 +152,21 @@ int USB::configureUsb()
     status = session->getMIID(backEndName.c_str(), tagId, &miid);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %d, status = %d", tagId, status);
-        return status;
+        goto exit;
     }
     builder->payloadUsbAudioConfig(&payload, &payloadSize, miid, &cfg);
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        delete[] payload;
         if (0 != status) {
-        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-        return status;
+            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+            goto exit;
         }
+    }
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
     }
     return status;
 }
@@ -364,6 +370,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     char path[128];
     int ret = 0;
     char *bit_width_str = NULL;
+    size_t num_read = 0;
     //std::shared_ptr<USBDeviceConfig> usb_device_info = nullptr;
 
     bool check = false;
@@ -387,17 +394,17 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     }
 
     read_buf = (char *)calloc(1, USB_BUFF_SIZE + 1);
-
     if (!read_buf) {
         PAL_ERR(LOG_TAG, "Failed to create read_buf");
         ret = -ENOMEM;
         goto done;
     }
 
-    if (fread(read_buf, 1, USB_BUFF_SIZE, fd) < 0) {
-        PAL_ERR(LOG_TAG, "file read error\n");
+    if ((num_read = fread(read_buf, 1, USB_BUFF_SIZE, fd)) < 0) {
+        PAL_ERR(LOG_TAG, "file read error");
         goto done;
     }
+    read_buf[num_read] = '\0';
 
     str_start = strstr(read_buf, ((type == USB_PLAYBACK) ?
                        PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));

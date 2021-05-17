@@ -53,7 +53,6 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       codecInfo(NULL),
       isAbrEnabled(false),
       isConfigured(false),
-      isHandoffInProgress(false),
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
       isDummySink(false),
@@ -95,6 +94,11 @@ int Bluetooth::updateDeviceMetadata()
             keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
             break;
         case CODEC_TYPE_AAC:
+            if (isAbrEnabled) {
+                PAL_INFO(LOG_TAG, "Setting BT_FORMAT = AAC_ABR");
+                keyVector.push_back(std::make_pair(BT_FORMAT, AAC_ABR));
+                break;
+            }
         case CODEC_TYPE_SBC:
         case CODEC_TYPE_CELT:
         case CODEC_TYPE_APTX:
@@ -170,6 +174,8 @@ bool Bluetooth::isPlaceholderEncoder()
         case CODEC_TYPE_APTX_AD_SPEECH:
         case CODEC_TYPE_LC3:
             return false;
+        case CODEC_TYPE_AAC:
+            return isAbrEnabled ? false : true;
         default:
             return true;
     }
@@ -254,7 +260,8 @@ int Bluetooth::configureA2dpEncoderDecoder()
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
-        return -EINVAL;
+        status = -EINVAL;
+        goto error;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
@@ -286,8 +293,8 @@ int Bluetooth::configureA2dpEncoderDecoder()
         goto error;
     }
 
-    if (isHandoffInProgress && isPlaceholderEncoder()) {
-        PAL_ERR(LOG_TAG, "Resetting placeholder module");
+    if (isPlaceholderEncoder()) {
+        PAL_DBG(LOG_TAG, "Resetting placeholder module");
         builder->payloadCustomParam(&paramData, &paramSize, NULL, 0,
                                     miid, PARAM_ID_RESET_PLACEHOLDER_MODULE);
         if (!paramData) {
@@ -511,6 +518,10 @@ done:
     isConfigured = true;
 
 error:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return status;
 }
 
@@ -793,6 +804,10 @@ free_fe:
     fbpcmDevIds.clear();
 done:
     mAbrMutex.unlock();
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return;
 }
 
@@ -891,8 +906,9 @@ BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     pluginCodec = NULL;
 
     init();
-    param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.reconfig = false;
     param_bt_a2dp.a2dp_suspended = false;
+    param_bt_a2dp.is_force_switch = false;
     isA2dpOffloadSupported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
             !property_get_bool("persist.bluetooth.a2dp_offload.disabled", false);
@@ -942,7 +958,7 @@ int BtA2dp::close_audio_source()
     }
     totalActiveSessionRequests = 0;
     param_bt_a2dp.a2dp_suspended = false;
-    param_bt_a2dp.reconfigured = false;
+    param_bt_a2dp.reconfig = false;
     param_bt_a2dp.latency = 0;
     a2dpState = A2DP_STATE_DISCONNECTED;
 
@@ -1013,6 +1029,8 @@ void BtA2dp::init_a2dp_sink()
             isDummySink = true;
             audio_get_enc_config = (audio_get_enc_config_t)
                   dlsym(bt_lib_sink_handle, "audio_get_codec_config");
+            audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
+                dlsym(bt_lib_sink_handle, "audio_sink_get_a2dp_latency");
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1099,7 +1117,7 @@ int BtA2dp::startPlayback()
     }
 
     if (param_bt_a2dp.a2dp_suspended) {
-        //session will be restarted after suspend completion
+        // session will be restarted after suspend completion
         PAL_INFO(LOG_TAG, "a2dp start requested during suspend state");
         return 0;
     }
@@ -1116,7 +1134,7 @@ int BtA2dp::startPlayback()
         }
 
         PAL_DBG(LOG_TAG, "configure_a2dp_encoder_format start");
-        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
+        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
         if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
             PAL_ERR(LOG_TAG, "invalid encoder config");
             audio_source_stop();
@@ -1134,6 +1152,11 @@ int BtA2dp::startPlayback()
             audio_source_stop();
             return ret;
         }
+
+        /* Reset device GKV for AAC ABR */
+        if ((codecFormat == CODEC_TYPE_AAC) && isAbrEnabled)
+            updateDeviceMetadata();
+
         a2dpState = A2DP_STATE_STARTED;
     } else {
         /* Update Device GKV based on Already received encoder. */
@@ -1206,7 +1229,7 @@ bool BtA2dp::isDeviceReady()
         (isA2dpOffloadSupported)) {
         if (a2dpRole == SOURCE) {
             if (audio_source_check_a2dp_ready)
-               ret = audio_source_check_a2dp_ready();
+                ret = audio_source_check_a2dp_ready();
         } else {
             if (audio_sink_check_a2dp_ready)
                 ret = audio_sink_check_a2dp_ready();
@@ -1240,7 +1263,7 @@ int BtA2dp::startCapture()
                 return ret;
             }
 
-            codecInfo = audio_get_dec_config(&codecFormat);
+            codecInfo = audio_get_dec_config((audio_format_t *)&codecFormat);
             if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
                 PAL_ERR(LOG_TAG, "invalid encoder config");
                 return -EINVAL;
@@ -1248,7 +1271,7 @@ int BtA2dp::startCapture()
         }
     } else {
         uint8_t multi_cast = 0, num_dev = 1;
-        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, &codecFormat);
+        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
         if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
             PAL_ERR(LOG_TAG, "invalid codec config");
             return -EINVAL;
@@ -1348,9 +1371,8 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
     }
     case PAL_PARAM_ID_BT_A2DP_RECONFIG:
     {
-        if (a2dpState == A2DP_STATE_STARTED) {
-            param_bt_a2dp.reconfigured = param_a2dp->reconfigured;
-            isHandoffInProgress = param_a2dp->reconfigured;
+        if (a2dpState != A2DP_STATE_DISCONNECTED) {
+            param_bt_a2dp.reconfig = param_a2dp->reconfig;
         }
         break;
     }
@@ -1452,6 +1474,7 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
         *param = &param_bt_a2dp;
         break;
+    case PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY:
     case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
     {
         uint32_t slatency = 0;
@@ -1463,6 +1486,14 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
         } else {
             param_bt_a2dp.latency = 0;
         }
+        *param = &param_bt_a2dp;
+        break;
+    }
+    case PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH:
+    {
+        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED))
+            param_bt_a2dp.is_force_switch = true;
+
         *param = &param_bt_a2dp;
         break;
     }
@@ -1577,6 +1608,16 @@ int BtSco::start()
         status = startSwb();
         if (status)
             return status;
+    } else {
+        // For SCO NB and WB that don't have encoder and decoder in place,
+        // just override codec configurations with device attributions.
+        codecConfig.bit_width = deviceAttr.config.bit_width;
+        codecConfig.sample_rate = deviceAttr.config.sample_rate;
+        codecConfig.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        codecConfig.ch_info.channels = deviceAttr.config.ch_info.channels;
+        isConfigured = true;
+        PAL_DBG(LOG_TAG, "SCO WB/NB codecConfig is same as deviceAttr bw = %d,sr = %d,ch = %d",
+            codecConfig.bit_width, codecConfig.sample_rate, codecConfig.ch_info.channels);
     }
 
     status = Device::start();

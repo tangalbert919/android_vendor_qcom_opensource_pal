@@ -1,9 +1,0 @@
-prefix=@exec_prefix@
-libdir=@libdir@
-includedir=@includedir@
-
-Name: adie_rtc
-Description: adie_rtc library
-Version: @VERSION@
-Libs: -L${libdir} -ladie_rtc
-Cflags: -I${includedir}

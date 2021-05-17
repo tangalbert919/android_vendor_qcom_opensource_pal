@@ -79,10 +79,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     st_conf_levels_ = nullptr;
     st_conf_levels_v2_ = nullptr;
     lab_fd_ = nullptr;
+    rejection_notified_ = false;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
                       +sizeof(struct pal_channel_vol_kv));
+    if (mVolumeData == NULL) {
+        PAL_ERR(LOG_TAG, "Failed to allocate memory for volume data");
+        throw std::runtime_error("Failed to allocate memory for volume data");
+    }
     mVolumeData->no_of_volpair = 1;
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;
@@ -101,6 +106,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         PAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
         throw std::runtime_error("Failed to get sound trigger platform info");
     }
+
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
         sizeof(struct pal_stream_attributes));
     if (!mStreamAttr) {
@@ -152,11 +158,11 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         st_info_->GetConcurrentVoipCallEnable());
 
     // check concurrency count from rm
-    rm->GetSVAConcurrencyCount(&enable_concurrency_count,
+    rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI, &enable_concurrency_count,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsVoiceUILPISupported() && !enable_concurrency_count) {
+    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) && !enable_concurrency_count) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
@@ -246,6 +252,7 @@ int32_t StreamSoundTrigger::start() {
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    rejection_notified_ = false;
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
@@ -457,7 +464,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
 
 int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
-    if (!rm->IsVoiceUILPISupported()) {
+    if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
     } else {
         use_lpi_ = is_enable;
@@ -613,7 +620,7 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
     dev->id = dev_id;
 
     if (use_rm_profile) {
-        cap_prof = rm->GetSVACaptureProfile();
+        cap_prof = rm->GetSoundTriggerCaptureProfile();
         if (!cap_prof) {
             PAL_DBG(LOG_TAG, "Failed to get common capture profile");
             cap_prof = GetCurrentCaptureProfile();
@@ -628,7 +635,7 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
     dev->config.bit_width = cap_prof->GetBitWidth();
     dev->config.ch_info.channels = cap_prof->GetChannels();
     dev->config.sample_rate = cap_prof->GetSampleRate();
-    dev->config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    dev->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
     device = Device::getInstance(dev, rm);
     if (!device) {
@@ -732,6 +739,7 @@ struct detection_event_info* StreamSoundTrigger::GetDetectionEventInfo() {
 
 int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     int32_t status = 0;
+    bool lock_status = false;
 
     PAL_DBG(LOG_TAG, "Enter, det_type %d", det_type);
     if (!(det_type & DETECTION_TYPE_ALL)) {
@@ -739,9 +747,25 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
         return -EINVAL;
     }
 
-    // Lock stream when first stage detected
+    /*
+     * setEngineDetectionState should only be called when stream
+     * is in ACTIVE state(for first stage) or in BUFFERING state
+     * (for second stage)
+     */
+    do {
+        lock_status = mStreamMutex.try_lock();
+    } while (!lock_status && (GetCurrentStateId() == ST_STATE_ACTIVE ||
+        GetCurrentStateId() == ST_STATE_BUFFERING));
+
+    if (GetCurrentStateId() != ST_STATE_ACTIVE &&
+        GetCurrentStateId() != ST_STATE_BUFFERING) {
+        if (lock_status)
+            mStreamMutex.unlock();
+        PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
+        return status;
+    }
+
     if (det_type == GMM_DETECTED) {
-        mStreamMutex.lock();
         rm->acquireWakeLock();
         reader_->updateState(READER_ENABLED);
     }
@@ -751,11 +775,12 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     status = cur_state_->ProcessEvent(ev_cfg);
 
     /*
-     * Unlock stream when second stage detection result
-     * comes or no second stage detection required
+     * mStreamMutex may get unlocked in handling detection event
+     * and not locked back when stream gets stopped/unloaded, check
+     * stream state here to avoid mStreamMutex unlock twice.
      */
-    if (engines_.size() == 1 ||
-        det_type & DETECTION_TYPE_SS) {
+    if (GetCurrentStateId() == ST_STATE_DETECTED ||
+        GetCurrentStateId() == ST_STATE_BUFFERING) {
         mStreamMutex.unlock();
     }
 
@@ -1464,6 +1489,17 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     PAL_INFO(LOG_TAG, "updated hist buf len = %d, preroll len = %d in gsl engine",
         hist_buffer_duration, pre_roll_duration);
 
+    // update input buffer size for mmap usecase
+    if (st_info_->GetMmapEnable()) {
+        inBufSize = st_info_->GetMmapFrameLength() *
+            sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+            sm_cfg_->GetOutChannels() / (MS_PER_SEC * BITS_PER_BYTE);
+        if (!inBufSize) {
+            PAL_ERR(LOG_TAG, "Invalid frame size, use default value");
+            inBufSize = BUF_SIZE_CAPTURE;
+        }
+    }
+
     // create ring buffer for lab transfer in gsl_engine
     ring_buffer_len = hist_buffer_duration + pre_roll_duration +
         client_capture_read_delay;
@@ -1608,8 +1644,9 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
-
-    PAL_DBG(LOG_TAG, "Enter");
+    std::chrono::time_point<std::chrono::steady_clock> notify_time;
+    uint64_t total_process_duration = 0;
+    bool lock_status = false;
 
     status = GenerateCallbackEvent(&rec_event, &event_size,
                                                 detection);
@@ -1618,11 +1655,39 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         return status;
     }
     if (callback_) {
-        PAL_INFO(LOG_TAG, "Notify detection event to client");
+        notify_time = std::chrono::steady_clock::now();
+        total_process_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                notify_time - gsl_engine_->GetDetectedTime()).count();
+        PAL_INFO(LOG_TAG, "Notify detection event to client,"
+            " total processing time: %llums",
+            (long long)total_process_duration);
         mStreamMutex.unlock();
         callback_((pal_stream_handle_t *)this, 0, (uint32_t *)rec_event,
                   event_size, (uint64_t)rec_config_->cookie);
-        mStreamMutex.lock();
+
+        /*
+         * client may call unload when we are doing callback with mutex
+         * unlocked, which will be blocked in second stage thread exiting
+         * as it needs notifyClient to finish. Try lock mutex and check
+         * stream states when try lock fails so that we can skip lock
+         * when stream is already stopped by client.
+         */
+        do {
+            lock_status = mStreamMutex.try_lock();
+        } while (!lock_status && (GetCurrentStateId() == ST_STATE_DETECTED ||
+            GetCurrentStateId() == ST_STATE_BUFFERING));
+
+        /*
+         * NOTE: Not unlock stream mutex here if mutex is locked successfully
+         * in above loop to make stream mutex lock/unlock consistent in vairous
+         * cases for calling SetEngineDetectionState(caller of notifyClient).
+         * This is because SetEngineDetectionState may also be called by
+         * gsl engine to notify GMM detected with second stage enabled, and in
+         * this case notifyClient is not called, so we need to unlock stream
+         * mutex at end of SetEngineDetectionState, that's why we don't need
+         * to unlock stream mutex here.
+         */
     }
 
     free(rec_event);
@@ -1914,7 +1979,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             mStreamAttr->in_media_config.bit_width;
         (*event)->media_config.ch_info.channels =
             mStreamAttr->in_media_config.ch_info.channels;
-        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
         // Filling Opaque data
         opaque_data = (uint8_t *)phrase_event +
                        phrase_event->common.data_offset;
@@ -2039,7 +2104,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             mStreamAttr->in_media_config.bit_width;
         (*event)->media_config.ch_info.channels =
             mStreamAttr->in_media_config.ch_info.channels;
-        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        (*event)->media_config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
         // Filling Opaque data
         opaque_data = (uint8_t *)generic_event +
@@ -2941,15 +3006,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             // Do not update capture profile when resuming stream
             if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
-                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
                     }
 
-                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    status = rm->StartOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }
@@ -2960,7 +3025,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 auto& dev = st_stream_.mDevices[0];
                 dev->getDeviceAttributes(&dattr);
 
-                cap_prof = st_stream_.rm->GetSVACaptureProfile();
+                cap_prof = st_stream_.rm->GetSoundTriggerCaptureProfile();
                 if (!cap_prof) {
                     PAL_ERR(LOG_TAG, "Invalid capture profile");
                     goto err_exit;
@@ -3115,6 +3180,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 dev->close();
             } else if (st_stream_.isActive()) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
+                TransitTo(ST_STATE_ACTIVE);
             }
         connect_err:
             delete pal_dev;
@@ -3232,15 +3298,15 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             // Do not update capture profile when pausing stream
             if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
                 bool backend_update = false;
-                backend_update = st_stream_.rm->UpdateSVACaptureProfile(
+                backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
-                    status = rm->StopOtherSVAStreams(&st_stream_);
+                    status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
                     }
 
-                    status = rm->StartOtherSVAStreams(&st_stream_);
+                    status = rm->StartOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }
@@ -3644,6 +3710,17 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             rm->releaseWakeLock();
             break;
         }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -3805,15 +3882,31 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             // If second stage has rejected, stop buffering and restart recognition
             if (data->det_type_ == KEYWORD_DETECTION_REJECT ||
                 data->det_type_ == USER_VERIFICATION_REJECT) {
+                if (st_stream_.rejection_notified_) {
+                    PAL_DBG(LOG_TAG, "Already notified client with second stage rejection");
+                    break;
+                }
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
+
+                for (auto& eng : st_stream_.engines_) {
+                    if ((data->det_type_ == USER_VERIFICATION_REJECT &&
+                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_KWD) ||
+                        (data->det_type_ == KEYWORD_DETECTION_REJECT &&
+                        eng->GetEngine()->GetEngineType() & ST_SM_ID_SVA_S_STAGE_USER)) {
+
+                        status = eng->GetEngine()->StopRecognition(&st_stream_);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "Failed to stop recognition for engines");
+                        }
+                    }
+                }
                 st_stream_.detection_state_ = ENGINE_IDLE;
-                st_stream_.user_verification_done_ = data->det_type_ ==
-                                         USER_VERIFICATION_REJECT ? true : false ;
 
                 if (st_stream_.reader_) {
                     st_stream_.reader_->reset();
                 }
+                st_stream_.rejection_notified_ = true;
                 st_stream_.notifyClient(false);
                 st_stream_.PostDelayedStop();
 
@@ -3822,8 +3915,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
                 data->det_type_ == USER_VERIFICATION_SUCCESS) {
                 st_stream_.detection_state_ |=  data->det_type_;
-                st_stream_.user_verification_done_ = data->det_type_ ==
-                                         USER_VERIFICATION_SUCCESS ? true : false ;
             }
             // notify client until both keyword detection/user verification done
             if (st_stream_.detection_state_ == st_stream_.notification_state_) {
@@ -3910,6 +4001,17 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             status = st_stream_.ProcessInternalEvent(ev_cfg3);
             TransitTo(ST_STATE_SSR);
             rm->releaseWakeLock();
+            break;
+        }
+        case ST_EV_EC_REF: {
+            StECRefEventConfigData *data =
+                (StECRefEventConfigData *)ev_cfg->data_.get();
+            Stream *s = static_cast<Stream *>(&st_stream_);
+            status = st_stream_.gsl_engine_->setECRef(s, data->dev_,
+                data->is_enable_);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref in gsl engine");
+            }
             break;
         }
         default: {

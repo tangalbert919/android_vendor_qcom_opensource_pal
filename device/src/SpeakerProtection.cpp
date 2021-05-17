@@ -169,6 +169,7 @@ bool SpeakerProtection::isSpeakerInUse(unsigned long *sec)
     struct timespec temp;
     if (!sec) {
         PAL_ERR(LOG_TAG, "Improper argument time");
+        return false;
     }
 
     if (isSpkrInUse) {
@@ -208,10 +209,14 @@ void SpeakerProtection::mixer_ctl_callback (uint64_t hdl __unused, uint32_t even
             // TODO : Add a lock
             PAL_DBG(LOG_TAG, "Calibration is successfull");
             callback_data = (param_id_sp_th_vi_calib_res_cfg_t *) calloc(1, event_size);
-            callback_data->num_ch = param_data->num_ch;
-            callback_data->state = param_data->state;
-            for (int i = 0; i < callback_data->num_ch; i++) {
-                callback_data->r0_cali_q24[i] = param_data->r0_cali_q24[i];
+            if (!callback_data) {
+                PAL_ERR(LOG_TAG, "Invalid callback data to update: \n");
+            } else {
+                callback_data->num_ch = param_data->num_ch;
+                callback_data->state = param_data->state;
+                for (int i = 0; i < callback_data->num_ch; i++) {
+                  callback_data->r0_cali_q24[i] = param_data->r0_cali_q24[i];
+                }
             }
             mDspCallbackRcvd = true;
             calibrationCallbackStatus = CALIBRATION_STATUS_SUCCESS;
@@ -273,6 +278,8 @@ int SpeakerProtection::getSpeakerTemperature(int spkr_pos)
         case WSA_SPKR_LEFT:
             mixer_ctl_name = SPKR_LEFT_WSA_TEMP;
         break;
+        default:
+            mixer_ctl_name = SPKR_RIGHT_WSA_TEMP;
     }
 
     PAL_DBG(LOG_TAG, "audio_mixer %pK", mixer);
@@ -369,7 +376,7 @@ int SpeakerProtection::spkrStartCalibration()
     device.config.ch_info = ch_info;
     device.config.sample_rate = SAMPLINGRATE_48K;
     device.config.bit_width = BITWIDTH_32;
-    device.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
 
     // Setup TX path
     ret = rm->getAudioRoute(&audioRoute);
@@ -490,7 +497,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
         }
@@ -504,7 +511,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
         }
@@ -518,7 +525,7 @@ int SpeakerProtection::spkrStartCalibration()
             PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
         }
@@ -602,7 +609,7 @@ int SpeakerProtection::spkrStartCalibration()
     }
     deviceRx.config.sample_rate = SAMPLINGRATE_48K;
     deviceRx.config.bit_width = BITWIDTH_16;
-    deviceRx.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+    deviceRx.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
     rm->getBackendName(deviceRx.id, backEndNameRx);
 
@@ -709,7 +716,7 @@ int SpeakerProtection::spkrStartCalibration()
         }
 
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
@@ -768,7 +775,7 @@ int SpeakerProtection::spkrStartCalibration()
                 for (i = 0; i < numberOfChannels; i++) {
                     fwrite(&callback_data->r0_cali_q24[i],
                                 sizeof(callback_data->r0_cali_q24[i]), 1, fp);
-                    fwrite(&spkerTempList[i], sizeof(spkerTempList[i]), 1, fp);
+                    fwrite(&spkerTempList[i], sizeof(int16_t), 1, fp);
                 }
                 spkrCalState = SPKR_CALIBRATED;
                 free(callback_data);
@@ -833,6 +840,10 @@ done:
         cv.notify_all();
     }
 
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     PAL_DBG(LOG_TAG, "Exiting");
     return ret;
 }
@@ -1026,7 +1037,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
                        + sizeof(pkd_reg_addr_t) * numberOfChannels);
     if (cpsRegCfg == NULL) {
         PAL_ERR(LOG_TAG,"Unable to allocate Memory for CPS config\n");
-        return;
+        goto exit;
     }
     cpsRegCfg->num_spkr = numberOfChannels;
     cpsRegCfg->lpass_wr_cmd_reg_phy_addr = LPASS_WR_CMD_REG_PHY_ADDR;
@@ -1068,7 +1079,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
             PARAM_ID_CPS_LPASS_HW_INTF_CFG,(void *)cpsRegCfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         free(cpsRegCfg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
@@ -1095,12 +1106,16 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
             PARAM_ID_SP_CPS_STATIC_CFG,(void *)&cpsStaticConf);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
-    delete builder;
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
 }
 
 /*
@@ -1177,7 +1192,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         spkrProtSetSpkrStatus(flag);
         // Speaker in use. Start the Processing Mode
         rm = ResourceManager::getInstance();
-
+        if (!rm) {
+            PAL_ERR(LOG_TAG, "Failed to get resource manager instance");
+            goto done;
+        }
         memset(&device, 0, sizeof(device));
         memset(&sAttr, 0, sizeof(sAttr));
         memset(&config, 0, sizeof(config));
@@ -1209,7 +1227,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         device.config.ch_info = ch_info;
         device.config.sample_rate = SAMPLINGRATE_48K;
         device.config.bit_width = BITWIDTH_32;
-        device.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_PCM;
+        device.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
 
         // Setup TX path
         device.id = PAL_DEVICE_IN_VI_FEEDBACK;
@@ -1330,7 +1348,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
             }
@@ -1344,7 +1362,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
             }
@@ -1358,7 +1376,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 PARAM_ID_SP_EX_VI_MODE_CFG,(void *)&viExModeConfg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed for EX_VI_MODE_CFG\n");
             }
@@ -1385,7 +1403,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                     viParamId, (void *) &viFtmConfg);
             if (payloadSize) {
                 ret = updateCustomPayload(payload, payloadSize);
-                delete payload;
+                free(payload);
                 if (0 != ret) {
                     PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
                 }
@@ -1415,17 +1433,26 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
                             sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
                             sizeof(vi_r0t0_cfg_t) * numberOfChannels);
+        if (!spR0T0confg) {
+            PAL_ERR(LOG_TAG," unable to create speaker config payload\n");
+            goto free_fe;
+        }
         spR0T0confg->num_speakers = numberOfChannels;
 
-        memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
-                numberOfChannels);
+        for (int i = 0; i < numberOfChannels; i++) {
+            spR0T0confg->vi_r0t0_cfg[i].r0_cali_q24 = r0t0Array[i].r0_cali_q24;
+            spR0T0confg->vi_r0t0_cfg[i].t0_cali_q6 = r0t0Array[i].t0_cali_q6;
+            PAL_DBG (LOG_TAG,"R0 %x ", spR0T0confg->vi_r0t0_cfg[i].r0_cali_q24);
+            PAL_DBG (LOG_TAG,"T0 %x ", spR0T0confg->vi_r0t0_cfg[i].t0_cali_q6);
+
+        }
 
         payloadSize = 0;
         builder->payloadSPConfig(&payload, &payloadSize, miid,
                 PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
         if (payloadSize) {
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             free(spR0T0confg);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
@@ -1459,14 +1486,15 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         ret = rm->getActiveStream_l(dev, activeStreams);
         if ((0 != ret) || (activeStreams.size() == 0)) {
             PAL_ERR(LOG_TAG, " no active stream available");
-            return -EINVAL;
+            ret = -EINVAL;
+            goto done;
         }
         stream = static_cast<Stream *>(activeStreams[0]);
         stream->getAssociatedSession(&session);
         ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
         if (ret) {
             PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-            return ret;
+            goto done;
         }
 
         // Set the operation mode for SP module
@@ -1494,7 +1522,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 customPayload = NULL;
             }
             ret = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != ret) {
                 PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
             }
@@ -1559,6 +1587,10 @@ free_fe:
     }
 done:
     deviceMutex.unlock();
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
     return ret;
 }
 
@@ -1580,14 +1612,14 @@ void SpeakerProtection::updateSPcustomPayload()
     ret = rm->getActiveStream_l(dev, activeStreams);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
-        return;
+        goto exit;
     }
     stream = static_cast<Stream *>(activeStreams[0]);
     stream->getAssociatedSession(&session);
     ret = session->getMIID(backEndName.c_str(), MODULE_SP, &miid);
     if (ret) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-        return;
+        goto exit;
     }
 
     if (customPayloadSize) {
@@ -1601,11 +1633,18 @@ void SpeakerProtection::updateSPcustomPayload()
                     PARAM_ID_SP_OP_MODE,(void *)&spModeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
+
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
+    return;
 }
 
 
@@ -1695,15 +1734,17 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
     memset(&v_vali_ret, 0,sizeof(vi_th_v_vali_params_t)*numberOfChannels);
 
     if (param_id != PAL_PARAM_ID_SP_MODE)
-        return size;
+        goto exit;
 
     pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
-    cntrlName<<pcmDeviceName<<" "<<getParamControl;
+    if (pcmDeviceName)
+        cntrlName<<pcmDeviceName<<" "<<getParamControl;
 
     ctl = mixer_get_ctl_by_name(mixer, cntrlName.str().data());
     if (!ctl) {
         PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", cntrlName.str().data());
-        return -ENOENT;
+        status = -ENOENT;
+        goto exit;
     }
     rm->getBackendName(PAL_DEVICE_IN_VI_FEEDBACK, backendName);
 
@@ -1820,7 +1861,14 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
     }
 
 exit :
-    return size;
+    if(builder) {
+       delete builder;
+       builder = NULL;
+        }
+    if(!status)
+       return size;
+    else
+      return status;
 }
 
 /*
@@ -1837,7 +1885,7 @@ void SpeakerFeedback::updateVIcustomPayload()
     Stream *stream = NULL;
     Session *session = NULL;
     std::vector<Stream*> activeStreams;
-    uint32_t miid = 0, ret;
+    uint32_t miid = 0, ret = 0;
     struct vi_r0t0_cfg_t r0t0Array[numSpeaker];
     FILE *fp = NULL;
     param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
@@ -1850,14 +1898,14 @@ void SpeakerFeedback::updateVIcustomPayload()
     ret = rm->getActiveStream_l(dev, activeStreams);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
-        return;
+        goto exit;
     }
     stream = static_cast<Stream *>(activeStreams[0]);
     stream->getAssociatedSession(&session);
     ret = session->getMIID(backEndName.c_str(), MODULE_VI, &miid);
     if (ret) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_SP, ret);
-        return;
+        goto exit;
     }
 
     if (customPayloadSize) {
@@ -1877,7 +1925,7 @@ void SpeakerFeedback::updateVIcustomPayload()
                              PARAM_ID_SP_VI_OP_MODE_CFG,(void *)&modeConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for VI_OP_MODE_CFG\n");
         }
@@ -1891,7 +1939,7 @@ void SpeakerFeedback::updateVIcustomPayload()
                     PARAM_ID_SP_VI_CHANNEL_MAP_CFG,(void *)&viChannelMapConfg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed for CHANNEL_MAP_CFG\n");
         }
@@ -1917,6 +1965,10 @@ void SpeakerFeedback::updateVIcustomPayload()
     spR0T0confg = (param_id_sp_th_vi_r0t0_cfg_t *)calloc(1,
                         sizeof(param_id_sp_th_vi_r0t0_cfg_t) +
                         sizeof(vi_r0t0_cfg_t) * numSpeaker);
+    if (!spR0T0confg) {
+        PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        return;
+    }
     spR0T0confg->num_speakers = numSpeaker;
 
     memcpy(spR0T0confg->vi_r0t0_cfg, r0t0Array, sizeof(vi_r0t0_cfg_t) *
@@ -1927,12 +1979,18 @@ void SpeakerFeedback::updateVIcustomPayload()
                     PARAM_ID_SP_TH_VI_R0T0_CFG,(void *)spR0T0confg);
     if (payloadSize) {
         ret = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         free(spR0T0confg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }
     }
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
+    return;
 }
 
 SpeakerFeedback::SpeakerFeedback(struct pal_device *device,

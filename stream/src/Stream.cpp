@@ -34,6 +34,8 @@
 #include "StreamCompress.h"
 #include "StreamSoundTrigger.h"
 #include "StreamACD.h"
+#include "StreamContextProxy.h"
+#include "StreamUltraSound.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -67,7 +69,7 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     }
     PAL_VERBOSE(LOG_TAG,"get RM instance success and noOfDevices %d \n", noOfDevices);
 
-    if (sAttr->type == PAL_STREAM_NON_TUNNEL)
+    if (sAttr->type == PAL_STREAM_NON_TUNNEL || sAttr->type == PAL_STREAM_CONTEXT_PROXY)
         goto stream_create;
 
     mPalDevice = new pal_device [noOfDevices];
@@ -93,8 +95,15 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
             mPalDevice[count].id == PAL_DEVICE_IN_USB_HEADSET) {
             mPalDevice[count].address = dAttr[i].address;
         }
-        rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, &devinfo);
-        if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
+
+        if (strlen(dAttr[i].custom_config.custom_key)) {
+            strlcpy(mPalDevice[count].custom_config.custom_key, dAttr[i].custom_config.custom_key, PAL_MAX_CUSTOM_KEY_SIZE);
+            rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, dAttr[i].custom_config.custom_key, &devinfo);
+        } else {
+            strlcpy(mPalDevice[count].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
+            rm->getDeviceInfo(mPalDevice[count].id, sAttr->type, &devinfo);
+        }
+         if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
             PAL_ERR(LOG_TAG, "Invalid num channels[%d], failed to create stream",
                     devinfo.channels);
             goto exit;
@@ -148,6 +157,14 @@ stream_create:
                 break;
             case PAL_STREAM_ACD:
                 stream = new StreamACD(sAttr, mPalDevice, count, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_CONTEXT_PROXY:
+                stream = new StreamContextProxy(sAttr, NULL, 0, modifiers,
+                                            noOfModifiers, rm);
+                break;
+            case PAL_STREAM_ULTRASOUND:
+                stream = new StreamUltraSound(sAttr, mPalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
             default:
@@ -232,6 +249,12 @@ int32_t Stream::getEffectParameters(void *effect_query)
     return status;
 }
 
+int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
+                                    bool isParamWrite)
+{
+    return session->rwACDBParameters(payload, sampleRate, isParamWrite);
+}
+
 int32_t Stream::getStreamType (pal_stream_type_t* streamType)
 {
     int32_t status = 0;
@@ -262,6 +285,67 @@ int32_t Stream::getStreamDirection(pal_stream_direction_t *dir)
     return status;
 }
 
+uint32_t Stream::getRenderLatency()
+{
+    uint32_t delayMs = 0;
+
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "invalid mStreamAttr");
+        return delayMs;
+    }
+
+    switch (mStreamAttr->type) {
+    case PAL_STREAM_DEEP_BUFFER:
+        delayMs = PAL_DEEP_BUFFER_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_LOW_LATENCY:
+        delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_COMPRESSED:
+    case PAL_STREAM_PCM_OFFLOAD:
+        delayMs = PAL_PCM_OFFLOAD_PLATFORM_DELAY / 1000;
+        break;
+    case PAL_STREAM_ULTRA_LOW_LATENCY:
+        delayMs = PAL_ULL_PLATFORM_DELAY / 1000;
+        break;
+    default:
+        break;
+    }
+
+    return delayMs;
+}
+
+uint32_t Stream::getLatency()
+{
+    uint32_t latencyMs = 0;
+
+    if (!mStreamAttr) {
+        PAL_ERR(LOG_TAG, "invalid mStreamAttr");
+        return latencyMs;
+    }
+
+    switch (mStreamAttr->type) {
+    case PAL_STREAM_DEEP_BUFFER:
+        latencyMs = PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION *
+            PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_LOW_LATENCY:
+        latencyMs = PAL_LOW_LATENCY_OUTPUT_PERIOD_DURATION *
+            PAL_LOW_LATENCY_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_COMPRESSED:
+    case PAL_STREAM_PCM_OFFLOAD:
+        latencyMs = PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
+            PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT;
+        break;
+    default:
+        break;
+    }
+
+    latencyMs += getRenderLatency();
+    return latencyMs;
+}
+
 int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDevices)
 {
     int32_t status = 0;
@@ -270,7 +354,6 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     for (int32_t i=0; i < mDevices.size(); i++) {
         aDevices.push_back(mDevices[i]);
     }
-
 
     return status;
 }
@@ -429,11 +512,11 @@ int32_t Stream::getMaxMetadataSz(size_t *in_max_metdata_sz, size_t *out_max_meta
     if (out_max_metadata_sz)
         *out_max_metadata_sz = outMaxMetadataSz;
 
-    if (!in_max_metdata_sz)
+    if (in_max_metdata_sz)
         PAL_DBG(LOG_TAG, "in max metadataSize %zu",
                 *in_max_metdata_sz);
 
-    if (!out_max_metadata_sz)
+    if (out_max_metadata_sz)
         PAL_DBG(LOG_TAG, "in max metadataSize %zu",
                 *out_max_metadata_sz);
 
@@ -468,7 +551,11 @@ int32_t Stream::getBufInfo(size_t *in_buf_size, size_t *in_buf_count,
 bool Stream::isStreamAudioOutFmtSupported(pal_audio_fmt_t format)
 {
     switch (format) {
-    case PAL_AUDIO_FMT_DEFAULT_PCM:
+    case PAL_AUDIO_FMT_PCM_S8:
+    case PAL_AUDIO_FMT_PCM_S16_LE:
+    case PAL_AUDIO_FMT_PCM_S24_3LE:
+    case PAL_AUDIO_FMT_PCM_S24_LE:
+    case PAL_AUDIO_FMT_PCM_S32_LE:
     case PAL_AUDIO_FMT_MP3:
     case PAL_AUDIO_FMT_AAC:
     case PAL_AUDIO_FMT_AAC_ADTS:
@@ -802,10 +889,10 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         goto done;
     }
 
-    if (a2dp_compress_mute && (mStreamAttr->type == PAL_STREAM_COMPRESSED) &&
-        !isNewDeviceA2dp) {
+    if (a2dpMuted && !isNewDeviceA2dp) {
         mute(false);
-        a2dp_compress_mute = false;
+        a2dpMuted = false;
+        suspendedDevId = PAL_DEVICE_NONE;
     }
 
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
@@ -822,7 +909,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         // get active stream device pairs sharing the same backend with new devices.
         rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDevices[newDeviceSlots[i]].id);
 
-	/* This can result in below situation:
+        /* This can result in below situation:
          * 1) No matching SharedBEStreamDev (handled in else part).
          *    e.g. - case 1a, 2.
          * 2) sharedBEStreamDev having same stream as current stream but different device id.
@@ -858,8 +945,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                  */
                 if (curDevAttr.id == newDevices[newDeviceSlots[i]].id) {
                     if (!rm->isDeviceSwitchRequired(&curDevAttr,
-                                &newDevices[newDeviceSlots[i]], mStreamAttr))
+                                &newDevices[newDeviceSlots[i]], mStreamAttr)) {
+                        PAL_DBG(LOG_TAG, "DS not required, updating new device attributes");
+                        curDev->getDeviceAttributes(&newDevices[newDeviceSlots[i]]);
                         continue;
+                    }
                 }
 
                 sharedStream->getStreamAttributes(&sAttr);
@@ -876,6 +966,16 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 } else {
                     streamDevDisconnect.push_back(elem);
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
+                    if (strlen(newDevices[newDeviceSlots[i]].custom_config.custom_key)) {
+                        PAL_DBG(LOG_TAG, "new device has custom key %s",
+                                          newDevices[newDeviceSlots[i]].custom_config.custom_key);
+                        rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type,
+                                          newDevices[newDeviceSlots[i]].custom_config.custom_key);
+                    } else {
+                        PAL_DBG(LOG_TAG, "Setting device info for device %d",
+                                          newDevices[newDeviceSlots[i]].id);
+                        rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type);
+                    }
                 }
             }
         }
@@ -885,6 +985,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDevices[newDeviceSlots[i]].id))
                 streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
         }
+        if (strlen(newDevices[newDeviceSlots[i]].custom_config.custom_key)) {
+            PAL_DBG(LOG_TAG, "new device has custom key %s",
+                             newDevices[newDeviceSlots[i]].custom_config.custom_key);
+            rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type,
+                              newDevices[newDeviceSlots[i]].custom_config.custom_key);
+        } else {
+            PAL_DBG(LOG_TAG, "Setting device info for device %d",
+                              newDevices[newDeviceSlots[i]].id);
+            rm->setDeviceInfo(newDevices[newDeviceSlots[i]].id, mStreamAttr->type);
+        }
+
         StreamDevConnect.push_back({streamHandle, &newDevices[newDeviceSlots[i]]});
     }
 

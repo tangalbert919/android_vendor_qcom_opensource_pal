@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -92,6 +92,12 @@ int32_t pal_init(void)
 
     ri->init();
 
+    ret = ri->initContextManager();
+    if (ret != 0) {
+        PAL_ERR(LOG_TAG, "ContextManager init failed, error:%d", ret);
+        return ret;
+    }
+
     PAL_DBG(LOG_TAG, "Exit. ret : %d ", ret);
     return ret;
 }
@@ -105,6 +111,16 @@ int32_t pal_init(void)
 void pal_deinit(void)
 {
     PAL_DBG(LOG_TAG, "Enter.");
+
+    std::shared_ptr<ResourceManager> ri = NULL;
+
+    try {
+        ri = ResourceManager::getInstance();
+    } catch (const std::exception& e) {
+        PAL_ERR(LOG_TAG, "ResourceManager::getInstance() failed: %s", e.what());
+    }
+    ri->deInitContextManager();
+
     ResourceManager::deinit();
     PAL_DBG(LOG_TAG, "Exit.");
     return;
@@ -537,6 +553,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     std::shared_ptr<ResourceManager> rm = NULL;
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
+    struct pal_device *pDevices = NULL;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -546,7 +563,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
 
-    if (!devices) {
+    if (no_of_devices == 0 || !devices) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid device status %d", status);
         return status;
@@ -570,30 +587,53 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         return status;
     }
 
+    pDevices = (struct pal_device *) calloc(no_of_devices, sizeof(struct pal_device));
+
+    if(!pDevices) {
+        status = -ENOMEM;
+        PAL_ERR(LOG_TAG, "Memory alloc failed");
+        return status;
+    }
+
+    ar_mem_cpy(pDevices, no_of_devices * sizeof(struct pal_device),
+            devices, no_of_devices * sizeof(struct pal_device));
+
     for (int i = 0; i < no_of_devices; i++) {
-        rm->getDeviceInfo(devices[i].id, sattr.type, &devinfo);
+        if (strlen(pDevices[i].custom_config.custom_key)) {
+             PAL_DBG(LOG_TAG, "Device has custom key %s",
+                               pDevices[i].custom_config.custom_key);
+             rm->getDeviceInfo(pDevices[i].id, sattr.type,
+                               pDevices[i].custom_config.custom_key, &devinfo);
+        } else {
+             rm->getDeviceInfo(pDevices[i].id, sattr.type, &devinfo);
+        }
         if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
             PAL_ERR(LOG_TAG, "Num channels[%d] is invalid", devinfo.channels);
-            return -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
-        status = rm->getDeviceConfig((struct pal_device *)&devices[i], &sattr, devinfo.channels);
+        status = rm->getDeviceConfig((struct pal_device *)&pDevices[i], &sattr, devinfo.channels);
         if (status) {
            PAL_ERR(LOG_TAG, "Failed to get Device config, err: %d", status);
-           return status;
+           goto exit;
         }
     }
     // TODO: Check with RM if the same device is being used by other stream with different
     // configuration then update corresponding stream device configuration also based on priority.
     PAL_DBG(LOG_TAG, "Stream handle :%pK no_of_devices %d first_device id %d",
-            stream_handle, no_of_devices, devices[0].id);
+            stream_handle, no_of_devices, pDevices[0].id);
 
-    status = s->switchDevice(s, no_of_devices, devices);
+    status = s->switchDevice(s, no_of_devices, pDevices);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "failed with status %d", status);
-        return status;
+        goto exit;
     }
 
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
+
+exit:
+    if(pDevices)
+        free(pDevices);
 
     return status;
 }
@@ -747,6 +787,31 @@ int32_t pal_gef_rw_param(uint32_t param_id, void *param_payload,
                 PAL_ERR(LOG_TAG, "Failed to set global parameter %u, status %d",
                         param_id, status);
             }
+        }
+    } else {
+        PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
+        status = -EINVAL;
+    }
+    PAL_DBG(LOG_TAG, "Exit:");
+
+    return status;
+}
+
+int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
+                      size_t payload_size __unused, pal_device_id_t pal_device_id,
+                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
+                      uint32_t instance_id, uint32_t dir, bool is_play )
+{
+    int status = 0;
+    std::shared_ptr<ResourceManager> rm = NULL;
+    rm = ResourceManager::getInstance();
+    if (rm) {
+        status = rm->rwParameterACDB(param_id, param_payload, payload_size,
+                                        pal_device_id, pal_stream_type,
+                                        sample_rate, instance_id, dir, is_play);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to rw global parameter %u, status %d",
+                        param_id, status);
         }
     } else {
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");

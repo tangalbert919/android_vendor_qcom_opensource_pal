@@ -33,6 +33,7 @@
 #include "SessionGsl.h"
 #include "StreamSoundTrigger.h"
 #include "spr_api.h"
+#include <agm/agm_api.h>
 #include <bt_intf.h>
 #include <bt_ble.h>
 #include "sp_vi.h"
@@ -200,7 +201,11 @@ void PayloadBuilder::payloadUsbAudioConfig(uint8_t** payload, size_t* size,
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
 
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo new failed %s", strerror(errno));
+        return;
+    }
 
     header = (struct apm_module_param_data_t*)payloadInfo;
     usbConfig = (struct param_id_usb_audio_intf_cfg_t*)(payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -236,7 +241,11 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
 
-    payloadInfo = (uint8_t*)malloc((size_t)payloadSize);
+    payloadInfo = new uint8_t[payloadSize]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
 
     header = (struct apm_module_param_data_t*)payloadInfo;
     dpConfig = (struct dpAudioConfig*)(payloadInfo + sizeof(struct apm_module_param_data_t));
@@ -263,7 +272,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
 {
     struct apm_module_param_data_t* header = NULL;
     struct param_id_mfc_output_media_fmt_t *mfcConf;
-    int numChannels = data->numChannel;
+    int numChannels;
     uint16_t* pcmChannel = NULL;
     uint8_t* payloadInfo = NULL;
     size_t payloadSize = 0, padBytes = 0;
@@ -272,6 +281,7 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
         PAL_ERR(LOG_TAG, "Invalid input parameters");
         return;
     }
+    numChannels = data->numChannel;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_mfc_output_media_fmt_t) +
                   sizeof(uint16_t)*numChannels;
@@ -347,7 +357,7 @@ uint16_t numOfBitsSet(uint32_t lines)
 void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name __unused,
     const XML_Char **attr __unused)
 {
-	return;
+    return;
 }
 
 void PayloadBuilder::endTag(void *userdata __unused, const XML_Char *tag_name __unused)
@@ -436,6 +446,111 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     *size = payloadSize + padBytes;;
     *payload = payloadInfo;
     PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+}
+
+int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
+            uint8_t *payload,
+            uint32_t moduleInstanceId, uint32_t sampleRate) {
+    struct apm_module_param_data_t* header;
+    //uint8_t* payloadInfo = NULL;
+    struct agm_acdb_param *payloadInfo = NULL;
+    size_t paddedSize = 0;
+    uint32_t payloadSize = 0;
+    uint32_t dataLength = 0;
+    struct agm_acdb_param *acdbParam = (struct agm_acdb_param *)payload;
+    uint32_t appendSampleRateInCKV = 1;
+    uint8_t *ptrSrc = nullptr;
+    uint8_t *ptrDst = nullptr;
+    uint32_t *ptr = nullptr;
+    pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+
+    if (!acdbParam)
+        return -EINVAL;
+
+    if (sampleRate != 0 && acdbParam->isTKV == PARAM_TKV) {
+        PAL_ERR(LOG_TAG, "Sample Rate %d CKV and TKV are not compatible.",
+                    sampleRate);
+        return -EINVAL;
+    }
+
+    // step 1: get param data size = blob size - kv size - param id size
+    payloadSize = acdbParam->blob_size -
+                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                    - sizeof(pal_effect_custom_payload_t);
+
+    paddedSize = PAL_ALIGN_8BYTE(payloadSize);
+    if (sampleRate) {
+        //CKV
+        // step 1. check sample rate is in kv or not
+        PAL_INFO(LOG_TAG, "CKV param to ACDB");
+        pal_key_value_pair_t *rawCKVPair = nullptr;
+        rawCKVPair = (pal_key_value_pair_t *)acdbParam->blob;
+        for (int k = 0; k < acdbParam->num_kvs; k++) {
+            if (rawCKVPair[k].key == SAMPLINGRATE) {
+                PAL_INFO(LOG_TAG, "Sample rate is in CKV. No need to append.");
+                appendSampleRateInCKV = 0;
+                break;
+            }
+        }
+        PAL_DBG(LOG_TAG, "is sample rate appended in CKV? %x",
+                                appendSampleRateInCKV);
+    } else {
+        //TKV
+        appendSampleRateInCKV = 0;
+    }
+
+    payloadInfo = (struct agm_acdb_param *)calloc(1,
+        sizeof(struct agm_acdb_param) +
+        (acdbParam->num_kvs + appendSampleRateInCKV) *
+        sizeof(struct gsl_key_value_pair) +
+        sizeof(struct apm_module_param_data_t) + paddedSize -
+        sizeof(pal_effect_custom_payload_t));
+
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "failed to allocate memory.");
+        return -ENOMEM;
+    }
+
+    // copy acdb meta + kv
+    dataLength = sizeof(struct agm_acdb_param) +
+                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+    ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
+                (uint8_t *)acdbParam, dataLength);
+    //update blob size
+    payloadInfo->blob_size = payloadInfo->blob_size +
+                            sizeof(struct apm_module_param_data_t) -
+                            sizeof(pal_effect_custom_payload_t) +
+                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+    payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
+    if (appendSampleRateInCKV) {
+        ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
+        *ptr++ = SAMPLINGRATE;
+        *ptr = sampleRate;
+        header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
+                    dataLength + sizeof(struct gsl_key_value_pair));
+    } else {
+        header = (struct apm_module_param_data_t *)
+                    ((uint8_t *)payloadInfo + dataLength);
+    }
+
+    effectCustomPayload = (pal_effect_custom_payload_t *)
+                                ((uint8_t *)acdbParam + dataLength);
+    header->module_instance_id = moduleInstanceId;
+    header->param_id = effectCustomPayload->paramId;
+    header->param_size = paddedSize;
+    header->error_code = 0x0;
+
+    if (paddedSize) {
+        ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
+        ptrSrc = (uint8_t *)effectCustomPayload->data;
+        // padded bytes are zereo by calloc. no need to copy.
+        ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+    }
+    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t);
+    *alsaPayload = (uint8_t *)payloadInfo;
+    PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
+
+    return 0;
 }
 
 int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
@@ -1035,6 +1150,8 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>>
                 }
             }
             break;
+    case PAL_STREAM_ULTRASOUND:
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1045,7 +1162,6 @@ exit:
     return status;
 }
 
-/** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx __unused)
 {
@@ -1070,6 +1186,8 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
         case PAL_STREAM_VOICE_CALL:
             /*need to update*/
             keyVectorRx.push_back(std::make_pair(STREAMPP_RX, STREAMPP_RX_DEFAULT));
+            break;
+        case PAL_STREAM_ULTRASOUND:
             break;
         default:
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
@@ -1097,6 +1215,11 @@ int PayloadBuilder::populateStreamKV(Stream* s,
     }
     memset (sattr, 0, sizeof(struct pal_stream_attributes));
 
+    if (!s) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid stream");
+        goto free_sattr;
+    }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
@@ -1111,7 +1234,13 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         case PAL_STREAM_LOW_LATENCY:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {
                 keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
+                instance_id = rm->getStreamInstanceID(s);
+                if (instance_id < INSTANCE_1) {
+                    status = -EINVAL;
+                    PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
+                    goto free_sattr;
+                }
+                keyVector.push_back(std::make_pair(INSTANCE, instance_id));
             } else if (sattr->direction == PAL_AUDIO_INPUT) {
                 keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
             } else if (sattr->direction == (PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT)) {
@@ -1179,15 +1308,10 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             }
             keyVector.push_back(std::make_pair(INSTANCE, instance_id));
 
-            if (sattr->out_media_config.aud_fmt_id != PAL_AUDIO_FMT_DEFAULT_PCM)
-                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
-            else if (sattr->out_media_config.aud_fmt_id == PAL_AUDIO_FMT_DEFAULT_PCM)
+            if (isPalPCMFormat(sattr->out_media_config.aud_fmt_id))
                 keyVector.push_back(std::make_pair(STREAM, NT_ENCODE));
-            else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid format %d on write path", sattr->out_media_config.aud_fmt_id);
-                goto free_sattr;
-            }
+            else
+                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
             break;
         case PAL_STREAM_PCM_OFFLOAD:
             if (sattr->direction == PAL_AUDIO_OUTPUT) {
@@ -1231,11 +1355,6 @@ int PayloadBuilder::populateStreamKV(Stream* s,
 
             break;
         case PAL_STREAM_VOICE_UI:
-            if (!s) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid stream");
-                goto free_sattr;
-            }
             keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
 
             // add key-vector for stream configuration
@@ -1260,6 +1379,8 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             break;
         case PAL_STREAM_HAPTICS:
             keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
+            break;
+        case PAL_STREAM_CONTEXT_PROXY:
             break;
         default:
             status = -EINVAL;
@@ -1413,6 +1534,12 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         case PAL_DEVICE_IN_FM_TUNER:
             keyVector.push_back(std::make_pair(DEVICETX, FM_TX));
             break;
+        case PAL_DEVICE_OUT_ULTRASOUND:
+            keyVector.push_back(std::make_pair(DEVICERX, ULTRASOUND_RX));
+            break;
+        case PAL_DEVICE_IN_ULTRASOUND_MIC:
+            keyVector.push_back(std::make_pair(DEVICETX, ULTRASOUND_TX));
+            break;
         default:
             PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
             break;
@@ -1560,6 +1687,14 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 for (auto& kv: s->getDevPpModifiers())
                     keyVectorTx.push_back(kv);
                 break;
+            case PAL_STREAM_ULTRASOUND:
+                 if (dAttr.id == txBeDevId) {
+                     keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_ULTRASOUND_DETECTOR));
+                 }
+                 else {
+                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_ULTRASOUND_GENERATOR));
+                 }
+                 break;
             default:
                 PAL_DBG(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
                 goto free_sattr;
@@ -1654,6 +1789,12 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                 keyVector.push_back(std::make_pair(CHANNELS,
                                                    dAttr.config.ch_info.channels));
                 break;
+            case PAL_STREAM_ACD:
+                PAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
+                /* Push Channels CKV for FFECNS channel based calibration */
+                keyVector.push_back(std::make_pair(CHANNELS,
+                                                   dAttr.config.ch_info.channels));
+                break;
             case PAL_STREAM_LOW_LATENCY:
             case PAL_STREAM_DEEP_BUFFER:
             case PAL_STREAM_PCM_OFFLOAD:
@@ -1739,49 +1880,46 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         if (voldB == 0.0f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
         }
-        else if (voldB < 0.002172f) {
-            ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
-        }
-        else if (voldB < 0.004660f) {
+        else if (voldB <= 0.002172f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
         }
-        else if (voldB < 0.01f) {
+        else if (voldB <= 0.004660f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
         }
-        else if (voldB < 0.014877f) {
+        else if (voldB <= 0.01f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
         }
-        else if (voldB < 0.023646f) {
+        else if (voldB <= 0.014877f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
         }
-        else if (voldB < 0.037584f) {
+        else if (voldB <= 0.023646f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
         }
-        else if (voldB < 0.055912f) {
+        else if (voldB <= 0.037584f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
         }
-        else if (voldB < 0.088869f) {
+        else if (voldB <= 0.055912f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
         }
-        else if (voldB < 0.141254f) {
+        else if (voldB <= 0.088869f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
         }
-        else if (voldB < 0.189453f) {
+        else if (voldB <= 0.141254f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
         }
-        else if (voldB < 0.266840f) {
+        else if (voldB <= 0.189453f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
         }
-        else if (voldB < 0.375838f) {
+        else if (voldB <= 0.266840f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
         }
-        else if (voldB < 0.504081f) {
+        else if (voldB <= 0.375838f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
         }
-        else if (voldB < 0.709987f) {
+        else if (voldB <= 0.504081f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
         }
-        else if (voldB < 0.9f) {
+        else if (voldB <= 0.709987f) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
         }
         else if (voldB <= 1.0f) {
@@ -2030,6 +2168,14 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     case INCALL_RECORD_UPLINK_DOWNLINK_STEREO:
        tkv.push_back(std::make_pair(TAG_KEY_MUX_DEMUX_CONFIG, TAG_VALUE_MUX_DEMUX_CONFIG_UPLINK_DOWNLINK_STEREO));
        *gsltag = TAG_STREAM_MUX_DEMUX;
+       break;
+    case LPI_LOGGING_ON:
+       tkv.push_back(std::make_pair(LOGGING, LOGGING_ON));
+       *gsltag = TAG_DATA_LOGGING;
+       break;
+    case LPI_LOGGING_OFF:
+       tkv.push_back(std::make_pair(LOGGING, LOGGING_OFF));
+       *gsltag = TAG_DATA_LOGGING;
        break;
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");
@@ -2324,12 +2470,19 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 memcpy(spConf, data, sizeof(param_id_sp_cps_static_cfg_t));
             }
         break;
+        default:
+            {
+                PAL_ERR(LOG_TAG, "unknown param id 0x%x", param_id);
+            }
+        break;
     }
 
-    header->module_instance_id = miid;
-    header->param_id = param_id;
-    header->error_code = 0x0;
-    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    if (header) {
+        header->module_instance_id = miid;
+        header->param_id = param_id;
+        header->error_code = 0x0;
+        header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    }
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;

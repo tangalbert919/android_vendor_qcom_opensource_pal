@@ -307,11 +307,12 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
     struct sessionToPayloadParam deviceData;
     uint32_t miid = 0;
     int dev_id = 0;
+    int idx = 0;
 
     status = s->getAssociatedDevices(associatedDevices);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
-        return status;
+    if ((0 != status) || (associatedDevices.size() == 0)) {
+        PAL_ERR(LOG_TAG, "getAssociatedDevices fails or empty associated devices");
+        goto exit;
     }
 
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, txAifBackEnds);
@@ -329,19 +330,36 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
         return status;
     }
 
-    for (int i = 0; i < associatedDevices.size(); i++) {
-        dev_id = associatedDevices[i]->getSndDeviceId();
+    for (idx = 0; idx < associatedDevices.size(); idx++) {
+        dev_id = associatedDevices[idx]->getSndDeviceId();
         if (rm->isOutputDevId(dev_id)) {
-            status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+            status = associatedDevices[idx]->getDeviceAttributes(&dAttr);
             break;
         }
     }
-    deviceData.bitWidth = dAttr.config.bit_width;
-    deviceData.sampleRate = dAttr.config.sample_rate;
-    deviceData.numChannel = dAttr.config.ch_info.channels;
-    deviceData.ch_info = nullptr;
+
+    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
+    {
+        struct pal_media_config codecConfig;
+        status = associatedDevices[idx]->getCodecConfig(&codecConfig);
+        if(0 != status) {
+           PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+            goto exit;
+        }
+        deviceData.bitWidth = codecConfig.bit_width;
+        deviceData.sampleRate = codecConfig.sample_rate;
+        deviceData.numChannel = codecConfig.ch_info.channels;
+        deviceData.ch_info = nullptr;
+        PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
+    } else {
+        deviceData.bitWidth = dAttr.config.bit_width;
+        deviceData.sampleRate = dAttr.config.sample_rate;
+        deviceData.numChannel = dAttr.config.ch_info.channels;
+        deviceData.ch_info = nullptr;
+    }
     builder->payloadMFCConfig((uint8_t**)payload, payloadSize, miid, &deviceData);
 
+exit:
     return status;
 }
 
@@ -470,6 +488,12 @@ int SessionAlsaVoice::start(Stream * s)
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed");
         goto exit;
+    }
+
+    if (ResourceManager::isLpiLoggingEnabled()) {
+        status = payloadTaged(s, MODULE, LPI_LOGGING_ON, pcmDevTxIds.at(0), TX_HOSTLESS);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to set data logging param status = %d", status);
     }
 
     status = pcm_start(pcmRx);

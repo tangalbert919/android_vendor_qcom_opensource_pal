@@ -75,8 +75,10 @@ class ACDEngine : public ContextDetectionEngine {
     bool AreOtherStreamsAttached(Stream *s);
     void UpdateModelCount(struct pal_param_context_list *context_cfg, bool enable);
     void AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *recog_cfg);
+    void UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *recog_cfg);
     void RemoveEventInfoForStream(Stream *s);
     bool IsModelBinAvailable(uint32_t model_id);
+    void ResetModelLoadUnloadFlags();
     bool IsModelUnloadNeeded();
     bool IsModelLoadNeeded();
     int32_t HandleMultiStreamLoadUnload(Stream *s);

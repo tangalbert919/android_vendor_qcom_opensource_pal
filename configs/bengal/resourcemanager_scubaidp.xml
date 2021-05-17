@@ -265,6 +265,7 @@ should always be in sync with it -->
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
             <is_24_bit_supported>0</is_24_bit_supported>
+            <Charge_concurrency_enabled>0</Charge_concurrency_enabled>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from

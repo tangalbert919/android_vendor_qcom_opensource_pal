@@ -50,6 +50,7 @@
 #include "RTProxy.h"
 #include "FMDevice.h"
 #include "HapticsDev.h"
+#include "UltrasoundDevice.h"
 
 #define MAX_CHANNEL_SUPPORTED 2
 
@@ -130,6 +131,10 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
     case PAL_DEVICE_IN_FM_TUNER:
         PAL_VERBOSE(LOG_TAG, "FM device");
         return FMDevice::getInstance(device, Rm);
+    case PAL_DEVICE_IN_ULTRASOUND_MIC:
+    case PAL_DEVICE_OUT_ULTRASOUND:
+        PAL_VERBOSE(LOG_TAG, "Ultrasound device");
+        return UltrasoundDevice::getInstance(device, Rm);
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",device->id);
         return nullptr;
@@ -158,7 +163,7 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_OUT_AUX_DIGITAL_1:
     case PAL_DEVICE_OUT_HDMI:
         PAL_VERBOSE(LOG_TAG, "Display Port device");
-        return DisplayPort::getObject();
+        return DisplayPort::getObject(dev_id);
     case PAL_DEVICE_IN_HANDSET_MIC:
         PAL_VERBOSE(LOG_TAG, "handset mic device");
         return HandsetMic::getObject();
@@ -185,6 +190,10 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_FM_TUNER:
         PAL_VERBOSE(LOG_TAG, "FMDevice %d", dev_id);
         return FMDevice::getObject();
+    case PAL_DEVICE_IN_ULTRASOUND_MIC:
+    case PAL_DEVICE_OUT_ULTRASOUND:
+        PAL_VERBOSE(LOG_TAG, "Ultrasound device %d", dev_id);
+        return UltrasoundDevice::getObject(dev_id);
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;

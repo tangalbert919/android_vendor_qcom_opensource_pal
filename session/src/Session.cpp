@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -230,6 +230,84 @@ int Session::getEffectParameters(Stream *s __unused, effect_pal_payload_t *effec
 exit:
     if (payloadData)
         free(payloadData);
+    PAL_ERR(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
+int Session::rwACDBParameters(void *payload, uint32_t sampleRate,
+                                bool isParamWrite)
+{
+    int status = 0;
+    uint8_t *payloadData = NULL;
+    size_t payloadSize = 0;
+    int device = 0;
+    uint32_t miid = 0;
+    char const *control = "setParamTagACDB";
+    struct mixer_ctl *ctl;
+    pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    std::ostringstream CntrlName;
+    PayloadBuilder builder;
+    pal_param_payload *paramPayload = nullptr;
+    agm_acdb_param *effectACDBPayload = nullptr;
+    paramPayload = (pal_param_payload *)payload;
+    if (!paramPayload)
+        return -EINVAL;
+
+    effectACDBPayload = (agm_acdb_param *)(paramPayload->payload);
+    if (!effectACDBPayload)
+        return -EINVAL;
+
+    PAL_DBG(LOG_TAG, "Enter.");
+    ctl = getFEMixerCtl(control, &device);
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", CntrlName.str().data());
+        status = -ENOENT;
+        goto exit;
+    }
+
+    if (!rxAifBackEnds.empty()) { /** search in RX GKV */
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                rxAifBackEnds[0].second.data(),
+                effectACDBPayload->tag, &miid);
+        if (status) /** if not found, reset miid to 0 again */
+            miid = 0;
+    }
+
+    if (!txAifBackEnds.empty()) { /** search in TX GKV */
+        status = SessionAlsaUtils::getModuleInstanceId(mixer, device, txAifBackEnds[0].second.data(),
+                effectACDBPayload->tag, &miid);
+        if (status)
+            miid = 0;
+    }
+
+    if (miid == 0) {
+        PAL_ERR(LOG_TAG, "failed to look for module with tagID 0x%x",
+                    effectACDBPayload->tag);
+        status = -EINVAL;
+        goto exit;
+    }
+
+    effectCustomPayload =
+        (pal_effect_custom_payload_t *)(effectACDBPayload->blob);
+
+    status = builder.payloadACDBParam(&payloadData, &payloadSize,
+                            (uint8_t *)effectACDBPayload,
+                            miid, sampleRate);
+    if (!payloadData) {
+        PAL_ERR(LOG_TAG, "failed to create payload data.");
+        goto exit;
+    }
+
+   if (isParamWrite) {
+        status = mixer_ctl_set_array(ctl, payloadData, payloadSize);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Set custom config failed, status = %d", status);
+            goto exit;
+        }
+    }
+
+exit:
+    free(payloadData);
     PAL_ERR(LOG_TAG, "Exit. status %d", status);
     return status;
 }

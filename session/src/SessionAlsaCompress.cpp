@@ -56,7 +56,11 @@ void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
         case PAL_AUDIO_FMT_EVRC:
         case PAL_AUDIO_FMT_G711:
         break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
         break;
         case PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN:
         case PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN:
@@ -140,6 +144,17 @@ void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
         case PAL_AUDIO_FMT_WMA_PRO:
         {
             codec.format = pal_snd_dec->wma_dec.fmt_tag;
+            if (pal_snd_dec->wma_dec.fmt_tag == 0x161)
+                codec.profile = SND_AUDIOPROFILE_WMA9;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x162)
+                codec.profile = PAL_SND_PROFILE_WMA9_PRO;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x163)
+                codec.profile = PAL_SND_PROFILE_WMA9_LOSSLESS;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x166)
+                codec.profile = SND_AUDIOPROFILE_WMA10;
+            else if (pal_snd_dec->wma_dec.fmt_tag == 0x167)
+                codec.profile = PAL_SND_PROFILE_WMA10_LOSSLESS;
+
             codec.options.generic.reserved[0] =
                                     pal_snd_dec->wma_dec.avg_bit_rate/8;
             codec.options.generic.reserved[1] =
@@ -334,7 +349,11 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_WMA_STD:
             id = SND_AUDIOCODEC_WMA;
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
             id = SND_AUDIOCODEC_PCM;
             break;
         case PAL_AUDIO_FMT_ALAC:
@@ -343,11 +362,9 @@ int SessionAlsaCompress::getSndCodecId(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_APE:
             id = SND_AUDIOCODEC_APE;
             break;
-#ifdef SND_COMPRESS_DEC_HDR
         case PAL_AUDIO_FMT_WMA_PRO:
-            id = SND_AUDIOCODEC_WMA_PRO;
+            id = SND_AUDIOCODEC_WMA;
             break;
-#endif
         case PAL_AUDIO_FMT_FLAC:
         case PAL_AUDIO_FMT_FLAC_OGG:
             id = SND_AUDIOCODEC_FLAC;
@@ -384,7 +401,11 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_WMA_STD:
             break;
-        case PAL_AUDIO_FMT_DEFAULT_PCM:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
             break;
         case PAL_AUDIO_FMT_ALAC:
             break;
@@ -553,7 +574,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     builder = new PayloadBuilder();
 
     /** set default snd codec params */
-    codec.id = getSndCodecId(PAL_AUDIO_FMT_DEFAULT_PCM);
+    codec.id = getSndCodecId(PAL_AUDIO_FMT_PCM_S16_LE);
     codec.ch_in = 2;
     codec.ch_out = codec.ch_in;
     codec.sample_rate = 48000;
@@ -1108,7 +1129,8 @@ int SessionAlsaCompress::start(Stream * s)
                     goto exit;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
                     status = associatedDevices[i]->getCodecConfig(&codecConfig);
                     if(0 != status) {
                         PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
@@ -1233,8 +1255,8 @@ int SessionAlsaCompress::close(Stream * s)
             if (sessionCb)
                 sessionCb(cbCookie, PAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
         }
-        status = -EINVAL;
         goto exit;
+        /** close unstarted session should return normal. */
     }
     disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
     disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());

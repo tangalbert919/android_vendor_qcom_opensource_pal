@@ -199,3 +199,13 @@ int32_t ContextDetectionEngine::setECRef(Stream *s, std::shared_ptr<Device> dev,
 
     return session_->setECRef(s, dev, is_enable);
 }
+
+int32_t ContextDetectionEngine::getTagsWithModuleInfo(Stream *s, size_t *size, uint8_t *payload)
+{
+    if (!session_) {
+        PAL_ERR(LOG_TAG, "Invalid session");
+        return -EINVAL;
+    }
+
+    return session_->getTagsWithModuleInfo(s, size, payload);
+}

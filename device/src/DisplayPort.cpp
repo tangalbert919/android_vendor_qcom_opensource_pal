@@ -35,8 +35,6 @@
 #include "Device.h"
 #include "kvh2xml.h"
 
-std::shared_ptr<Device> DisplayPort::obj = nullptr;
-
 enum {
     EXT_DISPLAY_TYPE_NONE,
     EXT_DISPLAY_TYPE_HDMI,
@@ -62,21 +60,51 @@ static struct extDispState {
     int type = EXT_DISPLAY_TYPE_NONE;
 } extDisp[MAX_CONTROLLERS][MAX_STREAMS_PER_CONTROLLER];
 
+std::shared_ptr<Device> DisplayPort::objRx = nullptr;
+std::shared_ptr<Device> DisplayPort::objTx = nullptr;
+
 std::shared_ptr<Device> DisplayPort::getInstance(struct pal_device *device,
                                              std::shared_ptr<ResourceManager> Rm)
 {
-    PAL_DBG(LOG_TAG, "Enter");
-    if (!obj) {
-        std::shared_ptr<Device> sp(new DisplayPort(device, Rm));
-        obj = sp;
+    if (!device)
+       return NULL;
+
+    PAL_DBG(LOG_TAG, "Enter, device id %d", device->id);
+
+    if ((device->id == PAL_DEVICE_OUT_AUX_DIGITAL) ||
+        (device->id == PAL_DEVICE_OUT_AUX_DIGITAL_1) ||
+        (device->id == PAL_DEVICE_OUT_HDMI)) {
+        if (!objRx) {
+            std::shared_ptr<Device> sp(new DisplayPort(device, Rm));
+            objRx = sp;
+        }
+        return objRx;
+    } else if (device->id == PAL_DEVICE_IN_AUX_DIGITAL) {
+        if (!objTx) {
+            std::shared_ptr<Device> sp(new DisplayPort(device, Rm));
+            objTx = sp;
+        }
+        return objTx;
     }
-    PAL_DBG(LOG_TAG, "Exit");
-    return obj;
+    return NULL;
 }
 
-std::shared_ptr<Device> DisplayPort::getObject()
+std::shared_ptr<Device> DisplayPort::getObject(pal_device_id_t id)
 {
-    return obj;
+    if ((id == PAL_DEVICE_OUT_AUX_DIGITAL) ||
+        (id == PAL_DEVICE_OUT_AUX_DIGITAL_1) ||
+        (id == PAL_DEVICE_OUT_HDMI)) {
+        if (objRx) {
+            if (objRx->getSndDeviceId() == id)
+                return objRx;
+        }
+    } else if (id == PAL_DEVICE_IN_AUX_DIGITAL) {
+        if (objTx) {
+            if (objTx->getSndDeviceId() == id)
+                return objTx;
+        }
+    }
+    return NULL;
 }
 
 DisplayPort::DisplayPort(struct pal_device *device, std::shared_ptr<ResourceManager> Rm) :
@@ -176,14 +204,15 @@ int DisplayPort::configureDpEndpoint()
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
     stream = static_cast<Stream *>(activestreams[0]);
     stream->getAssociatedSession(&session);
     status = session->getMIID(backEndName.c_str(), DEVICE_HW_ENDPOINT_RX, &miid);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", DEVICE_HW_ENDPOINT_RX, status);
-        return status;
+        goto exit;
     }
     cfg.channel_allocation = getDeviceChannelAllocation(deviceAttr.config.ch_info.channels);
     cfg.mst_idx = dp_stream;
@@ -191,11 +220,17 @@ int DisplayPort::configureDpEndpoint()
     builder->payloadDpAudioConfig(&payload, &payloadSize, miid, &cfg);
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        delete[] payload;
         if (0 != status) {
         PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
-        return status;
+        goto exit;
         }
+    }
+
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
     }
     return status;
 }
