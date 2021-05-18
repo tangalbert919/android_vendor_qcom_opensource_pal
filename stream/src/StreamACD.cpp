@@ -89,6 +89,13 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
         throw std::runtime_error("ACD not enabled, exiting");
     }
 
+    exit_thread_ = false;
+    notification_thread_handler_ = std::thread(EventNotificationThread, this);
+    if (!notification_thread_handler_.joinable()) {
+        PAL_ERR(LOG_TAG, "Error:%d failed to create notification thread",
+                -EINVAL);
+        throw std::runtime_error("failed to create notification thread");
+    }
     rm->registerStream(this);
 
     // Create internal states
@@ -141,6 +148,14 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
 StreamACD::~StreamACD()
 {
     acd_states_.clear();
+    exit_thread_ = true;
+    if (notification_thread_handler_.joinable()) {
+        std::unique_lock<std::mutex> lck(mutex_);
+        cv_.notify_one();
+        lck.unlock();
+        notification_thread_handler_.join();
+        PAL_INFO(LOG_TAG, "Thread joined");
+    }
 
     rm->deregisterStream(this);
     if (mStreamAttr) {
@@ -922,6 +937,26 @@ exit:
     return status;
 }
 
+void StreamACD::EventNotificationThread(StreamACD *stream)
+{
+    PAL_DBG(LOG_TAG, "Enter. start thread loop");
+
+    std::unique_lock<std::mutex> lck(stream->mutex_);
+    while (!stream->exit_thread_) {
+        PAL_DBG(LOG_TAG, "waiting on cond");
+        stream->cv_.wait(lck);
+        PAL_INFO(LOG_TAG, "Received start recognition");
+
+        if (stream->exit_thread_) {
+            PAL_DBG(LOG_TAG, "Exit thread");
+            break;
+        }
+
+        stream->SendCachedEventData();
+    }
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
 int32_t StreamACD::ACDIdle::ProcessEvent(
     std::shared_ptr<ACDEventConfig> ev_cfg)
 {
@@ -1570,15 +1605,18 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
         case ACD_EV_DETECTED: {
             ACDDetectedEventConfigData *data =
                 (ACDDetectedEventConfigData *) ev_cfg->data_.get();
+            std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
             acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
             break;
         }
         case ACD_EV_START_RECOGNITION: {
             /* notify client if events are present , else move to active */
-            if (acd_stream_.cached_event_data_)
-                acd_stream_.SendCachedEventData();
-            else
+            std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+            if (acd_stream_.cached_event_data_) {
+                acd_stream_.cv_.notify_one();
+            } else {
                 TransitTo(ACD_STATE_ACTIVE);
+            }
 
             break;
         }

@@ -417,6 +417,7 @@ class StreamACD : public Stream {
 
     int32_t GenerateCallbackEvent(struct pal_acd_recognition_event **event,
                                   uint32_t *event_size);
+    static void EventNotificationThread(StreamACD *stream);
 
     std::shared_ptr<StreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
@@ -444,5 +445,10 @@ class StreamACD : public Stream {
 
     std::map<uint32_t, ACDState*> acd_states_;
     bool use_lpi_;
+ protected:
+    std::thread notification_thread_handler_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    bool exit_thread_;
 };
 #endif // STREAMACD_H_
