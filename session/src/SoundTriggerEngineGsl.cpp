@@ -56,13 +56,13 @@ void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
     int32_t status = 0;
+    StreamSoundTrigger *s = nullptr;
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
         PAL_ERR(LOG_TAG, "Invalid sound trigger engine");
         return;
     }
-
     std::unique_lock<std::mutex> lck(gsl_engine->mutex_);
     while (!gsl_engine->exit_thread_) {
         PAL_VERBOSE(LOG_TAG, "waiting on cond");
@@ -81,10 +81,20 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         }
 
         if (!IS_MODULE_TYPE_PDK(gsl_engine->module_type_)) {
-            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
+            s = dynamic_cast<StreamSoundTrigger *>
                                      (gsl_engine->GetDetectedStream());
+
             if (s) {
-               if (gsl_engine->capture_requested_) {
+                if (gsl_engine->CheckIfOtherStreamsAttached(s)) {
+                    for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
+                        if (s != gsl_engine->eng_streams_[i] &&
+                            s->GetCurrentStateId() == ST_STATE_ACTIVE) {
+                            gsl_engine->eng_state_ = ENG_ACTIVE;
+                            break;
+                        }
+                    }
+                }
+                if (gsl_engine->capture_requested_) {
                     gsl_engine->StartBuffering(s);
                 } else {
                     status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
@@ -99,12 +109,22 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             for (int i = 0;
                 i < gsl_engine->detection_event_info_multi_model_.
                                num_detected_models; i++) {
-                StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
+                s = dynamic_cast<StreamSoundTrigger *>
                                 (gsl_engine->GetDetectedStream(
                                  gsl_engine->detection_event_info_multi_model_.
                                  detected_model_stats[i].
                                  detected_model_id));
                 if (s) {
+                    if (gsl_engine->CheckIfOtherStreamsAttached(s)) {
+                        for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
+                            if (s != gsl_engine->eng_streams_[i] &&
+                                s->GetCurrentStateId() == ST_STATE_ACTIVE) {
+                                gsl_engine->eng_state_ = ENG_ACTIVE;
+                                break;
+                            }
+                        }
+                    }
+
                     if (gsl_engine->capture_requested_) {
                         gsl_engine->StartBuffering(s);
                     } else {
@@ -116,7 +136,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 }
             }
         }
-     }
+    }
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -2098,8 +2118,9 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     }
 
     if (CheckIfOtherStreamsAttached(s)) {
+        PAL_INFO(LOG_TAG, "Other streams are attached to current engine");
         if (restore_eng_state) {
-            PAL_INFO(LOG_TAG, "Other stream is active, restart engine recognition");
+            PAL_DBG(LOG_TAG, "Other streams are active, restart recognition");
             UpdateEngineConfigOnStop(s);
             if (IS_MODULE_TYPE_PDK(module_type_)) {
                 StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
