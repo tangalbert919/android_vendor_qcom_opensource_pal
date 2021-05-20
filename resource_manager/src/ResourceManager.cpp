@@ -1113,8 +1113,11 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
         if (deviceId == deviceInfo[size1].deviceId) {
             devinfo->channels = deviceInfo[size1].channel;
             devinfo->max_channels = deviceInfo[size1].max_channel;
+            devinfo->samplerate = deviceInfo[size1].samplerate;
             for (int32_t size2 = 0; size2 < deviceInfo[size1].usecase.size(); size2++) {
                 if (type == deviceInfo[size1].usecase[size2].type) {
+                    if (deviceInfo[size1].usecase[size2].samplerate)
+                       devinfo->samplerate = deviceInfo[size1].usecase[size2].samplerate;
                     /*set kv pairs*/
                     for (int32_t kvsize = 0;
                     kvsize < deviceInfo[size1].kvpair.size(); kvsize++) {
@@ -1399,6 +1402,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     struct pal_channel_info dev_ch_info;
     bool is_wfd_in_progress = false;
     struct pal_stream_attributes tx_attr;
+    struct pal_device_info devinfo = {};
 
     PAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
@@ -1459,7 +1463,12 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            getDeviceInfo(deviceattr->id, sAttr->type, &devinfo);
+            if (!devinfo.samplerate) {
+               PAL_ERR(LOG_TAG, "default samplerate is not set.");
+               return -EINVAL;
+            }
+            deviceattr->config.sample_rate = devinfo.samplerate;
             deviceattr->config.bit_width = BITWIDTH_16;
             deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
             break;
@@ -1467,7 +1476,12 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            deviceattr->config.sample_rate = SAMPLINGRATE_48K;
+            getDeviceInfo(deviceattr->id, sAttr->type, &devinfo);
+            if (!devinfo.samplerate) {
+               PAL_ERR(LOG_TAG, "default samplerate is not set.");
+               return -EINVAL;
+            }
+            deviceattr->config.sample_rate = devinfo.samplerate;
             deviceattr->config.aud_fmt_id = bitFormatSupported;
             deviceattr->config.bit_width = palFormatToBitwidthTable[bitFormatSupported];
             break;
@@ -7027,6 +7041,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "channels")) {
             size = deviceInfo.size() - 1;
             deviceInfo[size].channel = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "samplerate")) {
+            size = deviceInfo.size() - 1;
+            deviceInfo[size].samplerate = atoi(data->data_buf);
         } else if (!strcmp(tag_name, "snd_device_name")) {
             size = deviceInfo.size() - 1;
             std::string snddevname(data->data_buf);
@@ -7066,15 +7083,19 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             size = deviceInfo.size() - 1;
             sizeusecase = deviceInfo[size].usecase.size() - 1;
             deviceInfo[size].usecase[sizeusecase].sidetoneMode = sidetoneModetoId.at(mode);
-        }else if (!strcmp(tag_name, "snd_device_name")) {
+        } else if (!strcmp(tag_name, "snd_device_name")) {
             std::string sndDev(data->data_buf);
             size = deviceInfo.size() - 1;
             sizeusecase = deviceInfo[size].usecase.size() - 1;
             deviceInfo[size].usecase[sizeusecase].sndDevName = sndDev;
-        }  else if (!strcmp(tag_name, "channels")) {
+        } else if (!strcmp(tag_name, "channels")) {
             size = deviceInfo.size() - 1;
             sizeusecase = deviceInfo[size].usecase.size() - 1;
             deviceInfo[size].usecase[sizeusecase].channel = atoi(data->data_buf);
+        } else if (!strcmp(tag_name, "samplerate")) {
+            size = deviceInfo.size() - 1;
+            sizeusecase = deviceInfo[size].usecase.size() - 1;
+            deviceInfo[size].usecase[sizeusecase].samplerate =  atoi(data->data_buf);
         }
     } else if (data->tag == TAG_ECREF) {
         if (!strcmp(tag_name, "id")) {
