@@ -259,11 +259,12 @@ int Device::setDeviceAttributes(struct pal_device dattr)
 {
     int status = 0;
 
+    mDeviceMutex.lock();
     PAL_INFO(LOG_TAG,"DeviceAttributes for Device Id %d updated", dattr.id);
-
     ar_mem_cpy(&deviceAttr, sizeof(struct pal_device), &dattr,
                      sizeof(struct pal_device));
 
+    mDeviceMutex.unlock();
     return status;
 }
 
