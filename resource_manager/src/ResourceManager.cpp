@@ -6131,7 +6131,6 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                             PAL_DEVICE_NONE, palDeviceId);
             }
 
-            mResourceManagerMutex.lock();
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
                 match = (*sIter)->checkStreamMatch(palDeviceId, palStreamType);
@@ -6147,7 +6146,6 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                     }
                 }
             }
-            mResourceManagerMutex.unlock();
 
             PAL_DBG(LOG_TAG, "%d active stream match with device %d type %d",
                         matchCount, palDeviceId, palStreamType);
@@ -6170,7 +6168,7 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                     PAL_ERR(LOG_TAG, "stream creation failed status %d", status);
                     goto error;
                 }
-                mResourceManagerMutex.lock();
+
                 status = s->open();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "pal_stream_open failed with status %d", status);
@@ -6182,7 +6180,6 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                     goto error;
                 }
                 status = s->rwACDBParameters(paramPayload, sampleRate, isParamWrite);
-                mResourceManagerMutex.unlock();
                 status = s->close();
                 delete s;
             }
