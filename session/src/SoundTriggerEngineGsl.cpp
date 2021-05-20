@@ -2823,19 +2823,25 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
 }
 
 std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
-     Stream *s,
-     listen_model_indicator_enum type,
-     st_module_type_t module_type,
-     std::shared_ptr<SoundModelConfig> sm_cfg) {
+    Stream *s,
+    listen_model_indicator_enum type,
+    st_module_type_t module_type,
+    std::shared_ptr<SoundModelConfig> sm_cfg) {
 
-     if (eng_.find(module_type) == eng_.end()) {
-         eng_[module_type] = std::make_shared<SoundTriggerEngineGsl>
-                                      (s, type, module_type, sm_cfg);
-     }
-     return eng_[module_type];
+    st_module_type_t key = module_type;
+    if (IS_MODULE_TYPE_PDK(module_type)) {
+        key = ST_MODULE_TYPE_PDK;
+    }
+
+    if (eng_.find(key) == eng_.end()) {
+        eng_[key] = std::make_shared<SoundTriggerEngineGsl>
+                                    (s, type, module_type, sm_cfg);
+    }
+    return eng_[key];
 }
 
 void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
+    st_module_type_t key;
 
     if (s) {
         auto iter = std::find(eng_streams_.begin(), eng_streams_.end(), s);
@@ -2843,7 +2849,11 @@ void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
             eng_streams_.erase(iter);
     }
     if (!eng_streams_.size()) {
+        key = this->module_type_;
+        if (IS_MODULE_TYPE_PDK(this->module_type_)) {
+            key = ST_MODULE_TYPE_PDK;
+        }
         PAL_VERBOSE(LOG_TAG, "reset the engine instance to be freed");
-        eng_.erase(this->module_type_);
+        eng_.erase(key);
     }
 }

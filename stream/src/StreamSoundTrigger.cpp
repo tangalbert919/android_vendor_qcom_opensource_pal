@@ -3299,23 +3299,19 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_DETECTED: {
-            StDetectedEventConfigData *data =
-                (StDetectedEventConfigData *) ev_cfg->data_.get();
-            if (data->det_type_ == GMM_DETECTED) {
-                PAL_DBG(LOG_TAG,
-                    "Keyword detected with invalid state, stop engines");
-                /*
-                 * When detection is ignored here, stop engines to make sure
-                 * engines are in proper state for next detection/start. For
-                 * multi VA cases, gsl engine stop is same as restart.
-                 */
-                for (auto& eng: st_stream_.engines_) {
-                    PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-                    status = eng->GetEngine()->StopRecognition(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                                eng->GetEngineId(), status);
-                    }
+            PAL_DBG(LOG_TAG,
+                "Keyword detected with invalid state, stop engines");
+            /*
+                * When detection is ignored here, stop engines to make sure
+                * engines are in proper state for next detection/start. For
+                * multi VA cases, gsl engine stop is same as restart.
+                */
+            for (auto& eng: st_stream_.engines_) {
+                PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
                 }
             }
             break;
