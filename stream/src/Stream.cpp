@@ -890,7 +890,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     }
 
     if (a2dpMuted && !isNewDeviceA2dp) {
-        mute(false);
+        mute_l(false);
         a2dpMuted = false;
         suspendedDevId = PAL_DEVICE_NONE;
     }

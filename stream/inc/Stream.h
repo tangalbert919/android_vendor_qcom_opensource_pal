@@ -164,6 +164,7 @@ public:
     virtual int32_t setStreamAttributes(struct pal_stream_attributes *sattr) = 0;
     virtual int32_t setVolume(struct pal_volume_data *volume) = 0;
     virtual int32_t mute(bool state) = 0;
+    virtual int32_t mute_l(bool state) = 0;
     virtual int32_t pause() = 0;
     virtual int32_t resume() = 0;
     virtual int32_t flush() {return 0;}
@@ -248,6 +249,7 @@ public:
    int32_t setStreamAttributes( struct pal_stream_attributes *sattr __unused) {return 0;};
    int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;};
    int32_t mute(bool state __unused) {return 0;};
+   int32_t mute_l(bool state __unused) {return 0;};
    int32_t pause() override;
    int32_t resume() override;
    int32_t drain(pal_drain_type_t type) override;
