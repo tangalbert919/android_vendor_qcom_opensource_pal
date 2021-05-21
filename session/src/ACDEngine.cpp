@@ -224,7 +224,7 @@ void ACDEngine::ParseEventAndNotifyClient()
                     PAL_VERBOSE(LOG_TAG, "Stream Threshold value for contextid[%d] is %d",
                                 context_id, context_cfg->threshold);
                     if ((event_type == AUDIO_CONTEXT_EVENT_STOPPED) ||
-                        (event_info->confidence_score > context_cfg->threshold)) {
+                        (event_info->confidence_score >= context_cfg->threshold)) {
                         std::vector<struct acd_per_context_event_info *> *event_list;
                         auto iter3 = stream_event_info.find(s);
                         struct acd_per_context_event_info *stream_event_data =
