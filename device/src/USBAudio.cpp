@@ -749,14 +749,16 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int i = 0;
     int nearestRate = 0;
     int diff = requested_rate;
+    int cur_rate = 0;
 
     for (i = 0; i < rate_size_; i++) {
-        if (requested_rate == rates_[i]) {
+        cur_rate = rates_[i];
+        if (requested_rate == cur_rate) {
             *best_rate = requested_rate;
             return 0;
-        } else if (abs(double(requested_rate - rates_[i])) <= diff) {
-            nearestRate = rates_[i];
-            diff = abs(double(requested_rate - rates_[i]));
+        } else if (abs(double(requested_rate - cur_rate)) <= diff) {
+            nearestRate = cur_rate;
+            diff = abs(double(requested_rate - cur_rate));
         }
         PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
     }
