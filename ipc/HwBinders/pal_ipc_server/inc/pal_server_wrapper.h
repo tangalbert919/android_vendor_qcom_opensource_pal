@@ -117,6 +117,7 @@ struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
     Return<int32_t> ipc_pal_stream_start(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_stop(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_pause(const uint64_t streamHandle) override;
+    Return<int32_t> ipc_pal_stream_suspend(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_resume(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_flush(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_drain(const uint64_t streamHandle,

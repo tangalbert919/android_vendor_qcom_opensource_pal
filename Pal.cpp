@@ -473,6 +473,30 @@ int32_t pal_stream_flush(pal_stream_handle_t *stream_handle)
     return status;
 }
 
+int32_t pal_stream_suspend(pal_stream_handle_t *stream_handle)
+{
+    Stream *s = NULL;
+    int status;
+
+    if (!stream_handle) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
+        return status;
+    }
+
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
+
+    status = s->suspend();
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "suspend failed with status %d", status);
+        return status;
+    }
+
+    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    return status;
+}
+
 int32_t pal_stream_set_buffer_size (pal_stream_handle_t *stream_handle,
                                     pal_buffer_config *in_buffer_cfg,
                                     pal_buffer_config *out_buffer_cfg)

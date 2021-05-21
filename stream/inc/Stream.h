@@ -54,6 +54,7 @@ typedef enum {
     STREAM_OPENED,
     STREAM_STARTED,
     STREAM_PAUSED,
+    STREAM_SUSPENDED,
     STREAM_STOPPED
 } stream_state_t;
 
@@ -170,6 +171,7 @@ public:
     virtual int32_t pause() = 0;
     virtual int32_t resume() = 0;
     virtual int32_t flush() {return 0;}
+    virtual int32_t suspend() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
 
     virtual int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
@@ -257,6 +259,7 @@ public:
    int32_t resume() override;
    int32_t drain(pal_drain_type_t type) override;
    int32_t flush();
+   int32_t suspend() override;
    int32_t getTagsWithModuleInfo(size_t *size , uint8_t *payload) override;
    int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
                        size_t *out_buf_size, size_t out_buf_count);

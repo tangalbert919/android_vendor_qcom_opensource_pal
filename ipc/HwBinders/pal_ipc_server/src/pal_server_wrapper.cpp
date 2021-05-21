@@ -460,6 +460,10 @@ Return<int32_t> PAL::ipc_pal_stream_flush(const uint64_t streamHandle) {
     return pal_stream_flush((pal_stream_handle_t *)streamHandle);
 }
 
+Return<int32_t> PAL::ipc_pal_stream_suspend(const uint64_t streamHandle) {
+    return pal_stream_suspend((pal_stream_handle_t *)streamHandle);
+}
+
 Return<int32_t> PAL::ipc_pal_stream_resume(const uint64_t streamHandle) {
     return pal_stream_resume((pal_stream_handle_t *)streamHandle);
 }
