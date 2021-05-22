@@ -320,6 +320,7 @@ std::shared_ptr<SoundTriggerPlatformInfo> SoundTriggerPlatformInfo::me_ =
 SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     enable_failure_detection_(false),
     support_device_switch_(false),
+    support_nlpi_switch_(true),
     transit_to_non_lpi_on_charging_(false),
     dedicated_sva_path_(true),
     dedicated_headset_path_(false),
@@ -422,6 +423,9 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "support_device_switch")) {
                 support_device_switch_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "support_nlpi_switch")) {
+                support_nlpi_switch_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "transit_to_non_lpi_on_charging")) {
                 transit_to_non_lpi_on_charging_ =

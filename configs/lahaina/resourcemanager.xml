@@ -573,6 +573,7 @@
         <common_config>
             <param acd_enable="true" />
             <param support_device_switch="true" />
+            <param support_nlpi_switch="true" />
             <param lpi_enable="true" />
             <param enable_debug_dumps="false" />
             <param concurrent_capture="true" />
@@ -687,6 +688,7 @@
         <common_config>
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
+            <param support_nlpi_switch="true" />
             <param transit_to_non_lpi_on_charging="false" />
             <!-- Param used to indicate if SVA has dedicated back end path and ports not conflicting with other audio paths  -->
             <param dedicated_sva_path="true" />

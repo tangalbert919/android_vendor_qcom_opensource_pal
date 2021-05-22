@@ -43,6 +43,8 @@
 #include "Device.h"
 #include "SoundTriggerUtils.h"
 
+using ChronoSteadyClock_t = std::chrono::time_point<std::chrono::steady_clock>;
+
 #define BITS_PER_BYTE 8
 #define US_PER_SEC 1000000
 #define MS_PER_SEC 1000
@@ -140,7 +142,7 @@ public:
         size_t *size __unused) { return 0; }
     virtual int32_t GetDetectedConfScore() = 0;
     virtual int32_t GetDetectionState() = 0;
-    virtual std::chrono::time_point<std::chrono::steady_clock> GetDetectedTime() = 0;
+    virtual ChronoSteadyClock_t GetDetectedTime() = 0;
 
     int32_t CreateBuffer(uint32_t buffer_size, uint32_t engine_size,
         std::vector<PalRingBufferReader *> &reader_list);

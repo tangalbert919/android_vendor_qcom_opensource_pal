@@ -109,7 +109,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     int32_t GetCustomDetectionEvent(uint8_t **event, size_t *size) override;
     int32_t GetDetectedConfScore() { return 0; }
     int32_t GetDetectionState() { return 0; }
-    std::chrono::time_point<std::chrono::steady_clock> GetDetectedTime() {
+    ChronoSteadyClock_t GetDetectedTime() {
         return detection_time_;
     }
 
@@ -191,6 +191,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     size_t mmap_buffer_size_;
     uint32_t mmap_write_position_;
     uint64_t kw_transfer_latency_;
-    std::chrono::time_point<std::chrono::steady_clock> detection_time_;
+    ChronoSteadyClock_t detection_time_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H

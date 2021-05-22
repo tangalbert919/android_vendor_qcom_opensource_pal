@@ -162,7 +162,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) && !enable_concurrency_count) {
+    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) &&
+        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count)) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
@@ -450,12 +451,26 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
 
 int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
+    uint64_t transit_duration = 0;
+
+    if (!active) {
+        transit_start_time_ = std::chrono::steady_clock::now();
+    }
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     PAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
         new StConcurrentStreamEventConfig(active));
     status = cur_state_->ProcessEvent(ev_cfg);
+
+    if (active) {
+        transit_end_time_ = std::chrono::steady_clock::now();
+        transit_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                transit_end_time_ - transit_start_time_).count();
+        PAL_INFO(LOG_TAG, "LPI/NLPI switch takes %llums",
+            (long long)transit_duration);
+    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -1644,7 +1659,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
-    std::chrono::time_point<std::chrono::steady_clock> notify_time;
+    ChronoSteadyClock_t notify_time;
     uint64_t total_process_duration = 0;
     bool lock_status = false;
 

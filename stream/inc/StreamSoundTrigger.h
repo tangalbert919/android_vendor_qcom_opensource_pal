@@ -595,5 +595,7 @@ class StreamSoundTrigger : public Stream {
     uint32_t model_id_;
     FILE *lab_fd_;
     bool rejection_notified_;
+    ChronoSteadyClock_t transit_start_time_;
+    ChronoSteadyClock_t transit_end_time_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

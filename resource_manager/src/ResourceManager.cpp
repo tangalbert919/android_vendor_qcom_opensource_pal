@@ -2632,6 +2632,32 @@ void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
     }
 }
 
+bool ResourceManager::isNLPISwitchSupported(pal_stream_type_t type) {
+    switch (type) {
+        case PAL_STREAM_VOICE_UI: {
+            std::shared_ptr<SoundTriggerPlatformInfo> st_info =
+                SoundTriggerPlatformInfo::GetInstance();
+
+            if (st_info)
+                return st_info->GetSupportNLPISwitch();
+
+            break;
+        }
+        case PAL_STREAM_ACD: {
+            std::shared_ptr<ACDPlatformInfo> acd_info =
+                ACDPlatformInfo::GetInstance();
+
+            if (acd_info)
+                return acd_info->GetSupportNLPISwitch();
+
+            break;
+        }
+        default:
+            break;
+    }
+    return false;
+}
+
 bool ResourceManager::IsLPISupported(pal_stream_type_t type) {
     switch (type) {
         case PAL_STREAM_VOICE_UI: {
@@ -3498,8 +3524,10 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     }
 
     if (voiceui_tx_conc || voiceui_rx_conc) {
-        if (!IsLPISupported(PAL_STREAM_VOICE_UI)) {
-            PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
+        if (!IsLPISupported(PAL_STREAM_VOICE_UI) ||
+            !isNLPISwitchSupported(PAL_STREAM_VOICE_UI)) {
+            PAL_INFO(LOG_TAG,
+                "Skip switch as LPI disabled/NLPI switch disabled");
         } else if (active) {
             if (++concurrencyEnableCount == 1)
                 do_voiceui_switch = true;
@@ -3510,8 +3538,10 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
     }
 
     if (acd_tx_conc || acd_rx_conc) {
-        if (!IsLPISupported(PAL_STREAM_ACD)) {
-            PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
+        if (!IsLPISupported(PAL_STREAM_ACD) ||
+            !isNLPISwitchSupported(PAL_STREAM_ACD)) {
+            PAL_INFO(LOG_TAG,
+                "Skip switch as LPI disabled/NLPI switch disabled");
         } else if (active) {
             if (++ACDConcurrencyEnableCount == 1)
                 do_acd_switch = true;
