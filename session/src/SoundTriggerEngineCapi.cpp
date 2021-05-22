@@ -348,8 +348,8 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_stream_data_t *stream_input = nullptr;
     capi_v2_buf_t capi_uv_ptr;
-    voiceprint2_result_t *result_cfg_ptr = nullptr;
-    voiceprint2_sva_uv_score_t *uv_cfg_ptr = nullptr;
+    stage2_uv_wrapper_result *result_cfg_ptr = nullptr;
+    stage2_uv_wrapper_stage1_uv_score_t *uv_cfg_ptr = nullptr;
     int32_t read_size = 0;
     capi_v2_buf_t capi_result;
     bool buffer_advanced = false;
@@ -421,16 +421,16 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         goto exit;
     }
 
-    result_cfg_ptr = (voiceprint2_result_t*)
-                     calloc(1, sizeof(voiceprint2_result_t));
+    result_cfg_ptr = (stage2_uv_wrapper_result*)
+                     calloc(1, sizeof(stage2_uv_wrapper_result));
     if (!result_cfg_ptr) {
         PAL_ERR(LOG_TAG, "failed to allocate result cfg ptr");
         status = -ENOMEM;
         goto exit;
     }
 
-    uv_cfg_ptr = (voiceprint2_sva_uv_score_t *)
-                 calloc(1, sizeof(voiceprint2_sva_uv_score_t));
+    uv_cfg_ptr = (stage2_uv_wrapper_stage1_uv_score_t *)
+                 calloc(1, sizeof(stage2_uv_wrapper_stage1_uv_score_t));
     if (!uv_cfg_ptr) {
         PAL_ERR(LOG_TAG, "failed to allocate uv cfg ptr");
         status = -ENOMEM;
@@ -447,17 +447,17 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         }
         confidence_score_ = info->confidence_levels[1];
 
-        uv_cfg_ptr->sva_uv_confidence_score = confidence_score_;
+        uv_cfg_ptr->stage1_uv_score = confidence_score_;
         capi_uv_ptr.data_ptr = (int8_t *)uv_cfg_ptr;
-        capi_uv_ptr.actual_data_len = sizeof(voiceprint2_sva_uv_score_t);
-        capi_uv_ptr.max_data_len = sizeof(voiceprint2_sva_uv_score_t);
+        capi_uv_ptr.actual_data_len = sizeof(stage2_uv_wrapper_stage1_uv_score_t);
+        capi_uv_ptr.max_data_len = sizeof(stage2_uv_wrapper_stage1_uv_score_t);
 
         PAL_VERBOSE(LOG_TAG, "Issuing capi_set_param for param %d",
-                    VOICEPRINT2_ID_SVA_UV_SCORE);
+                    STAGE2_UV_WRAPPER_ID_SVA_UV_SCORE);
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-            VOICEPRINT2_ID_SVA_UV_SCORE, nullptr, &capi_uv_ptr);
+            STAGE2_UV_WRAPPER_ID_SVA_UV_SCORE, nullptr, &capi_uv_ptr);
         if (CAPI_V2_EOK != rc) {
-            PAL_ERR(LOG_TAG, "set param VOICEPRINT2_ID_SVA_UV_SCORE failed with %d",
+            PAL_ERR(LOG_TAG, "set param STAGE2_UV_WRAPPER_ID_SVA_UV_SCORE failed with %d",
                     rc);
             status = -EINVAL;
             goto exit;
@@ -520,13 +520,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         bytes_processed_ += read_size;
 
         capi_result.data_ptr = (int8_t*)result_cfg_ptr;
-        capi_result.actual_data_len = sizeof(voiceprint2_result_t);
-        capi_result.max_data_len = sizeof(voiceprint2_result_t);
+        capi_result.actual_data_len = sizeof(stage2_uv_wrapper_result);
+        capi_result.max_data_len = sizeof(stage2_uv_wrapper_result);
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi get param for result\n");
         capi_call_start = std::chrono::steady_clock::now();
         rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
-            VOICEPRINT2_ID_RESULT, nullptr, &capi_result);
+            STAGE2_UV_WRAPPER_ID_RESULT, nullptr, &capi_result);
         capi_call_end = std::chrono::steady_clock::now();
         total_capi_get_param_duration +=
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -545,7 +545,7 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             detection_state_ = USER_VERIFICATION_REJECT;
             PAL_INFO(LOG_TAG, "UV Second Stage Rejected");
         }
-        det_conf_score_ = (int32_t)result_cfg_ptr->combined_user_score;
+        det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
         PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
     }
 
@@ -637,7 +637,7 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
             sizeof(capi_v2_t) + sizeof(char *));
     } else if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
         capi_handle_ = (capi_v2_t *)calloc(1,
-            sizeof(capi_v2_t) + (3 * sizeof(char *)));
+            sizeof(capi_v2_t) + (2 * sizeof(char *)));
     }
 
     if (!capi_handle_) {
@@ -760,18 +760,18 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         }
         detection_state_ = KEYWORD_DETECTION_PENDING;
     } else if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
-        voiceprint2_threshold_config_t *threshold_cfg = nullptr;
+        stage2_uv_wrapper_threshold_config_t *threshold_cfg = nullptr;
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-            VOICEPRINT2_ID_REINIT, nullptr, nullptr);
+            STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
         if (CAPI_V2_EOK != rc) {
             status = -EINVAL;
-            PAL_ERR(LOG_TAG, "set_param VOICEPRINT2_ID_REINIT failed, status = %d",
+            PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
                     status);
             return status;
         }
 
-        threshold_cfg = (voiceprint2_threshold_config_t *)
-            calloc(1, sizeof(voiceprint2_threshold_config_t));
+        threshold_cfg = (stage2_uv_wrapper_threshold_config_t *)
+            calloc(1, sizeof(stage2_uv_wrapper_threshold_config_t));
         if (!threshold_cfg) {
             PAL_ERR(LOG_TAG, "failed to allocate threshold cfg");
             status = -ENOMEM;
@@ -779,19 +779,22 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         }
 
         capi_buf.data_ptr = (int8_t *)threshold_cfg;
-        capi_buf.actual_data_len = sizeof(voiceprint2_threshold_config_t);
-        capi_buf.max_data_len = sizeof(voiceprint2_threshold_config_t);
-        threshold_cfg->user_verification_threshold = confidence_threshold_;
-        PAL_DBG(LOG_TAG, "Keyword detection (VOP) confidence level = %f",
-                threshold_cfg->user_verification_threshold);
+        capi_buf.actual_data_len = sizeof(stage2_uv_wrapper_threshold_config_t);
+        capi_buf.max_data_len = sizeof(stage2_uv_wrapper_threshold_config_t);
+        threshold_cfg->threshold = confidence_threshold_;
+        threshold_cfg->anti_spoofing_enabled = 0;
+        threshold_cfg->anti_spoofing_threshold = 0;
+
+        PAL_DBG(LOG_TAG, "Keyword detection (UV) confidence level = %f",
+                threshold_cfg->threshold);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-            VOICEPRINT2_ID_THRESHOLD_CONFIG, nullptr, &capi_buf);
+            STAGE2_UV_WRAPPER_ID_THRESHOLD, nullptr, &capi_buf);
 
         if (CAPI_V2_EOK != rc) {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "set param %d failed with %d",
-                    VOICEPRINT2_ID_THRESHOLD_CONFIG, rc);
+                    STAGE2_UV_WRAPPER_ID_THRESHOLD, rc);
             if (threshold_cfg)
                 free(threshold_cfg);
             return status;
@@ -833,6 +836,7 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
     capi_v2_err_t rc = CAPI_V2_EOK;
     capi_v2_proplist_t init_set_proplist;
     capi_v2_prop_t sm_prop_ptr;
+    capi_v2_buf_t capi_uv_ptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
@@ -851,6 +855,10 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
     sm_prop_ptr.payload.max_data_len = sm_data_size_;
     init_set_proplist.props_num = 1;
     init_set_proplist.prop_ptr = &sm_prop_ptr;
+
+    memset(&capi_uv_ptr, 0, sizeof(capi_uv_ptr));
+    memset(&in_model_buffer_param_, 0, sizeof(in_model_buffer_param_));
+    memset(&scratch_param_, 0, sizeof(scratch_param_));
 
     PAL_VERBOSE(LOG_TAG, "Issuing capi_init");
     rc = capi_init_(capi_handle_, &init_set_proplist);
@@ -884,6 +892,67 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         goto exit;
     }
 
+    if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
+        PAL_VERBOSE(LOG_TAG, "Issuing capi_get STAGE2_UV_WRAPPER_ID_INMODEL_BUFFER_SIZE");
+
+        capi_uv_ptr.data_ptr = (int8_t *)&in_model_buffer_param_;
+        capi_uv_ptr.actual_data_len = sizeof(in_model_buffer_param_);
+        capi_uv_ptr.max_data_len = sizeof(in_model_buffer_param_);
+
+        rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
+                           STAGE2_UV_WRAPPER_ID_INMODEL_BUFFER_SIZE,
+                           NULL,
+                           &capi_uv_ptr);
+
+        if (CAPI_V2_EFAILED == rc) {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "capi_get STAGE2_UV_WRAPPER_ID_INMODEL_BUFFER_SIZE param failed, %d",
+                    rc);
+            goto exit;
+        }
+
+        if (in_model_buffer_param_.scratch_size == 0) {
+            capi_uv_ptr.data_ptr = (int8_t *)&scratch_param_;
+            capi_uv_ptr.actual_data_len = sizeof(scratch_param_);
+            capi_uv_ptr.max_data_len = sizeof(scratch_param_);
+
+            PAL_VERBOSE(LOG_TAG, "Issuing capi_get STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM");
+            rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
+                               STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM,
+                               NULL,
+                               &capi_uv_ptr);
+
+            if (CAPI_V2_EFAILED == rc) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "capi get param STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM failed, %d",
+                        rc);
+                goto exit;
+            }
+
+            capi_uv_ptr.data_ptr = (int8_t *)&scratch_param_;
+            capi_uv_ptr.actual_data_len = sizeof(scratch_param_);
+            capi_uv_ptr.max_data_len = sizeof(scratch_param_);
+            scratch_param_.scratch_ptr = (int8_t *)calloc(1, scratch_param_.scratch_size);
+
+            if (scratch_param_.scratch_ptr == NULL) {
+                PAL_ERR(LOG_TAG, "failed to allocate the scratch memory");
+                return -ENOMEM;
+            }
+
+            PAL_VERBOSE(LOG_TAG, "Issuing capi_set STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM");
+            rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+                               STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM,
+                               NULL,
+                               &capi_uv_ptr);
+
+            if (CAPI_V2_EFAILED == rc) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "capi set param STAGE2_UV_WRAPPER_ID_SCRATCH_PARAM failed, status %d", status);
+                free(scratch_param_.scratch_ptr);
+                scratch_param_.scratch_ptr = NULL;
+            }
+        }
+    }
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -910,8 +979,11 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
     }
 
 exit:
+    if (scratch_param_.scratch_ptr) {
+        free(scratch_param_.scratch_ptr);
+        scratch_param_.scratch_ptr = NULL;
+    }
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 

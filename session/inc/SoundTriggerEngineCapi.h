@@ -129,6 +129,8 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     uint32_t data_after_kw_end_;
     int32_t det_conf_score_;
     int32_t detection_state_;
+    stage2_uv_wrapper_scratch_param_t in_model_buffer_param_;
+    stage2_uv_wrapper_scratch_param_t scratch_param_;
 };
 #endif  // SOUNDTRIGGERENGINECAPI_H
 
