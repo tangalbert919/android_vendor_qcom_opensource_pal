@@ -611,7 +611,7 @@
                 <param bit_width="16" />
                 <devicePP-metadata>
                 </devicePP-metadata>
-                <param snd_name="va-mic-mono" />
+                <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
