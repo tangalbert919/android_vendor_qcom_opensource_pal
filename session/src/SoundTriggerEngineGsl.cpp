@@ -1864,11 +1864,18 @@ int32_t SoundTriggerEngineGsl::UpdateConfigs() {
 
     if (is_qcva_uuid_ || is_qcmd_uuid_) {
         status = UpdateSessionPayload(WAKEUP_CONFIG);
-    }
-
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
-        goto exit;
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d",
+                status);
+            goto exit;
+        }
+    } else if (module_tag_ids_[CUSTOM_CONFIG] && param_ids_[CUSTOM_CONFIG]) {
+        status = UpdateSessionPayload(CUSTOM_CONFIG);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to set custom config, status = %d",
+                status);
+            goto exit;
+        }
     }
 
     status = UpdateSessionPayload(BUFFERING_CONFIG);
