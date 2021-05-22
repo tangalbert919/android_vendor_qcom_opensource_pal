@@ -1038,8 +1038,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     (i * sizeof(SML_BigSoundModelTypeV3)));
 
                 engine_id = static_cast<int32_t>(big_sm->type);
-                PAL_INFO(LOG_TAG, "type = %u, size = %u",
-                         big_sm->type, big_sm->size);
+                PAL_INFO(LOG_TAG, "type = %u, size = %u, version = %u.%u",
+                         big_sm->type, big_sm->size,
+                         big_sm->versionMajor, big_sm->versionMinor);
                 if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
@@ -3681,23 +3682,18 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             // START event will be handled in loaded state.
             break;
         }
-
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
-            st_stream_.CancelDelayedStop();
-            // Reuse from Active state.
-            TransitTo(ST_STATE_ACTIVE);
-            status = st_stream_.ProcessInternalEvent(ev_cfg);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                                 "status %d", status);
-            }
-            break;
-        }
         case ST_EV_RESUME: {
             st_stream_.paused_ = false;
             break;
         }
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE:
+            /*
+             * Just switch LPI/NLPI, do not start new graph as client
+             * will call start after detection event handled.
+             */
+            st_stream_.currentState = STREAM_STOPPED;
+            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -3972,19 +3968,13 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             break;
         }
         case ST_EV_CHARGING_STATE:
-        case ST_EV_CONCURRENT_STREAM: {
-            st_stream_.CancelDelayedStop();
-            // Reuse from Active state.
-            TransitTo(ST_STATE_ACTIVE);
-            status = st_stream_.ProcessInternalEvent(ev_cfg);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                                 "status %d", status);
-            }
-            if (st_stream_.reader_)
-                st_stream_.reader_->reset();
-            break;
-        }
+        case ST_EV_CONCURRENT_STREAM:
+            /*
+             * Just switch LPI/NLPI, do not start new graph as client
+             * will call start after lab done.
+             */
+            st_stream_.currentState = STREAM_STOPPED;
+            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
