@@ -154,7 +154,7 @@ int32_t ContextManager::build_and_send_register_ack(Usecase *uc, uint32_t see_id
     }
     if (rc) {
         PAL_ERR(LOG_TAG, "Error:%d, Failed to get AckData for usecase:%d for see_client:%d",
-                rc);
+                rc, uc_id, see_id);
         goto exit;
     }
 
@@ -1131,7 +1131,7 @@ int32_t UsecaseACD::GetAckDataOnSuccessfullStart(uint32_t *size __unused, void *
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
     /*
@@ -1151,7 +1151,7 @@ int32_t UsecaseACD::GetAckDataOnSuccessfullStart(uint32_t *size __unused, void *
     } else {
         rc = -ENODATA;
         PAL_ERR(LOG_TAG, "size %d too small for ack data in UsecaseACD, need %d",
-            size, sizeof(asps_acd_usecase_register_ack_payload_t)
+            (int)(*size), sizeof(asps_acd_usecase_register_ack_payload_t)
             + sizeof(uint32_t) * requested_context_list->num_contexts);
     }
 
@@ -1214,7 +1214,7 @@ int32_t UsecaseACD::SetUseCaseData(uint32_t size, void *data)
 
     ptr = (uint32_t *)data;
     no_contexts = (uint32_t)ptr[0];
-    PAL_VERBOSE(LOG_TAG, "Number of contexts:%d for usecase:%d, size:%d", no_contexts, this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Number of contexts:%d for usecase:%d, size:%d", no_contexts, this->usecase_id, size);
 
     if (size < (sizeof(uint32_t) + (no_contexts * sizeof(uint32_t)))) {
         rc = -EINVAL;
@@ -1276,7 +1276,7 @@ int32_t UsecaseRawData::GetAckDataOnSuccessfullStart(uint32_t * size, void * dat
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
 
@@ -1342,7 +1342,7 @@ int32_t UsecaseUPD::GetAckDataOnSuccessfullStart(uint32_t * size, void * data)
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
 

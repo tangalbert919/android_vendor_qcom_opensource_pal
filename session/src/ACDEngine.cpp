@@ -693,13 +693,13 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
 
                 if (per_stream_context_info->threshold < context_info->threshold) {
                     PAL_INFO(LOG_TAG, "Updated threshold value for context id 0x%x, old = %d, new = %d",
-                            context_info->threshold, per_stream_context_info->threshold);
+                             context_id,context_info->threshold, per_stream_context_info->threshold);
                     context_info->threshold = per_stream_context_info->threshold;
                     is_confidence_value_updated_ = true;
                 }
                 if (per_stream_context_info->step_size < context_info->step_size) {
                     PAL_INFO(LOG_TAG, "Updated step_size for context id 0x%x, old = %d, new = %d",
-                            context_info->step_size, per_stream_context_info->step_size);
+                             context_id,context_info->step_size, per_stream_context_info->step_size);
                     context_info->step_size = per_stream_context_info->step_size;
                     is_confidence_value_updated_ = true;
                 }

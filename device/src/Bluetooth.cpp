@@ -99,6 +99,7 @@ int Bluetooth::updateDeviceMetadata()
                 keyVector.push_back(std::make_pair(BT_FORMAT, AAC_ABR));
                 break;
             }
+            [[fallthrough]];
         case CODEC_TYPE_SBC:
         case CODEC_TYPE_CELT:
         case CODEC_TYPE_APTX:
