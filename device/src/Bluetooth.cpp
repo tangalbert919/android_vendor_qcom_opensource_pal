@@ -1491,8 +1491,11 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     }
     case PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH:
     {
-        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED))
+        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED)) {
             param_bt_a2dp.is_force_switch = true;
+        } else {
+            param_bt_a2dp.is_force_switch = false;
+        }
 
         *param = &param_bt_a2dp;
         break;
