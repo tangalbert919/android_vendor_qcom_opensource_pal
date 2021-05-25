@@ -358,7 +358,7 @@
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
         </in-device>
-	<in-device>
+        <in-device>
             <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
             <back_end_name>PCM_RT_PROXY-TX-1</back_end_name>
             <max_channels>2</max_channels>
@@ -382,6 +382,13 @@
                 </devicePP-metadata>
             </usecase>
         </in-device>
+        <out-device>
+            <id>PAL_DEVICE_NONE</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>none</snd_device_name>
+        </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
