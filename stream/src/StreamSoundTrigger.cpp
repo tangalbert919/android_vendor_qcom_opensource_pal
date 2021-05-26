@@ -2962,6 +2962,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     status = ret;
                 }
             }
+            st_stream_.mDevices.clear();
 
             for (auto& eng: st_stream_.engines_) {
                 PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
