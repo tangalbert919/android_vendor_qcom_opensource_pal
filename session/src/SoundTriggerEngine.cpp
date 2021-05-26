@@ -185,3 +185,7 @@ uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
 uint32_t SoundTriggerEngine::FrameToBytes(uint32_t frames) {
     return frames * bit_width_ * channels_ / BITS_PER_BYTE;
 }
+
+uint32_t SoundTriggerEngine::BytesToFrames(uint32_t bytes) {
+    return (bytes * BITS_PER_BYTE) / (bit_width_ * channels_);
+}
