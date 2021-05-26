@@ -48,12 +48,12 @@ namespace implementation {
 void PalClientDeathRecipient::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
 {
-    ALOGD("%s : client died pid : %d",__func__,cookie);
+    ALOGD("%s : client died pid : %d", __func__, cookie);
     int pid = (int) cookie;
     typename std::vector<session_info>::iterator sess_iter;
     typename std::vector<client_info>::iterator client_iter;
-    for (client_iter = pal_instance_->mClients_.begin();
-           client_iter != pal_instance_->mClients_.end();
+    for (client_iter = mPalInstance->mPalClients.begin();
+           client_iter != mPalInstance->mPalClients.end();
            client_iter++) {
         struct client_info clnt = (*client_iter);
         if (clnt.pid == pid) {
@@ -73,7 +73,7 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
            }
            clnt.mActiveSessions.clear();
            if (clnt.mActiveSessions.empty())
-               pal_instance_->mClients_.erase(client_iter);
+               mPalInstance->mPalClients.erase(client_iter);
            break;
         }
     }
@@ -81,7 +81,7 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
 
 int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd)
 {
-    for (auto& s: mClients_) {
+    for (auto& s: mPalClients) {
         for (int i =0; i < s.mActiveSessions.size(); i++) {
              if (s.mActiveSessions[i].session_handle == streamHandle) {
                  for (int j=0; j < s.mActiveSessions[i].callback_binder->sharedMemFdList.size(); j++) {
@@ -102,7 +102,7 @@ int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, in
 void PAL::add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd)
 {
     std::vector<std::pair<int, int>>::iterator it;
-    for (auto& s: mClients_) {
+    for (auto& s: mPalClients) {
         for (int i =0; i < s.mActiveSessions.size(); i++) {
              if (s.mActiveSessions[i].session_handle == streamHandle) {
                  /*If number of FDs increase than the MAX Cache size we delete the oldest one
@@ -361,7 +361,7 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
                           callback, (uint64_t)sr_clbk_data.get(), &stream_handle);
 
     if (!ret) {
-        for(auto& s: mClients_) {
+        for(auto& s: mPalClients) {
             if (s.pid == pid) {
                 /*Another session from the same client*/
                 ALOGI("Add session for same pid %d session %x", pid, (uint64_t)stream_handle);
@@ -383,7 +383,7 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
             session.callback_binder = sr_clbk_data;
             ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
             client.mActiveSessions.push_back(session);
-            mClients_.push_back(client);
+            mPalClients.push_back(client);
         }
     } else {
         /*stream_open failed, free the callback binder object*/
@@ -396,41 +396,38 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
 Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
 {
     int pid = ::android::hardware::IPCThreadState::self()->getCallingPid();
-    typename std::vector<session_info>::iterator sess_iter;
-    typename std::vector<client_info>::iterator client_iter;
-    for (client_iter = mClients_.begin();
-           client_iter != mClients_.end();
-           client_iter++) {
-        struct client_info clnt = (*client_iter);
-        if (clnt.pid == pid) {
-           for (sess_iter = clnt.mActiveSessions.begin();
-                 sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
-                if ((*sess_iter).session_handle == streamHandle) {
+    Return<int32_t> status = pal_stream_close((pal_stream_handle_t *)streamHandle);
+
+    for (auto itr = mPalClients.begin(); itr != mPalClients.end(); ) {
+        if (itr->pid == pid) {
+            auto sItr = itr->mActiveSessions.begin();
+            for (; sItr != itr->mActiveSessions.end(); sItr++) {
+                if (sItr->session_handle == streamHandle) {
                     /*close the shared mem fds dupped in PAL server context*/
-                    for (int j=0; j < (*sess_iter).callback_binder->sharedMemFdList.size(); j++) {
-                         close((*sess_iter).callback_binder->sharedMemFdList[j].second);
+                    for (int i=0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
+                         close(sItr->callback_binder->sharedMemFdList[i].second);
                     }
-                    ALOGV("Closing the session %x", streamHandle);
-                    (*sess_iter).callback_binder->sharedMemFdList.clear();
-                    (*sess_iter).callback_binder.clear();
+                    ALOGV("Closing the session %pK", streamHandle);
+                    sItr->callback_binder->sharedMemFdList.clear();
+                    sItr->callback_binder.clear();
                     break;
                 }
-           }
+            }
+            if (sItr != itr->mActiveSessions.end()) {
+                ALOGV("Delete session info %pK", sItr->session_handle);
+                itr->mActiveSessions.erase(sItr);
+            }
 
-           if (sess_iter != clnt.mActiveSessions.end()) {
-               ALOGV("Delete session info");
-               clnt.mActiveSessions.erase(sess_iter);
-           }
-
-           if (clnt.mActiveSessions.empty()) {
-               ALOGV("Delete client info");
-               mClients_.erase(client_iter);
-           }
-
-           break;
+            if (itr->mActiveSessions.empty()) {
+                ALOGV("Delete client info");
+                itr = mPalClients.erase(itr);
+            } else {
+                itr++;
+            }
+            break;
         }
     }
-    return pal_stream_close((pal_stream_handle_t *)streamHandle);
+    return status;
 }
 
 Return<int32_t> PAL::ipc_pal_stream_start(const uint64_t streamHandle) {
