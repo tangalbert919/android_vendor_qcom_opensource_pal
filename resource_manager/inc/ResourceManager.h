@@ -187,6 +187,7 @@ struct usecase_custom_config_info
 
 struct usecase_info {
     int type;
+    int samplerate;
     std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
     std::string sndDevName;
@@ -198,6 +199,7 @@ struct usecase_info {
 struct pal_device_info {
      int channels;
      int max_channels;
+     int samplerate;
      std::vector<kvpair_info> kvpair;
 };
 
@@ -276,6 +278,7 @@ struct deviceIn {
     int deviceId;
     int max_channel;
     int channel;
+    int samplerate;
     std::vector<usecase_info> usecase;
     // dev ids supporting ec ref
     std::vector<pal_device_id_t> rx_dev_ids;
