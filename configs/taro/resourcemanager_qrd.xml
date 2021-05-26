@@ -724,7 +724,7 @@
         </capture_profile_list>
         <!-- ACD -->
         <stream_config>
-            <name>qc_acd</name>
+            <name>QC_ACD</name>
             <param vendor_uuid="4e93281b-296e-4d73-9833-2710c3c7c1db"/>
             <!-- Profile specific data which the algorithm can support -->
             <param sample_rate="16000" />
@@ -786,7 +786,7 @@
         </stream_config>
         <!-- Sensor PCM Data -->
         <stream_config>
-            <name>qc_sensor_pcm_data</name>
+            <name>QC_SENSOR_PCM_DATA</name>
             <param vendor_uuid="c88a2c89-7a55-498c-836f-5d7ec8582990" />
             <!-- Profile specific data which the algorithm can support -->
             <param sample_rate="16000" />
@@ -1075,6 +1075,7 @@
                 <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI"/>
             </operating_modes>
             <module_params>
+                <param module_type="HOTWORD" />
                 <param load_sound_model_ids="0xC0000008, 0x0800104C" />
                 <param unload_sound_model_ids="0xC0000008, 0x00012C15" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />

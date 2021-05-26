@@ -117,7 +117,6 @@ typedef enum {
  */
 #define VOLUME_RAMP_PERIOD (100*1000)
 
-using KeyVect_t = std::vector<std::pair<uint32_t, uint32_t>>;
 class Device;
 class ResourceManager;
 class Session;
@@ -137,8 +136,8 @@ protected:
     static std::shared_ptr<ResourceManager> rm;
     struct modifier_kv *mModifiers;
     uint32_t mNoOfModifiers;
-    KeyVect_t mDevPpModifiers;
-    KeyVect_t mStreamModifiers;
+    std::string mStreamSelector;
+    std::string mDevPPSelector;
     size_t inBufSize;
     size_t outBufSize;
     size_t inBufCount;
@@ -191,8 +190,8 @@ public:
     virtual int32_t getTagsWithModuleInfo(size_t *size __unused, uint8_t *payload __unused) {return -EINVAL;};
     int32_t getStreamAttributes(struct pal_stream_attributes *sattr);
     int32_t getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers);
-    const KeyVect_t& getDevPpModifiers() const;
-    const KeyVect_t& getStreamModifiers() const;
+    const std::string& getStreamSelector() const;
+    const std::string& getDevicePPSelector() const;
     int32_t getStreamType(pal_stream_type_t* streamType);
     int32_t getStreamDirection(pal_stream_direction_t *dir);
     uint32_t getRenderLatency();

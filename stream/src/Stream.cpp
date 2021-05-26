@@ -229,13 +229,14 @@ exit:
     return status;
 }
 
-const KeyVect_t& Stream::getDevPpModifiers() const {
-    return mDevPpModifiers;
+const std::string& Stream::getStreamSelector() const {
+    return mStreamSelector;
 }
 
-const KeyVect_t& Stream::getStreamModifiers() const {
-    return mStreamModifiers;
+const std::string& Stream::getDevicePPSelector() const {
+    return mDevPPSelector;
 }
+
 int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers)
 {
     int32_t status = 0;

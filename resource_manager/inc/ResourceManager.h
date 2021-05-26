@@ -424,7 +424,7 @@ protected:
     static std::mutex cvMutex;
     static std::queue<card_status_t> msgQ;
     static std::thread workerThread;
-    std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
+    std::vector<std::pair<std::string, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
     uint64_t in_stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;

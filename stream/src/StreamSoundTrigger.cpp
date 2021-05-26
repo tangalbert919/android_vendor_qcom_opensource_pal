@@ -327,7 +327,6 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
-        std::pair<int32_t,int32_t> streamConfigKV;
 
         st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
         if (sm_cfg_list.size() == 0) {
@@ -363,18 +362,19 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         cap_prof_ = GetCurrentCaptureProfile();
-        /* store the pre-proc KV selected in the config file */
-        mDevPpModifiers.clear();
-        mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
-
-        streamConfigKV = sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-        mStreamModifiers.clear();
-        mStreamModifiers.push_back(streamConfigKV);
-
+        /*
+         * Get the capture profile and module types to fill selectors
+         * used in payload builder to retrieve stream and device PP GKVs
+         */
+        mDevPPSelector = cap_prof_->GetName();
+        PAL_DBG(LOG_TAG, "Devicepp Selector: %s", mDevPPSelector.c_str());
+        mStreamSelector = sm_cfg_->GetModuleName();
+        SetModelType(sm_cfg_->GetModuleType());
+        PAL_DBG(LOG_TAG, "Module Type:%d, Name: %s", model_type_, mStreamSelector.c_str());
         mInstanceID = rm->getStreamInstanceID(this);
 
         gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
+                                                 model_type_, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
             return -ENOMEM;
@@ -385,8 +385,6 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
 
         rm->resetStreamInstanceID(this, mInstanceID);
-        mDevPpModifiers.clear();
-        mStreamModifiers.clear();
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
@@ -514,10 +512,9 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
         goto exit;
     }
 
-    if (mDevPpModifiers.size() == 0 ||
-        (mDevPpModifiers[0].first == DEVICEPP_TX &&
-        mDevPpModifiers[0].second == DEVICEPP_TX_FLUENCE_FFNS)) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
+    if (mDevPPSelector.empty() ||
+        mDevPPSelector.find("FFECNS") == std::string::npos) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref for other than FFECNS capture profile");
         goto exit;
     }
 
@@ -1044,14 +1041,10 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                 if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
-                    std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-                    streamConfigKV = this->sm_cfg_->GetStreamConfig(module_type);
-                    PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                             streamConfigKV.first, streamConfigKV.second);
-                    this->mStreamModifiers.clear();
-                    this->mStreamModifiers.push_back(streamConfigKV);
+                    this->mStreamSelector = sm_cfg_->GetModuleName(module_type);
+                    PAL_DBG(LOG_TAG, "Module type:%d, name: %s",
+                        model_type_, mStreamSelector.c_str());
                     this->mInstanceID = this->rm->getStreamInstanceID(this);
-
                     sm_size = big_sm->size +
                         sizeof(struct pal_st_phrase_sound_model);
                     sm_data = (uint8_t *)calloc(1, sm_size);
@@ -1145,18 +1138,27 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
 
-            SetModelType(ST_MODULE_TYPE_GMM);
-            std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-            streamConfigKV = this->sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-            PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                     streamConfigKV.first, streamConfigKV.second);
-            this->mStreamModifiers.clear();
-            this->mStreamModifiers.push_back(streamConfigKV);
+            /*
+             * For third party models, get module type and name from
+             * sound model config directly without passing model type
+             * as only one module is mapped to one vendor UUID
+             */
+            if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
+                SetModelType(sm_cfg_->GetModuleType());
+                this->mStreamSelector = sm_cfg_->GetModuleName();
+            } else {
+                SetModelType(ST_MODULE_TYPE_GMM);
+                this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+            }
+
+            PAL_DBG(LOG_TAG, "Module type:%d name:%s",
+                model_type_, mStreamSelector.c_str());
+
             this->mInstanceID = this->rm->getStreamInstanceID(this);
 
             gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
                                  common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                    ST_MODULE_TYPE_GMM);
+                                 model_type_);
             if (!gsl_engine_) {
                 status = -EINVAL;
                 goto error_exit;
@@ -1182,18 +1184,20 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             (uint8_t *)common_sm, sizeof(*common_sm));
         ar_mem_cpy(sm_data + sizeof(*common_sm), common_sm->data_size,
             (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
-        SetModelType(ST_MODULE_TYPE_GMM);
-        std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-        streamConfigKV = this->sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-        PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                    streamConfigKV.first, streamConfigKV.second);
-        this->mStreamModifiers.clear();
-        this->mStreamModifiers.push_back(streamConfigKV);
+        if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
+            SetModelType(sm_cfg_->GetModuleType());
+            this->mStreamSelector = sm_cfg_->GetModuleName();
+        } else {
+            SetModelType(ST_MODULE_TYPE_GMM);
+            this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+        }
+        PAL_DBG(LOG_TAG, "Module type:%d, name:%s",
+            model_type_, mStreamSelector.c_str());
         this->mInstanceID = this->rm->getStreamInstanceID(this);
 
         gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
                                 common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                ST_MODULE_TYPE_GMM);
+                                model_type_);
         if (!gsl_engine_) {
             status = -EINVAL;
             goto error_exit;
@@ -2791,11 +2795,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             cap_prof = st_stream_.GetCurrentCaptureProfile();
             st_stream_.cap_prof_ = cap_prof;
-            /* store the pre-proc KV selected in the config file */
-            st_stream_.mDevPpModifiers.clear();
-            st_stream_.mDevPpModifiers.push_back(
-                st_stream_.cap_prof_->GetDevicePpKv());
-
+            st_stream_.mDevPPSelector = cap_prof->GetName();
+            PAL_DBG(LOG_TAG, "devicepp selector: %s", st_stream_.mDevPPSelector.c_str());
             status = st_stream_.LoadSoundModel(pal_st_sm);
 
             if (0 != status) {

@@ -6789,7 +6789,7 @@ int ResourceManager::resetStreamInstanceID(Stream *s){
 int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     int status = 0;
     pal_stream_attributes StrAttr;
-    KeyVect_t streamConfigModifierKV;
+    std::string streamSelector;
 
     if(sInstanceID < INSTANCE_1){
         PAL_ERR(LOG_TAG,"Invalid Stream Instance ID\n");
@@ -6806,17 +6806,17 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
 
     switch (StrAttr.type) {
         case PAL_STREAM_VOICE_UI:
-            streamConfigModifierKV = str->getStreamModifiers();
+            streamSelector = str->getStreamSelector();
 
-            if (streamConfigModifierKV.size() == 0) {
-                PAL_DBG(LOG_TAG, "no streamConfigModifierKV");
+            if (streamSelector.empty()) {
+                PAL_DBG(LOG_TAG, "no streamSelector");
                 break;
             }
 
             for (int x = 0; x < STInstancesLists.size(); x++) {
-                if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
-                    PAL_DBG(LOG_TAG,"Found matching StreamConfig(%x) in STInstancesLists(%d)",
-                        streamConfigModifierKV[0].second, x);
+                if (!STInstancesLists[x].first.compare(streamSelector)) {
+                    PAL_DBG(LOG_TAG,"Found matching StreamConfig:%s in STInstancesLists(%d)",
+                        streamSelector.c_str(), x);
 
                     for (int i = 0; i < max_session_num; i++) {
                         if (STInstancesLists[x].second[i].first == sInstanceID){
@@ -6855,7 +6855,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
 int ResourceManager::getStreamInstanceID(Stream *str) {
     int i, status = 0, listNodeIndex = -1;
     pal_stream_attributes StrAttr;
-    KeyVect_t streamConfigModifierKV;
+    std::string streamSelector;
 
     status = str->getStreamAttributes(&StrAttr);
 
@@ -6870,17 +6870,17 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
         case PAL_STREAM_VOICE_UI:
             PAL_DBG(LOG_TAG,"STInstancesLists.size (%zu)", STInstancesLists.size());
 
-            streamConfigModifierKV = str->getStreamModifiers();
+            streamSelector = str->getStreamSelector();
 
-            if (streamConfigModifierKV.size() == 0) {
-                PAL_DBG(LOG_TAG, "no streamConfigModifierKV");
+            if (streamSelector.empty()) {
+                PAL_DBG(LOG_TAG, "no stream selector");
                 break;
             }
 
             for (int x = 0; x < STInstancesLists.size(); x++) {
-                if (STInstancesLists[x].first == streamConfigModifierKV[0].second) {
-                    PAL_DBG(LOG_TAG,"Found list for StreamConfig(%x),index(%d)",
-                        streamConfigModifierKV[0].second, x);
+                if (!STInstancesLists[x].first.compare(streamSelector)) {
+                    PAL_DBG(LOG_TAG,"Found list for StreamConfig(%s),index(%d)",
+                        streamSelector.c_str(), x);
                     listNodeIndex = x;
                     break;
                 }
@@ -6888,11 +6888,11 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
 
             if (listNodeIndex < 0) {
                 InstanceListNode_t streamConfigInstanceList;
-                PAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig(%x)",
-                    streamConfigModifierKV[0].second);
+                PAL_DBG(LOG_TAG,"Create InstanceID list for streamConfig %s",
+                    streamSelector.c_str());
 
                 STInstancesLists.push_back(make_pair(
-                    streamConfigModifierKV[0].second,
+                    streamSelector,
                     streamConfigInstanceList));
                 //Initialize List
                 for (i = 1; i <= max_session_num; i++) {
