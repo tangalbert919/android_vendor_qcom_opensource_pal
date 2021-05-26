@@ -1415,18 +1415,14 @@ int32_t StreamACD::ACDActive::ProcessEvent(
         }
         case ACD_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
+            bool backend_update = false;
             if (ev_cfg->id_ == ACD_EV_STOP_RECOGNITION) {
-                bool backend_update = false;
                 backend_update = acd_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &acd_stream_, false);
                 if (backend_update) {
                     status = rm->StopOtherDetectionStreams(&acd_stream_);
                     if (status)
                         PAL_ERR(LOG_TAG, "Error:%d Failed to stop other Detection streams", status);
-
-                    status = rm->StartOtherDetectionStreams(&acd_stream_);
-                    if (status)
-                        PAL_ERR(LOG_TAG, "Error:%d Failed to start other Detection streams", status);
                 }
             }
 
@@ -1443,6 +1439,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d Device stop failed", status);
 
             acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
+            if (backend_update) {
+                status = rm->StartOtherDetectionStreams(&acd_stream_);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Error:%d Failed to start other Detection streams", status);
+            }
 
             TransitTo(ACD_STATE_LOADED);
             break;
