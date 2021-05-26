@@ -358,9 +358,19 @@ int Device::prepare()
 int Device::start()
 {
     int status = 0;
-    std::string backEndName;
 
     mDeviceMutex.lock();
+    status = start_l();
+    mDeviceMutex.unlock();
+
+    return status;
+}
+
+// must be called with mDeviceMutex held
+int Device::start_l()
+{
+    int status = 0;
+    std::string backEndName;
 
     PAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
     if (deviceCount == 0 && initialized) {
@@ -411,14 +421,24 @@ int Device::start()
 disable_dev:
     disableDevice(audioRoute, mSndDeviceName);
 exit :
-    mDeviceMutex.unlock();
     return status;
 }
 
 int Device::stop()
 {
     int status = 0;
+
     mDeviceMutex.lock();
+    status = stop_l();
+    mDeviceMutex.unlock();
+
+    return status;
+}
+
+// must be called with mDeviceMutex held
+int Device::stop_l()
+{
+    int status = 0;
     PAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mPALDeviceName.c_str(), deviceCount);
     if(deviceCount > 0){
        if (deviceCount == 1 && initialized) {
@@ -427,7 +447,6 @@ int Device::stop()
        deviceCount -= 1;
     }
     PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-    mDeviceMutex.unlock();
     return status;
 }
 

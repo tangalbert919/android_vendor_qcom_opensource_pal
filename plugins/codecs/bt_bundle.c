@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -116,7 +116,7 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
     enc_payload->bit_format     = aac_bt_cfg->bits_per_sample;
     enc_payload->sample_rate    = aac_bt_cfg->sampling_rate;
     enc_payload->channel_count  = aac_bt_cfg->channels;
-    enc_payload->is_abr_enabled = aac_bt_cfg->is_abr_enabled;
+    enc_payload->is_abr_enabled = aac_bt_cfg->abr_ctl_ptr && aac_bt_cfg->abr_ctl_ptr->is_abr_enabled;
     enc_payload->num_blks       = num_blks;
 
     for (i = 0; i < num_blks; i++) {
@@ -127,14 +127,14 @@ static int aac_pack_enc_config(bt_codec_t *codec, void *src, void **dst)
         }
     }
 
-    ALOGD("%s: AAC ABR mode is %d", __func__, aac_bt_cfg->is_abr_enabled);
-    if (!aac_bt_cfg->is_abr_enabled) {
+    ALOGD("%s: AAC ABR mode is %d", __func__, enc_payload->is_abr_enabled);
+    if (!enc_payload->is_abr_enabled) {
         /* populate payload for PARAM_ID_REAL_MODULE_ID */
         ret = bt_base_populate_real_module_id(blk[0], MODULE_ID_AAC_ENC);
     } else {
         /* populate payload for PARAM_ID_AAC_BIT_RATE_LEVEL_MAP */
         ret = bt_aac_populate_bitrate_level_map(blk[0],
-                &(aac_bt_cfg->level_to_bitrate_map));
+                &(aac_bt_cfg->abr_ctl_ptr->level_to_bitrate_map));
     }
     if (ret)
         goto free_payload;

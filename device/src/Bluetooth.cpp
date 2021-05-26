@@ -1072,6 +1072,7 @@ void BtA2dp::init()
 int BtA2dp::start()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
     if (customPayload)
         free(customPayload);
@@ -1080,25 +1081,32 @@ int BtA2dp::start()
     customPayloadSize = 0;
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
-    if (status != 0)
+    if (status != 0) {
+        mDeviceMutex.unlock();
         return status;
+    }
 
-    status = Device::start();
+    status = Device::start_l();
+
     if (!status && isAbrEnabled)
         startAbr();
 
+    mDeviceMutex.unlock();
     return status;
 }
 
 int BtA2dp::stop()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
     if (isAbrEnabled)
         stopAbr();
 
-    Device::stop();
+    Device::stop_l();
+
     status = (a2dpRole == SOURCE) ? stopPlayback() : stopCapture();
+    mDeviceMutex.unlock();
 
     return status;
 }
