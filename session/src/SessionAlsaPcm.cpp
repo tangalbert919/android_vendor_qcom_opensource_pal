@@ -718,7 +718,7 @@ int SessionAlsaPcm::start(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
             registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
-    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         memset(&event_cfg, 0, sizeof(event_cfg));
@@ -1178,7 +1178,7 @@ int SessionAlsaPcm::stop(Stream * s)
     }
     mState = SESSION_STOPPED;
 
-    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND)) {
+    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents)) {
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
         event_cfg.event_config_payload_size = 0;
@@ -1191,6 +1191,7 @@ int SessionAlsaPcm::stop(Stream * s)
            event_cfg.event_id = EVENT_ID_GENERIC_US_DETECTION;
            tagId = ULTRASOUND_DETECTION_MODULE;
            DeviceId = pcmDevTxIds.at(0);
+           RegisterForEvents = false;
         }
         SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
                 txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
@@ -1797,6 +1798,12 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                                                               param_payload->payload_size);
                  PAL_INFO(LOG_TAG, "mixer set module config status=%d\n", status);
             }
+            return 0;
+        }
+        case PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS:
+        {
+            pal_param_upd_event_detection_t *detection_payload = (pal_param_upd_event_detection_t *)payload;
+            RegisterForEvents = detection_payload->register_status;
             return 0;
         }
         default:

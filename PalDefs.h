@@ -786,6 +786,7 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
     PAL_PARAM_ID_BT_SCO_LC3 = 46,
     PAL_PARAM_ID_DEVICE_MUTE = 47,
+    PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -959,6 +960,10 @@ typedef struct pal_param_bta2dp {
     bool     is_force_switch;
     uint32_t latency;
 } pal_param_bta2dp_t;
+
+typedef struct pal_param_upd_event_detection {
+    bool     register_status;
+} pal_param_upd_event_detection_t;
 
 typedef struct pal_bt_tws_payload_s {
     bool isTwsMonoModeOn;

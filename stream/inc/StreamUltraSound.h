@@ -42,7 +42,8 @@ public:
                      const uint32_t no_of_devices, const struct modifier_kv *modifiers,
                      const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
     ~StreamUltraSound();
-    int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;}
+   int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;}
+   int32_t setParameters(uint32_t param_id, void *payload);
 private:
     static void HandleCallBack(uint64_t hdl, uint32_t event_id,
                                void *data, uint32_t event_size);
