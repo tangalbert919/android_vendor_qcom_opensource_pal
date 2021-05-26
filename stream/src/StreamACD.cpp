@@ -788,11 +788,10 @@ error_exit:
     return status;
 }
 
-int32_t StreamACD::SendRecognitionConfig(struct acd_recognition_cfg *acd_recog_cfg)
+int32_t StreamACD::UpdateRecognitionConfig(struct acd_recognition_cfg *acd_recog_cfg)
 {
     int32_t status = 0;
     struct acd_per_context_cfg *context_cfg = NULL;
-    struct pal_param_context_list *old_ctx_cfg = NULL;
     uint32_t i, num_contexts = 0;
     uint8_t *opaque_ptr = (uint8_t *)acd_recog_cfg;
     size_t len = 0;
@@ -809,7 +808,7 @@ int32_t StreamACD::SendRecognitionConfig(struct acd_recognition_cfg *acd_recog_c
      * Continue with engine setup if it is same.
      */
     if (rec_config_ == acd_recog_cfg)
-        goto setup_engine;
+        goto exit;
 
     if (rec_config_)
         free(rec_config_);
@@ -844,11 +843,6 @@ int32_t StreamACD::SendRecognitionConfig(struct acd_recognition_cfg *acd_recog_c
     }
 
    /* Fill context_cfg from recog_cfg data and use that for engine setup */
-    if (context_config_) {
-         old_ctx_cfg = context_config_;
-         context_config_ = NULL;
-    }
-
     len = sizeof(struct pal_param_context_list) + (num_contexts * sizeof(uint32_t));
     context_config_ = (struct pal_param_context_list *) calloc(1, len);
     if (!context_config_) {
@@ -872,33 +866,44 @@ int32_t StreamACD::SendRecognitionConfig(struct acd_recognition_cfg *acd_recog_c
             ctx_opaque_cnt);
         ctx_opaque_cnt++;
     }
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
 
-setup_engine:
-    if (cur_state_->GetStateId() >= ACD_STATE_LOADED)
+int32_t StreamACD::SendRecognitionConfig(struct acd_recognition_cfg *acd_recog_cfg)
+{
+    int32_t status = 0;
+    struct pal_param_context_list *old_ctx_cfg = NULL;
+
+    if (context_config_)
+         old_ctx_cfg = context_config_;
+
+    status = UpdateRecognitionConfig(acd_recog_cfg);
+    if (status)
+        goto exit;
+
+    if (cur_state_->GetStateId() >= ACD_STATE_LOADED) {
         status = engine_->ReconfigureEngine(this, (void *)old_ctx_cfg, (void *)context_config_);
-    else
+        if (old_ctx_cfg)
+            free(old_ctx_cfg);
+    } else {
         status = SetupDetectionEngine();
+    }
 
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    if (old_ctx_cfg)
-        free(old_ctx_cfg);
 
     return status;
 }
 
-int32_t StreamACD::SendContextConfig(struct pal_param_context_list *config)
+int32_t StreamACD::UpdateContextConfig(struct pal_param_context_list *config)
 {
     int32_t status = 0;
     size_t len  = 0;
-    struct pal_param_context_list *old_ctx_cfg = NULL;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    if (context_config_)
-        old_ctx_cfg = context_config_;
 
     if (context_config_ == config)
-        goto setup_engine;
+        goto exit;
 
     len = sizeof(struct pal_param_context_list) +
         (config->num_contexts * sizeof(uint32_t));
@@ -919,21 +924,36 @@ int32_t StreamACD::SendContextConfig(struct pal_param_context_list *config)
         ST_DBG_FILE_WRITE(ctx_opaque_fd,
             (uint8_t *)context_config_, len);
         ST_DBG_FILE_CLOSE(ctx_opaque_fd);
-        PAL_DBG(LOG_TAG, "acd_context_cfg data stored in: acd_context_config_%d.bin",
+        PAL_ERR(LOG_TAG, "acd_context_cfg data stored in: acd_context_config_%d.bin",
             ctx_opaque_cnt);
         ctx_opaque_cnt++;
     }
+exit:
+    return status;
+}
 
-setup_engine:
-    if (cur_state_->GetStateId() >= ACD_STATE_LOADED)
+int32_t StreamACD::SendContextConfig(struct pal_param_context_list *config)
+{
+    int32_t status = 0;
+    struct pal_param_context_list *old_ctx_cfg = NULL;
+
+    if (context_config_)
+        old_ctx_cfg = context_config_;
+
+    status = UpdateContextConfig(config);
+    if (status)
+       goto exit;
+
+    if (cur_state_->GetStateId() >= ACD_STATE_LOADED) {
         status = engine_->ReconfigureEngine(this, (void *)old_ctx_cfg, (void *)context_config_);
-    else
+        if (old_ctx_cfg)
+            free(old_ctx_cfg);
+    } else {
         status = SetupDetectionEngine();
+    }
 
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    if (old_ctx_cfg)
-        free(old_ctx_cfg);
 
     return status;
 }
@@ -1047,6 +1067,12 @@ int32_t StreamACD::ACDIdle::ProcessEvent(
             PAL_INFO(LOG_TAG, "no action needed for concurrent stream in idle state");
             break;
         }
+        case ACD_EV_SSR_OFFLINE:
+            if (acd_stream_.state_for_restore_ == ACD_STATE_NONE)
+                acd_stream_.state_for_restore_ = ACD_STATE_IDLE;
+
+            TransitTo(ACD_STATE_SSR);
+            break;
         default:
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -1332,6 +1358,15 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             }
             break;
         }
+        case ACD_EV_SSR_OFFLINE: {
+            if (acd_stream_.state_for_restore_ == ACD_STATE_NONE) {
+                acd_stream_.state_for_restore_ = ACD_STATE_LOADED;
+            }
+            std::shared_ptr<ACDEventConfig> ev_cfg(new ACDUnloadEventConfig());
+            status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            TransitTo(ACD_STATE_SSR);
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -1584,6 +1619,20 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
             break;
         }
+        case ACD_EV_SSR_OFFLINE: {
+            if (acd_stream_.state_for_restore_ == ACD_STATE_NONE) {
+                acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
+            }
+            std::shared_ptr<ACDEventConfig> ev_cfg1(
+                new ACDStopRecognitionEventConfig(false));
+            status = acd_stream_.ProcessInternalEvent(ev_cfg1);
+
+            std::shared_ptr<ACDEventConfig> ev_cfg2(
+                new ACDUnloadEventConfig());
+            status = acd_stream_.ProcessInternalEvent(ev_cfg2);
+            TransitTo(ACD_STATE_SSR);
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -1624,7 +1673,10 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
         case ACD_EV_EC_REF:
         case ACD_EV_DEVICE_DISCONNECTED:
         case ACD_EV_DEVICE_CONNECTED:
+        case ACD_EV_SSR_OFFLINE:
             acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
+            // fall through to default
+            [[fallthrough]];
         default: {
             TransitTo(ACD_STATE_ACTIVE);
             status = acd_stream_.ProcessInternalEvent(ev_cfg);
@@ -1638,9 +1690,167 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
     return status;
 }
 
-int32_t StreamACD::ACDSSR::ProcessEvent(
-   std::shared_ptr<ACDEventConfig> ev_cfg __unused)
+int32_t StreamACD::ACDSSR::ProcessEvent(std::shared_ptr<ACDEventConfig> ev_cfg)
 {
     int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "ACDSSR: handle event %d for stream instance %u",
+        ev_cfg->id_, acd_stream_.mInstanceID);
+
+    switch (ev_cfg->id_) {
+        case ACD_EV_SSR_ONLINE: {
+            TransitTo(ACD_STATE_IDLE);
+
+            if (acd_stream_.state_for_restore_ == ACD_STATE_LOADED ||
+                acd_stream_.state_for_restore_ == ACD_STATE_ACTIVE ||
+                acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                if (acd_stream_.rec_config_) {
+                    status = acd_stream_.SendRecognitionConfig(
+                        acd_stream_.rec_config_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Error:%d Failed to send recognition config",
+                                status);
+                        break;
+                    }
+                } else if (acd_stream_.context_config_) {
+                     status = acd_stream_.SendContextConfig(acd_stream_.context_config_);
+                     if (0 != status) {
+                         PAL_ERR(LOG_TAG, "Error:%d Failed to send context config", status);
+                         break;
+                     }
+                }
+            }
+
+            if (acd_stream_.state_for_restore_ == ACD_STATE_ACTIVE ||
+                acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                std::shared_ptr<ACDEventConfig> ev_cfg1(
+                    new ACDStartRecognitionEventConfig(false));
+                status = acd_stream_.ProcessInternalEvent(ev_cfg1);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
+                    break;
+                }
+            }
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED)
+                TransitTo(ACD_STATE_DETECTED);
+
+            acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            break;
+        }
+        case ACD_EV_LOAD_SOUND_MODEL: {
+            if (acd_stream_.state_for_restore_ != ACD_STATE_IDLE) {
+                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    acd_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                ACDLoadEventConfigData *data =
+                    (ACDLoadEventConfigData *)ev_cfg->data_.get();
+                struct pal_st_sound_model *pal_acd_sm;
+
+                pal_acd_sm = (struct pal_st_sound_model *)data->data_;
+                status = acd_stream_.SetupStreamConfig(&pal_acd_sm->vendor_uuid);
+            }
+            break;
+        }
+        case ACD_EV_UNLOAD_SOUND_MODEL: {
+            if (acd_stream_.state_for_restore_ < ACD_STATE_LOADED) {
+                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    acd_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                acd_stream_.state_for_restore_ = ACD_STATE_IDLE;
+            }
+            break;
+        }
+        case ACD_EV_RECOGNITION_CONFIG: {
+            ACDRecognitionCfgEventConfigData *data =
+                (ACDRecognitionCfgEventConfigData *)ev_cfg->data_.get();
+
+            if (acd_stream_.context_config_)
+                free(acd_stream_.context_config_);
+
+            status = acd_stream_.UpdateRecognitionConfig(
+                (struct acd_recognition_cfg *)data->data_);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to update recognition config,"
+                    "status %d", status);
+            }
+            break;
+        }
+        case ACD_EV_CONTEXT_CONFIG: {
+            ACDContextCfgEventConfigData *data =
+                (ACDContextCfgEventConfigData *)ev_cfg->data_.get();
+
+            if (acd_stream_.context_config_)
+                free(acd_stream_.context_config_);
+
+            status = acd_stream_.UpdateContextConfig(
+               (struct pal_param_context_list *)data->data_);
+            if (0 != status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to update context config", status);
+            break;
+        }
+
+        case ACD_EV_START_RECOGNITION: {
+            if (acd_stream_.state_for_restore_ != ACD_STATE_LOADED ||
+                acd_stream_.state_for_restore_ != ACD_STATE_DETECTED) {
+                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    acd_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                ACDStartRecognitionEventConfigData *data =
+                    (ACDStartRecognitionEventConfigData *)ev_cfg->data_.get();
+                if (!acd_stream_.rec_config_) {
+                    PAL_ERR(LOG_TAG, "Recognition config not set %d", data->restart_);
+                    status = -EINVAL;
+                    break;
+                }
+
+            if ((acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) &&
+                (acd_stream_.cached_event_data_ != NULL))
+                acd_stream_.SendCachedEventData();
+            else
+                acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
+            }
+            break;
+        }
+        case ACD_EV_STOP_RECOGNITION: {
+            if (acd_stream_.state_for_restore_ != ACD_STATE_ACTIVE ||
+                acd_stream_.state_for_restore_ != ACD_STATE_DETECTED) {
+                PAL_ERR(LOG_TAG, "Invalid operation, client state = %d now",
+                    acd_stream_.state_for_restore_);
+                status = -EINVAL;
+            } else {
+                acd_stream_.state_for_restore_ = ACD_STATE_LOADED;
+            }
+            break;
+        }
+        default: {
+            PAL_INFO(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
+            return status;
+        }
+    }
+    PAL_DBG(LOG_TAG, "Exit: ACDSSR: event %d handled", ev_cfg->id_);
+
+    return status;
+}
+
+int32_t StreamACD::ssrDownHandler() {
+    int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<ACDEventConfig> ev_cfg(new ACDSSROfflineConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
+    return status;
+}
+
+int32_t StreamACD::ssrUpHandler() {
+    int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<ACDEventConfig> ev_cfg(new ACDSSROnlineConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
     return status;
 }
