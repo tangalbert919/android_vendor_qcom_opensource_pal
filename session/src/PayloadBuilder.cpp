@@ -1382,6 +1382,21 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             break;
         case PAL_STREAM_CONTEXT_PROXY:
             break;
+        case PAL_STREAM_RAW:
+            if (sattr->direction == PAL_AUDIO_OUTPUT) {
+                PAL_ERR(LOG_TAG, "RAW stream not supported for output");
+                status = -EINVAL;
+                goto free_sattr;
+            } else if (sattr->direction == PAL_AUDIO_INPUT) {
+                keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
+            } else if (sattr->direction == (PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT)) {
+                keyVector.push_back(std::make_pair(STREAMRX,PCM_RX_LOOPBACK));
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
+                goto free_sattr;
+            }
+            break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);

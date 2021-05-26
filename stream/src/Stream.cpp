@@ -148,6 +148,7 @@ stream_create:
             case PAL_STREAM_ULTRA_LOW_LATENCY:
             case PAL_STREAM_PROXY:
             case PAL_STREAM_HAPTICS:
+            case PAL_STREAM_RAW:
                 //TODO:for now keeping PAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr, mPalDevice, count, modifiers,
                                    noOfModifiers, rm);

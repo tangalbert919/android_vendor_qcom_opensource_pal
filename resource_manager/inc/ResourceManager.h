@@ -356,6 +356,7 @@ protected:
     std::vector <StreamPCM*> active_streams_po;
     std::vector <StreamPCM*> active_streams_proxy;
     std::vector <StreamPCM*> active_streams_haptics;
+    std::vector <StreamPCM*> active_streams_raw;
     std::vector <StreamInCall*> active_streams_incall_record;
     std::vector <StreamNonTunnel*> active_streams_non_tunnel;
     std::vector <StreamInCall*> active_streams_incall_music;

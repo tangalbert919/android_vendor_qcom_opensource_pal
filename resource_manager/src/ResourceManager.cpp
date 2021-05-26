@@ -95,6 +95,7 @@
 #define MAX_SESSIONS_GENERIC 1
 #define MAX_SESSIONS_PCM_OFFLOAD 1
 #define MAX_SESSIONS_VOICE_UI 8
+#define MAX_SESSIONS_RAW 1
 #define MAX_SESSIONS_ACD 8
 #define MAX_SESSIONS_PROXY 8
 #define DEFAULT_MAX_SESSIONS 8
@@ -1901,6 +1902,9 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             max_sessions = MAX_SESSIONS_GENERIC;
             break;
         case PAL_STREAM_RAW:
+            cur_sessions = active_streams_raw.size();
+            max_sessions = MAX_SESSIONS_RAW;
+            break;
         case PAL_STREAM_VOICE_ACTIVATION:
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_TRANSCODE:
@@ -1978,6 +1982,24 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
                 samplerate = attributes->out_media_config.sample_rate;
                 bitwidth = attributes->out_media_config.bit_width;
             }
+            rc = (StreamPCM::isBitWidthSupported(bitwidth) |
+                  StreamPCM::isSampleRateSupported(samplerate) |
+                  StreamPCM::isChannelSupported(channels));
+            if (0 != rc) {
+               PAL_ERR(LOG_TAG, "config not supported rc %d", rc);
+               return result;
+            }
+            PAL_INFO(LOG_TAG, "config suppported");
+            result = true;
+            break;
+        case PAL_STREAM_RAW:
+            if (attributes->direction != PAL_AUDIO_INPUT) {
+               PAL_ERR(LOG_TAG, "config dir %d not supported", attributes->direction);
+               return result;
+            }
+            channels = attributes->in_media_config.ch_info.channels;
+            samplerate = attributes->in_media_config.sample_rate;
+            bitwidth = attributes->in_media_config.bit_width;
             rc = (StreamPCM::isBitWidthSupported(bitwidth) |
                   StreamPCM::isSampleRateSupported(samplerate) |
                   StreamPCM::isChannelSupported(channels));
@@ -2170,6 +2192,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sUPD, active_streams_ultrasound);
             break;
         }
+        case PAL_STREAM_RAW:
+        {
+            StreamPCM* sRaw = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sRaw, active_streams_raw);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -2324,6 +2352,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamUltraSound* sUPD = dynamic_cast<StreamUltraSound*>(s);
             ret = deregisterstream(sUPD, active_streams_ultrasound);
+            break;
+        }
+        case PAL_STREAM_RAW:
+        {
+            StreamPCM* sRaw = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sRaw, active_streams_raw);
             break;
         }
         default:
@@ -3898,6 +3932,7 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
     getActiveStreams(d, activestreams, active_streams_ull);
     getActiveStreams(d, activestreams, active_streams_ulla);
     getActiveStreams(d, activestreams, active_streams_db);
+    getActiveStreams(d, activestreams, active_streams_raw);
     getActiveStreams(d, activestreams, active_streams_comp);
     getActiveStreams(d, activestreams, active_streams_st);
     getActiveStreams(d, activestreams, active_streams_acd);
@@ -4169,6 +4204,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_PROXY:
         case PAL_STREAM_HAPTICS:
         case PAL_STREAM_ULTRASOUND:
+        case PAL_STREAM_RAW:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
@@ -4204,6 +4240,10 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
+                    if (sAttr.type == PAL_STREAM_RAW) {
+                        PAL_ERR(LOG_TAG, "Raw output stream not supported");
+                        goto error;
+                    }
                     if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
