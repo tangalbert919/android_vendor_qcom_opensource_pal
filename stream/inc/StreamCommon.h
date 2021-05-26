@@ -57,6 +57,7 @@ public:
    int32_t setStreamAttributes( struct pal_stream_attributes *sattr __unused) override {return 0;}
    int32_t setVolume( struct pal_volume_data *volume) override;
    int32_t mute(bool state __unused) override {return 0;}
+   int32_t mute_l(bool state __unused) override {return 0;}
    int32_t pause() override {return 0;}
    int32_t resume() override {return 0;}
    int32_t flush() {return 0;}

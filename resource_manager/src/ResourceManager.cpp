@@ -2460,7 +2460,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
-            return status;
+            goto exit;
         }
 
         for (auto dev: associatedDevices) {
@@ -2486,6 +2486,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             }
         }
     }
+
+exit:
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
     return status;
@@ -2541,7 +2543,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty");
-            return status;
+            goto exit;
         }
 
         for (auto dev: associatedDevices) {
@@ -2567,6 +2569,8 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
     deregisterDevice_l(d, s);
+
+exit:
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
     return status;
@@ -5448,7 +5452,7 @@ int32_t ResourceManager::a2dpSuspend()
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         if (!((*sIter)->a2dpMuted)) {
-            (*sIter)->mute(true);
+            (*sIter)->mute_l(true);
             (*sIter)->a2dpMuted = true;
 
             latencyMs = (*sIter)->getLatency();
@@ -5551,7 +5555,7 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if ((*sIter) != NULL) {
             (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
-            (*sIter)->mute(false);
+            (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
     }

@@ -999,25 +999,24 @@ error:
     return status;
 }
 
+int32_t StreamPCM::mute_l(bool state)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+    status = session->setConfig(this, MODULE, state ? MUTE_TAG : UNMUTE_TAG);
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 int32_t StreamPCM::mute(bool state)
 {
     int32_t status = 0;
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
-    mStreamMutex.lock();
-    if (state)
-        status = session->setConfig(this, MODULE, MUTE_TAG);
-    else
-        status = session->setConfig(this, MODULE, UNMUTE_TAG);
 
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
-                status);
-        goto exit;
-    }
-    PAL_DBG(LOG_TAG, "session setConfig successful");
-exit:
+    mStreamMutex.lock();
+    status = mute_l(state);
     mStreamMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+
     return status;
 }
 

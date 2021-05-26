@@ -588,22 +588,24 @@ exit:
     return status;
 }
 
+int32_t StreamCompress::mute_l(bool state)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+    status = session->setConfig(this, MODULE, state ? MUTE_TAG : UNMUTE_TAG);
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 int32_t StreamCompress::mute(bool state)
 {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG,"Enter, session handle - %p", session);
-    
-    PAL_VERBOSE(LOG_TAG,"%s", state == TRUE ? "Mute" : "Unmute");
-    status = session->setConfig(this, MODULE, state == TRUE ? MUTE_TAG : UNMUTE_TAG);
+    mStreamMutex.lock();
+    status = mute_l(state);
+    mStreamMutex.unlock();
 
-    if (0 != status) {
-       PAL_ERR(LOG_TAG,"session setConfig for mute failed with status %d",status);
-       goto exit;
-    }
-    PAL_VERBOSE(LOG_TAG,"session mute successful");
-exit:
-    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
