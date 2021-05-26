@@ -444,7 +444,7 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
                     detected_model_id = model_stat->detected_model_id;
 
                     detection_event_info_multi_model_.detected_model_stats[i].
-                    detected_keyword_id = model_stat->detected_keyword_id + 1;
+                    detected_keyword_id = model_stat->detected_keyword_id;
                     PAL_DBG(LOG_TAG, "detected keyword id : %u",
                             detection_event_info_multi_model_.detected_model_stats[i].
                             detected_keyword_id );

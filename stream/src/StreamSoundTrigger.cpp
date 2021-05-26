@@ -1828,82 +1828,96 @@ void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
     struct st_confidence_levels_info *conf_levels = nullptr;
 
     if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
-                conf_levels = (struct st_confidence_levels_info *)opaque_data;
-                for (auto& eng : engines_) {
-
-                    if (eng->GetEngine()->GetDetectionState() ==
-                        KEYWORD_DETECTION_PENDING ||
-                        eng->GetEngine()->GetDetectionState() ==
-                        USER_VERIFICATION_PENDING)
-                        continue;
-
-                    conf_levels->conf_levels[i].sm_id =
-                       (listen_model_indicator_enum)eng->GetEngineId();
-
-                    switch (eng->GetEngineId()) {
-                       case ST_SM_ID_SVA_F_STAGE_GMM:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       kw_level = best_conf_level;
-                               break;
-                       case ST_SM_ID_SVA_S_STAGE_PDK:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       kw_level =
-                               eng->GetEngine()->GetDetectedConfScore();
-                               break;
-                       case ST_SM_ID_SVA_S_STAGE_USER:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       user_levels[0].level =
-                               eng->GetEngine()->GetDetectedConfScore();
-                               break;
-                       default :
-                               PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                       eng->GetEngineId());
-                    }
-                    i++;
-                }
-            } else {
-                conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-                                    opaque_data;
-                for (auto& eng : engines_) {
-
-                    if (eng->GetEngine()->GetDetectionState() ==
-                        KEYWORD_DETECTION_PENDING ||
-                        eng->GetEngine()->GetDetectionState() ==
-                        USER_VERIFICATION_PENDING)
-                        continue;
-
-                    conf_levels_v2->conf_levels[i].sm_id =
-                       (listen_model_indicator_enum)eng->GetEngineId();
-
-                    switch (eng->GetEngineId()) {
-                        case ST_SM_ID_SVA_F_STAGE_GMM:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    kw_level = best_conf_level;
-                            break;
-                        case ST_SM_ID_SVA_S_STAGE_PDK:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    kw_level =
-                             eng->GetEngine()->GetDetectedConfScore();
-                            break;
-                        case ST_SM_ID_SVA_S_STAGE_USER:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                            break;
-                        default :
-                            PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                         eng->GetEngineId());
-                    }
-                    i++;
-                }
+        conf_levels = (struct st_confidence_levels_info *)opaque_data;
+        for (auto& eng : engines_) {
+            if (eng->GetEngine()->GetDetectionState() ==
+                KEYWORD_DETECTION_PENDING ||
+                eng->GetEngine()->GetDetectionState() ==
+                USER_VERIFICATION_PENDING) {
+                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
+                         eng->GetEngine()->GetDetectionState());
+                  continue;
             }
+            conf_levels->conf_levels[i].sm_id =
+                  (listen_model_indicator_enum)eng->GetEngineId();
 
+            switch (eng->GetEngineId()) {
+                case ST_SM_ID_SVA_F_STAGE_GMM:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                kw_level = best_conf_level;
+                        PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                        break;
+                case ST_SM_ID_SVA_S_STAGE_PDK:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                kw_level =
+                        eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                         break;
+                case ST_SM_ID_SVA_S_STAGE_USER:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                user_levels[0].level =
+                        eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
+                        break;
+                default :
+                        PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                eng->GetEngineId());
+            }
+             i++;
+        }
+    } else {
+        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
+                            opaque_data;
+         for (auto& eng : engines_) {
+             if (eng->GetEngine()->GetDetectionState() ==
+                 KEYWORD_DETECTION_PENDING ||
+                 eng->GetEngine()->GetDetectionState() ==
+                 USER_VERIFICATION_PENDING) {
+                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
+                         eng->GetEngine()->GetDetectionState());
+                  continue;
+             }
+
+             conf_levels_v2->conf_levels[i].sm_id =
+               (listen_model_indicator_enum)eng->GetEngineId();
+
+             switch (eng->GetEngineId()) {
+                case ST_SM_ID_SVA_F_STAGE_GMM:
+                    conf_levels_v2->conf_levels[i].
+                        kw_levels[det_keyword_id].
+                            kw_level = best_conf_level;
+                    PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
+                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level)
+                   break;
+                case ST_SM_ID_SVA_S_STAGE_PDK:
+                    conf_levels_v2->conf_levels[i].
+                        kw_levels[det_keyword_id].
+                            kw_level =
+                    eng->GetEngine()->GetDetectedConfScore();
+                    PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
+                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                   break;
+                case ST_SM_ID_SVA_S_STAGE_USER:
+                      conf_levels_v2->conf_levels[i].
+                          kw_levels[det_keyword_id].
+                            user_levels[0].level =
+                      eng->GetEngine()->GetDetectedConfScore();
+                      PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
+                      conf_levels->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
+                    break;
+                default :
+                    PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                 eng->GetEngineId());
+            }
+            i++;
+        }
+    }
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
