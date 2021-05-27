@@ -405,7 +405,13 @@ int32_t  StreamCommon::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    if (!volume || volume->no_of_volpair == 0) {
+    if (!volume) {
+        PAL_ERR(LOG_TAG, "Invalid volume parameter");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    if (volume->no_of_volpair == 0) {
         PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
         goto exit;

@@ -5626,6 +5626,10 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             dattr.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
                 dev = Device::getInstance(&dattr, rm);
+                if (!dev) {
+                    PAL_ERR(LOG_TAG, "Failed to get device instance");
+                    goto exit;
+                }
                 status = dev->getDeviceParameter(param_id, (void**)&param_bt_a2dp);
                 if (status) {
                     PAL_ERR(LOG_TAG, "get Parameter %d failed\n", param_id);
