@@ -2080,7 +2080,8 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     int32_t status = 0;
     bool restore_eng_state = false;
-
+    uint32_t old_conf = 0;
+    uint32_t model_id = 0;
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
@@ -2100,6 +2101,22 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
         if (restore_eng_state) {
             PAL_INFO(LOG_TAG, "Other stream is active, restart engine recognition");
             UpdateEngineConfigOnStop(s);
+            if (IS_MODULE_TYPE_PDK(module_type_)) {
+                StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+                model_id = st->GetModelId();
+                PAL_DBG(LOG_TAG, "Update conf level for model id : %d",
+                        model_id);
+                for (int i = 0; i < mid_wakeup_cfg_[model_id].num_keywords; ++i) {
+                     old_conf = mid_wakeup_cfg_[model_id].confidence_levels[i];
+                     mid_wakeup_cfg_[model_id].confidence_levels[i] = 100;
+                     PAL_DBG(LOG_TAG,
+                         "Older conf level : %d Updated conf level : %d",
+                     old_conf, mid_wakeup_cfg_[model_id].confidence_levels[i]);
+                }
+                updated_cfg_.push_back(model_id);
+                PAL_DBG(LOG_TAG, "Model id : %d added in updated_cfg_",
+                        model_id);
+            }
             status = ProcessStartRecognition(eng_streams_[0]);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
@@ -2183,10 +2200,13 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
         if (mid_wakeup_cfg_.find(st->GetModelId()) != mid_wakeup_cfg_.end() &&
             std::find(updated_cfg_.begin(), updated_cfg_.end(), st->GetModelId())
-            == updated_cfg_.end() && IsEngineActive())
+            == updated_cfg_.end() && IsEngineActive()) {
             updated_cfg_.push_back(st->GetModelId());
+            PAL_DBG(LOG_TAG, "Model id : %d added to updated_cfg_ list", st->GetModelId());
+        }
 
         mid_wakeup_cfg_[st->GetModelId()].mode = pdk_wakeup_config_.mode;
+        PAL_DBG(LOG_TAG, "Updating mid_wakeup_cfg_ for model id %d", st->GetModelId());
         mid_wakeup_cfg_[st->GetModelId()].num_keywords =
                                          pdk_wakeup_config_.num_keywords;
         mid_wakeup_cfg_[st->GetModelId()].custom_payload_size =
