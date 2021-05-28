@@ -215,24 +215,23 @@ int32_t StreamCompress::close()
         }
         mStreamMutex.lock();
     }
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        PAL_ERR(LOG_TAG, "device %d name %s, going to close",
+    rm->lockGraph();
+    status = session->close(this);
+    rm->unlockGraph();
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"session close failed with status %d", status);
+    }
+
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        PAL_INFO(LOG_TAG, "device %d (%s), going to close",
             mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
         status = mDevices[i]->close();
-        PAL_ERR(LOG_TAG,"deregister\n");
         if (0 != status) {
             PAL_ERR(LOG_TAG,"device close failed with status %d", status);
         }
     }
     PAL_VERBOSE(LOG_TAG,"closed the devices successfully");
-    rm->lockGraph();
-    status = session->close(this);
-    rm->unlockGraph();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG,"session close failed with status %d",status);
-    }
-
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG,"Exit status: %d",status);

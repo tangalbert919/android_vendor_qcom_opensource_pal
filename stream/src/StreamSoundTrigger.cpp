@@ -377,7 +377,8 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
                                                  model_type_, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-            return -ENOMEM;
+            status = -ENOMEM;
+            goto exit;
         }
 
         status = gsl_engine_->GetParameters(param_id, payload);
@@ -388,6 +389,14 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
+    }
+
+exit:
+    if (mDevices.size() > 0) {
+        status = mDevices[0]->close();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
+        }
     }
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
