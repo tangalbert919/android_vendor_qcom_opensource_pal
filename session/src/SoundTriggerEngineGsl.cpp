@@ -1936,7 +1936,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     }
 
     if (mmap_buffer_size_ != 0 && !mmap_buffer_.buffer) {
-        status = session_->createMmapBuffer(s, mmap_buffer_size_,
+        status = session_->createMmapBuffer(s, BytesToFrames(mmap_buffer_size_),
             &mmap_buffer_);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Failed to create mmap buffer, status = %d",
