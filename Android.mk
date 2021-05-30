@@ -137,6 +137,33 @@ endif
 
 include $(BUILD_SHARED_LIBRARY)
 
+#-------------------------------------------
+#            Build CHARGER_LISTENER LIB
+#-------------------------------------------
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := libaudiochargerlistener
+LOCAL_MODULE_OWNER := qti
+LOCAL_MODULE_TAGS := optional
+LOCAL_VENDOR_MODULE := true
+
+LOCAL_SRC_FILES:= utils/src/ChargerListener.cpp
+
+LOCAL_CFLAGS += -Wall -Werror -Wno-unused-function -Wno-unused-variable
+
+LOCAL_SHARED_LIBRARIES := \
+    libaudioroute \
+    libaudioutils \
+    libbase \
+    libcutils \
+    libdl \
+    liblog \
+    libutils
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/utils/inc
+
+include $(BUILD_SHARED_LIBRARY)
+
 include $(CLEAR_VARS)
 LOCAL_USE_VNDK := true
 

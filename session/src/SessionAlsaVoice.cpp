@@ -872,7 +872,11 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type, int tag)
             device = pcmDevTxIds.at(0);
             status = payloadTaged(s, type, tag, device, TX_HOSTLESS);
             break;
-
+        case CHARGE_CONCURRENCY_ON_TAG:
+        case CHARGE_CONCURRENCY_OFF_TAG:
+            device = pcmDevRxIds.at(0);
+            status = payloadTaged(s, type, tag, device, RX_HOSTLESS);
+            break;
         default:
             PAL_ERR(LOG_TAG,"Failed unsupported tag type %d", static_cast<uint32_t>(tag));
             status = -EINVAL;

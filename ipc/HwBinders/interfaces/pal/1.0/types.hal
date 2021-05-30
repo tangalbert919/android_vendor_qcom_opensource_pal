@@ -201,6 +201,7 @@ enum PalParamId : uint32_t {
     PAL_PARAM_ID_SP_GET_CAL = 49,
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
     PAL_PARAM_ID_SNDCARD_STATE = 51,
+    PAL_PARAM_ID_CHARGER_STATE = 53,
 };
 
 /**< PAL stream attributes to be specified, used in pal_stream_open cmd */
@@ -346,6 +347,14 @@ struct PalEventReadWriteDonePayload {
     uint32_t status; /**< data buffer status as defined in ar_osal_error.h */
     uint32_t md_status; /**< meta-data status as defined in ar_osal_error.h */
     PalBuffer buff;
+};
+
+/** Payload For ID: PAL_PARAM_ID_CHARGER_STATE
+ *  Description   : Charger State
+ */
+struct pal_param_charger_state {
+    bool is_charger_online; /**< status of charger */
+    bool is_concurrent_boost_enable; /**< status of concurrent boost status */
 };
 
 /**

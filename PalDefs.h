@@ -865,6 +865,7 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
     PAL_PARAM_ID_SNDCARD_STATE = 51,
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
+    PAL_PARAM_ID_CHARGER_STATE = 53,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -953,6 +954,14 @@ typedef struct pal_param_screen_state {
 typedef struct pal_param_charging_state {
     bool              charging_state;
 } pal_param_charging_state_t;
+
+/* Payload For ID: PAL_PARAM_ID_CHARGER_STATE
+ * Description   : Charger State
+*/
+typedef struct pal_param_charger_state {
+    bool              is_charger_online;
+    bool              is_concurrent_boost_enable;
+} pal_param_charger_state_t;
 
 /*
  * Used to identify the swapping type
