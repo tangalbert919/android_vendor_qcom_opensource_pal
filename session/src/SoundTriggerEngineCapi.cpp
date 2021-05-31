@@ -788,7 +788,7 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         threshold_cfg->anti_spoofing_enabled = 0;
         threshold_cfg->anti_spoofing_threshold = 0;
 
-        PAL_DBG(LOG_TAG, "Keyword detection (UV) confidence level = %f",
+        PAL_DBG(LOG_TAG, "Keyword detection (UV) confidence level = %d",
                 threshold_cfg->threshold);
 
         rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,

@@ -3302,6 +3302,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     }
                 }
             }
+            break;
         }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
