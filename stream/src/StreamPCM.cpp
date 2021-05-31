@@ -807,10 +807,10 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         PAL_VERBOSE(LOG_TAG, "Exit size: %d", size);
         return size;
     }
-    mStreamMutex.unlock();
 
     if (currentState == STREAM_STARTED) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
+        mStreamMutex.unlock();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
 
@@ -841,6 +841,8 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             status = -EIO;
         else
             status = -EINVAL;
+
+        mStreamMutex.unlock();
         goto exit;
     }
 
