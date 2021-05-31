@@ -448,7 +448,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         builder->payloadCopV2PackConfig(&paramData, &paramSize, copMiid, codecInfo);
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
-                delete [] paramData;
+            delete [] paramData;
             paramData = NULL;
             paramSize = 0;
         } else {
@@ -461,7 +461,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
-            free(paramData);
+            delete [] paramData;
             paramData = NULL;
             paramSize = 0;
         } else {
@@ -486,7 +486,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
-            free(paramData);
+            delete [] paramData;
             paramData = NULL;
             paramSize = 0;
         } else {
@@ -1201,7 +1201,7 @@ int BtA2dp::startPlayback()
         /* This call indicates BT IPC lib to start playback */
         ret =  audio_source_start();
         PAL_ERR(LOG_TAG, "BT controller start return = %d",ret);
-        if (ret != 0 ) {
+        if (ret != 0) {
            PAL_ERR(LOG_TAG, "BT controller start failed");
            return ret;
         }
@@ -1714,7 +1714,7 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
                              btsco_lc3_cfg_t &lc3Cfg)
 {
     std::vector<lc3_stream_map_t> steamMap;
-    uint32_t audio_location;
+    uint32_t audio_location = 0;
     uint8_t stream_id;
     uint8_t direction;
     int idx = 0;

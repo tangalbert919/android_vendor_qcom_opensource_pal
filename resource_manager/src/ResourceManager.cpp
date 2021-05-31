@@ -3989,7 +3989,7 @@ template <class T>
 void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams,
                       std::vector<T> sourcestreams)
 {
-    for(typename std::vector<T>::iterator iter = sourcestreams.begin();
+    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
@@ -4036,6 +4036,57 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
     PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
     ret = getActiveStream_l(d, activestreams);
+    mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
+    return ret;
+}
+
+template <class T>
+void getOrphanStreams(std::vector<Stream*> &orphanstreams,
+                      std::vector<T> sourcestreams)
+{
+    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
+                 iter != sourcestreams.end(); iter++) {
+        std::vector <std::shared_ptr<Device>> devices;
+        (*iter)->getAssociatedDevices(devices);
+        if (devices.empty())
+            orphanstreams.push_back(*iter);
+    }
+}
+
+int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams)
+{
+    int ret = 0;
+
+    getOrphanStreams(orphanstreams, active_streams_ll);
+    getOrphanStreams(orphanstreams, active_streams_ull);
+    getOrphanStreams(orphanstreams, active_streams_ulla);
+    getOrphanStreams(orphanstreams, active_streams_db);
+    getOrphanStreams(orphanstreams, active_streams_comp);
+    getOrphanStreams(orphanstreams, active_streams_st);
+    getOrphanStreams(orphanstreams, active_streams_acd);
+    getOrphanStreams(orphanstreams, active_streams_po);
+    getOrphanStreams(orphanstreams, active_streams_proxy);
+    getOrphanStreams(orphanstreams, active_streams_incall_record);
+    getOrphanStreams(orphanstreams, active_streams_non_tunnel);
+    getOrphanStreams(orphanstreams, active_streams_incall_music);
+    getOrphanStreams(orphanstreams, active_streams_haptics);
+    getOrphanStreams(orphanstreams, active_streams_ultrasound);
+
+    if (orphanstreams.empty()) {
+        ret = -ENOENT;
+        PAL_INFO(LOG_TAG, "no orphan streams found");
+    }
+
+    return ret;
+}
+
+int ResourceManager::getOrphanStream(std::vector<Stream*> &orphanstreams)
+{
+    int ret = 0;
+    PAL_DBG(LOG_TAG, "Enter.");
+    mResourceManagerMutex.lock();
+    ret = getOrphanStream_l(orphanstreams);
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
@@ -5570,6 +5621,7 @@ int32_t ResourceManager::a2dpResume()
     struct pal_device_info devinfo = {};
     std::vector <Stream*>::iterator sIter;
     std::vector <Stream *> activeStreams;
+    std::vector <Stream *> orphanStreams;
     std::vector <Stream *> restoredStreams;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
     std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
@@ -5589,7 +5641,8 @@ int32_t ResourceManager::a2dpResume()
     getDeviceConfig(&a2dpDattr, NULL, devinfo.channels);
 
     getActiveStream_l(spkrDev, activeStreams);
-    if (activeStreams.size() == 0) {
+    getOrphanStream_l(orphanStreams);
+    if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
         goto exit;
     }
@@ -5604,7 +5657,15 @@ int32_t ResourceManager::a2dpResume()
         }
     }
 
-    if (restoredStreams.size() == 0) {
+    // retry all orphan streams which failed to restore previously.
+    for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
+        if ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            restoredStreams.push_back((*sIter));
+            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+        }
+    }
+
+    if (restoredStreams.empty()) {
         PAL_DBG(LOG_TAG, "no streams to be restored");
         goto exit;
     }

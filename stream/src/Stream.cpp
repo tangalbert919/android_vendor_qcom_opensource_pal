@@ -638,7 +638,6 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
     // Stream does not know if the same device is being used by other streams or not
     // So if any other streams are using the same device that has to be handled outside of stream
     // resouce manager ??
-
     for (int i = 0; i < mDevices.size(); i++) {
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
@@ -647,27 +646,27 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
-                goto error_1;
+                goto exit;
             }
 
             status = mDevices[i]->stop();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                goto error_1;
+                goto exit;
             }
             rm->deregisterDevice(mDevices[i], this);
 
             status = mDevices[i]->close();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                goto error_1;
+                goto exit;
             }
             mDevices.erase(mDevices.begin() + i);
             break;
         }
     }
 
-error_1:
+exit:
     return status;
 }
 
@@ -689,13 +688,13 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     if (!dattr) {
         PAL_ERR(LOG_TAG, "invalid params");
         status = -EINVAL;
-        goto error_1;
+        goto exit;
     }
 
     dev = Device::getInstance(dattr, rm);
     if (!dev) {
         PAL_ERR(LOG_TAG, "Device creation failed");
-        goto error_1;
+        goto exit;
     }
 
     /* Check if we need to check here or above if bt_Sco is on for sco usecase
@@ -711,7 +710,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     if (0 != status) {
         PAL_ERR(LOG_TAG, "device %d open failed with status %d",
             dev->getSndDeviceId(), status);
-        goto error_1;
+        goto exit;
     }
 
     mDevices.push_back(dev);
@@ -719,31 +718,29 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
                 dev->getSndDeviceId(), status);
-        mDevices.pop_back();
-        dev->close();
-        goto error_1;
+        goto dev_close;
     }
 
     status = dev->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
             dev->getSndDeviceId(), dev->getPALDeviceName().c_str(), status);
-        goto error_2;
+        goto dev_close;
     }
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
-        goto error_3;
+        goto dev_stop;
     }
     rm->registerDevice(dev, this);
-    goto error_1;
-error_3:
+    goto exit;
+
+dev_stop:
     dev->stop();
-error_2:
+dev_close:
     mDevices.pop_back();
-    rm->deregisterDevice(dev, this);
     dev->close();
-error_1:
+exit:
     return status;
 }
 

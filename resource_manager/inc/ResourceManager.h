@@ -543,6 +543,8 @@ public:
     int getAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
+    int getOrphanStream(std::vector<Stream*> &orphanstreams);
+    int getOrphanStream_l(std::vector<Stream*> &orphanstreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
