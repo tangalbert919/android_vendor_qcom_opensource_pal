@@ -1529,15 +1529,21 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         goto error_exit;
     }
 
-    // NOTE: First stage engine is the writer to the buffer
-    // PAL client reader should be first in the reader list.
-    // The remaining readers are for seconds stage engines.
-    reader_ = reader_list_[0];
-    for (i = 1; i < engines_.size(); i++) {
-        status = engines_[i]->GetEngine()->SetBufferReader(reader_list_[i]);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
-            goto error_exit;
+    /*
+     * Assign created readers based on sound model sequence.
+     * For first stage engine, assign reader to stream side.
+     */
+    for (i = 0; i < engines_.size(); i++) {
+        if (engines_[i]->GetEngine()->GetEngineType() ==
+            ST_SM_ID_SVA_F_STAGE_GMM) {
+            reader_ = reader_list_[i];
+        } else {
+            status = engines_[i]->GetEngine()->SetBufferReader(
+                reader_list_[i]);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
+                goto error_exit;
+            }
         }
     }
 
