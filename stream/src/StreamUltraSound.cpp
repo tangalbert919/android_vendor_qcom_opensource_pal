@@ -48,10 +48,8 @@ StreamUltraSound::StreamUltraSound(const struct pal_stream_attributes *sattr __u
 
 StreamUltraSound::~StreamUltraSound()
 {
-    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
-    mStreamMutex.unlock();
 }
 
 int32_t  StreamUltraSound::setParameters(uint32_t param_id, void *payload)

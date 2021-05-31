@@ -145,11 +145,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
 StreamCommon::~StreamCommon()
 {
     cachedState = STREAM_IDLE;
-    while (!ssrDone)
-        usleep(1000);
-    PAL_INFO(LOG_TAG, "ssr done, exiting");
-
-    mStreamMutex.lock();
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -158,7 +153,6 @@ StreamCommon::~StreamCommon()
     mDevices.clear();
     delete session;
     session = nullptr;
-    mStreamMutex.unlock();
 }
 
 int32_t  StreamCommon::open()
@@ -534,7 +528,6 @@ int32_t StreamCommon::ssrDownHandler()
 exit :
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     currentState = STREAM_IDLE;
-    ssrDone = true;
     return status;
 }
 
@@ -585,7 +578,6 @@ int32_t StreamCommon::ssrUpHandler()
     }
     cachedState = STREAM_IDLE;
 exit :
-    ssrDone = true;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
