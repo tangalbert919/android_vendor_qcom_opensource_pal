@@ -3648,7 +3648,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         mResourceManagerMutex.lock();
     }
 
-    if (voiceui_tx_conc || voiceui_rx_conc) {
+    if (voiceui_conc_en && (voiceui_tx_conc || voiceui_rx_conc)) {
         if (!IsLPISupported(PAL_STREAM_VOICE_UI) ||
             !isNLPISwitchSupported(PAL_STREAM_VOICE_UI)) {
             PAL_INFO(LOG_TAG,
@@ -3662,7 +3662,7 @@ void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
         }
     }
 
-    if (acd_tx_conc || acd_rx_conc) {
+    if (acd_conc_en && (acd_tx_conc || acd_rx_conc)) {
         if (!IsLPISupported(PAL_STREAM_ACD) ||
             !isNLPISwitchSupported(PAL_STREAM_ACD)) {
             PAL_INFO(LOG_TAG,
