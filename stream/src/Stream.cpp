@@ -807,6 +807,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     int32_t connectCount = 0, disconnectCount = 0;
     bool isNewDeviceA2dp = false;
     bool isCurDeviceA2dp = false;
+    bool isCurrentDeviceProxyOut = false;
     bool matchFound = false;
     uint32_t curDeviceSlots[PAL_DEVICE_IN_MAX], newDeviceSlots[PAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
@@ -833,6 +834,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         mDevices[i]->getDeviceAttributes(&dAttr);
         if (curDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
             isCurDeviceA2dp = true;
+
+        if (curDevId == PAL_DEVICE_OUT_PROXY)
+            isCurrentDeviceProxyOut = true;
 
         /* If stream is currently running on same device, then check if
          * it needs device switch. If not needed, then do not add it to
@@ -864,14 +868,15 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
         /*
-         * When A2DP is disconnected the
+         * When A2DP and Out Proxy device is disconnected the
          * music playback is paused and the policy manager sends routing=0
          * But the audioflinger continues to write data until standby time
          * (3sec). As BT is turned off, the write gets blocked.
          * Avoid this by routing audio to speaker until standby.
          */
         if ((newDevices[i].id == PAL_DEVICE_NONE) &&   /* This assumes that PAL_DEVICE_NONE comes as single device */
-            (isCurDeviceA2dp == true) && !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+            (((isCurDeviceA2dp == true) && !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
+             (isCurrentDeviceProxyOut))) {
             newDevices[i].id = PAL_DEVICE_OUT_SPEAKER;
 
             rm->getDeviceInfo(newDevices[i].id, mStreamAttr->type, &devinfo);
