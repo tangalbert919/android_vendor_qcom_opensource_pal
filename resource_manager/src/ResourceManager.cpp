@@ -1444,6 +1444,11 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     struct pal_stream_attributes tx_attr;
     struct pal_device_info devinfo = {};
 
+    if (!deviceattr) {
+        PAL_ERR(LOG_TAG, "Invalid deviceattr");
+        return -EINVAL;
+    }
+
     PAL_DBG(LOG_TAG, "deviceattr->id %d", deviceattr->id);
     switch (deviceattr->id) {
         case PAL_DEVICE_NONE:
@@ -1459,7 +1464,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            if (isPalPCMFormat(sAttr->in_media_config.aud_fmt_id)) {
+            if (sAttr && isPalPCMFormat(sAttr->in_media_config.aud_fmt_id)) {
                deviceattr->config.aud_fmt_id = getFormatToConfigure(&sAttr->in_media_config,
                                                                     bitFormatSupported);
                deviceattr->config.bit_width = palFormatToBitwidthTable[deviceattr->config.aud_fmt_id];
@@ -1473,7 +1478,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
             deviceattr->config.sample_rate = SAMPLINGRATE_48K;
-            if (isPalPCMFormat(sAttr->in_media_config.aud_fmt_id)) {
+            if (sAttr && isPalPCMFormat(sAttr->in_media_config.aud_fmt_id)) {
                deviceattr->config.aud_fmt_id = getFormatToConfigure(&sAttr->in_media_config,
                                                                     bitFormatSupported);
                deviceattr->config.bit_width = palFormatToBitwidthTable[deviceattr->config.aud_fmt_id];
@@ -1511,7 +1516,13 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            getDeviceInfo(deviceattr->id, sAttr->type, &devinfo);
+            if (sAttr != NULL)
+               getDeviceInfo(deviceattr->id, sAttr->type,
+                             deviceattr->custom_config.custom_key, &devinfo);
+            else
+               /* For NULL sAttr set default samplerate */
+               getDeviceInfo(deviceattr->id, (pal_stream_type_t)0,
+                             deviceattr->custom_config.custom_key, &devinfo);
             if (!devinfo.samplerate) {
                PAL_ERR(LOG_TAG, "default samplerate is not set.");
                return -EINVAL;
@@ -1524,7 +1535,13 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             dev_ch_info.channels = channel;
             getChannelMap(&(dev_ch_info.ch_map[0]), channel);
             deviceattr->config.ch_info = dev_ch_info;
-            getDeviceInfo(deviceattr->id, sAttr->type, &devinfo);
+            if (sAttr != NULL)
+               getDeviceInfo(deviceattr->id, sAttr->type,
+                             deviceattr->custom_config.custom_key, &devinfo);
+            else
+               /* For NULL sAttr set default samplerate */
+               getDeviceInfo(deviceattr->id, (pal_stream_type_t)0,
+                             deviceattr->custom_config.custom_key, &devinfo);
             if (!devinfo.samplerate) {
                PAL_ERR(LOG_TAG, "default samplerate is not set.");
                return -EINVAL;
@@ -1616,6 +1633,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_OUT_USB_DEVICE:
         case PAL_DEVICE_OUT_USB_HEADSET:
             {
+                if (!sAttr) {
+                    PAL_ERR(LOG_TAG, "Invalid parameter.");
+                    return -EINVAL;
+                }
                 deviceattr->config.sample_rate = SAMPLINGRATE_44K;//SAMPLINGRATE_48K;
                 deviceattr->config.bit_width = BITWIDTH_16;
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
@@ -1641,6 +1662,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
         case PAL_DEVICE_IN_USB_DEVICE:
         case PAL_DEVICE_IN_USB_HEADSET:
             {
+                if (!sAttr) {
+                    PAL_ERR(LOG_TAG, "Invalid parameter.");
+                    return -EINVAL;
+                }
                 deviceattr->config.sample_rate = SAMPLINGRATE_48K;
                 deviceattr->config.bit_width = BITWIDTH_16;
                 deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
@@ -1669,7 +1694,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 PAL_ERR(LOG_TAG, "Invalid parameter.");
                 return -EINVAL;
             }
-            deviceattr->config.ch_info =sAttr->in_media_config.ch_info;
+            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
             deviceattr->config.sample_rate = sAttr->in_media_config.sample_rate;
             if (isPalPCMFormat(sAttr->in_media_config.aud_fmt_id))
                 deviceattr->config.bit_width =
@@ -1801,8 +1826,8 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 }
 
                 if (!sAttr) {
-                PAL_ERR(LOG_TAG, "Invalid parameter.");
-                return -EINVAL;
+                    PAL_ERR(LOG_TAG, "Invalid parameter.");
+                    return -EINVAL;
                 }
                 /**
                  * Comparision of stream channel and device supported max channel.
