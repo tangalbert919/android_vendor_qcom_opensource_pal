@@ -309,6 +309,7 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
     int dev_id = 0;
     int idx = 0;
 
+    memset(&dAttr, 0, sizeof(struct pal_device));
     status = s->getAssociatedDevices(associatedDevices);
     if ((0 != status) || (associatedDevices.size() == 0)) {
         PAL_ERR(LOG_TAG, "getAssociatedDevices fails or empty associated devices");
@@ -336,6 +337,11 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
             status = associatedDevices[idx]->getDeviceAttributes(&dAttr);
             break;
         }
+    }
+    if (dAttr.id == 0) {
+        PAL_ERR(LOG_TAG, "Failed to get device attributes");
+        status = -EINVAL;
+        goto exit;
     }
 
     if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)

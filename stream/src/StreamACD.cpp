@@ -464,6 +464,10 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         new_event_size +=  current_context_event->num_contexts * sizeof(struct acd_per_context_event_info);
 
         cached_event_data_ = (struct pal_st_recognition_event *)realloc(cached_event_data_, new_event_size);
+        if (!cached_event_data_) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory for cached_event_data_");
+            return;
+        }
         cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
         per_context_info = (uint8_t *) ((uint8_t *) current_context_event +
                             sizeof(struct acd_context_event) +
@@ -477,6 +481,10 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         current_context_event->num_contexts += event->num_contexts;
     } else {
         cached_event_data_ = (struct pal_st_recognition_event *) calloc(1, new_event_size);
+        if (!cached_event_data_) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory for cached_event_data_");
+            return;
+        }
         PopulateCallbackPayload(event, cached_event_data_);
     }
 }
@@ -506,6 +514,10 @@ void StreamACD::NotifyClient(struct acd_context_event *event)
                         (event->num_contexts * sizeof(struct acd_per_context_event_info));
 
     event_data = (uint8_t *)calloc(1, event_size);
+    if (!event_data) {
+        PAL_ERR(LOG_TAG, "Failed to allocate memory for event_data");
+        return;
+    }
 
     if (callback_) {
         PAL_INFO(LOG_TAG, "Notify detection event to client");
@@ -1319,6 +1331,11 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 (ACDConcurrentStreamEventConfigData *)ev_cfg->data_.get();
             active = data->is_active_;
             new_cap_prof = acd_stream_.GetCurrentCaptureProfile();
+            if (!new_cap_prof) {
+                PAL_ERR(LOG_TAG, "Failed to get new capture profile");
+                status = -EINVAL;
+                break;
+            }
             if (acd_stream_.cap_prof_ != new_cap_prof) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
@@ -1579,6 +1596,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 (ACDConcurrentStreamEventConfigData *)ev_cfg->data_.get();
             active = data->is_active_;
             new_cap_prof = acd_stream_.GetCurrentCaptureProfile();
+            if (!new_cap_prof) {
+                PAL_ERR(LOG_TAG, "Failed to initialize new capture profile");
+                status = -EINVAL;
+                break;
+            }
             if (acd_stream_.cap_prof_ != new_cap_prof) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",

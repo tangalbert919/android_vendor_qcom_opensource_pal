@@ -1092,6 +1092,11 @@ UsecaseACD::UsecaseACD(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
 
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
+
     this->requested_context_list = NULL;
     this->stream_attributes->type = PAL_STREAM_ACD;
     this->no_of_devices = 1;
@@ -1270,6 +1275,11 @@ UsecaseRawData::UsecaseRawData(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
 
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
+
     this->stream_attributes->type = PAL_STREAM_CONTEXT_RAWDATA;
     this->no_of_devices = 1;
     this->pal_devices = (struct pal_device *) calloc (this->no_of_devices, sizeof(struct pal_device));
@@ -1328,6 +1338,11 @@ exit:
 UsecaseUPD::UsecaseUPD(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
+
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
 
     this->stream_attributes->type = PAL_STREAM_ULTRASOUND;
     this->stream_attributes->direction = PAL_AUDIO_INPUT_OUTPUT;

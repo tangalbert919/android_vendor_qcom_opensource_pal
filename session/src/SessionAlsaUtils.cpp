@@ -885,6 +885,11 @@ int SessionAlsaUtils::getTagsWithModuleInfo(struct mixer *mixer, int device, con
     if (ret)
         return ret;
 
+    if (!pcmDeviceName) {
+        PAL_ERR(LOG_TAG, "pcmDeviceName not initialized");
+        return -EINVAL;
+    }
+
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
