@@ -168,7 +168,7 @@ static int ble_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
             enc_payload->channel_count = CH_STEREO;
     }
 
-    enc_payload->is_abr_enabled = false;
+    enc_payload->is_abr_enabled = true;
 
     for (i = 0; i < num_blks; i++) {
         blk[i] = (custom_block_t *)calloc(1, sizeof(custom_block_t));
@@ -188,6 +188,7 @@ static int ble_pack_dec_config(bt_codec_t *codec, void *src, void **dst)
         goto free_payload;
     }
 
+    dec_init->decoder_output_channel             = ble_bt_cfg->dec_cfg.decoder_output_channel;
     dec_init->stream_map_size                    = ble_bt_cfg->dec_cfg.stream_map_size;
     dec_init->fromAirConfig.api_version          = ble_bt_cfg->dec_cfg.fromAirConfig.api_version;
     dec_init->fromAirConfig.sampling_Frequency   = ble_bt_cfg->dec_cfg.fromAirConfig.sampling_freq;

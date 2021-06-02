@@ -5603,7 +5603,7 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
 {
     int status = 0;
 
-    PAL_INFO(LOG_TAG, "param_id=%d", param_id);
+    PAL_DBG(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
