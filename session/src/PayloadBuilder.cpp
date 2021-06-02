@@ -1041,17 +1041,17 @@ void PayloadBuilder::payloadCopV2DepackConfig(uint8_t** payload, size_t* size,
     }
 
     if (!isStreamMapDirIn) {
-         payloadSize = sizeof(struct apm_module_param_data_t) +
-                       sizeof(struct param_id_cop_pack_output_media_fmt_t) +
-                       sizeof(struct cop_v2_stream_info_map_t) * bleCfg->enc_cfg.stream_map_size;
+        payloadSize = sizeof(struct apm_module_param_data_t) +
+                      sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                      sizeof(struct cop_v2_stream_info_map_t) * bleCfg->enc_cfg.stream_map_size;
+    } else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size != 0) {
+        payloadSize = sizeof(struct apm_module_param_data_t) +
+                      sizeof(struct param_id_cop_pack_output_media_fmt_t) +
+                      sizeof(struct cop_v2_stream_info_map_t) * bleCfg->dec_cfg.stream_map_size;
+    } else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size == 0) {
+        PAL_ERR(LOG_TAG, "isStreamMapDirIn is true, but empty streamMapIn");
+        return;
     }
-    else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size != 0) {
-         payloadSize = sizeof(struct apm_module_param_data_t) +
-                       sizeof(struct param_id_cop_pack_output_media_fmt_t) +
-                       sizeof(struct cop_v2_stream_info_map_t) * bleCfg->dec_cfg.stream_map_size;
-    }
-    else if (isStreamMapDirIn && bleCfg->dec_cfg.stream_map_size == 0)
-         return;
 
     padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
@@ -1078,21 +1078,20 @@ void PayloadBuilder::payloadCopV2DepackConfig(uint8_t** payload, size_t* size,
     if (!isStreamMapDirIn) {
         streamInfo->num_streams = bleCfg->enc_cfg.stream_map_size;;
         for (i = 0; i < streamInfo->num_streams; i++) {
-             channel_mask = convert_channel_map(bleCfg->enc_cfg.streamMapOut[i].audio_location);
-             streamMap[i].stream_id = bleCfg->enc_cfg.streamMapOut[i].stream_id;
-             streamMap[i].direction = bleCfg->enc_cfg.streamMapOut[i].direction;
-             streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
-             streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
+            channel_mask = convert_channel_map(bleCfg->enc_cfg.streamMapOut[i].audio_location);
+            streamMap[i].stream_id = bleCfg->enc_cfg.streamMapOut[i].stream_id;
+            streamMap[i].direction = bleCfg->enc_cfg.streamMapOut[i].direction;
+            streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
+            streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
         }
-    }
-    else {
+    } else {
         streamInfo->num_streams = bleCfg->dec_cfg.stream_map_size;
         for (i = 0; i < streamInfo->num_streams; i++) {
-             channel_mask = convert_channel_map(bleCfg->dec_cfg.streamMapIn[i].audio_location);
-             streamMap[i].stream_id = bleCfg->dec_cfg.streamMapIn[i].stream_id;
-             streamMap[i].direction = bleCfg->dec_cfg.streamMapIn[i].direction;
-             streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
-             streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
+            channel_mask = convert_channel_map(bleCfg->dec_cfg.streamMapIn[i].audio_location);
+            streamMap[i].stream_id = bleCfg->dec_cfg.streamMapIn[i].stream_id;
+            streamMap[i].direction = bleCfg->dec_cfg.streamMapIn[i].direction;
+            streamMap[i].channel_mask_lsw = channel_mask  & 0x00000000FFFFFFFF;
+            streamMap[i].channel_mask_msw = (channel_mask & 0xFFFFFFFF00000000) >> 32;
         }
     }
     *size = payloadSize + padBytes;

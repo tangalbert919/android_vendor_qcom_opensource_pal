@@ -780,6 +780,7 @@ typedef enum {
     PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
     PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
     PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
+    PAL_PARAM_ID_BT_SCO_LC3 = 46,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -892,10 +893,53 @@ typedef struct pal_param_device_rotation {
 /* Payload For ID: PAL_PARAM_ID_BT_SCO*
  * Description   : BT SCO related device parameters
 */
+static const char* lc3_reserved_params[] = {
+    "StreamMap",
+    "Codec",
+    "FrameDuration",
+    "rxconfig_index",
+    "txconfig_index",
+    "version",
+    "Blocks_forSDU",
+};
+
+enum {
+    LC3_STREAM_MAP_BIT     = 0x1,
+    LC3_CODEC_BIT          = 0x1 << 1,
+    LC3_FRAME_DURATION_BIT = 0x1 << 2,
+    LC3_RXCFG_IDX_BIT      = 0x1 << 3,
+    LC3_TXCFG_IDX_BIT      = 0x1 << 4,
+    LC3_VERSION_BIT        = 0x1 << 5,
+    LC3_BLOCKS_FORSDU_BIT  = 0x1 << 6,
+    LC3_BIT_ALL            = LC3_STREAM_MAP_BIT |
+                             LC3_CODEC_BIT |
+                             LC3_FRAME_DURATION_BIT |
+                             LC3_RXCFG_IDX_BIT |
+                             LC3_TXCFG_IDX_BIT |
+                             LC3_VERSION_BIT |
+                             LC3_BLOCKS_FORSDU_BIT,
+    LC3_BIT_MASK           = LC3_BIT_ALL,
+    LC3_BIT_VALID          = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+};
+
+/* max length of streamMap string, up to 16 stream id supported */
+#define PAL_LC3_MAX_STRING_LEN 200
+typedef struct btsco_lc3_cfg {
+    uint32_t fields_map;
+    uint32_t rxconfig_index;
+    uint32_t txconfig_index;
+    uint32_t api_version;
+    uint32_t frame_duration;
+    uint32_t num_blocks;
+    char streamMap[PAL_LC3_MAX_STRING_LEN];
+} btsco_lc3_cfg_t;
+
 typedef struct pal_param_btsco {
-    bool     bt_sco_on;
-    bool     bt_wb_speech_enabled;
-    int      bt_swb_speech_mode;
+    bool   bt_sco_on;
+    bool   bt_wb_speech_enabled;
+    int    bt_swb_speech_mode;
+    bool   bt_lc3_speech_enabled;
+    btsco_lc3_cfg_t lc3_cfg;
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*

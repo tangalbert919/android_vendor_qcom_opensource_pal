@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 #include "Device.h"
 #include <tinyalsa/asoundlib.h>
 #include <bt_intf.h>
+#include <bt_ble.h>
 #include <vector>
 #include <mutex>
 #include <system/audio.h>
@@ -95,7 +96,6 @@ protected:
     std::vector<int>           fbpcmDevIds;
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
-    int                        swbSpeechMode;
     std::mutex                 mAbrMutex;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
@@ -187,6 +187,9 @@ protected:
     BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     bool isScoOn;
     bool isWbSpeechEnabled;
+    int  swbSpeechMode;
+    bool isSwbLc3Enabled;
+    audio_lc3_codec_cfg_t lc3CodecInfo;
     int startSwb();
 
 public:
@@ -194,6 +197,7 @@ public:
     int stop();
     bool isDeviceReady() override;
     int32_t setDeviceParameter(uint32_t param_id, void *param) override;
+    void convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo, btsco_lc3_cfg_t &lc3Cfg);
     void updateSampleRate(uint32_t *sampleRate);
 
     static std::shared_ptr<Device> getObject(pal_device_id_t id);
