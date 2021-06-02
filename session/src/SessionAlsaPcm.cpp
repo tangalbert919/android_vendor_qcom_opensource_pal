@@ -596,7 +596,7 @@ int SessionAlsaPcm::start(Stream * s)
     int payload_size = 0;
     struct agm_event_reg_cfg event_cfg;
     struct agm_event_reg_cfg *acd_event_cfg;
-    int tagId;
+    int tagId = 0;
     int DeviceId;
 
     PAL_DBG(LOG_TAG,"Enter");
@@ -787,9 +787,9 @@ int SessionAlsaPcm::start(Stream * s)
                 streamData.rotation_type = PAL_SPEAKER_ROTATION_LR;
                 streamData.ch_info = nullptr;
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
-                if (payloadSize) {
+                if (payloadSize && payload) {
                     status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
+                    free(payload);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         goto exit;
@@ -819,9 +819,9 @@ int SessionAlsaPcm::start(Stream * s)
                     codecConfig.aud_fmt_id =  sAttr.in_media_config.aud_fmt_id;
                     codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
-                    if (payloadSize) {
+                    if (payloadSize && payload) {
                         status = updateCustomPayload(payload, payloadSize);
-                        delete payload;
+                        free(payload);
                         if (0 != status) {
                             PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                             goto exit;
@@ -890,9 +890,9 @@ int SessionAlsaPcm::start(Stream * s)
                 codecConfig.aud_fmt_id = sAttr.out_media_config.aud_fmt_id;
                 codecConfig.ch_info.channels = sAttr.out_media_config.ch_info.channels;
                 builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
-                if (payloadSize) {
+                if (payloadSize && payload) {
                     status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
+                    free(payload);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         goto exit;
@@ -1216,7 +1216,6 @@ int SessionAlsaPcm::close(Stream * s)
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
-    std::shared_ptr<Device> dev = nullptr;
     std::string backendname;
     int32_t beDevId = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
@@ -1556,10 +1555,13 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
                 goto exit;
             }
             mState = SESSION_STARTED;
+        } else if (!pcm) {
+            PAL_ERR(LOG_TAG, "pcm is NULL");
+            status = -EINVAL;
+            goto exit;
         }
 
-        if(SessionAlsaUtils::isMmapUsecase(sAttr))
-        {
+        if (SessionAlsaUtils::isMmapUsecase(sAttr)) {
             long ns = 0;
             if (sAttr.out_media_config.sample_rate)
                 ns = pcm_bytes_to_frames(pcm, sizeWritten)*1000000000LL/
@@ -1590,7 +1592,12 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
             goto exit;
         }
         mState = SESSION_STARTED;
+    } else if (!pcm) {
+        PAL_ERR(LOG_TAG, "pcm is NULL");
+        status = -EINVAL;
+        goto exit;
     }
+
     data = static_cast<char *>(data) + offset;
     if (SessionAlsaUtils::isMmapUsecase(sAttr)) {
         if (sizeWritten) {

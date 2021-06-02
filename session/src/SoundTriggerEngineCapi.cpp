@@ -607,6 +607,9 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     stream_handle_ = s;
     confidence_threshold_ = 0;
     detection_state_ = ENGINE_IDLE;
+    capi_handle_ = nullptr;
+    capi_lib_handle_ = nullptr;
+    capi_init_ = nullptr;
 
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {

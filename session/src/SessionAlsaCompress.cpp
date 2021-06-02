@@ -485,7 +485,7 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
 void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
 {
     std::shared_ptr<offload_msg> msg;
-    uint32_t event_id;
+    uint32_t event_id = 0;
     int ret = 0;
     bool is_drain_called = false;
     std::unique_lock<std::mutex> lock(compressObj->cv_mutex_);
@@ -499,17 +499,17 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
             compressObj->msg_queue_.pop();
             lock.unlock();
 
-            if (msg->cmd == OFFLOAD_CMD_EXIT)
+            if (msg && msg->cmd == OFFLOAD_CMD_EXIT)
                 break; // exit the thread
 
-            if (msg->cmd == OFFLOAD_CMD_WAIT_FOR_BUFFER) {
+            if (msg && msg->cmd == OFFLOAD_CMD_WAIT_FOR_BUFFER) {
                 if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
                     PAL_VERBOSE(LOG_TAG, "calling compress_wait");
                     ret = compress_wait(compressObj->compress, -1);
                     PAL_VERBOSE(LOG_TAG, "out of compress_wait, ret %d", ret);
                     event_id = PAL_STREAM_CBK_EVENT_WRITE_READY;
                 }
-            } else if (msg->cmd == OFFLOAD_CMD_DRAIN) {
+            } else if (msg && msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called && compressObj->playback_started) {
                     PAL_INFO(LOG_TAG, "calling compress_drain");
                     if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
@@ -524,7 +524,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 }
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
-            } else if (msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
+            } else if (msg && msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
                 if (compressObj->playback_started) {
                     if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
                         if (compressObj->isGaplessFmt) {
@@ -554,7 +554,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                     lock.lock();
                     continue;
                 }
-            }  else if (msg->cmd == OFFLOAD_CMD_ERROR) {
+            }  else if (msg && msg->cmd == OFFLOAD_CMD_ERROR) {
                 PAL_ERR(LOG_TAG, "Sending error to PAL client");
                 event_id = PAL_STREAM_CBK_EVENT_ERROR;
             }
@@ -748,7 +748,6 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, pal_stream_t
     if (!rxAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToConnect);
-
         for (const auto &elem : rxAifBackEndsToConnect)
             rxAifBackEnds.push_back(elem);
     }
@@ -758,6 +757,7 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, pal_stream_t
             dAttr, compressDevIds, txAifBackEndsToConnect);
         for (const auto &elem : txAifBackEndsToConnect)
             txAifBackEnds.push_back(elem);
+
     }
 
     return status;
@@ -1052,7 +1052,8 @@ int SessionAlsaCompress::configureEarlyEOSDelay(void)
     }
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        if (payload)
+            free(payload);
         if(0 != status) {
             PAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
             return status;
