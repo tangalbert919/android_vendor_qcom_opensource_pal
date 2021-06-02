@@ -837,6 +837,21 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
             }
 
             if (rm->mActiveStreams.empty()) {
+                /*
+                 * Context manager closes its streams on down, so empty list may still
+                 * require CM up handling
+                 */
+                if (state == CARD_STATUS_ONLINE) {
+                    if (isContextManagerEnabled) {
+                        mResourceManagerMutex.unlock();
+                        ret = ctxMgr->ssrUpHandler();
+                        if (0 != ret) {
+                            PAL_ERR(LOG_TAG, "Ssr up handling failed for ContextManager ret %d", ret);
+                        }
+                    }
+                    mResourceManagerMutex.lock();
+                }
+
                 PAL_INFO(LOG_TAG, "Idle SSR : No streams registered yet.");
                 prevState = state;
             } else if (state == prevState) {
@@ -855,8 +870,25 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     }
                     mResourceManagerMutex.lock();
                 }
+                if (isContextManagerEnabled) {
+                    mResourceManagerMutex.unlock();
+                    ret = ctxMgr->ssrDownHandler();
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Ssr down handling failed for ContextManager ret %d", ret);
+                    }
+                    mResourceManagerMutex.lock();
+                }
                 prevState = state;
             } else if (state == CARD_STATUS_ONLINE) {
+                if (isContextManagerEnabled) {
+                    mResourceManagerMutex.unlock();
+                    ret = ctxMgr->ssrUpHandler();
+                    if (0 != ret) {
+                        PAL_ERR(LOG_TAG, "Ssr up handling failed for ContextManager ret %d", ret);
+                    }
+                    mResourceManagerMutex.lock();
+                }
+
                 for (auto str: rm->mActiveStreams) {
                     auto iter = std::find(mActiveStreams.begin(), mActiveStreams.end(), str);
                     str->ssrDone = false;
