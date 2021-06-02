@@ -126,11 +126,16 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
 
 StreamNonTunnel::~StreamNonTunnel()
 {
+    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
+    rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
     }
+    delete session;
+    session = nullptr;
+    mStreamMutex.unlock();
 }
 
 int32_t  StreamNonTunnel::open()
@@ -196,10 +201,6 @@ int32_t  StreamNonTunnel::close()
 exit:
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
-    status = rm->deregisterStream(this);
-
-    delete session;
-    session = nullptr;
     PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
