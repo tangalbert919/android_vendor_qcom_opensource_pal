@@ -291,10 +291,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         if (result_cfg_ptr->is_detected) {
             exit_buffering_ = true;
             detection_state_ = KEYWORD_DETECTION_SUCCESS;
-            start_idx = (result_cfg_ptr->start_position * CNN_FRAME_SIZE) +
-                buffer_start_;
-            end_idx = (result_cfg_ptr->end_position * CNN_FRAME_SIZE) +
-                buffer_start_;
+            __builtin_add_overflow(result_cfg_ptr->start_position * CNN_FRAME_SIZE,
+                                   buffer_start_, &start_idx);
+            __builtin_add_overflow(result_cfg_ptr->end_position * CNN_FRAME_SIZE,
+                                   buffer_start_, &end_idx);
             PAL_INFO(LOG_TAG, "KW Second Stage Detected, start index %zu, end index %zu",
                 start_idx, end_idx);
         } else if (bytes_processed_ >= buffer_end_ - buffer_start_) {
