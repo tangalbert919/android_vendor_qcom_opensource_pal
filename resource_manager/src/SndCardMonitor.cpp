@@ -52,7 +52,7 @@ void SndCardMonitor::monitorThreadLoop()
     int card_status = 0;
     int tries = MAX_SLEEP_RETRY;
 
-    card_status_t status;
+    card_status_t status = CARD_STATUS_NONE;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
     while(--tries) {
         if (exit_thread == 1)

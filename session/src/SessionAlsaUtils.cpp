@@ -1045,6 +1045,9 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, void *
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if (!pcmDeviceName)
+        return -EINVAL;
+
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
