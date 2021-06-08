@@ -1690,6 +1690,8 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         return status;
     }
     if (callback_) {
+        // update stream state to stopped before unlock stream mutex
+        currentState = STREAM_STOPPED;
         notify_time = std::chrono::steady_clock::now();
         total_process_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -3719,12 +3721,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         }
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE:
-            /*
-             * Just switch LPI/NLPI, do not start new graph as client
-             * will call start after detection event handled.
-             */
-            st_stream_.currentState = STREAM_STOPPED;
-            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -4000,12 +3996,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         }
         case ST_EV_CHARGING_STATE:
         case ST_EV_CONCURRENT_STREAM:
-            /*
-             * Just switch LPI/NLPI, do not start new graph as client
-             * will call start after lab done.
-             */
-            st_stream_.currentState = STREAM_STOPPED;
-            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
