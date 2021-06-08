@@ -67,7 +67,6 @@ public:
     int32_t addRemoveEffect(pal_audio_effect_t effect __unused, bool enable __unused) override {return 0;}
     int32_t read(struct pal_buffer *buf __unused) override {return 0;}
     int32_t write(struct pal_buffer *buf __unused) override {return 0;}
-    int32_t standby() override {return 0;}
     int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) override;
     int32_t getCallBack(pal_stream_callback *cb __unused) override {return 0;}
     int32_t getParameters(uint32_t param_id __unused, void **payload __unused) override {return 0;}

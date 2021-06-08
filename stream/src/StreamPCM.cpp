@@ -799,8 +799,7 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         if ((frameSize == 0) || (sampleRate == 0)) {
             PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
-            status =  -EINVAL;
-            goto exit;
+            return  -EINVAL;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
@@ -809,45 +808,12 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         PAL_VERBOSE(LOG_TAG, "Exit size: %d", size);
         return size;
     }
-
-    if (standBy) {
-        rm->lockGraph();
-        status = session->open(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session open failed with status %d", status);
-            goto error;
-        }
-        currentState = STREAM_INIT;
-
-        status = session->prepare(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session prepare is failed with status %d",
-                    status);
-            goto error;
-        }
-        status = session->start(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session start is failed with status %d",
-                    status);
-            goto error;
-        }
-        currentState = STREAM_STARTED;
-        standBy = false;
-        rm->unlockGraph();
-    }
     mStreamMutex.unlock();
 
     if (currentState == STREAM_STARTED) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
-            mStreamMutex.lock();
-            if (standBy) {
-                PAL_INFO(LOG_TAG, "in standby state, ignore write failure");
-                mStreamMutex.unlock();
-                return buf->size;
-            }
-            mStreamMutex.unlock();
 
             /* ENETRESET is the error code returned by AGM during SSR */
             if (errno == -ENETRESET &&
@@ -867,9 +833,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
                 status = errno;
                 goto exit;
             }
-         }
-         PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
-         return size;
+        }
+        PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
+        return size;
     } else {
         PAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
         if (currentState == STREAM_STOPPED)
@@ -879,13 +845,7 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         goto exit;
     }
 
-error:
-    if (session->close(this) != 0) {
-        PAL_ERR(LOG_TAG, "session close failed");
-    }
-    rm->unlockGraph();
-    mStreamMutex.unlock();
-exit :
+exit:
     PAL_ERR(LOG_TAG, "session write failed status %d", status);
     return status;
 }
@@ -1087,53 +1047,6 @@ int32_t StreamPCM::resume()
 exit:
     mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
-    return status;
-}
-
-int32_t StreamPCM::standby()
-{
-    int32_t status = 0;
-    PAL_DBG(LOG_TAG, "Enter.");
-
-    mStreamMutex.lock();
-    if (!standBy) {
-        status = session->stop(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
-            goto exit;
-        }
-        currentState = STREAM_STOPPED;
-
-        for (int i = 0; i < mDevices.size(); i++) {
-            status = mDevices[i]->stop();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                goto exit;
-            }
-
-            rm->deregisterDevice(mDevices[i], this);
-
-            status = mDevices[i]->close();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device close failed with status %d", status);
-                goto exit;
-            }
-            mDevices.erase(mDevices.begin() + i);
-        }
-
-        rm->lockGraph();
-        status = session->close(this);
-        rm->unlockGraph();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session close failed with status %d", status);
-            goto exit;
-        }
-        currentState = STREAM_IDLE;
-        standBy = true;
-    }
-exit:
-    mStreamMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 

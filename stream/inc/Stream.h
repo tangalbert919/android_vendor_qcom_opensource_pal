@@ -144,7 +144,6 @@ protected:
     size_t outBufCount;
     size_t outMaxMetadataSz;
     size_t inMaxMetadataSz;
-    bool standBy = false;
     stream_state_t currentState;
     stream_state_t cachedState;
     uint32_t mInstanceID = 0;
@@ -171,7 +170,6 @@ public:
     virtual int32_t resume() = 0;
     virtual int32_t flush() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
-    virtual int32_t standby() {return 0;};
 
     virtual int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
     virtual int32_t setParameters(uint32_t param_id, void *payload) = 0;
