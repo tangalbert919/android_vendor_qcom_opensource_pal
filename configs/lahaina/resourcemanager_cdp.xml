@@ -352,6 +352,7 @@
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
@@ -373,6 +374,7 @@
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
