@@ -2405,7 +2405,6 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev) {
             // use setECRef_l to avoid deadlock
-            mResourceManagerMutex.unlock();
             getActiveStream_l(dev, activeStreams);
             for (auto& rx_str: activeStreams) {
                 rx_str->getStreamAttributes(&rx_attr);
@@ -2421,12 +2420,14 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     continue;
                 }
             }
+            updateECDeviceMap(dev, d, s, rxdevcount, false);
+            mResourceManagerMutex.unlock();
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
-            } else {
-                updateECDeviceMap(dev, d, s, rxdevcount, false);
+                // reset ec map if set ec failed for tx device
+                updateECDeviceMap(dev, d, s, 0, true);
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
@@ -2523,13 +2524,13 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     mResourceManagerMutex.lock();
     if (sAttr.direction == PAL_AUDIO_INPUT) {
         dev = getActiveEchoReferenceRxDevices_l(s);
+        if (dev)
+            updateECDeviceMap(dev, d, s, 0, true);
         mResourceManagerMutex.unlock();
         status = s->setECRef_l(dev, false);
         mResourceManagerMutex.lock();
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-        } else if (dev) {
-            updateECDeviceMap(dev, d, s, 0, true);
         }
     }  else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT &&
         sAttr.type == PAL_STREAM_VOICE_CALL) {
@@ -3987,6 +3988,7 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     if (!tx_stream_found) {
         if (count == 0) {
             PAL_ERR(LOG_TAG, "Cannot reset as ec ref not present");
+            return -EINVAL;
         } else if (count > 0) {
             stream_list.push_back(std::make_pair(tx_str, count));
             ec_count = count;
