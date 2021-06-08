@@ -174,6 +174,12 @@ typedef enum {
     SIDETONE_SW,
 } sidetone_mode_t;
 
+typedef enum {
+    AUDIO_BIT_WIDTH_8 = 8,
+    AUDIO_BIT_WIDTH_DEFAULT_16 = 16,
+    AUDIO_BIT_WIDTH_24 = 24,
+    AUDIO_BIT_WIDTH_32 = 32,
+} audio_bit_width_t;
 
 struct usecase_custom_config_info
 {
@@ -246,17 +252,6 @@ struct nativeAudioProp {
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
                 uint32_t event_size);
 bool isPalPCMFormat(uint32_t fmt_id);
-
-/*This table gets bit_width only Hence we have 24
- *as the bitwidth for 24_LE, dont use this to get bits_per_sample,
- *because in case of 24_LE that would be 32*/
-const uint32_t palFormatToBitwidthTable[] = {
-    [PAL_AUDIO_FMT_PCM_S8] = 8,
-    [PAL_AUDIO_FMT_PCM_S16_LE] = 16,
-    [PAL_AUDIO_FMT_PCM_S24_3LE] = 24,
-    [PAL_AUDIO_FMT_PCM_S24_LE] = 24,
-    [PAL_AUDIO_FMT_PCM_S32_LE] = 32,
-};
 
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
@@ -707,6 +702,7 @@ public:
                                  struct pal_device *Dev2Attr,
                                  const struct pal_device_info *Dev2Info);
     int32_t voteSleepMonitor(Stream *str, bool vote);
+    static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
 };
 
 #endif

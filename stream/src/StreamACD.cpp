@@ -488,8 +488,8 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
 
         cached_event_data_ = (struct pal_st_recognition_event *)realloc(cached_event_data_, new_event_size);
         if (!cached_event_data_) {
-            PAL_ERR(LOG_TAG, "failed to allocate memory for cached_event_data_");
-            return;
+            PAL_ERR(LOG_TAG, "Error:%d Failed to reallocate new memory space for cached_event_data_", -ENOMEM);
+            goto exit;
         }
         cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
         per_context_info = (uint8_t *) ((uint8_t *) current_context_event +
@@ -511,7 +511,10 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         }
         PopulateCallbackPayload(event, cached_event_data_);
     }
+
+exit:
     PAL_DBG(LOG_TAG, "Exit");
+    return;
 }
 
 void StreamACD::SendCachedEventData()

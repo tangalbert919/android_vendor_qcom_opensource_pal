@@ -124,14 +124,14 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
                                  uint32_t event_data_size,
                                  const hidl_vec<PalEventReadWriteDonePayload>& event_data,
                                  uint64_t cookie) {
-    ALOGV("%s called \n", __func__);
-
     struct pal_event_read_write_done_payload *rw_done_payload;
-    struct pal_buffer *buffer;
+    struct pal_buffer *buffer = nullptr;
     uint32_t *ev_data = NULL;
     const native_handle *allochandle = nullptr;
     const PalEventReadWriteDonePayload *rwDonePayloadHidl = event_data.data();
     PalBuffer *bufferHidl;
+
+    ALOGV("%s called \n", __func__);
     rw_done_payload = (struct pal_event_read_write_done_payload *)
                           calloc(1, sizeof(pal_event_read_write_done_payload));
     if (!rw_done_payload) {
@@ -193,12 +193,14 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
                                     cookie);
 
 exit:
-    if (buffer->metadata)
-        free(buffer->metadata);
-    if (buffer->buffer)
-        free(buffer->buffer);
-    if (buffer->ts)
-        free(buffer->ts);
+    if (buffer) {
+        if (buffer->metadata)
+            free(buffer->metadata);
+        if (buffer->buffer)
+            free(buffer->buffer);
+        if (buffer->ts)
+            free(buffer->ts);
+    }
     if (rw_done_payload)
         free(rw_done_payload);
     return int32_t {};
@@ -618,8 +620,8 @@ int32_t pal_stream_get_param(pal_stream_handle_t *stream_handle,
                      if (!ret_) {
                          *param_payload = (pal_param_payload *)
                                  calloc (1, sizeof(pal_param_payload) + paramPayload.data()->size);
-                         if (!param_payload) {
-                             ALOGE("%s:%d Failed to allocate memory for param_payload",
+                         if (!(*param_payload)) {
+                             ALOGE("%s:%d Failed to allocate memory for (*param_payload)",
                                      __func__, __LINE__);
                              ret_ = -ENOMEM;
                          } else {
@@ -819,6 +821,10 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
 {
     int32_t ret = -EINVAL;
 
+    if (!param_payload) {
+        ALOGE("Invalid param_payload pointer");
+        return ret;
+    }
     if (!pal_server_died) {
         android::sp<IPAL> pal_client = get_pal_server();
         if (pal_client == nullptr)
@@ -830,9 +836,11 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
                      uint32_t size)
                      {
                          if(!ret_) {
-                             *param_payload = calloc(1, size);
-                             if (!param_payload) {
-                                 ALOGE("Failed to allocate memory to param payload");
+                             // TODO: fix the client expectation, memory should always be allocated by client.
+                             if (*param_payload == NULL)
+                                 *param_payload = calloc(1, size);
+                             if (!(*param_payload)) {
+                                 ALOGE("No valid memory for param_payload");
                                  ret_ = -ENOMEM;
                              } else {
                                  memcpy(*param_payload,
