@@ -399,7 +399,7 @@ int SpeakerProtection::spkrStartCalibration()
     keyVector.clear();
     calVector.clear();
 
-    keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
+    PayloadBuilder::getDeviceKV(device.id, keyVector);
 
     // Enable the VI module
     if (numberOfChannels > 1)
@@ -615,7 +615,8 @@ int SpeakerProtection::spkrStartCalibration()
 
     keyVector.clear();
     calVector.clear();
-    keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
+
+    PayloadBuilder::getDeviceKV(deviceRx.id, keyVector);
 
     // Enable the SP module
     if (numberOfChannels > 1)
@@ -1226,7 +1227,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         rm->getBackendName(device.id, backEndName);
 
-        keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
+        PayloadBuilder::getDeviceKV(device.id, keyVector);
 
         // Enable the VI module
         if (numberOfChannels > 1)

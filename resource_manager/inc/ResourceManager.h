@@ -650,6 +650,8 @@ public:
     static bool isInputDevId(int deviceId);
     static bool matchDevDir(int devId1, int devId2);
     static int convertCharToHex(std::string num);
+    static pal_stream_type_t getStreamType(std::string stream_name);
+    static pal_device_id_t getDeviceId(std::string device_name);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
