@@ -1091,9 +1091,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
                     AddEngine(engine_cfg);
                 } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
-                    if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
+                    if (big_sm->type == SML_ID_SVA_F_STAGE_INTERNAL || (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
                         !(phrase_sm->phrases[0].recognition_mode &
-                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION))
+                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION)))
                         continue;
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload +
