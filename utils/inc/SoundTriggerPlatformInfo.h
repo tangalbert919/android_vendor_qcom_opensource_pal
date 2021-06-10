@@ -194,6 +194,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
         return low_latency_bargein_enable_;
     }
     bool GetMmapEnable() const { return mmap_enable_; }
+    bool GetNotifySecondStageFailure() { return notify_second_stage_failure_; }
     uint32_t GetMmapBufferDuration() const { return mmap_buffer_duration_; }
     uint32_t GetMmapFrameLength() const { return mmap_frame_length_; }
     std::shared_ptr<SoundModelConfig> GetSmConfig(const UUID& uuid) const;
@@ -223,6 +224,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool concurrent_voip_call_;
     bool low_latency_bargein_enable_;
     bool mmap_enable_;
+    bool notify_second_stage_failure_;
     uint32_t mmap_buffer_duration_;
     uint32_t mmap_frame_length_;
     std::string sound_model_lib_;

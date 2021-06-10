@@ -2220,7 +2220,11 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels->kw_levels[0].kw_level:
                     sm_levels->kw_levels[0].user_levels[0].level;
-                PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
+                if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level);
+                } else {
+                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level);
+                }
                 for (auto& eng: engines_) {
                     if (sm_levels->sm_id & eng->GetEngineId() ||
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
@@ -2260,7 +2264,11 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels_v2->kw_levels[0].kw_level:
                     sm_levels_v2->kw_levels[0].user_levels[0].level;
-                PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level_v2);
+                if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level_v2);
+                } else {
+                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level_v2);
+                }
                 for (auto& eng: engines_) {
                     PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
                         sm_levels_v2->sm_id , eng->GetEngineId());
@@ -2484,10 +2492,10 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
+            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
                 sm_levels->kw_levels[i].kw_level);
             for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
+                PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
                     sm_levels->kw_levels[i].user_levels[j].user_id,
                     sm_levels->kw_levels[i].user_levels[j].level);
             }
@@ -2568,10 +2576,10 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
+            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
                 sm_levels_v2->kw_levels[i].kw_level);
             for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
+                PAL_VERBOSE(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
                      sm_levels_v2->kw_levels[i].user_levels[j].user_id,
                      sm_levels_v2->kw_levels[i].user_levels[j].level);
             }
@@ -3998,6 +4006,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     PAL_DBG(LOG_TAG, "Already notified client with second stage rejection");
                     break;
                 }
+
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
 
@@ -4018,10 +4027,29 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 if (st_stream_.reader_) {
                     st_stream_.reader_->reset();
                 }
-                st_stream_.rejection_notified_ = true;
-                st_stream_.notifyClient(false);
-                st_stream_.PostDelayedStop();
 
+                if (st_stream_.st_info_->GetNotifySecondStageFailure()) {
+                    st_stream_.rejection_notified_ = true;
+                    st_stream_.notifyClient(false);
+                    if (!st_stream_.rec_config_->capture_requested &&
+                         st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING)
+                    st_stream_.PostDelayedStop();
+                } else {
+                    PAL_DBG(LOG_TAG, "Notification for second stage rejection is disabled");
+                    for (auto& eng : st_stream_.engines_) {
+                        status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                                  eng->GetEngineId(), status);
+                            break;
+                        }
+                    }
+                    if (!status) {
+                        TransitTo(ST_STATE_ACTIVE);
+                    } else {
+                        TransitTo(ST_STATE_LOADED);
+                    }
+                }
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
