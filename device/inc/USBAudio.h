@@ -110,6 +110,7 @@ public:
     unsigned int getMin(unsigned int a, unsigned int b);
     static const unsigned int out_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
     static const unsigned int in_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
+    bool isCaptureProfileSupported();
 };
 
 class USB : public Device

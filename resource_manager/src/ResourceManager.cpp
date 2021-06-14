@@ -2676,13 +2676,14 @@ int ResourceManager::addPlugInDevice(std::shared_ptr<Device> d,
     int ret = 0;
 
     ret = d->init(connection_state);
-    if (ret) {
+    if (ret && ret != -ENOENT) {
         PAL_ERR(LOG_TAG, "failed to init deivce.");
         return ret;
     }
 
-    plugin_devices_.push_back(d);
-    return 0;
+    if (ret != -ENOENT)
+        plugin_devices_.push_back(d);
+    return ret;
 }
 
 int ResourceManager::removePlugInDevice(pal_device_id_t device_id,
@@ -6496,7 +6497,14 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             conn_device.id = device_id;
             dev = Device::getInstance(&conn_device, rm);
             if (dev) {
-                addPlugInDevice(dev, connection_state);
+                status = addPlugInDevice(dev, connection_state);
+                if (!status) {
+                    PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
+                    avail_devices_.push_back(device_id);
+                } else if (status == -ENOENT) {
+                    status = 0; //ignore error for no-entry devices
+                }
+                goto exit;
             } else {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
@@ -6541,7 +6549,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
         PAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
                 is_connected, device_available);
     }
-
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
