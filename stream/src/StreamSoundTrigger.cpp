@@ -3349,19 +3349,15 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
-            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
-                bool backend_update = false;
+            bool backend_update = false;
+            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
                     status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
-                    }
-
-                    status = rm->StartOtherDetectionStreams(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }
                 }
             }
@@ -3381,6 +3377,13 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+            }
+
+            if (backend_update) {
+                status = rm->StartOtherDetectionStreams(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                }
             }
             TransitTo(ST_STATE_LOADED);
             // make sure disable ec ref handled in LOADED/ACTIVE state
