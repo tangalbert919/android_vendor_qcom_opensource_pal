@@ -781,6 +781,7 @@ typedef enum {
     PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
     PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
     PAL_PARAM_ID_BT_SCO_LC3 = 46,
+    PAL_PARAM_ID_DEVICE_MUTE = 47,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1218,6 +1219,11 @@ struct pal_compr_gapless_mdata {
        uint32_t encoderDelay;
        uint32_t encoderPadding;
 };
+
+typedef struct pal_device_mute_t {
+    pal_stream_direction_t dir;
+    bool mute;
+}pal_device_mute_t;
 
 /**
  * Event payload passed to client with PAL_STREAM_CBK_EVENT_READ_DONE and
