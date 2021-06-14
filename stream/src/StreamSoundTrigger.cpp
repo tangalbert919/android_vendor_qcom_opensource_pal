@@ -1909,7 +1909,7 @@ void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
                             user_levels[0].level =
                       eng->GetEngine()->GetDetectedConfScore();
                       PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
-                      conf_levels->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
+                      conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
                     break;
                 default :
                     PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
