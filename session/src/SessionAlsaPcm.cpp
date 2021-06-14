@@ -1589,7 +1589,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
             goto exit;
         }
         bytesWritten += sizeWritten;
-        bytesRemaining -= sizeWritten;
+        bytesRemaining = __builtin_sub_overflow(bytesRemaining, sizeWritten, &bytesRemaining);
     }
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
