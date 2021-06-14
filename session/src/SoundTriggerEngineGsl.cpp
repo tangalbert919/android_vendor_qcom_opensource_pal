@@ -1836,6 +1836,11 @@ exit:
     if (!status)
         eng_streams_.push_back(s);
 
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -1875,6 +1880,11 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     eng_state_ = ENG_IDLE;
 exit:
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -2005,6 +2015,11 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
     if (0 != status)
         PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
 
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     return status;
 }
 
@@ -2064,6 +2079,10 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         }
     }
 
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -2146,6 +2165,10 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
         }
     }
 exit:
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
