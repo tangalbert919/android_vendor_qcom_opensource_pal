@@ -2190,6 +2190,7 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     case LPI_LOGGING_OFF:
        tkv.push_back(std::make_pair(LOGGING, LOGGING_OFF));
        *gsltag = TAG_DATA_LOGGING;
+       break;
    case DEVICE_MUTE:
        tkv.push_back(std::make_pair(MUTE,ON));
        *gsltag = TAG_DEV_MUTE;
