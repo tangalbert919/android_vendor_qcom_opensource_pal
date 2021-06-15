@@ -82,7 +82,6 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
 StreamSensorPCMData::~StreamSensorPCMData()
 {
     cachedState = STREAM_IDLE;
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     mDevices.clear();
