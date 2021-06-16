@@ -290,32 +290,6 @@ std::vector<std::pair<int32_t, std::string>> ResourceManager::sndDeviceNameLUT {
     {PAL_DEVICE_IN_ULTRASOUND_MIC,        {std::string{ "" }}},
 };
 
-const std::map<std::string, uint32_t> usecaseIdLUT {
-    {std::string{ "PAL_STREAM_LOW_LATENCY" },              PAL_STREAM_LOW_LATENCY},
-    {std::string{ "PAL_STREAM_DEEP_BUFFER" },              PAL_STREAM_DEEP_BUFFER},
-    {std::string{ "PAL_STREAM_COMPRESSED" },               PAL_STREAM_COMPRESSED},
-    {std::string{ "PAL_STREAM_VOIP" },                     PAL_STREAM_VOIP},
-    {std::string{ "PAL_STREAM_VOIP_RX" },                  PAL_STREAM_VOIP_RX},
-    {std::string{ "PAL_STREAM_VOIP_TX" },                  PAL_STREAM_VOIP_TX},
-    {std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" },         PAL_STREAM_VOICE_CALL_MUSIC},
-    {std::string{ "PAL_STREAM_GENERIC" },                  PAL_STREAM_GENERIC},
-    {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
-    {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
-    {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
-    {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
-    {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
-    {std::string{ "PAL_STREAM_VOICE_CALL" },               PAL_STREAM_VOICE_CALL},
-    {std::string{ "PAL_STREAM_LOOPBACK" },                 PAL_STREAM_LOOPBACK},
-    {std::string{ "PAL_STREAM_TRANSCODE" },                PAL_STREAM_TRANSCODE},
-    {std::string{ "PAL_STREAM_VOICE_UI" },                 PAL_STREAM_VOICE_UI},
-    {std::string{ "PAL_STREAM_PCM_OFFLOAD" },              PAL_STREAM_PCM_OFFLOAD},
-    {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
-    {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
-    {std::string{ "PAL_STREAM_ACD" },                      PAL_STREAM_ACD},
-    {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
-    {std::string{ "PAL_STREAM_SENSOR_PCM_DATA" },          PAL_STREAM_SENSOR_PCM_DATA},
-};
-
 const std::map<std::string, sidetone_mode_t> sidetoneModetoId {
     {std::string{ "OFF" }, SIDETONE_OFF},
     {std::string{ "HW" },  SIDETONE_HW},
@@ -483,6 +457,18 @@ void agmServiceCrashHandler(uint64_t cookie __unused)
     _exit(1);
 }
 
+pal_device_id_t ResourceManager::getDeviceId(std::string device_name)
+{
+   pal_device_id_t type =  (pal_device_id_t )deviceIdLUT.at(device_name);
+   return type;
+}
+
+pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
+{
+    pal_stream_type_t type = (pal_stream_type_t )usecaseIdLUT.at(stream_name);
+    return type;
+}
+
 void ResourceManager::split_snd_card(const char* in_snd_card_name)
 {
     /* Sound card name follows below mentioned convention:
@@ -643,6 +629,13 @@ ResourceManager::ResourceManager()
 
     ResourceManager::loadAdmLib();
     ResourceManager::initWakeLocks();
+    ret = PayloadBuilder::init();
+    if (ret) {
+        throw std::runtime_error("Failed to parse usecase manager xml");
+    } else {
+        PAL_DBG(LOG_TAG, "usecase manager xml parsing successful");
+    }
+
     PAL_ERR(LOG_TAG, "Creating ContextManager");
     ctxMgr = new ContextManager();
     if (!ctxMgr) {

@@ -39,7 +39,12 @@
 #include "sp_vi.h"
 #include "sp_rx.h"
 
-#define XML_FILE "/vendor/etc/hw_ep_info.xml"
+#if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
+#define USECASE_XML_FILE "/etc/usecaseKvManager.xml"
+#else
+#define USECASE_XML_FILE "/vendor/etc/usecaseKvManager.xml"
+#endif
+
 #define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
 
 #define PARAM_ID_USB_AUDIO_INTF_CFG                               0x080010D6
@@ -128,13 +133,10 @@ struct param_id_usb_audio_intf_cfg_t
    uint32_t svc_interval;
 };
 
-std::vector<std::pair<uint32_t, uint32_t>> VSIDtoKV {
-    /*for now map everything to default */
-    { VOICEMMODE1,   0},
-    { VOICEMMODE2,   0},
-    { VOICELBMMODE1, 0},
-    { VOICELBMMODE2, 0},
-};
+std::vector<allKVs> PayloadBuilder::all_streams;
+std::vector<allKVs> PayloadBuilder::all_streampps;
+std::vector<allKVs> PayloadBuilder::all_devices;
+std::vector<allKVs> PayloadBuilder::all_devicepps;
 
 template <typename T>
 void PayloadBuilder::populateChannelMap(T pcmChannel, uint8_t numChannel)
@@ -353,16 +355,289 @@ uint16_t numOfBitsSet(uint32_t lines)
     return numBitsSet;
 }
 
-
-void PayloadBuilder::startTag(void *userdata __unused, const XML_Char *tag_name __unused,
-    const XML_Char **attr __unused)
+void PayloadBuilder::resetDataBuf(struct user_xml_data *data)
 {
+     data->offs = 0;
+     data->data_buf[data->offs] = '\0';
+}
+
+void PayloadBuilder::processGraphKVData(struct user_xml_data *data, const XML_Char **attr)
+{
+    struct kvPairs kv = {};
+    int size = -1, selector_size = -1;
+    std::string key(attr[1]);
+    std::string value(attr[3]);
+
+    if (strcmp(attr[0], "key") !=0) {
+          PAL_ERR(LOG_TAG, "key not found");
+          return;
+     }
+    kv.key = ResourceManager::convertCharToHex(key);
+
+    if (strcmp(attr[2], "value") !=0) {
+        PAL_ERR(LOG_TAG, "value not found");
+        return;
+    }
+    kv.value = ResourceManager::convertCharToHex(value);
+
+    if (data->is_parsing_streams) {
+        size = all_streams.size() - 1;
+        if (size >= 0) {
+            selector_size = all_streams[size].keys_values.size() - 1;
+            all_streams[size].keys_values[selector_size].kv_pairs.push_back(kv);
+            PAL_DBG(LOG_TAG, "stream_graph_kv done size: %zu",
+                all_streams[size].keys_values[selector_size].kv_pairs.size());
+        }
+        return;
+    } else if (data->is_parsing_streampps) {
+        size = all_streampps.size() - 1;
+        if (size >= 0) {
+            selector_size = all_streampps[size].keys_values.size() - 1;
+            all_streampps[size].keys_values[selector_size].kv_pairs.push_back(kv);
+            PAL_DBG(LOG_TAG, "streampp_graph_kv:streampp size: %zu",
+                all_streampps[size].keys_values[selector_size].kv_pairs.size());
+        }
+        return;
+    } else if (data->is_parsing_devices) {
+        size = all_devices.size() - 1;
+        if (size >= 0) {
+            selector_size = all_devices[size].keys_values.size() - 1;
+            all_devices[size].keys_values[selector_size].kv_pairs.push_back(kv);
+            PAL_DBG(LOG_TAG, "device_grap_kv:device size: %zu",
+                all_devices[size].keys_values[selector_size].kv_pairs.size());
+        }
+        return;
+    } else if (data->is_parsing_devicepps) {
+        size = all_devicepps.size() - 1;
+        if (size >= 0) {
+            selector_size = all_devicepps[size].keys_values.size() - 1;
+            all_devicepps[size].keys_values[selector_size].kv_pairs.push_back(kv);
+            PAL_DBG(LOG_TAG, "devicepp_graph_kv: devicepp size: %zu",
+                all_devicepps[size].keys_values[selector_size].kv_pairs.size());
+        }
+        return;
+    } else {
+        PAL_INFO(LOG_TAG, "No matching XML data\n");
+    }
+}
+
+std::string PayloadBuilder::removeSpaces(const std::string& str)
+{
+    /* Remove leading and trailing spaces */
+    return std::regex_replace(str, std::regex("^ +| +$|( ) +"), "$1");
+}
+
+std::vector<std::string> PayloadBuilder::splitStrings(const std::string& str)
+{
+    std::vector<std::string> tokens;
+    std::stringstream check(str);
+    std::string intermediate;
+
+    while (getline(check, intermediate, ',')) {
+        if (!removeSpaces(intermediate).empty())
+            tokens.push_back(removeSpaces(intermediate));
+    }
+
+    return tokens;
+}
+
+void PayloadBuilder:: processKVSelectorData(struct user_xml_data *data,
+    const XML_Char **attr)
+{
+    struct kvInfo kvinfo = {};
+    int size = -1;
+
+    std::vector<std::string> sel_values_superset;
+    PAL_INFO(LOG_TAG, "process kv selectors stream:%d streampp:%d device:%d devicepp:%d",
+        data->is_parsing_streams, data->is_parsing_streampps,
+        data->is_parsing_devices, data->is_parsing_devicepps);
+
+    for (int i = 0; attr[i]; i += 2) {
+        kvinfo.selector_names.push_back(attr[i]);
+        sel_values_superset.push_back(attr[i + 1]);
+        PAL_DBG(LOG_TAG, "key_values attr :%s-%s", attr[i], attr[i + 1]);
+    }
+
+    for (int i = 0; i < kvinfo.selector_names.size(); i++) {
+        PAL_DBG(LOG_TAG, "process kv selectors:%s", kvinfo.selector_names[i].c_str());
+        selector_type_t selector_type =  selectorstypeLUT.at(kvinfo.selector_names[i]);
+
+        std::vector<std::string> selector_values =
+            splitStrings(sel_values_superset[i]);
+
+        for (int j = 0; j < selector_values.size(); j++) {
+            kvinfo.selector_pairs.push_back(std::make_pair(selector_type,
+                selector_values[j]));
+            PAL_DBG(LOG_TAG, "selector pair type:%d, value:%s", selector_type,
+                selector_values[j].c_str());
+        }
+    }
+
+    if (data->is_parsing_streams) {
+        size = all_streams.size() - 1;
+        if (size >= 0) {
+            all_streams[size].keys_values.push_back(kvinfo);
+            PAL_DBG(LOG_TAG, "stream_keys_values after push_back size:%zu",
+                all_streams[size].keys_values.size());
+        }
+        return;
+    } else if (data->is_parsing_streampps) {
+        size = all_streampps.size() - 1;
+        if (size >= 0) {
+            all_streampps[size].keys_values.push_back(kvinfo);
+            PAL_DBG(LOG_TAG, "streampp_keys_values after push_back size:%zu",
+                all_streampps[size].keys_values.size());
+        }
+        return;
+    } else if (data->is_parsing_devices) {
+        size = all_devices.size() - 1;
+        if (size >= 0) {
+            all_devices[size].keys_values.push_back(kvinfo);
+            PAL_DBG(LOG_TAG, "device_keys_values after push_back size:%zu",
+                all_devices[size].keys_values.size());
+        }
+        return;
+    } else if (data->is_parsing_devicepps) {
+        size = all_devicepps.size() - 1;
+        if (size >= 0) {
+            all_devicepps[size].keys_values.push_back(kvinfo);
+            PAL_DBG(LOG_TAG, "devicepp_keys_values after push_back size:%zu",
+                all_devicepps[size].keys_values.size());
+        }
+        return;
+    } else {
+        PAL_INFO(LOG_TAG, "No match for is_parsing");
+    }
+}
+
+void PayloadBuilder:: processKVTypeData(struct user_xml_data *data,const XML_Char **attr)
+{
+    struct allKVs sdTypeKV = {};
+    int32_t stream_id, dev_id;
+    std::vector<std::string> typeNames;
+
+    PAL_DBG(LOG_TAG, "stream-device ID/type:%s, tag_name:%d", attr[1], data->tag);
+    if (data->tag == TAG_STREAM_SEL || data->tag == TAG_STREAMPP_SEL) {
+        if (!strcmp(attr[0], "type")) {
+            typeNames = splitStrings(attr[1]);
+            for (int i = 0; i < typeNames.size(); i++) {
+                stream_id = ResourceManager::getStreamType(typeNames[i]);
+                sdTypeKV.id_type.push_back(stream_id);
+                PAL_DBG(LOG_TAG, "type name:%s", typeNames[i].c_str());
+            }
+            if (data->tag == TAG_STREAM_SEL) {
+                all_streams.push_back(sdTypeKV);
+                PAL_DBG(LOG_TAG, "stream types all_size: %zu", all_streams.size());
+            } else if (data->tag == TAG_STREAMPP_SEL) {
+                all_streampps.push_back(sdTypeKV);
+                PAL_DBG(LOG_TAG, "streampp types all_size: %zu", all_streampps.size());
+            }
+        }
+        return;
+    }
+    if (data->tag == TAG_DEVICE_SEL || data->tag == TAG_DEVICEPP_SEL) {
+        if (!strcmp(attr[0], "id")) {
+            typeNames = splitStrings(attr[1]);
+            for (int i = 0; i < typeNames.size(); i++) {
+                dev_id = ResourceManager::getDeviceId(typeNames[i]);
+                sdTypeKV.id_type.push_back(dev_id);
+                PAL_DBG(LOG_TAG, "device ID name:%s", typeNames[i].c_str());
+            }
+            if (data->tag == TAG_DEVICE_SEL) {
+                all_devices.push_back(sdTypeKV);
+                PAL_DBG(LOG_TAG, " device types all_size: %zu", all_devices.size());
+            } else if (data->tag == TAG_DEVICEPP_SEL ) {
+                all_devicepps.push_back(sdTypeKV);
+                PAL_DBG(LOG_TAG, "devicepp types all_size: %zu", all_devicepps.size() );
+            }
+        }
+        return;
+    }
+    PAL_INFO(LOG_TAG, "No matching tags found");
     return;
 }
 
-void PayloadBuilder::endTag(void *userdata __unused, const XML_Char *tag_name __unused)
+void PayloadBuilder::startTag(void *userdata, const XML_Char *tag_name,
+    const XML_Char **attr)
 {
+    struct user_xml_data *data = ( struct user_xml_data *)userdata;
+
+    PAL_DBG(LOG_TAG, "StartTag :%s", tag_name);
+    if (!strcmp(tag_name, "graph_key_value_pair_info")) {
+        data->tag = TAG_USECASEXML_ROOT;
+    } else if (!strcmp(tag_name, "streams")) {
+        data->is_parsing_streams = true;
+    } else if (!strcmp(tag_name, "stream")) {
+        data->tag = TAG_STREAM_SEL;
+        processKVTypeData(data, attr);
+    } else if (!strcmp(tag_name, "keys_and_values")) {
+        processKVSelectorData(data, attr);
+    } else if (!strcmp(tag_name, "graph_kv")) {
+        processGraphKVData(data, attr);
+    } else if (!strcmp(tag_name, "streampps")) {
+        data->is_parsing_streampps = true;
+    } else if (!strcmp(tag_name, "streampp")) {
+        data->tag = TAG_STREAMPP_SEL;
+        processKVTypeData(data, attr);
+    } else if (!strcmp(tag_name, "devices")) {
+        data->is_parsing_devices = true;
+    } else if (!strcmp(tag_name, "device")){
+        data->tag = TAG_DEVICE_SEL;
+        processKVTypeData(data, attr);
+    } else if (!strcmp(tag_name, "devicepps")){
+        data->is_parsing_devicepps = true;
+    } else if (!strcmp(tag_name, "devicepp")){
+        data->tag = TAG_DEVICEPP_SEL;
+        processKVTypeData(data, attr);
+    } else {
+        PAL_INFO(LOG_TAG, "No matching Tag found");
+    }
+}
+
+void PayloadBuilder::endTag(void *userdata, const XML_Char *tag_name)
+{
+    struct user_xml_data *data = ( struct user_xml_data *)userdata;
+
+    PAL_DBG(LOG_TAG, "Endtag: %s", tag_name);
+    if ( !strcmp(tag_name, "keys_and_values") || !strcmp(tag_name, "graph_kv") ||
+            !strcmp(tag_name, "stream") || !strcmp(tag_name, "device") ||
+            !strcmp(tag_name, "streampp") || !strcmp(tag_name, "devicepp")) {
+        return;
+    }
+    if (!strcmp(tag_name, "streams")) {
+        data->is_parsing_streams = false;
+        PAL_DBG(LOG_TAG, "is_parsing_streams: %d", data->is_parsing_streams);
+        return;
+    }
+    if (!strcmp(tag_name, "streampps")){
+        data->is_parsing_streampps = false;
+        PAL_DBG(LOG_TAG, "is_parsing_streampps: %d", data->is_parsing_streampps);
+        return;
+    }
+    if (!strcmp(tag_name, "devices")) {
+        data->is_parsing_devices = false;
+        PAL_DBG(LOG_TAG, "is_parsing_devices: %d", data->is_parsing_devices);
+        return;
+    }
+    if (!strcmp(tag_name, "devicepps")) {
+        data->is_parsing_devicepps = false;
+        PAL_DBG(LOG_TAG, "is_parsing_devicepps : %d", data->is_parsing_devicepps);
+        return;
+    }
     return;
+}
+
+void PayloadBuilder::handleData(void *userdata, const char *s, int len)
+{
+   struct user_xml_data *data = (struct user_xml_data *)userdata;
+   if (len + data->offs >= sizeof(data->data_buf) ) {
+       data->offs += len;
+       /* string length overflow, return */
+       return;
+   } else {
+        memcpy(data->data_buf + data->offs, s, len);
+         data->offs += len;
+   }
 }
 
 int PayloadBuilder::init()
@@ -372,9 +647,15 @@ int PayloadBuilder::init()
     int ret = 0;
     int bytes_read;
     void *buf = NULL;
+    struct user_xml_data tag_data;
+    memset(&tag_data, 0, sizeof(tag_data));
+    all_streams.clear();
+    all_streampps.clear();
+    all_devices.clear();
+    all_devicepps.clear();
 
     PAL_DBG(LOG_TAG, "Enter.");
-    file = fopen(XML_FILE, "r");
+    file = fopen(USECASE_XML_FILE, "r");
     if (!file) {
         PAL_ERR(LOG_TAG, "Failed to open xml");
         ret = -EINVAL;
@@ -386,8 +667,9 @@ int PayloadBuilder::init()
         PAL_ERR(LOG_TAG, "Failed to create XML");
         goto closeFile;
     }
-
+    XML_SetUserData(parser,&tag_data);
     XML_SetElementHandler(parser, startTag, endTag);
+    XML_SetCharacterDataHandler(parser, handleData);
 
     while (1) {
         buf = XML_GetBuffer(parser, 1024);
@@ -440,7 +722,7 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     header->param_id = PARAM_ID_SPR_SESSION_TIME;
     header->error_code = 0x0;
     header->param_size = payloadSize -  sizeof(struct apm_module_param_data_t);
-    PAL_VERBOSE(LOG_TAG,"header params IID:%x param_id:%x error_code:%d param_size:%d\n",
+    PAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
     *size = payloadSize + padBytes;;
@@ -1099,61 +1381,95 @@ void PayloadBuilder::payloadCopV2DepackConfig(uint8_t** payload, size_t* size,
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo, *size);
 }
 
+/* Used for VI feedback device KV as of now */
+int PayloadBuilder::getDeviceKV(int dev_id, std::vector<std::pair<int,int>>& deviceKV)
+{
+    PAL_DBG(LOG_TAG, "Enter: device ID: %d", dev_id);
+    std::vector<std::pair<selector_type_t, std::string>> empty_selector_pairs;
+
+    return retrieveKVs(empty_selector_pairs, dev_id, all_devices, deviceKV);
+}
+
+/** Used for BT device KVs only */
+int PayloadBuilder::getBtDeviceKV(int dev_id, std::vector<std::pair<int,int>>& deviceKV,
+    uint32_t codecFormat, bool isAbrEnabled, bool isHostless)
+{
+    PAL_INFO(LOG_TAG, "Enter: codecFormat:0x%x, isabrEnabled:%d, isHostless:%d",
+        codecFormat, isAbrEnabled, isHostless);
+    std::vector<std::pair<selector_type_t, std::string>> filled_selector_pairs;
+
+    filled_selector_pairs.push_back(std::make_pair(CODECFORMAT_SEL,
+                                   btCodecFormatLUT.at(codecFormat)));
+
+    if (dev_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        filled_selector_pairs.push_back(std::make_pair(ABR_ENABLED_SEL,
+            isAbrEnabled ? "TRUE" : "FALSE"));
+        filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
+            isHostless ? "TRUE" : "FALSE"));
+    } else if (dev_id == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        filled_selector_pairs.push_back(std::make_pair(HOSTLESS_SEL,
+            isHostless ? "TRUE" : "FALSE"));
+    }
+    return retrieveKVs(filled_selector_pairs, dev_id, all_devices, deviceKV);
+}
+
 /** Used for Loopback stream types only */
-int PayloadBuilder::populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
-        std::vector <std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
+int PayloadBuilder::populateStreamKV(Stream* s, std::vector<std::pair<int,int>> &keyVectorRx,
+        std::vector<std::pair<int,int>> &keyVectorTx, struct vsid_info vsidinfo)
 {
     int status = 0;
     struct pal_stream_attributes *sattr = NULL;
+    std::vector<std::string> selector_names;
+    std::vector<std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG,"enter");
+
+    PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes();
     if (!sattr) {
-        PAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno), status);
         status = -ENOMEM;
         goto exit;
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
+        PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
         goto free_sattr;
     }
 
     PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-    switch (sattr->type) {
-        case PAL_STREAM_LOOPBACK:
-            if (sattr->info.opt_stream_info.loopback_type == PAL_STREAM_LOOPBACK_HFP_RX) {
-                keyVectorRx.push_back(std::make_pair(STREAMRX, HFP_RX_PLAYBACK));
-                keyVectorTx.push_back(std::make_pair(STREAMTX, HFP_RX_CAPTURE));
-            } else if (sattr->info.opt_stream_info.loopback_type == PAL_STREAM_LOOPBACK_HFP_TX) {
-                /** no StreamKV for HFP TX */
-            } else /** pcm loopback*/ {
-                keyVectorRx.push_back(std::make_pair(STREAMRX, PCM_RX_LOOPBACK));
-            }
-            break;
-    case PAL_STREAM_VOICE_CALL:
-            /*need to update*/
-            for (int size= 0; size < vsidinfo.modepair.size(); size++) {
-                for (int count1 = 0; count1 < VSIDtoKV.size(); count1++) {
-                    if (vsidinfo.modepair[size].key == VSIDtoKV[count1].first)
-                        VSIDtoKV[count1].second = vsidinfo.modepair[size].value;
-                }
-            }
+    if (sattr->type == PAL_STREAM_LOOPBACK) {
+        if (sattr->info.opt_stream_info.loopback_type == PAL_STREAM_LOOPBACK_HFP_RX) {
+            filled_selector_pairs.push_back(std::make_pair(DIRECTION_SEL, "RX"));
+            filled_selector_pairs.push_back(std::make_pair(SUB_TYPE_SEL,
+                loopbackLUT.at(sattr->info.opt_stream_info.loopback_type)));
+            retrieveKVs(filled_selector_pairs, sattr->type, all_streams, keyVectorRx);
 
-            keyVectorRx.push_back(std::make_pair(STREAMRX,VOICE_CALL_RX));
-            keyVectorTx.push_back(std::make_pair(STREAMTX,VOICE_CALL_TX));
-            for (int index = 0; index < VSIDtoKV.size(); index++) {
-                if (sattr->info.voice_call_info.VSID == VSIDtoKV[index].first) {
-                    keyVectorRx.push_back(std::make_pair(vsidinfo.vsid,VSIDtoKV[index].second));
-                    keyVectorTx.push_back(std::make_pair(vsidinfo.vsid,VSIDtoKV[index].second));
-                }
-            }
-            break;
-    case PAL_STREAM_ULTRASOUND:
-            break;
-        default:
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
+            filled_selector_pairs.clear();
+            filled_selector_pairs.push_back(std::make_pair(DIRECTION_SEL, "TX"));
+            filled_selector_pairs.push_back(std::make_pair(SUB_TYPE_SEL,
+                loopbackLUT.at(sattr->info.opt_stream_info.loopback_type)));
+            retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorTx);
+        } else if (sattr->info.opt_stream_info.loopback_type == PAL_STREAM_LOOPBACK_HFP_TX) {
+           /* no StreamKV for HFP TX */
+        } else {
+            selector_names = retrieveSelectors(sattr->type, all_streams);
+            if (selector_names.empty() != true)
+               filled_selector_pairs = getSelectorValues(selector_names, s);
+            retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorRx);
+        }
+    } else if (sattr->type == PAL_STREAM_VOICE_CALL) {
+        filled_selector_pairs.push_back(std::make_pair(DIRECTION_SEL, "RX"));
+        filled_selector_pairs.push_back(std::make_pair(VSID_SEL,
+            vsidLUT.at(sattr->info.voice_call_info.VSID)));
+        retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorRx);
+
+        filled_selector_pairs.clear();
+        filled_selector_pairs.push_back(std::make_pair(DIRECTION_SEL, "TX"));
+        filled_selector_pairs.push_back(std::make_pair(VSID_SEL,
+            vsidLUT.at(sattr->info.voice_call_info.VSID)));
+        retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorTx);
+    } else {
+        PAL_INFO(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
     }
 free_sattr:
     delete sattr;
@@ -1161,243 +1477,361 @@ exit:
     return status;
 }
 
+/** Used for Loopback stream types only */
 int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx __unused)
 {
     int status = 0;
     struct pal_stream_attributes *sattr = NULL;
+    std::vector <std::string> selectors;
+    std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG,"enter");
+    PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes();
     if (!sattr) {
-        PAL_ERR(LOG_TAG,"sattr alloc failed %s status %d", strerror(errno), status);
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno), status);
         status = -ENOMEM;
         goto exit;
     }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n",status);
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed status %d", status);
         goto free_sattr;
     }
 
     PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-    switch (sattr->type) {
-        case PAL_STREAM_VOICE_CALL:
-            /*need to update*/
-            keyVectorRx.push_back(std::make_pair(STREAMPP_RX, STREAMPP_RX_DEFAULT));
-            break;
-        case PAL_STREAM_ULTRASOUND:
-            break;
-        default:
-            PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
+
+    if (sattr->type == PAL_STREAM_VOICE_CALL) {
+        selectors = retrieveSelectors(sattr->type, all_streampps);
+        if (selectors.empty() != true)
+            filled_selector_pairs = getSelectorValues(selectors, s);
+        retrieveKVs(filled_selector_pairs ,sattr->type, all_streampps, keyVectorRx);
+    } else {
+        PAL_INFO(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
     }
+
 free_sattr:
     delete sattr;
 exit:
     return status;
+}
+
+bool PayloadBuilder::compareSelectorPairs(
+    std::vector<std::pair<selector_type_t, std::string>>& selector_pairs,
+    std::vector<std::pair<selector_type_t, std::string>>& filled_selector_pairs)
+{
+    int count = 0;
+    bool result = false;
+
+    PAL_DBG(LOG_TAG, "Enter: selector size: %zu filled_sel size: %zu",
+        selector_pairs.size(), filled_selector_pairs.size());
+    if (selector_pairs.size() == filled_selector_pairs.size()) {
+        result = std::equal(selector_pairs.begin(), selector_pairs.end(),
+            filled_selector_pairs.begin());
+        if (result) {
+             PAL_DBG(LOG_TAG,"Return True");
+            return true;
+        }
+    }
+    else {
+        for (int i = 0; i < filled_selector_pairs.size(); i++) {
+            if (selector_pairs.end() != std::find(selector_pairs.begin(),
+                selector_pairs.end(), filled_selector_pairs[i])) {
+                count++;
+                PAL_DBG(LOG_TAG,"Inside the find loop count=%d", count);
+            }
+        }
+        PAL_DBG(LOG_TAG, "After find count:%d", count);
+        if (filled_selector_pairs.size() == count) {
+            PAL_DBG(LOG_TAG,"Return True");
+            return true;
+        }
+    }
+    PAL_DBG(LOG_TAG, "No matching selectors found");
+    return false;
+}
+
+int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
+    &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+    std::vector<std::pair<int, int>> &keyVector)
+{
+    bool found = false;
+
+    PAL_DBG(LOG_TAG, "enter");
+
+    for (int32_t i = 0; i < any_type.size(); i++) {
+        if (isIdTypeAvailable(type, any_type[i].id_type)) {
+            for (int32_t j = 0; j < any_type[i].keys_values.size(); j++) {
+                if (filled_selector_pairs.empty() != true) {
+                    if (compareSelectorPairs(any_type[i].keys_values[j].selector_pairs,
+                           filled_selector_pairs)) {
+                        for (int32_t k = 0; k < any_type[i].keys_values[j].kv_pairs.size(); k++) {
+                            keyVector.push_back(
+                                std::make_pair(any_type[i].keys_values[j].kv_pairs[k].key,
+                                any_type[i].keys_values[j].kv_pairs[k].value));
+                            PAL_INFO(LOG_TAG, "key: 0x%x value: 0x%x\n",
+                                any_type[i].keys_values[j].kv_pairs[k].key,
+                                any_type[i].keys_values[j].kv_pairs[k].value);
+                        }
+                        found = true;
+                        break;
+                    }
+                } else {
+                    for (int32_t k = 0; k < any_type[i].keys_values[j].kv_pairs.size(); k++) {
+                        keyVector.push_back(
+                            std::make_pair(any_type[i].keys_values[j].kv_pairs[k].key,
+                            any_type[i].keys_values[j].kv_pairs[k].value));
+                        PAL_INFO(LOG_TAG, "key: 0x%x value: 0x%x\n",
+                            any_type[i].keys_values[j].kv_pairs[k].key,
+                            any_type[i].keys_values[j].kv_pairs[k].value);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (found) {
+        PAL_INFO(LOG_TAG, "KVs found for the stream type/dev id: %d", type);
+        return 0;
+    } else {
+        PAL_ERR(LOG_TAG, "No KVs found for the stream type/dev id: %d", type);
+        return -EINVAL;
+    }
+}
+
+std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelectorValues(
+    std::vector<std::string> &selector_names, Stream* s)
+{
+    int instance_id = 0;
+    int status = 0;
+    struct pal_stream_attributes *sattr = NULL;
+    std::stringstream st;
+    struct pal_device dAttr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::pair<selector_type_t, std::string>> filled_selector_pairs;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    PAL_INFO(LOG_TAG, "enter");
+    sattr = new struct pal_stream_attributes();
+    if (!sattr) {
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno));
+        goto exit;
+    }
+    status = s->getStreamAttributes(sattr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
+        goto free_sattr;
+    }
+    memset (&dAttr, 0, sizeof(struct pal_device));
+
+    PAL_INFO(LOG_TAG, "stream attribute type:%d Direction:%d",
+        sattr->type, sattr->direction);
+
+    for (int i = 0; i < selector_names.size(); i++) {
+        PAL_DBG(LOG_TAG, "selectors_strings :%s", selector_names[i].c_str());
+        selector_type_t selector_type =  selectorstypeLUT.at(selector_names[i]);
+        switch (selector_type) {
+            case DIRECTION_SEL:
+                if (sattr->direction == PAL_AUDIO_OUTPUT)
+                    filled_selector_pairs.push_back(std::make_pair(selector_type, "RX"));
+                else if (sattr->direction == PAL_AUDIO_INPUT)
+                    filled_selector_pairs.push_back(std::make_pair(selector_type, "TX"));
+                else if (sattr->direction == PAL_AUDIO_INPUT_OUTPUT)
+                    filled_selector_pairs.push_back(std::make_pair(selector_type, "RX_TX"));
+                else
+                    PAL_ERR(LOG_TAG, "Invalid stream direction %d", sattr->direction);
+                PAL_INFO(LOG_TAG, "Direction = %d", sattr->direction);
+            break;
+            case BITWIDTH_SEL:
+                /* If any usecase defined with bitwidth,need to update */
+            break;
+            case INSTANCE_SEL:
+                if (sattr->type == PAL_STREAM_VOICE_UI)
+                    instance_id = s->getInstanceId();
+                else
+                    instance_id = rm->getStreamInstanceID(s);
+                if (instance_id < INSTANCE_1) {
+                    PAL_ERR(LOG_TAG, "Invalid instance id %d", instance_id);
+                    goto free_sattr;
+                }
+                st << instance_id;
+                filled_selector_pairs.push_back(std::make_pair(selector_type, st.str()));
+                PAL_INFO(LOG_TAG, "Instance = %d", instance_id);
+                break;
+            case SUB_TYPE_SEL:
+                if (sattr->type == PAL_STREAM_PROXY) {
+                    if (sattr->direction == PAL_AUDIO_INPUT) {
+                        if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD)
+                            filled_selector_pairs.push_back(std::make_pair(selector_type,
+                                "PAL_STREAM_PROXY_TX_WFD"));
+                        else if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_TELEPHONY_RX)
+                            filled_selector_pairs.push_back(std::make_pair(selector_type,
+                                "PAL_STREAM_PROXY_TX_TELEPHONY_RX"));
+                        PAL_INFO(LOG_TAG, "Proxy type = %d",
+                            sattr->info.opt_stream_info.tx_proxy_type);
+                    }
+                } else if (sattr->type == PAL_STREAM_LOOPBACK) {
+                    filled_selector_pairs.push_back(std::make_pair(selector_type,
+                        loopbackLUT.at(sattr->info.opt_stream_info.loopback_type)));
+                    PAL_INFO(LOG_TAG, "Loopback type = %d",
+                        sattr->info.opt_stream_info.loopback_type);
+                }
+                break;
+            case VUI_MODULE_TYPE_SEL:
+                if (!s) {
+                    PAL_ERR(LOG_TAG, "Invalid stream");
+                    goto free_sattr;
+                }
+
+                filled_selector_pairs.push_back(std::make_pair(selector_type,
+                    s->getStreamSelector()));
+                PAL_INFO(LOG_TAG, "VUI module type:%s", s->getStreamSelector().c_str());
+                break;
+            case ACD_MODULE_TYPE_SEL:
+                if (!s) {
+                    PAL_ERR(LOG_TAG, "Invalid stream");
+                    goto free_sattr;
+                }
+
+                filled_selector_pairs.push_back(std::make_pair(selector_type,
+                    s->getStreamSelector()));
+                PAL_INFO(LOG_TAG, "ACD module type:%s", s->getStreamSelector().c_str());
+                break;
+            case DEVICEPP_TYPE_SEL:
+                filled_selector_pairs.push_back(std::make_pair(selector_type,
+                    s->getDevicePPSelector()));
+                PAL_INFO(LOG_TAG, "devicePP_type:%s", s->getDevicePPSelector().c_str());
+                break;
+            case STREAM_TYPE_SEL:
+                filled_selector_pairs.push_back(std::make_pair(selector_type,
+                    streamNameLUT.at(sattr->type)));
+                PAL_INFO(LOG_TAG, "stream type :%d", sattr->type);
+                break;
+            case AUD_FMT_SEL:
+                if (isPalPCMFormat(sattr->out_media_config.aud_fmt_id)) {
+                   filled_selector_pairs.push_back(std::make_pair(AUD_FMT_SEL,
+                        "PAL_AUDIO_FMT_PCM"));
+                } else {
+                   filled_selector_pairs.push_back(std::make_pair(AUD_FMT_SEL,
+                        "PAL_AUDIO_FMT_NON_PCM"));
+                }
+                PAL_INFO(LOG_TAG, "audio format :%d",
+                     sattr->out_media_config.aud_fmt_id);
+                break;
+            case CUSTOM_CONFIG_SEL:
+                status = s->getAssociatedDevices(associatedDevices);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG,"getAssociatedDevices failed");
+                    goto free_sattr;
+                }
+                PAL_INFO(LOG_TAG,"associatedDevices.size = %zu",
+                    associatedDevices.size());
+
+                for (int i = 0; i < associatedDevices.size(); i++) {
+                    status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"getAssociatedDevices failed");
+                        goto free_sattr;
+                    }
+                    if (strlen(dAttr.custom_config.custom_key)) {
+                        filled_selector_pairs.push_back(
+                            std::make_pair(CUSTOM_CONFIG_SEL,
+                            dAttr.custom_config.custom_key));
+                        PAL_INFO(LOG_TAG, "custom config key: %s",
+                            dAttr.custom_config.custom_key);
+                    }
+                }
+                break;
+            default:
+                PAL_INFO(LOG_TAG, "No matching selector found");
+        }
+    }
+free_sattr:
+    delete sattr;
+exit:
+    return filled_selector_pairs;
+}
+
+void PayloadBuilder::removeDuplicateSelectors(std::vector<std::string> &gkv_selectors)
+{
+    auto end = gkv_selectors.end();
+    for (auto i = gkv_selectors.begin(); i != end; ++i) {
+        end = std::remove(i + 1, end, *i);
+    }
+    gkv_selectors.erase(end, gkv_selectors.end());
+}
+
+bool PayloadBuilder::isIdTypeAvailable(int32_t type, std::vector<int>& id_type)
+{
+    for (int32_t i = 0; i < id_type.size(); i++) {
+       if (type == id_type[i]){
+           PAL_DBG(LOG_TAG,"idtype :%d passed type :%d", id_type[i], type);
+           return true;
+       }
+    }
+    return false;
+}
+
+std::vector<std::string> PayloadBuilder::retrieveSelectors(int32_t type, std::vector<allKVs> any_type)
+{
+    std::vector<std::string> gkv_selectors;
+    PAL_DBG(LOG_TAG, "Enter: size_of_all :%zu type:%d", any_type.size(), type);
+
+    /* looping for all keys_and_values selectors and store in the gkv_selectors */
+    for (int32_t i = 0; i < any_type.size(); i++) {
+         if (isIdTypeAvailable(type, any_type[i].id_type)) {
+             PAL_DBG(LOG_TAG, "KeysAndValues_size: %zu", any_type[i].keys_values.size());
+             for(int32_t j = 0; j < any_type[i].keys_values.size(); j++) {
+                 for(int32_t k = 0; k < any_type[i].keys_values[j].selector_names.size(); k++) {
+                     gkv_selectors.push_back(any_type[i].keys_values[j].selector_names[k]);
+                 }
+             }
+         }
+    }
+
+    if (gkv_selectors.size())
+          removeDuplicateSelectors(gkv_selectors);
+
+    for (int32_t i = 0; i < gkv_selectors.size(); i++) {
+         PAL_DBG(LOG_TAG, "gkv_selectors: %s", gkv_selectors[i].c_str());
+    }
+    return gkv_selectors;
 }
 
 int PayloadBuilder::populateStreamKV(Stream* s,
         std::vector <std::pair<int,int>> &keyVector)
 {
     int status = -EINVAL;
-    uint32_t instance_id = 0;
     struct pal_stream_attributes *sattr = NULL;
-    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    std::vector <std::string> selectors;
+    std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG,"enter");
+    PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes;
     if (!sattr) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG,"sattr malloc failed %s status %d", strerror(errno), status);
         goto exit;
     }
-    memset (sattr, 0, sizeof(struct pal_stream_attributes));
+    memset(sattr, 0, sizeof(struct pal_stream_attributes));
 
-    if (!s) {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid stream");
-        goto free_sattr;
-    }
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d", status);
         goto free_sattr;
     }
-
-    //todo move the keys to a to an xml of stream type to key
-    //something like stream_type=PAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
-    //from there create a map and retrieve the right keys
     PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-    switch (sattr->type) {
-        case PAL_STREAM_LOW_LATENCY:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_LL_PLAYBACK));
-                instance_id = rm->getStreamInstanceID(s);
-                if (instance_id < INSTANCE_1) {
-                    status = -EINVAL;
-                    PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
-                    goto free_sattr;
-                }
-                keyVector.push_back(std::make_pair(INSTANCE, instance_id));
-            } else if (sattr->direction == PAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
-            } else if (sattr->direction == (PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT)) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_RX_LOOPBACK));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        case PAL_STREAM_ULTRA_LOW_LATENCY:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_ULL_PLAYBACK));
-                //keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
-            } else if (sattr->direction == PAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,PCM_ULL_RECORD));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        case PAL_STREAM_PROXY:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_PROXY_PLAYBACK));
-                //keyVector.push_back(std::make_pair(INSTANCE,INSTANCE_1));
-            } else if (sattr->direction == PAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,PCM_PROXY_RECORD));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            if (sattr->direction == PAL_AUDIO_INPUT) {
-                if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD)
-                    keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_WFD));
-                else if (sattr->info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_TELEPHONY_RX)
-                    keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_VOICE_RX));
-            }
-            break;
-        case PAL_STREAM_DEEP_BUFFER:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_DEEP_BUFFER));
-            } else if (sattr->direction == PAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,PCM_RECORD));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            instance_id = rm->getStreamInstanceID(s);
-            if (instance_id < INSTANCE_1) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
-                goto free_sattr;
-            }
-            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
-            break;
-        case PAL_STREAM_NON_TUNNEL:
-            instance_id = rm->getStreamInstanceID(s);
-            if (instance_id < INSTANCE_1) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid instance id %d for deep buffer stream", instance_id);
-                goto free_sattr;
-            }
-            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
-
-            if (isPalPCMFormat(sattr->out_media_config.aud_fmt_id))
-                keyVector.push_back(std::make_pair(STREAM, NT_ENCODE));
-            else
-                keyVector.push_back(std::make_pair(STREAM, NT_DECODE));
-            break;
-        case PAL_STREAM_PCM_OFFLOAD:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_OFFLOAD_PLAYBACK));
-                keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        case PAL_STREAM_GENERIC:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                keyVector.push_back(std::make_pair(STREAMRX,GENERIC_PLAYBACK));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        case PAL_STREAM_COMPRESSED:
-           if (sattr->direction == PAL_AUDIO_OUTPUT) {
-               PAL_VERBOSE(LOG_TAG,"Stream compressed \n");
-               keyVector.push_back(std::make_pair(STREAMRX, COMPRESSED_OFFLOAD_PLAYBACK));
-               keyVector.push_back(std::make_pair(INSTANCE, INSTANCE_1));
-           }
-            break;
-        case PAL_STREAM_VOIP_TX:
-            keyVector.push_back(std::make_pair(STREAMTX, VOIP_TX_RECORD));
-            break;
-        case PAL_STREAM_VOIP_RX:
-            keyVector.push_back(std::make_pair(STREAMRX, VOIP_RX_PLAYBACK));
-            break;
-        case PAL_STREAM_ACD:
-            keyVector.push_back(std::make_pair(STREAMTX, ACD));
-            break;
-        case PAL_STREAM_VOICE_UI:
-            keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
-            instance_id = s->getInstanceId();
-            if (instance_id < INSTANCE_1) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid instance id %d for Voice UI stream",
-                    instance_id);
-                goto free_sattr;
-            }
-            keyVector.push_back(std::make_pair(INSTANCE, instance_id));
-            break;
-        case PAL_STREAM_VOICE_CALL_RECORD:
-            keyVector.push_back(std::make_pair(STREAMTX,INCALL_RECORD));
-            break;
-        case PAL_STREAM_VOICE_CALL_MUSIC:
-            keyVector.push_back(std::make_pair(STREAMRX,INCALL_MUSIC));
-            break;
-        case PAL_STREAM_HAPTICS:
-            keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
-            break;
-        case PAL_STREAM_SENSOR_PCM_DATA:
-            keyVector.push_back(std::make_pair(STREAMTX, SENSOR_PCM_DATA));
-            break;
-        case PAL_STREAM_CONTEXT_PROXY:
-            break;
-        case PAL_STREAM_RAW:
-            if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                PAL_ERR(LOG_TAG, "RAW stream not supported for output");
-                status = -EINVAL;
-                goto free_sattr;
-            } else if (sattr->direction == PAL_AUDIO_INPUT) {
-                keyVector.push_back(std::make_pair(STREAMTX,RAW_RECORD));
-            } else if (sattr->direction == (PAL_AUDIO_OUTPUT | PAL_AUDIO_INPUT)) {
-                keyVector.push_back(std::make_pair(STREAMRX,PCM_RX_LOOPBACK));
-            } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid direction status %d", status);
-                goto free_sattr;
-            }
-            break;
-        default:
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG,"unsupported stream type %d", sattr->type);
-            goto free_sattr;
-        }
+    selectors = retrieveSelectors(sattr->type, all_streams);
+    if (selectors.empty() != true)
+        filled_selector_pairs = getSelectorValues(selectors, s);
+    retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVector);
 
 free_sattr:
     delete sattr;
 exit:
     return status;
-
 }
 
 int PayloadBuilder::populateStreamDeviceKV(Stream* s __unused, int32_t beDevId __unused,
@@ -1437,123 +1871,35 @@ exit:
     return status;
 }
 
+bool PayloadBuilder::isBtA2DPDevice(int32_t beDevId)
+{
+    switch (beDevId) {
+        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+            return true;
+        default:
+            return false;
+    }
+}
+
+
 int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         std::vector <std::pair<int,int>> &keyVector)
 {
     int status = 0;
+    std::vector <std::string> selectors;
+    std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG,"enter");
-    //todo move the keys to a to an xml  of device type to key
-    //something like device_type=DEVICETX, key=SPEAKER
-    //from there create a map and retrieve the right keys
+    PAL_DBG(LOG_TAG, "enter beDevId: %d", beDevId);
 
-//TODO change this mapping to xml
-    switch (beDevId) {
-        case PAL_DEVICE_OUT_SPEAKER :
-            keyVector.push_back(std::make_pair(DEVICERX, SPEAKER));
-            break;
-        case PAL_DEVICE_OUT_HANDSET :
-            keyVector.push_back(std::make_pair(DEVICERX, HANDSET));
-            break;
-        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
-        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-            // device gkv of A2DP is sent elsewhere, skip here.
-            break;
-        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
-            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
-            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-            break;
-        case PAL_DEVICE_OUT_AUX_DIGITAL:
-        case PAL_DEVICE_OUT_AUX_DIGITAL_1:
-        case PAL_DEVICE_OUT_HDMI:
-           keyVector.push_back(std::make_pair(DEVICERX, HDMI_RX));
-           break;
-        case PAL_DEVICE_OUT_WIRED_HEADSET:
-        case PAL_DEVICE_OUT_WIRED_HEADPHONE:
-            keyVector.push_back(std::make_pair(DEVICERX,HEADPHONES));
-            break;
-        case PAL_DEVICE_OUT_USB_HEADSET:
-        case PAL_DEVICE_OUT_USB_DEVICE:
-            keyVector.push_back(std::make_pair(DEVICERX, USB_RX));
-            break;
-        case PAL_DEVICE_IN_SPEAKER_MIC:
-            keyVector.push_back(std::make_pair(DEVICETX, SPEAKER_MIC));
-            break;
-        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
-            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-            break;
-        case PAL_DEVICE_IN_WIRED_HEADSET:
-           keyVector.push_back(std::make_pair(DEVICETX, HEADPHONE_MIC));
-           break;
-        case PAL_DEVICE_IN_USB_DEVICE:
-        case PAL_DEVICE_IN_USB_HEADSET:
-            keyVector.push_back(std::make_pair(DEVICETX, USB_TX));
-            break;
-        case PAL_DEVICE_IN_HANDSET_MIC:
-           keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC));
-           break;
-        case PAL_DEVICE_IN_HANDSET_VA_MIC:
-            keyVector.push_back(std::make_pair(DEVICETX, HANDSETMIC_VA));
-            break;
-        case PAL_DEVICE_IN_HEADSET_VA_MIC:
-            keyVector.push_back(std::make_pair(DEVICETX, HEADSETMIC_VA));
-            break;
-        case PAL_DEVICE_IN_PROXY:
-            {
-                struct pal_stream_attributes sAttr;
-                int32_t status = 0;
-                keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
-                status = s->getStreamAttributes(&sAttr);
-                if (status == 0) {
-                    if (sAttr.info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_WFD)
-                        keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_WFD));
-                }
-            }
-            break;
-        case PAL_DEVICE_IN_TELEPHONY_RX:
-            {
-                struct pal_stream_attributes sAttr;
-                int32_t status = 0;
-                keyVector.push_back(std::make_pair(DEVICETX, PROXY_TX));
-                status = s->getStreamAttributes(&sAttr);
-                PAL_DBG(LOG_TAG,"enter status %d %d", status, sAttr.info.opt_stream_info.tx_proxy_type);
-                if (status == 0) {
-                    if (sAttr.info.opt_stream_info.tx_proxy_type == PAL_STREAM_PROXY_TX_TELEPHONY_RX)
-                        keyVector.push_back(std::make_pair(PROXY_TX_TYPE, PROXY_TX_VOICE_RX));
-                }
-            }
-            break;
-        case PAL_DEVICE_OUT_PROXY:
-            keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX));
-            break;
-        case PAL_DEVICE_IN_VI_FEEDBACK:
-            keyVector.push_back(std::make_pair(DEVICETX, VI_TX));
-            break;
-        case PAL_DEVICE_OUT_HEARING_AID:
-            keyVector.push_back(std::make_pair(DEVICERX, PROXY_RX_VOICE));
-            break;
-        case PAL_DEVICE_OUT_HAPTICS_DEVICE:
-            keyVector.push_back(std::make_pair(DEVICERX, HAPTICS_DEVICE));
-            break;
-        case PAL_DEVICE_IN_FM_TUNER:
-            keyVector.push_back(std::make_pair(DEVICETX, FM_TX));
-            break;
-        case PAL_DEVICE_OUT_ULTRASOUND:
-            keyVector.push_back(std::make_pair(DEVICERX, ULTRASOUND_RX));
-            break;
-        case PAL_DEVICE_IN_ULTRASOUND_MIC:
-            keyVector.push_back(std::make_pair(DEVICETX, ULTRASOUND_TX));
-        case PAL_DEVICE_IN_EXT_EC_REF:
-            keyVector.push_back(std::make_pair(DEVICETX_EXT, EXT_EC_TX));
-            break;
-        default:
-            PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
-            break;
-    }
-
-    return status;
-
+    /* For A2DP, device KV will be populated from Bluetooth device only, so skipping here */
+    if (isBtA2DPDevice(beDevId))
+        return status;
+    selectors = retrieveSelectors(beDevId, all_devices);
+    if (selectors.empty() != true)
+        filled_selector_pairs = getSelectorValues(selectors, s);
+    retrieveKVs(filled_selector_pairs, beDevId, all_devices, keyVector);
+    return 0;
 }
 
 int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
@@ -1562,11 +1908,12 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
+    std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG,"enter");
+    PAL_DBG(LOG_TAG, "enter");
 
     status = s->getStreamAttributes(&sAttr);
-    if(0 != status) {
+    if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         return status;
     }
@@ -1574,10 +1921,11 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
     populateDeviceKV(s, rxBeDevId, keyVectorRx);
     populateDeviceKV(s, txBeDevId, keyVectorTx);
 
-    /*add sidetone kv if needed*/
+    /* add sidetone kv if needed */
     if (sAttr.type == PAL_STREAM_VOICE_CALL && sidetoneMode == SIDETONE_SW) {
         PAL_DBG(LOG_TAG, "SW sidetone mode push kv");
-        keyVectorTx.push_back(std::make_pair(SW_SIDETONE, SW_SIDETONE_ON));
+        filled_selector_pairs.push_back(std::make_pair(SIDETONE_MODE_SEL, "SW"));
+        retrieveKVs(filled_selector_pairs, txBeDevId, all_devices, keyVectorTx);
     }
 
     return status;
@@ -1585,17 +1933,20 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair)
+        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair __unused)
 {
     int status = 0;
     struct pal_stream_attributes *sattr = NULL;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
-    PAL_DBG(LOG_TAG,"enter");
+    std::vector <std::string> selectors;
+    std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
+
+    PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes;
     if (!sattr) {
         status = -ENOMEM;
-        PAL_ERR(LOG_TAG,"sattr malloc failed %s status %d", strerror(errno), status);
+        PAL_ERR(LOG_TAG, "sattr malloc failed %s status %d", strerror(errno), status);
         goto exit;
     }
     memset (&dAttr, 0, sizeof(struct pal_device));
@@ -1603,107 +1954,36 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
 
     status = s->getStreamAttributes(sattr);
     if (0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d\n", status);
+        PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
         goto free_sattr;
     }
     status = s->getAssociatedDevices(associatedDevices);
     if (0 != status) {
-       PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+       PAL_ERR(LOG_TAG, "getAssociatedDevices failed");
        return status;
     }
     for (int i = 0; i < associatedDevices.size();i++) {
        status = associatedDevices[i]->getDeviceAttributes(&dAttr);
        if (0 != status) {
-          PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
+          PAL_ERR(LOG_TAG, "getAssociatedDevices failed");
           return status;
        }
        if ((dAttr.id == rxBeDevId) || (dAttr.id == txBeDevId)) {
-          PAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
+          PAL_DBG(LOG_TAG, "channels %d, id %d",
+              dAttr.config.ch_info.channels, dAttr.id);
        }
+       filled_selector_pairs.clear();
+       selectors.clear();
 
-        //todo move the keys to a to an xml of stream type to key
-        //something like stream_type=PAL_STREAM_LOW_LATENCY, key=PCM_LL_PLAYBACK
-        //from there create a map and retrieve the right keys
-        PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
-        switch (sattr->type) {
-            case PAL_STREAM_VOICE_CALL:
-                if (dAttr.id == rxBeDevId){
-                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOICE_DEFAULT));
-                }
-                if (dAttr.id == txBeDevId){
-                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
-                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
-                                               kvpair[kvsize].value));
-                    }
-                }
-                break;
-            case PAL_STREAM_LOW_LATENCY:
-            case PAL_STREAM_COMPRESSED:
-            case PAL_STREAM_DEEP_BUFFER:
-            case PAL_STREAM_PCM_OFFLOAD:
-            case PAL_STREAM_GENERIC:
-                if (sattr->direction == PAL_AUDIO_OUTPUT) {
-                  if(dAttr.id == PAL_DEVICE_OUT_PROXY) {
-                    PAL_DBG(LOG_TAG,"Device PP for Proxy is Rx Default");
-                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_DEFAULT));
-                  }
-                  else {
-                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_AUDIO_MBDRC));
-                  }
-                }
-                else if (sattr->direction == PAL_AUDIO_INPUT) {
-                    for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
-                         keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
-                                               kvpair[kvsize].value));
-                    }
-                }
-                break;
-            case PAL_STREAM_VOIP_RX:
-                keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_VOIP_MBDRC));
-                break;
-            case PAL_STREAM_LOOPBACK:
-                if (sattr->info.opt_stream_info.loopback_type ==
-                                                    PAL_STREAM_LOOPBACK_HFP_RX) {
-                    keyVectorRx.push_back(std::make_pair(DEVICEPP_RX,
-                                                         DEVICEPP_RX_HFPSINK));
-                } else if(sattr->info.opt_stream_info.loopback_type ==
-                                                    PAL_STREAM_LOOPBACK_HFP_TX) {
-                    if (kvpair.size() == 0) { //use default HFP_SINK_FLUENCE_SMECNS
-                        keyVectorTx.push_back(std::make_pair(DEVICEPP_TX,
-                                                            DEVICEPP_TX_HFP_SINK_FLUENCE_SMECNS));
-                    } else { //use configuration get from resourcemanager.xml
-                        for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
-                            keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
-                                                kvpair[kvsize].value));
-                        }
-                    }
-                }
-                break;
-            case PAL_STREAM_VOIP_TX:
-                for (int32_t kvsize = 0; kvsize < kvpair.size(); kvsize++) {
-                     keyVectorTx.push_back(std::make_pair(kvpair[kvsize].key,
-                                           kvpair[kvsize].value));
-                }
-                break;
-            case PAL_STREAM_VOICE_UI:
-            case PAL_STREAM_ACD:
-            case PAL_STREAM_SENSOR_PCM_DATA:
-                break;
-            case PAL_STREAM_ULTRASOUND:
-                 if (dAttr.id == txBeDevId) {
-                     keyVectorTx.push_back(std::make_pair(DEVICEPP_TX, DEVICEPP_TX_ULTRASOUND_DETECTOR));
-                 }
-                 else {
-                     keyVectorRx.push_back(std::make_pair(DEVICEPP_RX, DEVICEPP_RX_ULTRASOUND_GENERATOR));
-                 }
-                 break;
-            default:
-                PAL_DBG(LOG_TAG,"stream type %d doesn't support populateDevicePPKV ", sattr->type);
-                goto free_sattr;
-        }
+       selectors = retrieveSelectors(dAttr.id, all_devicepps);
+       if (selectors.empty() != true)
+           filled_selector_pairs = getSelectorValues(selectors, s);
+
+       if (dAttr.id == rxBeDevId)
+           retrieveKVs(filled_selector_pairs, dAttr.id, all_devicepps, keyVectorRx);
+       if (dAttr.id == txBeDevId)
+           retrieveKVs(filled_selector_pairs, dAttr.id, all_devicepps, keyVectorTx);
     }
-    populateDeviceKV(s, rxBeDevId, keyVectorRx);
-    populateDeviceKV(s, txBeDevId, keyVectorTx);
 free_sattr:
     delete sattr;
 exit:
@@ -1854,7 +2134,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     status = s->getStreamAttributes(&sAttr);
-    if(0 != status) {
+    if (0 != status) {
         PAL_ERR(LOG_TAG, "getStreamAttributes Failed");
         return status;
     }

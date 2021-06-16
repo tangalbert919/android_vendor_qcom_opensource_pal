@@ -222,8 +222,8 @@ int32_t StreamSensorPCMData::SetupStreamConfig(const struct st_uuid *vendor_uuid
             goto exit;
         }
     }
-    mStreamModifiers.clear();
-    mStreamModifiers.push_back(sm_cfg_->GetStreamMetadata());
+
+    mStreamSelector = sm_cfg_->GetStreamConfigName();
     mInstanceID = rm->getStreamInstanceID(this);
 
 exit:
@@ -337,10 +337,8 @@ int32_t StreamSensorPCMData::addRemoveEffect(pal_audio_effect_t effect,
         goto exit;
 
     cap_prof_ = GetCurrentCaptureProfile();
-    /* store the pre-proc KV selected in the config file */
-    mDevPpModifiers.clear();
-    if (cap_prof_ && cap_prof_->GetDevicePpKv().first != 0) {
-        mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
+    if (cap_prof_) {
+        mDevPPSelector = cap_prof_->GetName();
     } else {
         status = -EINVAL;
         goto exit;
@@ -412,10 +410,8 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active) {
                         status, GetAvailCaptureDevice());
         } else {
             /* store the pre-proc KV selected in the config file */
-            mDevPpModifiers.clear();
-            if (new_cap_prof->GetDevicePpKv().first != 0)
-                mDevPpModifiers.push_back(new_cap_prof->GetDevicePpKv());
-
+            if (new_cap_prof)
+                mDevPPSelector = new_cap_prof->GetName();
             /* connect the backend device */
             PAL_DBG(LOG_TAG, "connect device %d", GetAvailCaptureDevice());
             status = ConnectDevice_l(GetAvailCaptureDevice());

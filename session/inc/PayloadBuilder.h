@@ -38,6 +38,8 @@
 #include <algorithm>
 #include <expat.h>
 #include <map>
+#include <regex>
+#include <sstream>
 #include "Stream.h"
 #include "Device.h"
 #include "ResourceManager.h"
@@ -90,10 +92,85 @@ struct dpAudioConfig{
   uint32_t dptx_idx;
 };
 
+typedef enum {
+    DIRECTION_SEL = 1,
+    BITWIDTH_SEL,
+    INSTANCE_SEL,
+    SUB_TYPE_SEL,
+    VSID_SEL,
+    VUI_MODULE_TYPE_SEL,
+    ACD_MODULE_TYPE_SEL,
+    STREAM_TYPE_SEL,
+    CODECFORMAT_SEL,
+    ABR_ENABLED_SEL,
+    AUD_FMT_SEL,
+    DEVICEPP_TYPE_SEL,
+    CUSTOM_CONFIG_SEL,
+    HOSTLESS_SEL,
+    SIDETONE_MODE_SEL,
+} selector_type_t;
+
+const std::map<std::string, selector_type_t> selectorstypeLUT {
+    {std::string{ "Direction" },             DIRECTION_SEL},
+    {std::string{ "BitWidth" },              BITWIDTH_SEL},
+    {std::string{ "Instance" },              INSTANCE_SEL},
+    {std::string{ "SubType" },               SUB_TYPE_SEL},
+    {std::string{ "VSID" },                  VSID_SEL},
+    {std::string{ "VUIModuleType" },         VUI_MODULE_TYPE_SEL},
+    {std::string{ "ACDModuleType" },         ACD_MODULE_TYPE_SEL},
+    {std::string{ "StreamType" },            STREAM_TYPE_SEL},
+    {std::string{ "DevicePPType" },          DEVICEPP_TYPE_SEL},
+    {std::string{ "CodecFormat" },           CODECFORMAT_SEL},
+    {std::string{ "AbrEnabled" },            ABR_ENABLED_SEL},
+    {std::string{ "AudioFormat" },           AUD_FMT_SEL},
+    {std::string{ "CustomConfig" },          CUSTOM_CONFIG_SEL},
+    {std::string{ "Hostless" },              HOSTLESS_SEL},
+    {std::string{ "SidetoneMode" },          SIDETONE_MODE_SEL},
+};
+
+struct kvPairs {
+    unsigned int key;
+    unsigned int value;
+};
+
+struct kvInfo {
+    std::vector<std::string> selector_names;
+    std::vector<std::pair<selector_type_t, std::string>> selector_pairs;
+    std::vector<kvPairs> kv_pairs;
+};
+
+struct allKVs {
+    std::vector<int> id_type;
+    std::vector<kvInfo> keys_values;
+};
+
+typedef enum {
+    TAG_USECASEXML_ROOT,
+    TAG_STREAM_SEL,
+    TAG_STREAMPP_SEL,
+    TAG_DEVICE_SEL,
+    TAG_DEVICEPP_SEL,
+} usecase_xml_tag;
+
+struct user_xml_data{
+    char data_buf[1024];
+    size_t offs;
+    usecase_xml_tag tag;
+    bool is_parsing_streams;
+    bool is_parsing_streampps;
+    bool is_parsing_devices;
+    bool is_parsing_devicepps;
+};
 class SessionGsl;
 
 class PayloadBuilder
 {
+protected:
+   static std::vector<allKVs> all_streams;
+   static std::vector<allKVs> all_streampps;
+   static std::vector<allKVs> all_devices;
+   static std::vector<allKVs> all_devicepps;
+
 public:
     void payloadUsbAudioConfig(uint8_t** payload, size_t* size,
                            uint32_t miid,
@@ -154,8 +231,30 @@ public:
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
     void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);
     static int init();
-    static void endTag(void *userdata __unused, const XML_Char *tag_name);
-    static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
+    static void endTag(void *userdata, const XML_Char *tag_name);
+    static void startTag(void *userdata, const XML_Char *tag_name, const XML_Char **attr);
+    static void handleData(void *userdata, const char *s, int len);
+    static void resetDataBuf(struct user_xml_data *data);
+    static void processKVTypeData(struct user_xml_data *data, const XML_Char **attr);
+    static void processKVSelectorData(struct user_xml_data *data, const XML_Char **attr);
+    static void processGraphKVData(struct user_xml_data *data, const XML_Char **attr);
+    static bool isIdTypeAvailable(int32_t type, std::vector<int32_t>& id_type);
+    static void removeDuplicateSelectors(std::vector<std::string> &gkv_selectors);
+    static std::vector <std::string> retrieveSelectors(int32_t type,
+        std::vector<allKVs> any_type);
+    static std::vector <std::pair<selector_type_t, std::string>> getSelectorValues(
+        std::vector<std::string> &selectors, Stream* s);
+    static bool compareSelectorPairs(std::vector <std::pair<selector_type_t, std::string>>
+        &selector_val, std::vector<std::pair<selector_type_t, std::string>> &filled_selector_pairs);
+    static int retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
+        &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+        std::vector<std::pair<int32_t, int32_t>> &keyVector);
+    static std::string removeSpaces(const std::string& str);
+    static std::vector<std::string> splitStrings(const std::string& str);
+    static int getBtDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV,
+        uint32_t codecFormat, bool isAbrEnabled, bool isHostless);
+    static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
+    static bool isBtA2DPDevice(int32_t beDevId);
     PayloadBuilder();
     ~PayloadBuilder();
 };

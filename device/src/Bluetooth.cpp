@@ -71,70 +71,12 @@ int Bluetooth::updateDeviceMetadata()
     std::string backEndName;
     std::vector <std::pair<int, int>> keyVector;
 
-    switch(deviceAttr.id) {
-    case PAL_DEVICE_IN_BLUETOOTH_A2DP:
-    case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
-            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
-        else
-            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
-        keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+    ret = PayloadBuilder::getBtDeviceKV(deviceAttr.id, keyVector, codecFormat,
+        isAbrEnabled, false);
+    if (ret)
+        PAL_ERR(LOG_TAG, "No KVs found for device id %d codec format:0x%x",
+            deviceAttr.id, codecFormat);
 
-        switch (codecFormat) {
-        case CODEC_TYPE_LDAC:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = LDAC");
-            keyVector.push_back(std::make_pair(BT_FORMAT, LDAC));
-            break;
-        case CODEC_TYPE_APTX_AD:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = APTX_ADAPTIVE");
-            keyVector.push_back(std::make_pair(BT_FORMAT, APTX_ADAPTIVE));
-            break;
-        case CODEC_TYPE_LC3:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = LC3");
-            keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
-            break;
-        case CODEC_TYPE_AAC:
-            if (isAbrEnabled) {
-                PAL_INFO(LOG_TAG, "Setting BT_FORMAT = AAC_ABR");
-                keyVector.push_back(std::make_pair(BT_FORMAT, AAC_ABR));
-                break;
-            }
-            [[fallthrough]];
-        case CODEC_TYPE_SBC:
-        case CODEC_TYPE_CELT:
-        case CODEC_TYPE_APTX:
-        case CODEC_TYPE_APTX_HD:
-        case CODEC_TYPE_APTX_DUAL_MONO:
-        default:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = GENERIC, codecFormat = 0x%x", codecFormat);
-            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
-            break;
-        }
-        break;
-    case PAL_DEVICE_OUT_BLUETOOTH_SCO:
-    case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
-            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
-        else
-            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
-
-        keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-        switch (codecFormat) {
-        case CODEC_TYPE_APTX_AD_SPEECH:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = SWB");
-            keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
-            break;
-        case CODEC_TYPE_LC3:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = LC3");
-            keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
-            break;
-        default:
-            break;
-        }
-        break;
-    default:
-        return -EINVAL;
-    }
     rm->getBackendName(deviceAttr.id, backEndName);
     ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
     return ret;
@@ -616,38 +558,19 @@ void Bluetooth::startAbr()
             fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
         dir = RX_HOSTLESS;
         flags = PCM_OUT;
-        keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
     } else {
         fbDevice.id = ((deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ?
                        PAL_DEVICE_IN_BLUETOOTH_A2DP :
                        PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
         dir = TX_HOSTLESS;
         flags = PCM_IN;
-        keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
     }
 
-    if (((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ||
-        (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) &&
-        (codecFormat == CODEC_TYPE_LC3)) {
-        keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
-    }
-
-    if (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
-        fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-        switch (codecFormat) {
-        case CODEC_TYPE_APTX_AD_SPEECH:
-            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-            keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
-            break;
-        case CODEC_TYPE_LC3:
-            keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-            keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
-            break;
-        default:
-            PAL_ERR(LOG_TAG, "unsupported codec format %d", codecFormat);
-            break;
-        }
-    }
+    ret = PayloadBuilder::getBtDeviceKV(fbDevice.id, keyVector, codecFormat,
+        true, true);
+    if (ret)
+        PAL_ERR(LOG_TAG, "No KVs found for device id %d codec format:0x%x",
+            fbDevice.id, codecFormat);
 
     /* Configure Device Metadata */
     rm->getBackendName(fbDevice.id, backEndName);
