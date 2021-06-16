@@ -35,6 +35,7 @@
         <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
         <param key="context_manager_enable" value ="false" />
+        <param key="upd_dedicated_be" value ="true" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>

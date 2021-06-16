@@ -96,6 +96,17 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     for (int i = 0; i < noOfDevices; i++) {
         struct pal_device_info devinfo = {};
 
+        if (sAttr->type == PAL_STREAM_ULTRASOUND) {
+            if (i == 0) { // first assign output device
+                if (rm->IsDedicatedBEForUPDEnabled())
+                    dAttr[i].id = PAL_DEVICE_OUT_ULTRASOUND;
+                else
+                    dAttr[i].id = PAL_DEVICE_OUT_HANDSET;
+            } else { // then assign input device
+                dAttr[i].id = PAL_DEVICE_IN_ULTRASOUND_MIC;
+            }
+        }
+
         if (!rm->isDeviceReady(dAttr[i].id)) {
             PAL_ERR(LOG_TAG, "Device %d is not ready\n", dAttr[i].id);
             continue;  //  continue with other devices for combo usecase
