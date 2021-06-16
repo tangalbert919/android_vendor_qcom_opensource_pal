@@ -1031,6 +1031,7 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     int val, ret = 0;
 
 
+    memset(&pkedRegAddr, 0, sizeof(pkd_reg_addr_t) * numberOfChannels);
     // Payload for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
     cpsRegCfg = (lpass_swr_hw_reg_cfg_t *) calloc(1, sizeof(lpass_swr_hw_reg_cfg_t)
                        + sizeof(pkd_reg_addr_t) * numberOfChannels);
@@ -1899,6 +1900,7 @@ void SpeakerFeedback::updateVIcustomPayload()
     memset(&modeConfg, 0, sizeof(modeConfg));
     memset(&viChannelMapConfg, 0, sizeof(viChannelMapConfg));
     memset(&viExModeConfg, 0, sizeof(viExModeConfg));
+    memset(&r0t0Array, 0, sizeof(struct vi_r0t0_cfg_t) * numSpeaker);
 
     // Setting the mode of VI module
     modeConfg.num_speakers = numSpeaker;

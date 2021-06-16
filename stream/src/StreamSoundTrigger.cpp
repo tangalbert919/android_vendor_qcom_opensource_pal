@@ -653,6 +653,10 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
         cap_prof = GetCurrentCaptureProfile();
     }
 
+    if (!cap_prof) {
+        PAL_ERR(LOG_TAG, "Failed to get common capture profile");
+        goto exit;
+    }
     dev->config.bit_width = cap_prof->GetBitWidth();
     dev->config.ch_info.channels = cap_prof->GetChannels();
     dev->config.sample_rate = cap_prof->GetSampleRate();
@@ -2113,7 +2117,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         }
 
         // dump detection event opaque data
-        if ((*event)->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+        if ((*event)->data_offset > 0 && (*event)->data_size > 0 &&
+            st_info_->GetEnableDebugDumps()) {
             ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
             ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
                 "det_event_opaque", "bin", det_opaque_cnt);
@@ -2309,7 +2314,7 @@ int32_t StreamSoundTrigger::FillConfLevels(
     }
 
     if ((config->num_phrases == 0) ||
-        (config->num_phrases > phrase_sm->num_phrases)) {
+        (phrase_sm && config->num_phrases > phrase_sm->num_phrases)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid phrase data status %d", status);
         goto exit;
@@ -2684,10 +2689,12 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
         }
     }
 
-    PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
-        cap_prof->GetName().c_str(), cap_prof->GetDevId(),
-        cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-        cap_prof->GetSndName().c_str());
+    if (cap_prof) {
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
+            cap_prof->GetName().c_str(), cap_prof->GetDevId(),
+            cap_prof->GetChannels(), cap_prof->GetSampleRate(),
+            cap_prof->GetSndName().c_str());
+    }
 
     return cap_prof;
 }
@@ -2897,7 +2904,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
@@ -3253,7 +3260,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
@@ -3553,7 +3560,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),

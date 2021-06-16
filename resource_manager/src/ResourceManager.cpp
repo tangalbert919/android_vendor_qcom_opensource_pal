@@ -7573,7 +7573,7 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     }
 
-    if (data->is_parsing_acd) {
+    if (acd_info && data->is_parsing_acd) {
         acd_info->HandleStartTag((const char *)tag_name, (const char **)attr);
         snd_reset_data_buf(data);
         return;
