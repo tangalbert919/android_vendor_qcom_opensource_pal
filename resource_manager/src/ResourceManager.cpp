@@ -6056,7 +6056,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
             param_bt_a2dp = (pal_param_bta2dp_t *)param_payload;
             a2dp_dev = Device::getInstance(&a2dp_dattr , rm);
-            if (a2dp_dev == nullptr)
+            if (!a2dp_dev)
                 goto exit;
             status = a2dp_dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
             if (current_param_bt_a2dp->a2dp_suspended == param_bt_a2dp->a2dp_suspended) {
