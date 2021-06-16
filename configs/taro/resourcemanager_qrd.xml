@@ -75,38 +75,27 @@
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
+                <custom-config key="dual-mic">
+                    <channels>2</channels>
+                    <snd_device_name>handset-dmic-endfire</snd_device_name>
+                </custom-config>
+                <custom-config key="quad-mic">
+                    <channels>4</channels>
+                    <snd_device_name>quad-mic</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_RAW</name>
@@ -137,43 +126,26 @@
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
+                <custom-config key="dual-mic">
+                    <channels>2</channels>
+                    <snd_device_name>handset-dmic-endfire</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -187,38 +159,19 @@
             <snd_device_name>headset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
@@ -233,37 +186,18 @@
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
@@ -298,38 +232,29 @@
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
+            </usecase>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_FM_TUNER</id>
+            <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
+            <max_channels>1</max_channels>
+            <channels>1</channels>
+            <snd_device_name>play-fm</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_LOOPBACK</name>
             </usecase>
         </in-device>
         <in-device>
@@ -340,8 +265,6 @@
             <snd_device_name>afe-proxy</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_PROXY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
@@ -366,8 +289,6 @@
             <snd_device_name>afe-proxy</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_PROXY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
@@ -378,8 +299,6 @@
             <snd_device_name>ultrasound-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
@@ -422,6 +341,11 @@
             <speaker_mono_right>0</speaker_mono_right>
             <!-- Time in seconds for Quick cal. Set 0 to disable -->
             <quick_cal_time>0</quick_cal_time>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <channels>1</channels>
+                <snd_device_name>speaker-mono-2</snd_device_name>
+            </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
                 <samplerate>96000</samplerate>
@@ -621,104 +545,60 @@
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_RAW_LPI-->
-                    <kvpair key="0xAD000000" value="0xAD00000C"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFNS-->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFECNS-->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFEC">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFEC-->
-                    <kvpair key="0xAD000000" value="0xAD000012"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_RAW_LPI-->
-                    <kvpair key="0xAD000000" value="0xAD00000C"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFNS-->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFECNS-->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFEC">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                    <!-- key=DEVICEPP_TX value=DEVICEPP_TX_FLUENCE_FFEC-->
-                    <kvpair key="0xAD000000" value="0xAD000012"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
         </capture_profile_list>
@@ -730,11 +610,6 @@
             <param sample_rate="16000" />
             <param bit_width="16" />
             <param out_channels="1"/> <!-- Module output channels -->
-            <streamConfig-metadata>
-                <!-- These key and value are derived from kvh2xml.h and should always be in sync with it -->
-                <!-- key=STREAM_CONFIG value=STREAM_CFG_ACD_QC-->
-                <kvpair key="0xBC000000" value="0xBC000007"/> <!-- ACD QC Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
                 <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI"/>
                 <high_performance capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
@@ -825,160 +700,96 @@
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000C"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000E"/>
-                </devicePP-metadata>
                 <param snd_name="headset-va-mic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000C"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000E"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000C"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-dmic-lpi" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000E"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono-lpi" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-dmic-lpi" />
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="3" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-tmic-lpi" />
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="4" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD00000B"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-qmic-lpi" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="TRI_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="3" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-tmic" />
             </capture_profile>
             <capture_profile name="QUAD_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="4" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="0xAD000000" value="0xAD000001"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-qmic" />
             </capture_profile>
         </capture_profile_list>
@@ -1036,10 +847,6 @@
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
-                <streamConfig-metadata>
-                    <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000005"/>
-                </streamConfig-metadata>
             </module_params>
             <module_params>
                 <param module_type="PDK" />
@@ -1048,10 +855,6 @@
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
                 <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
-                <streamConfig-metadata>
-                    <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000006"/>
-                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
         <!-- Hotword -->
@@ -1081,10 +884,6 @@
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param version_ids="0xC0000008, 0x18000101" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
-                <streamConfig-metadata>
-                    <!-- refer kvh2xml.h -->
-                    <kvpair key="0xBC000000" value="0xBC000002"/>
-                </streamConfig-metadata>
             </module_params>
         </sound_model_config>
     </sound_trigger_platform_info>
