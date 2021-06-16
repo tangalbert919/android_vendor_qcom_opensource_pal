@@ -38,49 +38,52 @@ class ResourceManager;
 class Device;
 class Session;
 
+/*
+ * use this common class to pass parameters to Stream,
+ * which avoids duplicating codes between StreamContextProxy,
+ * StreamUltraSound, and StreamSensorPCMData.
+ */
 class StreamCommon : public Stream
 {
 public:
-   StreamCommon(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
-             const uint32_t no_of_devices ,
-             const struct modifier_kv *modifiers , const uint32_t no_of_modifiers,
-             const std::shared_ptr<ResourceManager> rm); //make this just pass parameters to Stream and avoid duplicating code between StreamPCM and StreamCompress
-//   StreamCommon(){};
-   ~StreamCommon();
-   uint64_t cookie_;
-   pal_stream_callback callback_= 0;
-   int32_t open() override;
-   int32_t close() override;
-   int32_t start() override;
-   int32_t stop() override;
-   int32_t prepare() override {return 0;}
-   int32_t setStreamAttributes( struct pal_stream_attributes *sattr __unused) override {return 0;}
-   int32_t setVolume( struct pal_volume_data *volume) override;
-   int32_t mute(bool state __unused) override {return 0;}
-   int32_t mute_l(bool state __unused) override {return 0;}
-   int32_t pause() override {return 0;}
-   int32_t resume() override {return 0;}
-   int32_t flush() {return 0;}
-   int32_t addRemoveEffect(pal_audio_effect_t effect __unused, bool enable __unused) override {return 0;}
-   int32_t read(struct pal_buffer *buf __unused) override {return 0;}
-   int32_t write(struct pal_buffer *buf __unused) override {return 0;}
-   int32_t standby() override {return 0;}
-   int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) override;
-   int32_t getCallBack(pal_stream_callback *cb __unused) override {return 0;}
-   int32_t getParameters(uint32_t param_id __unused, void **payload __unused) override {return 0;}
-   int32_t setParameters(uint32_t param_id __unused, void *payload __unused) override {return 0;}
-   int32_t setECRef(std::shared_ptr<Device> dev __unused, bool is_enable __unused) override {return 0;}
-   int32_t setECRef_l(std::shared_ptr<Device> dev __unused, bool is_enable __unused) override {return 0;}
-   int32_t ssrDownHandler() override;
-   int32_t ssrUpHandler() override;
-   int32_t createMmapBuffer(int32_t min_size_frames __unused,
-                                   struct pal_mmap_buffer *info __unused) override {return 0;}
-   int32_t GetMmapPosition(struct pal_mmap_position *position __unused) override {return 0;}
-   int32_t start_device();
-   int32_t start_session();
-   static int32_t isSampleRateSupported(uint32_t sampleRate __unused) {return 0;}
-   static int32_t isChannelSupported(uint32_t numChannels __unused) {return 0;}
-   static int32_t isBitWidthSupported(uint32_t bitWidth __unused) {return 0;}
+    StreamCommon(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
+                 const uint32_t no_of_devices, const struct modifier_kv *modifiers,
+                 const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
+    ~StreamCommon();
+    uint64_t cookie_;
+    pal_stream_callback callback_= 0;
+    int32_t open() override;
+    int32_t close() override;
+    int32_t start() override;
+    int32_t stop() override;
+    int32_t prepare() override {return 0;}
+    int32_t setStreamAttributes( struct pal_stream_attributes *sattr __unused) override {return 0;}
+    int32_t setVolume( struct pal_volume_data *volume) override;
+    int32_t mute(bool state __unused) override {return 0;}
+    int32_t mute_l(bool state __unused) override {return 0;}
+    int32_t pause() override {return 0;}
+    int32_t resume() override {return 0;}
+    int32_t flush() {return 0;}
+    int32_t addRemoveEffect(pal_audio_effect_t effect __unused, bool enable __unused) override {return 0;}
+    int32_t read(struct pal_buffer *buf __unused) override {return 0;}
+    int32_t write(struct pal_buffer *buf __unused) override {return 0;}
+    int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) override;
+    int32_t getCallBack(pal_stream_callback *cb __unused) override {return 0;}
+    int32_t getParameters(uint32_t param_id __unused, void **payload __unused) override {return 0;}
+    int32_t setParameters(uint32_t param_id __unused, void *payload __unused) override {return 0;}
+    int32_t setECRef(std::shared_ptr<Device> dev __unused, bool is_enable __unused) override {return 0;}
+    int32_t setECRef_l(std::shared_ptr<Device> dev __unused, bool is_enable __unused) override {return 0;}
+    int32_t ssrDownHandler() override;
+    int32_t ssrUpHandler() override;
+    int32_t createMmapBuffer(int32_t min_size_frames __unused,
+                             struct pal_mmap_buffer *info __unused) override {return 0;}
+    int32_t GetMmapPosition(struct pal_mmap_position *position __unused) override {return 0;}
+    int32_t start_device();
+    int32_t startSession();
+    int32_t getTagsWithModuleInfo(size_t *size, uint8_t *payload);
+    static int32_t isSampleRateSupported(uint32_t sampleRate __unused) {return 0;}
+    static int32_t isChannelSupported(uint32_t numChannels __unused) {return 0;}
+    static int32_t isBitWidthSupported(uint32_t bitWidth __unused) {return 0;}
 };
 
 #endif//STREAMCOMMON_H_

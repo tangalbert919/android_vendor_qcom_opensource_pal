@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -52,11 +52,13 @@ private:
     struct pcm *pcm;
     struct pcm *pcmRx;
     struct pcm *pcmTx;
+    struct pcm *pcmEcTx;
     std::shared_ptr<ResourceManager> rm;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevIds;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
+    std::vector<int> pcmDevEcTxIds;
     std::vector<std::pair<std::string, int>> freeDeviceMetadata;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;

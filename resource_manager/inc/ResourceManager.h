@@ -120,6 +120,7 @@ typedef enum {
     COMPRESS,
     VOICE1,
     VOICE2,
+    ExtEC,
 } stream_supported_type;
 
 typedef enum {
@@ -204,6 +205,7 @@ struct pal_device_info {
      int samplerate;
      std::vector<kvpair_info> kvpair;
      std::string sndDevName;
+     bool isExternalECRefEnabledFlag;
 };
 
 struct vsid_modepair {
@@ -276,6 +278,7 @@ class SoundTriggerEngine;
 class SndCardMonitor;
 class StreamUltraSound;
 class ContextManager;
+class StreamSensorPCMData;
 
 struct deviceIn {
     int deviceId;
@@ -299,6 +302,7 @@ struct deviceIn {
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
     std::vector<kvpair_info> kvpair;
     std::string sndDevName;
+    bool isExternalECRefEnabled;
 };
 
 class ResourceManager
@@ -366,6 +370,7 @@ protected:
     std::vector <StreamSoundTrigger*> active_streams_st;
     std::vector <StreamACD*> active_streams_acd;
     std::vector <StreamUltraSound*> active_streams_ultrasound;
+    std::vector <StreamSensorPCMData*> active_streams_sensor_pcm_data;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
@@ -376,6 +381,7 @@ protected:
     pal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
+    static std::mutex mActiveStreamMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -400,6 +406,7 @@ protected:
     static std::vector<int> listAllPcmVoice1TxFrontEnds;
     static std::vector<int> listAllPcmVoice2RxFrontEnds;
     static std::vector<int> listAllPcmVoice2TxFrontEnds;
+    static std::vector<int> listAllPcmExtEcTxFrontEnds;
     static std::vector<int> listAllPcmInCallRecordFrontEnds;
     static std::vector<int> listAllPcmInCallMusicFrontEnds;
     static std::vector<int> listAllPcmContextProxyFrontEnds;
@@ -418,7 +425,7 @@ protected:
     static std::mutex cvMutex;
     static std::queue<card_status_t> msgQ;
     static std::thread workerThread;
-    std::vector<std::pair<int32_t, InstanceListNode_t>> STInstancesLists;
+    std::vector<std::pair<std::string, InstanceListNode_t>> STInstancesLists;
     uint64_t stream_instances[PAL_STREAM_MAX];
     uint64_t in_stream_instances[PAL_STREAM_MAX];
     static int mixerEventRegisterCount;
@@ -426,6 +433,8 @@ protected:
     static int concurrencyDisableCount;
     static int ACDConcurrencyEnableCount;
     static int ACDConcurrencyDisableCount;
+    static int SNSPCMDataConcurrencyEnableCount;
+    static int SNSPCMDataConcurrencyDisableCount;
     static int wake_lock_fd;
     static int wake_unlock_fd;
     static uint32_t wake_lock_cnt;
@@ -554,6 +563,8 @@ public:
     int getDeviceDirection(uint32_t beDevId);
     const std::vector<int> allocateFrontEndIds (const struct pal_stream_attributes,
                                                 int lDirection);
+    const std::vector<int> allocateFrontEndExtEcIds ();
+    void freeFrontEndEcTxIds (const std::vector<int> f);
     void freeFrontEndIds (const std::vector<int> f,
                           const struct pal_stream_attributes,
                           int lDirection);
@@ -584,6 +595,8 @@ public:
         StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
     std::shared_ptr<CaptureProfile> GetSVACaptureProfileByPriority(
         StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
+    std::shared_ptr<CaptureProfile> GetSPDCaptureProfileByPriority(
+        StreamSensorPCMData *s, std::shared_ptr<CaptureProfile> cap_prof_priority);
     std::shared_ptr<CaptureProfile> GetCaptureProfileByPriority(Stream *s);
     bool UpdateSoundTriggerCaptureProfile(Stream *s, bool is_active);
     std::shared_ptr<CaptureProfile> GetSoundTriggerCaptureProfile();

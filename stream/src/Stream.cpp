@@ -36,6 +36,7 @@
 #include "StreamACD.h"
 #include "StreamContextProxy.h"
 #include "StreamUltraSound.h"
+#include "StreamSensorPCMData.h"
 #include "Session.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
@@ -185,6 +186,10 @@ stream_create:
                 stream = new StreamUltraSound(sAttr, mPalDevice, count, modifiers,
                                             noOfModifiers, rm);
                 break;
+            case PAL_STREAM_SENSOR_PCM_DATA:
+                stream = new StreamSensorPCMData(sAttr, mPalDevice, count,
+                                            modifiers, noOfModifiers, rm);
+                break;
             default:
                 PAL_ERR(LOG_TAG, "unsupported stream type 0x%x", sAttr->type);
                 break;
@@ -224,13 +229,14 @@ exit:
     return status;
 }
 
-const KeyVect_t& Stream::getDevPpModifiers() const {
-    return mDevPpModifiers;
+const std::string& Stream::getStreamSelector() const {
+    return mStreamSelector;
 }
 
-const KeyVect_t& Stream::getStreamModifiers() const {
-    return mStreamModifiers;
+const std::string& Stream::getDevicePPSelector() const {
+    return mDevPPSelector;
 }
+
 int32_t  Stream::getModifiers(struct modifier_kv *modifiers,uint32_t *noOfModifiers)
 {
     int32_t status = 0;

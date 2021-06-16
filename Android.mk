@@ -53,6 +53,7 @@ LOCAL_SRC_FILES := \
     stream/src/StreamCommon.cpp \
     stream/src/StreamContextProxy.cpp \
     stream/src/StreamUltraSound.cpp \
+    stream/src/StreamSensorPCMData.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \
@@ -68,6 +69,7 @@ LOCAL_SRC_FILES := \
     device/src/RTProxy.cpp \
     device/src/SpeakerProtection.cpp \
     device/src/FMDevice.cpp \
+    device/src/ExtEC.cpp \
     device/src/HapticsDev.cpp \
     device/src/UltrasoundDevice.cpp \
     session/src/Session.cpp \

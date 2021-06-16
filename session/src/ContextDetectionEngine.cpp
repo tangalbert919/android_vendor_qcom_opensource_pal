@@ -48,7 +48,7 @@ std::shared_ptr<ContextDetectionEngine> ContextDetectionEngine::Create(
     }
     streamConfigName = sm_cfg->GetStreamConfigName();
 
-    if (!strcmp(streamConfigName.c_str(), "qc_acd")) {
+    if (!strcmp(streamConfigName.c_str(), "QC_ACD")) {
         try {
             engine = ACDEngine::GetInstance(s, sm_cfg);
         } catch (const std::exception& e) {

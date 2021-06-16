@@ -90,7 +90,8 @@ void SecondStageConfig::HandleStartTag(const char *tag, const char **attribs) {
 }
 
 SoundTriggerModuleInfo::SoundTriggerModuleInfo() :
-    model_type_(ST_MODULE_TYPE_GMM)
+    module_type_(ST_MODULE_TYPE_GMM),
+    module_name_("GMM")
 {
     for (int i = 0; i < MAX_PARAM_IDS; i++) {
         module_tag_ids_[i] = 0;
@@ -106,13 +107,20 @@ void SoundTriggerModuleInfo::HandleStartTag(const char *tag, const char **attrib
         while (attribs[i]) {
             if (!strcmp(attribs[i], "module_type")) {
                 i++;
+                module_name_ = attribs[i];
                 if (!strcmp(attribs[i], "GMM")) {
-                    model_type_ = ST_MODULE_TYPE_GMM;
-                    PAL_DBG(LOG_TAG, "GMM module");
+                    module_type_ = ST_MODULE_TYPE_GMM;
                 } else if (!strcmp(attribs[i], "PDK")) {
-                    model_type_ = ST_MODULE_TYPE_PDK;
-                    PAL_DBG(LOG_TAG, "PDK module");
+                    module_type_ = ST_MODULE_TYPE_PDK;
+                } else if (!strcmp(attribs[i], "HOTWORD")) {
+                    module_type_ = ST_MODULE_TYPE_HW;
+                } else if (!strcmp(attribs[i], "CUSTOM1")) {
+                    module_type_ = ST_MODULE_TYPE_CUSTOM_1;
+                } else if (!strcmp(attribs[i], "CUSTOM2")) {
+                    module_type_ = ST_MODULE_TYPE_CUSTOM_2;
                 }
+                PAL_DBG(LOG_TAG, "Module name:%s, type:%d",
+                    module_name_.c_str(), module_type_);
             } else {
                 uint32_t index = 0;
                 if (!strcmp(attribs[i], "load_sound_model_ids")) {
@@ -167,9 +175,26 @@ SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
 {
 }
 
-std::pair<uint32_t, uint32_t> SoundModelConfig::GetStreamConfig(
-    uint32_t type) {
-    return GetSoundTriggerModuleInfo(type)->getStreamConfigKV();
+/*
+ * Below functions GetSoundTriggerModuleInfo(), GetModuleType(), and GetModuleName()
+ * are to be used only for getting module info and module type/name for
+ * third party or custom sound model engines.
+ * It assumes only one module type per vendor UUID.
+ */
+std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleInfo() {
+    auto smCfg = sm_list_uuid_mod_info_.find(vendor_uuid_);
+    if(smCfg != sm_list_uuid_mod_info_.end())
+         return smCfg->second;
+    else
+        return nullptr;
+}
+
+st_module_type_t SoundModelConfig::GetModuleType() {
+     return GetSoundTriggerModuleInfo()->GetModuleType();
+}
+
+std::string SoundModelConfig::GetModuleName() {
+     return GetSoundTriggerModuleInfo()->GetModuleName();
 }
 
 void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
@@ -217,6 +242,10 @@ std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleI
         return nullptr;
 }
 
+std::string SoundModelConfig::GetModuleName(st_module_type_t type) {
+     return GetSoundTriggerModuleInfo(type)->GetModuleName();
+}
+
 void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
     PAL_DBG(LOG_TAG, "Got tag %s", tag);
 
@@ -231,8 +260,9 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
             std::make_shared<SecondStageConfig>());
         return;
     } if (!strcmp(tag, "module_params")) {
-        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(
-            std::make_shared<SoundTriggerModuleInfo>());
+        auto st_module_info_ =  std::make_shared<SoundTriggerModuleInfo>();
+        sm_list_uuid_mod_info_.insert(std::make_pair(vendor_uuid_, st_module_info_));
+        curr_child_ = std::static_pointer_cast<SoundTriggerXml>(st_module_info_);
         return;
     }
 
@@ -302,7 +332,7 @@ void SoundModelConfig::HandleEndTag(struct xml_userdata *data, const char* tag) 
         std::shared_ptr<SoundTriggerModuleInfo> st_module_info(
             std::static_pointer_cast<SoundTriggerModuleInfo>(curr_child_));
         const auto res = st_module_info_list_.insert(
-            std::make_pair(st_module_info->GetModelType(), st_module_info));
+            std::make_pair(st_module_info->GetModuleType(), st_module_info));
         if (!res.second)
             PAL_ERR(LOG_TAG, "Failed to insert to map");
         curr_child_ = nullptr;

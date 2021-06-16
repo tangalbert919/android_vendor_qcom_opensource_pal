@@ -118,15 +118,14 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
 
     session->registerCallBack(handleSessionCallBack, (uint64_t)this);
 
-    rm->registerStream(this);
     mStreamMutex.unlock();
+    rm->registerStream(this);
     PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     return;
 }
 
 StreamNonTunnel::~StreamNonTunnel()
 {
-    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     if (mStreamAttr) {
@@ -135,7 +134,6 @@ StreamNonTunnel::~StreamNonTunnel()
     }
     delete session;
     session = nullptr;
-    mStreamMutex.unlock();
 }
 
 int32_t  StreamNonTunnel::open()

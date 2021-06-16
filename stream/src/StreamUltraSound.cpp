@@ -48,25 +48,41 @@ StreamUltraSound::StreamUltraSound(const struct pal_stream_attributes *sattr __u
 
 StreamUltraSound::~StreamUltraSound()
 {
-    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
-    mStreamMutex.unlock();
 }
 
-int32_t StreamUltraSound::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
+int32_t  StreamUltraSound::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
 
-    if (*size > 0 && !payload)
+    if (!payload)
     {
         status = -EINVAL;
-        PAL_ERR(LOG_TAG, "wrong params");
-        goto exit;
+        PAL_ERR(LOG_TAG, "invalid params");
+        goto error;
     }
 
-    status = session->getTagsWithModuleInfo(this, size, payload);
-exit:
+    mStreamMutex.lock();
+    // Stream may not know about tags, so use setParameters instead of setConfig
+    switch (param_id) {
+        case PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS:
+        {
+            status = session->setParameters(NULL, 0, param_id, payload);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d, Failed to setParam for registering an event",
+                status);
+            break;
+        }
+        default:
+            PAL_ERR(LOG_TAG, "Error:Unsupported param id %u", param_id);
+            status = -EINVAL;
+            break;
+    }
+
+    mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
+error:
     return status;
 }
 

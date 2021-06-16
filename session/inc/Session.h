@@ -82,6 +82,7 @@ protected:
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
+    bool RegisterForEvents = false;
 public:
     bool isPauseRegistrationDone;
     virtual ~Session();

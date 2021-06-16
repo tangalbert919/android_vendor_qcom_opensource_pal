@@ -399,9 +399,10 @@ int32_t StreamACD::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
     PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
-    if (mDevPpModifiers.size() == 0 ||
-         (mDevPpModifiers[0].second != DEVICEPP_TX_FLUENCE_FFECNS)) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref");
+    if (mDevPPSelector.empty() ||
+        mDevPPSelector.find("FFECNS") == std::string::npos) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref for profile:%s",
+            mDevPPSelector.c_str());
         goto exit;
     }
 
@@ -730,10 +731,7 @@ int32_t StreamACD::SetupStreamConfig(const struct st_uuid *vendor_uuid)
         PAL_ERR(LOG_TAG, "Error:%d Failed to get stream config", status);
         goto exit;
     }
-
-    mStreamModifiers.clear();
-    mStreamModifiers.push_back(sm_cfg_->GetStreamMetadata());
-
+    mStreamSelector = sm_cfg_->GetStreamConfigName();
     mInstanceID = rm->getStreamInstanceID(this);
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -770,10 +768,7 @@ int32_t StreamACD::SetupDetectionEngine()
     mDevices.push_back(dev);
 
     cap_prof_ = GetCurrentCaptureProfile();
-    /* store the pre-proc KV selected in the config file */
-    mDevPpModifiers.clear();
-    if (cap_prof_->GetDevicePpKv().first != 0)
-        mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
+    mDevPPSelector = cap_prof_->GetName();
 
     status = mDevices[0]->open();
     if (0 != status) {
@@ -1357,10 +1352,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
                                     acd_stream_.GetAvailCaptureDevice());
                 } else {
-                    acd_stream_.mDevPpModifiers.clear();
-                    if (new_cap_prof->GetDevicePpKv().first != 0)
-                        acd_stream_.mDevPpModifiers.push_back(new_cap_prof->GetDevicePpKv());
-
+                    acd_stream_.mDevPPSelector = new_cap_prof->GetName();
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
                     status = acd_stream_.ProcessInternalEvent(ev_cfg1);
@@ -1623,9 +1615,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
                                     acd_stream_.GetAvailCaptureDevice());
                 } else {
-                    acd_stream_.mDevPpModifiers.clear();
-                    if (new_cap_prof->GetDevicePpKv().first != 0)
-                        acd_stream_.mDevPpModifiers.push_back(new_cap_prof->GetDevicePpKv());
+                    acd_stream_.mDevPPSelector = new_cap_prof->GetName();
 
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));

@@ -1346,21 +1346,9 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             break;
         case PAL_STREAM_ACD:
             keyVector.push_back(std::make_pair(STREAMTX, ACD));
-
-            // add key-vector for stream configuration
-            for (auto& kv: s->getStreamModifiers()) {
-                keyVector.push_back(kv);
-            }
-
             break;
         case PAL_STREAM_VOICE_UI:
             keyVector.push_back(std::make_pair(STREAMTX, VOICE_UI));
-
-            // add key-vector for stream configuration
-            for (auto& kv: s->getStreamModifiers()) {
-                keyVector.push_back(kv);
-            }
-
             instance_id = s->getInstanceId();
             if (instance_id < INSTANCE_1) {
                 status = -EINVAL;
@@ -1378,6 +1366,9 @@ int PayloadBuilder::populateStreamKV(Stream* s,
             break;
         case PAL_STREAM_HAPTICS:
             keyVector.push_back(std::make_pair(STREAMRX,HAPTICS_PLAYBACK));
+            break;
+        case PAL_STREAM_SENSOR_PCM_DATA:
+            keyVector.push_back(std::make_pair(STREAMTX, SENSOR_PCM_DATA));
             break;
         case PAL_STREAM_CONTEXT_PROXY:
             break;
@@ -1553,6 +1544,8 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
             break;
         case PAL_DEVICE_IN_ULTRASOUND_MIC:
             keyVector.push_back(std::make_pair(DEVICETX, ULTRASOUND_TX));
+        case PAL_DEVICE_IN_EXT_EC_REF:
+            keyVector.push_back(std::make_pair(DEVICETX_EXT, EXT_EC_TX));
             break;
         default:
             PAL_DBG(LOG_TAG,"Invalid device id %d\n",beDevId);
@@ -1694,12 +1687,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
                 break;
             case PAL_STREAM_VOICE_UI:
             case PAL_STREAM_ACD:
-                /*
-                 * add key-vector for the device pre-proc that was selected
-                 * by the stream
-                 */
-                for (auto& kv: s->getDevPpModifiers())
-                    keyVectorTx.push_back(kv);
+            case PAL_STREAM_SENSOR_PCM_DATA:
                 break;
             case PAL_STREAM_ULTRASOUND:
                  if (dAttr.id == txBeDevId) {
@@ -1804,6 +1792,7 @@ int PayloadBuilder::populateDevicePPCkv(Stream *s, std::vector <std::pair<int,in
                                                    dAttr.config.ch_info.channels));
                 break;
             case PAL_STREAM_ACD:
+            case PAL_STREAM_SENSOR_PCM_DATA:
                 PAL_DBG(LOG_TAG,"channels %d, id %d\n",dAttr.config.ch_info.channels, dAttr.id);
                 /* Push Channels CKV for FFECNS channel based calibration */
                 keyVector.push_back(std::make_pair(CHANNELS,
@@ -1859,7 +1848,6 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     std::vector <std::pair<int,int>> keyVector;
     struct pal_stream_attributes sAttr;
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
-    KeyVect_t stream_config_kv;
     struct pal_device dAttr;
     int level = -1;
     std::vector<std::shared_ptr<Device>> associatedDevices;

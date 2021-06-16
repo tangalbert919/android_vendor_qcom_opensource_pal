@@ -27,27 +27,27 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef STREAMULTRASOUND_H_
-#define STREAMULTRASOUND_H_
+#ifndef EXTEC_H
+#define EXTEC_H
 
-#include "StreamCommon.h"
-#include "ResourceManager.h"
 #include "Device.h"
-#include "Session.h"
+#include "PalAudioRoute.h"
 
-class StreamUltraSound : public StreamCommon
+class ExtEC : public Device
 {
+protected:
+    static std::shared_ptr<Device> obj;
+    ExtEC(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
 public:
-    StreamUltraSound(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
-                     const uint32_t no_of_devices, const struct modifier_kv *modifiers,
-                     const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
-    ~StreamUltraSound();
-   int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;}
-   int32_t setParameters(uint32_t param_id, void *payload);
-private:
-    static void HandleCallBack(uint64_t hdl, uint32_t event_id,
-                               void *data, uint32_t event_size);
-    void HandleEvent(uint32_t event_id, void *data, uint32_t event_size);
+    static std::shared_ptr<Device> getInstance(struct pal_device *device,
+                                               std::shared_ptr<ResourceManager> Rm);
+    static int32_t isSampleRateSupported(uint32_t sampleRate);
+    static int32_t isChannelSupported(uint32_t numChannels);
+    static int32_t isBitWidthSupported(uint32_t bitWidth);
+    static std::shared_ptr<Device> getObject();
+    ExtEC();
+    virtual ~ExtEC();
 };
 
-#endif//STREAMULTRASOUND_H_
+
+#endif //SPEAKER_H

@@ -94,13 +94,16 @@ typedef enum {
 } listen_model_indicator_enum;
 
 typedef enum {
-    ST_MODULE_TYPE_CUSTOM = 1,
-    ST_MODULE_TYPE_GMM    = 3,
-    ST_MODULE_TYPE_PDK5   = 5,
-    ST_MODULE_TYPE_PDK6   = 6,
-    ST_MODULE_TYPE_PDK    = 100, // Internal constant for local use indicating
-                                 // both PDK5 and PDK6
-}st_module_type_t;
+    ST_MODULE_TYPE_NONE     = 0,   // Internal Constant for initialization
+    ST_MODULE_TYPE_GMM      = 3,
+    ST_MODULE_TYPE_PDK5     = 5,
+    ST_MODULE_TYPE_PDK6     = 6,
+    ST_MODULE_TYPE_PDK      = 100, // Internal constant for local use indicating
+                                   // both PDK5 and PDK6
+    ST_MODULE_TYPE_HW       = 101, // Internal constant to identify hotword module
+    ST_MODULE_TYPE_CUSTOM_1 = 102, // Reserved for Custom Engine 1
+    ST_MODULE_TYPE_CUSTOM_2 = 103, // Reserved for Custom Engine 2
+} st_module_type_t;
 
 typedef struct _SML_GlobalHeaderType {
     uint32_t    magicNumber;                    // Magic number

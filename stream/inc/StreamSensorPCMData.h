@@ -27,27 +27,48 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef STREAMULTRASOUND_H_
-#define STREAMULTRASOUND_H_
+#ifndef StreamSensorPCMData_H_
+#define StreamSensorPCMData_H_
 
 #include "StreamCommon.h"
+#include "ACDPlatformInfo.h"
 #include "ResourceManager.h"
+#include "SoundTriggerUtils.h"
+#include "SoundTriggerXmlParser.h"
 #include "Device.h"
 #include "Session.h"
 
-class StreamUltraSound : public StreamCommon
+class StreamSensorPCMData : public StreamCommon
 {
 public:
-    StreamUltraSound(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
-                     const uint32_t no_of_devices, const struct modifier_kv *modifiers,
-                     const uint32_t no_of_modifiers, const std::shared_ptr<ResourceManager> rm);
-    ~StreamUltraSound();
-   int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;}
-   int32_t setParameters(uint32_t param_id, void *payload);
+    StreamSensorPCMData(const struct pal_stream_attributes *sattr __unused,
+                        struct pal_device *dattr __unused,
+                        const uint32_t no_of_devices __unused,
+                        const struct modifier_kv *modifiers __unused,
+                        const uint32_t no_of_modifiers __unused,
+                        const std::shared_ptr<ResourceManager> rm);
+    ~StreamSensorPCMData();
+    std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
+    int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable);
+    int32_t open() override;
+    int32_t start() override;
+    int32_t resume() override;
+    int32_t pause() override;
+    int32_t EnableLPI(bool is_enable) override;
+    int32_t HandleConcurrentStream(bool active) override;
+    int32_t DisconnectDevice(pal_device_id_t device_id) override;
+    int32_t ConnectDevice(pal_device_id_t device_id) override;
+    pal_device_id_t GetAvailCaptureDevice();
 private:
-    static void HandleCallBack(uint64_t hdl, uint32_t event_id,
-                               void *data, uint32_t event_size);
-    void HandleEvent(uint32_t event_id, void *data, uint32_t event_size);
+    void GetUUID(class SoundTriggerUUID *uuid, const struct st_uuid *vendor_uuid);
+    int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
+    int32_t DisconnectDevice_l(pal_device_id_t device_id);
+    int32_t ConnectDevice_l(pal_device_id_t device_id);
+    std::shared_ptr<StreamConfig> sm_cfg_;
+    std::shared_ptr<ACDPlatformInfo> acd_info_;
+    std::shared_ptr<CaptureProfile> cap_prof_;
+    uint32_t pcm_data_stream_effect;
+    bool use_lpi_;
 };
 
-#endif//STREAMULTRASOUND_H_
+#endif//StreamSensorPCMData_H_
