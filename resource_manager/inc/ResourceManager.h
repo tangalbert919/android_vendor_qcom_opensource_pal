@@ -652,6 +652,8 @@ public:
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
     int32_t a2dpResume();
+    int32_t a2dpCaptureSuspend();
+    int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
     bool isDeviceSwitchRequired(struct pal_device *activeDevAttr,
          struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
