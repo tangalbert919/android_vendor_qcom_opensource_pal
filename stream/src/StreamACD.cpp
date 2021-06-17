@@ -1283,6 +1283,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
 
                 PAL_INFO(LOG_TAG, "Update capture profile after device switch");
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
+                acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
             }
 
 
@@ -1360,6 +1361,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
                     } else {
                         acd_stream_.cap_prof_ = new_cap_prof;
+                        acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
                     }
                 }
             } else {
@@ -1529,6 +1531,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_DBG(LOG_TAG, "Update capture profile after device switch");
                 acd_stream_.rm->registerDevice(dev, &acd_stream_);
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
+                acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
             }
 
         connect_err:
@@ -1624,6 +1627,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
                     } else {
                         acd_stream_.cap_prof_ = new_cap_prof;
+                        acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
                     }
 
                 }

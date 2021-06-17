@@ -420,7 +420,7 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active) {
                         status, GetAvailCaptureDevice());
         }
     } else {
-      PAL_INFO(LOG_TAG,"no action needed, same capture profile");
+      PAL_INFO(LOG_TAG, "no action needed, same capture profile");
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -537,6 +537,8 @@ int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id) {
     } else {
         PAL_DBG(LOG_TAG, "Update capture profile after device switch");
         cap_prof_ = GetCurrentCaptureProfile();
+        if (cap_prof_)
+            mDevPPSelector = cap_prof_->GetName();
     }
 
 connect_err:

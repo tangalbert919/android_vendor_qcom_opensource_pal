@@ -3186,6 +3186,9 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
+            PAL_DBG(LOG_TAG, "Devicepp Selector: %s",
+                st_stream_.mDevPPSelector.c_str());
             st_stream_.updateStreamAttributes();
 
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
@@ -3492,6 +3495,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
 
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
+            PAL_DBG(LOG_TAG, "devicepp selector: %s",
+                st_stream_.mDevPPSelector.c_str());
             st_stream_.updateStreamAttributes();
 
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
