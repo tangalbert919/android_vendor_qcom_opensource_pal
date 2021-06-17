@@ -47,6 +47,7 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
 {
     int32_t enable_concurrency_count = 0;
     int32_t disable_concurrency_count = 0;
+    paused_ = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     // get ACD platform info
@@ -71,10 +72,21 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
 
     // check if lpi should be used
     if (rm->IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA) &&
-        !enable_concurrency_count)
+        !(rm->isNLPISwitchSupported(PAL_STREAM_SENSOR_PCM_DATA) &&
+        enable_concurrency_count))
         use_lpi_ = true;
     else
         use_lpi_ = false;
+
+    /*
+     * When voice/voip/record is active and concurrency is not
+     * supported, mark paused as true, so that start stream
+     * will be skipped and when voice/voip/record stops, stream
+     * will be resumed.
+     */
+    if (disable_concurrency_count) {
+        paused_ = true;
+    }
 
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -123,10 +135,15 @@ int32_t StreamSensorPCMData::start()
 {
     int32_t status = 0, devStatus = 0;
 
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK, state - %d,  device count - %zu\n",
-            session, currentState, mDevices.size());
+    PAL_DBG(LOG_TAG, "Enter. session handle: %pK, state: %d, paused_: %s",
+            session, currentState, paused_ ? "True" : "False");
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (true == paused_) {
+        PAL_DBG(LOG_TAG,"concurrency is not supported, start the stream later");
+        goto exit;
+    }
+
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_STARTED;
         PAL_ERR(LOG_TAG, "Error:Sound card offline. Update the cached state %d",
@@ -134,13 +151,16 @@ int32_t StreamSensorPCMData::start()
         goto exit;
     }
 
-    if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
-        status = session->open(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Error:session open failed with status %d", status);
-            goto exit;
+    if (currentState == STREAM_INIT || currentState == STREAM_STOPPED ||
+        currentState == STREAM_PAUSED) {
+        if (currentState != STREAM_PAUSED) {
+            status = session->open(this);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Error:session open failed with status %d", status);
+                goto exit;
+            }
+            PAL_DBG(LOG_TAG, "session open successful");
         }
-        PAL_DBG(LOG_TAG, "session open successful");
 
         for (int32_t i = 0; i < mDevices.size(); i++) {
             status = mDevices[i]->open();
@@ -180,6 +200,113 @@ int32_t StreamSensorPCMData::start()
 
 exit:
     PAL_DBG(LOG_TAG, "Exit. state %d, status %d", currentState, status);
+    return status;
+}
+
+int32_t StreamSensorPCMData::stop()
+{
+    int32_t status = 0;
+    bool backend_update = false;
+
+    PAL_DBG(LOG_TAG, "Enter. session handle: %pK, state: %d, paused_: %s",
+            session, currentState, paused_ ? "True" : "False");
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+
+    if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        // Do not update capture profile when pausing stream
+        if (false == paused_) {
+            backend_update = rm->UpdateSoundTriggerCaptureProfile(this, false);
+            if (backend_update) {
+                status = rm->StopOtherDetectionStreams(this);
+                if (status)
+                    PAL_ERR(LOG_TAG, "Error:%d Failed to stop other Detection streams", status);
+            }
+        }
+
+        status = session->stop(this);
+        if (status)
+            PAL_ERR(LOG_TAG, "Error:%s session stop failed with status %d",
+                    GET_DIR_STR(mStreamAttr->direction), status);
+
+        for (int32_t i = 0; i < mDevices.size(); i++) {
+            status = mDevices[i]->stop();
+            if (status)
+                PAL_ERR(LOG_TAG, "Error: device [%d] stop failed with status %d",
+                        mDevices[i]->getSndDeviceId(), status);
+
+            rm->deregisterDevice(mDevices[i], this);
+            PAL_DBG(LOG_TAG, "device [%d] stop successful", mDevices[i]->getSndDeviceId());
+        }
+
+        if (backend_update) {
+            status = rm->StartOtherDetectionStreams(this);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to start other Detection streams", status);
+        }
+
+        currentState = STREAM_STOPPED;
+    } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
+        PAL_INFO(LOG_TAG, "Stream is already in Stopped/idle state %d", currentState);
+    } else {
+        PAL_ERR(LOG_TAG, "Error:Stream should be in start/pause state, %d", currentState);
+        status = -EINVAL;
+    }
+    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
+
+    return status;
+}
+
+int32_t StreamSensorPCMData::Resume()
+{
+    int32_t status = 0;
+    struct pal_device dev;
+    std::shared_ptr<Device> device = mDevices[0];
+    std::shared_ptr<CaptureProfile> cap_prof = nullptr;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    cap_prof = rm->GetSoundTriggerCaptureProfile();
+    if (cap_prof) {
+        dev.id = GetAvailCaptureDevice();
+        dev.config.bit_width = cap_prof->GetBitWidth();
+        dev.config.ch_info.channels = cap_prof->GetChannels();
+        dev.config.sample_rate = cap_prof->GetSampleRate();
+        device->setDeviceAttributes(dev);
+        device->setSndName(cap_prof->GetSndName());
+        PAL_DBG(LOG_TAG, "cap_prof %s, updated device attr dev_id=%d, chs=%d, sr=%d\n",
+                cap_prof->GetName().c_str(), dev.id, cap_prof->GetChannels(),
+                cap_prof->GetSampleRate());
+    } else {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Error:%d Invalid capture profile", status);
+        goto exit;
+    }
+
+    paused_ = false;
+    status = start();
+    if (status)
+        PAL_ERR(LOG_TAG, "Error:%d Resume Stream failed", status);
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+int32_t StreamSensorPCMData::Pause()
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    paused_ = true;
+    status = stop();
+    if (!status)
+        currentState = STREAM_PAUSED;
+    else
+        PAL_ERR(LOG_TAG, "Error:%d Pause Stream failed", status);
+
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -275,38 +402,42 @@ std::shared_ptr<CaptureProfile> StreamSensorPCMData::GetCurrentCaptureProfile()
     cap_prof = sm_cfg_->GetCaptureProfile(
                                 std::make_pair(operating_mode, input_mode));
 
-    PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
-            cap_prof->GetName().c_str(), cap_prof->GetDevId(),
-            cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-            cap_prof->GetSndName().c_str());
+    if (cap_prof) {
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=%d, chs=%d, sr=%d, snd_name=%s",
+                cap_prof->GetName().c_str(), cap_prof->GetDevId(),
+                cap_prof->GetChannels(), cap_prof->GetSampleRate(),
+                cap_prof->GetSndName().c_str());
 
-    // update the best device
-    dev.id = GetAvailCaptureDevice();
-    dev.config.bit_width = cap_prof->GetBitWidth();
-    dev.config.ch_info.channels = cap_prof->GetChannels();
-    dev.config.sample_rate = cap_prof->GetSampleRate();
-    dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
+        // update the best device
+        dev.id = GetAvailCaptureDevice();
+        dev.config.bit_width = cap_prof->GetBitWidth();
+        dev.config.ch_info.channels = cap_prof->GetChannels();
+        dev.config.sample_rate = cap_prof->GetSampleRate();
+        dev.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
 
-    device = Device::getInstance(&dev, rm);
-    if (!device) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to get device instance", -EINVAL);
-        return nullptr;
+        device = Device::getInstance(&dev, rm);
+        if (!device) {
+            PAL_ERR(LOG_TAG, "Failed to get device instance");
+            return nullptr;
+        }
+
+        device->setDeviceAttributes(dev);
+        device->setSndName(cap_prof->GetSndName());
+        mDevices.clear();
+        mDevices.push_back(device);
+    } else {
+        PAL_ERR(LOG_TAG, "Invalid capture profile");
     }
-
-    device->setDeviceAttributes(dev);
-    device->setSndName(cap_prof->GetSndName());
-    mDevices.clear();
-    mDevices.push_back(device);
 
     return cap_prof;
 }
 
-int32_t StreamSensorPCMData::addRemoveEffect(pal_audio_effect_t effect,
-                                             bool enable)
+int32_t StreamSensorPCMData::addRemoveEffect(pal_audio_effect_t effect, bool enable)
 {
     int32_t status = 0;
+    bool backend_update = false;
 
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
+    PAL_DBG(LOG_TAG, "Enter. session handle: %pK", session);
     std::lock_guard<std::mutex> lck(mStreamMutex);
 
     /* Check use_lpi_ here to determine if EC is needed */
@@ -338,6 +469,16 @@ int32_t StreamSensorPCMData::addRemoveEffect(pal_audio_effect_t effect,
     cap_prof_ = GetCurrentCaptureProfile();
     if (cap_prof_) {
         mDevPPSelector = cap_prof_->GetName();
+        backend_update = rm->UpdateSoundTriggerCaptureProfile(this, true);
+        if (backend_update) {
+            status = rm->StopOtherDetectionStreams(this);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to stop other Detection streams", status);
+
+            status = rm->StartOtherDetectionStreams(this);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to start other Detection streams", status);
+        }
     } else {
         status = -EINVAL;
         goto exit;
@@ -350,35 +491,8 @@ exit:
     return status;
 }
 
-int32_t StreamSensorPCMData::resume() {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    status = start();
-    if (status)
-        PAL_ERR(LOG_TAG, "Error:%d Resume Stream failed", status);
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
-}
-
-int32_t StreamSensorPCMData::pause() {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter");
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
-    status = stop();
-    if (status)
-        PAL_ERR(LOG_TAG, "Error:%d Pause Stream failed", status);
-
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
-    return status;
-}
-
-int32_t StreamSensorPCMData::HandleConcurrentStream(bool active) {
+int32_t StreamSensorPCMData::HandleConcurrentStream(bool active)
+{
     int32_t status = 0;
     std::shared_ptr<CaptureProfile> new_cap_prof = nullptr;
 
@@ -426,7 +540,8 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active) {
     return status;
 }
 
-int32_t StreamSensorPCMData::EnableLPI(bool is_enable) {
+int32_t StreamSensorPCMData::EnableLPI(bool is_enable)
+{
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (!rm->IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA)) {
         PAL_DBG(LOG_TAG, "Ignored as LPI not supported");
@@ -438,7 +553,8 @@ int32_t StreamSensorPCMData::EnableLPI(bool is_enable) {
     return 0;
 }
 
-int32_t StreamSensorPCMData::DisconnectDevice_l(pal_device_id_t device_id) {
+int32_t StreamSensorPCMData::DisconnectDevice_l(pal_device_id_t device_id)
+{
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, device_id: %d", device_id);
@@ -477,7 +593,8 @@ exit:
     return status;
 }
 
-int32_t StreamSensorPCMData::DisconnectDevice(pal_device_id_t device_id) {
+int32_t StreamSensorPCMData::DisconnectDevice(pal_device_id_t device_id)
+{
     int32_t status = -EINVAL;
 
     PAL_DBG(LOG_TAG, "Enter, device_id: %d", device_id);
@@ -494,7 +611,8 @@ int32_t StreamSensorPCMData::DisconnectDevice(pal_device_id_t device_id) {
     return status;
 }
 
-int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id) {
+int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id)
+{
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter, device_id: %d", device_id);
@@ -545,7 +663,8 @@ connect_err:
     return status;
 }
 
-int32_t StreamSensorPCMData::ConnectDevice(pal_device_id_t device_id) {
+int32_t StreamSensorPCMData::ConnectDevice(pal_device_id_t device_id)
+{
     int32_t status = -EINVAL;
 
     PAL_DBG(LOG_TAG, "Enter, device_id: %d", device_id);
