@@ -998,8 +998,8 @@ enum {
                              LC3_TXCFG_IDX_BIT |
                              LC3_VERSION_BIT |
                              LC3_BLOCKS_FORSDU_BIT,
-    LC3_BIT_MASK           = LC3_BIT_ALL,
-    LC3_BIT_VALID          = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+    LC3_BIT_MASK           = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+    LC3_BIT_VALID          = LC3_BIT_MASK,
 };
 
 /* max length of streamMap string, up to 16 stream id supported */
