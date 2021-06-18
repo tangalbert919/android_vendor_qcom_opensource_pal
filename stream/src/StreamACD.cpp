@@ -282,11 +282,16 @@ int32_t StreamACD::Pause() {
 int32_t StreamACD::HandleConcurrentStream(bool active) {
     int32_t status = 0;
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     PAL_DBG(LOG_TAG, "Enter");
+    if (active == false)
+        mStreamMutex.lock();
+
     std::shared_ptr<ACDEventConfig> ev_cfg(
         new ACDConcurrentStreamEventConfig(active));
     status = cur_state_->ProcessEvent(ev_cfg);
+
+    if (active == true)
+        mStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -1465,10 +1470,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (curr_device_id != device_id) {
                 PAL_ERR(LOG_TAG, "Error:%d Device %d not connected, ignore",
                     -EINVAL, device_id);
-                if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                    TransitTo(ACD_STATE_DETECTED);
-                    acd_stream_.state_for_restore_ = ACD_STATE_NONE;
-                }
                 break;
             }
             auto& dev = acd_stream_.mDevices[0];
@@ -1491,10 +1492,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
         disconnect_err:
             acd_stream_.mDevices.clear();
-            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                TransitTo(ACD_STATE_DETECTED);
-                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
-            }
             break;
         }
         case ACD_EV_DEVICE_CONNECTED: {
@@ -1507,13 +1504,13 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Error:%d Device creation failed", -EINVAL);
                 status = -EINVAL;
-                goto connect_err;
+                break;
             }
             status = dev->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d device %d open failed", status,
                     dev->getSndDeviceId());
-                goto connect_err;
+                break;
             }
 
             acd_stream_.mDevices.clear();
@@ -1525,14 +1522,14 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d setupSessionDevice for %d failed",
                         status, dev->getSndDeviceId());
                 dev->close();
-                goto connect_err;
+                break;
             }
 
             status = dev->start();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d device %d start failed",
                     status, dev->getSndDeviceId());
-                goto connect_err;
+                break;
             }
 
             status = acd_stream_.engine_->ConnectSessionDevice(&acd_stream_,
@@ -1547,12 +1544,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
                 acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
             }
-
-        connect_err:
-            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                TransitTo(ACD_STATE_DETECTED);
-                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
-            }
             break;
         }
         case ACD_EV_RECOGNITION_CONFIG: {
@@ -1563,10 +1554,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Error:%d Failed to send recog config", status);
 
-            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                TransitTo(ACD_STATE_DETECTED);
-                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
-            }
             break;
         }
         case ACD_EV_CONTEXT_CONFIG: {
@@ -1577,10 +1564,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Error:%d Failed to send context config", status);
 
-            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                TransitTo(ACD_STATE_DETECTED);
-                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
-            }
             break;
         }
         case ACD_EV_EC_REF: {
@@ -1591,10 +1574,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 data->is_enable_);
             if (status) {
                 PAL_ERR(LOG_TAG, "Error:%d Failed to set EC Ref in engine", status);
-            }
-            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
-                TransitTo(ACD_STATE_DETECTED);
-                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
             }
             break;
         }
@@ -1669,6 +1648,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             break;
         }
     }
+    if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+        TransitTo(ACD_STATE_DETECTED);
+        acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+    }
     return status;
 }
 
@@ -1705,6 +1688,7 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
         case ACD_EV_DEVICE_DISCONNECTED:
         case ACD_EV_DEVICE_CONNECTED:
         case ACD_EV_SSR_OFFLINE:
+        case ACD_EV_CONCURRENT_STREAM:
             acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
             // fall through to default
             [[fallthrough]];
