@@ -59,6 +59,7 @@
 #include <dlfcn.h>
 #include <mutex>
 #include "kvh2xml.h"
+#include <sys/ioctl.h>
 
 #ifndef FEATURE_IPQ_OPENWRT
 #include <cutils/str_parms.h>
@@ -73,6 +74,10 @@
 #define SNDPARSER "/etc/card-defs.xml"
 #else
 #define SNDPARSER "/vendor/etc/card-defs.xml"
+#endif
+
+#if defined(ADSP_SLEEP_MONITOR)
+#include <adsp_sleepmon.h>
 #endif
 
 #define MIXER_XML_BASE_STRING_NAME "mixer_paths"
@@ -349,6 +354,7 @@ std::vector <int> ResourceManager::deviceTag = {0};
 std::mutex ResourceManager::mResourceManagerMutex;
 std::mutex ResourceManager::mGraphMutex;
 std::mutex ResourceManager::mActiveStreamMutex;
+std::mutex ResourceManager::mSleepMonitorMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -416,6 +422,7 @@ void str_parms_destroy(struct str_parms *str_parms){return;}
 
 #endif
 
+std::vector<uint32_t> ResourceManager::lpi_vote_streams_;
 std::vector<deviceIn> ResourceManager::deviceInfo;
 std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
@@ -545,7 +552,7 @@ ResourceManager::ResourceManager()
 {
     int ret = 0;
     // Init audio_route and audio_mixer
-
+    sleepmon_fd_ = -1;
     na_props.rm_na_prop_enabled = false;
     na_props.ui_na_prop_enabled = false;
     na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
@@ -572,6 +579,11 @@ ResourceManager::ResourceManager()
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
 
+#if defined(ADSP_SLEEP_MONITOR)
+    sleepmon_fd_ = open(ADSPSLEEPMON_DEVICE_NAME, O_RDWR);
+    if (sleepmon_fd_ == -1)
+        PAL_ERR(LOG_TAG, "Failed to open ADSP sleep monitor file");
+#endif
     listAllFrontEndIds.clear();
     listFreeFrontEndIds.clear();
     listAllPcmPlaybackFrontEnds.clear();
@@ -719,6 +731,9 @@ ResourceManager::~ResourceManager()
     if (ctxMgr) {
         delete ctxMgr;
     }
+
+    if (sleepmon_fd_ >= 0)
+        close(sleepmon_fd_);
 }
 
 void ResourceManager::loadAdmLib()
@@ -845,6 +860,7 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
     int ret = 0;
     uint32_t eventData;
     pal_global_callback_event_t event;
+    pal_stream_type_t type;
 
     PAL_INFO(LOG_TAG,"ssr Handling thread started");
 
@@ -897,6 +913,12 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr down handling failed for %pK ret %d",
                                           str, ret);
+                    }
+                    ret = str->getStreamType(&type);
+                    if (type == PAL_STREAM_NON_TUNNEL) {
+                        ret = voteSleepMonitor(str, false);
+                        if (ret)
+                            PAL_DBG(LOG_TAG, "Failed to unvote for stream type %d", type);
                     }
                 }
                 if (isContextManagerEnabled) {
@@ -1140,6 +1162,91 @@ bool ResourceManager::isLpiLoggingEnabled()
 #endif
     return (lpi_logging_prop | lpi_logging_);
 }
+
+#if defined(ADSP_SLEEP_MONITOR)
+int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
+{
+
+    int32_t ret = 0;
+    int fd = 0;
+    pal_stream_type_t type;
+    bool lpi_stream = false;
+    struct adspsleepmon_ioctl_audio monitor_payload;
+
+    if (sleepmon_fd_ == -1) {
+        PAL_ERR(LOG_TAG, "ioctl device is not open");
+        return -EINVAL;
+    }
+
+    monitor_payload.version = ADSPSLEEPMON_IOCTL_AUDIO_VER_1;
+    ret = str->getStreamType(&type);
+    if (ret != 0) {
+        PAL_ERR(LOG_TAG, "getStreamType failed with status : %d", ret);
+        return ret;
+    }
+    PAL_INFO(LOG_TAG, "Enter for stream type %d", type);
+    lpi_stream = ((find(lpi_vote_streams_.begin(), lpi_vote_streams_.end(), type) !=
+                  lpi_vote_streams_.end()) && !IsTransitToNonLPIOnChargingSupported());
+
+    mSleepMonitorMutex.lock();
+    if (vote) {
+        if (lpi_stream) {
+            if (++lpi_counter_ == 1) {
+                monitor_payload.command = ADSPSLEEPMON_AUDIO_ACTIVITY_LPI_START;
+                mSleepMonitorMutex.unlock();
+                ret = ioctl(sleepmon_fd_, ADSPSLEEPMON_IOCTL_AUDIO_ACTIVITY, &monitor_payload);
+                mSleepMonitorMutex.lock();
+            }
+        } else {
+            if (++nlpi_counter_ == 1) {
+                monitor_payload.command = ADSPSLEEPMON_AUDIO_ACTIVITY_START;
+                mSleepMonitorMutex.unlock();
+                ret = ioctl(sleepmon_fd_, ADSPSLEEPMON_IOCTL_AUDIO_ACTIVITY, &monitor_payload);
+                mSleepMonitorMutex.lock();
+            }
+        }
+    } else {
+        if (lpi_stream) {
+            if (--lpi_counter_ == 0) {
+                monitor_payload.command = ADSPSLEEPMON_AUDIO_ACTIVITY_LPI_STOP;
+                mSleepMonitorMutex.unlock();
+                ret = ioctl(sleepmon_fd_, ADSPSLEEPMON_IOCTL_AUDIO_ACTIVITY, &monitor_payload);
+                mSleepMonitorMutex.lock();
+            } else if (lpi_counter_ < 0) {
+                PAL_ERR(LOG_TAG,
+                  "LPI vote count is negative, number of unvotes is more than number of votes");
+                lpi_counter_ = 0;
+            }
+        } else {
+            if (--nlpi_counter_ == 0) {
+                monitor_payload.command = ADSPSLEEPMON_AUDIO_ACTIVITY_STOP;
+                mSleepMonitorMutex.unlock();
+                ret = ioctl(sleepmon_fd_, ADSPSLEEPMON_IOCTL_AUDIO_ACTIVITY, &monitor_payload);
+                mSleepMonitorMutex.lock();
+            } else if(nlpi_counter_ < 0) {
+                PAL_ERR(LOG_TAG,
+                 "NLPI vote count is negative, number of unvotes is more than number of votes");
+                nlpi_counter_ = 0;
+            }
+        }
+    }
+    if (ret) {
+        PAL_ERR(LOG_TAG, "Failed to %s for %s use case", vote ? "vote" : "unvote",
+                         lpi_stream ? "lpi" : "nlpi");
+    } else {
+        PAL_INFO(LOG_TAG, "%s done for %s use case, lpi votes %d, nlpi votes : %d",
+        vote ? "Voting" : "Unvoting", lpi_stream ? "lpi" : "nlpi", lpi_counter_, nlpi_counter_);
+    }
+
+    mSleepMonitorMutex.unlock();
+    return ret;
+}
+#else
+int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
+{
+    return 0;
+}
+#endif
 
 bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype)
 {
@@ -7394,6 +7501,30 @@ void ResourceManager::process_custom_config(const XML_Char **attr){
     PAL_DBG(LOG_TAG, "custom config key is %s", custom_config_data.key.c_str());
 }
 
+void ResourceManager::process_lpi_vote_streams(struct xml_userdata *data,
+                                               const XML_Char *tag_name)
+{
+    if (data->offs <= 0 || data->resourcexml_parsed)
+        return;
+
+    data->data_buf[data->offs] = '\0';
+
+    if (data->tag == TAG_LPI_VOTE_STREAM) {
+        std::string stream_name(data->data_buf);
+        PAL_DBG(LOG_TAG, "Stream name to be added : :%s", stream_name.c_str());
+        uint32_t st = usecaseIdLUT.at(stream_name);
+        lpi_vote_streams_.push_back(st);
+        PAL_DBG(LOG_TAG, "Stream type added : %d", st);
+    }
+
+    if (!strcmp(tag_name, "stream_type")) {
+        data->tag = TAG_SLEEP_MONITOR_LPI_STREAM;
+    } else if (!strcmp(tag_name, "low_power_vote_streams")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+    }
+
+}
+
 void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
 {
 
@@ -7750,6 +7881,10 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_ECREF;
     } else if (!strcmp(tag_name, "sidetone_mode")) {
         data->tag = TAG_USECASE;
+    } else if (!strcmp(tag_name, "stream_type")) {
+        data->tag = TAG_LPI_VOTE_STREAM;
+    } else if (!strcmp(tag_name, "low_power_vote_streams")) {
+         data->tag = TAG_SLEEP_MONITOR_LPI_STREAM;
     } else if (!strcmp(tag_name, "custom-config")) {
         process_custom_config(attr);
         data->inCustomConfig = 1;
@@ -7804,6 +7939,7 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     process_config_voice(data,tag_name);
     process_device_info(data,tag_name);
     process_input_streams(data,tag_name);
+    process_lpi_vote_streams(data, tag_name);
 
     if (data->card_parsed)
         return;

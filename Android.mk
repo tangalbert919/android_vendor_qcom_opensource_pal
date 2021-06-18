@@ -35,6 +35,21 @@ LOCAL_C_INCLUDES := \
     $(TOP)/system/media/audio_route/include \
     $(TOP)/system/media/audio/include
 
+ifneq ($(TARGET_KERNEL_VERSION), 3.18)
+ifneq ($(TARGET_KERNEL_VERSION), 4.14)
+ifneq ($(TARGET_KERNEL_VERSION), 4.19)
+ifneq ($(TARGET_KERNEL_VERSION), 4.4)
+ifneq ($(TARGET_KERNEL_VERSION), 4.9)
+ifneq ($(TARGET_KERNEL_VERSION), 5.4)
+LOCAL_CFLAGS        += -DADSP_SLEEP_MONITOR
+LOCAL_C_INCLUDES += $(TOP)/kernel_platform/msm-kernel/include/uapi/misc
+endif
+endif
+endif
+endif
+endif
+endif
+
 LOCAL_C_INCLUDES              += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES              += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr

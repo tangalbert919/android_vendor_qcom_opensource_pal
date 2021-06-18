@@ -506,6 +506,8 @@ int SessionAlsaVoice::start(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
 
+    rm->voteSleepMonitor(s, true);
+
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -648,6 +650,8 @@ exit:
     }
     if (volume)
         free(volume);
+    if (status)
+        rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }
@@ -682,6 +686,7 @@ int SessionAlsaVoice::stop(Stream * s __unused)
         }
     }
 
+    rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }

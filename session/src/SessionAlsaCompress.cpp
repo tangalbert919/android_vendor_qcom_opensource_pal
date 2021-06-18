@@ -1080,6 +1080,7 @@ int SessionAlsaCompress::start(Stream * s)
     /** create an offload thread for posting callbacks */
     worker_thread = std::make_unique<std::thread>(offloadThreadLoop, this);
 
+    rm->voteSleepMonitor(s, true);
     s->getStreamAttributes(&sAttr);
     getSndCodecParam(codec, sAttr);
     s->getBufInfo(&in_buf_size,&in_buf_count,&out_buf_size,&out_buf_count);
@@ -1219,13 +1220,14 @@ int SessionAlsaCompress::start(Stream * s)
         default:
             break;
     }
-
     // Setting the volume as no default volume is set now in stream open
     if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
             PAL_ERR(LOG_TAG,"Setting volume failed");
     }
 
 exit:
+    if (status != 0)
+        rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
@@ -1280,9 +1282,10 @@ int SessionAlsaCompress::stop(Stream * s __unused)
     }
 
     PAL_DBG(LOG_TAG,"Enter");
-    if (compress && playback_started)
+    if (compress && playback_started) {
         status = compress_stop(compress);
-
+        rm->voteSleepMonitor(s, false);
+    }
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }

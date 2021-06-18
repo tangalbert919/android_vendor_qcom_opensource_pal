@@ -113,6 +113,8 @@ typedef enum {
     TAG_POLICIES,
     TAG_ECREF,
     TAG_CUSTOMCONFIG,
+    TAG_LPI_VOTE_STREAM,
+    TAG_SLEEP_MONITOR_LPI_STREAM
 } resource_xml_tags_t;
 
 typedef enum {
@@ -368,6 +370,7 @@ protected:
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
     static std::mutex mActiveStreamMutex;
+    static std::mutex mSleepMonitorMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -406,6 +409,7 @@ protected:
     static struct vsid_info vsidInfo;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
+    static std::vector <uint32_t> lpi_vote_streams_;
     /* condition variable for which ssrHandlerLoop will wait */
     static std::condition_variable cv;
     static std::mutex cvMutex;
@@ -430,6 +434,9 @@ protected:
     std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
     ResourceManager();
     ContextManager *ctxMgr;
+    int32_t lpi_counter_;
+    int32_t nlpi_counter_;
+    int sleepmon_fd_;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -619,6 +626,8 @@ public:
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_lpi_vote_streams(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
@@ -690,6 +699,7 @@ public:
                                  const struct pal_device_info *Dev1Info,
                                  struct pal_device *Dev2Attr,
                                  const struct pal_device_info *Dev2Info);
+    int32_t voteSleepMonitor(Stream *str, bool vote);
 };
 
 #endif
