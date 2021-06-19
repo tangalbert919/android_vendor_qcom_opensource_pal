@@ -167,7 +167,7 @@ void ACDEngine::ParseEventAndNotifyClient()
 {
     uint8_t *event_data;
     uint8_t *opaque_ptr;
-    uint64_t detection_ts;
+    uint64_t detection_ts = 0;
     int i;
     struct acd_context_event *event = NULL;
     struct acd_per_context_event_info *event_info = NULL;
@@ -296,6 +296,10 @@ void ACDEngine::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size)
 {
     void *event_data = calloc(1, size);
+    if (!event_data) {
+        PAL_ERR(LOG_TAG, "Error:failed to allocate mem for event_data");
+        return;
+    }
 
     std::unique_lock<std::mutex> lck(mutex_);
     memcpy(event_data, data, size);
@@ -436,11 +440,13 @@ void ACDEngine::UpdateModelCount(struct pal_param_context_list *context_cfg, boo
 {
     int32_t i, model_id;
     std::shared_ptr<ACDSoundModelInfo> sm_info;
-    bool model_to_update[ACD_SOUND_MODEL_ID_MAX];
+    bool model_to_update[ACD_SOUND_MODEL_ID_MAX] = { 0 };
 
     /* Step 1. Update model_to_update based on model associated with context id */
     for (i = 0; i < context_cfg->num_contexts; i++) {
         sm_info = sm_cfg_->GetSoundModelInfoByContextId(context_cfg->context_id[i]);
+        if (!sm_info)
+            return;
         model_id = sm_info->GetModelId();
         model_to_update[model_id] = true;
     }
@@ -550,6 +556,11 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
 
             // if entry is found, get the map handle and insert new value
             context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+            if (!context_info) {
+                PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                return;
+            }
+
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
             stream_ctx_data->insert(std::make_pair(s, context_info));
@@ -557,6 +568,10 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
         //   if entry is not found, create entry and insert it to map
             stream_ctx_data = new std::map<Stream *, struct stream_context_info *>;
             context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+            if (!context_info) {
+                PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                return;
+            }
 
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
@@ -579,6 +594,11 @@ void ACDEngine::AddEventInfoForStream(Stream *s, struct acd_recognition_cfg *rec
             }
         } else {
             context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+            if (!context_info) {
+                PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                return;
+            }
+
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
             cumulative_contextinfo_map_.insert(std::make_pair(context_cfg[i].context_id,
@@ -625,6 +645,11 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
                 else
                     context_info = iter2->second;
 
+                if (!context_info) {
+                    PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                    return;
+                }
+
                 context_info->threshold = context_cfg[i].threshold;
                 context_info->step_size = context_cfg[i].step_size;
 
@@ -654,6 +679,10 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
             // if entry is not found, create entry and insert it to map
             stream_ctx_data = new std::map<Stream *, struct stream_context_info *>;
             context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+            if (!context_info) {
+                PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                return;
+            }
 
             context_info->threshold = context_cfg[i].threshold;
             context_info->step_size = context_cfg[i].step_size;
@@ -705,6 +734,11 @@ void ACDEngine::UpdateEventInfoForStream(Stream *s, struct acd_recognition_cfg *
                 }
             } else {
                 context_info = (struct stream_context_info *)calloc(1, sizeof(struct stream_context_info));
+                if (!context_info) {
+                    PAL_ERR(LOG_TAG, "Error:failed to allocate mem for context_info");
+                    return;
+                }
+
                 context_info->threshold = context_cfg[i].threshold;
                 context_info->step_size = context_cfg[i].step_size;
                 cumulative_contextinfo_map_.insert(std::make_pair(context_cfg[i].context_id,
@@ -763,6 +797,7 @@ int32_t ACDEngine::UnloadSoundModel()
     int32_t status = 0, model_id;
     struct param_id_detection_engine_deregister_multi_sound_model_t
                                                      deregister_config;
+    memset(&deregister_config, 0, sizeof(struct param_id_detection_engine_deregister_multi_sound_model_t));
 
     for (model_id = 0; model_id < ACD_SOUND_MODEL_ID_MAX; model_id++) {
         if (model_unload_needed_[model_id]) {
@@ -776,8 +811,9 @@ int32_t ACDEngine::UnloadSoundModel()
 
             PAL_INFO(LOG_TAG, "Unloading model %d", model_id);
             deregister_config.model_id = sm_cfg_->GetSoundModelInfoByModelId(model_id)->GetModelUUID();
-            status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
-                                 sizeof(deregister_config));
+            if (deregister_config.model_id)
+                status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
+                                     sizeof(deregister_config));
         }
     }
     return status;
@@ -804,6 +840,11 @@ int32_t ACDEngine::PopulateEventPayload()
         (num_contexts * sizeof(struct acd_per_context_cfg));
 
     event_payload = (uint8_t *) calloc(1, event_payload_size);
+    if (!event_payload) {
+        PAL_ERR(LOG_TAG, "Error:failed to allocate mem for event_data");
+        return -ENOMEM;
+    }
+
     detection_cfg = (struct event_id_acd_detection_cfg_t *) event_payload;
     detection_cfg->num_keys = 1;
 
@@ -852,6 +893,8 @@ int32_t ACDEngine::LoadSoundModel()
 
             PAL_INFO(LOG_TAG, "Loading model %d", model_id);
             sm_info = sm_cfg_->GetSoundModelInfoByModelId(model_id);
+            if (!sm_info)
+                return -EINVAL;
             bin_name = sm_info->GetModelBinName();
             if (!bin_name.empty()) {
                 uuid = sm_info->GetModelUUID();

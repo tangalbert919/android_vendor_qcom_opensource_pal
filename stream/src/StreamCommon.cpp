@@ -226,14 +226,6 @@ int32_t  StreamCommon::close()
         mStreamMutex.lock();
     }
 
-    for (int32_t i = 0; i < mDevices.size(); i++) {
-        status = mDevices[i]->close();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Error:device close is failed with status %d", status);
-        }
-    }
-    PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
-
     rm->lockGraph();
     status = session->close(this);
     rm->unlockGraph();
@@ -241,6 +233,13 @@ int32_t  StreamCommon::close()
         PAL_ERR(LOG_TAG, "Error:session close failed with status %d", status);
     }
 
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        status = mDevices[i]->close();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Error:device close is failed with status %d", status);
+        }
+    }
+    PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
 

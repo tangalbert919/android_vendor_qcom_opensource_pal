@@ -231,7 +231,6 @@ Device::Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
 
 Device::Device()
 {
-    initialized = false;
     strlcpy(mSndDeviceName, "", DEVICE_NAME_MAX_SIZE);
     mPALDeviceName.clear();
 }
@@ -341,32 +340,66 @@ int Device::deinit(pal_param_device_connection_t device_conn __unused)
 int Device::open()
 {
     int status = 0;
-    mDeviceMutex.lock();
-    PAL_DBG(LOG_TAG, "Enter. device count %d for device id %d, initialized %d",
-        deviceCount, this->deviceAttr.id, initialized);
 
-    if (!initialized) {
-        mPALDeviceName = rm->getPALDeviceName(this->deviceAttr.id);
-        initialized = true;
-        PAL_DBG(LOG_TAG, "Device name %s, device id %d initialized %d", mPALDeviceName.c_str(), this->deviceAttr.id, initialized);
-        {
-            std::string backEndName;
-            rm->getBackendName(this->deviceAttr.id, backEndName);
-            if (strlen(backEndName.c_str())) {
-                SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &(this->deviceAttr));
-            }
-        }
-    }
+    mDeviceMutex.lock();
+    mPALDeviceName = rm->getPALDeviceName(this->deviceAttr.id);
+    PAL_INFO(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
 
     devObj = Device::getInstance(&deviceAttr, rm);
 
-    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
+    if (deviceCount == 0) {
+        std::string backEndName;
+        rm->getBackendName(this->deviceAttr.id, backEndName);
+        if (strlen(backEndName.c_str())) {
+            SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &(this->deviceAttr));
+        }
+
+        status = rm->getAudioRoute(&audioRoute);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
+            goto exit;
+        }
+        status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
+
+        if (!UpdatedSndName.empty()) {
+            PAL_DBG(LOG_TAG,"Update sndName %s, currently %s",
+                    UpdatedSndName.c_str(), mSndDeviceName);
+            strlcpy(mSndDeviceName, UpdatedSndName.c_str(), DEVICE_NAME_MAX_SIZE);
+        }
+
+        PAL_DBG(LOG_TAG, "audio_route %pK SND device name %s", audioRoute, mSndDeviceName);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
+            goto exit;
+        }
+        enableDevice(audioRoute, mSndDeviceName);
+    }
+    ++deviceCount;
+
+exit:
+    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s)", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
     mDeviceMutex.unlock();
     return status;
 }
 
 int Device::close()
 {
+    mDeviceMutex.lock();
+    PAL_INFO(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
+    if (deviceCount > 0) {
+        --deviceCount;
+
+       if (deviceCount == 0) {
+           PAL_DBG(LOG_TAG, "Disabling device %d with snd dev %s", deviceAttr.id, mSndDeviceName);
+           disableDevice(audioRoute, mSndDeviceName);
+       }
+    }
+    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s)", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
+    mDeviceMutex.unlock();
     return 0;
 }
 
@@ -392,34 +425,14 @@ int Device::start_l()
     int status = 0;
     std::string backEndName;
 
-    PAL_DBG(LOG_TAG, "Enter %d count, initialized %d", deviceCount, initialized);
-    if (deviceCount == 0 && initialized) {
-        status = rm->getAudioRoute(&audioRoute);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Failed to get the audio_route address status %d", status);
-            goto exit;
-        }
-        status = rm->getSndDeviceName(deviceAttr.id , mSndDeviceName); //getsndName
-
-        if (!UpdatedSndName.empty()) {
-            PAL_DBG(LOG_TAG,"Update sndName %s, currently %s",
-                    UpdatedSndName.c_str(), mSndDeviceName);
-            strlcpy(mSndDeviceName, UpdatedSndName.c_str(), DEVICE_NAME_MAX_SIZE);
-        }
-
-        PAL_DBG(LOG_TAG, "audio_route %pK SND device name %s", audioRoute, mSndDeviceName);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Failed to obtain the device name from ResourceManager status %d", status);
-            goto exit;
-        }
-
-        enableDevice(audioRoute, mSndDeviceName);
-
+    PAL_INFO(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
+    if (deviceCount == 1) {
         rm->getBackendName(deviceAttr.id, backEndName);
         if (!strlen(backEndName.c_str())) {
             PAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
             status = -EINVAL;
-            goto disable_dev;
+            goto exit;
         }
 
         SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &deviceAttr);
@@ -427,19 +440,11 @@ int Device::start_l()
         if (customPayloadSize) {
             status = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                                         customPayload, customPayloadSize);
-            if (status) {
+            if (status)
                  PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
                                    deviceAttr.id);
-                 goto disable_dev;
-            }
         }
     }
-    deviceCount += 1;
-    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-    goto exit;
-
-disable_dev:
-    disableDevice(audioRoute, mSndDeviceName);
 exit :
     return status;
 }
@@ -458,17 +463,7 @@ int Device::stop()
 // must be called with mDeviceMutex held
 int Device::stop_l()
 {
-    int status = 0;
-    PAL_DBG(LOG_TAG, "Enter. device id %d, device name %s, count %d", deviceAttr.id, mPALDeviceName.c_str(), deviceCount);
-    if(deviceCount > 0){
-       if (deviceCount == 1 && initialized) {
-           PAL_DBG(LOG_TAG, "Disabling device %d with snd dev %s", deviceAttr.id, mSndDeviceName);
-           disableDevice(audioRoute, mSndDeviceName);
-       }
-       deviceCount -= 1;
-    }
-    PAL_DBG(LOG_TAG, "Exit. device count %d", deviceCount);
-    return status;
+    return 0;
 }
 
 int32_t Device::setDeviceParameter(uint32_t param_id __unused, void *param __unused)

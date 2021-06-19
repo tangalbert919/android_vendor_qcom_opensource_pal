@@ -55,7 +55,6 @@ protected:
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
     char mSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
-    bool initialized = false;
     void *customPayload;
     size_t customPayloadSize;
     std::string UpdatedSndName;

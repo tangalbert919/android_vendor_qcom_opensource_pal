@@ -54,6 +54,10 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
                       +sizeof(struct pal_channel_vol_kv));
+    if (!mVolumeData) {
+        PAL_ERR(LOG_TAG, "Error:mVolumeData allocation failed");
+        throw std::runtime_error("mVolumeData allocation failed");
+    }
     mVolumeData->no_of_volpair = 1;
     mVolumeData->volume_pair[0].channel_mask = 0x03;
     mVolumeData->volume_pair[0].vol = 1.0f;
@@ -560,12 +564,17 @@ std::shared_ptr<CaptureProfile> StreamACD::GetCurrentCaptureProfile()
 
     cap_prof = sm_cfg_->GetCaptureProfile(
                 std::make_pair(operating_mode, input_mode));
+    if (!cap_prof) {
+        PAL_ERR(LOG_TAG, "Error:Failed to get capture profile");
+        goto exit;
+    }
 
     PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
         cap_prof->GetName().c_str(), cap_prof->GetDevId(),
         cap_prof->GetChannels(), cap_prof->GetSampleRate(),
         cap_prof->GetSndName().c_str());
 
+exit:
     return cap_prof;
 }
 
@@ -619,6 +628,10 @@ std::shared_ptr<Device> StreamACD::GetPalDevice(pal_device_id_t dev_id, bool use
         cap_prof = GetCurrentCaptureProfile();
     } else {
         cap_prof = GetCurrentCaptureProfile();
+    }
+    if (!cap_prof) {
+        PAL_ERR(LOG_TAG, "Error:Failed to get capture profile");
+        goto exit;
     }
 
     dev.config.bit_width = cap_prof->GetBitWidth();

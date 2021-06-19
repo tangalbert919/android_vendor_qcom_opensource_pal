@@ -377,7 +377,8 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
                                                  model_type_, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-            return -ENOMEM;
+            status = -ENOMEM;
+            goto exit;
         }
 
         status = gsl_engine_->GetParameters(param_id, payload);
@@ -388,6 +389,14 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
+    }
+
+exit:
+    if (mDevices.size() > 0) {
+        status = mDevices[0]->close();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
+        }
     }
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
@@ -1082,9 +1091,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
                     AddEngine(engine_cfg);
                 } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
-                    if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
+                    if (big_sm->type == SML_ID_SVA_F_STAGE_INTERNAL || (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
                         !(phrase_sm->phrases[0].recognition_mode &
-                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION))
+                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION)))
                         continue;
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload +
@@ -1681,6 +1690,8 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         return status;
     }
     if (callback_) {
+        // update stream state to stopped before unlock stream mutex
+        currentState = STREAM_STOPPED;
         notify_time = std::chrono::steady_clock::now();
         total_process_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -3293,23 +3304,19 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             break;
         }
         case ST_EV_DETECTED: {
-            StDetectedEventConfigData *data =
-                (StDetectedEventConfigData *) ev_cfg->data_.get();
-            if (data->det_type_ == GMM_DETECTED) {
-                PAL_DBG(LOG_TAG,
-                    "Keyword detected with invalid state, stop engines");
-                /*
-                 * When detection is ignored here, stop engines to make sure
-                 * engines are in proper state for next detection/start. For
-                 * multi VA cases, gsl engine stop is same as restart.
-                 */
-                for (auto& eng: st_stream_.engines_) {
-                    PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
-                    status = eng->GetEngine()->StopRecognition(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
-                                eng->GetEngineId(), status);
-                    }
+            PAL_DBG(LOG_TAG,
+                "Keyword detected with invalid state, stop engines");
+            /*
+                * When detection is ignored here, stop engines to make sure
+                * engines are in proper state for next detection/start. For
+                * multi VA cases, gsl engine stop is same as restart.
+                */
+            for (auto& eng: st_stream_.engines_) {
+                PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
                 }
             }
             break;
@@ -3720,12 +3727,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
         }
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_CHARGING_STATE:
-            /*
-             * Just switch LPI/NLPI, do not start new graph as client
-             * will call start after detection event handled.
-             */
-            st_stream_.currentState = STREAM_STOPPED;
-            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -4001,12 +4002,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         }
         case ST_EV_CHARGING_STATE:
         case ST_EV_CONCURRENT_STREAM:
-            /*
-             * Just switch LPI/NLPI, do not start new graph as client
-             * will call start after lab done.
-             */
-            st_stream_.currentState = STREAM_STOPPED;
-            [[fallthrough]];
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();

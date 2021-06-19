@@ -1543,6 +1543,11 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         return status;
     }
 
+    if (pcm == NULL) {
+        PAL_ERR(LOG_TAG,"PCM is NULL");
+        return -EINVAL;
+    }
+
     void *data = nullptr;
 
     bytesRemaining = buf->size;
