@@ -222,7 +222,7 @@ int32_t  Stream::getStreamAttributes(struct pal_stream_attributes *sAttr)
     }
     ar_mem_cpy(sAttr, sizeof(pal_stream_attributes), mStreamAttr,
                      sizeof(pal_stream_attributes));
-    PAL_DBG(LOG_TAG, "stream_type %d stream_flags %d direction %d",
+    PAL_VERBOSE(LOG_TAG, "stream_type %d stream_flags %d direction %d",
             sAttr->type, sAttr->flags, sAttr->direction);
 
 exit:

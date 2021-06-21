@@ -101,8 +101,6 @@ typedef enum {
     TAG_IN_DEVICE,
     TAG_OUT_DEVICE,
     TAG_USECASE,
-    TAG_DEVICEPP,
-    TAG_KVPAIR,
     TAG_CONFIG_VOICE,
     TAG_CONFIG_MODE_MAP,
     TAG_CONFIG_MODE_PAIR,
@@ -166,11 +164,6 @@ struct deviceCap {
     sess_mode_t sess_mode;
 };
 
-struct kvpair_info {
-    unsigned int key;
-    unsigned int value;
-};
-
 typedef enum {
     SIDETONE_OFF,
     SIDETONE_HW,
@@ -183,7 +176,6 @@ struct usecase_custom_config_info
     std::string key;
     std::string sndDevName;
     int channel;
-    std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
     int samplerate;
 };
@@ -191,7 +183,6 @@ struct usecase_custom_config_info
 struct usecase_info {
     int type;
     int samplerate;
-    std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
     std::string sndDevName;
     int channel;
@@ -203,7 +194,6 @@ struct pal_device_info {
      int channels;
      int max_channels;
      int samplerate;
-     std::vector<kvpair_info> kvpair;
      std::string sndDevName;
      bool isExternalECRefEnabledFlag;
 };
@@ -300,7 +290,6 @@ struct deviceIn {
      * when ll barge-in is not enabled.
      */
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
-    std::vector<kvpair_info> kvpair;
     std::string sndDevName;
     bool isExternalECRefEnabled;
 };
@@ -627,7 +616,6 @@ public:
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
-    static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);

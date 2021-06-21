@@ -633,7 +633,7 @@ ResourceManager::ResourceManager()
     if (ret) {
         throw std::runtime_error("Failed to parse usecase manager xml");
     } else {
-        PAL_DBG(LOG_TAG, "usecase manager xml parsing successful");
+        PAL_INFO(LOG_TAG, "usecase manager xml parsing successful");
     }
 
     PAL_ERR(LOG_TAG, "Creating ContextManager");
@@ -1134,7 +1134,6 @@ bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_
 
 void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type, std::string key, struct pal_device_info *devinfo)
 {
-    struct kvpair_info kv = {};
     bool found = false;
 
     for (int32_t i = 0; i < deviceInfo.size(); i++) {
@@ -1167,18 +1166,6 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
                                 type,
                                 deviceNameLUT.at(deviceId).c_str());
                     }
-                    /*get kv pairs*/
-                    if (deviceInfo[i].usecase[j].kvpair.size()) {
-                        for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].kvpair.size(); kvsize++) {
-                            kv.key =  deviceInfo[i].usecase[j].kvpair[kvsize].key;
-                            kv.value =  deviceInfo[i].usecase[j].kvpair[kvsize].value;
-                            PAL_DBG(LOG_TAG, "kv overwitten to key 0X%x value 0X%x for usecase %d for dev %s",
-                                    kv.key, kv.value,
-                                    type,
-                                    deviceNameLUT.at(deviceId).c_str());
-                            devinfo->kvpair.push_back(kv);
-                        }
-                    }
                     /*parse custom config if there*/
                     for (int32_t k = 0; k < deviceInfo[i].usecase[j].config.size(); k++) {
                         if (!deviceInfo[i].usecase[j].config[k].key.compare(key)) {
@@ -1206,20 +1193,6 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
                                         key.c_str(),
                                         type,
                                         deviceNameLUT.at(deviceId).c_str());
-                            }
-                            /*overwrite the kv pairs if needed*/
-                            if (deviceInfo[i].usecase[j].config[k].kvpair.size()) {
-                                devinfo->kvpair.clear();
-                                for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].config[k].kvpair.size(); kvsize++) {
-                                    kv.key =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].key;
-                                    kv.value =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].value;
-                                    PAL_DBG(LOG_TAG, "got overwitten kv key 0X%x value 0X%x for custom key %s usecase %d for dev %s",
-                                            kv.key, kv.value,
-                                            key.c_str(),
-                                            type,
-                                            deviceNameLUT.at(deviceId).c_str());
-                                    devinfo->kvpair.push_back(kv);
-                                }
                             }
                             found = true;
                             break;
@@ -7293,40 +7266,9 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
     }
 }
 
-void ResourceManager::process_kvinfo(const XML_Char **attr, bool overwrite)
-{
-    struct kvpair_info kv;
-    int size = 0, sizeusecase = 0, sizecustomconfig = 0;
-    std::string tagkey(attr[1]);
-    std::string tagvalue(attr[3]);
-
-    if (strcmp(attr[0], "key") !=0) {
-        PAL_ERR(LOG_TAG, "key not found");
-        return;
-    }
-    kv.key = convertCharToHex(tagkey);
-    if (strcmp(attr[2], "value") !=0) {
-        PAL_ERR(LOG_TAG, "value not found");
-        return;
-    }
-    kv.value = convertCharToHex(tagvalue);
-
-    size = deviceInfo.size() - 1;
-    sizeusecase = deviceInfo[size].usecase.size() - 1;
-
-    if (!overwrite) {
-        deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
-    } else {
-        sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
-        deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].kvpair.push_back(kv);
-    }
-    PAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
-}
-
 void ResourceManager::process_usecase()
 {
     struct usecase_info usecase_data = {};
-    usecase_data.kvpair = {};
     usecase_data.config = {};
     int size = 0;
 
@@ -7343,7 +7285,6 @@ void ResourceManager::process_custom_config(const XML_Char **attr){
     custom_config_data.sndDevName = "";
     custom_config_data.channel = 0;
     custom_config_data.key = "";
-    custom_config_data.kvpair = {};
 
     if (attr[0] && !strcmp(attr[0], "key")) {
         custom_config_data.key = key;
@@ -7483,15 +7424,7 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         }
 
     }
-    if (!strcmp(tag_name, "kvpair")) {
-        data->tag = TAG_DEVICEPP;
-    } else if (!strcmp(tag_name, "devicePP-metadata")) {
-        if (data->inCustomConfig) {
-            data->tag = TAG_CUSTOMCONFIG;
-        }else {
-            data->tag = TAG_USECASE;
-        }
-    } else if (!strcmp(tag_name, "usecase")) {
+    if (!strcmp(tag_name, "usecase")) {
         data->tag = TAG_IN_DEVICE;
     } else if (!strcmp(tag_name, "in-device") || !strcmp(tag_name, "out-device")) {
         data->tag = TAG_DEVICE_PROFILE;
@@ -7666,11 +7599,6 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "usecase")) {
         process_usecase();
         data->tag = TAG_USECASE;
-    } else if (!strcmp(tag_name, "devicePP-metadata")) {
-        data->tag = TAG_DEVICEPP;
-    } else if (!strcmp(tag_name, "kvpair")) {
-        process_kvinfo(attr, data->inCustomConfig);
-        data->tag = TAG_KVPAIR;
     } else if (!strcmp(tag_name, "in_streams")) {
         data->tag = TAG_INSTREAMS;
     } else if (!strcmp(tag_name, "in_stream")) {
