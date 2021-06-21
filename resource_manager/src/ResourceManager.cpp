@@ -5795,10 +5795,12 @@ int32_t ResourceManager::a2dpResume()
     }
     getDeviceConfig(&a2dpDattr, NULL, devinfo.channels);
 
+    mActiveStreamMutex.lock();
     getActiveStream_l(spkrDev, activeStreams);
     getOrphanStream_l(orphanStreams);
     if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
 
@@ -5822,8 +5824,10 @@ int32_t ResourceManager::a2dpResume()
 
     if (restoredStreams.empty()) {
         PAL_DBG(LOG_TAG, "no streams to be restored");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
+    mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
     mResourceManagerMutex.unlock();
@@ -5834,13 +5838,15 @@ int32_t ResourceManager::a2dpResume()
         goto exit;
     }
 
+    mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
-        if ((*sIter) != NULL) {
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
             (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
     }
+    mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
