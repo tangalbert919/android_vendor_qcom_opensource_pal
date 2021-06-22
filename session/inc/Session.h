@@ -62,6 +62,8 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
+#define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
+
 class Stream;
 class ResourceManager;
 class Session
@@ -80,7 +82,9 @@ protected:
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
+    bool RegisterForEvents = false;
 public:
+    bool isPauseRegistrationDone;
     virtual ~Session();
     static Session* makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr);
     int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,

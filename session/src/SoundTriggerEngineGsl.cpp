@@ -56,13 +56,13 @@ void SoundTriggerEngineGsl::EventProcessingThread(
     SoundTriggerEngineGsl *gsl_engine) {
 
     int32_t status = 0;
+    StreamSoundTrigger *s = nullptr;
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
         PAL_ERR(LOG_TAG, "Invalid sound trigger engine");
         return;
     }
-
     std::unique_lock<std::mutex> lck(gsl_engine->mutex_);
     while (!gsl_engine->exit_thread_) {
         PAL_VERBOSE(LOG_TAG, "waiting on cond");
@@ -81,10 +81,20 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         }
 
         if (!IS_MODULE_TYPE_PDK(gsl_engine->module_type_)) {
-            StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
+            s = dynamic_cast<StreamSoundTrigger *>
                                      (gsl_engine->GetDetectedStream());
+
             if (s) {
-               if (gsl_engine->capture_requested_) {
+                if (gsl_engine->CheckIfOtherStreamsAttached(s)) {
+                    for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
+                        if (s != gsl_engine->eng_streams_[i] &&
+                            s->GetCurrentStateId() == ST_STATE_ACTIVE) {
+                            gsl_engine->eng_state_ = ENG_ACTIVE;
+                            break;
+                        }
+                    }
+                }
+                if (gsl_engine->capture_requested_) {
                     gsl_engine->StartBuffering(s);
                 } else {
                     status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
@@ -99,12 +109,22 @@ void SoundTriggerEngineGsl::EventProcessingThread(
             for (int i = 0;
                 i < gsl_engine->detection_event_info_multi_model_.
                                num_detected_models; i++) {
-                StreamSoundTrigger *s = dynamic_cast<StreamSoundTrigger *>
+                s = dynamic_cast<StreamSoundTrigger *>
                                 (gsl_engine->GetDetectedStream(
                                  gsl_engine->detection_event_info_multi_model_.
                                  detected_model_stats[i].
                                  detected_model_id));
                 if (s) {
+                    if (gsl_engine->CheckIfOtherStreamsAttached(s)) {
+                        for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
+                            if (s != gsl_engine->eng_streams_[i] &&
+                                s->GetCurrentStateId() == ST_STATE_ACTIVE) {
+                                gsl_engine->eng_state_ = ENG_ACTIVE;
+                                break;
+                            }
+                        }
+                    }
+
                     if (gsl_engine->capture_requested_) {
                         gsl_engine->StartBuffering(s);
                     } else {
@@ -116,7 +136,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 }
             }
         }
-     }
+    }
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -171,8 +191,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     StreamSoundTrigger *st = (StreamSoundTrigger *)s;
     struct pal_mmap_position mmap_pos;
     FILE *dsp_output_fd = nullptr;
-    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_begin;
-    std::chrono::time_point<std::chrono::steady_clock> kw_transfer_end;
+    ChronoSteadyClock_t kw_transfer_begin;
+    ChronoSteadyClock_t kw_transfer_end;
 
     PAL_DBG(LOG_TAG, "Enter");
     s->getBufInfo(&input_buf_size, &input_buf_num, nullptr, nullptr);
@@ -444,7 +464,7 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
                     detected_model_id = model_stat->detected_model_id;
 
                     detection_event_info_multi_model_.detected_model_stats[i].
-                    detected_keyword_id = model_stat->detected_keyword_id + 1;
+                    detected_keyword_id = model_stat->detected_keyword_id;
                     PAL_DBG(LOG_TAG, "detected keyword id : %u",
                             detection_event_info_multi_model_.detected_model_stats[i].
                             detected_keyword_id );
@@ -1816,6 +1836,11 @@ exit:
     if (!status)
         eng_streams_.push_back(s);
 
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -1855,6 +1880,11 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     eng_state_ = ENG_IDLE;
 exit:
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -1864,11 +1894,18 @@ int32_t SoundTriggerEngineGsl::UpdateConfigs() {
 
     if (is_qcva_uuid_ || is_qcmd_uuid_) {
         status = UpdateSessionPayload(WAKEUP_CONFIG);
-    }
-
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d", status);
-        goto exit;
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to set wake up config, status = %d",
+                status);
+            goto exit;
+        }
+    } else if (module_tag_ids_[CUSTOM_CONFIG] && param_ids_[CUSTOM_CONFIG]) {
+        status = UpdateSessionPayload(CUSTOM_CONFIG);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to set custom config, status = %d",
+                status);
+            goto exit;
+        }
     }
 
     status = UpdateSessionPayload(BUFFERING_CONFIG);
@@ -1929,7 +1966,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     }
 
     if (mmap_buffer_size_ != 0 && !mmap_buffer_.buffer) {
-        status = session_->createMmapBuffer(s, mmap_buffer_size_,
+        status = session_->createMmapBuffer(s, BytesToFrames(mmap_buffer_size_),
             &mmap_buffer_);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Failed to create mmap buffer, status = %d",
@@ -1977,6 +2014,11 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
     status = ProcessStartRecognition(s);
     if (0 != status)
         PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
 
     return status;
 }
@@ -2037,6 +2079,10 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         }
     }
 
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -2073,7 +2119,8 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
 int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     int32_t status = 0;
     bool restore_eng_state = false;
-
+    uint32_t old_conf = 0;
+    uint32_t model_id = 0;
     PAL_DBG(LOG_TAG, "Enter");
 
     exit_buffering_ = true;
@@ -2090,9 +2137,26 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
     }
 
     if (CheckIfOtherStreamsAttached(s)) {
+        PAL_INFO(LOG_TAG, "Other streams are attached to current engine");
         if (restore_eng_state) {
-            PAL_INFO(LOG_TAG, "Other stream is active, restart engine recognition");
+            PAL_DBG(LOG_TAG, "Other streams are active, restart recognition");
             UpdateEngineConfigOnStop(s);
+            if (IS_MODULE_TYPE_PDK(module_type_)) {
+                StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+                model_id = st->GetModelId();
+                PAL_DBG(LOG_TAG, "Update conf level for model id : %d",
+                        model_id);
+                for (int i = 0; i < mid_wakeup_cfg_[model_id].num_keywords; ++i) {
+                     old_conf = mid_wakeup_cfg_[model_id].confidence_levels[i];
+                     mid_wakeup_cfg_[model_id].confidence_levels[i] = 100;
+                     PAL_DBG(LOG_TAG,
+                         "Older conf level : %d Updated conf level : %d",
+                     old_conf, mid_wakeup_cfg_[model_id].confidence_levels[i]);
+                }
+                updated_cfg_.push_back(model_id);
+                PAL_DBG(LOG_TAG, "Model id : %d added in updated_cfg_",
+                        model_id);
+            }
             status = ProcessStartRecognition(eng_streams_[0]);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
@@ -2101,6 +2165,10 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
         }
     }
 exit:
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -2176,10 +2244,13 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
         if (mid_wakeup_cfg_.find(st->GetModelId()) != mid_wakeup_cfg_.end() &&
             std::find(updated_cfg_.begin(), updated_cfg_.end(), st->GetModelId())
-            == updated_cfg_.end() && IsEngineActive())
+            == updated_cfg_.end() && IsEngineActive()) {
             updated_cfg_.push_back(st->GetModelId());
+            PAL_DBG(LOG_TAG, "Model id : %d added to updated_cfg_ list", st->GetModelId());
+        }
 
         mid_wakeup_cfg_[st->GetModelId()].mode = pdk_wakeup_config_.mode;
+        PAL_DBG(LOG_TAG, "Updating mid_wakeup_cfg_ for model id %d", st->GetModelId());
         mid_wakeup_cfg_[st->GetModelId()].num_keywords =
                                          pdk_wakeup_config_.num_keywords;
         mid_wakeup_cfg_[st->GetModelId()].custom_payload_size =
@@ -2752,19 +2823,25 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
 }
 
 std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
-     Stream *s,
-     listen_model_indicator_enum type,
-     st_module_type_t module_type,
-     std::shared_ptr<SoundModelConfig> sm_cfg) {
+    Stream *s,
+    listen_model_indicator_enum type,
+    st_module_type_t module_type,
+    std::shared_ptr<SoundModelConfig> sm_cfg) {
 
-     if (eng_.find(module_type) == eng_.end()) {
-         eng_[module_type] = std::make_shared<SoundTriggerEngineGsl>
-                                      (s, type, module_type, sm_cfg);
-     }
-     return eng_[module_type];
+    st_module_type_t key = module_type;
+    if (IS_MODULE_TYPE_PDK(module_type)) {
+        key = ST_MODULE_TYPE_PDK;
+    }
+
+    if (eng_.find(key) == eng_.end()) {
+        eng_[key] = std::make_shared<SoundTriggerEngineGsl>
+                                    (s, type, module_type, sm_cfg);
+    }
+    return eng_[key];
 }
 
 void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
+    st_module_type_t key;
 
     if (s) {
         auto iter = std::find(eng_streams_.begin(), eng_streams_.end(), s);
@@ -2772,7 +2849,11 @@ void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
             eng_streams_.erase(iter);
     }
     if (!eng_streams_.size()) {
+        key = this->module_type_;
+        if (IS_MODULE_TYPE_PDK(this->module_type_)) {
+            key = ST_MODULE_TYPE_PDK;
+        }
         PAL_VERBOSE(LOG_TAG, "reset the engine instance to be freed");
-        eng_.erase(this->module_type_);
+        eng_.erase(key);
     }
 }

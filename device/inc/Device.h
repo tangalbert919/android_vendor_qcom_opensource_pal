@@ -55,7 +55,6 @@ protected:
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getAudioMixer() from RM and store
     char mSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
-    bool initialized = false;
     void *customPayload;
     size_t customPayloadSize;
     std::string UpdatedSndName;
@@ -69,7 +68,9 @@ public:
     int open();
     int close();
     virtual int start();
+    int start_l();
     virtual int stop();
+    int stop_l();
     int prepare();
     static std::shared_ptr<Device> getInstance(struct pal_device *device,
                                                std::shared_ptr<ResourceManager> Rm);
@@ -90,6 +91,7 @@ public:
     virtual bool isDeviceReady() { return true;}
     void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
     virtual ~Device();
+    void getCurrentSndDevName(char *name);
 };
 
 

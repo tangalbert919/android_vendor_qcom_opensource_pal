@@ -333,6 +333,9 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     struct pal_device_info devinfo = {};
+    struct pal_device dAttr;
+
+    PAL_DBG(LOG_TAG,"Entry \n");
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
@@ -354,8 +357,10 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_HAPTICS && sAttr.type != PAL_STREAM_ACD &&
-        sAttr.type != PAL_STREAM_CONTEXT_PROXY) {
+    if (sAttr.type != PAL_STREAM_HAPTICS &&
+        sAttr.type != PAL_STREAM_ACD &&
+        sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
+        sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) {
         status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
                 (struct pal_volume_data **)nullptr);
         if (status) {
@@ -405,7 +410,19 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
                     emptyKV, devinfo.kvpair);
         else {
-            rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type, &devinfo);
+            for (i = 0; i < associatedDevices.size(); i++) {
+                associatedDevices[i]->getDeviceAttributes(&dAttr);
+                if (be->first == dAttr.id) {
+                    break;
+                }
+            }
+            if (i >= associatedDevices.size() ) {
+                PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
+
+            } else{
+                rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type,
+                                        dAttr.custom_config.custom_key, &devinfo);
+            }
             if (devinfo.kvpair.size() == 0) {
                 PAL_DBG(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                         be->first, sAttr.type);
@@ -885,6 +902,11 @@ int SessionAlsaUtils::getTagsWithModuleInfo(struct mixer *mixer, int device, con
     if (ret)
         return ret;
 
+    if (!pcmDeviceName) {
+        PAL_ERR(LOG_TAG, "pcmDeviceName not initialized");
+        return -EINVAL;
+    }
+
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
@@ -1025,6 +1047,9 @@ int SessionAlsaUtils::registerMixerEvent(struct mixer *mixer, int device, void *
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     pcmDeviceName = rm->getDeviceNameFromID(device);
+    if (!pcmDeviceName)
+        return -EINVAL;
+
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str)
@@ -1117,6 +1142,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct pal_device_info devinfo = {};
     struct vsid_info vsidinfo = {};
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
+    struct pal_device dAttr;
 
     if (RxDevIds.empty() || TxDevIds.empty()) {
         PAL_ERR(LOG_TAG, "RX and TX FE Dev Ids are empty");
@@ -1143,7 +1169,18 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
     status = rmHandle->getAudioMixer(&mixerHandle);
     // get keyvalue pair info
-    rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type, &devinfo);
+    for (i = 0; i < associatedDevices.size(); i++) {
+        associatedDevices[i]->getDeviceAttributes(&dAttr);
+        if (txBackEnds[0].first == dAttr.id) {
+            break;
+        }
+    }
+    if (i >= associatedDevices.size() ) {
+        PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
+    } else{
+        rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type,
+                                dAttr.custom_config.custom_key, &devinfo);
+    }
     if (devinfo.kvpair.size() == 0) {
         PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                 txBackEnds[0].first, sAttr.type);
@@ -1361,6 +1398,88 @@ exit:
     }
     return status;
 }
+
+int SessionAlsaUtils::openDev(std::shared_ptr<ResourceManager> rmHandle,
+    const std::vector<int> &DevIds, int32_t backEndId, std::string backEndName)
+{
+    std::vector <std::pair<int, int>> deviceKV;
+    std::vector <std::pair<int, int>> emptyKV;
+    int status = 0;
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceMetaData(nullptr, 0);
+    std::ostringstream feName;
+    struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
+    struct mixer *mixerHandle;
+    uint32_t i;
+    /** gsl_subgraph_platform_driver_props.xml */
+    uint32_t devicePropId[] = {0x08000010, 2, 0x2, 0x5};
+    struct pal_device_info devinfo = {};
+
+    PayloadBuilder* builder = new PayloadBuilder();
+
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getAudioMixer failed");
+        goto freeMetaData;
+    }
+
+    PAL_DBG(LOG_TAG, "Ext EC Ref Open Dev is called");
+
+    /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
+    feName << "ExtEC" << DevIds.at(0);
+    for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {
+        feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle, feName.str(), i);
+        if (!feMixerCtrls[i]) {
+            PAL_ERR(LOG_TAG, "invalid mixer control: %s%s", feName.str().data(),
+                   feCtrlNames[i]);
+            status = -EINVAL;
+            goto freeMetaData;
+        }
+    }
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], "ZERO");
+
+    if ((status = builder->populateDeviceKV(NULL, backEndId, deviceKV)) != 0) {
+        PAL_ERR(LOG_TAG, "get device KV failed %d", status);
+        goto freeMetaData;
+    }
+
+    if (deviceKV.size() > 0) {
+        getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+                deviceMetaData);
+        if (!deviceMetaData.size) {
+            PAL_ERR(LOG_TAG, "device metadata is zero");
+            status = -ENOMEM;
+            goto freeMetaData;
+        }
+    }
+
+    beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, backEndName, BE_METADATA);
+    if (!beMetaDataMixerCtrl) {
+        PAL_ERR(LOG_TAG, "invalid mixer control: %s %s", backEndName.data(),
+                beCtrlNames[BE_METADATA]);
+        status = -EINVAL;
+        goto freeMetaData;
+    }
+
+    /** set mixer controls */
+    if (deviceMetaData.size)
+        mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                deviceMetaData.size);
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONNECT], backEndName.data());
+    deviceKV.clear();
+    free(deviceMetaData.buf);
+    deviceMetaData.buf = nullptr;
+
+freeMetaData:
+    if (deviceMetaData.buf)
+        free(deviceMetaData.buf);
+
+    delete builder;
+    return status;
+}
+
+
 
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
@@ -1792,7 +1911,8 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
                 aifBackEndsToConnect[0].first, streamDeviceKV,
                 0, emptyKV,devinfo.kvpair);
     else {
-        rmHandle->getDeviceInfo(dAttr.id, streamType, &devinfo);
+        rmHandle->getDeviceInfo(dAttr.id, streamType,
+                                dAttr.custom_config.custom_key, &devinfo);
         if (devinfo.kvpair.size() == 0) {
             PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
                     dAttr.id, streamType);

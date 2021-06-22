@@ -48,9 +48,12 @@ private:
     PayloadBuilder* builder;
     struct pcm *pcmRx;
     struct pcm *pcmTx;
+    struct pcm *pcmEcTx;
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<int> pcmDevRxIds;
     std::vector<int> pcmDevTxIds;
+    std::vector<int> pcmDevEcTxIds;
+    std::shared_ptr<Device> dev = nullptr;
     std::vector <std::pair<int, int>> gkv;
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
@@ -61,6 +64,7 @@ private:
     bool volume_boost = vol_boost_disable;
     bool slow_talk = false;
     bool hd_voice = false;
+    pal_device_mute_t dev_mute = {};
 
 public:
 

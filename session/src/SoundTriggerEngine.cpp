@@ -54,7 +54,7 @@ std::shared_ptr<SoundTriggerEngine> SoundTriggerEngine::Create(
     switch (type) {
     case ST_SM_ID_SVA_F_STAGE_GMM:
         if (!sm_cfg->GetMergeFirstStageSoundModels() &&
-            module_type != ST_MODULE_TYPE_PDK5)
+            !IS_MODULE_TYPE_PDK(module_type))
             st_engine = std::make_shared<SoundTriggerEngineGsl>(s, type,
                                           module_type, sm_cfg);
         else
@@ -184,4 +184,8 @@ uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
 
 uint32_t SoundTriggerEngine::FrameToBytes(uint32_t frames) {
     return frames * bit_width_ * channels_ / BITS_PER_BYTE;
+}
+
+uint32_t SoundTriggerEngine::BytesToFrames(uint32_t bytes) {
+    return (bytes * BITS_PER_BYTE) / (bit_width_ * channels_);
 }

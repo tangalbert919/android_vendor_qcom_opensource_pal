@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -82,6 +82,11 @@ struct aac_frame_size_control_t {
     uint32_t ctl_value;
 };
 
+struct aac_abr_control_t {
+    bool is_abr_enabled;
+    struct quality_level_to_bitrate_info level_to_bitrate_map;
+};
+
 typedef struct audio_aac_encoder_config_s {
     uint32_t enc_mode;       /* LC, SBR, PS */
     uint16_t format_flag;    /* RAW, ADTS */
@@ -89,11 +94,11 @@ typedef struct audio_aac_encoder_config_s {
     uint32_t sampling_rate;
     uint32_t bitrate;
     uint32_t bits_per_sample;
-    bool is_abr_enabled;
-    struct quality_level_to_bitrate_info level_to_bitrate_map;
     struct aac_frame_size_control_t frame_ctl;
     uint8_t size_control_struct;
     struct aac_frame_size_control_t* frame_ctl_ptr;
+    uint8_t abr_size_control_struct;
+    struct aac_abr_control_t* abr_ctl_ptr;
 } audio_aac_encoder_config_t;
 
 /* Information about BT SBC encoder configuration

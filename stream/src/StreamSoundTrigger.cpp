@@ -162,7 +162,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) && !enable_concurrency_count) {
+    if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) &&
+        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count)) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
@@ -326,7 +327,6 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
-        std::pair<int32_t,int32_t> streamConfigKV;
 
         st_info_->GetSmConfigForVersionQuery(sm_cfg_list);
         if (sm_cfg_list.size() == 0) {
@@ -362,21 +362,23 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         cap_prof_ = GetCurrentCaptureProfile();
-        /* store the pre-proc KV selected in the config file */
-        mDevPpModifiers.clear();
-        mDevPpModifiers.push_back(cap_prof_->GetDevicePpKv());
-
-        streamConfigKV = sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-        mStreamModifiers.clear();
-        mStreamModifiers.push_back(streamConfigKV);
-
+        /*
+         * Get the capture profile and module types to fill selectors
+         * used in payload builder to retrieve stream and device PP GKVs
+         */
+        mDevPPSelector = cap_prof_->GetName();
+        PAL_DBG(LOG_TAG, "Devicepp Selector: %s", mDevPPSelector.c_str());
+        mStreamSelector = sm_cfg_->GetModuleName();
+        SetModelType(sm_cfg_->GetModuleType());
+        PAL_DBG(LOG_TAG, "Module Type:%d, Name: %s", model_type_, mStreamSelector.c_str());
         mInstanceID = rm->getStreamInstanceID(this);
 
         gsl_engine_ = SoundTriggerEngine::Create(this, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                 ST_MODULE_TYPE_GMM, sm_cfg_);
+                                                 model_type_, sm_cfg_);
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
-            return -ENOMEM;
+            status = -ENOMEM;
+            goto exit;
         }
 
         status = gsl_engine_->GetParameters(param_id, payload);
@@ -384,11 +386,17 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
 
         rm->resetStreamInstanceID(this, mInstanceID);
-        mDevPpModifiers.clear();
-        mStreamModifiers.clear();
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
+    }
+
+exit:
+    if (mDevices.size() > 0) {
+        status = mDevices[0]->close();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
+        }
     }
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
@@ -450,12 +458,26 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
 
 int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
+    uint64_t transit_duration = 0;
+
+    if (!active) {
+        transit_start_time_ = std::chrono::steady_clock::now();
+    }
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
     PAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
         new StConcurrentStreamEventConfig(active));
     status = cur_state_->ProcessEvent(ev_cfg);
+
+    if (active) {
+        transit_end_time_ = std::chrono::steady_clock::now();
+        transit_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                transit_end_time_ - transit_start_time_).count();
+        PAL_INFO(LOG_TAG, "LPI/NLPI switch takes %llums",
+            (long long)transit_duration);
+    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
@@ -499,10 +521,9 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
         goto exit;
     }
 
-    if (mDevPpModifiers.size() == 0 ||
-        (mDevPpModifiers[0].first == DEVICEPP_TX &&
-        mDevPpModifiers[0].second == DEVICEPP_TX_FLUENCE_FFNS)) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref in LPI mode or IDLE state");
+    if (mDevPPSelector.empty() ||
+        mDevPPSelector.find("FFECNS") == std::string::npos) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref for other than FFECNS capture profile");
         goto exit;
     }
 
@@ -1023,19 +1044,16 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     (i * sizeof(SML_BigSoundModelTypeV3)));
 
                 engine_id = static_cast<int32_t>(big_sm->type);
-                PAL_INFO(LOG_TAG, "type = %u, size = %u",
-                         big_sm->type, big_sm->size);
+                PAL_INFO(LOG_TAG, "type = %u, size = %u, version = %u.%u",
+                         big_sm->type, big_sm->size,
+                         big_sm->versionMajor, big_sm->versionMinor);
                 if (big_sm->type == ST_SM_ID_SVA_F_STAGE_GMM) {
                     st_module_type_t module_type = (st_module_type_t)big_sm->versionMajor;
                     SetModelType(module_type);
-                    std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-                    streamConfigKV = this->sm_cfg_->GetStreamConfig(module_type);
-                    PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                             streamConfigKV.first, streamConfigKV.second);
-                    this->mStreamModifiers.clear();
-                    this->mStreamModifiers.push_back(streamConfigKV);
+                    this->mStreamSelector = sm_cfg_->GetModuleName(module_type);
+                    PAL_DBG(LOG_TAG, "Module type:%d, name: %s",
+                        model_type_, mStreamSelector.c_str());
                     this->mInstanceID = this->rm->getStreamInstanceID(this);
-
                     sm_size = big_sm->size +
                         sizeof(struct pal_st_phrase_sound_model);
                     sm_data = (uint8_t *)calloc(1, sm_size);
@@ -1073,9 +1091,9 @@ int32_t StreamSoundTrigger::LoadSoundModel(
 
                     AddEngine(engine_cfg);
                 } else if (big_sm->type != SML_ID_SVA_S_STAGE_UBM) {
-                    if (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
+                    if (big_sm->type == SML_ID_SVA_F_STAGE_INTERNAL || (big_sm->type == ST_SM_ID_SVA_S_STAGE_USER &&
                         !(phrase_sm->phrases[0].recognition_mode &
-                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION))
+                        PAL_RECOGNITION_MODE_USER_IDENTIFICATION)))
                         continue;
                     sm_size = big_sm->size;
                     ptr = (uint8_t *)sm_payload +
@@ -1129,18 +1147,27 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              (uint8_t*)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
 
-            SetModelType(ST_MODULE_TYPE_GMM);
-            std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-            streamConfigKV = this->sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-            PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                     streamConfigKV.first, streamConfigKV.second);
-            this->mStreamModifiers.clear();
-            this->mStreamModifiers.push_back(streamConfigKV);
+            /*
+             * For third party models, get module type and name from
+             * sound model config directly without passing model type
+             * as only one module is mapped to one vendor UUID
+             */
+            if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
+                SetModelType(sm_cfg_->GetModuleType());
+                this->mStreamSelector = sm_cfg_->GetModuleName();
+            } else {
+                SetModelType(ST_MODULE_TYPE_GMM);
+                this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+            }
+
+            PAL_DBG(LOG_TAG, "Module type:%d name:%s",
+                model_type_, mStreamSelector.c_str());
+
             this->mInstanceID = this->rm->getStreamInstanceID(this);
 
             gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
                                  common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                    ST_MODULE_TYPE_GMM);
+                                 model_type_);
             if (!gsl_engine_) {
                 status = -EINVAL;
                 goto error_exit;
@@ -1166,18 +1193,20 @@ int32_t StreamSoundTrigger::LoadSoundModel(
             (uint8_t *)common_sm, sizeof(*common_sm));
         ar_mem_cpy(sm_data + sizeof(*common_sm), common_sm->data_size,
             (uint8_t*)common_sm + common_sm->data_offset, common_sm->data_size);
-        SetModelType(ST_MODULE_TYPE_GMM);
-        std::pair<int32_t,int32_t> streamConfigKV = std::make_pair(0,0);
-        streamConfigKV = this->sm_cfg_->GetStreamConfig(ST_MODULE_TYPE_GMM);
-        PAL_DBG(LOG_TAG, "streamConfigKV.first : 0x%x, streamConfigKV.second : 0x%x",
-                    streamConfigKV.first, streamConfigKV.second);
-        this->mStreamModifiers.clear();
-        this->mStreamModifiers.push_back(streamConfigKV);
+        if ((!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID())) {
+            SetModelType(sm_cfg_->GetModuleType());
+            this->mStreamSelector = sm_cfg_->GetModuleName();
+        } else {
+            SetModelType(ST_MODULE_TYPE_GMM);
+            this->mStreamSelector = sm_cfg_->GetModuleName(ST_MODULE_TYPE_GMM);
+        }
+        PAL_DBG(LOG_TAG, "Module type:%d, name:%s",
+            model_type_, mStreamSelector.c_str());
         this->mInstanceID = this->rm->getStreamInstanceID(this);
 
         gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*common_sm),
                                 common_sm->data_size, ST_SM_ID_SVA_F_STAGE_GMM,
-                                                ST_MODULE_TYPE_GMM);
+                                model_type_);
         if (!gsl_engine_) {
             status = -EINVAL;
             goto error_exit;
@@ -1513,15 +1542,21 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         goto error_exit;
     }
 
-    // NOTE: First stage engine is the writer to the buffer
-    // PAL client reader should be first in the reader list.
-    // The remaining readers are for seconds stage engines.
-    reader_ = reader_list_[0];
-    for (i = 1; i < engines_.size(); i++) {
-        status = engines_[i]->GetEngine()->SetBufferReader(reader_list_[i]);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
-            goto error_exit;
+    /*
+     * Assign created readers based on sound model sequence.
+     * For first stage engine, assign reader to stream side.
+     */
+    for (i = 0; i < engines_.size(); i++) {
+        if (engines_[i]->GetEngine()->GetEngineType() ==
+            ST_SM_ID_SVA_F_STAGE_GMM) {
+            reader_ = reader_list_[i];
+        } else {
+            status = engines_[i]->GetEngine()->SetBufferReader(
+                reader_list_[i]);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to set ring buffer reader");
+                goto error_exit;
+            }
         }
     }
 
@@ -1644,7 +1679,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
     int32_t status = 0;
     struct pal_st_recognition_event *rec_event = nullptr;
     uint32_t event_size;
-    std::chrono::time_point<std::chrono::steady_clock> notify_time;
+    ChronoSteadyClock_t notify_time;
     uint64_t total_process_duration = 0;
     bool lock_status = false;
 
@@ -1655,6 +1690,8 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
         return status;
     }
     if (callback_) {
+        // update stream state to stopped before unlock stream mutex
+        currentState = STREAM_STOPPED;
         notify_time = std::chrono::steady_clock::now();
         total_process_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1812,82 +1849,96 @@ void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
     struct st_confidence_levels_info *conf_levels = nullptr;
 
     if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
-                conf_levels = (struct st_confidence_levels_info *)opaque_data;
-                for (auto& eng : engines_) {
-
-                    if (eng->GetEngine()->GetDetectionState() ==
-                        KEYWORD_DETECTION_PENDING ||
-                        eng->GetEngine()->GetDetectionState() ==
-                        USER_VERIFICATION_PENDING)
-                        continue;
-
-                    conf_levels->conf_levels[i].sm_id =
-                       (listen_model_indicator_enum)eng->GetEngineId();
-
-                    switch (eng->GetEngineId()) {
-                       case ST_SM_ID_SVA_F_STAGE_GMM:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       kw_level = best_conf_level;
-                               break;
-                       case ST_SM_ID_SVA_S_STAGE_PDK:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       kw_level =
-                               eng->GetEngine()->GetDetectedConfScore();
-                               break;
-                       case ST_SM_ID_SVA_S_STAGE_USER:
-                               conf_levels->conf_levels[i].
-                                   kw_levels[det_keyword_id].
-                                       user_levels[0].level =
-                               eng->GetEngine()->GetDetectedConfScore();
-                               break;
-                       default :
-                               PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                       eng->GetEngineId());
-                    }
-                    i++;
-                }
-            } else {
-                conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-                                    opaque_data;
-                for (auto& eng : engines_) {
-
-                    if (eng->GetEngine()->GetDetectionState() ==
-                        KEYWORD_DETECTION_PENDING ||
-                        eng->GetEngine()->GetDetectionState() ==
-                        USER_VERIFICATION_PENDING)
-                        continue;
-
-                    conf_levels_v2->conf_levels[i].sm_id =
-                       (listen_model_indicator_enum)eng->GetEngineId();
-
-                    switch (eng->GetEngineId()) {
-                        case ST_SM_ID_SVA_F_STAGE_GMM:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    kw_level = best_conf_level;
-                            break;
-                        case ST_SM_ID_SVA_S_STAGE_PDK:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    kw_level =
-                             eng->GetEngine()->GetDetectedConfScore();
-                            break;
-                        case ST_SM_ID_SVA_S_STAGE_USER:
-                            conf_levels_v2->conf_levels[i].
-                                kw_levels[det_keyword_id].
-                                    user_levels[0].level =
-                            eng->GetEngine()->GetDetectedConfScore();
-                            break;
-                        default :
-                            PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                         eng->GetEngineId());
-                    }
-                    i++;
-                }
+        conf_levels = (struct st_confidence_levels_info *)opaque_data;
+        for (auto& eng : engines_) {
+            if (eng->GetEngine()->GetDetectionState() ==
+                KEYWORD_DETECTION_PENDING ||
+                eng->GetEngine()->GetDetectionState() ==
+                USER_VERIFICATION_PENDING) {
+                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
+                         eng->GetEngine()->GetDetectionState());
+                  continue;
             }
+            conf_levels->conf_levels[i].sm_id =
+                  (listen_model_indicator_enum)eng->GetEngineId();
 
+            switch (eng->GetEngineId()) {
+                case ST_SM_ID_SVA_F_STAGE_GMM:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                kw_level = best_conf_level;
+                        PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                        break;
+                case ST_SM_ID_SVA_S_STAGE_PDK:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                kw_level =
+                        eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                         break;
+                case ST_SM_ID_SVA_S_STAGE_USER:
+                        conf_levels->conf_levels[i].
+                            kw_levels[det_keyword_id].
+                                user_levels[0].level =
+                        eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
+                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
+                        break;
+                default :
+                        PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                eng->GetEngineId());
+            }
+             i++;
+        }
+    } else {
+        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
+                            opaque_data;
+         for (auto& eng : engines_) {
+             if (eng->GetEngine()->GetDetectionState() ==
+                 KEYWORD_DETECTION_PENDING ||
+                 eng->GetEngine()->GetDetectionState() ==
+                 USER_VERIFICATION_PENDING) {
+                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
+                         eng->GetEngine()->GetDetectionState());
+                  continue;
+             }
+
+             conf_levels_v2->conf_levels[i].sm_id =
+               (listen_model_indicator_enum)eng->GetEngineId();
+
+             switch (eng->GetEngineId()) {
+                case ST_SM_ID_SVA_F_STAGE_GMM:
+                    conf_levels_v2->conf_levels[i].
+                        kw_levels[det_keyword_id].
+                            kw_level = best_conf_level;
+                    PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
+                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level)
+                   break;
+                case ST_SM_ID_SVA_S_STAGE_PDK:
+                    conf_levels_v2->conf_levels[i].
+                        kw_levels[det_keyword_id].
+                            kw_level =
+                    eng->GetEngine()->GetDetectedConfScore();
+                    PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
+                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level);
+                   break;
+                case ST_SM_ID_SVA_S_STAGE_USER:
+                      conf_levels_v2->conf_levels[i].
+                          kw_levels[det_keyword_id].
+                            user_levels[0].level =
+                      eng->GetEngine()->GetDetectedConfScore();
+                      PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
+                      conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
+                    break;
+                default :
+                    PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
+                                 eng->GetEngineId());
+            }
+            i++;
+        }
+    }
 }
 
 int32_t StreamSoundTrigger::GenerateCallbackEvent(
@@ -2755,11 +2806,8 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
 
             cap_prof = st_stream_.GetCurrentCaptureProfile();
             st_stream_.cap_prof_ = cap_prof;
-            /* store the pre-proc KV selected in the config file */
-            st_stream_.mDevPpModifiers.clear();
-            st_stream_.mDevPpModifiers.push_back(
-                st_stream_.cap_prof_->GetDevicePpKv());
-
+            st_stream_.mDevPPSelector = cap_prof->GetName();
+            PAL_DBG(LOG_TAG, "devicepp selector: %s", st_stream_.mDevPPSelector.c_str());
             status = st_stream_.LoadSoundModel(pal_st_sm);
 
             if (0 != status) {
@@ -2932,6 +2980,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     status = ret;
                 }
             }
+            st_stream_.mDevices.clear();
 
             for (auto& eng: st_stream_.engines_) {
                 PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
@@ -3148,6 +3197,9 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
 
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
+            PAL_DBG(LOG_TAG, "Devicepp Selector: %s",
+                st_stream_.mDevPPSelector.c_str());
             st_stream_.updateStreamAttributes();
 
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
@@ -3251,6 +3303,24 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             }
             break;
         }
+        case ST_EV_DETECTED: {
+            PAL_DBG(LOG_TAG,
+                "Keyword detected with invalid state, stop engines");
+            /*
+                * When detection is ignored here, stop engines to make sure
+                * engines are in proper state for next detection/start. For
+                * multi VA cases, gsl engine stop is same as restart.
+                */
+            for (auto& eng: st_stream_.engines_) {
+                PAL_VERBOSE(LOG_TAG, "Stop engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->StopRecognition(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Stop engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+            }
+            break;
+        }
         default: {
             PAL_DBG(LOG_TAG, "Unhandled event %d", ev_cfg->id_);
             break;
@@ -3296,19 +3366,15 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
-            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION) {
-                bool backend_update = false;
+            bool backend_update = false;
+            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
                     status = rm->StopOtherDetectionStreams(&st_stream_);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to stop other SVA streams");
-                    }
-
-                    status = rm->StartOtherDetectionStreams(&st_stream_);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
                     }
                 }
             }
@@ -3328,6 +3394,13 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+            }
+
+            if (backend_update) {
+                status = rm->StartOtherDetectionStreams(&st_stream_);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to start other SVA streams");
+                }
             }
             TransitTo(ST_STATE_LOADED);
             // make sure disable ec ref handled in LOADED/ACTIVE state
@@ -3429,6 +3502,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
 
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
+            st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
+            PAL_DBG(LOG_TAG, "devicepp selector: %s",
+                st_stream_.mDevPPSelector.c_str());
             st_stream_.updateStreamAttributes();
 
             status = st_stream_.gsl_engine_->SetupSessionDevice(&st_stream_,
@@ -3645,23 +3721,12 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
             // START event will be handled in loaded state.
             break;
         }
-
-        case ST_EV_CONCURRENT_STREAM:
-        case ST_EV_CHARGING_STATE: {
-            st_stream_.CancelDelayedStop();
-            // Reuse from Active state.
-            TransitTo(ST_STATE_ACTIVE);
-            status = st_stream_.ProcessInternalEvent(ev_cfg);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                                 "status %d", status);
-            }
-            break;
-        }
         case ST_EV_RESUME: {
             st_stream_.paused_ = false;
             break;
         }
+        case ST_EV_CONCURRENT_STREAM:
+        case ST_EV_CHARGING_STATE:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();
@@ -3936,19 +4001,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             break;
         }
         case ST_EV_CHARGING_STATE:
-        case ST_EV_CONCURRENT_STREAM: {
-            st_stream_.CancelDelayedStop();
-            // Reuse from Active state.
-            TransitTo(ST_STATE_ACTIVE);
-            status = st_stream_.ProcessInternalEvent(ev_cfg);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to process CONCURRENT_STREAM event,"
-                                 "status %d", status);
-            }
-            if (st_stream_.reader_)
-                st_stream_.reader_->reset();
-            break;
-        }
+        case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
             st_stream_.CancelDelayedStop();

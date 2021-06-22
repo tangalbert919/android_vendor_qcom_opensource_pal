@@ -54,25 +54,19 @@
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
         <param key="max_sessions" value="128"/>
         <param key="logging_level" value ="3" />
+        <param key="context_manager_enable" value ="false" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
-        <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec"
-codec_library="lib_bt_bundle.so" />
-        <codec codec_format="CODEC_TYPE_SBC" codec_type="enc|dec"
-codec_library="lib_bt_bundle.so" />
-        <codec codec_format="CODEC_TYPE_LDAC" codec_type="enc"
-codec_library="lib_bt_bundle.so" />
-        <codec codec_format="CODEC_TYPE_APTX" codec_type="enc"
-codec_library="lib_bt_aptx.so" />
-        <codec codec_format="CODEC_TYPE_APTX_HD" codec_type="enc"
-codec_library="lib_bt_aptx.so" />
-        <codec codec_format="CODEC_TYPE_APTX_AD" codec_type="enc"
-codec_library="lib_bt_aptx.so" />
-        <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc"
-codec_library="lib_bt_aptx.so" />
-        <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec"
-codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_SBC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_LDAC" codec_type="enc" codec_library="lib_bt_bundle.so" />
+        <codec codec_format="CODEC_TYPE_APTX" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_HD" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_AD" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_LC3" codec_type="enc|dec" codec_library="lib_bt_ble.so" />
     </bt_codecs>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
@@ -99,41 +93,19 @@ codec_library="lib_bt_aptx.so" />
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_HANDSET</id>
@@ -148,46 +120,22 @@ should always be in sync with it -->
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -201,40 +149,18 @@ should always be in sync with it -->
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_DEEP_BUFFER</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000002"/>
-                    <!-- AUDIO_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000007"/>
-                    <!-- VOIP_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
-                <devicePP-metadata>
-                    <kvpair key="0xAD000000" value="0xAD000008"/>
-                    <!-- VOICE_FLUENCE_SMECNS -->
-                    <!-- These key and value are derived from kvh2xml.h and
-should always be in sync with it -->
-                </devicePP-metadata>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
-                <devicePP-metadata>
-                </devicePP-metadata>
             </usecase>
         </in-device>
         <in-device>
@@ -261,10 +187,15 @@ should always be in sync with it -->
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
-            <is_24_bit_supported>0</is_24_bit_supported>
+            <!--specify the supported bit format on speaker end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S16_LE</supported_bit_format>
+            <Charge_concurrency_enabled>0</Charge_concurrency_enabled>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from
@@ -282,6 +213,7 @@ should always be in sync with it -->
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
@@ -338,6 +270,101 @@ should always be in sync with it -->
                 </policies>
         </in_stream>
     </in_streams>
+    <acd_platform_info>
+        <common_config>
+            <param acd_enable="false" />
+            <param support_device_switch="true" />
+            <param support_nlpi_switch="true" />
+            <param lpi_enable="true" />
+            <param enable_debug_dumps="false" />
+            <param concurrent_capture="true" />
+            <param concurrent_voice_call="true" />
+            <param concurrent_voip_call="true" />
+            <param low_latency_bargein_enable="false" />
+        </common_config>
+        <capture_profile_list>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="headset-va-mic-lpi" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="headset-va-mic" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_LPI">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="va-mic-mono-lpi" />
+            </capture_profile>
+            <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
+                <param sample_rate="16000" />
+                <param channels="1" />
+                <param bit_width="16" />
+                <param snd_name="va-mic-mono" />
+            </capture_profile>
+        </capture_profile_list>
+        <stream_config>
+            <name>qc_acd</name>
+            <param vendor_uuid="4e93281b-296e-4d73-9833-2710c3c7c1db"/>
+            <!-- Profile specific data which the algorithm can support -->
+            <param sample_rate="16000" />
+            <param bit_width="16" />
+            <param out_channels="1"/> <!-- Module output channels -->
+            <operating_modes>
+                <low_power capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_LPI"/>
+                <high_performance capture_profile_handset="SINGLE_MIC_16KHZ_16BIT_FFECNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFECNS"/>
+            </operating_modes>
+            <sound_models>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_EVENT</name>
+                    <bin>event.eai</bin>
+                    <uuid>0x0B001007</uuid>
+                    <contexts>
+                        <context id="0x0800132D"/> <!-- EVENT_ALARM -->
+                        <context id="0x0800132E"/> <!-- EVENT_BABYCRYING -->
+                        <context id="0x0800132F"/> <!-- EVENT_DOGBARKING -->
+                        <context id="0x08001330"/> <!-- EVENT_DOORBELL -->
+                        <context id="0x08001331"/> <!-- EVENT_DOORCLOSE -->
+                        <context id="0x08001332"/> <!-- EVENT_DOOROPEN -->
+                        <context id="0x08001333"/> <!-- EVENT_GLASSBREAKING -->
+                        <context id="0x08001334"/> <!-- EVENT_SIREN -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_SPEECH</name>
+                    <bin>speech.eai</bin>
+                    <uuid>0x0B001008</uuid>
+                    <contexts>
+                        <context id="0x08001335"/> <!-- AMBIENCE_SPEECH -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_ID_MUSIC</name>
+                    <bin>music.eai</bin>
+                    <uuid>0x0B001009</uuid>
+                    <contexts>
+                        <context id="0x08001336"/> <!-- AMBIENCE_MUSIC -->
+                    </contexts>
+                </model>
+                <model>
+                    <name>ACD_SOUND_MODEL_AMBIENCE_NOISE_SILENCE</name>
+                    <bin></bin> <!-- Following contexts dont have a model, hence empty bin -->
+                    <uuid>0xFFFFFFFF</uuid> <!-- Indicates no sound model -->
+                    <contexts>
+                        <context id="0x08001337"/> <!-- AMBIENCE_NOISY_SPL -->
+                        <context id="0x08001338"/> <!-- AMBIENCE_SILENT_SPL -->
+                        <context id="0x08001339"/> <!-- AMBIENCE_NOISY_SFLUX -->
+                        <context id="0x0800133A"/> <!-- AMBIENCE_SILENT_SFLUX -->
+                    </contexts>
+                </model>
+            </sound_models>
+        </stream_config>
+    </acd_platform_info>
     <sound_trigger_platform_info>
         <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
@@ -360,89 +387,49 @@ ports not conflicting with other audio paths  -->
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_LPI">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_RAW_LPI"/>
-                </devicePP-metadata>
-                <param snd_name="va-mic" />
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_RAW_NLPI">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_RAW_NLPI"/>
-                </devicePP-metadata>
-                <param snd_name="va-mic" />
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFNS">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFNS"/>
-                </devicePP-metadata>
-                <param snd_name="va-mic" />
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="1" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
-                </devicePP-metadata>
                 <param snd_name="va-mic-mono" />
             </capture_profile>
             <capture_profile name="DUAL_MIC_16KHZ_16BIT_FFECNS">
                 <param sample_rate="16000" />
                 <param channels="2" />
                 <param bit_width="16" />
-                <devicePP-metadata>
-                    <!-- see kvh2xml.h -->
-                    <kvpair key="DEVICEPP_TX"
-value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
-                </devicePP-metadata>
-                <param snd_name="va-mic" />
+                <param snd_name="va-mic-dmic" />
             </capture_profile>
         </capture_profile_list>
         <!-- Multiple sound_model_config tags can be listed, each with unique
@@ -465,20 +452,10 @@ value="DEVICEPP_TX_VOICE_UI_FLUENCE_FFECNS"/>
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG"
-value="VUI_STREAM_CFG_SVA"/> <!-- SVA Stream Config -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG"
-value="VUI_STREAM_CFG_SVA5"/> <!-- SVA5 Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
-                <low_power
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS"/>
-                <high_performance
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
-                <high_performance_and_charging
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
+                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS"/>
+                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
+                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
             </operating_modes>
             <arm_ss_usecase>
                 <!-- Options are "KEYWORD_DETECTION", "USER_VERIFICATION",
@@ -537,18 +514,10 @@ capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFECNS"/>
             <param out_channels="1"/> <!-- Module output channels -->
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
-            <streamConfig-metadata>
-                <!-- see kvh2xml.h -->
-                <kvpair key="VOICE_UI_STREAM_CONFIG"
-value="VUI_STREAM_CFG_HW"/> <!-- Hotword Stream Config -->
-            </streamConfig-metadata>
             <operating_modes>
-                <low_power
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_LPI"/>
-                <high_performance
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI"/>
-                <high_performance_and_charging
-capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI"/>
+                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_LPI"/>
+                <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI"/>
+                <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI"/>
             </operating_modes>
             <module_params>
                 <param load_sound_model_ids="0xC0000008, 0x0800104C" />

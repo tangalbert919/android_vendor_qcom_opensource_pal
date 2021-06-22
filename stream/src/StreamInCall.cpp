@@ -121,8 +121,8 @@ StreamInCall::StreamInCall(const struct pal_stream_attributes *sattr, struct pal
 
     PAL_VERBOSE(LOG_TAG, "Create new Devices with no_of_devices - %d", no_of_devices);
 
-    rm->registerStream(this);
     mStreamMutex.unlock();
+    rm->registerStream(this);
     PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
     return;
 }
@@ -546,7 +546,6 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
             session, currentState);
 
     mStreamMutex.lock();
-
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
     if ((rm->cardState == CARD_STATUS_OFFLINE)
             || cachedState != STREAM_IDLE) {
@@ -558,8 +557,7 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
         if ((frameSize == 0) || (sampleRate == 0)) {
             PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
-            status = -EINVAL;
-            goto exit;
+            return -EINVAL;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
@@ -568,45 +566,12 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
         PAL_VERBOSE(LOG_TAG, "Exit size: %d", size);
         return size;
     }
-
-    if (standBy) {
-        rm->lockGraph();
-        status = session->open(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session open failed with status %d", status);
-            goto error;
-        }
-        currentState = STREAM_INIT;
-
-        status = session->prepare(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session prepare is failed with status %d",
-                    status);
-            goto error;
-        }
-        status = session->start(this);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "session start is failed with status %d",
-                    status);
-            goto error;
-        }
-        currentState = STREAM_STARTED;
-        standBy = false;
-        rm->unlockGraph();
-    }
     mStreamMutex.unlock();
 
     if (currentState == STREAM_STARTED) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
-            mStreamMutex.lock();
-            if (standBy) {
-                PAL_INFO(LOG_TAG, "in standby state, ignore write failure");
-                mStreamMutex.unlock();
-                return buf->size;
-            }
-            mStreamMutex.unlock();
 
             /* ENETRESET is the error code returned by AGM during SSR */
             if (errno == -ENETRESET &&
@@ -616,39 +581,29 @@ int32_t  StreamInCall::write(struct pal_buffer* buf)
                 size = buf->size;
                 status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
-                goto error_exit;
+                goto exit;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 size = buf->size;
                 status = size;
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
-                goto error_exit;
+                goto exit;
             } else {
                 status = errno;
-                goto error_exit;
+                goto exit;
             }
-         }
-         PAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
-         return size;
+        }
+        PAL_DBG(LOG_TAG, "Exit. session write successful size - %d", size);
+        return size;
     } else {
         PAL_ERR(LOG_TAG, "Stream not started yet, state %d", currentState);
         if (currentState == STREAM_STOPPED)
             status = -EIO;
         else
             status = -EINVAL;
-        goto error_exit;
     }
-
-error:
-    if (session->close(this) != 0) {
-        PAL_ERR(LOG_TAG, "session close failed");
-    }
-    rm->unlockGraph();
-    mStreamMutex.unlock();
-error_exit :
-    PAL_DBG(LOG_TAG, "session write failed status %d", status);
 
 exit:
-    PAL_VERBOSE(LOG_TAG, "Exit status: %d", status);
+    PAL_ERR(LOG_TAG, "Exit. session write failed status %d", status);
     return status;
 }
 
@@ -695,24 +650,24 @@ error:
     return status;
 }
 
+int32_t StreamInCall::mute_l(bool state)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+    status = session->setConfig(this, MODULE, (state ? MUTE_TAG : UNMUTE_TAG), TX_HOSTLESS);
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 int32_t StreamInCall::mute(bool state)
 {
     int32_t status = 0;
-    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
-    mStreamMutex.lock();
-    if (state)
-        status = session->setConfig(this, MODULE, MUTE_TAG, TX_HOSTLESS);
-    else
-        status = session->setConfig(this, MODULE, UNMUTE_TAG, TX_HOSTLESS);
 
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "session setConfig for mute failed with status %d",
-                status);
-        goto exit;
-    }
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
-exit:
+    mStreamMutex.lock();
+    status = mute_l(state);
     mStreamMutex.unlock();
+
     return status;
 }
 
@@ -992,12 +947,6 @@ exit :
 StreamInCall::~StreamInCall(){
 
     cachedState = STREAM_IDLE;
-    if (rm->cardState == CARD_STATUS_OFFLINE) {
-        while (!ssrDone)
-            usleep(1000);
-        PAL_INFO(LOG_TAG, "ssr done, exitng");
-    }
-    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     if (mStreamAttr) {
@@ -1013,5 +962,4 @@ StreamInCall::~StreamInCall(){
     mDevices.clear();
     delete session;
     session = nullptr;
-    mStreamMutex.unlock();
 }

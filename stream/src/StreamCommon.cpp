@@ -145,11 +145,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
 StreamCommon::~StreamCommon()
 {
     cachedState = STREAM_IDLE;
-    while (!ssrDone)
-        usleep(1000);
-    PAL_INFO(LOG_TAG, "ssr done, exiting");
-
-    mStreamMutex.lock();
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -158,7 +153,6 @@ StreamCommon::~StreamCommon()
     mDevices.clear();
     delete session;
     session = nullptr;
-    mStreamMutex.unlock();
 }
 
 int32_t  StreamCommon::open()
@@ -232,14 +226,6 @@ int32_t  StreamCommon::close()
         mStreamMutex.lock();
     }
 
-    for (int32_t i = 0; i < mDevices.size(); i++) {
-        status = mDevices[i]->close();
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Error:device close is failed with status %d", status);
-        }
-    }
-    PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
-
     rm->lockGraph();
     status = session->close(this);
     rm->unlockGraph();
@@ -247,6 +233,13 @@ int32_t  StreamCommon::close()
         PAL_ERR(LOG_TAG, "Error:session close failed with status %d", status);
     }
 
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        status = mDevices[i]->close();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Error:device close is failed with status %d", status);
+        }
+    }
+    PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
 
@@ -277,7 +270,7 @@ int32_t StreamCommon::start()
             goto exit;
         }
         PAL_VERBOSE(LOG_TAG, "device started successfully");
-        status = start_session();
+        status = startSession();
         if (0 != status) {
             goto exit;
         }
@@ -315,7 +308,7 @@ int32_t StreamCommon::start_device()
     return status;
 }
 
-int32_t StreamCommon::start_session()
+int32_t StreamCommon::startSession()
 {
     int32_t status = 0, devStatus = 0;
     status = session->prepare(this);
@@ -405,7 +398,13 @@ int32_t  StreamCommon::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    if (!volume || volume->no_of_volpair == 0) {
+    if (!volume) {
+        PAL_ERR(LOG_TAG, "Invalid volume parameter");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    if (volume->no_of_volpair == 0) {
         PAL_ERR(LOG_TAG, "Error no of vol pair is %d", (volume->no_of_volpair));
         status = -EINVAL;
         goto exit;
@@ -465,6 +464,25 @@ int32_t  StreamCommon::registerCallBack(pal_stream_callback cb, uint64_t cookie)
     return 0;
 }
 
+int32_t StreamCommon::getTagsWithModuleInfo(size_t *size, uint8_t *payload)
+{
+    int32_t status = -EINVAL;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "payload is NULL");
+        goto exit;
+    }
+
+    if (session)
+        status = session->getTagsWithModuleInfo(this, size, payload);
+    else
+        PAL_ERR(LOG_TAG, "session handle is NULL");
+
+exit:
+    return status;
+}
+
 int32_t StreamCommon::ssrDownHandler()
 {
     int status = 0;
@@ -509,7 +527,6 @@ int32_t StreamCommon::ssrDownHandler()
 exit :
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     currentState = STREAM_IDLE;
-    ssrDone = true;
     return status;
 }
 
@@ -560,7 +577,6 @@ int32_t StreamCommon::ssrUpHandler()
     }
     cachedState = STREAM_IDLE;
 exit :
-    ssrDone = true;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

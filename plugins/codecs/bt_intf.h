@@ -56,6 +56,29 @@ typedef enum {
     CODEC_TYPE_PCM            = 0x1u,
 } codec_format_t;
 
+/*
+ * Update the below lookup table as well when new codec formats get added
+ * This will be used by Payload Builder to popualte the Graph KVs
+ */
+#ifdef __cplusplus
+#include <map>
+#include <string>
+const std::map<uint32_t, std::string> btCodecFormatLUT {
+    {CODEC_TYPE_INVALID,          std::string{ "CODEC_TYPE_INVALID"} },
+    {CODEC_TYPE_AAC,              std::string{ "CODEC_TYPE_AAC"} },
+    {CODEC_TYPE_SBC,              std::string{ "CODEC_TYPE_SBC"} },
+    {CODEC_TYPE_APTX,             std::string{ "CODEC_TYPE_APTX"} },
+    {CODEC_TYPE_APTX_HD,          std::string{ "CODEC_TYPE_APTX_HD"} },
+    {CODEC_TYPE_APTX_DUAL_MONO,   std::string{ "CODEC_TYPE_APTX_DUAL_MONO"} },
+    {CODEC_TYPE_LDAC,             std::string{ "CODEC_TYPE_LDAC"} },
+    {CODEC_TYPE_CELT,             std::string{ "CODEC_TYPE_CELT"} },
+    {CODEC_TYPE_APTX_AD,          std::string{ "CODEC_TYPE_APTX_AD"} },
+    {CODEC_TYPE_APTX_AD_SPEECH,   std::string{ "CODEC_TYPE_APTX_AD_SPEECH"} },
+    {CODEC_TYPE_LC3,              std::string{ "CODEC_TYPE_LC3"} },
+    {CODEC_TYPE_PCM,              std::string{ "CODEC_TYPE_PCM"} },
+};
+#endif
+
 typedef enum {
     ENC = 1,
     DEC

@@ -88,19 +88,23 @@ typedef enum {
     ST_SM_ID_SVA_S_STAGE_RNN  = 0x0008,
     ST_SM_ID_SVA_S_STAGE_KWD  = 0x000A, // S_STAGE_PDK | S_STAGE_RNN
     SML_ID_SVA_S_STAGE_UBM    = 0x0010,
+    SML_ID_SVA_F_STAGE_INTERNAL = 0x0020,
     ST_SM_ID_SVA_END          = 0x00F0,
     ST_SM_ID_CUSTOM_START     = 0x0100,
     ST_SM_ID_CUSTOM_END       = 0xF000,
 } listen_model_indicator_enum;
 
 typedef enum {
-    ST_MODULE_TYPE_CUSTOM = 1,
-    ST_MODULE_TYPE_GMM    = 3,
-    ST_MODULE_TYPE_PDK5   = 5,
-    ST_MODULE_TYPE_PDK6   = 6,
-    ST_MODULE_TYPE_PDK    = 100, // Internal constant for local use indicating
-                                 // both PDK5 and PDK6
-}st_module_type_t;
+    ST_MODULE_TYPE_NONE     = 0,   // Internal Constant for initialization
+    ST_MODULE_TYPE_GMM      = 3,
+    ST_MODULE_TYPE_PDK5     = 5,
+    ST_MODULE_TYPE_PDK6     = 6,
+    ST_MODULE_TYPE_PDK      = 100, // Internal constant for local use indicating
+                                   // both PDK5 and PDK6
+    ST_MODULE_TYPE_HW       = 101, // Internal constant to identify hotword module
+    ST_MODULE_TYPE_CUSTOM_1 = 102, // Reserved for Custom Engine 1
+    ST_MODULE_TYPE_CUSTOM_2 = 103, // Reserved for Custom Engine 2
+} st_module_type_t;
 
 typedef struct _SML_GlobalHeaderType {
     uint32_t    magicNumber;                    // Magic number
@@ -238,12 +242,12 @@ struct __attribute__((__packed__)) acd_context_event {
 struct __attribute__((__packed__)) st_user_levels
 {
     uint32_t user_id;
-    uint32_t level;
+    uint8_t level;
 };
 
 struct __attribute__((__packed__)) st_keyword_levels
 {
-    uint32_t kw_level;
+    uint8_t kw_level;
     uint32_t num_user_levels;
     struct st_user_levels user_levels[ST_MAX_USERS];
 };

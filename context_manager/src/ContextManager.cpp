@@ -45,7 +45,7 @@ int32_t ContextManager::process_register_request(uint32_t see_id, uint32_t useca
     Usecase *uc = NULL;
     see_client *seeclient = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter see_id:%d, usecase_id:%d, payload_size:%d", see_id, usecase_id, size);
+    PAL_VERBOSE(LOG_TAG, "Enter see_id:%d, usecase_id:0x%x, payload_size:%d", see_id, usecase_id, size);
 
     seeclient = SEE_Client_CreateIf_And_Get(see_id);
     if (seeclient == NULL) {
@@ -56,37 +56,37 @@ int32_t ContextManager::process_register_request(uint32_t see_id, uint32_t useca
 
     uc = seeclient->Usecase_Get(usecase_id);
     if (uc == NULL) {
-        PAL_VERBOSE(LOG_TAG, "Creating new Usecase:%d for see_id:%d", usecase_id, see_id);
+        PAL_VERBOSE(LOG_TAG, "Creating new usecase:0x%x for see_id:%d", usecase_id, see_id);
 
         uc = UsecaseFactory::UsecaseCreate(usecase_id);
         if (uc == NULL) {
             rc = -EINVAL;
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to create usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to create usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             goto exit;
         }
 
         rc = uc->Open();
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Open() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Open() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             goto exit;
         }
 
         rc = uc->SetUseCaseData(size, payload);
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Setusecase() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Setusecase() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             goto exit;
         }
 
         rc = uc->Configure();
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Configure() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Configure() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             uc->StopAndClose();
             goto exit;
         }
 
         rc = uc->Start();
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Start() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Start() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             uc->StopAndClose();
             goto exit;
         }
@@ -96,15 +96,15 @@ int32_t ContextManager::process_register_request(uint32_t see_id, uint32_t useca
         /* ASPS can send a request for an already running usecase with updated context ids lists. Configure()
          * to send the new list to the stream.
          */
-        PAL_VERBOSE(LOG_TAG, "Retrieving existing Usecase:%d for see_id:%d", usecase_id, see_id);
+        PAL_VERBOSE(LOG_TAG, "Retrieving existing usecase:0x%x for see_id:%d", usecase_id, see_id);
         rc = uc->SetUseCaseData(size, payload);
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Setusecase() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Setusecase() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             goto exit;
         }
         rc = uc->Configure();
         if (rc) {
-            PAL_ERR(LOG_TAG, "Error:%d, Failed to Configure() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+            PAL_ERR(LOG_TAG, "Error:%d, Failed to Configure() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
             uc->StopAndClose();
             goto exit;
         }
@@ -112,7 +112,7 @@ int32_t ContextManager::process_register_request(uint32_t see_id, uint32_t useca
 
     rc = build_and_send_register_ack(uc, see_id, usecase_id);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d, Failed to get AckData for usecase:%d for see_client:%d", rc, usecase_id, see_id);
+        PAL_ERR(LOG_TAG, "Error:%d, Failed to get AckData for usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
         goto exit;
     }
 
@@ -135,7 +135,7 @@ int32_t ContextManager::build_and_send_register_ack(Usecase *uc, uint32_t see_id
     uint32_t payload_size = 0;
     void *ack_payload = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter seeid: %d ucid:%d", see_id, uc_id);
+    PAL_VERBOSE(LOG_TAG, "Enter seeid: %d ucid:0x%x", see_id, uc_id);
 
     ack_payload = calloc(1, ack_payload_size);
     if (!ack_payload) {
@@ -153,8 +153,8 @@ int32_t ContextManager::build_and_send_register_ack(Usecase *uc, uint32_t see_id
         rc = uc->GetAckDataOnSuccessfullStart(&ack_payload_size, ack_payload);
     }
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d, Failed to get AckData for usecase:%d for see_client:%d",
-                rc);
+        PAL_ERR(LOG_TAG, "Error:%d, Failed to get AckData for usecase:0x%x for see_client:%d",
+                rc, uc_id, see_id);
         goto exit;
     }
 
@@ -202,7 +202,7 @@ int32_t ContextManager::process_deregister_request(uint32_t see_id, uint32_t use
     Usecase *uc = NULL;
     see_client *seeclient = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter see_id:%d, usecase_id:%d", see_id, usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter see_id:%d, usecase_id:0x%x", see_id, usecase_id);
 
     seeclient = SEE_Client_Get_Existing(see_id);
     if (seeclient == NULL) {
@@ -214,19 +214,19 @@ int32_t ContextManager::process_deregister_request(uint32_t see_id, uint32_t use
     uc = seeclient->Usecase_Get(usecase_id);
     if (uc == NULL) {
         rc = -EINVAL;
-        PAL_VERBOSE(LOG_TAG, "Error:%d Retrieving existing Usecase:%d for see_id:%d", rc, usecase_id, see_id);
+        PAL_VERBOSE(LOG_TAG, "Error:%d Retrieving existing usecase:0x%x for see_id:%d", rc, usecase_id, see_id);
         goto exit;
     }
 
     rc = uc->StopAndClose();
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d, Failed to StopAndClose() usecase:%d for see_client:%d", rc, usecase_id, see_id);
+        PAL_ERR(LOG_TAG, "Error:%d, Failed to StopAndClose() usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
         rc = 0; //force rc to success as nothing can be done if teardown fails.
     }
 
     rc = seeclient->Usecase_Remove(usecase_id);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d, Failed to remove usecase:%d for see_client:%d", rc, usecase_id, see_id);
+        PAL_ERR(LOG_TAG, "Error:%d, Failed to remove usecase:0x%x for see_client:%d", rc, usecase_id, see_id);
         rc = 0; //force rc to success as nothing can be done if teardown fails.
     }
 
@@ -337,7 +337,7 @@ stop_and_close_proxy_stream:
     StopAndCloseProxyStream();
 
 exit:
-    PAL_VERBOSE(LOG_TAG, "Exit");
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
     return rc;
 }
 
@@ -350,6 +350,34 @@ void ContextManager::DeInit()
     DestroyCommandProcessingThread();
 
     PAL_VERBOSE(LOG_TAG, "Exit");
+}
+
+int32_t ContextManager::ssrDownHandler()
+{
+    int32_t rc = 0;
+    std::unique_lock<std::mutex> lck(request_queue_mtx, std::defer_lock);
+    PAL_VERBOSE(LOG_TAG, "Enter");
+
+    this->CloseAll();
+
+    lck.lock();
+    while (!request_cmd_queue.empty()) {
+        free(request_cmd_queue.front());
+        request_cmd_queue.pop();
+    }
+    lck.unlock();
+
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
+    return rc;
+}
+
+int32_t ContextManager::ssrUpHandler()
+{
+    int32_t rc = 0;
+    PAL_VERBOSE(LOG_TAG, "Enter");
+
+    PAL_VERBOSE(LOG_TAG, "Exit rc %d", rc);
+    return rc;
 }
 
 int32_t ContextManager::StreamProxyCallback (pal_stream_handle_t *stream_handle,
@@ -383,7 +411,6 @@ void ContextManager::CloseAll()
 
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
-
 
 int32_t ContextManager::OpenAndStartProxyStream()
 {
@@ -448,25 +475,30 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
 {
     RequestCommand *request_command;
     int32_t rc = 0;
-    std::unique_lock<std::mutex> lck(cm.request_queue_mtx);
+    std::unique_lock<std::mutex> lck(cm.request_queue_mtx, std::defer_lock);
     PAL_VERBOSE(LOG_TAG, "Entering CommandThreadRunner");
 
     while (!cm.exit_cmd_thread_) {
+        lck.lock();
         // wait until we have a command to process.
         cm.request_queue_cv.wait(lck);
 
         // Continue so that we can terminate properly
-        if (cm.request_cmd_queue.empty())
+        if (cm.request_cmd_queue.empty()) {
+            lck.unlock();
             continue;
+        }
 
         request_command = cm.request_cmd_queue.front();
+        cm.request_cmd_queue.pop();
+        lck.unlock();
+
         rc = request_command->Process(cm);
         if (rc) {
             PAL_ERR(LOG_TAG, "Error:%d failed to process request", rc);
         }
 
         free(request_command);
-        cm.request_cmd_queue.pop();
     }
     PAL_VERBOSE(LOG_TAG, "Exiting CommandThreadRunner");
 }
@@ -785,7 +817,7 @@ Usecase* see_client::Usecase_Get(uint32_t usecase_id)
     std::map<uint32_t, Usecase*>::iterator it;
     Usecase* uc = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:0x%x", usecase_id);
 
     it = usecases.find(usecase_id);
     if (it != usecases.end()) {
@@ -802,11 +834,11 @@ int32_t see_client::Usecase_Remove(uint32_t usecase_id)
     std::map<uint32_t, Usecase*>::iterator it;
     Usecase* uc = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:0x%x", usecase_id);
 
     it = usecases.find(usecase_id);
     if (it != usecases.end()) {
-        PAL_VERBOSE(LOG_TAG, "Found usecase_id:%d", usecase_id);
+        PAL_VERBOSE(LOG_TAG, "Found usecase_id:0x%x", usecase_id);
         uc = it->second;
 
         //remove from usecase map
@@ -818,7 +850,7 @@ int32_t see_client::Usecase_Remove(uint32_t usecase_id)
     }
     else {
         rc = -EINVAL;
-        PAL_ERR(LOG_TAG, "Error:%d Cannot find Found usecase_id:%d", rc, usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Cannot find Found usecase_id:0x%x", rc, usecase_id);
     }
 
     PAL_VERBOSE(LOG_TAG, "Exit: rc:%d", rc);
@@ -830,7 +862,7 @@ int32_t see_client::Usecase_Add(uint32_t usecase_id, Usecase* uc)
 {
     int32_t rc = 0;
 
-    PAL_VERBOSE(LOG_TAG, "Enter: usecase_id:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter: usecase_id:0x%x", usecase_id);
 
     usecases.insert(std::make_pair(usecase_id, uc));
 
@@ -848,7 +880,7 @@ void see_client::CloseAllUsecases()
 
     for (auto it_uc = this->usecases.begin(); it_uc != this->usecases.cend();) {
         uc = it_uc->second;
-        PAL_VERBOSE(LOG_TAG, "Calling StopAndClose on usecase_id:%d", uc->GetUseCaseID());
+        PAL_VERBOSE(LOG_TAG, "Calling StopAndClose on usecase_id:0x%x", uc->GetUseCaseID());
         uc->StopAndClose();
         usecases.erase(it_uc++);
         delete uc;
@@ -861,14 +893,14 @@ Usecase* UsecaseFactory::UsecaseCreate(int32_t usecase_id)
 {
     Usecase* ret_usecase = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase_id:0x%x", usecase_id);
 
     switch (usecase_id) {
     case ASPS_USECASE_ID_ACD:
         ret_usecase = new UsecaseACD(usecase_id);
         break;
-    case USECASE_RAW_DATA:
-        ret_usecase = new UsecaseRawData(usecase_id);
+    case ASPS_USECASE_ID_PCM_DATA:
+        ret_usecase = new UsecasePCMData(usecase_id);
         break;
     case ASPS_USECASE_ID_UPD:
         ret_usecase = new UsecaseUPD(usecase_id);
@@ -922,11 +954,11 @@ int32_t Usecase::Open()
 {
     int32_t rc = 0;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     rc = pal_stream_open(this->stream_attributes, this->no_of_devices, this->pal_devices, 0, NULL, NULL, 0, &(this->pal_stream));
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to Open() usecase:%d", rc, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Failed to Open() usecase:0x%x", rc, this->usecase_id);
     }
 
     PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
@@ -938,7 +970,7 @@ int32_t Usecase::Configure()
 {
     int32_t rc = 0;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
     PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
 
     return rc;
@@ -948,11 +980,11 @@ int32_t Usecase::Start()
 {
     int32_t rc = 0;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     rc = pal_stream_start(this->pal_stream);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to Start() usecase:%d", rc, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Failed to Start() usecase:0x%x", rc, this->usecase_id);
     }
 
     PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
@@ -964,16 +996,16 @@ int32_t Usecase::StopAndClose()
 {
     int32_t rc = 0;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     rc = pal_stream_stop(this->pal_stream);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to stop() usecase:%d", rc, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Failed to stop() usecase:0x%x", rc, this->usecase_id);
     }
 
     rc = pal_stream_close(this->pal_stream);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to Close() usecase:%d", rc, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Failed to Close() usecase:0x%x", rc, this->usecase_id);
     }
 
     rc = 0;
@@ -992,7 +1024,7 @@ int32_t Usecase::GetModuleIIDs(std::vector<int32_t> tags,
     struct pal_tag_module_mapping* tag_entry;
     std::vector<uint32_t> miid_list;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     rc = pal_stream_get_tags_with_module_info(this->pal_stream,
         &tag_module_size, (uint8_t*)(tag_module_info.data()));
@@ -1050,7 +1082,7 @@ exit:
 int32_t Usecase::SetUseCaseData(uint32_t size, void *data)
 {
     int32_t rc = 0;
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
     return rc;
@@ -1058,7 +1090,12 @@ int32_t Usecase::SetUseCaseData(uint32_t size, void *data)
 
 UsecaseACD::UsecaseACD(uint32_t usecase_id) : Usecase(usecase_id)
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
+
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
 
     this->requested_context_list = NULL;
     this->stream_attributes->type = PAL_STREAM_ACD;
@@ -1083,7 +1120,7 @@ exit:
 
 UsecaseACD::~UsecaseACD()
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
     if (this->requested_context_list) {
         free(this->requested_context_list);
         this->requested_context_list = NULL;
@@ -1097,7 +1134,7 @@ int32_t UsecaseACD::Configure()
     int32_t rc = 0;
     pal_param_payload *context_payload = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
 
     context_payload = (pal_param_payload *) calloc (1, sizeof(pal_param_payload)
         + sizeof(uint32_t) * (1 + this->requested_context_list->num_contexts));
@@ -1109,7 +1146,7 @@ int32_t UsecaseACD::Configure()
     memcpy(context_payload->payload, this->requested_context_list, sizeof(uint32_t) * (1 + this->requested_context_list->num_contexts));
     rc = pal_stream_set_param(this->pal_stream, PAL_PARAM_ID_CONTEXT_LIST, context_payload);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d setting parameters to stream usecase:%d", rc, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d setting parameters to stream usecase:0x%x", rc, this->usecase_id);
         goto exit;
     }
 
@@ -1131,7 +1168,7 @@ int32_t UsecaseACD::GetAckDataOnSuccessfullStart(uint32_t *size __unused, void *
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
     /*
@@ -1151,7 +1188,7 @@ int32_t UsecaseACD::GetAckDataOnSuccessfullStart(uint32_t *size __unused, void *
     } else {
         rc = -ENODATA;
         PAL_ERR(LOG_TAG, "size %d too small for ack data in UsecaseACD, need %d",
-            size, sizeof(asps_acd_usecase_register_ack_payload_t)
+            (int)(*size), sizeof(asps_acd_usecase_register_ack_payload_t)
             + sizeof(uint32_t) * requested_context_list->num_contexts);
     }
 
@@ -1199,11 +1236,11 @@ int32_t UsecaseACD::SetUseCaseData(uint32_t size, void *data)
     int no_contexts = 0;
     uint32_t *ptr = NULL;
 
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d, size:%d", this->usecase_id, size);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x, size:%d", this->usecase_id, size);
 
     if (!size || !data) {
         rc = -EINVAL;
-        PAL_ERR(LOG_TAG, "Error:%d Invalid size:%d or data:%p for usecase:%d", rc, size, data, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Invalid size:%d or data:%p for usecase:0x%x", rc, size, data, this->usecase_id);
         goto exit;
     }
 
@@ -1214,11 +1251,11 @@ int32_t UsecaseACD::SetUseCaseData(uint32_t size, void *data)
 
     ptr = (uint32_t *)data;
     no_contexts = (uint32_t)ptr[0];
-    PAL_VERBOSE(LOG_TAG, "Number of contexts:%d for usecase:%d, size:%d", no_contexts, this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Number of contexts:%d for usecase:0x%x, size:%d", no_contexts, this->usecase_id, size);
 
     if (size < (sizeof(uint32_t) + (no_contexts * sizeof(uint32_t)))) {
         rc = -EINVAL;
-        PAL_ERR(LOG_TAG, "Error:%d Insufficient data for no_contexts:%d and usecase:%d", rc, no_contexts, this->usecase_id);
+        PAL_ERR(LOG_TAG, "Error:%d Insufficient data for no_contexts:%d and usecase:0x%x", rc, no_contexts, this->usecase_id);
         goto exit;
     }
     this->requested_context_list = (struct pal_param_context_list *) calloc (size, sizeof(uint8_t));
@@ -1234,15 +1271,21 @@ exit:
     return rc;
 }
 
-UsecaseRawData::UsecaseRawData(uint32_t usecase_id) : Usecase(usecase_id)
+UsecasePCMData::UsecasePCMData(uint32_t usecase_id) : Usecase(usecase_id)
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
 
-    this->stream_attributes->type = PAL_STREAM_CONTEXT_RAWDATA;
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
+
+    this->stream_attributes->type = PAL_STREAM_SENSOR_PCM_DATA;
+    this->stream_attributes->direction = PAL_AUDIO_INPUT;
     this->no_of_devices = 1;
     this->pal_devices = (struct pal_device *) calloc (this->no_of_devices, sizeof(struct pal_device));
     if (!this->pal_devices) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for usecaseRawData constructor", -ENOMEM);
+        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for usecasePCMData constructor", -ENOMEM);
         goto exit;
     }
 
@@ -1252,31 +1295,33 @@ UsecaseRawData::UsecaseRawData(uint32_t usecase_id) : Usecase(usecase_id)
     this->pal_devices[0].config.sample_rate = 16000;
     this->pal_devices[0].config.ch_info.channels = 1;
 
-    this->tags.push_back(SHMEM_ENDPOINT);
-    this->tags.push_back(DEVICE_MFC);
+    this->tags.push_back(RD_SHMEM_ENDPOINT);
+    this->tags.push_back(TAG_STREAM_MFC);
+    this->tags.push_back(STREAM_PCM_CONVERTER);
 
 exit:
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
-UsecaseRawData::~UsecaseRawData()
+UsecasePCMData::~UsecasePCMData()
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
     //cleanup is done in baseclass
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
-int32_t UsecaseRawData::GetAckDataOnSuccessfullStart(uint32_t * size, void * data)
+int32_t UsecasePCMData::GetAckDataOnSuccessfullStart(uint32_t *size, void *data)
 {
     int32_t rc = 0;
     uint32_t *data_ptr = (uint32_t *)data;
+    size_t no_of_miid = 0;
     std::map<int32_t, std::vector<uint32_t>> tag_miid_map;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
 
@@ -1285,17 +1330,77 @@ int32_t UsecaseRawData::GetAckDataOnSuccessfullStart(uint32_t * size, void * dat
         for (uint32_t miid : tag_miid_map[tag]) {
             *data_ptr = miid;
             ++data_ptr;
+            ++no_of_miid;
         }
+    }
+    *size = (no_of_miid * sizeof(uint32_t));
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit %d, number of MIID %d", rc, no_of_miid);
+    return rc;
+}
+
+int32_t UsecasePCMData::Configure()
+{
+    int32_t rc = 0;
+    pal_audio_effect_t effect = PAL_AUDIO_EFFECT_NONE;
+
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x, pcm_data_type:%d",
+                this->usecase_id, this->pcm_data_type);
+
+    if (this->pcm_data_type == PCM_DATA_EFFECT_NS)
+        effect = PAL_AUDIO_EFFECT_NS;
+
+    rc = pal_add_remove_effect(this->pal_stream, effect, true);
+    if (rc) {
+        PAL_ERR(LOG_TAG, "Error:%d setting PCM effect to stream usecase:0x%x", rc, this->usecase_id);
+        goto exit;
     }
 
 exit:
-    PAL_VERBOSE(LOG_TAG, "Exit %d", rc);
+    PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
+    return rc;
+}
+
+int32_t UsecasePCMData::SetUseCaseData(uint32_t size, void *data)
+{
+    int rc = 0;
+    uint32_t pcm_data_type_requested = 0;
+    bool rx_concurrency = false;
+
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x, size:%d", this->usecase_id, size);
+
+    if (size <= 0 || !data) {
+        rc = -EINVAL;
+        PAL_ERR(LOG_TAG, "Error:%d Invalid size:%d or data:%p for usecase:0x%x", rc, size, data, this->usecase_id);
+        goto exit;
+    }
+
+    pcm_data_type_requested = ((asps_pcm_data_usecase_register_payload_t *)data)->stream_type;
+    if ((pcm_data_type_requested <= 0) ||
+        (pcm_data_type_requested != PCM_DATA_EFFECT_RAW &&
+            pcm_data_type_requested != PCM_DATA_EFFECT_NS)) {
+        rc = -EINVAL;
+        PAL_ERR(LOG_TAG, "Error:%d Invalid pcm_data_type_requested:%d for usecase:0x%x",
+                rc, pcm_data_type_requested, this->usecase_id);
+        goto exit;
+    }
+    //update the pcm_data_type config based on the request of sensor
+    this->pcm_data_type = pcm_data_type_requested;
+
+exit:
+    PAL_VERBOSE(LOG_TAG, "Exit rc:%d", rc);
     return rc;
 }
 
 UsecaseUPD::UsecaseUPD(uint32_t usecase_id) : Usecase(usecase_id)
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
+
+    if (!this->stream_attributes) {
+        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
+        goto exit;
+    }
 
     this->stream_attributes->type = PAL_STREAM_ULTRASOUND;
     this->stream_attributes->direction = PAL_AUDIO_INPUT_OUTPUT;
@@ -1326,7 +1431,7 @@ exit:
 
 UsecaseUPD::~UsecaseUPD()
 {
-    PAL_VERBOSE(LOG_TAG, "Enter usecase:%d", this->usecase_id);
+    PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", this->usecase_id);
     //cleanup is done in baseclass
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
@@ -1342,7 +1447,7 @@ int32_t UsecaseUPD::GetAckDataOnSuccessfullStart(uint32_t * size, void * data)
 
     rc = GetModuleIIDs(this->tags, tag_miid_map);
     if (rc) {
-        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids");
+        PAL_ERR(LOG_TAG, "Error:%d failed to get module iids", rc);
         goto exit;
     }
 

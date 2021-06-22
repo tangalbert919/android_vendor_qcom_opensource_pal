@@ -41,6 +41,7 @@
 #include <cutils/properties.h>
 #include <sstream>
 #include <string>
+#include <regex>
 
 #define BT_IPC_SOURCE_LIB "btaudio_offload_if.so"
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
@@ -56,8 +57,7 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
       isDummySink(false),
-      abrRefCnt(0),
-      swbSpeechMode(SPEECH_MODE_INVALID)
+      abrRefCnt(0)
 {
 }
 
@@ -71,65 +71,12 @@ int Bluetooth::updateDeviceMetadata()
     std::string backEndName;
     std::vector <std::pair<int, int>> keyVector;
 
-    switch(deviceAttr.id) {
-    case PAL_DEVICE_IN_BLUETOOTH_A2DP:
-    case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
-            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
-        else
-            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
-        keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+    ret = PayloadBuilder::getBtDeviceKV(deviceAttr.id, keyVector, codecFormat,
+        isAbrEnabled, false);
+    if (ret)
+        PAL_ERR(LOG_TAG, "No KVs found for device id %d codec format:0x%x",
+            deviceAttr.id, codecFormat);
 
-        switch (codecFormat) {
-        case CODEC_TYPE_LDAC:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = LDAC");
-            keyVector.push_back(std::make_pair(BT_FORMAT, LDAC));
-            break;
-        case CODEC_TYPE_APTX_AD:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = APTX_ADAPTIVE");
-            keyVector.push_back(std::make_pair(BT_FORMAT, APTX_ADAPTIVE));
-            break;
-        case CODEC_TYPE_LC3:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = LC3");
-            keyVector.push_back(std::make_pair(BT_FORMAT, LC3));
-            break;
-        case CODEC_TYPE_AAC:
-            if (isAbrEnabled) {
-                PAL_INFO(LOG_TAG, "Setting BT_FORMAT = AAC_ABR");
-                keyVector.push_back(std::make_pair(BT_FORMAT, AAC_ABR));
-                break;
-            }
-        case CODEC_TYPE_SBC:
-        case CODEC_TYPE_CELT:
-        case CODEC_TYPE_APTX:
-        case CODEC_TYPE_APTX_HD:
-        case CODEC_TYPE_APTX_DUAL_MONO:
-        default:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = GENERIC, codecFormat = 0x%x", codecFormat);
-            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
-            break;
-        }
-        break;
-    case PAL_DEVICE_OUT_BLUETOOTH_SCO:
-    case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-        if (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
-            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
-        else
-            keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
-
-        keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-        switch (codecFormat) {
-        case CODEC_TYPE_APTX_AD_SPEECH:
-            PAL_INFO(LOG_TAG, "Setting BT_FORMAT = SWB");
-            keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
-            break;
-        default:
-            break;
-        }
-        break;
-    default:
-        return -EINVAL;
-    }
     rm->getBackendName(deviceAttr.id, backEndName);
     ret = SessionAlsaUtils::setDeviceMetadata(rm, backEndName, keyVector);
     return ret;
@@ -160,6 +107,7 @@ void Bluetooth::updateDeviceAttributes()
         break;
     case CODEC_TYPE_LC3:
         deviceAttr.config.sample_rate = SAMPLINGRATE_96K;
+        deviceAttr.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
         break;
     default:
         break;
@@ -216,9 +164,7 @@ int Bluetooth::getPluginPayload(void **libHandle, bt_codec_t **btCodec,
         goto error;
     }
 
-    status = codec->plugin_populate_payload(codec,
-            (codecFormat != CODEC_TYPE_APTX_AD_SPEECH) ? codecInfo : (void *)&swbSpeechMode,
-            (void **)out_buf);
+    status = codec->plugin_populate_payload(codec, codecInfo, (void **)out_buf);
     if (status != 0) {
         PAL_ERR(LOG_TAG, "fail to pack the encoder config %d", status);
         goto error;
@@ -354,6 +300,10 @@ int Bluetooth::configureA2dpEncoderDecoder()
      * APTX      | E_SR = 32KHz     | Same as encoder      | SR:96KHz BW:16 CH:1
      * AD Speech | E_CH = 1         |                      |
      *           | E_BW = 16        |                      |
+     * ---------------------------------------------------------------------------
+     * LC3       | E_SR = SR of encoder | Same as encoder  | SR:96KHz BW:16 CH:1
+     * Voice     | E_CH = CH of encoder |                  |
+     *           | E_BW = 24            |                  |
      * --------------------------------------------------------------------------- */
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         PAL_DBG(LOG_TAG, "Skip the rest of static configurations coming from ACDB");
@@ -399,10 +349,11 @@ int Bluetooth::configureA2dpEncoderDecoder()
                 goto error;
             }
 
-            builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, false);
+            builder->payloadCopV2DepackConfig(&paramData, &paramSize,
+                    copMiid, codecInfo, false /* StreamMapOut */);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
-                free(paramData);
+                delete [] paramData;
                 paramData = NULL;
                 paramSize = 0;
             } else {
@@ -411,10 +362,11 @@ int Bluetooth::configureA2dpEncoderDecoder()
                 goto error;
             }
 
-            builder->payloadCopV2DepackConfig(&paramData, &paramSize, copMiid, codecInfo, true);
+            builder->payloadCopV2DepackConfig(&paramData, &paramSize,
+                    copMiid, codecInfo, true /* StreamMapIn */);
             if (paramSize) {
                 dev->updateCustomPayload(paramData, paramSize);
-                free(paramData);
+                delete [] paramData;
                 paramData = NULL;
                 paramSize = 0;
             } else {
@@ -438,12 +390,50 @@ int Bluetooth::configureA2dpEncoderDecoder()
         builder->payloadCopV2PackConfig(&paramData, &paramSize, copMiid, codecInfo);
         if (paramSize) {
             dev->updateCustomPayload(paramData, paramSize);
-            free(paramData);
+            delete [] paramData;
             paramData = NULL;
             paramSize = 0;
         } else {
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid COPv2 module param size");
+            goto error;
+        }
+
+        // PARAM_ID_COP_PACKETIZER_OUTPUT_MEDIA_FORMAT for COPv2
+        builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
+        if (paramSize) {
+            dev->updateCustomPayload(paramData, paramSize);
+            delete [] paramData;
+            paramData = NULL;
+            paramSize = 0;
+        } else {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Invalid COP module param size");
+            goto error;
+        }
+    } else { /* codecFormat != CODEC_TYPE_LC3 */
+        // Bypass COP V0 DEPACKETIZER Module Configuration for TX path
+        if (codecType == DEC)
+            goto done;
+
+        /* COP v0 PACKETIZER Module Configuration */
+        status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                    COP_PACKETIZER_V0, status);
+            goto error;
+        }
+
+        // PARAM_ID_COP_PACKETIZER_OUTPUT_MEDIA_FORMAT for COPv0
+        builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
+        if (paramSize) {
+            dev->updateCustomPayload(paramData, paramSize);
+            delete [] paramData;
+            paramData = NULL;
+            paramSize = 0;
+        } else {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Invalid COP module param size");
             goto error;
         }
     }
@@ -458,7 +448,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         paramData = NULL;
         paramSize = 0;
     } else {
@@ -478,7 +468,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         paramData = NULL;
         paramSize = 0;
     } else {
@@ -487,38 +477,11 @@ int Bluetooth::configureA2dpEncoderDecoder()
         goto error;
     }
 
-    // Bypass COP V0 PACKETIZER Module Configuration for TX path
-    if (codecType == DEC)
-        goto done;
-
-    /* COP v0 PACKETIZER Module Configuration */
-    if (codecFormat != CODEC_TYPE_LC3) {
-        status = session->getMIID(backEndName.c_str(), COP_PACKETIZER_V0, &copMiid);
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
-                    COP_PACKETIZER_V0, status);
-            goto error;
-        }
-    }
-
-    // PARAM_ID_COP_PACKETIZER_OUTPUT_MEDIA_FORMAT for both COPv0 and COPv2
-    builder->payloadCopPackConfig(&paramData, &paramSize, copMiid, &deviceAttr.config);
-    if (paramSize) {
-        dev->updateCustomPayload(paramData, paramSize);
-        free(paramData);
-        paramData = NULL;
-        paramSize = 0;
-    } else {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid COP module param size");
-        goto error;
-    }
-
 done:
     isConfigured = true;
 
 error:
-    if(builder) {
+    if (builder) {
        delete builder;
        builder = NULL;
     }
@@ -589,29 +552,25 @@ void Bluetooth::startAbr()
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
-        fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
+        if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
+        else
+            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
         dir = RX_HOSTLESS;
         flags = PCM_OUT;
-        keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
     } else {
         fbDevice.id = ((deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) ?
                        PAL_DEVICE_IN_BLUETOOTH_A2DP :
                        PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET);
         dir = TX_HOSTLESS;
         flags = PCM_IN;
-        keyVector.push_back(std::make_pair(DEVICETX, BT_TX));
     }
 
-    if ((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) &&
-        (codecFormat == CODEC_TYPE_LC3)) {
-        keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
-    }
-
-    if (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
-        fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-        keyVector.push_back(std::make_pair(BT_PROFILE, SCO));
-        keyVector.push_back(std::make_pair(BT_FORMAT, SWB));
-    }
+    ret = PayloadBuilder::getBtDeviceKV(fbDevice.id, keyVector, codecFormat,
+        true, true);
+    if (ret)
+        PAL_ERR(LOG_TAG, "No KVs found for device id %d codec format:0x%x",
+            fbDevice.id, codecFormat);
 
     /* Configure Device Metadata */
     rm->getBackendName(fbDevice.id, backEndName);
@@ -727,13 +686,22 @@ void Bluetooth::startAbr()
             PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d", fbDevice.id);
             goto err_pcm_open;
         }
-    } else if (codecFormat == CODEC_TYPE_LC3) {
+    } else if ((codecFormat == CODEC_TYPE_LC3) && (codecType == ENC)) {
         builder = new PayloadBuilder();
 
-        fbDev = std::dynamic_pointer_cast<BtA2dp>(BtA2dp::getInstance(&fbDevice, rm));
-        if (!fbDev) {
-            PAL_ERR(LOG_TAG, "failed to get BtA2dp singleton object.");
-            goto err_pcm_open;
+        if ((fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) ||
+            (fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+            fbDev = std::dynamic_pointer_cast<BtSco>(BtSco::getInstance(&fbDevice, rm));
+            if (!fbDev) {
+                PAL_ERR(LOG_TAG, "failed to get BtSco singleton object.");
+                goto err_pcm_open;
+            }
+        } else {
+            fbDev = std::dynamic_pointer_cast<BtA2dp>(BtA2dp::getInstance(&fbDevice, rm));
+            if (!fbDev) {
+                PAL_ERR(LOG_TAG, "failed to get BtA2dp singleton object.");
+                goto err_pcm_open;
+            }
         }
 
         /* configure COP v2 depacketizer */
@@ -755,7 +723,7 @@ void Bluetooth::startAbr()
 
         ret = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                 paramData, paramSize);
-        free(paramData);
+        delete [] paramData;
         if (ret) {
             PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d", fbDevice.id);
             goto err_pcm_open;
@@ -792,6 +760,12 @@ start_pcm:
         fbDev->isConfigured = true;
         fbDev->deviceCount++;
     }
+    if ((codecFormat == CODEC_TYPE_LC3) &&
+        (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
+         fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+        fbDev->isConfigured = true;
+        fbDev->deviceCount++;
+    }
 
     abrRefCnt++;
     PAL_INFO(LOG_TAG, "Feedback Device started successfully");
@@ -804,7 +778,7 @@ free_fe:
     fbpcmDevIds.clear();
 done:
     mAbrMutex.unlock();
-    if(builder) {
+    if (builder) {
        delete builder;
        builder = NULL;
     }
@@ -854,6 +828,14 @@ void Bluetooth::stopAbr()
     }
 
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) && fbDev) {
+        if (--fbDev->deviceCount == 0) {
+            fbDev->isConfigured = false;
+        }
+    }
+    if ((codecFormat == CODEC_TYPE_LC3) &&
+        (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
+         deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
+        fbDev) {
         if (--fbDev->deviceCount == 0) {
             fbDev->isConfigured = false;
         }
@@ -1031,6 +1013,12 @@ void BtA2dp::init_a2dp_sink()
                   dlsym(bt_lib_sink_handle, "audio_get_codec_config");
             audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
                 dlsym(bt_lib_sink_handle, "audio_sink_get_a2dp_latency");
+            audio_source_start = (audio_source_start_t)
+                  dlsym(bt_lib_sink_handle, "audio_start_stream");
+            audio_source_stop = (audio_source_stop_t)
+                  dlsym(bt_lib_sink_handle, "audio_stop_stream");
+            audio_source_check_a2dp_ready = (audio_source_check_a2dp_ready_t)
+                  dlsym(bt_lib_sink_handle, "audio_check_a2dp_ready");
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1072,6 +1060,7 @@ void BtA2dp::init()
 int BtA2dp::start()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
     if (customPayload)
         free(customPayload);
@@ -1080,25 +1069,32 @@ int BtA2dp::start()
     customPayloadSize = 0;
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
-    if (status != 0)
+    if (status != 0) {
+        mDeviceMutex.unlock();
         return status;
+    }
 
-    status = Device::start();
+    status = Device::start_l();
+
     if (!status && isAbrEnabled)
         startAbr();
 
+    mDeviceMutex.unlock();
     return status;
 }
 
 int BtA2dp::stop()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
     if (isAbrEnabled)
         stopAbr();
 
-    Device::stop();
+    Device::stop_l();
+
     status = (a2dpRole == SOURCE) ? stopPlayback() : stopCapture();
+    mDeviceMutex.unlock();
 
     return status;
 }
@@ -1128,7 +1124,7 @@ int BtA2dp::startPlayback()
         /* This call indicates BT IPC lib to start playback */
         ret =  audio_source_start();
         PAL_ERR(LOG_TAG, "BT controller start return = %d",ret);
-        if (ret != 0 ) {
+        if (ret != 0) {
            PAL_ERR(LOG_TAG, "BT controller start failed");
            return ret;
         }
@@ -1227,7 +1223,7 @@ bool BtA2dp::isDeviceReady()
 
     if ((a2dpState != A2DP_STATE_DISCONNECTED) &&
         (isA2dpOffloadSupported)) {
-        if (a2dpRole == SOURCE) {
+        if ((a2dpRole == SOURCE) || isDummySink) {
             if (audio_source_check_a2dp_ready)
                 ret = audio_source_check_a2dp_ready();
         } else {
@@ -1271,10 +1267,28 @@ int BtA2dp::startCapture()
         }
     } else {
         uint8_t multi_cast = 0, num_dev = 1;
-        codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
-        if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
-            PAL_ERR(LOG_TAG, "invalid codec config");
-            return -EINVAL;
+
+        if (!(bt_lib_sink_handle && audio_source_start
+            && audio_get_enc_config)) {
+            PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
+            return -ENOSYS;
+        }
+
+        if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
+            PAL_DBG(LOG_TAG, "calling BT module stream start");
+            /* This call indicates BT IPC lib to start */
+            ret =  audio_source_start();
+            PAL_ERR(LOG_TAG, "BT controller start return = %d",ret);
+            if (ret != 0 ) {
+                PAL_ERR(LOG_TAG, "BT controller start failed");
+                return ret;
+            }
+
+            codecInfo = audio_get_enc_config(&multi_cast, &num_dev, (audio_format_t *)&codecFormat);
+            if (codecInfo == NULL || codecFormat == CODEC_TYPE_INVALID) {
+                PAL_ERR(LOG_TAG, "invalid codec config");
+                return -EINVAL;
+            }
         }
     }
     /* Update Device GKV based on Decoder type */
@@ -1325,7 +1339,13 @@ int BtA2dp::stopCapture()
             } else {
                 PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
             }
-            isDummySink = false;
+        } else {
+            ret = audio_source_stop();
+            if (ret < 0) {
+                PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
+            } else {
+                PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
+            }
         }
         a2dpState = A2DP_STATE_STOPPED;
 
@@ -1362,9 +1382,18 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
         if (device_connection->connection_state == true) {
             if (a2dpRole == SOURCE)
                 open_a2dp_source();
+            else {
+                a2dpState = A2DP_STATE_CONNECTED;
+            }
         } else {
             if (a2dpRole == SOURCE) {
                 status = close_audio_source();
+            } else {
+                totalActiveSessionRequests = 0;
+                param_bt_a2dp.a2dp_suspended = false;
+                param_bt_a2dp.reconfig = false;
+                param_bt_a2dp.latency = 0;
+                a2dpState = A2DP_STATE_DISCONNECTED;
             }
         }
         break;
@@ -1491,8 +1520,11 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     }
     case PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH:
     {
-        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED))
+        if (param_bt_a2dp.reconfig || (a2dpState != A2DP_STATE_STARTED)) {
             param_bt_a2dp.is_force_switch = true;
+        } else {
+            param_bt_a2dp.is_force_switch = false;
+        }
 
         *param = &param_bt_a2dp;
         break;
@@ -1538,13 +1570,19 @@ std::shared_ptr<Device> BtSco::objTx = nullptr;
 BtSco::BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Bluetooth(device, Rm),
       isScoOn(false),
-      isWbSpeechEnabled(false)
+      isWbSpeechEnabled(false),
+      swbSpeechMode(SPEECH_MODE_INVALID),
+      isSwbLc3Enabled(false)
 {
     codecType = (device->id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
 }
 
 BtSco::~BtSco()
 {
+    if (lc3CodecInfo.enc_cfg.streamMapOut != NULL)
+        delete [] lc3CodecInfo.enc_cfg.streamMapOut;
+    if (lc3CodecInfo.dec_cfg.streamMapIn != NULL)
+        delete [] lc3CodecInfo.dec_cfg.streamMapIn;
 }
 
 bool BtSco::isDeviceReady()
@@ -1554,9 +1592,11 @@ bool BtSco::isDeviceReady()
 
 void BtSco::updateSampleRate(uint32_t *sampleRate)
 {
-    /* In case of SWB, HW EP is configured at 96KHz sample rate
-       where as encoder runs at 32KHz. */
-    if (swbSpeechMode != SPEECH_MODE_INVALID)
+    if (isWbSpeechEnabled)
+        *sampleRate = SAMPLINGRATE_16K;
+    else if (swbSpeechMode != SPEECH_MODE_INVALID)
+        *sampleRate = SAMPLINGRATE_96K;
+    else if (isSwbLc3Enabled)
         *sampleRate = SAMPLINGRATE_96K;
     else
         *sampleRate = deviceAttr.config.sample_rate;
@@ -1572,18 +1612,117 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
         break;
     case PAL_PARAM_ID_BT_SCO_WB:
         isWbSpeechEnabled = param_bt_sco->bt_wb_speech_enabled;
-        deviceAttr.config.sample_rate = isWbSpeechEnabled ? SAMPLINGRATE_16K : SAMPLINGRATE_8K;
-        PAL_DBG(LOG_TAG, "received wbs = %d, updated sr = %d", isWbSpeechEnabled, deviceAttr.config.sample_rate);
+        PAL_DBG(LOG_TAG, "isWbSpeechEnabled = %d", isWbSpeechEnabled);
         break;
     case PAL_PARAM_ID_BT_SCO_SWB:
         swbSpeechMode = param_bt_sco->bt_swb_speech_mode;
-        PAL_DBG(LOG_TAG, "swbSpeechMode %d", swbSpeechMode);
+        codecInfo = (void *)&swbSpeechMode;
+        PAL_DBG(LOG_TAG, "swbSpeechMode = %d", swbSpeechMode);
+        break;
+    case PAL_PARAM_ID_BT_SCO_LC3:
+        isSwbLc3Enabled = param_bt_sco->bt_lc3_speech_enabled;
+        // parse sco lc3 parameters and pack into codec info
+        convertCodecInfo(lc3CodecInfo, param_bt_sco->lc3_cfg);
+        codecInfo = (void *)&lc3CodecInfo;
+        PAL_DBG(LOG_TAG, "isSwbLc3Enabled = %d", isSwbLc3Enabled);
         break;
     default:
         return -EINVAL;
     }
 
     return 0;
+}
+
+void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
+                             btsco_lc3_cfg_t &lc3Cfg)
+{
+    std::vector<lc3_stream_map_t> steamMap;
+    uint32_t audio_location = 0;
+    uint8_t stream_id;
+    uint8_t direction;
+    int idx = 0;
+
+    // convert and fill in encoder cfg
+    lc3CodecInfo.enc_cfg.toAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.rxconfig_index].sampling_freq;
+    lc3CodecInfo.enc_cfg.toAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.rxconfig_index].max_octets_per_frame;
+    lc3CodecInfo.enc_cfg.toAirConfig.frame_duration       = LC3_CSC[lc3Cfg.rxconfig_index].frame_duration;
+    lc3CodecInfo.enc_cfg.toAirConfig.bit_depth            = LC3_CSC[lc3Cfg.rxconfig_index].bit_depth;
+    if (lc3Cfg.fields_map & LC3_FRAME_DURATION_BIT)
+        lc3CodecInfo.enc_cfg.toAirConfig.frame_duration   = lc3Cfg.frame_duration;
+    lc3CodecInfo.enc_cfg.toAirConfig.api_version          = lc3Cfg.api_version;
+    lc3CodecInfo.enc_cfg.toAirConfig.num_blocks           = lc3Cfg.num_blocks;
+    lc3CodecInfo.enc_cfg.toAirConfig.default_q_level      = 0;
+    lc3CodecInfo.enc_cfg.toAirConfig.mode                 = 0x1;
+    for (int i=0; i<16; i++)
+        lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[i] = 0;
+
+    // convert and fill in decoder cfg
+    lc3CodecInfo.dec_cfg.fromAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.txconfig_index].sampling_freq;
+    lc3CodecInfo.dec_cfg.fromAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.txconfig_index].max_octets_per_frame;
+    lc3CodecInfo.dec_cfg.fromAirConfig.frame_duration       = LC3_CSC[lc3Cfg.txconfig_index].frame_duration;
+    lc3CodecInfo.dec_cfg.fromAirConfig.bit_depth            = LC3_CSC[lc3Cfg.txconfig_index].bit_depth;
+    if (lc3Cfg.fields_map & LC3_FRAME_DURATION_BIT)
+        lc3CodecInfo.dec_cfg.fromAirConfig.frame_duration   = lc3Cfg.frame_duration;
+    lc3CodecInfo.dec_cfg.fromAirConfig.api_version          = lc3Cfg.api_version;
+    lc3CodecInfo.dec_cfg.fromAirConfig.num_blocks           = lc3Cfg.num_blocks;
+    lc3CodecInfo.dec_cfg.fromAirConfig.default_q_level      = 0;
+    lc3CodecInfo.dec_cfg.fromAirConfig.mode                 = 0x1;
+    for (int i=0; i<16; i++)
+        lc3CodecInfo.dec_cfg.fromAirConfig.vendor_specific[i] = 0;
+
+    // parse stream map string and append stream map structures
+    std::string s(lc3Cfg.streamMap);
+    std::regex pattern("([0-9])[,[:s:]]+([0-9])[,[:s:]]+([MLR])");
+    std::smatch match;
+    while (std::regex_search(s, match, pattern)) {
+        stream_id = atoi(match[1].str().c_str());
+        direction = atoi(match[2].str().c_str());
+        if (!strcmp(match[3].str().c_str(), "M")) {
+            audio_location = 0;
+        } else if (!strcmp(match[3].str().c_str(), "L")) {
+            audio_location = 1;
+        } else if (!strcmp(match[3].str().c_str(), "R")) {
+            audio_location = 2;
+        }
+
+        if ((stream_id > 1) || (direction > 1) || (audio_location > 2)) {
+            PAL_ERR(LOG_TAG, "invalid stream info (%d, %d, %d)", stream_id, direction, audio_location);
+            continue;
+        }
+        steamMap.push_back({audio_location, stream_id, direction});
+        s = match.suffix().str();
+    }
+
+    if (steamMap.size() == 0) {
+        PAL_ERR(LOG_TAG, "invalid stream map size %d", steamMap.size());
+        return;
+    }
+
+    lc3CodecInfo.enc_cfg.stream_map_size = steamMap.size();
+    if (lc3CodecInfo.enc_cfg.streamMapOut != NULL)
+        delete [] lc3CodecInfo.enc_cfg.streamMapOut;
+    lc3CodecInfo.enc_cfg.streamMapOut = new lc3_stream_map_t[steamMap.size()];
+    for (auto &it : steamMap) {
+        lc3CodecInfo.enc_cfg.streamMapOut[idx++].audio_location = it.audio_location;
+        lc3CodecInfo.enc_cfg.streamMapOut[idx++].stream_id = it.stream_id;
+        lc3CodecInfo.enc_cfg.streamMapOut[idx++].direction = it.direction;
+    }
+
+    idx = 0;
+    lc3CodecInfo.dec_cfg.stream_map_size = steamMap.size();
+    if (lc3CodecInfo.dec_cfg.streamMapIn != NULL)
+        delete [] lc3CodecInfo.dec_cfg.streamMapIn;
+    lc3CodecInfo.dec_cfg.streamMapIn = new lc3_stream_map_t[steamMap.size()];
+    for (auto &it : steamMap) {
+        lc3CodecInfo.dec_cfg.streamMapIn[idx++].audio_location = it.audio_location;
+        lc3CodecInfo.dec_cfg.streamMapIn[idx++].stream_id = it.stream_id;
+        lc3CodecInfo.dec_cfg.streamMapIn[idx++].direction = it.direction;
+    }
+
+    if (lc3CodecInfo.dec_cfg.streamMapIn[0].audio_location == 0)
+        lc3CodecInfo.dec_cfg.decoder_output_channel = CH_MONO;
+    else
+        lc3CodecInfo.dec_cfg.decoder_output_channel = CH_STEREO;
 }
 
 int BtSco::startSwb()
@@ -1599,15 +1738,22 @@ int BtSco::startSwb()
 int BtSco::start()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
-    if (swbSpeechMode != SPEECH_MODE_INVALID)
+    if (swbSpeechMode != SPEECH_MODE_INVALID) {
         codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
+    } else if (isSwbLc3Enabled) {
+        codecFormat = CODEC_TYPE_LC3;
+    }
 
     updateDeviceMetadata();
-    if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
+    if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
+        (codecFormat == CODEC_TYPE_LC3)) {
         status = startSwb();
-        if (status)
+        if (status) {
+            mDeviceMutex.unlock();
             return status;
+        }
     } else {
         // For SCO NB and WB that don't have encoder and decoder in place,
         // just override codec configurations with device attributions.
@@ -1620,16 +1766,18 @@ int BtSco::start()
             codecConfig.bit_width, codecConfig.sample_rate, codecConfig.ch_info.channels);
     }
 
-    status = Device::start();
+    status = Device::start_l();
     if (!status && isAbrEnabled)
         startAbr();
 
+    mDeviceMutex.unlock();
     return status;
 }
 
 int BtSco::stop()
 {
     int status = 0;
+    mDeviceMutex.lock();
 
     if (isAbrEnabled)
         stopAbr();
@@ -1643,12 +1791,13 @@ int BtSco::stop()
         pluginHandler = NULL;
     }
 
-    Device::stop();
+    Device::stop_l();
     if (isAbrEnabled == false)
         codecFormat = CODEC_TYPE_INVALID;
     if (deviceCount == 0)
         isConfigured = false;
 
+    mDeviceMutex.unlock();
     return status;
 }
 

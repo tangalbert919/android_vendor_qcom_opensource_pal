@@ -156,4 +156,21 @@ static uint64_t convert_channel_map(uint32_t audio_location)
     return channel_mask;
 }
 
+struct codec_specific_config {
+    uint32_t sampling_freq;
+    uint32_t frame_duration;
+    uint32_t max_octets_per_frame;
+    uint32_t bit_depth;
+};
+
+#define LC3_CSC_TBL_SIZE 6
+static struct codec_specific_config LC3_CSC[LC3_CSC_TBL_SIZE] = {
+    {8000,  7500,  26, 24},
+    {8000,  10000, 30, 24},
+    {16000, 7500,  30, 24},
+    {16000, 10000, 40, 24},
+    {32000, 7500,  60, 24},
+    {32000, 10000, 80, 24},
+};
+
 #endif /* _BT_BLE_H_ */

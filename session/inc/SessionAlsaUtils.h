@@ -87,6 +87,8 @@ public:
     static int getTagMetadata(int32_t tagsent, std::vector <std::pair<int, int>> &tkv, struct agm_tag_config *tagConfig);
     static int getCalMetadata(std::vector <std::pair<int, int>> &ckv, struct agm_cal_config* calConfig);
     static unsigned int bitsToAlsaFormat(unsigned int bits);
+    static int openDev(std::shared_ptr<ResourceManager> rmHandle,
+            const std::vector<int> &DevIds, int32_t backEndId, std::string backEndName);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm, const std::vector<int> &DevIds,
             const std::vector<std::pair<int32_t, std::string>> &BackEnds);
     static int open(Stream * s, std::shared_ptr<ResourceManager> rm,

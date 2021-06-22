@@ -213,6 +213,7 @@ int32_t USB::isChannelSupported(unsigned int numChannels)
 int USB::init(pal_param_device_connection_t device_conn)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
+    int ret = 0;
 
     for (iter = usb_card_config_list_.begin();
          iter != usb_card_config_list_.end(); iter++) {
@@ -228,15 +229,17 @@ int USB::init(pal_param_device_connection_t device_conn)
             return -EINVAL;
         }
         if (isUSBOutDevice(device_conn.id))
-            sp->getCapability(USB_PLAYBACK, device_conn.device_config.usb_addr);
+            ret = sp->getCapability(USB_PLAYBACK, device_conn.device_config.usb_addr);
         else
-            sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
-        usb_card_config_list_.push_back(sp);
+            ret = sp->getCapability(USB_CAPTURE, device_conn.device_config.usb_addr);
+
+        if (ret != -ENOENT)
+            usb_card_config_list_.push_back(sp);
     } else {
         PAL_INFO(LOG_TAG, "usb info has been cached.");
     }
 
-    return 0;
+    return ret;
 }
 
 int USB::deinit(pal_param_device_connection_t device_conn)
@@ -282,6 +285,20 @@ bool USB::isUSBOutDevice(pal_device_id_t pal_dev_id) {
         return false;
 }
 
+bool USBCardConfig::isCaptureProfileSupported()
+{
+    usb_usecase_type_t capture_type = USB_CAPTURE;
+    typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
+
+    for (iter = usb_device_config_list_.begin();
+         iter != usb_device_config_list_.end(); iter++) {
+         if ((*iter)->getType() == capture_type)
+             return true;
+    }
+
+    return false;
+}
+
 int USB::getDefaultConfig(pal_param_device_capability_t capability)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
@@ -292,8 +309,16 @@ int USB::getDefaultConfig(pal_param_device_capability_t capability)
             iter++) {
         if ((*iter)->isConfigCached(capability.addr)) {
             PAL_ERR(LOG_TAG, "usb device is found.");
-            status = (*iter)->readSupportedConfig(capability.config,
-                                        capability.is_playback);
+            // for capture, check if profile is supported or not
+            if (capability.is_playback == false) {
+                memset(capability.config, 0, sizeof(struct dynamic_media_config));
+                if ((*iter)->isCaptureProfileSupported())
+                    status = (*iter)->readSupportedConfig(capability.config,
+                            capability.is_playback);
+            } else {
+                status = (*iter)->readSupportedConfig(capability.config,
+                        capability.is_playback);
+            }
             break;
         }
     }
@@ -409,15 +434,16 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     str_start = strstr(read_buf, ((type == USB_PLAYBACK) ?
                        PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));
     if (str_start == NULL) {
-        PAL_ERR(LOG_TAG, "error %s section not found in usb config file",
+        PAL_INFO(LOG_TAG, "error %s section not found in usb config file",
                 ((type == USB_PLAYBACK) ?
                PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR));
-        ret = -EINVAL;
+        ret = -ENOENT;
         goto done;
     }
 
     str_end = strstr(read_buf, ((type == USB_PLAYBACK) ?
                        CAPTURE_PROFILE_STR : PLAYBACK_PROFILE_STR));
+
     if (str_end > str_start)
         check = true;
 
@@ -749,14 +775,16 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int i = 0;
     int nearestRate = 0;
     int diff = requested_rate;
+    int cur_rate = 0;
 
     for (i = 0; i < rate_size_; i++) {
-        if (requested_rate == rates_[i]) {
+        cur_rate = rates_[i];
+        if (requested_rate == cur_rate) {
             *best_rate = requested_rate;
             return 0;
-        } else if (abs(double(requested_rate - rates_[i])) <= diff) {
-            nearestRate = rates_[i];
-            diff = abs(double(requested_rate - rates_[i]));
+        } else if (abs(double(requested_rate - cur_rate)) <= diff) {
+            nearestRate = cur_rate;
+            diff = abs(double(requested_rate - cur_rate));
         }
         PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
     }

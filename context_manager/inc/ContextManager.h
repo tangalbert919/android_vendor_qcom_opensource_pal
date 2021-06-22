@@ -39,10 +39,9 @@
 #include <PalCommon.h>
 #include "kvh2xml.h"
 
-enum USECASE {
-    ASPS_USECASE_ID_ACD = 1,
-    USECASE_RAW_DATA = 2,
-    ASPS_USECASE_ID_UPD = 3,
+enum PCM_DATA_EFFECT {
+    PCM_DATA_EFFECT_RAW = 1,
+    PCM_DATA_EFFECT_NS = 2,
 };
 
 class ContextManager; /* forward declaration for RequestCommand */
@@ -114,13 +113,16 @@ public:
     int32_t GetAckDataOnSuccessfullStart(uint32_t *size, void *data);
 };
 
-class UsecaseRawData :public Usecase
+class UsecasePCMData : public Usecase
 {
 private:
     std::vector<int32_t> tags;
+    uint32_t pcm_data_type;
 public:
-    UsecaseRawData(uint32_t usecase_id);
-    ~UsecaseRawData();
+    UsecasePCMData(uint32_t usecase_id);
+    ~UsecasePCMData();
+    int32_t SetUseCaseData(uint32_t size, void *data);
+    int32_t Configure();
 
     // caller can allocate sufficient memory the first time to avoid
     // calling this api twice. Size, will be updated to actual size;
@@ -230,6 +232,8 @@ public:
     static int32_t StreamProxyCallback(pal_stream_handle_t *stream_handle,
                                    uint32_t event_id, uint32_t *event_data,
                                    uint32_t event_size, uint64_t cookie);
+    int32_t ssrDownHandler();
+    int32_t ssrUpHandler();
     int32_t process_deregister_request(uint32_t see_id, uint32_t usecase_id);
     int32_t process_register_request(uint32_t see_id, uint32_t usecase, uint32_t payload_size,
         void *payload);

@@ -39,15 +39,25 @@
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
 
+std::condition_variable cvPause;
+
 static void handleSessionCallBack(uint64_t hdl, uint32_t event_id, void *data,
                                   uint32_t event_size)
 {
     Stream *s = NULL;
     pal_stream_callback cb;
-    s = reinterpret_cast<Stream *>(hdl);
-    if (s->getCallBack(&cb) == 0)
-       cb(reinterpret_cast<pal_stream_handle_t *>(s), event_id, (uint32_t *)data,
-          event_size, s->cookie);
+
+    PAL_DBG(LOG_TAG,"Event id %x ", event_id);
+    if (event_id == EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE) {
+        PAL_DBG(LOG_TAG,"Pause Done");
+        cvPause.notify_all();
+    }
+    else {
+        s = reinterpret_cast<Stream *>(hdl);
+        if (s->getCallBack(&cb) == 0)
+            cb(reinterpret_cast<pal_stream_handle_t *>(s), event_id, (uint32_t *)data,
+               event_size, s->cookie);
+    }
 }
 
 StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
@@ -120,7 +130,10 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        mStreamMutex.lock();
+
         if (isDeviceConfigUpdated)
             PAL_VERBOSE(LOG_TAG, "Device config updated");
 
@@ -128,8 +141,8 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
         //rm->registerDevice(dev);
         dev = nullptr;
     }
-    rm->registerStream(this);
     mStreamMutex.unlock();
+    rm->registerStream(this);
     PAL_VERBOSE(LOG_TAG,"exit, state %d", currentState);
 }
 
@@ -202,35 +215,33 @@ int32_t StreamCompress::close()
         }
         mStreamMutex.lock();
     }
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        PAL_ERR(LOG_TAG, "device %d name %s, going to close",
+    rm->lockGraph();
+    status = session->close(this);
+    rm->unlockGraph();
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"session close failed with status %d", status);
+    }
+
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        PAL_INFO(LOG_TAG, "device %d (%s), going to close",
             mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
         status = mDevices[i]->close();
-        PAL_ERR(LOG_TAG,"deregister\n");
         if (0 != status) {
             PAL_ERR(LOG_TAG,"device close failed with status %d", status);
         }
     }
     PAL_VERBOSE(LOG_TAG,"closed the devices successfully");
-    rm->lockGraph();
-    status = session->close(this);
-    rm->unlockGraph();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG,"session close failed with status %d",status);
-    }
-
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
-    rm->deregisterStream(this);
     PAL_DBG(LOG_TAG,"Exit status: %d",status);
     return status;
 }
 
 StreamCompress::~StreamCompress()
 {
-    mStreamMutex.lock();
     rm->resetStreamInstanceID(this);
+    rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
         mStreamAttr = (struct pal_stream_attributes *)NULL;
@@ -245,7 +256,6 @@ StreamCompress::~StreamCompress()
         delete session;
         session = nullptr;
     }
-    mStreamMutex.unlock();
 }
 
 int32_t StreamCompress::stop()
@@ -445,9 +455,10 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
                 return errno;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 return errno;
-            } else
+            } else {
                 status = errno;
                 return status;
+            }
         }
         if (currentState != STREAM_STARTED) {
             currentState = STREAM_STARTED;
@@ -578,28 +589,31 @@ exit:
     return status;
 }
 
+int32_t StreamCompress::mute_l(bool state)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK state %d", session, state);
+    status = session->setConfig(this, MODULE, state ? MUTE_TAG : UNMUTE_TAG);
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
 int32_t StreamCompress::mute(bool state)
 {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG,"Enter, session handle - %p", session);
-    
-    PAL_VERBOSE(LOG_TAG,"%s", state == TRUE ? "Mute" : "Unmute");
-    status = session->setConfig(this, MODULE, state == TRUE ? MUTE_TAG : UNMUTE_TAG);
+    mStreamMutex.lock();
+    status = mute_l(state);
+    mStreamMutex.unlock();
 
-    if (0 != status) {
-       PAL_ERR(LOG_TAG,"session setConfig for mute failed with status %d",status);
-       goto exit;
-    }
-    PAL_VERBOSE(LOG_TAG,"session mute successful");
-exit:
-    PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
 
 int32_t StreamCompress::pause()
 {
     int32_t status = 0;
+    std::unique_lock<std::mutex> pauseLock(pauseMutex);
 
     //AF will try to pause the stream during SSR.
     if (rm->cardState == CARD_STATUS_OFFLINE) {
@@ -617,7 +631,11 @@ int32_t StreamCompress::pause()
        PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
        goto exit;
     }
-    usleep(VOLUME_RAMP_PERIOD);
+    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+    if (session->isPauseRegistrationDone)
+        cvPause.wait(pauseLock);
+    else
+        usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
     currentState = STREAM_PAUSED;
     PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);

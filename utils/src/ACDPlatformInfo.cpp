@@ -280,8 +280,12 @@ void StreamConfig::HandleStartTag(const char* tag, const char** attribs) {
         }
     }  else if (!strcmp(tag, "low_power")) {
         ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER, attribs);
+    } else if (!strcmp(tag, "low_power_ns")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_LOW_POWER_NS, attribs);
     } else if (!strcmp(tag, "high_performance")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF, attribs);
+    } else if (!strcmp(tag, "high_performance_ns")) {
+        ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_NS, attribs);
     } else if (!strcmp(tag, "high_performance_and_charging")) {
         ReadCapProfileNames(ST_OPERATING_MODE_HIGH_PERF_AND_CHARGING, attribs);
     } else {
@@ -322,6 +326,7 @@ std::shared_ptr<ACDPlatformInfo> ACDPlatformInfo::me_ =
 ACDPlatformInfo::ACDPlatformInfo() :
     acd_enable_(true),
     support_device_switch_(false),
+    support_nlpi_switch_(true),
     dedicated_sva_path_(true),
     dedicated_headset_path_(false),
     lpi_enable_(true),
@@ -336,6 +341,10 @@ ACDPlatformInfo::ACDPlatformInfo() :
 
 bool ACDPlatformInfo::GetSupportDevSwitch() const {
     return support_device_switch_;
+}
+
+bool ACDPlatformInfo::GetSupportNLPISwitch() const {
+    return support_nlpi_switch_;
 }
 
 bool ACDPlatformInfo::GetDedicatedSvaPath() const {
@@ -443,6 +452,9 @@ void ACDPlatformInfo::HandleStartTag(const char* tag,
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "support_device_switch")) {
                 support_device_switch_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
+            } else if (!strcmp(attribs[i], "support_nlpi_switch")) {
+                support_nlpi_switch_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else if (!strcmp(attribs[i], "lpi_enable")) {
                 lpi_enable_ =

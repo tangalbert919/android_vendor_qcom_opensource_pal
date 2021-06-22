@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -53,13 +53,13 @@ public:
    int32_t setStreamAttributes( struct pal_stream_attributes *sattr) override;
    int32_t setVolume( struct pal_volume_data *volume) override;
    int32_t mute(bool state) override;
+   int32_t mute_l(bool state) override;
    int32_t pause() override;
    int32_t resume() override;
    int32_t flush();
    int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) override;
    int32_t read(struct pal_buffer *buf) override;
    int32_t write(struct pal_buffer *buf) override;
-   int32_t standby() override;
    int32_t registerCallBack(pal_stream_callback cb, uint64_t cookie) override;
    int32_t getCallBack(pal_stream_callback *cb) override;
    int32_t getParameters(uint32_t param_id, void **payload) override;

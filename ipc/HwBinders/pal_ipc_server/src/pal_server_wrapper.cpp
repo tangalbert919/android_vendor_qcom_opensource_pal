@@ -48,12 +48,12 @@ namespace implementation {
 void PalClientDeathRecipient::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
 {
-    ALOGD("%s : client died pid : %d",__func__,cookie);
+    ALOGD("%s : client died pid : %d", __func__, cookie);
     int pid = (int) cookie;
     typename std::vector<session_info>::iterator sess_iter;
     typename std::vector<client_info>::iterator client_iter;
-    for (client_iter = pal_instance_->mClients_.begin();
-           client_iter != pal_instance_->mClients_.end();
+    for (client_iter = mPalInstance->mPalClients.begin();
+           client_iter != mPalInstance->mPalClients.end();
            client_iter++) {
         struct client_info clnt = (*client_iter);
         if (clnt.pid == pid) {
@@ -73,7 +73,7 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
            }
            clnt.mActiveSessions.clear();
            if (clnt.mActiveSessions.empty())
-               pal_instance_->mClients_.erase(client_iter);
+               mPalInstance->mPalClients.erase(client_iter);
            break;
         }
     }
@@ -81,7 +81,7 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
 
 int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd)
 {
-    for (auto& s: mClients_) {
+    for (auto& s: mPalClients) {
         for (int i =0; i < s.mActiveSessions.size(); i++) {
              if (s.mActiveSessions[i].session_handle == streamHandle) {
                  for (int j=0; j < s.mActiveSessions[i].callback_binder->sharedMemFdList.size(); j++) {
@@ -102,7 +102,7 @@ int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, in
 void PAL::add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd)
 {
     std::vector<std::pair<int, int>>::iterator it;
-    for (auto& s: mClients_) {
+    for (auto& s: mPalClients) {
         for (int i =0; i < s.mActiveSessions.size(); i++) {
              if (s.mActiveSessions[i].session_handle == streamHandle) {
                  /*If number of FDs increase than the MAX Cache size we delete the oldest one
@@ -136,6 +136,11 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         native_handle_t *allocHidlHandle = nullptr;
 
         allocHidlHandle = native_handle_create(1, 1);
+        if (!allocHidlHandle) {
+            ALOGE("handle allocHidlHandle is NULL");
+            return -EINVAL;
+        }
+
         rw_done_payload = (struct pal_event_read_write_done_payload *)event_data;
         /*
          * Find the original fd that was passed by client based on what
@@ -291,6 +296,10 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     out_ch = attr_hidl.data()->out_media_config.ch_info.channels;
     attr = (struct pal_stream_attributes *)calloc(1,
                                           sizeof(struct pal_stream_attributes));
+    if (!attr) {
+        ALOGE("Not enough memory for attr\n");
+        return Void();
+    }
     attr->type = (pal_stream_type_t)attr_hidl.data()->type;
     attr->info.opt_stream_info.version = attr_hidl.data()->info.version;
     attr->info.opt_stream_info.size = attr_hidl.data()->info.size;
@@ -318,6 +327,10 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
         PalDevice *dev_hidl = NULL;
         devices = (struct pal_device *)calloc (1,
                                       sizeof(struct pal_device) * noOfDevices);
+        if (!devices) {
+            ALOGE("Not enough memory for devices\n");
+            return Void();
+        }
         dev_hidl = (PalDevice *)devs_hidl.data();
         for ( cnt = 0; cnt < noOfDevices; cnt++) {
              devices[cnt].id = (pal_device_id_t)dev_hidl->id;
@@ -334,6 +347,10 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     if (modskv_hidl.size()) {
         modifiers = (struct modifier_kv *)calloc(1,
                                    sizeof(struct modifier_kv) * noOfModifiers);
+        if (!modifiers) {
+            ALOGE("Not enough memory for modifiers\n");
+            return Void();
+        }
         memcpy(modifiers, modskv_hidl.data(),
                sizeof(struct modifier_kv) * noOfModifiers);
     }
@@ -344,7 +361,7 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
                           callback, (uint64_t)sr_clbk_data.get(), &stream_handle);
 
     if (!ret) {
-        for(auto& s: mClients_) {
+        for(auto& s: mPalClients) {
             if (s.pid == pid) {
                 /*Another session from the same client*/
                 ALOGI("Add session for same pid %d session %x", pid, (uint64_t)stream_handle);
@@ -366,7 +383,7 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
             session.callback_binder = sr_clbk_data;
             ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
             client.mActiveSessions.push_back(session);
-            mClients_.push_back(client);
+            mPalClients.push_back(client);
         }
     } else {
         /*stream_open failed, free the callback binder object*/
@@ -379,41 +396,38 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
 Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
 {
     int pid = ::android::hardware::IPCThreadState::self()->getCallingPid();
-    typename std::vector<session_info>::iterator sess_iter;
-    typename std::vector<client_info>::iterator client_iter;
-    for (client_iter = mClients_.begin();
-           client_iter != mClients_.end();
-           client_iter++) {
-        struct client_info clnt = (*client_iter);
-        if (clnt.pid == pid) {
-           for (sess_iter = clnt.mActiveSessions.begin();
-                 sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
-                if ((*sess_iter).session_handle == streamHandle) {
+    Return<int32_t> status = pal_stream_close((pal_stream_handle_t *)streamHandle);
+
+    for (auto itr = mPalClients.begin(); itr != mPalClients.end(); ) {
+        if (itr->pid == pid) {
+            auto sItr = itr->mActiveSessions.begin();
+            for (; sItr != itr->mActiveSessions.end(); sItr++) {
+                if (sItr->session_handle == streamHandle) {
                     /*close the shared mem fds dupped in PAL server context*/
-                    for (int j=0; j < (*sess_iter).callback_binder->sharedMemFdList.size(); j++) {
-                         close((*sess_iter).callback_binder->sharedMemFdList[j].second);
+                    for (int i=0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
+                         close(sItr->callback_binder->sharedMemFdList[i].second);
                     }
-                    ALOGV("Closing the session %x", streamHandle);
-                    (*sess_iter).callback_binder->sharedMemFdList.clear();
-                    (*sess_iter).callback_binder.clear();
+                    ALOGV("Closing the session %pK", streamHandle);
+                    sItr->callback_binder->sharedMemFdList.clear();
+                    sItr->callback_binder.clear();
                     break;
                 }
-           }
+            }
+            if (sItr != itr->mActiveSessions.end()) {
+                ALOGV("Delete session info %pK", sItr->session_handle);
+                itr->mActiveSessions.erase(sItr);
+            }
 
-           if (sess_iter != clnt.mActiveSessions.end()) {
-               ALOGV("Delete session info");
-               clnt.mActiveSessions.erase(sess_iter);
-           }
-
-           if (clnt.mActiveSessions.empty()) {
-               ALOGV("Delete client info");
-               mClients_.erase(client_iter);
-           }
-
-           break;
+            if (itr->mActiveSessions.empty()) {
+                ALOGV("Delete client info");
+                itr = mPalClients.erase(itr);
+            } else {
+                itr++;
+            }
+            break;
         }
     }
-    return pal_stream_close((pal_stream_handle_t *)streamHandle);
+    return status;
 }
 
 Return<int32_t> PAL::ipc_pal_stream_start(const uint64_t streamHandle) {
@@ -504,12 +518,20 @@ Return<int32_t> PAL::ipc_pal_stream_write(const uint64_t streamHandle,
     buf.size = (size_t)bufSize;
     buf.offset = (size_t)buff_hidl.data()->offset;
     buf.ts = (struct timespec *) calloc(1, sizeof(struct timespec));
+    if (!buf.ts) {
+        ALOGE("Not enough memory for buf.ts\n");
+        return -ENOMEM;
+    }
     buf.ts->tv_sec =  buff_hidl.data()->timeStamp.tvSec;
     buf.ts->tv_nsec = buff_hidl.data()->timeStamp.tvNSec;
     buf.flags = buff_hidl.data()->flags;
     if (buff_hidl.data()->metadataSz) {
         buf.metadata_size = buff_hidl.data()->metadataSz;
         buf.metadata = (uint8_t *)calloc(1, buf.metadata_size);
+        if (!buf.metadata) {
+            ALOGE("Not enough memory for buf.metadata\n");
+            return -ENOMEM;
+        }
         memcpy(buf.metadata, buff_hidl.data()->metadata.data(),
                buf.metadata_size);
     }
@@ -546,6 +568,10 @@ Return<void> PAL::ipc_pal_stream_read(const uint64_t streamHandle,
     buf.size = (size_t)bufSize;
     buf.metadata_size = inBuff_hidl.data()->metadataSz;
     buf.metadata = (uint8_t *)calloc(1, buf.metadata_size);
+    if (!buf.metadata) {
+        ALOGE("Not enough memory for buf.metadata\n");
+        return Void();
+    }
     const native_handle *allochandle = nullptr;
     int dupfd = -1;
 
@@ -590,6 +616,10 @@ Return<int32_t> PAL::ipc_pal_stream_set_param(const uint64_t streamHandle, uint3
     pal_param_payload *param_payload;
     param_payload = (pal_param_payload *)calloc (1,
                                     sizeof(pal_param_payload) + paramPayload.data()->size);
+    if (!param_payload) {
+        ALOGE("Not enough memory for param_payload\n");
+        return -ENOMEM;
+    }
     param_payload->payload_size = paramPayload.data()->size;
     memcpy(param_payload->payload, paramPayload.data()->payload.data(),
            param_payload->payload_size);
@@ -607,11 +637,11 @@ Return<void> PAL::ipc_pal_stream_get_param(const uint64_t streamHandle,
     hidl_vec<PalParamPayload> paramPayload;
     ret = pal_stream_get_param((pal_stream_handle_t *)streamHandle, paramId, &param_payload);
     if (ret == 0) {
-         paramPayload.resize(sizeof(PalParamPayload));
-         paramPayload.data()->payload.resize(param_payload->payload_size);
-         paramPayload.data()->size = param_payload->payload_size;
-         memcpy(paramPayload.data()->payload.data(), param_payload->payload,
-                param_payload->payload_size);
+        paramPayload.resize(sizeof(PalParamPayload));
+        paramPayload.data()->payload.resize(param_payload->payload_size);
+        paramPayload.data()->size = param_payload->payload_size;
+        memcpy(paramPayload.data()->payload.data(), param_payload->payload,
+               param_payload->payload_size);
     }
     _hidl_cb(ret, paramPayload);
     return Void();
@@ -635,17 +665,21 @@ Return<int32_t> PAL::ipc_pal_stream_set_device(const uint64_t streamHandle,
     if (devs_hidl.size()) {
         PalDevice *dev_hidl = NULL;
         devices = (struct pal_device *)calloc (1,
-                                      sizeof(struct pal_device) * noOfDevices);
+                                    sizeof(struct pal_device) * noOfDevices);
+        if (!devices) {
+            ALOGE("Not enough memory for devices\n");
+            return -ENOMEM;
+        }
         dev_hidl = (PalDevice *)devs_hidl.data();
         for (cnt = 0; cnt < noOfDevices; cnt++) {
-             devices[cnt].id = (pal_device_id_t)dev_hidl->id;
-             devices[cnt].config.sample_rate = dev_hidl->config.sample_rate;
-             devices[cnt].config.bit_width = dev_hidl->config.bit_width;
-             memcpy(&devices[cnt].config.ch_info, &dev_hidl->config.ch_info,
-                     sizeof(struct pal_channel_info));
-             devices[cnt].config.aud_fmt_id =
-                                  (pal_audio_fmt_t)dev_hidl->config.aud_fmt_id;
-             dev_hidl =  (PalDevice *)(dev_hidl + sizeof(PalDevice));
+            devices[cnt].id = (pal_device_id_t)dev_hidl->id;
+            devices[cnt].config.sample_rate = dev_hidl->config.sample_rate;
+            devices[cnt].config.bit_width = dev_hidl->config.bit_width;
+            memcpy(&devices[cnt].config.ch_info, &dev_hidl->config.ch_info,
+                   sizeof(struct pal_channel_info));
+            devices[cnt].config.aud_fmt_id =
+                                (pal_audio_fmt_t)dev_hidl->config.aud_fmt_id;
+            dev_hidl = (PalDevice *)(dev_hidl + sizeof(PalDevice));
         }
     }
 
@@ -656,69 +690,73 @@ Return<int32_t> PAL::ipc_pal_stream_set_device(const uint64_t streamHandle,
 Return<void> PAL::ipc_pal_stream_get_volume(const uint64_t streamHandle,
                                     ipc_pal_stream_get_volume_cb _hidl_cb)
 {
-     return Void();
+    return Void();
 }
 
 Return<int32_t> PAL::ipc_pal_stream_set_volume(const uint64_t streamHandle,
                                     const hidl_vec<PalVolumeData> &vol)
 {
-     struct pal_volume_data *volume;
-     uint32_t noOfVolPairs = vol.data()->noOfVolPairs;
-     volume = (struct pal_volume_data *) calloc(1,
-                                         sizeof(struct pal_volume_data) +
-                                         noOfVolPairs * sizeof(pal_channel_vol_kv));
-     memcpy(volume->volume_pair, vol.data()->volPair.data(),
+    struct pal_volume_data *volume;
+    uint32_t noOfVolPairs = vol.data()->noOfVolPairs;
+    volume = (struct pal_volume_data *) calloc(1,
+                                        sizeof(struct pal_volume_data) +
+                                        noOfVolPairs * sizeof(pal_channel_vol_kv));
+    if (!volume) {
+        ALOGE("Not enough memory for volume\n");
+        return -ENOMEM;
+    }
+    memcpy(volume->volume_pair, vol.data()->volPair.data(),
             noOfVolPairs * sizeof(pal_channel_vol_kv));
-     volume->no_of_volpair = noOfVolPairs;
-     return pal_stream_set_volume((pal_stream_handle_t *)streamHandle, volume);
+    volume->no_of_volpair = noOfVolPairs;
+    return pal_stream_set_volume((pal_stream_handle_t *)streamHandle, volume);
 }
 
 Return<void> PAL::ipc_pal_stream_get_mute(const uint64_t streamHandle,
                                     ipc_pal_stream_get_mute_cb _hidl_cb)
 {
 #if 0
-     int32_t ret = 0;
-     bool state;
-     ret = pal_stream_get_mute((pal_stream_handle_t *)streamHandle, &state);
-     _hidl_cb(ret, state);
+    int32_t ret = 0;
+    bool state;
+    ret = pal_stream_get_mute((pal_stream_handle_t *)streamHandle, &state);
+    _hidl_cb(ret, state);
 #endif
-     return Void();
+    return Void();
 }
 
 Return<int32_t> PAL::ipc_pal_stream_set_mute(const uint64_t streamHandle,
                                     bool state)
 {
-     return pal_stream_set_mute((pal_stream_handle_t *)streamHandle, state);
+    return pal_stream_set_mute((pal_stream_handle_t *)streamHandle, state);
 }
 
 Return<void> PAL::ipc_pal_get_mic_mute(ipc_pal_get_mic_mute_cb _hidl_cb)
 {
-     return Void();
+    return Void();
 }
 
 Return<int32_t> PAL::ipc_pal_set_mic_mute(bool state)
 {
-     return 0;
+    return 0;
 }
 
 Return<void> PAL::ipc_pal_get_timestamp(const uint64_t streamHandle,
                                    ipc_pal_get_timestamp_cb _hidl_cb)
 {
-     struct pal_session_time stime;
-     int32_t ret = 0;
-     hidl_vec<PalSessionTime> sessTime_hidl;
-     sessTime_hidl.resize(sizeof(struct pal_session_time));
-     ret = pal_get_timestamp((pal_stream_handle_t *)streamHandle, &stime);
-     memcpy(sessTime_hidl.data(), &stime, sizeof(struct pal_session_time));
-     _hidl_cb(ret, sessTime_hidl);
-     return Void();
+    struct pal_session_time stime;
+    int32_t ret = 0;
+    hidl_vec<PalSessionTime> sessTime_hidl;
+    sessTime_hidl.resize(sizeof(struct pal_session_time));
+    ret = pal_get_timestamp((pal_stream_handle_t *)streamHandle, &stime);
+    memcpy(sessTime_hidl.data(), &stime, sizeof(struct pal_session_time));
+    _hidl_cb(ret, sessTime_hidl);
+    return Void();
 }
 
 Return<int32_t> PAL::ipc_pal_add_remove_effect(const uint64_t streamHandle,
                                           const PalAudioEffect effect,
                                           bool enable)
 {
-     return pal_add_remove_effect((pal_stream_handle_t *)streamHandle,
+    return pal_add_remove_effect((pal_stream_handle_t *)streamHandle,
                                    (pal_audio_effect_t) effect, enable);
 }
 
@@ -728,6 +766,10 @@ Return<int32_t> PAL::ipc_pal_set_param(uint32_t paramId,
 {   uint32_t ret = -EINVAL;
     uint8_t *payLoad;
     payLoad = (uint8_t*) calloc (1, size);
+    if (!payLoad) {
+        ALOGE("Not enough memory for payLoad\n");
+        return -ENOMEM;
+    }
     memcpy(payLoad, payload_hidl.data(), size);
 
     ret = pal_set_param(paramId, (void *)payLoad, size);
@@ -743,6 +785,10 @@ Return<void> PAL::ipc_pal_get_param(uint32_t paramId,
     hidl_vec<uint8_t> payload_hidl;
     size_t sz;
     ret = pal_get_param(paramId, &payLoad, &sz, NULL);
+    if (!payLoad) {
+        ALOGE("Not enough memory for payLoad\n");
+        return Void();
+    }
     payload_hidl.resize(sz);
     memcpy(payload_hidl.data(), payLoad, sz);
     _hidl_cb(ret, payload_hidl, sz);
@@ -802,13 +848,18 @@ Return<void>PAL::ipc_pal_stream_get_tags_with_module_info(PalStreamHandle stream
     size_t sz = size;
     hidl_vec<uint8_t> payloadRet;
 
-    if (size > 0)
-       payload = (uint8_t *)calloc(1, size);
+    if (size > 0) {
+        payload = (uint8_t *)calloc(1, size);
+        if (!payload) {
+            ALOGE("Not enough memory for payload\n");
+            return Void();
+        }
+    }
 
     ret = pal_stream_get_tags_with_module_info((pal_stream_handle_t *)streamHandle, &sz, payload);
     if (!ret && (sz <= size)) {
-         payloadRet.resize(sz);
-         memcpy(payloadRet.data(), payload, sz);
+        payloadRet.resize(sz);
+        memcpy(payloadRet.data(), payload, sz);
     }
     _hidl_cb(ret, sz, payloadRet);
     free(payload);
@@ -818,8 +869,8 @@ Return<void>PAL::ipc_pal_stream_get_tags_with_module_info(PalStreamHandle stream
 
 
 IPAL* HIDL_FETCH_IPAL(const char* /* name */) {
-     ALOGV("%s");
-     return new PAL();
+    ALOGV("%s");
+    return new PAL();
 }
 
 }

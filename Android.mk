@@ -13,7 +13,7 @@ LOCAL_VENDOR_MODULE := true
 
 LOCAL_CFLAGS        := -D_ANDROID_
 LOCAL_CFLAGS        += -Wno-macro-redefined
-LOCAL_CFLAGS        += -Wall -Werror
+LOCAL_CFLAGS        += -Wall -Werror -Wno-unused-variable -Wno-unused-parameter
 LOCAL_CFLAGS        += -DCONFIG_GSL
 LOCAL_CFLAGS        += -D_GNU_SOURCE
 LOCAL_CFLAGS        += -DPAL_SP_TEMP_PATH=\"/data/vendor/audio/audio.cal\"
@@ -53,6 +53,7 @@ LOCAL_SRC_FILES := \
     stream/src/StreamCommon.cpp \
     stream/src/StreamContextProxy.cpp \
     stream/src/StreamUltraSound.cpp \
+    stream/src/StreamSensorPCMData.cpp\
     device/src/Headphone.cpp \
     device/src/USBAudio.cpp \
     device/src/Device.cpp \
@@ -68,6 +69,7 @@ LOCAL_SRC_FILES := \
     device/src/RTProxy.cpp \
     device/src/SpeakerProtection.cpp \
     device/src/FMDevice.cpp \
+    device/src/ExtEC.cpp \
     device/src/HapticsDev.cpp \
     device/src/UltrasoundDevice.cpp \
     session/src/Session.cpp \

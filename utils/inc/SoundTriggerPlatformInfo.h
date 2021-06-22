@@ -75,7 +75,8 @@ class SoundTriggerModuleInfo : public SoundTriggerXml {
 
     void HandleStartTag(const char *tag, const char **attribs) override;
 
-    uint32_t GetModelType() const { return model_type_; }
+    st_module_type_t GetModuleType() const { return module_type_; }
+    std::string GetModuleName() const { return module_name_; }
     uint32_t GetModuleTagId(st_param_id_type_t param_id) const {
         return module_tag_ids_[param_id];
     }
@@ -87,7 +88,8 @@ class SoundTriggerModuleInfo : public SoundTriggerXml {
     }
 
  private:
-    uint32_t model_type_;
+    st_module_type_t module_type_;
+    std::string module_name_;
     uint32_t module_tag_ids_[MAX_PARAM_IDS];
     uint32_t param_ids_[MAX_PARAM_IDS];
     std::pair<uint32_t, uint32_t> stream_config_;
@@ -124,6 +126,7 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t GetKwEndTolerance() const { return kw_end_tolerance_; }
     uint32_t GetDataBeforeKwStart() const { return data_before_kw_start_; }
     uint32_t GetDataAfterKwEnd() const { return data_after_kw_end_; }
+    st_module_type_t GetModuleType();
     std::shared_ptr<CaptureProfile> GetCaptureProfile(
         std::pair<StOperatingModes, StInputModes> mode_pair) const {
         return op_modes_.at(mode_pair);
@@ -132,11 +135,12 @@ class SoundModelConfig : public SoundTriggerXml {
         const listen_model_indicator_enum& sm_type) const;
     std::shared_ptr<SoundTriggerModuleInfo> GetSoundTriggerModuleInfo(
         const uint32_t type) const;
-
+    std::shared_ptr<SoundTriggerModuleInfo> GetSoundTriggerModuleInfo();
+    std::string GetModuleName();
+    std::string GetModuleName(st_module_type_t type);
     void HandleStartTag(const char *tag, const char **attribs)
         override;
     void HandleEndTag(struct xml_userdata *data, const char *tag) override;
-    std::pair<uint32_t,uint32_t> GetStreamConfig(uint32_t stream_type);
  private:
     /* reads capture profile names into member variables */
     void ReadCapProfileNames(StOperatingModes mode, const char* * attribs);
@@ -160,6 +164,7 @@ class SoundModelConfig : public SoundTriggerXml {
     std::shared_ptr<SoundTriggerXml> curr_child_;
     std::map<uint32_t, std::shared_ptr<SecondStageConfig>> ss_config_list_;
     std::map<uint32_t, std::shared_ptr<SoundTriggerModuleInfo>> st_module_info_list_;
+    std::map<UUID, std::shared_ptr<SoundTriggerModuleInfo>> sm_list_uuid_mod_info_;
 };
 
 class SoundTriggerPlatformInfo : public SoundTriggerXml {
@@ -172,6 +177,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool GetEnableFailureDetection() const {
         return enable_failure_detection_; }
     bool GetSupportDevSwitch() const { return support_device_switch_; }
+    bool GetSupportNLPISwitch() const { return support_nlpi_switch_; }
     bool GetTransitToNonLpiOnCharging() const {
         return transit_to_non_lpi_on_charging_;
     }
@@ -204,6 +210,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     uint32_t version_;
     bool enable_failure_detection_;
     bool support_device_switch_;
+    bool support_nlpi_switch_;
     bool transit_to_non_lpi_on_charging_;
     bool dedicated_sva_path_;
     bool dedicated_headset_path_;

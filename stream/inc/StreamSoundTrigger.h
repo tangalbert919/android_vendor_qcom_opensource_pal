@@ -123,6 +123,7 @@ class StreamSoundTrigger : public Stream {
 
     int32_t setVolume(struct pal_volume_data * volume __unused) { return 0; }
     int32_t mute(bool state __unused) override { return 0; }
+    int32_t mute_l(bool state __unused) override { return 0; }
     int32_t pause() override { return 0; }
     int32_t resume() override { return 0; }
 
@@ -595,5 +596,7 @@ class StreamSoundTrigger : public Stream {
     uint32_t model_id_;
     FILE *lab_fd_;
     bool rejection_notified_;
+    ChronoSteadyClock_t transit_start_time_;
+    ChronoSteadyClock_t transit_end_time_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

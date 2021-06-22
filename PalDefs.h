@@ -87,6 +87,7 @@ typedef enum {
     PAL_AUDIO_FMT_PCM_S24_3LE = 0x15,       /**<24 bit packed little endian PCM*/
     PAL_AUDIO_FMT_PCM_S24_LE = 0x16,        /**<24bit in 32bit word (LSB aligned) little endian PCM*/
     PAL_AUDIO_FMT_PCM_S32_LE = 0x17,        /**< 32bit little endian PCM*/
+    PAL_AUDIO_FMT_NON_PCM = 0xE0000000,     /* Internal Constant used for Non PCM format identification */
     PAL_AUDIO_FMT_COMPRESSED_RANGE_BEGIN = 0xF0000000,  /* Reserved for beginning of compressed codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_BEGIN   = 0xF0000F00,  /* Reserved for beginning of 3rd party codecs */
     PAL_AUDIO_FMT_COMPRESSED_EXTENDED_RANGE_END     = 0xF0000FFF,  /* Reserved for beginning of 3rd party codecs */
@@ -318,6 +319,7 @@ typedef enum {
 
 /** Audio Voip TX Effect enumeration */
 typedef enum {
+    PAL_AUDIO_EFFECT_NONE      = 0x0, /**< No audio effect ie., EC_OFF_NS_OFF*/
     PAL_AUDIO_EFFECT_EC        = 0x1, /**< Echo Cancellation ie., EC_ON_NS_OFF*/
     PAL_AUDIO_EFFECT_NS        = 0x2, /**< Noise Suppression ie., NS_ON_EC_OFF*/
     PAL_AUDIO_EFFECT_ECNS      = 0x3, /**< EC + NS*/
@@ -349,7 +351,7 @@ typedef enum {
     PAL_STREAM_HAPTICS = 22,              /**< Haptics Stream */
     PAL_STREAM_ACD = 23,                  /**< ACD Stream */
     PAL_STREAM_CONTEXT_PROXY = 24,        /**< Context Proxy Stream */
-    PAL_STREAM_CONTEXT_RAWDATA = 25,      /**< Context Raw Data Stream */
+    PAL_STREAM_SENSOR_PCM_DATA = 25,      /**< Sensor Pcm Data Stream */
     PAL_STREAM_ULTRASOUND = 26,           /**< Ultrasound Proximity detection */
     PAL_STREAM_MAX,                       /**< max stream types - add new ones above */
 } pal_stream_type_t;
@@ -401,9 +403,31 @@ typedef enum {
     PAL_DEVICE_IN_VI_FEEDBACK = PAL_DEVICE_IN_MIN + 17,
     PAL_DEVICE_IN_TELEPHONY_RX = PAL_DEVICE_IN_MIN + 18,
     PAL_DEVICE_IN_ULTRASOUND_MIC = PAL_DEVICE_IN_MIN +19,
+    PAL_DEVICE_IN_EXT_EC_REF = PAL_DEVICE_IN_MIN + 20,
     // Add new IN devices here, increment MAX and MIN below when you do so
-    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 20,
+    PAL_DEVICE_IN_MAX = PAL_DEVICE_IN_MIN + 21,
 } pal_device_id_t;
+
+typedef enum {
+    VOICEMMODE1 = 0x11C05000,
+    VOICEMMODE2 = 0x11DC5000,
+    VOICELBMMODE1 = 0x12006000,
+    VOICELBMMODE2 = 0x121C6000,
+} pal_VSID_t;
+
+typedef enum {
+    PAL_STREAM_LOOPBACK_PCM,
+    PAL_STREAM_LOOPBACK_HFP_RX,
+    PAL_STREAM_LOOPBACK_HFP_TX,
+    PAL_STREAM_LOOPBACK_COMPRESS,
+    PAL_STREAM_LOOPBACK_FM,
+} pal_stream_loopback_type_t;
+
+typedef enum {
+    PAL_STREAM_PROXY_TX_VISUALIZER,
+    PAL_STREAM_PROXY_TX_WFD,
+    PAL_STREAM_PROXY_TX_TELEPHONY_RX,
+} pal_stream_proxy_tx_type_t;
 
 #ifdef __cplusplus
 static const std::map<std::string, pal_device_id_t> deviceIdLUT {
@@ -448,6 +472,7 @@ static const std::map<std::string, pal_device_id_t> deviceIdLUT {
     {std::string{ "PAL_DEVICE_IN_VI_FEEDBACK" },           PAL_DEVICE_IN_VI_FEEDBACK},
     {std::string{ "PAL_DEVICE_IN_TELEPHONY_RX" },          PAL_DEVICE_IN_TELEPHONY_RX},
     {std::string{ "PAL_DEVICE_IN_ULTRASOUND_MIC" },        PAL_DEVICE_IN_ULTRASOUND_MIC},
+    {std::string{ "PAL_DEVICE_IN_EXT_EC_REF" },            PAL_DEVICE_IN_EXT_EC_REF},
 };
 
 //reverse mapping
@@ -492,8 +517,82 @@ static const std::map<uint32_t, std::string> deviceNameLUT {
     {PAL_DEVICE_IN_HEADSET_VA_MIC,        std::string{"PAL_DEVICE_IN_HEADSET_VA_MIC"}},
     {PAL_DEVICE_IN_VI_FEEDBACK,           std::string{"PAL_DEVICE_IN_VI_FEEDBACK"}},
     {PAL_DEVICE_IN_TELEPHONY_RX,          std::string{"PAL_DEVICE_IN_TELEPHONY_RX"}},
-    {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}}
+    {PAL_DEVICE_IN_ULTRASOUND_MIC,        std::string{"PAL_DEVICE_IN_ULTRASOUND_MIC"}},
+    {PAL_DEVICE_IN_EXT_EC_REF,            std::string{"PAL_DEVICE_IN_EXT_EC_REF"}}
 };
+
+const std::map<std::string, uint32_t> usecaseIdLUT {
+    {std::string{ "PAL_STREAM_LOW_LATENCY" },              PAL_STREAM_LOW_LATENCY},
+    {std::string{ "PAL_STREAM_DEEP_BUFFER" },              PAL_STREAM_DEEP_BUFFER},
+    {std::string{ "PAL_STREAM_COMPRESSED" },               PAL_STREAM_COMPRESSED},
+    {std::string{ "PAL_STREAM_VOIP" },                     PAL_STREAM_VOIP},
+    {std::string{ "PAL_STREAM_VOIP_RX" },                  PAL_STREAM_VOIP_RX},
+    {std::string{ "PAL_STREAM_VOIP_TX" },                  PAL_STREAM_VOIP_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" },         PAL_STREAM_VOICE_CALL_MUSIC},
+    {std::string{ "PAL_STREAM_GENERIC" },                  PAL_STREAM_GENERIC},
+    {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
+    {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
+    {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
+    {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
+    {std::string{ "PAL_STREAM_VOICE_CALL" },               PAL_STREAM_VOICE_CALL},
+    {std::string{ "PAL_STREAM_LOOPBACK" },                 PAL_STREAM_LOOPBACK},
+    {std::string{ "PAL_STREAM_TRANSCODE" },                PAL_STREAM_TRANSCODE},
+    {std::string{ "PAL_STREAM_VOICE_UI" },                 PAL_STREAM_VOICE_UI},
+    {std::string{ "PAL_STREAM_PCM_OFFLOAD" },              PAL_STREAM_PCM_OFFLOAD},
+    {std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" },        PAL_STREAM_ULTRA_LOW_LATENCY},
+    {std::string{ "PAL_STREAM_PROXY" },                    PAL_STREAM_PROXY},
+    {std::string{ "PAL_STREAM_NON_TUNNEL" },               PAL_STREAM_NON_TUNNEL},
+    {std::string{ "PAL_STREAM_HAPTICS" },                  PAL_STREAM_HAPTICS},
+    {std::string{ "PAL_STREAM_ACD" },                      PAL_STREAM_ACD},
+    {std::string{ "PAL_STREAM_ULTRASOUND" },               PAL_STREAM_ULTRASOUND},
+    {std::string{ "PAL_STREAM_SENSOR_PCM_DATA" },          PAL_STREAM_SENSOR_PCM_DATA},
+};
+
+/* Update the reverse mapping as well when new stream is added */
+const std::map<uint32_t, std::string> streamNameLUT {
+    {PAL_STREAM_LOW_LATENCY,        std::string{ "PAL_STREAM_LOW_LATENCY" } },
+    {PAL_STREAM_DEEP_BUFFER,        std::string{ "PAL_STREAM_DEEP_BUFFER" } },
+    {PAL_STREAM_COMPRESSED,         std::string{ "PAL_STREAM_COMPRESSED" } },
+    {PAL_STREAM_VOIP,               std::string{ "PAL_STREAM_VOIP" } },
+    {PAL_STREAM_VOIP_RX,            std::string{ "PAL_STREAM_VOIP_RX" } },
+    {PAL_STREAM_VOIP_TX,            std::string{ "PAL_STREAM_VOIP_TX" } },
+    {PAL_STREAM_VOICE_CALL_MUSIC,   std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" } },
+    {PAL_STREAM_GENERIC,            std::string{ "PAL_STREAM_GENERIC" } },
+    {PAL_STREAM_RAW,                std::string{ "PAL_STREAM_RAW" } },
+    {PAL_STREAM_VOICE_ACTIVATION,   std::string{ "PAL_STREAM_VOICE_ACTIVATION" } },
+    {PAL_STREAM_VOICE_CALL_RECORD,  std::string{ "PAL_STREAM_VOICE_CALL_RECORD" } },
+    {PAL_STREAM_VOICE_CALL_TX,      std::string{ "PAL_STREAM_VOICE_CALL_TX" } },
+    {PAL_STREAM_VOICE_CALL_RX_TX,   std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" } },
+    {PAL_STREAM_VOICE_CALL,         std::string{ "PAL_STREAM_VOICE_CALL" } },
+    {PAL_STREAM_LOOPBACK,           std::string{ "PAL_STREAM_LOOPBACK" } },
+    {PAL_STREAM_TRANSCODE,          std::string{ "PAL_STREAM_TRANSCODE" } },
+    {PAL_STREAM_VOICE_UI,           std::string{ "PAL_STREAM_VOICE_UI" } },
+    {PAL_STREAM_PCM_OFFLOAD,        std::string{ "PAL_STREAM_PCM_OFFLOAD" } },
+    {PAL_STREAM_ULTRA_LOW_LATENCY,  std::string{ "PAL_STREAM_ULTRA_LOW_LATENCY" } },
+    {PAL_STREAM_PROXY,              std::string{ "PAL_STREAM_PROXY" } },
+    {PAL_STREAM_NON_TUNNEL,         std::string{ "PAL_STREAM_NON_TUNNEL" } },
+    {PAL_STREAM_HAPTICS,            std::string{ "PAL_STREAM_HAPTICS" } },
+    {PAL_STREAM_ACD,                std::string{ "PAL_STREAM_ACD" } },
+    {PAL_STREAM_ULTRASOUND,         std::string{ "PAL_STREAM_ULTRASOUND" } },
+    {PAL_STREAM_SENSOR_PCM_DATA,    std::string{ "PAL_STREAM_SENSOR_PCM_DATA" } },
+};
+
+const std::map<uint32_t, std::string> vsidLUT {
+    {VOICEMMODE1,    std::string{ "VOICEMMODE1" } },
+    {VOICEMMODE2,    std::string{ "VOICEMMODE2" } },
+    {VOICELBMMODE1,  std::string{ "VOICELBMMODE1" } },
+    {VOICELBMMODE2,  std::string{ "VOICELBMMODE2" } },
+};
+
+const std::map<uint32_t, std::string> loopbackLUT {
+    {PAL_STREAM_LOOPBACK_PCM,        std::string{ "PAL_STREAM_LOOPBACK_PCM" } },
+    {PAL_STREAM_LOOPBACK_HFP_RX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_RX" } },
+    {PAL_STREAM_LOOPBACK_HFP_TX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
+    {PAL_STREAM_LOOPBACK_COMPRESS,   std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
+    {PAL_STREAM_LOOPBACK_FM,         std::string{ "PAL_STREAM_LOOPBACK_FM" } },
+};
+
 #endif
 
 
@@ -510,20 +609,6 @@ typedef enum {
 typedef enum {
     PAL_SND_CARD_STATE,
 } pal_global_callback_event_t;
-
-typedef enum {
-    PAL_STREAM_LOOPBACK_PCM,
-    PAL_STREAM_LOOPBACK_HFP_RX,
-    PAL_STREAM_LOOPBACK_HFP_TX,
-    PAL_STREAM_LOOPBACK_COMPRESS,
-    PAL_STREAM_LOOPBACK_FM
-} pal_stream_loopback_type_t;
-
-typedef enum {
-    PAL_STREAM_PROXY_TX_VISUALIZER,
-    PAL_STREAM_PROXY_TX_WFD,
-    PAL_STREAM_PROXY_TX_TELEPHONY_RX,
-} pal_stream_proxy_tx_type_t;
 
 struct pal_stream_info {
     int64_t version;                    /** version of structure*/
@@ -553,13 +638,6 @@ struct pal_voice_call_info {
      uint32_t VSID;
      uint32_t tty_mode;
 };
-
-typedef enum {
-    VOICEMMODE1 = 0x11C05000,
-    VOICEMMODE2 = 0x11DC5000,
-    VOICELBMMODE1 = 0x12006000,
-    VOICELBMMODE2 = 0x121C6000,
-} pal_VSID_t;
 
 typedef enum {
     PAL_TTY_OFF = 0,
@@ -780,6 +858,9 @@ typedef enum {
     PAL_PARAM_ID_CUSTOM_CONFIGURATION = 43,
     PAL_PARAM_ID_KW_TRANSFER_LATENCY = 44,
     PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH = 45,
+    PAL_PARAM_ID_BT_SCO_LC3 = 46,
+    PAL_PARAM_ID_DEVICE_MUTE = 47,
+    PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -892,10 +973,53 @@ typedef struct pal_param_device_rotation {
 /* Payload For ID: PAL_PARAM_ID_BT_SCO*
  * Description   : BT SCO related device parameters
 */
+static const char* lc3_reserved_params[] = {
+    "StreamMap",
+    "Codec",
+    "FrameDuration",
+    "rxconfig_index",
+    "txconfig_index",
+    "version",
+    "Blocks_forSDU",
+};
+
+enum {
+    LC3_STREAM_MAP_BIT     = 0x1,
+    LC3_CODEC_BIT          = 0x1 << 1,
+    LC3_FRAME_DURATION_BIT = 0x1 << 2,
+    LC3_RXCFG_IDX_BIT      = 0x1 << 3,
+    LC3_TXCFG_IDX_BIT      = 0x1 << 4,
+    LC3_VERSION_BIT        = 0x1 << 5,
+    LC3_BLOCKS_FORSDU_BIT  = 0x1 << 6,
+    LC3_BIT_ALL            = LC3_STREAM_MAP_BIT |
+                             LC3_CODEC_BIT |
+                             LC3_FRAME_DURATION_BIT |
+                             LC3_RXCFG_IDX_BIT |
+                             LC3_TXCFG_IDX_BIT |
+                             LC3_VERSION_BIT |
+                             LC3_BLOCKS_FORSDU_BIT,
+    LC3_BIT_MASK           = LC3_BIT_ALL,
+    LC3_BIT_VALID          = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+};
+
+/* max length of streamMap string, up to 16 stream id supported */
+#define PAL_LC3_MAX_STRING_LEN 200
+typedef struct btsco_lc3_cfg {
+    uint32_t fields_map;
+    uint32_t rxconfig_index;
+    uint32_t txconfig_index;
+    uint32_t api_version;
+    uint32_t frame_duration;
+    uint32_t num_blocks;
+    char streamMap[PAL_LC3_MAX_STRING_LEN];
+} btsco_lc3_cfg_t;
+
 typedef struct pal_param_btsco {
-    bool     bt_sco_on;
-    bool     bt_wb_speech_enabled;
-    int      bt_swb_speech_mode;
+    bool   bt_sco_on;
+    bool   bt_wb_speech_enabled;
+    int    bt_swb_speech_mode;
+    bool   bt_lc3_speech_enabled;
+    btsco_lc3_cfg_t lc3_cfg;
 } pal_param_btsco_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_A2DP*
@@ -910,6 +1034,10 @@ typedef struct pal_param_bta2dp {
     bool     is_force_switch;
     uint32_t latency;
 } pal_param_bta2dp_t;
+
+typedef struct pal_param_upd_event_detection {
+    bool     register_status;
+} pal_param_upd_event_detection_t;
 
 typedef struct pal_bt_tws_payload_s {
     bool isTwsMonoModeOn;
@@ -1174,6 +1302,11 @@ struct pal_compr_gapless_mdata {
        uint32_t encoderDelay;
        uint32_t encoderPadding;
 };
+
+typedef struct pal_device_mute_t {
+    pal_stream_direction_t dir;
+    bool mute;
+}pal_device_mute_t;
 
 /**
  * Event payload passed to client with PAL_STREAM_CBK_EVENT_READ_DONE and
