@@ -3772,7 +3772,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg2);
             TransitTo(ST_STATE_SSR);
-            rm->releaseWakeLock();
             break;
         }
         case ST_EV_EC_REF: {
@@ -4053,7 +4052,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg3);
             TransitTo(ST_STATE_SSR);
-            rm->releaseWakeLock();
             break;
         }
         case ST_EV_EC_REF: {

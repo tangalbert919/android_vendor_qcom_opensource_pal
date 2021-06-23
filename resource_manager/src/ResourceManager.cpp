@@ -793,7 +793,7 @@ void ResourceManager::releaseWakeLock() {
     }
 
     PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
-    if (--wake_lock_cnt == 0) {
+    if (wake_lock_cnt > 0 && --wake_lock_cnt == 0) {
         PAL_INFO(LOG_TAG, "Releasing wake lock %s", WAKE_LOCK_NAME);
         ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
         if (ret < 0)
@@ -801,8 +801,6 @@ void ResourceManager::releaseWakeLock() {
                 ret, strerror(errno));
     }
 
-    if (wake_lock_cnt < 0)
-        wake_lock_cnt = 0;
 exit:
      mResourceManagerMutex.unlock();
 }
