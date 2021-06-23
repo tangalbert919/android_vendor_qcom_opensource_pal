@@ -805,6 +805,7 @@
             <param mmap_enable="false" />
             <param mmap_buffer_duration="5000" />
             <param mmap_frame_length="5" /> <!-- 5ms duration of data -->
+            <param sound_model_lib="liblistensoundmodel2.so" /> <!-- sound model lib name -->
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">

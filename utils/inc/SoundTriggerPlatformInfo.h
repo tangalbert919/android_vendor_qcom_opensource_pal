@@ -174,6 +174,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
          delete;
 
     static std::shared_ptr<SoundTriggerPlatformInfo> GetInstance();
+    std::string GetSoundModelLib() const { return sound_model_lib_; }
     bool GetEnableFailureDetection() const {
         return enable_failure_detection_; }
     bool GetSupportDevSwitch() const { return support_device_switch_; }
@@ -224,6 +225,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
     bool mmap_enable_;
     uint32_t mmap_buffer_duration_;
     uint32_t mmap_frame_length_;
+    std::string sound_model_lib_;
     std::map<UUID, std::shared_ptr<SoundModelConfig>> sound_model_cfg_list_;
     st_cap_profile_map_t capture_profile_map_;
     std::shared_ptr<SoundTriggerXml> curr_child_;
