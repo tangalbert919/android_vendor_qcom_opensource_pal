@@ -6680,6 +6680,10 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                        PAL_ERR(LOG_TAG,"setParameters Failed");
                        goto error;
                     }
+                    /** As we are configuring MFC on DevicePP, so handling device rotation
+                     * for first stream will handle it for all other streams.
+                     */
+                    break;
                 }
             }
             //As we got the speaker and it is reversed. No need to further
