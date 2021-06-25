@@ -253,7 +253,8 @@ public:
     static int getBtDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV,
         uint32_t codecFormat, bool isAbrEnabled, bool isHostless);
     static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
-    static bool isBtA2DPDevice(int32_t beDevId);
+    static bool isBtDevice(int32_t beDevId);
+    static bool compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2);
     PayloadBuilder();
     ~PayloadBuilder();
 };
