@@ -3185,6 +3185,8 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         return status;
     }
 
+    SoundTriggerCaptureProfile = nullptr;
+
     if (is_sva_ds_supported)
         cap_prof_priority = GetSVACaptureProfileByPriority(nullptr, cap_prof_priority);
 
