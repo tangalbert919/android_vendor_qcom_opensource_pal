@@ -544,7 +544,8 @@ void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
 
 pal_device_id_t StreamACD::GetAvailCaptureDevice()
 {
-    if (rm->isDeviceAvailable(PAL_DEVICE_IN_WIRED_HEADSET))
+    if (acd_info_->GetSupportDevSwitch() &&
+        rm->isDeviceAvailable(PAL_DEVICE_IN_WIRED_HEADSET))
         return PAL_DEVICE_IN_HEADSET_VA_MIC;
     else
         return PAL_DEVICE_IN_HANDSET_VA_MIC;
