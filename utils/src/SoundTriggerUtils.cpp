@@ -32,6 +32,7 @@
 #include <memory>
 #include <algorithm>
 #include "PalCommon.h"
+#include "SoundTriggerPlatformInfo.h"
 #include "SoundTriggerUtils.h"
 
 #define LOG_TAG "PAL: SoundTriggerUtils"
@@ -145,8 +146,24 @@ SoundModelLib::SoundModelLib() :
     DeleteFromModel_(nullptr)
 {
     int32_t status = 0;
+    std::string sml_lib;
+    std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
 
-    sml_lib_handle_ = dlopen(SML_LIB, RTLD_NOW);
+    st_info = SoundTriggerPlatformInfo::GetInstance();
+    if (!st_info) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to get sound trigger info instance");
+        goto exit;
+    }
+
+    sml_lib = st_info->GetSoundModelLib();
+    if (sml_lib.empty()) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "failed to get sound model lib name");
+        goto exit;
+    }
+
+    sml_lib_handle_ = dlopen(sml_lib.c_str(), RTLD_NOW);
     if (!sml_lib_handle_) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG,  "failed to open SML so = %s", dlerror());
