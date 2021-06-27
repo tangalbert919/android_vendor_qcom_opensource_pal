@@ -35,6 +35,7 @@
 #include "ResourceManager.h"
 #include "Device.h"
 #include <unistd.h>
+#include <chrono>
 
 #define COMPRESS_OFFLOAD_FRAGMENT_SIZE (32 * 1024)
 #define COMPRESS_OFFLOAD_NUM_FRAGMENTS 4
@@ -633,7 +634,7 @@ int32_t StreamCompress::pause()
     }
     PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
     if (session->isPauseRegistrationDone)
-        cvPause.wait(pauseLock);
+        cvPause.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
     else
         usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;
