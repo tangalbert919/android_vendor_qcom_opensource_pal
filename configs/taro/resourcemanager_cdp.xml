@@ -507,6 +507,15 @@
                 </policies>
         </in_stream>
         <in_stream>
+            <name>PAL_STREAM_ACD</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
             <name>PAL_STREAM_PROXY</name>
                 <policies>
                     <ec_ref>
