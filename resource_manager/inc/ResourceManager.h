@@ -66,6 +66,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
 #define AUDIO_PARAMETER_KEY_HIFI_FILTER "hifi_filter"
 #define AUDIO_PARAMETER_KEY_LPI_LOGGING "lpi_logging_enable"
+#define AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE "upd_dedicated_be"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
@@ -457,6 +458,8 @@ public:
     uint32_t num_proxy_channels = 0;
     /* Flag to store the state of VI record */
     static bool isVIRecordStarted;
+    /* Flag to indicate if shared backend is enabled for UPD */
+    static bool isUpdDedicatedBeEnabled;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -574,6 +577,7 @@ public:
     bool IsVoiceCallConcurrencySupported(pal_stream_type_t type);
     bool IsVoipConcurrencySupported(pal_stream_type_t type);
     bool IsTransitToNonLPIOnChargingSupported();
+    bool IsDedicatedBEForUPDEnabled();
     void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
@@ -632,6 +636,7 @@ public:
     static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
     static int setContextManagerEnableParam(struct str_parms *parms,char *value, int len);
     static int setLpiLoggingParams(struct str_parms *parms, char *value, int len);
+    static int setUpdDedicatedBeEnableParam(struct str_parms *parms,char *value, int len);
     static bool isLpiLoggingEnabled();
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);

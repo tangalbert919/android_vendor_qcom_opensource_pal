@@ -371,6 +371,7 @@ bool ResourceManager::isGaplessEnabled = false;
 bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
+bool ResourceManager::isUpdDedicatedBeEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -2752,6 +2753,11 @@ bool ResourceManager::IsLPISupported(pal_stream_type_t type) {
             break;
     }
     return false;
+}
+
+bool ResourceManager::IsDedicatedBEForUPDEnabled()
+{
+    return ResourceManager::isUpdDedicatedBeEnabled;
 }
 
 // this should only be called when LPI supported by platform
@@ -5457,6 +5463,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     ret = setContextManagerEnableParam(parms, value, len);
 
+    ret = setUpdDedicatedBeEnableParam(parms, value, len);
+
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
 
@@ -5527,6 +5535,28 @@ int ResourceManager::setContextManagerEnableParam(struct str_parms *parms,
     return ret;
 }
 
+int ResourceManager::setUpdDedicatedBeEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE,
+                            value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            ResourceManager::isUpdDedicatedBeEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE);
+    }
+
+    return ret;
+
+}
 
 int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                                           char *value, int len)
