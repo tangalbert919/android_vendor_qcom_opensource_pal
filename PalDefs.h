@@ -861,6 +861,7 @@ typedef enum {
     PAL_PARAM_ID_BT_SCO_LC3 = 46,
     PAL_PARAM_ID_DEVICE_MUTE = 47,
     PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
+    PAL_PARAM_ID_SP_GET_CAL = 49,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
