@@ -3556,11 +3556,15 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
      * Generally voip/voice rx stream comes with related tx streams,
      * so there's no need to switch to NLPI for voip/voice rx stream
      * if corresponding voip/voice tx stream concurrency is not supported.
+     * Also note that capture concurrency has highest proirity that
+     * when capture concurrency is disabled then concurrency for voip
+     * and voice call should also be disabled even voice_conc_enable
+     * or voip_conc_enable is set to true.
      */
     if (in_type == PAL_STREAM_VOICE_CALL) {
         *tx_conc = true;
         *rx_conc = true;
-        if (!voice_conc_enable) {
+        if (!audio_capture_conc_enable || !voice_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
             *conc_en = false;
         }
@@ -3569,7 +3573,7 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
                in_type == PAL_STREAM_VOIP) {
         *tx_conc = true;
         *rx_conc = true;
-        if (!voip_conc_enable) {
+        if (!audio_capture_conc_enable || !voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
             *conc_en = false;
         }

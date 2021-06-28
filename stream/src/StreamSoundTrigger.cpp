@@ -3212,7 +3212,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            if (st_stream_.isActive()) {
+            if (st_stream_.isActive() && !st_stream_.paused_) {
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device %d start failed with status %d",
@@ -3229,7 +3229,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-            } else if (st_stream_.isActive()) {
+            } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
                 TransitTo(ST_STATE_ACTIVE);
             }
