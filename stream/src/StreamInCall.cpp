@@ -187,7 +187,9 @@ int32_t  StreamInCall::close()
         PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
         goto exit;
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
         status = stop();
+        mStreamMutex.lock();
         if (0 != status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
     }
