@@ -56,6 +56,7 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isConfigured(false),
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
+      isScramblingEnabled(false),
       isDummySink(false),
       abrRefCnt(0),
       totalActiveSessionRequests(0)
@@ -479,6 +480,20 @@ int Bluetooth::configureA2dpEncoderDecoder()
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid COP module param size");
             goto error;
+        }
+
+        if (isScramblingEnabled) {
+            builder->payloadScramblingConfig(&paramData, &paramSize, copMiid, isScramblingEnabled);
+            if (paramSize) {
+                dev->updateCustomPayload(paramData, paramSize);
+                delete [] paramData;
+                paramData = NULL;
+                paramSize = 0;
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid COP module param size");
+                goto error;
+            }
         }
     }
 
@@ -926,6 +941,7 @@ audio_sink_stop_t BtA2dp::audio_sink_stop = nullptr;
 audio_get_dec_config_t BtA2dp::audio_get_dec_config = nullptr;
 audio_sink_session_setup_complete_t BtA2dp::audio_sink_session_setup_complete = nullptr;
 audio_sink_check_a2dp_ready_t BtA2dp::audio_sink_check_a2dp_ready = nullptr;
+audio_is_scrambling_enabled_t BtA2dp::audio_is_scrambling_enabled = nullptr;
 
 
 BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
@@ -1033,6 +1049,8 @@ void BtA2dp::init_a2dp_source()
                   dlsym(bt_lib_source_handle, "audio_sink_get_a2dp_latency");
     audio_is_tws_mono_mode_enable = (audio_is_tws_mono_mode_enable_t)
                   dlsym(bt_lib_source_handle, "isTwsMonomodeEnable");
+    audio_is_scrambling_enabled = (audio_is_scrambling_enabled_t)
+                  dlsym(bt_lib_source_handle, "audio_is_scrambling_enabled");
 
     if (bt_lib_source_handle && bt_audio_pre_init) {
         PAL_DBG(LOG_TAG, "calling BT module preinit");
@@ -1193,6 +1211,10 @@ int BtA2dp::startPlayback()
         if (codecFormat == CODEC_TYPE_APTX_DUAL_MONO && audio_is_tws_mono_mode_enable)
             isTwsMonoModeOn = audio_is_tws_mono_mode_enable();
 
+        if (audio_is_scrambling_enabled)
+            isScramblingEnabled = audio_is_scrambling_enabled();
+        PAL_INFO(LOG_TAG, "isScramblingEnabled = %d", isScramblingEnabled);
+
         /* Update Device GKV based on Encoder type */
         updateDeviceMetadata();
         ret = configureA2dpEncoderDecoder();
@@ -1246,6 +1268,7 @@ int BtA2dp::stopPlayback()
         if (!param_bt_a2dp.a2dp_suspended) {
             isTwsMonoModeOn = false;
             isLC3MonoModeOn = false;
+            isScramblingEnabled = false;
         }
 
         if (pluginCodec) {

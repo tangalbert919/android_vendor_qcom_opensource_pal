@@ -1296,6 +1296,43 @@ void PayloadBuilder::payloadCopPackConfig(uint8_t** payload, size_t* size,
                 *size);
 }
 
+void PayloadBuilder::payloadScramblingConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, uint32_t enable)
+{
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_cop_pack_enable_scrambling_t *copPack  = NULL;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_cop_pack_enable_scrambling_t);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo alloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    copPack = (struct param_id_cop_pack_enable_scrambling_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_COP_PACKETIZER_ENABLE_SCRAMBLING;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    PAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    copPack->enable_scrambler = enable;
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    PAL_DBG(LOG_TAG, "enable_scrambler:%d", copPack->enable_scrambler);
+    PAL_VERBOSE(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
+                *size);
+}
+
 void PayloadBuilder::payloadCopV2PackConfig(uint8_t** payload, size_t* size,
         uint32_t miid, void *codecInfo)
 {
