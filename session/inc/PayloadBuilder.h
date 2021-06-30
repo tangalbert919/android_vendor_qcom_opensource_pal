@@ -201,7 +201,7 @@ public:
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
     void payloadPcmCnvConfig(uint8_t** payload, size_t* size, uint32_t miid,
-                             struct pal_media_config *data);
+                             struct pal_media_config *data, bool isRx);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
     void payloadCopV2DepackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data,
