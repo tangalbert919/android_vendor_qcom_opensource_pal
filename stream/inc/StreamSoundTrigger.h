@@ -598,5 +598,7 @@ class StreamSoundTrigger : public Stream {
     bool rejection_notified_;
     ChronoSteadyClock_t transit_start_time_;
     ChronoSteadyClock_t transit_end_time_;
+    // set to true only when mutex is not locked after callback
+    bool mutex_unlocked_after_cb_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

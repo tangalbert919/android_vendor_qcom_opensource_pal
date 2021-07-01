@@ -80,6 +80,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     st_conf_levels_v2_ = nullptr;
     lab_fd_ = nullptr;
     rejection_notified_ = false;
+    mutex_unlocked_after_cb_ = false;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -778,8 +779,10 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     } while (!lock_status && (GetCurrentStateId() == ST_STATE_ACTIVE ||
         GetCurrentStateId() == ST_STATE_BUFFERING));
 
-    if (GetCurrentStateId() != ST_STATE_ACTIVE &&
-        GetCurrentStateId() != ST_STATE_BUFFERING) {
+    if ((det_type == GMM_DETECTED &&
+         GetCurrentStateId() != ST_STATE_ACTIVE) ||
+        ((det_type & DETECTION_TYPE_SS) &&
+         GetCurrentStateId() != ST_STATE_BUFFERING)) {
         if (lock_status)
             mStreamMutex.unlock();
         PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
@@ -797,13 +800,15 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
 
     /*
      * mStreamMutex may get unlocked in handling detection event
-     * and not locked back when stream gets stopped/unloaded, check
-     * stream state here to avoid mStreamMutex unlock twice.
+     * and not locked back when stream gets stopped/unloaded,
+     * when this happens, mutex_unlocked_after_cb_ will be set to
+     * true, so check mutex_unlocked_after_cb_ here to avoid
+     * double unlock.
      */
-    if (GetCurrentStateId() == ST_STATE_DETECTED ||
-        GetCurrentStateId() == ST_STATE_BUFFERING) {
+    if (!mutex_unlocked_after_cb_)
         mStreamMutex.unlock();
-    }
+    else
+        mutex_unlocked_after_cb_ = false;
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -1724,7 +1729,11 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
          * this case notifyClient is not called, so we need to unlock stream
          * mutex at end of SetEngineDetectionState, that's why we don't need
          * to unlock stream mutex here.
+         * If mutex is locked back here, mark mutex_unlocked_after_cb_ as true
+         * so that we can avoid double unlock in SetEngineDetectionState.
          */
+        if (!lock_status)
+            mutex_unlocked_after_cb_ = true;
     }
 
     free(rec_event);
