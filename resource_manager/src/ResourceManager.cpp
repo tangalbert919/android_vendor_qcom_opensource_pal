@@ -4950,6 +4950,10 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
         } else if (isHifiFilterEnabled &&
                   (PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type)) {
             is_ds_required = true;
+        } else if ((activeDevAttr->config.sample_rate == SAMPLINGRATE_44K) &&
+            (inStrAttr->type == PAL_STREAM_LOW_LATENCY) ) {
+            PAL_INFO(LOG_TAG, "active stream is at 44.1kHz.");
+            is_ds_required = false;
         } else if ((PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
             (PAL_AUDIO_OUTPUT == inStrAttr->direction) &&
