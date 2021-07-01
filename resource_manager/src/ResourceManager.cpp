@@ -3537,154 +3537,106 @@ void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool ac
 
 void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                                              pal_stream_direction_t dir,
-                                             bool active) {
-    HandleConcurrenyForSoundTriggerStreams(type,dir,active);
+                                             bool active)
+{
+    HandleConcurrenyForSoundTriggerStreams(type, dir, active);
 }
 
 void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t type,
-                                                     pal_stream_direction_t dir,
-                                                     bool active) {
-    int32_t status = 0;
-    bool voiceui_conc_en = true, acd_conc_en = true, sns_pcm_data_conc_en = true;
-    bool do_voiceui_switch = false, do_acd_switch = false, do_sns_pcm_data_switch = false;
-    bool voiceui_tx_conc = false, acd_tx_conc = false, sns_pcm_data_tx_conc = false;
-    bool voiceui_rx_conc = false, acd_rx_conc = false, sns_pcm_data_rx_conc = false;
+                                                             pal_stream_direction_t dir,
+                                                             bool active)
+{
+    bool update_st_capture_profile = true;
+    std::vector<pal_stream_type_t> st_streams;
+    std::vector<pal_stream_type_t> st_streams_to_start;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     mResourceManagerMutex.lock();
-    PAL_DBG(LOG_TAG, "Enter, type %d direction %d active %d", type, dir, active);
+    PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
 
-    GetConcurrencyInfo(PAL_STREAM_VOICE_UI, type, dir,
-                         &voiceui_rx_conc, &voiceui_tx_conc, &voiceui_conc_en);
+    if (active_streams_st.size())
+        st_streams.push_back(PAL_STREAM_VOICE_UI);
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
 
-    GetConcurrencyInfo(PAL_STREAM_ACD, type, dir,
-                         &acd_rx_conc, &acd_tx_conc, &acd_conc_en);
+    for (pal_stream_type_t st_stream_type : st_streams) {
+        bool st_stream_conc_en = true;
+        bool do_st_stream_switch = false;
+        bool st_stream_tx_conc = false;
+        bool st_stream_rx_conc = false;
 
-    GetConcurrencyInfo(PAL_STREAM_SENSOR_PCM_DATA, type, dir,
-                         &sns_pcm_data_rx_conc, &sns_pcm_data_tx_conc, &sns_pcm_data_conc_en);
+        GetConcurrencyInfo(st_stream_type, type, dir,
+                           &st_stream_rx_conc, &st_stream_tx_conc, &st_stream_conc_en);
 
-    if ((active_streams_st.size() == 0) &&
-        (active_streams_acd.size() == 0) &&
-        (active_streams_sensor_pcm_data.size() == 0)) {
-        PAL_DBG(LOG_TAG, "No need to handle concurrency as no SVA/ACD/Sensor PCM Data streams available");
-        goto exit;
-    }
+        if (!st_stream_conc_en) {
+            mResourceManagerMutex.unlock();
+            HandleStreamPauseResume(st_stream_type, active);
+            mResourceManagerMutex.lock();
+            continue;
+        }
 
-    if (!voiceui_conc_en) {
-        mResourceManagerMutex.unlock();
-        HandleStreamPauseResume(PAL_STREAM_VOICE_UI, active);
-        mResourceManagerMutex.lock();
-    }
+        if (st_stream_conc_en && (st_stream_tx_conc || st_stream_rx_conc)) {
+            if (!IsLPISupported(st_stream_type) ||
+                !isNLPISwitchSupported(st_stream_type)) {
+                PAL_INFO(LOG_TAG,
+                         "Skip switch as st_stream %d LPI disabled/NLPI switch disabled", st_stream_type);
+            } else if (active) {
+                if ((PAL_STREAM_VOICE_UI == st_stream_type && ++concurrencyEnableCount == 1) ||
+                    (PAL_STREAM_ACD == st_stream_type && ++ACDConcurrencyEnableCount == 1) ||
+                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && ++SNSPCMDataConcurrencyEnableCount == 1))
+                    do_st_stream_switch = true;
+            } else {
+                if ((PAL_STREAM_VOICE_UI == st_stream_type && --concurrencyEnableCount == 0) ||
+                    (PAL_STREAM_ACD == st_stream_type && --ACDConcurrencyEnableCount == 0) ||
+                    (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && --SNSPCMDataConcurrencyEnableCount == 0))
+                    do_st_stream_switch = true;
+            }
+        }
 
-    if (!acd_conc_en) {
-        mResourceManagerMutex.unlock();
-        HandleStreamPauseResume(PAL_STREAM_ACD, active);
-        mResourceManagerMutex.lock();
-    }
+        if (do_st_stream_switch) {
+            bool action = false;
+            // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
+            mResourceManagerMutex.unlock();
+            HandleDetectionStreamAction(st_stream_type, ST_ENABLE_LPI, (void *)&active);
+            mResourceManagerMutex.lock();
 
-    if (!sns_pcm_data_conc_en) {
-        mResourceManagerMutex.unlock();
-        HandleStreamPauseResume(PAL_STREAM_SENSOR_PCM_DATA, active);
-        mResourceManagerMutex.lock();
-    }
+            // update the common capture profile once
+            if (true == update_st_capture_profile) {
+                SoundTriggerCaptureProfile = nullptr;
+                cap_prof_priority = GetCaptureProfileByPriority(nullptr);
 
-    if (voiceui_conc_en && (voiceui_tx_conc || voiceui_rx_conc)) {
-        if (!IsLPISupported(PAL_STREAM_VOICE_UI) ||
-            !isNLPISwitchSupported(PAL_STREAM_VOICE_UI)) {
-            PAL_INFO(LOG_TAG,
-                "Skip switch as LPI disabled/NLPI switch disabled");
-        } else if (active) {
-            if (++concurrencyEnableCount == 1)
-                do_voiceui_switch = true;
-        } else {
-            if (--concurrencyEnableCount == 0)
-                do_voiceui_switch = true;
+                if (!cap_prof_priority) {
+                    PAL_DBG(LOG_TAG, "No SVA/ACD/Sensor PCM Data session active, reset capture profile");
+                    SoundTriggerCaptureProfile = nullptr;
+                } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
+                        CAPTURE_PROFILE_PRIORITY_HIGH) {
+                    SoundTriggerCaptureProfile = cap_prof_priority;
+                }
+                update_st_capture_profile = false;
+            }
+            // stop/unload SVA/ACD/Sensor PCM Data streams
+            mResourceManagerMutex.unlock();
+            PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type);
+            HandleDetectionStreamAction(st_stream_type, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+            st_streams_to_start.push_back(st_stream_type);
+            mResourceManagerMutex.lock();
         }
     }
 
-    if (acd_conc_en && (acd_tx_conc || acd_rx_conc)) {
-        if (!IsLPISupported(PAL_STREAM_ACD) ||
-            !isNLPISwitchSupported(PAL_STREAM_ACD)) {
-            PAL_INFO(LOG_TAG,
-                "Skip switch as LPI disabled/NLPI switch disabled");
-        } else if (active) {
-            if (++ACDConcurrencyEnableCount == 1)
-                do_acd_switch = true;
-        } else {
-            if (--ACDConcurrencyEnableCount == 0)
-                do_acd_switch = true;
-        }
-    }
-
-    if (sns_pcm_data_conc_en && (sns_pcm_data_tx_conc || sns_pcm_data_rx_conc)) {
-        if (!IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA) ||
-            !isNLPISwitchSupported(PAL_STREAM_SENSOR_PCM_DATA)) {
-            PAL_INFO(LOG_TAG,
-                     "Skip switch as LPI disabled/NLPI switch disabled");
-        } else if (active) {
-            if (++SNSPCMDataConcurrencyEnableCount == 1)
-                do_sns_pcm_data_switch = true;
-        } else {
-            if (--SNSPCMDataConcurrencyEnableCount == 0)
-                do_sns_pcm_data_switch = true;
-        }
-    }
-
-    if (do_voiceui_switch || do_acd_switch || do_sns_pcm_data_switch) {
-        bool action = false;
-        // update use_lpi_ for all SVA/ACD/Sensor PCM Data streams
+    for (pal_stream_type_t st_stream_type_to_start : st_streams_to_start) {
+        // load/start SVA/ACD/Sensor PCM Data streams
+        bool action = true;
 
         mResourceManagerMutex.unlock();
-        if (do_voiceui_switch)
-            HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_ENABLE_LPI, (void *)&active);
-
-        if (do_acd_switch)
-            HandleDetectionStreamAction(PAL_STREAM_ACD, ST_ENABLE_LPI, (void *)&active);
-
-        if (do_sns_pcm_data_switch)
-            HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_ENABLE_LPI, (void *)&active);
-
-        mResourceManagerMutex.lock();
-
-        // update common SVA capture profile
-        SoundTriggerCaptureProfile = nullptr;
-        cap_prof_priority = GetCaptureProfileByPriority(nullptr);
-
-
-        if (!cap_prof_priority) {
-            PAL_DBG(LOG_TAG, "No SVA session active, reset capture profile");
-            SoundTriggerCaptureProfile = nullptr;
-        } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
-                CAPTURE_PROFILE_PRIORITY_HIGH) {
-            SoundTriggerCaptureProfile = cap_prof_priority;
-        }
-
-        // stop/unload all SVA/ACD/Sensor PCM Data streams
-        mResourceManagerMutex.unlock();
-        if (do_voiceui_switch)
-            HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-
-        if (do_acd_switch)
-            HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-
-        if (do_sns_pcm_data_switch)
-            HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-
-        // load/start all SVA/ACD/Sensor PCM Data streams
-        action = true;
-        if (do_voiceui_switch)
-            HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-
-        if (do_acd_switch)
-            HandleDetectionStreamAction(PAL_STREAM_ACD, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-
-        if (do_sns_pcm_data_switch)
-            HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+        PAL_DBG(LOG_TAG, "load/start stream type %d", st_stream_type_to_start);
+        HandleDetectionStreamAction(st_stream_type_to_start, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
         mResourceManagerMutex.lock();
     }
-exit:
+
     mResourceManagerMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
