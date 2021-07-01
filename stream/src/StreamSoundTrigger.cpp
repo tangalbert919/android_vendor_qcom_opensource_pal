@@ -3039,8 +3039,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
             std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-            // Do not update capture profile when resuming stream
-            if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
+            /*
+             * Update common capture profile only in:
+             * 1. start recognition excuted
+             * 2. resume excuted and current common capture profile is null
+             */
+            if (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
+                (ev_cfg->id_ == ST_EV_RESUME &&
+                !st_stream_.rm->GetSoundTriggerCaptureProfile())) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
