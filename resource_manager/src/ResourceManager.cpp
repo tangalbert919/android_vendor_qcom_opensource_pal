@@ -3451,13 +3451,13 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
     pal_stream_attributes st_attr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
     for (auto& str: mActiveStreams) {
         str->getStreamAttributes(&st_attr);
         if (st_attr.type != type)
             continue;
 
-        mResourceManagerMutex.unlock();
+        mActiveStreamMutex.unlock();
         switch (action) {
             case ST_PAUSE:
                 if (str != (Stream *)data) {
@@ -3513,9 +3513,9 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
             default:
                 break;
         }
-        mResourceManagerMutex.lock();
+        mActiveStreamMutex.lock();
     }
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
