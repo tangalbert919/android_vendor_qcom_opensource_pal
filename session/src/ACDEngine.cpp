@@ -32,8 +32,8 @@
 
 #include "ACDEngine.h"
 
+#include <cmath>
 #include <cutils/trace.h>
-
 #include "Session.h"
 #include "Stream.h"
 #include "StreamACD.h"
@@ -218,18 +218,47 @@ void ACDEngine::ParseEventAndNotifyClient()
 
                 for (auto iter2 = stream_ctx_data->begin();
                      iter2 != stream_ctx_data->end(); ++iter2) {
+                    bool notify_stream = false;
                     struct stream_context_info *context_cfg = iter2->second;
                     StreamACD *s = dynamic_cast<StreamACD *>(iter2->first);
 
                     PAL_VERBOSE(LOG_TAG, "Stream Threshold value for contextid[%d] is %d",
                                 context_id, context_cfg->threshold);
-                    if ((event_type == AUDIO_CONTEXT_EVENT_STOPPED) ||
-                        (event_info->confidence_score >= context_cfg->threshold)) {
+
+                    if ((event_type == AUDIO_CONTEXT_EVENT_STOPPED) &&
+                         (context_cfg->last_event_type != AUDIO_CONTEXT_EVENT_STOPPED)) {
+                        notify_stream = true;
+                    } else if ((event_type == AUDIO_CONTEXT_EVENT_STARTED) &&
+                               (event_info->confidence_score >= context_cfg->threshold)) {
+                        notify_stream = true;
+                    } else if (event_type == AUDIO_CONTEXT_EVENT_DETECTED) {
+                        if (context_cfg->last_event_type == AUDIO_CONTEXT_EVENT_STARTED) {
+                            notify_stream = true;
+                        } else if (context_cfg->last_event_type == AUDIO_CONTEXT_EVENT_STOPPED) {
+                            if (event_info->confidence_score >= context_cfg->threshold) {
+                                PAL_INFO(LOG_TAG, "Changing event type to Started");
+                                event_type = AUDIO_CONTEXT_EVENT_STARTED;
+                                notify_stream = true;
+                            }
+                        } else if (context_cfg->last_event_type == AUDIO_CONTEXT_EVENT_DETECTED) {
+                            if (abs(double((int)event_info->confidence_score - (int)context_cfg->last_confidence_score)) >= context_cfg->step_size)
+                                notify_stream = true;
+                        }
+                    }
+                    PAL_DBG(LOG_TAG, "last_event_type = %d, last_confidence_score = %d",
+                            context_cfg->last_event_type, context_cfg->last_confidence_score);
+
+                    if (notify_stream) {
                         std::vector<struct acd_per_context_event_info *> *event_list;
                         auto iter3 = stream_event_info.find(s);
                         struct acd_per_context_event_info *stream_event_data =
                             (struct acd_per_context_event_info *)calloc(1, sizeof(struct acd_per_context_event_info));
                         memcpy(stream_event_data, event_info, sizeof(*event_info));
+
+                        stream_event_data->event_type = event_type;
+                        context_cfg->last_event_type = event_type;
+                        context_cfg->last_confidence_score = event_info->confidence_score;
+
                         if (iter3 != stream_event_info.end()) {
                             event_list = iter3->second;
                             event_list->push_back(stream_event_data);
