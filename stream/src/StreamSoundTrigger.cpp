@@ -3013,7 +3013,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             status = st_stream_.SendRecognitionConfig(
                (struct pal_st_recognition_config *)data->data_);
             if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to send recog config, status %d",
+                PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
                         status);
             }
             break;
@@ -3024,6 +3024,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 // Possible if App has stopped recognition during active
                 // concurrency.
                 break;
+            }
+            // Update conf levels in case conf level is set to 100 in pause
+            if (st_stream_.rec_config_) {
+                status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                        status);
+                    break;
+                }
             }
             // fall through to start
             [[fallthrough]];
