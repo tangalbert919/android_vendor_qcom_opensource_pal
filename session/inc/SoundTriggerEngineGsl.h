@@ -70,7 +70,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                           listen_model_indicator_enum type,
                           st_module_type_t module_type,
                           std::shared_ptr<SoundModelConfig> sm_cfg);
-    void ResetEngineInstance(Stream *s) override;
+    void DetachStream(Stream *s) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;
@@ -101,6 +101,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         pal_stream_type_t stream_type,
         std::shared_ptr<Device> device_to_disconnect) override;
     void SetCaptureRequested(bool is_requested) override;
+    int32_t ReconfigureDetectionGraph(Stream *s) override;
     void* GetDetectionEventInfo() override;
     int32_t setECRef(
         Stream *s,
@@ -179,6 +180,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
 
     bool is_qcva_uuid_;
     bool is_qcmd_uuid_;
+    uint32_t lpi_miid_;
+    uint32_t nlpi_miid_;
+    bool use_lpi_;
     uint32_t module_tag_ids_[MAX_PARAM_IDS];
     uint32_t param_ids_[MAX_PARAM_IDS];
     uint8_t *custom_data;

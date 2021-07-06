@@ -82,7 +82,6 @@ class SoundTriggerEngineCapi : public SoundTriggerEngine {
     void GetUpdatedBufConfig(uint32_t *hist_buffer_duration __unused,
                             uint32_t *pre_roll_duration __unused) {}
     void SetCaptureRequested(bool is_requested __unused) {}
-    void ResetEngineInstance(Stream *s __unused) {}
     void* GetDetectionEventInfo() { return nullptr; }
     int32_t setECRef(
         Stream *s __unused,

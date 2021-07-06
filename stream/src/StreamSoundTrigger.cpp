@@ -85,6 +85,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
     concurrency_handling_ = false;
+    gsl_engine_model_ = nullptr;
+    gsl_conf_levels_ = nullptr;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -222,6 +224,12 @@ StreamSoundTrigger::~StreamSoundTrigger() {
     rm->deregisterStream(this);
     if (mStreamAttr) {
         free(mStreamAttr);
+    }
+    if (gsl_engine_model_) {
+        free(gsl_engine_model_);
+    }
+    if (gsl_conf_levels_) {
+        free(gsl_conf_levels_);
     }
     mDevices.clear();
     PAL_DBG(LOG_TAG, "Exit");
@@ -498,8 +506,13 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 transit_end_time_ - transit_start_time_).count();
         concurrency_handling_ = false;
-        PAL_INFO(LOG_TAG, "LPI/NLPI switch takes %llums",
-            (long long)transit_duration);
+        if (use_lpi_) {
+            PAL_INFO(LOG_TAG, "NLPI->LPI switch takes %llums",
+                (long long)transit_duration);
+        } else {
+            PAL_INFO(LOG_TAG, "LPI->NLPI switch takes %llums",
+                (long long)transit_duration);
+        }
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -602,6 +615,12 @@ int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
 
     PAL_DBG(LOG_TAG, "Enter, state %d", state);
     std::lock_guard<std::mutex> lck(mStreamMutex);
+
+    if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
+        PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
+    } else {
+        use_lpi_ = !state;
+    }
 
     std::shared_ptr<StEventConfig> ev_cfg(
         new StChargingStateEventConfig(state, active));
@@ -904,7 +923,24 @@ std::shared_ptr<SoundTriggerEngine> StreamSoundTrigger::HandleEngineLoad(
                "failed, status %d", status);
         goto error_exit;
     }
+
+    // cache 1st stage model for currency handling
+    if (type == ST_SM_ID_SVA_F_STAGE_GMM) {
+        gsl_engine_model_ = (uint8_t *)realloc(gsl_engine_model_, sm_size);
+        if (!gsl_engine_model_) {
+            PAL_ERR(LOG_TAG, "Failed to allocate memory for gsl model");
+            goto unload_model;
+        }
+        ar_mem_cpy(gsl_engine_model_, sm_size, sm_data, sm_size);
+        gsl_engine_model_size_ = sm_size;
+    }
+
     return engine;
+
+unload_model:
+    status = engine->UnloadSoundModel(this);
+    if (status)
+        PAL_ERR(LOG_TAG, "Failed to unload sound model, status %d", status);
 
 error_exit:
     return nullptr;
@@ -1605,6 +1641,15 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
 
     gsl_engine_->UpdateConfLevels(this, config,
                                   conf_levels, num_conf_levels);
+
+    gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
+    if (!gsl_conf_levels_) {
+        PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
+        status = -ENOMEM;
+        goto error_exit;
+    }
+    ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
+    gsl_conf_levels_size_ = num_conf_levels;
 
     // Update capture requested flag to gsl engine
     if (!config->capture_requested && engines_.size() == 1)
@@ -2941,35 +2986,79 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                     new_cap_prof->GetSampleRate(),
                     new_cap_prof->isECRequired());
                 if (active) {
-                    if (st_stream_.sm_config_) {
-                        std::shared_ptr<StEventConfig> ev_cfg1(
-                            new StLoadEventConfig(st_stream_.sm_config_));
-                        status = st_stream_.ProcessInternalEvent(ev_cfg1);
-                        if (status) {
-                            PAL_ERR(LOG_TAG, "Failed to load, status %d", status);
-                            break;
+                    if (!st_stream_.mDevices.size()) {
+                        struct pal_device dattr;
+                        std::shared_ptr<Device> dev = nullptr;
+
+                        // update best device
+                        pal_device_id_t dev_id = st_stream_.GetAvailCaptureDevice();
+                        PAL_DBG(LOG_TAG, "Select available caputre device %d", dev_id);
+
+                        dev = st_stream_.GetPalDevice(dev_id, &dattr, false);
+                        if (!dev) {
+                            PAL_ERR(LOG_TAG, "Device creation is failed");
+                            status = -EINVAL;
+                            goto err_concurrent;
                         }
+                        st_stream_.mDevices.push_back(dev);
+                        dev = nullptr;
                     }
-                    if (st_stream_.rec_config_) {
-                        status = st_stream_.SendRecognitionConfig(
-                            st_stream_.rec_config_);
+                    if (st_stream_.mDevices.size() > 0) {
+                        status = st_stream_.mDevices[0]->open();
                         if (0 != status) {
-                            PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
-                                    status);
-                            break;
+                            PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                            goto err_concurrent;
                         }
                     }
+
+                    st_stream_.cap_prof_ = new_cap_prof;
+                    st_stream_.mDevPPSelector = new_cap_prof->GetName();
+                    PAL_DBG(LOG_TAG, "devicepp selector: %s",
+                        st_stream_.mDevPPSelector.c_str());
+
+                    status = st_stream_.gsl_engine_->LoadSoundModel(&st_stream_,
+                        st_stream_.gsl_engine_model_,
+                        st_stream_.gsl_engine_model_size_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Failed to load sound model, status %d",
+                            status);
+                        goto err_concurrent;
+                    }
+
+                    status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
+                        st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
+                        st_stream_.gsl_conf_levels_size_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
+                            status);
+                        goto err_unload;
+                    }
+
+                    TransitTo(ST_STATE_LOADED);
                     if (st_stream_.isActive()) {
-                        std::shared_ptr<StEventConfig> ev_cfg2(
+                        std::shared_ptr<StEventConfig> ev_cfg1(
                             new StStartRecognitionEventConfig(false));
-                        status = st_stream_.ProcessInternalEvent(ev_cfg2);
-                        if (status) {
+                        status = st_stream_.ProcessInternalEvent(ev_cfg1);
+                        if (0 != status) {
                             PAL_ERR(LOG_TAG, "Failed to Start, status %d", status);
                         }
                     }
                 }
             } else {
                 PAL_INFO(LOG_TAG,"no action needed, same capture profile");
+            }
+            break;
+        err_unload:
+            status = st_stream_.gsl_engine_->UnloadSoundModel(&st_stream_);
+            if (0 != status)
+                PAL_ERR(LOG_TAG, "Failed to unload sound model, status %d", status);
+
+        err_concurrent:
+            if (st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status)
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d", status);
+                st_stream_.mDevices.clear();
             }
             break;
         }
@@ -3019,7 +3108,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.reader_ = nullptr;
             }
             st_stream_.engines_.clear();
-            st_stream_.gsl_engine_->ResetEngineInstance(&st_stream_);
+            st_stream_.gsl_engine_->DetachStream(&st_stream_);
             st_stream_.reader_list_.clear();
             if (st_stream_.sm_info_) {
                 delete st_stream_.sm_info_;
@@ -3326,20 +3415,23 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                     new_cap_prof->GetSampleRate(),
                     new_cap_prof->isECRequired());
                 if (!active) {
-                    std::shared_ptr<StEventConfig> ev_cfg1(
-                        new StUnloadEventConfig());
-                    status = st_stream_.ProcessInternalEvent(ev_cfg1);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
-                        break;
+                    st_stream_.mDevices.clear();
+
+                    status = st_stream_.gsl_engine_->ReconfigureDetectionGraph(&st_stream_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Failed to reconfigure gsl engine, status %d",
+                            status);
+                        goto err_concurrent;
                     }
+                    TransitTo(ST_STATE_IDLE);
                 } else {
                     PAL_ERR(LOG_TAG, "Invalid operation");
                     status = -EINVAL;
                 }
             } else {
-              PAL_INFO(LOG_TAG,"no action needed, same capture profile");
+                PAL_INFO(LOG_TAG,"no action needed, same capture profile");
             }
+        err_concurrent:
             break;
         }
         case ST_EV_SSR_OFFLINE: {
@@ -3647,8 +3739,8 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Failed to Stop, status %d", status);
                         break;
                     }
-                    std::shared_ptr<StEventConfig> ev_cfg2(new StUnloadEventConfig());
-                    status = st_stream_.ProcessInternalEvent(ev_cfg2);
+
+                    status = st_stream_.ProcessInternalEvent(ev_cfg);
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to Unload, status %d", status);
                         break;
@@ -3658,7 +3750,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     status = -EINVAL;
                 }
             } else {
-              PAL_INFO(LOG_TAG,"no action needed, same capture profile");
+                PAL_INFO(LOG_TAG,"no action needed, same capture profile");
             }
             break;
         }
