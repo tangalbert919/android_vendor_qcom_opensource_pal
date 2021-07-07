@@ -4075,7 +4075,15 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
     switch (ev_cfg->id_) {
         case ST_EV_SSR_ONLINE: {
             TransitTo(ST_STATE_IDLE);
-
+            /*
+             * sm_config_ can be NULL if load sound model is failed in
+             * previous SSR online event. This scenario can occur if
+             * back to back SSR happens in less than 1 sec.
+             */
+            if (!st_stream_.sm_config_) {
+                PAL_ERR(LOG_TAG, "sound model config is NULL");
+                break;
+            }
             if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
                 st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
                 std::shared_ptr<StEventConfig> ev_cfg1(
