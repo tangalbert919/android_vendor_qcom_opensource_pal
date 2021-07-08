@@ -40,6 +40,9 @@
 #include <mutex>
 #include <exception>
 #include <errno.h>
+#ifdef LINUX_ENABLED
+#include <condition_variable>
+#endif
 #include "PalCommon.h"
 
 typedef enum {
