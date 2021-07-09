@@ -1503,7 +1503,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector<std::pair<int,int>> 
         } else {
             selector_names = retrieveSelectors(sattr->type, all_streams);
             if (selector_names.empty() != true)
-               filled_selector_pairs = getSelectorValues(selector_names, s);
+               filled_selector_pairs = getSelectorValues(selector_names, s, NULL);
             retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorRx);
         }
     } else if (sattr->type == PAL_STREAM_VOICE_CALL) {
@@ -1553,7 +1553,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
     if (sattr->type == PAL_STREAM_VOICE_CALL) {
         selectors = retrieveSelectors(sattr->type, all_streampps);
         if (selectors.empty() != true)
-            filled_selector_pairs = getSelectorValues(selectors, s);
+            filled_selector_pairs = getSelectorValues(selectors, s, NULL);
         retrieveKVs(filled_selector_pairs ,sattr->type, all_streampps, keyVectorRx);
     } else {
         PAL_DBG(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
@@ -1600,13 +1600,11 @@ bool PayloadBuilder::compareSelectorPairs(
     return false;
 }
 
-int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
+bool PayloadBuilder::findKVs(std::vector<std::pair<selector_type_t, std::string>>
     &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
     std::vector<std::pair<int, int>> &keyVector)
 {
     bool found = false;
-
-    PAL_DBG(LOG_TAG, "enter");
 
     for (int32_t i = 0; i < any_type.size(); i++) {
         if (isIdTypeAvailable(type, any_type[i].id_type)) {
@@ -1644,24 +1642,52 @@ int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::stri
             }
         }
     }
+    return found;
+}
 
+int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
+    &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+    std::vector<std::pair<int, int>> &keyVector)
+{
+    bool found = false, custom_config_fallback = false;
+
+    PAL_DBG(LOG_TAG, "enter");
+
+    found = findKVs(filled_selector_pairs, type, any_type, keyVector);
     if (found) {
         PAL_DBG(LOG_TAG, "KVs found for the stream type/dev id: %d", type);
         return 0;
     } else {
-        PAL_INFO(LOG_TAG, "No KVs found for the stream type/dev id: %d", type);
-        return -EINVAL;
+        /* Add a fallback approach to search for KVs again without custom config as selector */
+        for (int i = 0; i < filled_selector_pairs.size(); i++) {
+            if (filled_selector_pairs[i].first == CUSTOM_CONFIG_SEL) {
+                PAL_INFO(LOG_TAG, "Fallback to find KVs without custom config %s",
+                    filled_selector_pairs[i].second.c_str());
+                filled_selector_pairs.erase(filled_selector_pairs.begin() + i);
+                custom_config_fallback = true;
+            }
+        }
+        if (custom_config_fallback) {
+            found = findKVs(filled_selector_pairs, type, any_type, keyVector);
+            if (found) {
+                PAL_DBG(LOG_TAG, "KVs found without custom config for the stream type/dev id: %d",
+                    type);
+                return 0;
+            }
+        }
+        if (!found)
+            PAL_INFO(LOG_TAG, "No KVs found for the stream type/dev id: %d", type);
     }
+    return -EINVAL;
 }
 
 std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelectorValues(
-    std::vector<std::string> &selector_names, Stream* s)
+    std::vector<std::string> &selector_names, Stream* s, struct pal_device* dAttr)
 {
     int instance_id = 0;
     int status = 0;
     struct pal_stream_attributes *sattr = NULL;
     std::stringstream st;
-    struct pal_device dAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     std::vector<std::pair<selector_type_t, std::string>> filled_selector_pairs;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
@@ -1677,8 +1703,6 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
         PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
         goto free_sattr;
     }
-    memset (&dAttr, 0, sizeof(struct pal_device));
-
 
     for (int i = 0; i < selector_names.size(); i++) {
         PAL_DBG(LOG_TAG, "selectors_strings :%s", selector_names[i].c_str());
@@ -1772,27 +1796,12 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                      sattr->out_media_config.aud_fmt_id);
                 break;
             case CUSTOM_CONFIG_SEL:
-                status = s->getAssociatedDevices(associatedDevices);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG,"getAssociatedDevices failed");
-                    goto free_sattr;
-                }
-                PAL_INFO(LOG_TAG,"associatedDevices.size: %zu",
-                    associatedDevices.size());
-
-                for (int i = 0; i < associatedDevices.size(); i++) {
-                    status = associatedDevices[i]->getDeviceAttributes(&dAttr);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG,"getAssociatedDevices failed");
-                        goto free_sattr;
-                    }
-                    if (strlen(dAttr.custom_config.custom_key)) {
-                        filled_selector_pairs.push_back(
-                            std::make_pair(CUSTOM_CONFIG_SEL,
-                            dAttr.custom_config.custom_key));
-                        PAL_INFO(LOG_TAG, "custom config key:%s",
-                            dAttr.custom_config.custom_key);
-                    }
+                if (dAttr && strlen(dAttr->custom_config.custom_key)) {
+                    filled_selector_pairs.push_back(
+                        std::make_pair(CUSTOM_CONFIG_SEL,
+                        dAttr->custom_config.custom_key));
+                    PAL_INFO(LOG_TAG, "custom config key:%s",
+                        dAttr->custom_config.custom_key);
                 }
                 break;
             default:
@@ -1877,7 +1886,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
     PAL_INFO(LOG_TAG, "stream attribute type %d", sattr->type);
     selectors = retrieveSelectors(sattr->type, all_streams);
     if (selectors.empty() != true)
-        filled_selector_pairs = getSelectorValues(selectors, s);
+        filled_selector_pairs = getSelectorValues(selectors, s, NULL);
     retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVector);
 
 free_sattr:
@@ -1943,16 +1952,33 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
     int status = 0;
     std::vector <std::string> selectors;
     std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    struct pal_device dAttr;
 
     PAL_INFO(LOG_TAG, "enter beDevId: %d", beDevId);
 
     /* For BT devices, device KV will be populated from Bluetooth device only so skip here */
     if (isBtDevice(beDevId))
         return status;
-    selectors = retrieveSelectors(beDevId, all_devices);
-    if (selectors.empty() != true)
-        filled_selector_pairs = getSelectorValues(selectors, s);
-    retrieveKVs(filled_selector_pairs, beDevId, all_devices, keyVector);
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if (0 != status) {
+       PAL_ERR(LOG_TAG, "getAssociatedDevices failed");
+       return status;
+    }
+    for (int i = 0; i < associatedDevices.size(); i++) {
+       status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+       if (0 != status) {
+          PAL_ERR(LOG_TAG, "getAssociatedDevices failed");
+          return status;
+       }
+       if (dAttr.id == beDevId) {
+          selectors = retrieveSelectors(beDevId, all_devices);
+          if (selectors.empty() != true)
+             filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
+          retrieveKVs(filled_selector_pairs, beDevId, all_devices, keyVector);
+       }
+    }
     return 0;
 }
 
@@ -2031,8 +2057,9 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
 
        PAL_INFO(LOG_TAG, "Device ID: %d", dAttr.id);
        selectors = retrieveSelectors(dAttr.id, all_devicepps);
-       if (selectors.empty() != true)
-           filled_selector_pairs = getSelectorValues(selectors, s);
+       if (selectors.empty() != true &&
+           (dAttr.id == rxBeDevId || dAttr.id == txBeDevId))
+           filled_selector_pairs = getSelectorValues(selectors, s, &dAttr);
 
        if (dAttr.id == rxBeDevId)
            retrieveKVs(filled_selector_pairs, dAttr.id, all_devicepps, keyVectorRx);
