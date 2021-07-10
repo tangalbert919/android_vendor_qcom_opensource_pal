@@ -5238,7 +5238,8 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> inDev,
 
             if ((PAL_STREAM_VOICE_CALL == sAttr.type ||
                  PAL_STREAM_VOIP_RX == sAttr.type ||
-                 PAL_STREAM_VOIP == sAttr.type)) {
+                 PAL_STREAM_VOIP == sAttr.type) &&
+                (inDevAttr->id != PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
                 PAL_INFO(LOG_TAG, "Active voice/voip stream running on %d, Force switch",
                                   curDevAttr.id);
                 curDev->getDeviceAttributes(inDevAttr);
