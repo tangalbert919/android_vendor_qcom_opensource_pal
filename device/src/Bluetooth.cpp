@@ -57,7 +57,8 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
       isDummySink(false),
-      abrRefCnt(0)
+      abrRefCnt(0),
+      totalActiveSessionRequests(0)
 {
 }
 
@@ -806,13 +807,13 @@ start_pcm:
 
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         fbDev->isConfigured = true;
-        fbDev->deviceCount++;
+        fbDev->totalActiveSessionRequests++;
     }
     if ((codecFormat == CODEC_TYPE_LC3) && (fbDev != NULL) &&
         (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
          fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
         fbDev->isConfigured = true;
-        fbDev->deviceCount++;
+        fbDev->totalActiveSessionRequests++;
     }
 
     abrRefCnt++;
@@ -876,7 +877,8 @@ void Bluetooth::stopAbr()
     }
 
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) && fbDev) {
-        if (--fbDev->deviceCount == 0) {
+        if ((fbDev->totalActiveSessionRequests > 0) &&
+            (--fbDev->totalActiveSessionRequests == 0)) {
             fbDev->isConfigured = false;
         }
     }
@@ -884,7 +886,8 @@ void Bluetooth::stopAbr()
         (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
          deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
         fbDev) {
-        if (--fbDev->deviceCount == 0) {
+        if ((fbDev->totalActiveSessionRequests > 0) &&
+            (--fbDev->totalActiveSessionRequests == 0)) {
             fbDev->isConfigured = false;
         }
     }
@@ -927,8 +930,7 @@ audio_sink_check_a2dp_ready_t BtA2dp::audio_sink_check_a2dp_ready = nullptr;
 
 BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
       : Bluetooth(device, Rm),
-        a2dpState(A2DP_STATE_DISCONNECTED),
-        totalActiveSessionRequests(0)
+        a2dpState(A2DP_STATE_DISCONNECTED)
 {
     a2dpRole = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
     codecType = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
@@ -1822,6 +1824,8 @@ int BtSco::start()
     }
 
     status = Device::start_l();
+    if (!status)
+        totalActiveSessionRequests++;
     if (!status && isAbrEnabled &&
         (codecFormat != CODEC_TYPE_LC3))
         startAbr();
@@ -1849,9 +1853,12 @@ int BtSco::stop()
     }
 
     Device::stop_l();
+    if (totalActiveSessionRequests > 0)
+        totalActiveSessionRequests--;
+
     if (isAbrEnabled == false)
         codecFormat = CODEC_TYPE_INVALID;
-    if (deviceCount == 0)
+    if (totalActiveSessionRequests == 0)
         isConfigured = false;
 
     mDeviceMutex.unlock();
