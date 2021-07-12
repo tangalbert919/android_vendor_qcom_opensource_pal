@@ -907,8 +907,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             rm->getDeviceConfig(&newDevices[i], mStreamAttr, devinfo.channels);
         }
 
-        if (newDevices[i].id == PAL_DEVICE_NONE)
-            continue;
+        if (newDevices[i].id == PAL_DEVICE_NONE) {
+            goto done;
+        }
 
         if (!rm->isDeviceReady(newDevices[i].id)) {
             PAL_ERR(LOG_TAG, "Device %d is not ready\n", newDevices[i].id);
