@@ -5980,6 +5980,19 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             }
         }
         break;
+        case PAL_PARAM_ID_SP_GET_CAL:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for Calibration value");
+            std::shared_ptr<Device> dev = nullptr;
+            struct pal_device dattr;
+            dattr.id = PAL_DEVICE_OUT_SPEAKER;
+            dev = Device::getInstance(&dattr , rm);
+            if (dev) {
+                *payload_size = dev->getParameter(PAL_PARAM_ID_SP_GET_CAL,
+                                    param_payload);
+            }
+        }
+        break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);

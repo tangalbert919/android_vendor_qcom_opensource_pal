@@ -952,6 +952,7 @@ void SpeakerProtection::spkrCalibrationThread()
             continue;
         }
     }
+    calThrdCreated = false;
     PAL_DBG(LOG_TAG, "Calibration done, exiting the thread");
 }
 
@@ -1008,8 +1009,8 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
         PAL_DBG(LOG_TAG, "Calibration Not done");
         mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
                             this);
+        calThrdCreated = true;
     }
-    calThrdCreated = true;
 }
 
 SpeakerProtection::~SpeakerProtection()
@@ -1638,8 +1639,8 @@ int SpeakerProtection::speakerProtectionDynamicCal()
 
     PAL_DBG(LOG_TAG, "Trigger Dynamic Cal");
 
-    if (spkrCalState == SPKR_CALIB_IN_PROGRESS) {
-        PAL_DBG(LOG_TAG, "Calibration already running");
+    if ((spkrCalState == SPKR_CALIB_IN_PROGRESS) || calThrdCreated) {
+        PAL_DBG(LOG_TAG, "Calibration already triggered");
         return ret;
     }
 
@@ -1651,6 +1652,7 @@ int SpeakerProtection::speakerProtectionDynamicCal()
 
     mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
                         this);
+    calThrdCreated = true;
     return ret;
 }
 
@@ -1692,7 +1694,7 @@ int32_t SpeakerProtection::setParameter(uint32_t param_id, void *param)
     return 0;
 }
 
-int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
+int32_t SpeakerProtection::getFTMParameter(void **param)
 {
     int size = 0, status = 0 ;
     const char *getParamControl = "getParam";
@@ -1716,9 +1718,6 @@ int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
 
     memset(&ftm_ret, 0,sizeof(vi_th_ftm_params_t)*numberOfChannels);
     memset(&v_vali_ret, 0,sizeof(vi_th_v_vali_params_t)*numberOfChannels);
-
-    if (param_id != PAL_PARAM_ID_SP_MODE)
-        goto exit;
 
     pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
     if (pcmDeviceName)
@@ -1853,6 +1852,65 @@ exit :
        return size;
     else
       return status;
+
+}
+
+int32_t SpeakerProtection::getCalibrationData(void **param)
+{
+    int i, status = 0;
+    struct vi_r0t0_cfg_t r0t0Array[numberOfChannels];
+    double dr0[numberOfChannels];
+    double dt0[numberOfChannels];
+    std::ostringstream resString;
+
+    memset(r0t0Array, 0, sizeof(vi_r0t0_cfg_t) * numberOfChannels);
+    memset(dr0, 0, sizeof(double) * numberOfChannels);
+    memset(dt0, 0, sizeof(double) * numberOfChannels);
+
+    FILE *fp = fopen(PAL_SP_TEMP_PATH, "rb");
+    if (fp) {
+        for (i = 0; i < numberOfChannels; i++) {
+            fread(&r0t0Array[i].r0_cali_q24,
+                    sizeof(r0t0Array[i].r0_cali_q24), 1, fp);
+            fread(&r0t0Array[i].t0_cali_q6,
+                    sizeof(r0t0Array[i].t0_cali_q6), 1, fp);
+            // Convert to readable format
+            dr0[i] = ((double)r0t0Array[i].r0_cali_q24)/(1 << 24);
+            dt0[i] = ((double)r0t0Array[i].t0_cali_q6)/(1 << 6);
+        }
+        PAL_DBG(LOG_TAG, "R0= %lf, %lf, T0= %lf, %lf", dr0[0], dr0[1], dt0[0], dt0[1]);
+        fclose(fp);
+    }
+    else {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "No cal file present");
+    }
+    resString << "SpkrCalStatus: " << status << "; R0: " << dr0[0] << ", "
+              << dr0[1] << "; T0: "<< dt0[0] << ", " << dt0[1] << ";";
+
+    PAL_DBG(LOG_TAG, "Calibration value %s", resString.str().c_str());
+
+    memcpy((char *) (param), resString.str().c_str(), resString.str().length());
+
+    if(!status)
+       return resString.str().length();
+    else
+    return status;
+
+}
+
+int32_t SpeakerProtection::getParameter(uint32_t param_id, void **param)
+{
+    int32_t status = 0;
+    switch(param_id) {
+        case PAL_PARAM_ID_SP_GET_CAL:
+            status = getCalibrationData(param);
+        break;
+        case PAL_PARAM_ID_SP_MODE:
+            status = getFTMParameter(param);
+        break;
+    }
+    return status;
 }
 
 /*
