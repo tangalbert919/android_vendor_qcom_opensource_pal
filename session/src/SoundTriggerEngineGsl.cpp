@@ -331,7 +331,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 if (s) {
                     CheckAndSetDetectionConfLevels(s);
                     mutex_.unlock();
-                    s->SetEngineDetectionState(GMM_DETECTED);
+                    status = s->SetEngineDetectionState(GMM_DETECTED);
                     mutex_.lock();
                 }
             } else {
@@ -346,10 +346,16 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
 
                     if (s) {
                         mutex_.unlock();
-                        s->SetEngineDetectionState(GMM_DETECTED);
+                        status = s->SetEngineDetectionState(GMM_DETECTED);
                         mutex_.lock();
                     }
                 }
+            }
+            if (status) {
+                PAL_ERR(LOG_TAG,
+                    "Failed to set engine detection state to stream, status %d",
+                    status);
+                break;
             }
             event_notified = true;
         }

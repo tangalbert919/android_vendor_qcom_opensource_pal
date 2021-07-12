@@ -790,7 +790,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
         if (lock_status)
             mStreamMutex.unlock();
         PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
-        return status;
+        return -EINVAL;
     }
 
     if (det_type == GMM_DETECTED) {
