@@ -100,17 +100,20 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_RAW</name>
-                <channels>4</channels>
                 <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
                 </custom-config>
             </usecase>
