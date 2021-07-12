@@ -243,7 +243,7 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
 
-    payloadInfo = new uint8_t[payloadSize]();
+    payloadInfo = (uint8_t*) calloc(1, payloadSize);
     if (!payloadInfo) {
         PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
