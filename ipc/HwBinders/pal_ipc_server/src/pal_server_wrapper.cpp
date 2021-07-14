@@ -195,10 +195,13 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         rwDonePayload->buff.alloc_info.offset = rw_done_payload->buff.alloc_info.offset;
 
         if (!sr_clbk_dat->client_died) {
-            clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
+            auto status = clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
                               sizeof(struct pal_event_read_write_done_payload),
                               rwDonePayloadHidl,
                               sr_clbk_dat->client_data_);
+            if (!status.isOk()) {
+                 ALOGE("%s: HIDL call failed.\n", __func__);
+            }
            // close(rw_done_payload->buff.alloc_info.alloc_handle);
         } else
             ALOGE("Client died dropping this event %d", event_id);
@@ -206,11 +209,14 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
         hidl_vec<uint8_t> PayloadHidl;
         PayloadHidl.resize(event_data_size);
         memcpy(PayloadHidl.data(), event_data, event_data_size);
-        if (!sr_clbk_dat->client_died)
-            clbk_bdr->event_callback((uint64_t)stream_handle, event_id,
+        if (!sr_clbk_dat->client_died) {
+            auto status = clbk_bdr->event_callback((uint64_t)stream_handle, event_id,
                               event_data_size, PayloadHidl,
                               sr_clbk_dat->client_data_);
-        else
+            if (!status.isOk()) {
+                 ALOGE("%s: HIDL call failed.\n", __func__);
+            }
+        } else
             ALOGE("Client died dropping this event %d", event_id);
     }
     return 0;
