@@ -3814,8 +3814,8 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 (StReadBufferEventConfigData *)ev_cfg->data_.get();
             struct pal_buffer *buf = (struct pal_buffer *)data->data_;
 
-            if (!st_stream_.reader_ || !st_stream_.reader_->isEnabled()) {
-                PAL_ERR(LOG_TAG, "no reader exists or reader not enabled");
+            if (!st_stream_.reader_) {
+                PAL_ERR(LOG_TAG, "no reader exists");
                 status = -EINVAL;
                 break;
             }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -145,9 +145,13 @@ void PalRingBuffer::resizeRingBuffer(size_t bufferSize)
     bufferEnd_ = bufferSize;
 }
 
-size_t PalRingBufferReader::read(void* readBuffer, size_t bufferSize)
+int32_t PalRingBufferReader::read(void* readBuffer, size_t bufferSize)
 {
     int32_t readSize = 0;
+
+    if (state_ == READER_DISABLED)
+        return -EINVAL;
+
     // Return 0 when no data can be read for current reader
     if (unreadSize_ == 0)
         return 0;
