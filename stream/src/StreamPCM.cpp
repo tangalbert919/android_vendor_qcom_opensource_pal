@@ -809,7 +809,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         return size;
     }
 
-    if (currentState == STREAM_STARTED) {
+    //we should allow writes to go through in Start/Pause state as well.
+    if ( (currentState == STREAM_STARTED) ||
+        (currentState == STREAM_PAUSED) ) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         mStreamMutex.unlock();
         if (0 != status) {

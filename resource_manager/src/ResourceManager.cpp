@@ -5776,12 +5776,19 @@ int32_t ResourceManager::a2dpSuspend()
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         if (!((*sIter)->a2dpMuted)) {
+            struct pal_stream_attributes sAttr;
+            (*sIter)->getStreamAttributes(&sAttr);
+            if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
+                 (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
+                ((*sIter)->isActive())) {
+                (*sIter)->pause();
+            } else {
+                latencyMs = (*sIter)->getLatency();
+                if (maxLatencyMs < latencyMs)
+                    maxLatencyMs = latencyMs;
+            }
             (*sIter)->mute_l(true);
             (*sIter)->a2dpMuted = true;
-
-            latencyMs = (*sIter)->getLatency();
-            if (maxLatencyMs < latencyMs)
-                maxLatencyMs = latencyMs;
         }
     }
 
@@ -5811,6 +5818,14 @@ int32_t ResourceManager::a2dpSuspend()
     mResourceManagerMutex.lock();
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+        struct pal_stream_attributes sAttr;
+        (*sIter)->getStreamAttributes(&sAttr);
+        if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
+            (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
+            (!(*sIter)->isActive())) {
+            //Resume if the offload stream is paused
+            (*sIter)->resume();
+        }
         (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     }
 

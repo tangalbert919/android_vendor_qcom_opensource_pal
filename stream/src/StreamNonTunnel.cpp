@@ -378,8 +378,9 @@ int32_t  StreamNonTunnel::write(struct pal_buffer* buf)
         return -ENETRESET;
     }
     mStreamMutex.unlock();
-
-    if (currentState == STREAM_STARTED) {
+    //we should allow writes to go through in Start/Pause state as well.
+    if ( (currentState == STREAM_STARTED) ||
+        (currentState == STREAM_PAUSED) ) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write is failed with status %d", status);
