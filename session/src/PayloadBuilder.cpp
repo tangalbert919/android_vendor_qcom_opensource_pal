@@ -1138,12 +1138,12 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
                       header->error_code, header->param_size);
 
     ratConf->sample_rate = data->sample_rate;
-    if (bitWidth == 16 || bitWidth == 32) {
+    if ((bitWidth == BITWIDTH_16) || (bitWidth == BITWIDTH_32)) {
         ratConf->bits_per_sample = bitWidth;
         ratConf->q_factor =  bitWidth - 1;
-    } else if (bitWidth == 24) {
-        ratConf->bits_per_sample = 32;
-        ratConf->q_factor = 27;
+    } else if (bitWidth == BITWIDTH_24) {
+        ratConf->bits_per_sample = BITS_PER_SAMPLE_32;
+        ratConf->q_factor = PCM_Q_FACTOR_27;
     }
     ratConf->data_format = DATA_FORMAT_FIXED_POINT;
     ratConf->num_channels = numChannel;
@@ -1158,7 +1158,7 @@ void PayloadBuilder::payloadRATConfig(uint8_t** payload, size_t* size,
 }
 
 void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
-        uint32_t miid, struct pal_media_config *data)
+        uint32_t miid, struct pal_media_config *data, bool isRx)
 {
     struct apm_module_param_data_t* header = NULL;
     struct media_format_t *mediaFmtHdr;
@@ -1213,16 +1213,16 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
 
     mediaFmtPayload->endianness      = PCM_LITTLE_ENDIAN;
     mediaFmtPayload->num_channels    = data->ch_info.channels;
-    if ((data->bit_width == 16) || (data->bit_width == 32)) {
+    if ((data->bit_width == BITWIDTH_16) || (data->bit_width == BITWIDTH_32)) {
         mediaFmtPayload->bit_width       = data->bit_width;
         mediaFmtPayload->bits_per_sample = data->bit_width;
         mediaFmtPayload->q_factor        = data->bit_width - 1;
         mediaFmtPayload->alignment       = PCM_LSB_ALIGNED;
-    } else if (data->bit_width == 24) {
+    } else if (data->bit_width == BITWIDTH_24) {
         // convert to Q31 that's expected by HD encoders.
         mediaFmtPayload->bit_width       = BIT_WIDTH_24;
         mediaFmtPayload->bits_per_sample = BITS_PER_SAMPLE_32;
-        mediaFmtPayload->q_factor        = PCM_Q_FACTOR_31;
+        mediaFmtPayload->q_factor        = isRx ? PCM_Q_FACTOR_31 : PCM_Q_FACTOR_27;
         mediaFmtPayload->alignment       = PCM_MSB_ALIGNED;
     } else {
         PAL_ERR(LOG_TAG, "invalid bit width %d", data->bit_width);
@@ -1231,7 +1231,7 @@ void PayloadBuilder::payloadPcmCnvConfig(uint8_t** payload, size_t* size,
         *payload = NULL;
         return;
     }
-    mediaFmtPayload->interleaved     = PCM_INTERLEAVED;
+    mediaFmtPayload->interleaved = isRx ? PCM_INTERLEAVED : PCM_DEINTERLEAVED_UNPACKED;
     PAL_DBG(LOG_TAG, "interleaved:%d bit_width:%d bits_per_sample:%d q_factor:%d",
                   mediaFmtPayload->interleaved, mediaFmtPayload->bit_width,
                   mediaFmtPayload->bits_per_sample, mediaFmtPayload->q_factor);

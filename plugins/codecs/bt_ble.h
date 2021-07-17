@@ -35,6 +35,8 @@
 
 #define NUM_CODEC          2
 #define AUDIO_LOCATION_MAX 28
+#define TO_AIR             0
+#define FROM_AIR           1
 
 /* Information about BT LC3 encoder configuration
  * This data is used between audio HAL module and

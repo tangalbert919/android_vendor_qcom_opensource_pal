@@ -57,7 +57,8 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isLC3MonoModeOn(false),
       isTwsMonoModeOn(false),
       isDummySink(false),
-      abrRefCnt(0)
+      abrRefCnt(0),
+      totalActiveSessionRequests(0)
 {
 }
 
@@ -379,6 +380,45 @@ int Bluetooth::configureA2dpEncoderDecoder()
                 goto error;
             }
 
+            /* RAT Module Configuration */
+            status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", RAT_RENDER, status);
+                goto error;
+            }
+
+            builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
+            if (paramSize) {
+                dev->updateCustomPayload(paramData, paramSize);
+                delete [] paramData;
+                paramData = NULL;
+                paramSize = 0;
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid RAT module param size");
+                goto error;
+            }
+
+            /* PCM CNV Module Configuration */
+            status = session->getMIID(backEndName.c_str(), BT_PCM_CONVERTER, &cnvMiid);
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d",
+                        BT_PCM_CONVERTER, status);
+                goto error;
+            }
+
+            builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig, false /* isRx */);
+            if (paramSize) {
+                dev->updateCustomPayload(paramData, paramSize);
+                delete [] paramData;
+                paramData = NULL;
+                paramSize = 0;
+            } else {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Invalid PCM CNV module param size");
+                goto error;
+            }
+
             goto done;
         }
 
@@ -469,7 +509,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
         goto error;
     }
 
-    builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig);
+    builder->payloadPcmCnvConfig(&paramData, &paramSize, cnvMiid, &codecConfig, true /* isRx */);
     if (paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
         delete [] paramData;
@@ -530,7 +570,6 @@ void Bluetooth::startAbr()
     size_t paramSize = 0;
     PayloadBuilder* builder = NULL;
 
-
     memset(&fbDevice, 0, sizeof(fbDevice));
     memset(&sAttr, 0, sizeof(sAttr));
     memset(&config, 0, sizeof(config));
@@ -556,7 +595,8 @@ void Bluetooth::startAbr()
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
-        if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+        if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
+            (codecFormat == CODEC_TYPE_LC3))
             fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
         else
             fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
@@ -708,6 +748,11 @@ void Bluetooth::startAbr()
             }
         }
 
+        if (fbDev->isConfigured == true) {
+            PAL_INFO(LOG_TAG, "feedback path is already configured");
+            goto start_pcm;
+        }
+
         /* configure COP v2 depacketizer */
         ret = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
                      fbpcmDevIds.at(0), backEndName.c_str(), COP_DEPACKETIZER_V2, &miid);
@@ -762,13 +807,13 @@ start_pcm:
 
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         fbDev->isConfigured = true;
-        fbDev->deviceCount++;
+        fbDev->totalActiveSessionRequests++;
     }
-    if ((codecFormat == CODEC_TYPE_LC3) &&
+    if ((codecFormat == CODEC_TYPE_LC3) && (fbDev != NULL) &&
         (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
          fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
         fbDev->isConfigured = true;
-        fbDev->deviceCount++;
+        fbDev->totalActiveSessionRequests++;
     }
 
     abrRefCnt++;
@@ -832,7 +877,8 @@ void Bluetooth::stopAbr()
     }
 
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) && fbDev) {
-        if (--fbDev->deviceCount == 0) {
+        if ((fbDev->totalActiveSessionRequests > 0) &&
+            (--fbDev->totalActiveSessionRequests == 0)) {
             fbDev->isConfigured = false;
         }
     }
@@ -840,7 +886,8 @@ void Bluetooth::stopAbr()
         (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
          deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
         fbDev) {
-        if (--fbDev->deviceCount == 0) {
+        if ((fbDev->totalActiveSessionRequests > 0) &&
+            (--fbDev->totalActiveSessionRequests == 0)) {
             fbDev->isConfigured = false;
         }
     }
@@ -883,8 +930,7 @@ audio_sink_check_a2dp_ready_t BtA2dp::audio_sink_check_a2dp_ready = nullptr;
 
 BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
       : Bluetooth(device, Rm),
-        a2dpState(A2DP_STATE_DISCONNECTED),
-        totalActiveSessionRequests(0)
+        a2dpState(A2DP_STATE_DISCONNECTED)
 {
     a2dpRole = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? SINK : SOURCE;
     codecType = (device->id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ? DEC : ENC;
@@ -1636,17 +1682,18 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
 void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
                              btsco_lc3_cfg_t &lc3Cfg)
 {
-    std::vector<lc3_stream_map_t> steamMap;
+    std::vector<lc3_stream_map_t> steamMapIn;
+    std::vector<lc3_stream_map_t> steamMapOut;
     uint32_t audio_location = 0;
-    uint8_t stream_id;
-    uint8_t direction;
+    uint8_t stream_id = 0;
+    uint8_t direction = 0;
     int idx = 0;
 
     // convert and fill in encoder cfg
-    lc3CodecInfo.enc_cfg.toAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.rxconfig_index].sampling_freq;
-    lc3CodecInfo.enc_cfg.toAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.rxconfig_index].max_octets_per_frame;
-    lc3CodecInfo.enc_cfg.toAirConfig.frame_duration       = LC3_CSC[lc3Cfg.rxconfig_index].frame_duration;
-    lc3CodecInfo.enc_cfg.toAirConfig.bit_depth            = LC3_CSC[lc3Cfg.rxconfig_index].bit_depth;
+    lc3CodecInfo.enc_cfg.toAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.txconfig_index].sampling_freq;
+    lc3CodecInfo.enc_cfg.toAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.txconfig_index].max_octets_per_frame;
+    lc3CodecInfo.enc_cfg.toAirConfig.frame_duration       = LC3_CSC[lc3Cfg.txconfig_index].frame_duration;
+    lc3CodecInfo.enc_cfg.toAirConfig.bit_depth            = LC3_CSC[lc3Cfg.txconfig_index].bit_depth;
     if (lc3Cfg.fields_map & LC3_FRAME_DURATION_BIT)
         lc3CodecInfo.enc_cfg.toAirConfig.frame_duration   = lc3Cfg.frame_duration;
     lc3CodecInfo.enc_cfg.toAirConfig.api_version          = lc3Cfg.api_version;
@@ -1657,10 +1704,10 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
         lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[i] = 0;
 
     // convert and fill in decoder cfg
-    lc3CodecInfo.dec_cfg.fromAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.txconfig_index].sampling_freq;
-    lc3CodecInfo.dec_cfg.fromAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.txconfig_index].max_octets_per_frame;
-    lc3CodecInfo.dec_cfg.fromAirConfig.frame_duration       = LC3_CSC[lc3Cfg.txconfig_index].frame_duration;
-    lc3CodecInfo.dec_cfg.fromAirConfig.bit_depth            = LC3_CSC[lc3Cfg.txconfig_index].bit_depth;
+    lc3CodecInfo.dec_cfg.fromAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.rxconfig_index].sampling_freq;
+    lc3CodecInfo.dec_cfg.fromAirConfig.max_octets_per_frame = LC3_CSC[lc3Cfg.rxconfig_index].max_octets_per_frame;
+    lc3CodecInfo.dec_cfg.fromAirConfig.frame_duration       = LC3_CSC[lc3Cfg.rxconfig_index].frame_duration;
+    lc3CodecInfo.dec_cfg.fromAirConfig.bit_depth            = LC3_CSC[lc3Cfg.rxconfig_index].bit_depth;
     if (lc3Cfg.fields_map & LC3_FRAME_DURATION_BIT)
         lc3CodecInfo.dec_cfg.fromAirConfig.frame_duration   = lc3Cfg.frame_duration;
     lc3CodecInfo.dec_cfg.fromAirConfig.api_version          = lc3Cfg.api_version;
@@ -1689,34 +1736,44 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
             PAL_ERR(LOG_TAG, "invalid stream info (%d, %d, %d)", stream_id, direction, audio_location);
             continue;
         }
-        steamMap.push_back({audio_location, stream_id, direction});
+        if (direction == TO_AIR)
+            steamMapOut.push_back({audio_location, stream_id, direction});
+        else
+            steamMapIn.push_back({audio_location, stream_id, direction});
+
         s = match.suffix().str();
     }
 
-    if (steamMap.size() == 0) {
-        PAL_ERR(LOG_TAG, "invalid stream map size %d", steamMap.size());
+    PAL_DBG(LOG_TAG, "stream map out size: %d, stream map in size: %d", steamMapOut.size(), steamMapIn.size());
+    if ((steamMapOut.size() == 0) || (steamMapIn.size() == 0)) {
+        PAL_ERR(LOG_TAG, "invalid size steamMapOut.size %d, steamMapIn.size %d",
+                steamMapOut.size(), steamMapIn.size());
         return;
     }
 
-    lc3CodecInfo.enc_cfg.stream_map_size = steamMap.size();
+    lc3CodecInfo.enc_cfg.stream_map_size = steamMapOut.size();
     if (lc3CodecInfo.enc_cfg.streamMapOut != NULL)
         delete [] lc3CodecInfo.enc_cfg.streamMapOut;
-    lc3CodecInfo.enc_cfg.streamMapOut = new lc3_stream_map_t[steamMap.size()];
-    for (auto &it : steamMap) {
-        lc3CodecInfo.enc_cfg.streamMapOut[idx++].audio_location = it.audio_location;
-        lc3CodecInfo.enc_cfg.streamMapOut[idx++].stream_id = it.stream_id;
+    lc3CodecInfo.enc_cfg.streamMapOut = new lc3_stream_map_t[steamMapOut.size()];
+    for (auto &it : steamMapOut) {
+        lc3CodecInfo.enc_cfg.streamMapOut[idx].audio_location = it.audio_location;
+        lc3CodecInfo.enc_cfg.streamMapOut[idx].stream_id = it.stream_id;
         lc3CodecInfo.enc_cfg.streamMapOut[idx++].direction = it.direction;
+        PAL_DBG(LOG_TAG, "streamMapOut: audio_location %d, stream_id %d, direction %d",
+                it.audio_location, it.stream_id, it.direction);
     }
 
     idx = 0;
-    lc3CodecInfo.dec_cfg.stream_map_size = steamMap.size();
+    lc3CodecInfo.dec_cfg.stream_map_size = steamMapIn.size();
     if (lc3CodecInfo.dec_cfg.streamMapIn != NULL)
         delete [] lc3CodecInfo.dec_cfg.streamMapIn;
-    lc3CodecInfo.dec_cfg.streamMapIn = new lc3_stream_map_t[steamMap.size()];
-    for (auto &it : steamMap) {
-        lc3CodecInfo.dec_cfg.streamMapIn[idx++].audio_location = it.audio_location;
-        lc3CodecInfo.dec_cfg.streamMapIn[idx++].stream_id = it.stream_id;
+    lc3CodecInfo.dec_cfg.streamMapIn = new lc3_stream_map_t[steamMapIn.size()];
+    for (auto &it : steamMapIn) {
+        lc3CodecInfo.dec_cfg.streamMapIn[idx].audio_location = it.audio_location;
+        lc3CodecInfo.dec_cfg.streamMapIn[idx].stream_id = it.stream_id;
         lc3CodecInfo.dec_cfg.streamMapIn[idx++].direction = it.direction;
+        PAL_DBG(LOG_TAG, "steamMapIn: audio_location %d, stream_id %d, direction %d",
+                it.audio_location, it.stream_id, it.direction);
     }
 
     if (lc3CodecInfo.dec_cfg.streamMapIn[0].audio_location == 0)
@@ -1767,7 +1824,10 @@ int BtSco::start()
     }
 
     status = Device::start_l();
-    if (!status && isAbrEnabled)
+    if (!status)
+        totalActiveSessionRequests++;
+    if (!status && isAbrEnabled &&
+        (codecFormat != CODEC_TYPE_LC3))
         startAbr();
 
     mDeviceMutex.unlock();
@@ -1779,7 +1839,8 @@ int BtSco::stop()
     int status = 0;
     mDeviceMutex.lock();
 
-    if (isAbrEnabled)
+    if (isAbrEnabled &&
+        (codecFormat != CODEC_TYPE_LC3))
         stopAbr();
 
     if (pluginCodec) {
@@ -1792,9 +1853,12 @@ int BtSco::stop()
     }
 
     Device::stop_l();
+    if (totalActiveSessionRequests > 0)
+        totalActiveSessionRequests--;
+
     if (isAbrEnabled == false)
         codecFormat = CODEC_TYPE_INVALID;
-    if (deviceCount == 0)
+    if (totalActiveSessionRequests == 0)
         isConfigured = false;
 
     mDeviceMutex.unlock();

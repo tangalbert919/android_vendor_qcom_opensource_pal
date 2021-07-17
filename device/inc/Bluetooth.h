@@ -97,6 +97,7 @@ protected:
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
     std::mutex                 mAbrMutex;
+    int                        totalActiveSessionRequests;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
                          bt_enc_payload_t **out_buf,
@@ -148,7 +149,6 @@ private:
     uint8_t         a2dpRole;  // source or sink
     enum A2DP_STATE a2dpState;
     bool            isA2dpOffloadSupported;
-    int             totalActiveSessionRequests;
 
     int startPlayback();
     int stopPlayback();

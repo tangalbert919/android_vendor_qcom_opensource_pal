@@ -554,6 +554,14 @@
                 <!-- BT_FORMAT - SWB -->
                 <graph_kv key="0xB5000000" value="0xB5000004"/>
             </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
+            </keys_and_values>
         </device>
         <!-- BT SCO In Headset Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET">
@@ -570,6 +578,14 @@
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
                 <!-- BT_FORMAT - SWB -->
                 <graph_kv key="0xB5000000" value="0xB5000004"/>
+            </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_LC3">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
         </device>
     </devices>
