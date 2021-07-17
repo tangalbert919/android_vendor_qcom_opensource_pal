@@ -650,13 +650,13 @@ int SessionAlsaPcm::start(Stream * s)
 
                 if (!pcm) {
                     PAL_ERR(LOG_TAG, "pcm open failed");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
 
                 if (!pcm_is_ready(pcm)) {
                     PAL_ERR(LOG_TAG, "pcm open not ready");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
                 break;
@@ -675,13 +675,13 @@ int SessionAlsaPcm::start(Stream * s)
 
                 if (!pcm) {
                     PAL_ERR(LOG_TAG, "pcm open failed");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
 
                 if (!pcm_is_ready(pcm)) {
                     PAL_ERR(LOG_TAG, "pcm open not ready");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
                 break;
@@ -689,25 +689,25 @@ int SessionAlsaPcm::start(Stream * s)
                 pcmRx = pcm_open(rm->getSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
                 if (!pcmRx) {
                     PAL_ERR(LOG_TAG, "pcm-rx open failed");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
 
                 if (!pcm_is_ready(pcmRx)) {
                     PAL_ERR(LOG_TAG, "pcm-rx open not ready");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
                 pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
                 if (!pcmTx) {
                     PAL_ERR(LOG_TAG, "pcm-tx open failed");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
 
                 if (!pcm_is_ready(pcmTx)) {
                     PAL_ERR(LOG_TAG, "pcm-tx open not ready");
-                    status = -EINVAL;
+                    status = errno;
                     goto exit;
                 }
                 break;
@@ -876,6 +876,7 @@ int SessionAlsaPcm::start(Stream * s)
 
             status = pcm_start(pcm);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
             }
             break;
@@ -998,6 +999,7 @@ int SessionAlsaPcm::start(Stream * s)
 pcm_start:
             status = pcm_start(pcm);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
             }
             if (!status && isPauseRegistrationDone) {
@@ -1090,10 +1092,12 @@ pcm_start:
 pcm_start_loopback:
             status = pcm_start(pcmRx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
             }
             status = pcm_start(pcmTx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
             }
            break;
@@ -1134,6 +1138,7 @@ int SessionAlsaPcm::stop(Stream * s)
             if (pcm && isActive()) {
                 status = pcm_stop(pcm);
                 if (status) {
+                    status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
                 }
             }
@@ -1142,6 +1147,7 @@ int SessionAlsaPcm::stop(Stream * s)
             if (pcm && isActive()) {
                 status = pcm_stop(pcm);
                 if (status) {
+                    status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop failed %d", status);
                 }
             }
@@ -1165,12 +1171,14 @@ int SessionAlsaPcm::stop(Stream * s)
             if (pcmRx && isActive()) {
                 status = pcm_stop(pcmRx);
                 if (status) {
+                    status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop - rx failed %d", status);
                 }
             }
             if (pcmTx && isActive()) {
                 status = pcm_stop(pcmTx);
                 if (status) {
+                    status = errno;
                     PAL_ERR(LOG_TAG, "pcm_stop - tx failed %d", status);
                 }
             }
@@ -1266,6 +1274,7 @@ int SessionAlsaPcm::close(Stream * s)
             if (pcm)
                 status = pcm_close(pcm);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_close failed %d", status);
             }
             if (sAttr.type == PAL_STREAM_ACD ||
@@ -1298,6 +1307,7 @@ int SessionAlsaPcm::close(Stream * s)
             if (pcm)
                 status = pcm_close(pcm);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_close failed %d", status);
             }
             // Deregister callback for Soft Pause
@@ -1322,11 +1332,13 @@ int SessionAlsaPcm::close(Stream * s)
             if (pcmRx)
                 status = pcm_close(pcmRx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
             }
             if (pcmTx)
                 status = pcm_close(pcmTx);
             if (status) {
+                status = errno;
                PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
             }
             rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
@@ -1560,8 +1572,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
         if (pcm && (mState == SESSION_FLUSHED)) {
             status = pcm_start(pcm);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-                status = -EINVAL;
                 goto exit;
             }
             mState = SESSION_STARTED;
@@ -1597,8 +1609,8 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
     if (pcm && (mState == SESSION_FLUSHED)) {
         status = pcm_start(pcm);
         if (status) {
+            status = errno;
             PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
-            status = -EINVAL;
             goto exit;
         }
         mState = SESSION_STARTED;
@@ -1935,6 +1947,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         if (pcmEcTx) {
             status = pcm_stop(pcmEcTx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_stop - ec_tx failed %d", status);
             }
             if (dev) {
@@ -1942,6 +1955,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             }
             status = pcm_close(pcmEcTx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_close - ec_tx failed %d", status);
             }
             if (dev) {
@@ -2004,22 +2018,23 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open failed");
                 dev->stop();
                 dev->close();
-                return -EINVAL;
+                return errno;
             }
             if (!pcm_is_ready(pcmEcTx)) {
                 PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open not ready");
                 pcmEcTx = NULL;
                 dev->stop();
                 dev->close();
-                return -EINVAL;
+                return errno;
             }
             status = pcm_start(pcmEcTx);
             if (status) {
+                status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start ec_tx failed %d", status);
                 pcm_close(pcmEcTx);
                 dev->stop();
                 dev->close();
-                return -EINVAL;
+                return status;
             }
             PAL_INFO(LOG_TAG, "backend name %s", extEcbackendNames.at(0).c_str());
         } else {
@@ -2187,6 +2202,8 @@ int SessionAlsaPcm::flush()
 
         if (!status)
             mState = SESSION_FLUSHED;
+        else
+            status = errno;
     }
 
     PAL_VERBOSE(LOG_TAG,"status %d\n", status);
@@ -2334,7 +2351,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");
             step = "open";
-            status = -EINVAL;
+            status = errno;
             goto exit;
         }
 
@@ -2342,7 +2359,7 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
             PAL_ERR(LOG_TAG, "pcm open not ready");
             pcm = nullptr;
             step = "open";
-            status = -EINVAL;
+            status = errno;
             goto exit;
         }
 
@@ -2403,16 +2420,15 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
  exit:
      if (status < 0) {
-         if (pcm == NULL) {
-             PAL_ERR(LOG_TAG,"%s - %d",step, status);
-         } else {
-             //status = -errno;
-             PAL_ERR(LOG_TAG,"%s - %d",step, status);
-             if (pcm) {
-                 pcm_close(pcm);
-                 pcm = NULL;
-             }
-         }
+        if (pcm == NULL) {
+            PAL_ERR(LOG_TAG,"%s - %d",step, status);
+        } else {
+            PAL_ERR(LOG_TAG,"%s - %d",step, status);
+            if (pcm) {
+                pcm_close(pcm);
+                pcm = NULL;
+            }
+        }
      } else {
          status = 0;
      }
@@ -2506,13 +2522,13 @@ int SessionAlsaPcm::openGraph(Stream *s) {
 
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");
-            status = -EINVAL;
+            status = errno;
             goto exit;
         }
 
         if (!pcm_is_ready(pcm)) {
             PAL_ERR(LOG_TAG, "pcm open not ready");
-            status = -EINVAL;
+            status = errno;
             goto exit;
         }
 
