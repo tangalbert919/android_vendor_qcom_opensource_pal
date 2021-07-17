@@ -2475,6 +2475,26 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     }
                 }
             }
+
+            str_list = getConcurrentTxStream_l(s, d);
+            for (auto str: str_list) {
+                tx_devices.clear();
+                str->getAssociatedDevices(tx_devices);
+                // TODO: add support for stream with multi Tx devices
+                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
+                if (rxdevcount <= 0) {
+                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+                } else if (rxdevcount > 1) {
+                    PAL_DBG(LOG_TAG, "EC ref already set");
+                } else if (str && isStreamActive(str, mActiveStreams)) {
+                    mResourceManagerMutex.unlock();
+                    status = str->setECRef(d, true);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    }
+                }
+            }
         }
     }
 
@@ -2543,6 +2563,25 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
                     if (dev->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
                        dev->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
                         updateECDeviceMap(d, dev, s, 0, false);
+                    }
+                }
+            }
+            str_list = getConcurrentTxStream_l(s, d);
+            for (auto str: str_list) {
+                tx_devices.clear();
+                str->getAssociatedDevices(tx_devices);
+                // TODO: add support for stream with multi Tx devices
+                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
+                if (rxdevcount < 0) {
+                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+                } else if (rxdevcount > 0) {
+                    PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
+                } else if (str && isStreamActive(str, mActiveStreams)) {
+                    mResourceManagerMutex.unlock();
+                    status = str->setECRef(d, false);
+                    mResourceManagerMutex.lock();
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
                     }
                 }
             }
@@ -3556,11 +3595,15 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
      * Generally voip/voice rx stream comes with related tx streams,
      * so there's no need to switch to NLPI for voip/voice rx stream
      * if corresponding voip/voice tx stream concurrency is not supported.
+     * Also note that capture concurrency has highest proirity that
+     * when capture concurrency is disabled then concurrency for voip
+     * and voice call should also be disabled even voice_conc_enable
+     * or voip_conc_enable is set to true.
      */
     if (in_type == PAL_STREAM_VOICE_CALL) {
         *tx_conc = true;
         *rx_conc = true;
-        if (!voice_conc_enable) {
+        if (!audio_capture_conc_enable || !voice_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
             *conc_en = false;
         }
@@ -3569,7 +3612,7 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
                in_type == PAL_STREAM_VOIP) {
         *tx_conc = true;
         *rx_conc = true;
-        if (!voip_conc_enable) {
+        if (!audio_capture_conc_enable || !voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
             *conc_en = false;
         }
@@ -3951,9 +3994,9 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     int rx_dev_id = 0;
     int tx_dev_id = 0;
     int ec_count = 0;
+    int i = 0, j = 0;
     bool tx_stream_found = false;
     std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
-    std::vector<std::pair<Stream *, int>> stream_list;
 
     if (!rx_dev || !tx_dev || !tx_str) {
         PAL_ERR(LOG_TAG, "Invalid operation");
@@ -3963,25 +4006,30 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     rx_dev_id = rx_dev->getSndDeviceId();
     tx_dev_id = tx_dev->getSndDeviceId();
 
-    for (int i = 0; i < deviceInfo.size(); i++) {
+    for (i = 0; i < deviceInfo.size(); i++) {
         if (tx_dev_id == deviceInfo[i].deviceId) {
-            stream_list = deviceInfo[i].ec_ref_count_map[rx_dev_id];
+            break;
         }
     }
 
-    for (int j = 0; j < stream_list.size(); j++) {
-        if (stream_list[j].first == tx_str) {
+    if (i == deviceInfo.size()) {
+        PAL_ERR(LOG_TAG, "Tx device %d not found", tx_dev_id);
+        return -EINVAL;
+    }
+
+    for (j = 0; j < deviceInfo[i].ec_ref_count_map[rx_dev_id].size(); j++) {
+        if ((deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].first == tx_str) {
             tx_stream_found = true;
             if (count > 0) {
-                stream_list[j].second += count;
+                (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second += count;
             } else if (count == 0) {
                 if (is_txstop) {
-                    stream_list[j].second = 0;
+                    (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second = 0;
                 } else {
-                    stream_list[j].second--;
+                    (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second--;
                 }
             }
-            ec_count = stream_list[j].second;
+            ec_count = (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second;
         }
     }
 
@@ -3990,7 +4038,8 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
             PAL_ERR(LOG_TAG, "Cannot reset as ec ref not present");
             return -EINVAL;
         } else if (count > 0) {
-            stream_list.push_back(std::make_pair(tx_str, count));
+            deviceInfo[i].ec_ref_count_map[rx_dev_id].push_back(
+                std::make_pair(tx_str, count));
             ec_count = count;
         }
     }

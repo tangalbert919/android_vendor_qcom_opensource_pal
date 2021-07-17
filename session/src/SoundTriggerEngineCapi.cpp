@@ -968,17 +968,17 @@ int32_t SoundTriggerEngineCapi::UnloadSoundModel(Stream *s __unused)
 
     PAL_DBG(LOG_TAG, "Enter, Issuing capi_end");
     std::lock_guard<std::mutex> lck(mutex_);
+    status = StopSoundEngine();
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
+    }
+
     status = capi_handle_->vtbl_ptr->end(capi_handle_);
     if (status != CAPI_V2_EOK) {
         PAL_ERR(LOG_TAG, "Capi end function failed, status = %d",
             status);
         status = -EINVAL;
         goto exit;
-    }
-
-    status = StopSoundEngine();
-    if (status) {
-        PAL_ERR(LOG_TAG, "Failed to stop sound engine, status = %d", status);
     }
 
 exit:

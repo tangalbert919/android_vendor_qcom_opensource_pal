@@ -790,7 +790,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
         if (lock_status)
             mStreamMutex.unlock();
         PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
-        return status;
+        return -EINVAL;
     }
 
     if (det_type == GMM_DETECTED) {
@@ -3013,7 +3013,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             status = st_stream_.SendRecognitionConfig(
                (struct pal_st_recognition_config *)data->data_);
             if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to send recog config, status %d",
+                PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
                         status);
             }
             break;
@@ -3024,6 +3024,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 // Possible if App has stopped recognition during active
                 // concurrency.
                 break;
+            }
+            // Update conf levels in case conf level is set to 100 in pause
+            if (st_stream_.rec_config_) {
+                status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                        status);
+                    break;
+                }
             }
             // fall through to start
             [[fallthrough]];
@@ -3212,7 +3221,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            if (st_stream_.isActive()) {
+            if (st_stream_.isActive() && !st_stream_.paused_) {
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device %d start failed with status %d",
@@ -3229,7 +3238,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-            } else if (st_stream_.isActive()) {
+            } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
                 TransitTo(ST_STATE_ACTIVE);
             }

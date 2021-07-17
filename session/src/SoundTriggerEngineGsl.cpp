@@ -331,7 +331,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                 if (s) {
                     CheckAndSetDetectionConfLevels(s);
                     mutex_.unlock();
-                    s->SetEngineDetectionState(GMM_DETECTED);
+                    status = s->SetEngineDetectionState(GMM_DETECTED);
                     mutex_.lock();
                 }
             } else {
@@ -346,10 +346,16 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
 
                     if (s) {
                         mutex_.unlock();
-                        s->SetEngineDetectionState(GMM_DETECTED);
+                        status = s->SetEngineDetectionState(GMM_DETECTED);
                         mutex_.lock();
                     }
                 }
+            }
+            if (status) {
+                PAL_ERR(LOG_TAG,
+                    "Failed to set engine detection state to stream, status %d",
+                    status);
+                break;
             }
             event_notified = true;
         }
@@ -1786,11 +1792,7 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
                 pdk_data->model_size);
     }
 
-    state_mutex_.lock();
-    if (eng_state_ == ENG_BUFFERING)
-        exit_buffering_ = true;
-    state_mutex_.unlock();
-
+    exit_buffering_ = true;
     std::unique_lock<std::mutex> lck(mutex_);
     /* Check whether any stream is already attached to this engine */
     if (CheckIfOtherStreamsAttached(s)) {
@@ -1854,11 +1856,7 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    state_mutex_.lock();
-    if (eng_state_ == ENG_BUFFERING)
-        exit_buffering_ = true;
-    state_mutex_.unlock();
-
+    exit_buffering_ = true;
     std::unique_lock<std::mutex> lck(mutex_);
 
     /* Check whether any stream is already attached to this engine */
@@ -1870,7 +1868,6 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     }
 
     exit_thread_ = true;
-    exit_buffering_ = true;
     if (buffer_thread_handler_.joinable()) {
         cv_.notify_one();
         lck.unlock();
@@ -1936,7 +1933,6 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    exit_buffering_ = false;
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
@@ -2004,7 +2000,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
             PAL_ERR(LOG_TAG, "Failed to get write position");
         }
     }
-
+    exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -2016,11 +2012,7 @@ int32_t SoundTriggerEngineGsl::StartRecognition(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    state_mutex_.lock();
-    if (eng_state_ == ENG_BUFFERING)
-        exit_buffering_ = true;
-    state_mutex_.unlock();
-
+    exit_buffering_ = true;
     std::unique_lock<std::mutex> lck(mutex_);
 
     if (IsEngineActive())
@@ -2204,6 +2196,7 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
     int32_t status = 0;
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
+    exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
     if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
         custom_data_size = config->data_size;
