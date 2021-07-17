@@ -212,6 +212,7 @@ public:
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
     bool isStreamAudioOutFmtSupported(pal_audio_fmt_t format);
     int32_t getTimestamp(struct pal_session_time *stime);
+    int32_t handleBTDeviceNotReady(bool& a2dpSuspend);
     int disconnectStreamDevice(Stream* streamHandle,  pal_device_id_t dev_id);
     int disconnectStreamDevice_l(Stream* streamHandle,  pal_device_id_t dev_id);
     int connectStreamDevice(Stream* streamHandle, struct pal_device *dattr);

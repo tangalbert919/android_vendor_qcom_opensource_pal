@@ -647,6 +647,7 @@ public:
     static pal_device_id_t getDeviceId(std::string device_name);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
+    bool isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();

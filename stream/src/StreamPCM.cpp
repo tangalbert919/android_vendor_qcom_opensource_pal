@@ -297,6 +297,7 @@ StreamPCM::~StreamPCM()
 int32_t StreamPCM::start()
 {
     int32_t status = 0, devStatus = 0;
+    bool a2dpSuspend = false;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
             session, mStreamAttr->direction, currentState);
@@ -312,9 +313,15 @@ int32_t StreamPCM::start()
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
-            rm->lockGraph();
             PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_OUTPUT device count - %zu",
                             mDevices.size());
+
+            // handle scenario where BT device is not ready
+            status = handleBTDeviceNotReady(a2dpSuspend);
+            if (0 != status)
+                goto exit;
+
+            rm->lockGraph();
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
                 if (0 != status) {
@@ -358,6 +365,15 @@ int32_t StreamPCM::start()
             }
             PAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
+
+            if (a2dpSuspend) {
+                PAL_DBG(LOG_TAG, "mute the stream on speaker");
+                if (!a2dpMuted) {
+                    mute_l(true);
+                    a2dpMuted = true;
+                }
+                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            }
             break;
 
         case PAL_AUDIO_INPUT:
