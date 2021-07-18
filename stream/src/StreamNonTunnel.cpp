@@ -74,6 +74,7 @@ StreamNonTunnel::StreamNonTunnel(const struct pal_stream_attributes *sattr, stru
     inMaxMetadataSz = 0;
     outMaxMetadataSz = 0;
     mDevices.clear();
+    mPalDevice.clear();
     currentState = STREAM_IDLE;
     ssrInNTMode = false;
     //Modify cached values only at time of SSR down.

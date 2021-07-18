@@ -81,11 +81,8 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
 
 StreamSensorPCMData::~StreamSensorPCMData()
 {
-    cachedState = STREAM_IDLE;
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
-    mDevices.clear();
-    PAL_DBG(LOG_TAG, "Exit");
 }
 
 int32_t StreamSensorPCMData::open()

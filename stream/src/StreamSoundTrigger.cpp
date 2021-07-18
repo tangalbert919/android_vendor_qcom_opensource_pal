@@ -51,7 +51,7 @@
 ST_DBG_DECLARE(static int lab_cnt = 0);
 
 StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
-                                       struct pal_device *dattr __unused,
+                                       struct pal_device *dattr,
                                        uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
@@ -81,6 +81,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     lab_fd_ = nullptr;
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
+    mDevices.clear();
+    mPalDevice.clear();
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -106,6 +108,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     if (!st_info_) {
         PAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
         throw std::runtime_error("Failed to get sound trigger platform info");
+    }
+
+    if (!dattr) {
+        PAL_ERR(LOG_TAG,"Error:invalid device arguments");
+        throw std::runtime_error("invalid device arguments");
+    }
+
+    for (int i=0; i < no_of_devices; i++) {
+        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
@@ -244,6 +255,7 @@ int32_t StreamSoundTrigger::close() {
         free(st_conf_levels_v2_);
         st_conf_levels_v2_ = nullptr;
     }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

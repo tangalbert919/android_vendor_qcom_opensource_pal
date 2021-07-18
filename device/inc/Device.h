@@ -58,6 +58,7 @@ protected:
     void *customPayload;
     size_t customPayloadSize;
     std::string UpdatedSndName;
+    uint32_t mCurrentPriority;
 
     Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
@@ -92,6 +93,8 @@ public:
     void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
     virtual ~Device();
     void getCurrentSndDevName(char *name);
+    uint32_t getCurrentPriority(){return mCurrentPriority;};
+    void setCurrentPrioirty(uint32_t prio){mCurrentPriority = prio;};
 };
 
 

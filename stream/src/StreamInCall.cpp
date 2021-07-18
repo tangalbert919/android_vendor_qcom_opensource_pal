@@ -61,6 +61,7 @@ StreamInCall::StreamInCall(const struct pal_stream_attributes *sattr, struct pal
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
+    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -204,6 +205,7 @@ int32_t  StreamInCall::close()
 exit:
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
+
     PAL_INFO(LOG_TAG, "Exit. closed the stream successfully %d status %d",
              currentState, status);
     return status;
@@ -961,7 +963,15 @@ StreamInCall::~StreamInCall(){
         mVolumeData = (struct pal_volume_data *)NULL;
     }
 
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     delete session;
     session = nullptr;
 }

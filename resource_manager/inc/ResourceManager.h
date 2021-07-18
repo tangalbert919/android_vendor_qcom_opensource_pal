@@ -69,6 +69,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE "upd_dedicated_be"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
+#define MIN_USECASE_PRIORITY 0xFFFFFFFF
 #if LINUX_ENABLED
 #if defined(__LP64__)
 #define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
@@ -179,6 +180,8 @@ struct usecase_custom_config_info
     int channel;
     sidetone_mode_t sidetoneMode;
     int samplerate;
+    uint32_t priority;
+    uint32_t bit_width;
 };
 
 struct usecase_info {
@@ -188,6 +191,8 @@ struct usecase_info {
     std::string sndDevName;
     int channel;
     std::vector<usecase_custom_config_info> config;
+    uint32_t priority;
+    uint32_t bit_width;
 
 };
 
@@ -197,6 +202,13 @@ struct pal_device_info {
      int samplerate;
      std::string sndDevName;
      bool isExternalECRefEnabledFlag;
+     uint32_t priority;
+     bool fractionalSRSupported;
+     bool channels_overwrite;
+     bool samplerate_overwrite;
+     bool sndDevName_overwrite;
+     bool bit_width_overwrite;
+     uint32_t bit_width;
 };
 
 struct vsid_modepair {
@@ -293,6 +305,8 @@ struct deviceIn {
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
     std::string sndDevName;
     bool isExternalECRefEnabled;
+    bool fractionalSRSupported;
+    uint32_t bit_width;
 };
 
 class ResourceManager
@@ -303,24 +317,6 @@ private:
     int mPriorityHighestPriorityActiveStream; //priority of the highest priority active stream
     Stream* mHighestPriorityActiveStream; //pointer to the highest priority active stream
     int getNumFEs(const pal_stream_type_t sType) const;
-    /* shouldDeviceSwitch will return true, if the incoming stream properties and device
-     * properties should force a device switch, these are the points to consider
-     *
-     * order of priority
-     *
-     *     100 - voice and VOIP call streams have the highest priority (10 points or 0 points),
-     *     and device properties should be derived from that
-     *
-     *     50 - points if the stream is a 44.1 stream. This has the second highest priority
-     *
-     *     25 - points if the stream is a 24 bit stream. This has the third highest priority
-     *
-     * const bool shouldDeviceSwitch(const pal_stream_attributes* sExistingAttr,
-     * const pal_stream_attributes* sIncomingAttr) const
-     */
-
-    bool shouldDeviceSwitch(const pal_stream_attributes* sExistingAttr,
-         const pal_stream_attributes* sIncomingAttr) const;
     bool ifVoiceorVoipCall (pal_stream_type_t streamType) const;
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const pal_stream_attributes* sAttr) const;
@@ -342,7 +338,7 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
-
+    static bool isBitWidthSupported(uint32_t bitWidth);
 protected:
     std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
@@ -482,7 +478,7 @@ public:
     bool isStreamSupported(struct pal_stream_attributes *attributes,
                            struct pal_device *devices, int no_of_devices);
     int32_t getDeviceConfig(struct pal_device *deviceattr,
-                            struct pal_stream_attributes *attributes, int32_t channel);
+                            struct pal_stream_attributes *attributes);
     /*getDeviceInfo - updates channels, fluence info of the device*/
     void getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type,
                        std::string key, struct pal_device_info *devinfo);
@@ -565,7 +561,7 @@ public:
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
-    bool updateDeviceConfig(std::shared_ptr<Device> inDev,
+    bool updateDeviceConfig(std::shared_ptr<Device> *inDev,
              struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
     int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr);
     const std::string getPALDeviceName(const pal_device_id_t id) const;
@@ -603,6 +599,9 @@ public:
                          pal_stream_type_t in_type, pal_stream_direction_t dir,
                          bool *rx_conc, bool *tx_conc, bool *conc_en);
     void ConcurrentStreamStatus(pal_stream_type_t type,
+                                pal_stream_direction_t dir,
+                                bool active);
+    void HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t type,
                                 pal_stream_direction_t dir,
                                 bool active);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
@@ -655,8 +654,6 @@ public:
     int32_t a2dpCaptureSuspend();
     int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
-    bool isDeviceSwitchRequired(struct pal_device *activeDevAttr,
-         struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
     bool isDpDevice(pal_device_id_t id);
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };
@@ -681,6 +678,18 @@ public:
     static void process_custom_config(const XML_Char **attr);
     static void process_usecase();
     void getVendorConfigPath(char* config_file_path, int path_size);
+    void restoreDevice(std::shared_ptr<Device> dev);
+    bool doDevAttrDiffer(struct pal_device *inDevAttr,
+                         const char *CurrentSndDeviceName,
+                         struct pal_device *curDevAttr);
+    int updatePriorityAttr(pal_device_id_t dev_id,
+                           std::vector <std::tuple<Stream *, uint32_t>> activestreams,
+                           struct pal_device *incomingDev,
+                           const pal_stream_attributes* currentStrAttr);
+    bool compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
+                                 const struct pal_device_info *Dev1Info,
+                                 struct pal_device *Dev2Attr,
+                                 const struct pal_device_info *Dev2Info);
 };
 
 #endif

@@ -63,6 +63,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
+    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -80,6 +81,12 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         PAL_ERR(LOG_TAG,"Error:invalid arguments");
         mStreamMutex.unlock();
         throw std::runtime_error("invalid arguments");
+    }
+
+    if (dattr) {
+        for (int i=0; i < no_of_devices; i++) {
+            mPalDevice.push_back(dattr[i]);
+        }
     }
 
     attribute_size = sizeof(struct pal_stream_attributes);
@@ -126,7 +133,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
             throw std::runtime_error("failed to create device object");
         }
         mStreamMutex.unlock();
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
 
         if (isDeviceConfigUpdated)
@@ -150,7 +157,15 @@ StreamCommon::~StreamCommon()
         mStreamAttr = (struct pal_stream_attributes *)NULL;
     }
 
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     delete session;
     session = nullptr;
 }
@@ -241,6 +256,7 @@ int32_t  StreamCommon::close()
     }
     PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
     currentState = STREAM_IDLE;
+
     mStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "Exit. closed the stream successfully %d status %d",

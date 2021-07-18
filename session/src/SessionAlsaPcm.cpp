@@ -1410,8 +1410,12 @@ int SessionAlsaPcm::disconnectSessionDevice(Stream *streamHandle,
 
     if (!rxAifBackEndsToDisconnect.empty()) {
         int cnt = 0;
-        status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
-            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToDisconnect);
+        if (streamType != PAL_STREAM_ULTRASOUND)
+            status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+                     dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToDisconnect);
+        else
+            status = SessionAlsaUtils::disconnectSessionDevice(streamHandle, streamType, rm,
+                     dAttr, pcmDevTxIds, pcmDevRxIds, rxAifBackEndsToDisconnect);
 
         for (const auto &elem : rxAifBackEnds) {
             cnt++;
@@ -1478,8 +1482,13 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
     deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
-            dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToConnect);
+        if (streamType != PAL_STREAM_ULTRASOUND)
+            status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+                     dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToConnect);
+        else
+            status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+                     dAttr, pcmDevTxIds, pcmDevRxIds, rxAifBackEndsToConnect);
+
         for (const auto &elem : rxAifBackEndsToConnect)
             rxAifBackEnds.push_back(elem);
     }

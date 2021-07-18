@@ -225,6 +225,7 @@ Device::Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     customPayload = NULL;
     customPayloadSize = 0;
     strlcpy(mSndDeviceName, "", DEVICE_NAME_MAX_SIZE);
+    mCurrentPriority = MIN_USECASE_PRIORITY;
     PAL_DBG(LOG_TAG,"device instance for id %d created", device->id);
 
 }
@@ -232,6 +233,7 @@ Device::Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
 Device::Device()
 {
     strlcpy(mSndDeviceName, "", DEVICE_NAME_MAX_SIZE);
+    mCurrentPriority = MIN_USECASE_PRIORITY;
     mPALDeviceName.clear();
 }
 
@@ -242,6 +244,7 @@ Device::~Device()
 
     customPayload = NULL;
     customPayloadSize = 0;
+    mCurrentPriority = MIN_USECASE_PRIORITY;
     PAL_DBG(LOG_TAG,"device instance for id %d destroyed", deviceAttr.id);
 }
 
@@ -395,6 +398,7 @@ int Device::close()
        if (deviceCount == 0) {
            PAL_DBG(LOG_TAG, "Disabling device %d with snd dev %s", deviceAttr.id, mSndDeviceName);
            disableDevice(audioRoute, mSndDeviceName);
+           mCurrentPriority = MIN_USECASE_PRIORITY;
        }
     }
     PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s)", deviceCount,
