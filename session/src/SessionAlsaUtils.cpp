@@ -1771,8 +1771,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (PAL_STREAM_VOICE_CALL != streamType) {
-        if (sAttr.direction == PAL_AUDIO_OUTPUT &&
-                !(SessionAlsaUtils::isMmapUsecase(sAttr))) {
+        if (sAttr.direction == PAL_AUDIO_OUTPUT) {
             status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                        aifBackEndsToConnect[0].second.data(),
                                                        TAG_DEVICE_MFC_SR, &miid);
