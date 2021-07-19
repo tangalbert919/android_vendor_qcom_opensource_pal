@@ -243,7 +243,7 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     if (payloadSize % 8 != 0)
         payloadSize = payloadSize + (8 - payloadSize % 8);
 
-    payloadInfo = new uint8_t[payloadSize]();
+    payloadInfo = (uint8_t*) calloc(1, payloadSize);
     if (!payloadInfo) {
         PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return;
@@ -381,39 +381,47 @@ void PayloadBuilder::processGraphKVData(struct user_xml_data *data, const XML_Ch
     kv.value = ResourceManager::convertCharToHex(value);
 
     if (data->is_parsing_streams) {
-        size = all_streams.size() - 1;
-        if (size >= 0) {
-            selector_size = all_streams[size].keys_values.size() - 1;
-            all_streams[size].keys_values[selector_size].kv_pairs.push_back(kv);
-            PAL_DBG(LOG_TAG, "stream_graph_kv done size: %zu",
-                all_streams[size].keys_values[selector_size].kv_pairs.size());
+        if (all_streams.size() > 0) {
+            size = all_streams.size() - 1;
+            if (all_streams[size].keys_values.size() > 0) {
+                selector_size = all_streams[size].keys_values.size() - 1;
+                all_streams[size].keys_values[selector_size].kv_pairs.push_back(kv);
+                PAL_DBG(LOG_TAG, "stream_graph_kv done size: %zu",
+                    all_streams[size].keys_values[selector_size].kv_pairs.size());
+            }
         }
         return;
     } else if (data->is_parsing_streampps) {
-        size = all_streampps.size() - 1;
-        if (size >= 0) {
-            selector_size = all_streampps[size].keys_values.size() - 1;
-            all_streampps[size].keys_values[selector_size].kv_pairs.push_back(kv);
-            PAL_DBG(LOG_TAG, "streampp_graph_kv:streampp size: %zu",
-                all_streampps[size].keys_values[selector_size].kv_pairs.size());
+        if (all_streampps.size() > 0) {
+            size = all_streampps.size() - 1;
+            if (all_streampps[size].keys_values.size() > 0) {
+                selector_size = all_streampps[size].keys_values.size() - 1;
+                all_streampps[size].keys_values[selector_size].kv_pairs.push_back(kv);
+                PAL_DBG(LOG_TAG, "streampp_graph_kv:streampp size: %zu",
+                    all_streampps[size].keys_values[selector_size].kv_pairs.size());
+            }
         }
         return;
     } else if (data->is_parsing_devices) {
-        size = all_devices.size() - 1;
-        if (size >= 0) {
-            selector_size = all_devices[size].keys_values.size() - 1;
-            all_devices[size].keys_values[selector_size].kv_pairs.push_back(kv);
-            PAL_DBG(LOG_TAG, "device_grap_kv:device size: %zu",
-                all_devices[size].keys_values[selector_size].kv_pairs.size());
+        if (all_devices.size() > 0) {
+            size = all_devices.size() - 1;
+            if (all_devices[size].keys_values.size() > 0) {
+                selector_size = all_devices[size].keys_values.size() - 1;
+                all_devices[size].keys_values[selector_size].kv_pairs.push_back(kv);
+                PAL_DBG(LOG_TAG, "device_grap_kv:device size: %zu",
+                    all_devices[size].keys_values[selector_size].kv_pairs.size());
+            }
         }
         return;
     } else if (data->is_parsing_devicepps) {
-        size = all_devicepps.size() - 1;
-        if (size >= 0) {
-            selector_size = all_devicepps[size].keys_values.size() - 1;
-            all_devicepps[size].keys_values[selector_size].kv_pairs.push_back(kv);
-            PAL_DBG(LOG_TAG, "devicepp_graph_kv: devicepp size: %zu",
-                all_devicepps[size].keys_values[selector_size].kv_pairs.size());
+        if (all_devicepps.size() > 0) {
+            size = all_devicepps.size() - 1;
+            if (all_devicepps[size].keys_values.size() > 0) {
+                selector_size = all_devicepps[size].keys_values.size() - 1;
+                all_devicepps[size].keys_values[selector_size].kv_pairs.push_back(kv);
+                PAL_DBG(LOG_TAG, "devicepp_graph_kv: devicepp size: %zu",
+                    all_devicepps[size].keys_values[selector_size].kv_pairs.size());
+            }
         }
         return;
     } else {
@@ -448,7 +456,7 @@ void PayloadBuilder:: processKVSelectorData(struct user_xml_data *data,
     int size = -1;
 
     std::vector<std::string> sel_values_superset;
-    PAL_INFO(LOG_TAG, "process kv selectors stream:%d streampp:%d device:%d devicepp:%d",
+    PAL_DBG(LOG_TAG, "process kv selectors stream:%d streampp:%d device:%d devicepp:%d",
         data->is_parsing_streams, data->is_parsing_streampps,
         data->is_parsing_devices, data->is_parsing_devicepps);
 
@@ -474,32 +482,32 @@ void PayloadBuilder:: processKVSelectorData(struct user_xml_data *data,
     }
 
     if (data->is_parsing_streams) {
-        size = all_streams.size() - 1;
-        if (size >= 0) {
+        if (all_streams.size() > 0) {
+            size = all_streams.size() - 1;
             all_streams[size].keys_values.push_back(kvinfo);
             PAL_DBG(LOG_TAG, "stream_keys_values after push_back size:%zu",
                 all_streams[size].keys_values.size());
         }
         return;
     } else if (data->is_parsing_streampps) {
-        size = all_streampps.size() - 1;
-        if (size >= 0) {
+        if (all_streampps.size() > 0) {
+            size = all_streampps.size() - 1;
             all_streampps[size].keys_values.push_back(kvinfo);
             PAL_DBG(LOG_TAG, "streampp_keys_values after push_back size:%zu",
                 all_streampps[size].keys_values.size());
         }
         return;
     } else if (data->is_parsing_devices) {
-        size = all_devices.size() - 1;
-        if (size >= 0) {
+        if (all_devices.size() > 0) {
+            size = all_devices.size() - 1;
             all_devices[size].keys_values.push_back(kvinfo);
             PAL_DBG(LOG_TAG, "device_keys_values after push_back size:%zu",
                 all_devices[size].keys_values.size());
         }
         return;
     } else if (data->is_parsing_devicepps) {
-        size = all_devicepps.size() - 1;
-        if (size >= 0) {
+        if (all_devicepps.size() > 0) {
+            size = all_devicepps.size() - 1;
             all_devicepps[size].keys_values.push_back(kvinfo);
             PAL_DBG(LOG_TAG, "devicepp_keys_values after push_back size:%zu",
                 all_devicepps[size].keys_values.size());
@@ -557,6 +565,11 @@ void PayloadBuilder:: processKVTypeData(struct user_xml_data *data,const XML_Cha
     return;
 }
 
+bool PayloadBuilder::compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2)
+{
+    return (info_1.selector_names.size() < info_2.selector_names.size());
+}
+
 void PayloadBuilder::startTag(void *userdata, const XML_Char *tag_name,
     const XML_Char **attr)
 {
@@ -597,11 +610,10 @@ void PayloadBuilder::startTag(void *userdata, const XML_Char *tag_name,
 void PayloadBuilder::endTag(void *userdata, const XML_Char *tag_name)
 {
     struct user_xml_data *data = ( struct user_xml_data *)userdata;
+    int size = -1;
 
     PAL_DBG(LOG_TAG, "Endtag: %s", tag_name);
-    if ( !strcmp(tag_name, "keys_and_values") || !strcmp(tag_name, "graph_kv") ||
-            !strcmp(tag_name, "stream") || !strcmp(tag_name, "device") ||
-            !strcmp(tag_name, "streampp") || !strcmp(tag_name, "devicepp")) {
+    if ( !strcmp(tag_name, "keys_and_values") || !strcmp(tag_name, "graph_kv")) {
         return;
     }
     if (!strcmp(tag_name, "streams")) {
@@ -622,6 +634,43 @@ void PayloadBuilder::endTag(void *userdata, const XML_Char *tag_name)
     if (!strcmp(tag_name, "devicepps")) {
         data->is_parsing_devicepps = false;
         PAL_DBG(LOG_TAG, "is_parsing_devicepps : %d", data->is_parsing_devicepps);
+        return;
+    }
+    if (!strcmp(tag_name, "stream")) {
+        if (all_streams.size() > 0) {
+            size = all_streams.size() - 1;
+            /* Sort the key value tags based on number of selectors in each tag */
+            std::sort(all_streams[size].keys_values.begin(),
+                all_streams[size].keys_values.end(),
+                compareNumSelectors);
+        }
+        return;
+    }
+    if (!strcmp(tag_name, "streampp")){
+        if (all_streampps.size() > 0) {
+            size = all_streampps.size() - 1;
+            std::sort(all_streampps[size].keys_values.begin(),
+                all_streampps[size].keys_values.end(),
+                compareNumSelectors);
+        }
+        return;
+    }
+    if (!strcmp(tag_name, "device")) {
+        if (all_devices.size() > 0) {
+            size = all_devices.size() - 1;
+            std::sort(all_devices[size].keys_values.begin(),
+                all_devices[size].keys_values.end(),
+                compareNumSelectors);
+        }
+        return;
+    }
+    if (!strcmp(tag_name, "devicepp")) {
+        if (all_devicepps.size() > 0) {
+            size = all_devicepps.size() - 1;
+            std::sort(all_devicepps[size].keys_values.begin(),
+                all_devicepps[size].keys_values.end(),
+                compareNumSelectors);
+        }
         return;
     }
     return;
@@ -654,7 +703,7 @@ int PayloadBuilder::init()
     all_devices.clear();
     all_devicepps.clear();
 
-    PAL_DBG(LOG_TAG, "Enter.");
+    PAL_INFO(LOG_TAG, "XML parsing started %s", USECASE_XML_FILE);
     file = fopen(USECASE_XML_FILE, "r");
     if (!file) {
         PAL_ERR(LOG_TAG, "Failed to open xml");
@@ -694,7 +743,7 @@ int PayloadBuilder::init()
         if (bytes_read == 0)
             break;
     }
-    PAL_DBG(LOG_TAG, "Exit.");
+    PAL_DBG(LOG_TAG, "Exit");
 
 freeParser:
     XML_ParserFree(parser);
@@ -1426,7 +1475,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector<std::pair<int,int>> 
     PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes();
     if (!sattr) {
-        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno), status);
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s", strerror(errno));
         status = -ENOMEM;
         goto exit;
     }
@@ -1436,7 +1485,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector<std::pair<int,int>> 
         goto free_sattr;
     }
 
-    PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    PAL_INFO(LOG_TAG, "stream attribute type %d", sattr->type);
     if (sattr->type == PAL_STREAM_LOOPBACK) {
         if (sattr->info.opt_stream_info.loopback_type == PAL_STREAM_LOOPBACK_HFP_RX) {
             filled_selector_pairs.push_back(std::make_pair(DIRECTION_SEL, "RX"));
@@ -1469,7 +1518,7 @@ int PayloadBuilder::populateStreamKV(Stream* s, std::vector<std::pair<int,int>> 
             vsidLUT.at(sattr->info.voice_call_info.VSID)));
         retrieveKVs(filled_selector_pairs ,sattr->type, all_streams, keyVectorTx);
     } else {
-        PAL_INFO(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
+        PAL_DBG(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
     }
 free_sattr:
     delete sattr;
@@ -1489,7 +1538,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
     PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes();
     if (!sattr) {
-        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno), status);
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s", strerror(errno));
         status = -ENOMEM;
         goto exit;
     }
@@ -1499,7 +1548,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
         goto free_sattr;
     }
 
-    PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    PAL_INFO(LOG_TAG, "stream attribute type %d", sattr->type);
 
     if (sattr->type == PAL_STREAM_VOICE_CALL) {
         selectors = retrieveSelectors(sattr->type, all_streampps);
@@ -1507,7 +1556,7 @@ int PayloadBuilder::populateStreamPPKV(Stream* s, std::vector <std::pair<int,int
             filled_selector_pairs = getSelectorValues(selectors, s);
         retrieveKVs(filled_selector_pairs ,sattr->type, all_streampps, keyVectorRx);
     } else {
-        PAL_INFO(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
+        PAL_DBG(LOG_TAG, "KVs not provided for stream type:%d", sattr->type);
     }
 
 free_sattr:
@@ -1577,26 +1626,30 @@ int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::stri
                         break;
                     }
                 } else {
-                    for (int32_t k = 0; k < any_type[i].keys_values[j].kv_pairs.size(); k++) {
-                        keyVector.push_back(
-                            std::make_pair(any_type[i].keys_values[j].kv_pairs[k].key,
-                            any_type[i].keys_values[j].kv_pairs[k].value));
-                        PAL_INFO(LOG_TAG, "key: 0x%x value: 0x%x\n",
-                            any_type[i].keys_values[j].kv_pairs[k].key,
-                            any_type[i].keys_values[j].kv_pairs[k].value);
+                    if (std::equal(any_type[i].keys_values[j].selector_pairs.begin(),
+                        any_type[i].keys_values[j].selector_pairs.end(),
+                        filled_selector_pairs.begin())) {
+                        for (int32_t k = 0; k < any_type[i].keys_values[j].kv_pairs.size(); k++) {
+                            keyVector.push_back(
+                                std::make_pair(any_type[i].keys_values[j].kv_pairs[k].key,
+                                any_type[i].keys_values[j].kv_pairs[k].value));
+                            PAL_INFO(LOG_TAG, "key: 0x%x value: 0x%x\n",
+                                any_type[i].keys_values[j].kv_pairs[k].key,
+                                any_type[i].keys_values[j].kv_pairs[k].value);
+                        }
+                        found = true;
+                        break;
                     }
-                    found = true;
-                    break;
                 }
             }
         }
     }
 
     if (found) {
-        PAL_INFO(LOG_TAG, "KVs found for the stream type/dev id: %d", type);
+        PAL_DBG(LOG_TAG, "KVs found for the stream type/dev id: %d", type);
         return 0;
     } else {
-        PAL_ERR(LOG_TAG, "No KVs found for the stream type/dev id: %d", type);
+        PAL_INFO(LOG_TAG, "No KVs found for the stream type/dev id: %d", type);
         return -EINVAL;
     }
 }
@@ -1613,10 +1666,10 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
     std::vector<std::pair<selector_type_t, std::string>> filled_selector_pairs;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    PAL_INFO(LOG_TAG, "enter");
+    PAL_DBG(LOG_TAG, "enter");
     sattr = new struct pal_stream_attributes();
     if (!sattr) {
-        PAL_ERR(LOG_TAG, "sattr alloc failed %s status %d", strerror(errno));
+        PAL_ERR(LOG_TAG, "sattr alloc failed %s", strerror(errno));
         goto exit;
     }
     status = s->getStreamAttributes(sattr);
@@ -1626,8 +1679,6 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
     }
     memset (&dAttr, 0, sizeof(struct pal_device));
 
-    PAL_INFO(LOG_TAG, "stream attribute type:%d Direction:%d",
-        sattr->type, sattr->direction);
 
     for (int i = 0; i < selector_names.size(); i++) {
         PAL_DBG(LOG_TAG, "selectors_strings :%s", selector_names[i].c_str());
@@ -1642,7 +1693,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                     filled_selector_pairs.push_back(std::make_pair(selector_type, "RX_TX"));
                 else
                     PAL_ERR(LOG_TAG, "Invalid stream direction %d", sattr->direction);
-                PAL_INFO(LOG_TAG, "Direction = %d", sattr->direction);
+                PAL_INFO(LOG_TAG, "Direction: %d", sattr->direction);
             break;
             case BITWIDTH_SEL:
                 /* If any usecase defined with bitwidth,need to update */
@@ -1658,7 +1709,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                 }
                 st << instance_id;
                 filled_selector_pairs.push_back(std::make_pair(selector_type, st.str()));
-                PAL_INFO(LOG_TAG, "Instance = %d", instance_id);
+                PAL_INFO(LOG_TAG, "Instance: %d", instance_id);
                 break;
             case SUB_TYPE_SEL:
                 if (sattr->type == PAL_STREAM_PROXY) {
@@ -1675,7 +1726,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                 } else if (sattr->type == PAL_STREAM_LOOPBACK) {
                     filled_selector_pairs.push_back(std::make_pair(selector_type,
                         loopbackLUT.at(sattr->info.opt_stream_info.loopback_type)));
-                    PAL_INFO(LOG_TAG, "Loopback type = %d",
+                    PAL_INFO(LOG_TAG, "Loopback type: %d",
                         sattr->info.opt_stream_info.loopback_type);
                 }
                 break;
@@ -1707,7 +1758,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
             case STREAM_TYPE_SEL:
                 filled_selector_pairs.push_back(std::make_pair(selector_type,
                     streamNameLUT.at(sattr->type)));
-                PAL_INFO(LOG_TAG, "stream type :%d", sattr->type);
+                PAL_INFO(LOG_TAG, "stream type: %d", sattr->type);
                 break;
             case AUD_FMT_SEL:
                 if (isPalPCMFormat(sattr->out_media_config.aud_fmt_id)) {
@@ -1717,7 +1768,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                    filled_selector_pairs.push_back(std::make_pair(AUD_FMT_SEL,
                         "PAL_AUDIO_FMT_NON_PCM"));
                 }
-                PAL_INFO(LOG_TAG, "audio format :%d",
+                PAL_INFO(LOG_TAG, "audio format: %d",
                      sattr->out_media_config.aud_fmt_id);
                 break;
             case CUSTOM_CONFIG_SEL:
@@ -1726,7 +1777,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                     PAL_ERR(LOG_TAG,"getAssociatedDevices failed");
                     goto free_sattr;
                 }
-                PAL_INFO(LOG_TAG,"associatedDevices.size = %zu",
+                PAL_INFO(LOG_TAG,"associatedDevices.size: %zu",
                     associatedDevices.size());
 
                 for (int i = 0; i < associatedDevices.size(); i++) {
@@ -1739,13 +1790,14 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
                         filled_selector_pairs.push_back(
                             std::make_pair(CUSTOM_CONFIG_SEL,
                             dAttr.custom_config.custom_key));
-                        PAL_INFO(LOG_TAG, "custom config key: %s",
+                        PAL_INFO(LOG_TAG, "custom config key:%s",
                             dAttr.custom_config.custom_key);
                     }
                 }
                 break;
             default:
-                PAL_INFO(LOG_TAG, "No matching selector found");
+                PAL_DBG(LOG_TAG, "Selector type %d not handled", selector_type);
+                break;
         }
     }
 free_sattr:
@@ -1822,7 +1874,7 @@ int PayloadBuilder::populateStreamKV(Stream* s,
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed status %d", status);
         goto free_sattr;
     }
-    PAL_DBG(LOG_TAG, "stream attribute type %d", sattr->type);
+    PAL_INFO(LOG_TAG, "stream attribute type %d", sattr->type);
     selectors = retrieveSelectors(sattr->type, all_streams);
     if (selectors.empty() != true)
         filled_selector_pairs = getSelectorValues(selectors, s);
@@ -1871,11 +1923,13 @@ exit:
     return status;
 }
 
-bool PayloadBuilder::isBtA2DPDevice(int32_t beDevId)
+bool PayloadBuilder::isBtDevice(int32_t beDevId)
 {
     switch (beDevId) {
         case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
         case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
             return true;
         default:
             return false;
@@ -1890,10 +1944,10 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
     std::vector <std::string> selectors;
     std::vector <std::pair<selector_type_t, std::string>> filled_selector_pairs;
 
-    PAL_DBG(LOG_TAG, "enter beDevId: %d", beDevId);
+    PAL_INFO(LOG_TAG, "enter beDevId: %d", beDevId);
 
-    /* For A2DP, device KV will be populated from Bluetooth device only, so skipping here */
-    if (isBtA2DPDevice(beDevId))
+    /* For BT devices, device KV will be populated from Bluetooth device only so skip here */
+    if (isBtDevice(beDevId))
         return status;
     selectors = retrieveSelectors(beDevId, all_devices);
     if (selectors.empty() != true)
@@ -1933,7 +1987,7 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t rxBeDevId,
 
 int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
         std::vector <std::pair<int,int>> &keyVectorRx, int32_t txBeDevId,
-        std::vector <std::pair<int,int>> &keyVectorTx, std::vector<kvpair_info> kvpair __unused)
+        std::vector <std::pair<int,int>> &keyVectorTx)
 {
     int status = 0;
     struct pal_stream_attributes *sattr = NULL;
@@ -1975,6 +2029,7 @@ int PayloadBuilder::populateDevicePPKV(Stream* s, int32_t rxBeDevId,
        filled_selector_pairs.clear();
        selectors.clear();
 
+       PAL_INFO(LOG_TAG, "Device ID: %d", dAttr.id);
        selectors = retrieveSelectors(dAttr.id, all_devicepps);
        if (selectors.empty() != true)
            filled_selector_pairs = getSelectorValues(selectors, s);

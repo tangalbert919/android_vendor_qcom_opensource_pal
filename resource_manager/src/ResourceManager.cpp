@@ -371,6 +371,7 @@ bool ResourceManager::isGaplessEnabled = false;
 bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
+bool ResourceManager::isUpdDedicatedBeEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -633,7 +634,7 @@ ResourceManager::ResourceManager()
     if (ret) {
         throw std::runtime_error("Failed to parse usecase manager xml");
     } else {
-        PAL_DBG(LOG_TAG, "usecase manager xml parsing successful");
+        PAL_INFO(LOG_TAG, "usecase manager xml parsing successful");
     }
 
     PAL_ERR(LOG_TAG, "Creating ContextManager");
@@ -792,7 +793,7 @@ void ResourceManager::releaseWakeLock() {
     }
 
     PAL_DBG(LOG_TAG, "wake lock count: %d", wake_lock_cnt);
-    if (--wake_lock_cnt == 0) {
+    if (wake_lock_cnt > 0 && --wake_lock_cnt == 0) {
         PAL_INFO(LOG_TAG, "Releasing wake lock %s", WAKE_LOCK_NAME);
         ret = ::write(wake_unlock_fd, WAKE_LOCK_NAME, strlen(WAKE_LOCK_NAME));
         if (ret < 0)
@@ -800,8 +801,6 @@ void ResourceManager::releaseWakeLock() {
                 ret, strerror(errno));
     }
 
-    if (wake_lock_cnt < 0)
-        wake_lock_cnt = 0;
 exit:
      mResourceManagerMutex.unlock();
 }
@@ -1134,7 +1133,6 @@ bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_
 
 void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type, std::string key, struct pal_device_info *devinfo)
 {
-    struct kvpair_info kv = {};
     bool found = false;
 
     for (int32_t i = 0; i < deviceInfo.size(); i++) {
@@ -1167,18 +1165,6 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
                                 type,
                                 deviceNameLUT.at(deviceId).c_str());
                     }
-                    /*get kv pairs*/
-                    if (deviceInfo[i].usecase[j].kvpair.size()) {
-                        for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].kvpair.size(); kvsize++) {
-                            kv.key =  deviceInfo[i].usecase[j].kvpair[kvsize].key;
-                            kv.value =  deviceInfo[i].usecase[j].kvpair[kvsize].value;
-                            PAL_DBG(LOG_TAG, "kv overwitten to key 0X%x value 0X%x for usecase %d for dev %s",
-                                    kv.key, kv.value,
-                                    type,
-                                    deviceNameLUT.at(deviceId).c_str());
-                            devinfo->kvpair.push_back(kv);
-                        }
-                    }
                     /*parse custom config if there*/
                     for (int32_t k = 0; k < deviceInfo[i].usecase[j].config.size(); k++) {
                         if (!deviceInfo[i].usecase[j].config[k].key.compare(key)) {
@@ -1206,20 +1192,6 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
                                         key.c_str(),
                                         type,
                                         deviceNameLUT.at(deviceId).c_str());
-                            }
-                            /*overwrite the kv pairs if needed*/
-                            if (deviceInfo[i].usecase[j].config[k].kvpair.size()) {
-                                devinfo->kvpair.clear();
-                                for (int32_t kvsize = 0; kvsize < deviceInfo[i].usecase[j].config[k].kvpair.size(); kvsize++) {
-                                    kv.key =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].key;
-                                    kv.value =  deviceInfo[i].usecase[j].config[k].kvpair[kvsize].value;
-                                    PAL_DBG(LOG_TAG, "got overwitten kv key 0X%x value 0X%x for custom key %s usecase %d for dev %s",
-                                            kv.key, kv.value,
-                                            key.c_str(),
-                                            type,
-                                            deviceNameLUT.at(deviceId).c_str());
-                                    devinfo->kvpair.push_back(kv);
-                                }
                             }
                             found = true;
                             break;
@@ -2431,7 +2403,6 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev) {
             // use setECRef_l to avoid deadlock
-            mResourceManagerMutex.unlock();
             getActiveStream_l(dev, activeStreams);
             for (auto& rx_str: activeStreams) {
                 rx_str->getStreamAttributes(&rx_attr);
@@ -2447,12 +2418,14 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     continue;
                 }
             }
+            updateECDeviceMap(dev, d, s, rxdevcount, false);
+            mResourceManagerMutex.unlock();
             status = s->setECRef_l(dev, true);
             mResourceManagerMutex.lock();
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
-            } else {
-                updateECDeviceMap(dev, d, s, rxdevcount, false);
+                // reset ec map if set ec failed for tx device
+                updateECDeviceMap(dev, d, s, 0, true);
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
@@ -2549,13 +2522,13 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     mResourceManagerMutex.lock();
     if (sAttr.direction == PAL_AUDIO_INPUT) {
         dev = getActiveEchoReferenceRxDevices_l(s);
+        if (dev)
+            updateECDeviceMap(dev, d, s, 0, true);
         mResourceManagerMutex.unlock();
         status = s->setECRef_l(dev, false);
         mResourceManagerMutex.lock();
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-        } else if (dev) {
-            updateECDeviceMap(dev, d, s, 0, true);
         }
     }  else if (sAttr.direction == PAL_AUDIO_INPUT_OUTPUT &&
         sAttr.type == PAL_STREAM_VOICE_CALL) {
@@ -2779,6 +2752,11 @@ bool ResourceManager::IsLPISupported(pal_stream_type_t type) {
             break;
     }
     return false;
+}
+
+bool ResourceManager::IsDedicatedBEForUPDEnabled()
+{
+    return ResourceManager::isUpdDedicatedBeEnabled;
 }
 
 // this should only be called when LPI supported by platform
@@ -3206,6 +3184,8 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         return status;
     }
 
+    SoundTriggerCaptureProfile = nullptr;
+
     if (is_sva_ds_supported)
         cap_prof_priority = GetSVACaptureProfileByPriority(nullptr, cap_prof_priority);
 
@@ -3471,13 +3451,13 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
     pal_stream_attributes st_attr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
     for (auto& str: mActiveStreams) {
         str->getStreamAttributes(&st_attr);
         if (st_attr.type != type)
             continue;
 
-        mResourceManagerMutex.unlock();
+        mActiveStreamMutex.unlock();
         switch (action) {
             case ST_PAUSE:
                 if (str != (Stream *)data) {
@@ -3533,9 +3513,9 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
             default:
                 break;
         }
-        mResourceManagerMutex.lock();
+        mActiveStreamMutex.lock();
     }
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -4008,6 +3988,7 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     if (!tx_stream_found) {
         if (count == 0) {
             PAL_ERR(LOG_TAG, "Cannot reset as ec ref not present");
+            return -EINVAL;
         } else if (count > 0) {
             stream_list.push_back(std::make_pair(tx_str, count));
             ec_count = count;
@@ -4700,6 +4681,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_HAPTICS:
         case PAL_STREAM_ULTRASOUND:
         case PAL_STREAM_SENSOR_PCM_DATA:
+        case PAL_STREAM_RAW:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
@@ -4968,6 +4950,10 @@ bool ResourceManager::isDeviceSwitchRequired(struct pal_device *activeDevAttr,
         } else if (isHifiFilterEnabled &&
                   (PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type)) {
             is_ds_required = true;
+        } else if ((activeDevAttr->config.sample_rate == SAMPLINGRATE_44K) &&
+            (inStrAttr->type == PAL_STREAM_LOW_LATENCY) ) {
+            PAL_INFO(LOG_TAG, "active stream is at 44.1kHz.");
+            is_ds_required = false;
         } else if ((PAL_STREAM_COMPRESSED == inStrAttr->type || PAL_STREAM_PCM_OFFLOAD == inStrAttr->type) &&
             (NATIVE_AUDIO_MODE_MULTIPLE_MIX_IN_DSP == getNativeAudioSupport()) &&
             (PAL_AUDIO_OUTPUT == inStrAttr->direction) &&
@@ -5483,6 +5469,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     ret = setContextManagerEnableParam(parms, value, len);
 
+    ret = setUpdDedicatedBeEnableParam(parms, value, len);
+
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
 
@@ -5553,6 +5541,28 @@ int ResourceManager::setContextManagerEnableParam(struct str_parms *parms,
     return ret;
 }
 
+int ResourceManager::setUpdDedicatedBeEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE,
+                            value, len);
+    PAL_VERBOSE(LOG_TAG," value %s", value);
+
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            ResourceManager::isUpdDedicatedBeEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE);
+    }
+
+    return ret;
+
+}
 
 int ResourceManager::setNativeAudioParams(struct str_parms *parms,
                                           char *value, int len)
@@ -5791,10 +5801,12 @@ int32_t ResourceManager::a2dpResume()
     }
     getDeviceConfig(&a2dpDattr, NULL, devinfo.channels);
 
+    mActiveStreamMutex.lock();
     getActiveStream_l(spkrDev, activeStreams);
     getOrphanStream_l(orphanStreams);
     if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
 
@@ -5818,8 +5830,10 @@ int32_t ResourceManager::a2dpResume()
 
     if (restoredStreams.empty()) {
         PAL_DBG(LOG_TAG, "no streams to be restored");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
+    mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
     mResourceManagerMutex.unlock();
@@ -5830,13 +5844,15 @@ int32_t ResourceManager::a2dpResume()
         goto exit;
     }
 
+    mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
-        if ((*sIter) != NULL) {
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
             (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
     }
+    mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
@@ -5960,6 +5976,19 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             dev = Device::getInstance(&dattr , rm);
             if (dev) {
                 *payload_size = dev->getParameter(PAL_PARAM_ID_SP_MODE,
+                                    param_payload);
+            }
+        }
+        break;
+        case PAL_PARAM_ID_SP_GET_CAL:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for Calibration value");
+            std::shared_ptr<Device> dev = nullptr;
+            struct pal_device dattr;
+            dattr.id = PAL_DEVICE_OUT_SPEAKER;
+            dev = Device::getInstance(&dattr , rm);
+            if (dev) {
+                *payload_size = dev->getParameter(PAL_PARAM_ID_SP_GET_CAL,
                                     param_payload);
             }
         }
@@ -6171,6 +6200,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         break;
         case PAL_PARAM_ID_BT_SCO_WB:
         case PAL_PARAM_ID_BT_SCO_SWB:
+        case PAL_PARAM_ID_BT_SCO_LC3:
         case PAL_PARAM_ID_BT_SCO:
         {
             std::shared_ptr<Device> dev = nullptr;
@@ -7293,40 +7323,9 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
     }
 }
 
-void ResourceManager::process_kvinfo(const XML_Char **attr, bool overwrite)
-{
-    struct kvpair_info kv;
-    int size = 0, sizeusecase = 0, sizecustomconfig = 0;
-    std::string tagkey(attr[1]);
-    std::string tagvalue(attr[3]);
-
-    if (strcmp(attr[0], "key") !=0) {
-        PAL_ERR(LOG_TAG, "key not found");
-        return;
-    }
-    kv.key = convertCharToHex(tagkey);
-    if (strcmp(attr[2], "value") !=0) {
-        PAL_ERR(LOG_TAG, "value not found");
-        return;
-    }
-    kv.value = convertCharToHex(tagvalue);
-
-    size = deviceInfo.size() - 1;
-    sizeusecase = deviceInfo[size].usecase.size() - 1;
-
-    if (!overwrite) {
-        deviceInfo[size].usecase[sizeusecase].kvpair.push_back(kv);
-    } else {
-        sizecustomconfig = deviceInfo[size].usecase[sizeusecase].config.size() - 1;
-        deviceInfo[size].usecase[sizeusecase].config[sizecustomconfig].kvpair.push_back(kv);
-    }
-    PAL_DBG(LOG_TAG, "key  %x value  %x", kv.key, kv.value);
-}
-
 void ResourceManager::process_usecase()
 {
     struct usecase_info usecase_data = {};
-    usecase_data.kvpair = {};
     usecase_data.config = {};
     int size = 0;
 
@@ -7343,7 +7342,6 @@ void ResourceManager::process_custom_config(const XML_Char **attr){
     custom_config_data.sndDevName = "";
     custom_config_data.channel = 0;
     custom_config_data.key = "";
-    custom_config_data.kvpair = {};
 
     if (attr[0] && !strcmp(attr[0], "key")) {
         custom_config_data.key = key;
@@ -7483,15 +7481,7 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         }
 
     }
-    if (!strcmp(tag_name, "kvpair")) {
-        data->tag = TAG_DEVICEPP;
-    } else if (!strcmp(tag_name, "devicePP-metadata")) {
-        if (data->inCustomConfig) {
-            data->tag = TAG_CUSTOMCONFIG;
-        }else {
-            data->tag = TAG_USECASE;
-        }
-    } else if (!strcmp(tag_name, "usecase")) {
+    if (!strcmp(tag_name, "usecase")) {
         data->tag = TAG_IN_DEVICE;
     } else if (!strcmp(tag_name, "in-device") || !strcmp(tag_name, "out-device")) {
         data->tag = TAG_DEVICE_PROFILE;
@@ -7608,7 +7598,7 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     }
 
-    if (data->is_parsing_acd) {
+    if (acd_info && data->is_parsing_acd) {
         acd_info->HandleStartTag((const char *)tag_name, (const char **)attr);
         snd_reset_data_buf(data);
         return;
@@ -7666,11 +7656,6 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if (!strcmp(tag_name, "usecase")) {
         process_usecase();
         data->tag = TAG_USECASE;
-    } else if (!strcmp(tag_name, "devicePP-metadata")) {
-        data->tag = TAG_DEVICEPP;
-    } else if (!strcmp(tag_name, "kvpair")) {
-        process_kvinfo(attr, data->inCustomConfig);
-        data->tag = TAG_KVPAIR;
     } else if (!strcmp(tag_name, "in_streams")) {
         data->tag = TAG_INSTREAMS;
     } else if (!strcmp(tag_name, "in_stream")) {

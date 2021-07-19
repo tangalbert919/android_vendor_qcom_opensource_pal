@@ -66,6 +66,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_CONTEXT_MANAGER_ENABLE "context_manager_enable"
 #define AUDIO_PARAMETER_KEY_HIFI_FILTER "hifi_filter"
 #define AUDIO_PARAMETER_KEY_LPI_LOGGING "lpi_logging_enable"
+#define AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE "upd_dedicated_be"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
 #if LINUX_ENABLED
@@ -101,8 +102,6 @@ typedef enum {
     TAG_IN_DEVICE,
     TAG_OUT_DEVICE,
     TAG_USECASE,
-    TAG_DEVICEPP,
-    TAG_KVPAIR,
     TAG_CONFIG_VOICE,
     TAG_CONFIG_MODE_MAP,
     TAG_CONFIG_MODE_PAIR,
@@ -166,11 +165,6 @@ struct deviceCap {
     sess_mode_t sess_mode;
 };
 
-struct kvpair_info {
-    unsigned int key;
-    unsigned int value;
-};
-
 typedef enum {
     SIDETONE_OFF,
     SIDETONE_HW,
@@ -183,7 +177,6 @@ struct usecase_custom_config_info
     std::string key;
     std::string sndDevName;
     int channel;
-    std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
     int samplerate;
 };
@@ -191,7 +184,6 @@ struct usecase_custom_config_info
 struct usecase_info {
     int type;
     int samplerate;
-    std::vector<kvpair_info> kvpair;
     sidetone_mode_t sidetoneMode;
     std::string sndDevName;
     int channel;
@@ -203,7 +195,6 @@ struct pal_device_info {
      int channels;
      int max_channels;
      int samplerate;
-     std::vector<kvpair_info> kvpair;
      std::string sndDevName;
      bool isExternalECRefEnabledFlag;
 };
@@ -300,7 +291,6 @@ struct deviceIn {
      * when ll barge-in is not enabled.
      */
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
-    std::vector<kvpair_info> kvpair;
     std::string sndDevName;
     bool isExternalECRefEnabled;
 };
@@ -468,6 +458,8 @@ public:
     uint32_t num_proxy_channels = 0;
     /* Flag to store the state of VI record */
     static bool isVIRecordStarted;
+    /* Flag to indicate if shared backend is enabled for UPD */
+    static bool isUpdDedicatedBeEnabled;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -585,6 +577,7 @@ public:
     bool IsVoiceCallConcurrencySupported(pal_stream_type_t type);
     bool IsVoipConcurrencySupported(pal_stream_type_t type);
     bool IsTransitToNonLPIOnChargingSupported();
+    bool IsDedicatedBEForUPDEnabled();
     void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
     bool CheckForForcedTransitToNonLPI();
@@ -627,7 +620,6 @@ public:
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
-    static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
@@ -644,6 +636,7 @@ public:
     static int setLoggingLevelParams(struct str_parms *parms,char *value, int len);
     static int setContextManagerEnableParam(struct str_parms *parms,char *value, int len);
     static int setLpiLoggingParams(struct str_parms *parms, char *value, int len);
+    static int setUpdDedicatedBeEnableParam(struct str_parms *parms,char *value, int len);
     static bool isLpiLoggingEnabled();
     static void processConfigParams(const XML_Char **attr);
     static bool isValidDevId(int deviceId);

@@ -36,6 +36,7 @@
         <param key="logging_level" value ="3" />
         <param key="context_manager_enable" value ="false" />
         <param key="lpi_logging_enable" value ="false" />
+        <param key="upd_dedicated_be" value ="true" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
@@ -99,17 +100,20 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_RAW</name>
-                <channels>4</channels>
                 <custom-config key="unprocessed-hdr-mic-landscape">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-landscape</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-portrait">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-portrait</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-inverted-landscape">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-inverted-landscape</snd_device_name>
                 </custom-config>
                 <custom-config key="unprocessed-hdr-mic-inverted-portrait">
+                    <channels>4</channels>
                     <snd_device_name>unprocessed-hdr-mic-inverted-portrait</snd_device_name>
                 </custom-config>
             </usecase>
@@ -498,6 +502,15 @@
         </in_stream>
         <in_stream>
             <name>PAL_STREAM_VOICE_UI</name>
+                <policies>
+                    <ec_ref>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>PAL_STREAM_ACD</name>
                 <policies>
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>

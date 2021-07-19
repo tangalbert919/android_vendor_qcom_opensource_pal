@@ -36,6 +36,7 @@
 #include "ResourceManager.h"
 #include "Device.h"
 #include <unistd.h>
+#include <chrono>
 
 StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_device *dattr,
                     const uint32_t no_of_devices, const struct modifier_kv *modifiers,
@@ -1013,7 +1014,7 @@ int32_t StreamPCM::pause()
     }
     PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
     if (session->isPauseRegistrationDone)
-        pauseCV.wait(pauseLock);
+        pauseCV.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
     else
         usleep(VOLUME_RAMP_PERIOD);
     isPaused = true;

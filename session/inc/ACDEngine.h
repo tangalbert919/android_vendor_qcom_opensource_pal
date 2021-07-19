@@ -45,6 +45,8 @@ class Stream;
 struct stream_context_info {
     uint32_t threshold;
     uint32_t step_size;
+    uint32_t last_event_type;
+    uint32_t last_confidence_score;
 };
 
 class ACDEngine : public ContextDetectionEngine {

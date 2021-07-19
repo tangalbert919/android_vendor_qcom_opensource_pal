@@ -80,6 +80,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     st_conf_levels_v2_ = nullptr;
     lab_fd_ = nullptr;
     rejection_notified_ = false;
+    mutex_unlocked_after_cb_ = false;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -653,6 +654,10 @@ std::shared_ptr<Device> StreamSoundTrigger::GetPalDevice(
         cap_prof = GetCurrentCaptureProfile();
     }
 
+    if (!cap_prof) {
+        PAL_ERR(LOG_TAG, "Failed to get common capture profile");
+        goto exit;
+    }
     dev->config.bit_width = cap_prof->GetBitWidth();
     dev->config.ch_info.channels = cap_prof->GetChannels();
     dev->config.sample_rate = cap_prof->GetSampleRate();
@@ -778,8 +783,10 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
     } while (!lock_status && (GetCurrentStateId() == ST_STATE_ACTIVE ||
         GetCurrentStateId() == ST_STATE_BUFFERING));
 
-    if (GetCurrentStateId() != ST_STATE_ACTIVE &&
-        GetCurrentStateId() != ST_STATE_BUFFERING) {
+    if ((det_type == GMM_DETECTED &&
+         GetCurrentStateId() != ST_STATE_ACTIVE) ||
+        ((det_type & DETECTION_TYPE_SS) &&
+         GetCurrentStateId() != ST_STATE_BUFFERING)) {
         if (lock_status)
             mStreamMutex.unlock();
         PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
@@ -797,13 +804,15 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
 
     /*
      * mStreamMutex may get unlocked in handling detection event
-     * and not locked back when stream gets stopped/unloaded, check
-     * stream state here to avoid mStreamMutex unlock twice.
+     * and not locked back when stream gets stopped/unloaded,
+     * when this happens, mutex_unlocked_after_cb_ will be set to
+     * true, so check mutex_unlocked_after_cb_ here to avoid
+     * double unlock.
      */
-    if (GetCurrentStateId() == ST_STATE_DETECTED ||
-        GetCurrentStateId() == ST_STATE_BUFFERING) {
+    if (!mutex_unlocked_after_cb_)
         mStreamMutex.unlock();
-    }
+    else
+        mutex_unlocked_after_cb_ = false;
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -1724,7 +1733,11 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
          * this case notifyClient is not called, so we need to unlock stream
          * mutex at end of SetEngineDetectionState, that's why we don't need
          * to unlock stream mutex here.
+         * If mutex is locked back here, mark mutex_unlocked_after_cb_ as true
+         * so that we can avoid double unlock in SetEngineDetectionState.
          */
+        if (!lock_status)
+            mutex_unlocked_after_cb_ = true;
     }
 
     free(rec_event);
@@ -1737,7 +1750,7 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
 
     struct st_confidence_levels_info *conf_levels = nullptr;
     struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
-    uint32_t i = 0, j = 0, k = 0, user_id = 0;
+    uint32_t i = 0, j = 0, k = 0, user_id = 0, num_user_levels = 0;
 
     PAL_VERBOSE(LOG_TAG, "Enter");
 
@@ -1751,22 +1764,20 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
             if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 for (j = 0; j < conf_levels->conf_levels[i].num_kw_levels; j++) {
                     if (j <= sm_info_->GetConfLevelsSize())
-                            conf_levels->conf_levels[i].kw_levels[j].kw_level =
-                                    sm_info_->GetDetConfLevels()[j];
+                        conf_levels->conf_levels[i].kw_levels[j].kw_level =
+                            sm_info_->GetDetConfLevels()[j];
                     else
                         PAL_ERR(LOG_TAG, "unexpected conf size %d < %d",
                             sm_info_->GetConfLevelsSize(), j);
 
-                    for (k = 0;
-                         k < conf_levels->conf_levels[i].kw_levels[j].num_user_levels;
-                         k++) {
-                        user_id =
-                            conf_levels->conf_levels[i].kw_levels[j].
-                                user_levels[k].user_id;
-                        if (user_id <=  sm_info_->GetConfLevelsSize())
-                            conf_levels->conf_levels[i].kw_levels[j].
-                                user_levels[k].level =
-                                    sm_info_->GetDetConfLevels()[user_id];
+                    num_user_levels =
+                        conf_levels->conf_levels[i].kw_levels[j].num_user_levels;
+                    for (k = 0; k < num_user_levels; k++) {
+                        user_id = conf_levels->conf_levels[i].kw_levels[j].
+                            user_levels[k].user_id;
+                        if (user_id <= sm_info_->GetConfLevelsSize())
+                            conf_levels->conf_levels[i].kw_levels[j].user_levels[k].
+                                level = sm_info_->GetDetConfLevels()[user_id];
                         else
                             PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
                                 sm_info_->GetConfLevelsSize(), user_id);
@@ -1776,13 +1787,17 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                        conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
-                    if (conf_levels->conf_levels[i].sm_id ==
-                            eng->GetEngineId()) {
+                    if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD &&
+                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
                         conf_levels->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
-                            conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
-                                eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
+                    } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER &&
+                        conf_levels->conf_levels[i].sm_id == eng->GetEngineId()) {
+                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
+                            eng->GetEngine()->GetDetectedConfScore();
                     }
                 }
             }
@@ -1802,16 +1817,14 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                     PAL_INFO(LOG_TAG, "First stage KW Conf levels[%d]-%d",
                         j, sm_info_->GetDetConfLevels()[j])
 
-                    for (k = 0;
-                         k < conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
-                         k++) {
-                        user_id =
-                            conf_levels_v2->conf_levels[i].kw_levels[j].
-                                user_levels[k].user_id;
+                    num_user_levels =
+                        conf_levels_v2->conf_levels[i].kw_levels[j].num_user_levels;
+                    for (k = 0; k < num_user_levels; k++) {
+                        user_id = conf_levels_v2->conf_levels[i].kw_levels[j].
+                            user_levels[k].user_id;
                         if (user_id <=  sm_info_->GetConfLevelsSize())
-                            conf_levels_v2->conf_levels[i].kw_levels[j].
-                                user_levels[k].level =
-                                    sm_info_->GetDetConfLevels()[user_id];
+                            conf_levels_v2->conf_levels[i].kw_levels[j].user_levels[k].
+                                level = sm_info_->GetDetConfLevels()[user_id];
                         else
                             PAL_ERR(LOG_TAG, "Unexpected conf size %d < %d",
                                 sm_info_->GetConfLevelsSize(), user_id);
@@ -1824,19 +1837,20 @@ void StreamSoundTrigger::PackEventConfLevels(uint8_t *opaque_data) {
                        conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 /* Update confidence levels for second stage */
                 for (auto& eng: engines_) {
-                    if (conf_levels_v2->conf_levels[i].sm_id ==
-                            eng->GetEngineId()) {
+                    if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD &&
+                        eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
                         conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
                             eng->GetEngine()->GetDetectedConfScore();
-                        if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER)
-                            conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
-                                eng->GetEngine()->GetDetectedConfScore();
-                        PAL_INFO(LOG_TAG, "SS Conf score %d",
-                            eng->GetEngine()->GetDetectedConfScore());
+                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
+                    } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER &&
+                        conf_levels_v2->conf_levels[i].sm_id == eng->GetEngineId()) {
+                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
+                            eng->GetEngine()->GetDetectedConfScore();
                     }
                 }
             }
-
         }
     }
     PAL_VERBOSE(LOG_TAG, "Exit");
@@ -1850,93 +1864,69 @@ void StreamSoundTrigger::FillCallbackConfLevels(uint8_t *opaque_data,
 
     if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002) {
         conf_levels = (struct st_confidence_levels_info *)opaque_data;
-        for (auto& eng : engines_) {
-            if (eng->GetEngine()->GetDetectionState() ==
-                KEYWORD_DETECTION_PENDING ||
-                eng->GetEngine()->GetDetectionState() ==
-                USER_VERIFICATION_PENDING) {
-                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
-                         eng->GetEngine()->GetDetectionState());
-                  continue;
+        for (i = 0; i < conf_levels->num_sound_models; i++) {
+            if (conf_levels->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
+                conf_levels->conf_levels[i].kw_levels[det_keyword_id].
+                    kw_level = best_conf_level;
+                conf_levels->conf_levels[i].kw_levels[det_keyword_id].
+                    user_levels[0].level = 0;
+                PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
+                    best_conf_level);
+            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                for (auto& eng: engines_) {
+                    if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
+                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
+                        PAL_DBG(LOG_TAG, "Second stage keyword conf level: %d",
+                            eng->GetEngine()->GetDetectedConfScore());
+                    }
+                }
+            } else if (conf_levels->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
+                for (auto& eng: engines_) {
+                    if (eng->GetEngineId() == conf_levels->conf_levels[i].sm_id) {
+                        conf_levels->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels->conf_levels[i].kw_levels[0].user_levels[0].level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage user conf level: %d",
+                            eng->GetEngine()->GetDetectedConfScore());
+                    }
+                }
             }
-            conf_levels->conf_levels[i].sm_id =
-                  (listen_model_indicator_enum)eng->GetEngineId();
-
-            switch (eng->GetEngineId()) {
-                case ST_SM_ID_SVA_F_STAGE_GMM:
-                        conf_levels->conf_levels[i].
-                            kw_levels[det_keyword_id].
-                                kw_level = best_conf_level;
-                        PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
-                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
-                        break;
-                case ST_SM_ID_SVA_S_STAGE_PDK:
-                        conf_levels->conf_levels[i].
-                            kw_levels[det_keyword_id].
-                                kw_level =
-                        eng->GetEngine()->GetDetectedConfScore();
-                        PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
-                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].kw_level);
-                         break;
-                case ST_SM_ID_SVA_S_STAGE_USER:
-                        conf_levels->conf_levels[i].
-                            kw_levels[det_keyword_id].
-                                user_levels[0].level =
-                        eng->GetEngine()->GetDetectedConfScore();
-                        PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
-                        conf_levels->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
-                        break;
-                default :
-                        PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                eng->GetEngineId());
-            }
-             i++;
         }
     } else {
-        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)
-                            opaque_data;
-         for (auto& eng : engines_) {
-             if (eng->GetEngine()->GetDetectionState() ==
-                 KEYWORD_DETECTION_PENDING ||
-                 eng->GetEngine()->GetDetectionState() ==
-                 USER_VERIFICATION_PENDING) {
-                  PAL_DBG(LOG_TAG, "Engine is not ready, eng state : %d",
-                         eng->GetEngine()->GetDetectionState());
-                  continue;
-             }
-
-             conf_levels_v2->conf_levels[i].sm_id =
-               (listen_model_indicator_enum)eng->GetEngineId();
-
-             switch (eng->GetEngineId()) {
-                case ST_SM_ID_SVA_F_STAGE_GMM:
-                    conf_levels_v2->conf_levels[i].
-                        kw_levels[det_keyword_id].
-                            kw_level = best_conf_level;
-                    PAL_DBG(LOG_TAG, "First stage returning conf level : %d",
-                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level)
-                   break;
-                case ST_SM_ID_SVA_S_STAGE_PDK:
-                    conf_levels_v2->conf_levels[i].
-                        kw_levels[det_keyword_id].
-                            kw_level =
-                    eng->GetEngine()->GetDetectedConfScore();
-                    PAL_DBG(LOG_TAG, "Second stage KW returning conf level : %d",
-                    conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].kw_level);
-                   break;
-                case ST_SM_ID_SVA_S_STAGE_USER:
-                      conf_levels_v2->conf_levels[i].
-                          kw_levels[det_keyword_id].
-                            user_levels[0].level =
-                      eng->GetEngine()->GetDetectedConfScore();
-                      PAL_DBG(LOG_TAG, "Second stage UV returning conf level : %d",
-                      conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].user_levels[0].level);
-                    break;
-                default :
-                    PAL_DBG(LOG_TAG, "Unhandled engine type : %u",
-                                 eng->GetEngineId());
+        conf_levels_v2 = (struct st_confidence_levels_info_v2 *)opaque_data;
+        for (i = 0; i < conf_levels_v2->num_sound_models; i++) {
+            if (conf_levels_v2->conf_levels[i].sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
+                conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].
+                    kw_level = best_conf_level;
+                conf_levels_v2->conf_levels[i].kw_levels[det_keyword_id].
+                    user_levels[0].level = 0;
+                PAL_DBG(LOG_TAG, "First stage returning conf level: %d",
+                    best_conf_level);
+            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                for (auto& eng: engines_) {
+                    if (eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_KWD) {
+                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level = 0;
+                        PAL_DBG(LOG_TAG, "Second stage keyword conf level: %d",
+                            eng->GetEngine()->GetDetectedConfScore());
+                    }
+                }
+            } else if (conf_levels_v2->conf_levels[i].sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
+                for (auto& eng: engines_) {
+                    if (eng->GetEngineId() == conf_levels_v2->conf_levels[i].sm_id) {
+                        conf_levels_v2->conf_levels[i].kw_levels[0].kw_level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        conf_levels_v2->conf_levels[i].kw_levels[0].user_levels[0].level =
+                            eng->GetEngine()->GetDetectedConfScore();
+                        PAL_DBG(LOG_TAG, "Second stage user conf level: %d",
+                            eng->GetEngine()->GetDetectedConfScore());
+                    }
+                }
             }
-            i++;
         }
     }
 }
@@ -1963,6 +1953,7 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     uint32_t detection_timestamp_lsw = 0;
     uint32_t detection_timestamp_msw = 0;
     int32_t status = 0;
+    int32_t num_models = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
@@ -2044,12 +2035,17 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             param_hdr->payload_size = sizeof(struct st_confidence_levels_info_v2);
         opaque_data += sizeof(struct st_param_header);
         /* Copy the cached conf levels from recognition config */
-        if (model_id_ > 0){
-            for (int i = 0;
-                    i < detection_event_info_multi_model->num_detected_models;
-                    ++i){
-                if (model_id_ ==  detection_event_info_multi_model->
-                                    detected_model_stats[i].detected_model_id){
+        if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
+            ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                    st_conf_levels_, param_hdr->payload_size);
+        else
+            ar_mem_cpy(opaque_data, param_hdr->payload_size,
+                st_conf_levels_v2_, param_hdr->payload_size);
+        if (model_id_ > 0) {
+            num_models = detection_event_info_multi_model->num_detected_models;
+            for (int i = 0; i < num_models; ++i) {
+                if (model_id_ == detection_event_info_multi_model->
+                                    detected_model_stats[i].detected_model_id) {
                     det_keyword_id = detection_event_info_multi_model->
                                         detected_model_stats[i].
                                         detected_keyword_id;
@@ -2070,12 +2066,6 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             }
             FillCallbackConfLevels(opaque_data, det_keyword_id, best_conf_level);
         } else {
-            if (conf_levels_intf_version_ != CONF_LEVELS_INTF_VERSION_0002)
-                ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                        st_conf_levels_, param_hdr->payload_size);
-            else
-                ar_mem_cpy(opaque_data, param_hdr->payload_size,
-                    st_conf_levels_v2_, param_hdr->payload_size);
             PackEventConfLevels(opaque_data);
         }
         opaque_data += param_hdr->payload_size;
@@ -2113,7 +2103,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         }
 
         // dump detection event opaque data
-        if ((*event)->data_size > 0 && st_info_->GetEnableDebugDumps()) {
+        if ((*event)->data_offset > 0 && (*event)->data_size > 0 &&
+            st_info_->GetEnableDebugDumps()) {
             ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
             ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
                 "det_event_opaque", "bin", det_opaque_cnt);
@@ -2309,7 +2300,7 @@ int32_t StreamSoundTrigger::FillConfLevels(
     }
 
     if ((config->num_phrases == 0) ||
-        (config->num_phrases > phrase_sm->num_phrases)) {
+        (phrase_sm && config->num_phrases > phrase_sm->num_phrases)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid phrase data status %d", status);
         goto exit;
@@ -2684,10 +2675,12 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
         }
     }
 
-    PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
-        cap_prof->GetName().c_str(), cap_prof->GetDevId(),
-        cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-        cap_prof->GetSndName().c_str());
+    if (cap_prof) {
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
+            cap_prof->GetName().c_str(), cap_prof->GetDevId(),
+            cap_prof->GetChannels(), cap_prof->GetSampleRate(),
+            cap_prof->GetSndName().c_str());
+    }
 
     return cap_prof;
 }
@@ -2897,7 +2890,7 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
@@ -3053,8 +3046,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             std::vector<std::shared_ptr<SoundTriggerEngine>> tmp_engines;
             std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-            // Do not update capture profile when resuming stream
-            if (ev_cfg->id_ == ST_EV_START_RECOGNITION) {
+            /*
+             * Update common capture profile only in:
+             * 1. start recognition excuted
+             * 2. resume excuted and current common capture profile is null
+             */
+            if (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
+                (ev_cfg->id_ == ST_EV_RESUME &&
+                !st_stream_.rm->GetSoundTriggerCaptureProfile())) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
@@ -3253,7 +3252,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
@@ -3553,7 +3552,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 active = data->is_active_;
             }
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
-            if (st_stream_.cap_prof_ != new_cap_prof) {
+            if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
                     "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
@@ -3772,7 +3771,6 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg2);
             TransitTo(ST_STATE_SSR);
-            rm->releaseWakeLock();
             break;
         }
         case ST_EV_EC_REF: {
@@ -4053,7 +4051,6 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 new StUnloadEventConfig());
             status = st_stream_.ProcessInternalEvent(ev_cfg3);
             TransitTo(ST_STATE_SSR);
-            rm->releaseWakeLock();
             break;
         }
         case ST_EV_EC_REF: {

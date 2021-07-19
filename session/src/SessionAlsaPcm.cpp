@@ -1589,7 +1589,7 @@ int SessionAlsaPcm::write(Stream *s, int tag, struct pal_buffer *buf, int * size
             goto exit;
         }
         bytesWritten += sizeWritten;
-        bytesRemaining -= sizeWritten;
+        __builtin_sub_overflow(bytesRemaining, sizeWritten, &bytesRemaining);
     }
     offset = bytesWritten + buf->offset;
     sizeWritten = bytesRemaining;
@@ -1657,6 +1657,10 @@ void SessionAlsaPcm::setEventPayload(uint32_t event_id, void *payload, size_t pa
 
     eventPayloadSize = payload_size;
     eventPayload = calloc(1, payload_size);
+    if (!eventPayload) {
+        PAL_ERR(LOG_TAG, "Memory alloc failed for eventPayload");
+        return;
+    }
     memcpy(eventPayload, payload, payload_size);
 }
 

@@ -861,6 +861,7 @@ typedef enum {
     PAL_PARAM_ID_BT_SCO_LC3 = 46,
     PAL_PARAM_ID_DEVICE_MUTE = 47,
     PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
+    PAL_PARAM_ID_SP_GET_CAL = 49,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -998,8 +999,8 @@ enum {
                              LC3_TXCFG_IDX_BIT |
                              LC3_VERSION_BIT |
                              LC3_BLOCKS_FORSDU_BIT,
-    LC3_BIT_MASK           = LC3_BIT_ALL,
-    LC3_BIT_VALID          = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+    LC3_BIT_MASK           = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
+    LC3_BIT_VALID          = LC3_BIT_MASK,
 };
 
 /* max length of streamMap string, up to 16 stream id supported */

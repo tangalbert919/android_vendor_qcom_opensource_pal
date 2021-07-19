@@ -223,8 +223,7 @@ public:
     int populateDeviceKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
         int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx, sidetone_mode_t sidetoneMode);
     int populateDevicePPKV(Stream* s, int32_t rxBeDevId, std::vector <std::pair<int,int>> &keyVectorRx,
-        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx,
-        std::vector<kvpair_info> kvpair);
+        int32_t txBeDevId, std::vector <std::pair<int,int>> &keyVectorTx);
     int populateDevicePPCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct pal_volume_data **);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
@@ -254,7 +253,8 @@ public:
     static int getBtDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV,
         uint32_t codecFormat, bool isAbrEnabled, bool isHostless);
     static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
-    static bool isBtA2DPDevice(int32_t beDevId);
+    static bool isBtDevice(int32_t beDevId);
+    static bool compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2);
     PayloadBuilder();
     ~PayloadBuilder();
 };

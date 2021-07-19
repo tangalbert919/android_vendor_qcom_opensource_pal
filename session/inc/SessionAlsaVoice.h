@@ -93,6 +93,7 @@ private:
     int payloadCalKeys(Stream * s, uint8_t **payload, size_t *size);
     int payloadTaged(Stream * s, configType type, int tag, int device, int dir);
     int payloadSetVSID(uint8_t **payload, size_t *size);
+    int payloadSetChannelInfo(Stream * s, uint8_t **payload, size_t *size);
     int payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t mode);
     int setVoiceMixerParameter(Stream * s, struct mixer *mixer, void *payload,
                           int size, int dir);
@@ -103,7 +104,9 @@ private:
     int getTXDeviceId(Stream *s, int *id);
     int populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
     int populate_vsid_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
+    int populate_ch_info_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
     int populateVSIDLoopbackPayload(uint8_t **payload, size_t *payloadSize);
+    int getDeviceChannelInfo(Stream *s, uint16_t *channels);
 };
 
 #endif //SESSION_ALSAVOICE_H

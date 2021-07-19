@@ -141,6 +141,8 @@ public:
                              uint32_t event_size);
     void updateCpsCustomPayload(int miid);
     int getCpsDevNumber(std::string mixer);
+    int32_t getCalibrationData(void **param);
+    int32_t getFTMParameter(void **param);
 
 };
 

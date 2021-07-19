@@ -102,6 +102,7 @@ typedef enum {
 #define LPI_LOGGING_OFF 39
 #define DEVICE_MUTE 40
 #define DEVICE_UNMUTE 41
+#define CHANNEL_INFO 42
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will

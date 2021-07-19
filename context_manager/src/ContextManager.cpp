@@ -1412,18 +1412,6 @@ UsecaseUPD::UsecaseUPD(uint32_t usecase_id) : Usecase(usecase_id)
          goto exit;
     }
 
-    //output device
-    this->pal_devices[0].id = PAL_DEVICE_OUT_ULTRASOUND;
-    this->pal_devices[0].config.bit_width = 16;
-    this->pal_devices[0].config.sample_rate = 96000;
-    this->pal_devices[0].config.ch_info.channels = 1;
-
-    //input device
-    this->pal_devices[1].id = PAL_DEVICE_IN_ULTRASOUND_MIC;
-    this->pal_devices[1].config.bit_width = 16;
-    this->pal_devices[1].config.sample_rate = 96000;
-    this->pal_devices[1].config.ch_info.channels = 1;
-
     this->tags.push_back(ULTRASOUND_DETECTION_MODULE);
 exit:
     PAL_VERBOSE(LOG_TAG, "Exit");

@@ -170,6 +170,12 @@ Return<int32_t> PalCallback::event_callback_rw_done(uint64_t strm_handle,
     if (rwDonePayloadHidl->buff.metadataSz) {
         buffer->metadata_size = rwDonePayloadHidl->buff.metadataSz;
         buffer->metadata = (uint8_t *)calloc(1, buffer->metadata_size);
+        if (!buffer->metadata) {
+            ALOGE("%s:%d Failed to allocate memory to buffer->metadata",
+                __func__, __LINE__);
+            goto exit;
+        }
+
         ALOGV("metadatasize %d \n", buffer->metadata_size);
         memcpy(buffer->metadata, rwDonePayloadHidl->buff.metadata.data(),
                buffer->metadata_size);

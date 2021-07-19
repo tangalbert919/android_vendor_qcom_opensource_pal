@@ -57,8 +57,8 @@ static const char *feCtrlNames[] = {
     " disconnect",
     " setParam",
     " getTaggedInfo",
-    " SetParamTag",
-    " GetParam",
+    " setParamTag",
+    " getParam",
     " echoReference",
     " Sidetone",
     " loopback",
@@ -408,7 +408,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
         if (sAttr.direction == PAL_AUDIO_OUTPUT)
             status = builder->populateDevicePPKV(streamHandle, be->first, streamDeviceKV, 0,
-                    emptyKV, devinfo.kvpair);
+                    emptyKV);
         else {
             for (i = 0; i < associatedDevices.size(); i++) {
                 associatedDevices[i]->getDeviceAttributes(&dAttr);
@@ -423,12 +423,8 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 rmHandle->getDeviceInfo((pal_device_id_t)be->first, sAttr.type,
                                         dAttr.custom_config.custom_key, &devinfo);
             }
-            if (devinfo.kvpair.size() == 0) {
-                PAL_DBG(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
-                        be->first, sAttr.type);
-            }
             status = builder->populateDevicePPKV(streamHandle, 0, emptyKV, be->first,
-                     streamDeviceKV, devinfo.kvpair);
+                     streamDeviceKV);
         }
         if (status != 0) {
             PAL_VERBOSE(LOG_TAG, "get device PP KV failed %d", status);
@@ -1181,10 +1177,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type,
                                 dAttr.custom_config.custom_key, &devinfo);
     }
-    if (devinfo.kvpair.size() == 0) {
-        PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
-                txBackEnds[0].first, sAttr.type);
-    }
 
     if(sAttr.type == PAL_STREAM_VOICE_CALL){
         //get vsid info
@@ -1228,7 +1220,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
      // get devicePP
     if ((status = builder->populateDevicePPKV(streamHandle,
                     rxBackEnds[0].first, streamDeviceRxKV, txBackEnds[0].first,
-                    streamDeviceTxKV,devinfo.kvpair))!= 0) {
+                    streamDeviceTxKV))!= 0) {
         PAL_ERR(LOG_TAG, "get device KV failed %d", status);
         goto exit;
     }
@@ -1239,6 +1231,36 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     if (status) {
         PAL_VERBOSE(LOG_TAG, "get stream device KV for Rx/Tx failed %d", status);
         status = 0; /**< ignore stream device KV failures */
+    }
+
+    if (ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Speaker protection enabled");
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            if (associatedDevices[i]->getSndDeviceId() ==
+                        PAL_DEVICE_OUT_SPEAKER) {
+                status = builder->populateCalKeyVector(streamHandle, emptyKV,
+                                SPKR_PROT_ENABLE);
+                if (status != 0) {
+                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                    status = 0; /**< ignore device SP CKV failures */
+                }
+                break;
+            }
+            else if (associatedDevices[i]->getSndDeviceId() ==
+                            PAL_DEVICE_IN_VI_FEEDBACK) {
+                status = builder->populateCalKeyVector(streamHandle, emptyKV,
+                                SPKR_VI_ENABLE);
+                if (status != 0) {
+                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                    status = 0; /**< ignore device SP CKV failures */
+                }
+                break;
+            }
+        }
+    }
+    else {
+        // Not setting CKV as SP is disabled by default.
+        PAL_DBG(LOG_TAG, "Speaker protection disabled");
     }
     // get audio mixer
     if ((streamRxKV.size() > 0) || (streamRxCKV.size() > 0)) {
@@ -1909,20 +1931,40 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     if (SessionAlsaUtils::isRxDevice(aifBackEndsToConnect[0].first))
         status = builder->populateDevicePPKV(streamHandle,
                 aifBackEndsToConnect[0].first, streamDeviceKV,
-                0, emptyKV,devinfo.kvpair);
+                0, emptyKV);
     else {
         rmHandle->getDeviceInfo(dAttr.id, streamType,
                                 dAttr.custom_config.custom_key, &devinfo);
-        if (devinfo.kvpair.size() == 0) {
-            PAL_INFO(LOG_TAG, "kv pair not found for dev[%d] stream[%d]",
-                    dAttr.id, streamType);
-         }
         status = builder->populateDevicePPKV(streamHandle, 0, emptyKV,
-                aifBackEndsToConnect[0].first, streamDeviceKV, devinfo.kvpair);
+                aifBackEndsToConnect[0].first, streamDeviceKV);
     }
     if (status != 0) {
         PAL_ERR(LOG_TAG, "get device PP KV failed %d", status);
         status = 0; /** ignore error */
+    }
+
+    if (ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Speaker protection enabled");
+        if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, emptyKV,
+                                SPKR_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+         }
+         else if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
+            status = builder->populateCalKeyVector(streamHandle, emptyKV,
+                                SPKR_VI_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+         }
+    }
+    else {
+        // Not setting CKV as SP is disabled by default.
+        PAL_DBG(LOG_TAG, "Speaker protection disabled");
     }
 
     if (deviceKV.size() > 0) {

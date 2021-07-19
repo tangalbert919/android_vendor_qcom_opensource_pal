@@ -229,6 +229,10 @@ int Bluetooth::configureA2dpEncoderDecoder()
 
     isAbrEnabled = out_buf->is_abr_enabled;
 
+    /* Reset device GKV for AAC ABR */
+    if ((codecFormat == CODEC_TYPE_AAC) && isAbrEnabled)
+        updateDeviceMetadata();
+
     /* Update Device sampleRate based on encoder config */
     updateDeviceAttributes();
 
@@ -1148,10 +1152,6 @@ int BtA2dp::startPlayback()
             audio_source_stop();
             return ret;
         }
-
-        /* Reset device GKV for AAC ABR */
-        if ((codecFormat == CODEC_TYPE_AAC) && isAbrEnabled)
-            updateDeviceMetadata();
 
         a2dpState = A2DP_STATE_STARTED;
     } else {

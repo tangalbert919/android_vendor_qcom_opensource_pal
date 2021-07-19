@@ -387,15 +387,15 @@
         </device>
         <!-- Proxy IN Device -->
         <device id="PAL_DEVICE_IN_PROXY">
+            <keys_and_values>
+                <!-- DEVICETX - PROXY_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000008"/>
+            </keys_and_values>
             <keys_and_values SubType="PAL_STREAM_PROXY_TX_WFD">
                 <!-- DEVICETX - PROXY_TX -->
                 <graph_kv key="0xA3000000" value="0xA3000008"/>
                 <!-- PROXY_TX_TYPE - PROXY_TX_WFD -->
                 <graph_kv key="0xD1000000" value="0xD1000002"/>
-            </keys_and_values>
-            <keys_and_values>
-                <!-- DEVICETX - PROXY_TX -->
-                <graph_kv key="0xA3000000" value="0xA3000008"/>
             </keys_and_values>
         </device>
         <!-- Proxy Out Device -->
@@ -407,15 +407,15 @@
         </device>
         <!-- In Telephony RX Device -->
         <device id="PAL_DEVICE_IN_TELEPHONY_RX">
+            <keys_and_values>
+                <!-- DEVICETX - PROXY_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000008"/>
+            </keys_and_values>
             <keys_and_values SubType="PAL_STREAM_PROXY_TX_TELEPHONY_RX">
                 <!-- DEVICETX - PROXY_TX -->
                 <graph_kv key="0xA3000000" value="0xA3000008"/>
                 <!-- PROXY_TX_TYPE - PROXY_TX_VOICE_RX -->
                 <graph_kv key="0xD1000000" value="0xD1000003"/>
-            </keys_and_values>
-            <keys_and_values>
-                <!-- DEVICETX - PROXY_TX -->
-                <graph_kv key="0xA3000000" value="0xA3000008"/>
             </keys_and_values>
         </device>
         <!-- In VI feedback Device -->
@@ -478,7 +478,7 @@
                 <graph_kv key="0xB5000000" value="0xB5000002"/>
             </keys_and_values>
             <!-- In APTX_AD ABR is always enabled -->
-            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD" AbrEnabled="TRUE" Hostless="TRUE,FALSE">
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD" AbrEnabled="TRUE,FALSE" Hostless="TRUE,FALSE">
                 <!-- DEVICERX - BT_RX -->
                 <graph_kv key="0xA2000000" value="0xA2000003"/>
                 <!-- BT_PROFILE - A2DP -->
@@ -540,23 +540,29 @@
         </device>
         <!-- BT SCO OUT Device -->
         <device id="PAL_DEVICE_OUT_BLUETOOTH_SCO">
-            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_SPEECH">
-                <!-- DEVICERX - BT_RX -->
-                <graph_kv key="0xA2000000" value="0xA2000003"/>
-                <!-- BT_PROFILE - SCO -->
-                <graph_kv key="0xB4000000" value="0xB4000001"/>
-                <!-- BT_FORMAT - SWB -->
-                <graph_kv key="0xB5000000" value="0xB5000004"/>
-            </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_INVALID">
                 <!-- DEVICERX - BT_RX -->
                 <graph_kv key="0xA2000000" value="0xA2000003"/>
                 <!-- BT_PROFILE - SCO -->
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
             </keys_and_values>
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_SPEECH">
+                <!-- DEVICERX - BT_RX -->
+                <graph_kv key="0xA2000000" value="0xA2000003"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+                <!-- BT_FORMAT - SWB -->
+                <graph_kv key="0xB5000000" value="0xB5000004"/>
+            </keys_and_values>
         </device>
         <!-- BT SCO In Headset Device -->
         <device id="PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET">
+             <keys_and_values CodecFormat="CODEC_TYPE_INVALID">
+                <!-- DEVICETX - BT_TX -->
+                <graph_kv key="0xA3000000" value="0xA3000002"/>
+                <!-- BT_PROFILE - SCO -->
+                <graph_kv key="0xB4000000" value="0xB4000001"/>
+            </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD_SPEECH">
                 <!-- DEVICETX - BT_TX -->
                 <graph_kv key="0xA3000000" value="0xA3000002"/>
@@ -564,12 +570,6 @@
                 <graph_kv key="0xB4000000" value="0xB4000001"/>
                 <!-- BT_FORMAT - SWB -->
                 <graph_kv key="0xB5000000" value="0xB5000004"/>
-            </keys_and_values>
-             <keys_and_values CodecFormat="CODEC_TYPE_INVALID">
-                <!-- DEVICETX - BT_TX -->
-                <graph_kv key="0xA3000000" value="0xA3000002"/>
-                <!-- BT_PROFILE - SCO -->
-                <graph_kv key="0xB4000000" value="0xB4000001"/>
             </keys_and_values>
         </device>
     </devices>
