@@ -146,7 +146,7 @@
         <stream type="PAL_STREAM_VOICE_UI">
             <keys_and_values VUIModuleType="GMM" Instance="1">
                 <!-- STREAM_CONFIG - STREAM_CFG_VUI_GMM -->
-                <graph_kv key="0xBC000000" value="0xBC000005"/>
+                <graph_kv key="0xBC000000" value="0xBC000001"/>
                 <!-- STREAMTX - VOICE_UI -->
                 <graph_kv key="0xB1000000" value="0xB1000003"/>
                 <!-- INSTANCE - INSTANCE_1 -->
@@ -154,7 +154,7 @@
             </keys_and_values>
             <keys_and_values VUIModuleType="GMM" Instance="2">
                 <!-- STREAM_CONFIG - STREAM_CFG_VUI_GMM -->
-                <graph_kv key="0xBC000000" value="0xBC000005"/>
+                <graph_kv key="0xBC000000" value="0xBC000001"/>
                 <!-- STREAMTX - VOICE_UI -->
                 <graph_kv key="0xB1000000" value="0xB1000003"/>
                 <!-- INSTANCE - INSTANCE_2 -->
