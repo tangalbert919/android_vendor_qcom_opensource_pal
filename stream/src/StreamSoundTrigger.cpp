@@ -3076,15 +3076,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 dattr.config.sample_rate = cap_prof->GetSampleRate();
                 dev->setDeviceAttributes(dattr);
 
-                /* now start the device */
-                PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
-                        dev->getPALDeviceName().c_str());
                 dev->setSndName(cap_prof->GetSndName());
                 status = dev->open();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
                     break;
                 }
+                /* now start the device */
+                PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
+                        dev->getPALDeviceName().c_str());
 
                 status = dev->start();
                 if (0 != status) {
