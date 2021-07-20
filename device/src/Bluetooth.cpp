@@ -1667,9 +1667,11 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
         break;
     case PAL_PARAM_ID_BT_SCO_LC3:
         isSwbLc3Enabled = param_bt_sco->bt_lc3_speech_enabled;
-        // parse sco lc3 parameters and pack into codec info
-        convertCodecInfo(lc3CodecInfo, param_bt_sco->lc3_cfg);
-        codecInfo = (void *)&lc3CodecInfo;
+        if (isSwbLc3Enabled) {
+            // parse sco lc3 parameters and pack into codec info
+            convertCodecInfo(lc3CodecInfo, param_bt_sco->lc3_cfg);
+            codecInfo = (void *)&lc3CodecInfo;
+        }
         PAL_DBG(LOG_TAG, "isSwbLc3Enabled = %d", isSwbLc3Enabled);
         break;
     default:
@@ -1797,6 +1799,12 @@ int BtSco::start()
     int status = 0;
     mDeviceMutex.lock();
 
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
+
     if (swbSpeechMode != SPEECH_MODE_INVALID) {
         codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
     } else if (isSwbLc3Enabled) {
@@ -1839,9 +1847,13 @@ int BtSco::stop()
     int status = 0;
     mDeviceMutex.lock();
 
-    if (isAbrEnabled &&
-        (codecFormat != CODEC_TYPE_LC3))
-        stopAbr();
+    if (isAbrEnabled) {
+        if (codecFormat != CODEC_TYPE_LC3) {
+            stopAbr();
+        } else {
+            isAbrEnabled = false;
+        }
+    }
 
     if (pluginCodec) {
         pluginCodec->close_plugin(pluginCodec);
