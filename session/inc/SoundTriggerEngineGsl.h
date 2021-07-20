@@ -115,9 +115,6 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     void UpdateState(eng_state_t state);
 
  private:
-    uint32_t AddModelID(Stream *s);
-    uint32_t GetModelID(Stream *s);
-    uint32_t GenerateModelID();
     int32_t StartBuffering(Stream *s);
     int32_t UpdateSessionPayload(st_param_id_type_t param);
     int32_t ParseDetectionPayloadPDK(void *event_data);
