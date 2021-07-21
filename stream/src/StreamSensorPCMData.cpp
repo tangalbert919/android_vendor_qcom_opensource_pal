@@ -523,7 +523,6 @@ int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id) {
                 status, mDevices[0]->getSndDeviceId());
         goto connect_err;
     }
-    this->rm->registerDevice(mDevices[0], this);
 
     if (session)
         status = session->connectSessionDevice(this,
@@ -535,6 +534,7 @@ int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id) {
         mDevices[0]->close();
     } else {
         PAL_DBG(LOG_TAG, "Update capture profile after device switch");
+        this->rm->registerDevice(mDevices[0], this);
         cap_prof_ = GetCurrentCaptureProfile();
         if (cap_prof_)
             mDevPPSelector = cap_prof_->GetName();
@@ -554,5 +554,45 @@ int32_t StreamSensorPCMData::ConnectDevice(pal_device_id_t device_id) {
     mStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+int32_t StreamSensorPCMData::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
+
+    if (mDevPPSelector.empty() ||
+        mDevPPSelector.find("FFEC") == std::string::npos) {
+        PAL_DBG(LOG_TAG, "No need to set EC Ref for profile:%s",
+                mDevPPSelector.c_str());
+        goto exit;
+    }
+
+    if (dev && !rm->checkECRef(dev, mDevices[0])) {
+        PAL_DBG(LOG_TAG, "No need to set EC Ref for unmatching rx device");
+        goto exit;
+    }
+
+    status = session->setECRef(this, dev, is_enable);
+    if (status)
+        PAL_ERR(LOG_TAG, "Error:%d Failed to set EC Ref", status);
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
+    return status;
+}
+
+int32_t StreamSensorPCMData::setECRef(std::shared_ptr<Device> dev, bool is_enable)
+{
+    int32_t status = 0;
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (!use_lpi_)
+        status = setECRef_l(dev, is_enable);
+    else
+        PAL_DBG(LOG_TAG, "set EC Ref will be handled in LPI/NLPI switch");
+
     return status;
 }
