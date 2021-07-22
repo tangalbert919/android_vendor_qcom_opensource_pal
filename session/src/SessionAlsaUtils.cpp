@@ -1161,6 +1161,45 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *
     return ret;
 }
 
+int SessionAlsaUtils::mixerWriteDatapathParams(struct mixer *mixer, int device,
+                                        void *payload, int size)
+{
+    char *pcmDeviceName = NULL;
+    char const *control = "datapathParams";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,ret = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
+
+    PAL_DBG(LOG_TAG, "- mixer -%s-\n", pcmDeviceName);
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    if (!mixer_str) {
+        return -ENOMEM;
+    }
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
+
+    PAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+    PAL_DBG(LOG_TAG, "payload = %p\n", payload);
+    ret = mixer_ctl_set_array(ctl, payload, size);
+
+    PAL_DBG(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
+    free(mixer_str);
+    return ret;
+}
+
 int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
