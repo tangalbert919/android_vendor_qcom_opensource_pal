@@ -227,6 +227,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
         /* need to take into consideration the start and end buffer*/
+        if (!reader_->isEnabled()) {
+            status = -EINVAL;
+            goto exit;
+        }
 
         /* advance the offset to ensure we are reading at the right place */
         if (!buffer_advanced && buffer_start_ > 0) {
@@ -241,8 +245,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
             continue;
 
         read_size = reader_->read((void*)process_input_buff, buffer_size_);
-        if (read_size == 0)
+        if (read_size == 0) {
             continue;
+        } else if (read_size < 0) {
+            status = read_size;
+            PAL_ERR(LOG_TAG, "Failed to read from buffer, status %d", status);
+            goto exit;
+        }
 
         PAL_INFO(LOG_TAG, "Processed: %u, start: %u, end: %u",
                  bytes_processed_, buffer_start_, buffer_end_);
@@ -479,6 +488,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
         /* need to take into consideration the start and end buffer*/
+        if (!reader_->isEnabled()) {
+            status = -EINVAL;
+            goto exit;
+        }
 
         /* advance the offset to ensure we are reading at the right place */
         if (!buffer_advanced && buffer_start_ > 0) {
@@ -493,8 +506,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             continue;
 
         read_size = reader_->read((void*)process_input_buff, buffer_size_);
-        if (read_size == 0)
+        if (read_size == 0) {
             continue;
+        } else if (read_size < 0) {
+            status = read_size;
+            PAL_ERR(LOG_TAG, "Failed to read from buffer, status %d", status);
+            goto exit;
+        }
         PAL_INFO(LOG_TAG, "Processed: %u, start: %u, end: %u",
                  bytes_processed_, buffer_start_, buffer_end_);
         stream_input->bufs_num = 1;

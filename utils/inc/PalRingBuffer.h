@@ -64,6 +64,7 @@ class PalRingBufferReader {
     void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
     void reset();
+    bool isEnabled() { return state_ == READER_ENABLED; }
 
     friend class PalRingBuffer;
     friend class StreamSoundTrigger;
