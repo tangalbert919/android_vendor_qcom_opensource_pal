@@ -207,12 +207,12 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         dsp_output_cnt++;
     }
 
-    ATRACE_BEGIN("stEngine: read FTRT data");
+    ATRACE_ASYNC_BEGIN("stEngine: read FTRT data", (int32_t)module_type_);
     kw_transfer_begin = std::chrono::steady_clock::now();
     while (!exit_buffering_) {
         PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
-        ATRACE_BEGIN("stEngine: lab read");
+        ATRACE_ASYNC_BEGIN("stEngine: lab read", (int32_t)module_type_);
         if (mmap_buffer_size_ != 0) {
             if (total_read_size >= ftrt_size) {
                 sleep_ms = (input_buf_size * input_buf_num) *
@@ -291,7 +291,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             PAL_VERBOSE(LOG_TAG, "requested %zu, read %d", buf.size, size);
             total_read_size += size;
         }
-        ATRACE_END();
+        ATRACE_ASYNC_END("stEngine: lab read", (int32_t)module_type_);
         // write data to ring buffer
         if (size) {
             size_t ret = 0;
@@ -319,7 +319,7 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
         // notify client until ftrt data read
         if (!event_notified && total_read_size >= ftrt_size) {
             kw_transfer_end = std::chrono::steady_clock::now();
-            ATRACE_END();
+            ATRACE_ASYNC_END("stEngine: read FTRT data", (int32_t)module_type_);
             kw_transfer_latency_ = std::chrono::duration_cast<std::chrono::milliseconds>(
                 kw_transfer_end - kw_transfer_begin).count();
             PAL_INFO(LOG_TAG, "FTRT data read done! total_read_size %zu, ftrt_size %zu, read latency %llums",
