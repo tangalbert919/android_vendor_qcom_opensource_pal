@@ -1938,8 +1938,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
 
     if (rxDevInfo.isExternalECRefEnabledFlag) {
         device.id = PAL_DEVICE_IN_EXT_EC_REF;
-        ar_mem_cpy(&device.config, sizeof(struct pal_media_config), &rxDevAttr.config,
-            sizeof(struct pal_media_config));
+        rm->getDeviceConfig(&device, &sAttr);
         dev = Device::getInstance(&device, rm);
         if (!dev) {
             PAL_ERR(LOG_TAG, "getInstance failed");

@@ -345,6 +345,8 @@
             <snd_device_name>ext_ec_ref_tx</snd_device_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <bit_width>16</bit_width>
+            <samplerate>48000</samplerate>
         </in-device>
         <out-device>
             <id>PAL_DEVICE_NONE</id>
