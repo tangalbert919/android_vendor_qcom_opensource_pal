@@ -3858,7 +3858,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
             }
             rx_str->getAssociatedDevices(rx_device_list);
             for (int i = 0; i < rx_device_list.size(); i++) {
-                if (!isDeviceActive_l(rx_device_list[i], rx_str))
+                if (!isDeviceActive_l(rx_device_list[i], rx_str) ||
+                    !rx_str->isActive())
                     continue;
                 deviceId = rx_device_list[i]->getSndDeviceId();
                 if (deviceId > PAL_DEVICE_OUT_MIN &&
@@ -3931,7 +3932,8 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
             }
             tx_str->getAssociatedDevices(tx_device_list);
             for (int i = 0; i < tx_device_list.size(); i++) {
-                if (!isDeviceActive_l(tx_device_list[i], tx_str))
+                if (!isDeviceActive_l(tx_device_list[i], tx_str) ||
+                    !tx_str->isActive())
                     continue;
                 deviceId = tx_device_list[i]->getSndDeviceId();
                 if (deviceId > PAL_DEVICE_IN_MIN &&
