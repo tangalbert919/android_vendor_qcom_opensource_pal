@@ -303,15 +303,16 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     size = cur_state_->ProcessEvent(ev_cfg);
 
     /*
-     * st stream read pcm data from ringbuffer with no almost
+     * st stream read pcm data from ringbuffer with almost no
      * delay, sleep for some time after each read even if read
-     * fails.
+     * fails or no enough data in ring buffer
      */
-
-    sleep_ms = (buf->size * BITS_PER_BYTE * MS_PER_SEC) /
-        (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
-         sm_cfg_->GetOutChannels());
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+    if (size <= 0 || reader_->getUnreadSize() < buf->size) {
+        sleep_ms = (buf->size * BITS_PER_BYTE * MS_PER_SEC) /
+            (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+             sm_cfg_->GetOutChannels());
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+    }
 
     PAL_VERBOSE(LOG_TAG, "Exit, read size %d", size);
 
