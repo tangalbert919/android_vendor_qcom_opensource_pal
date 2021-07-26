@@ -789,12 +789,6 @@ int32_t StreamACD::SetupDetectionEngine()
     cap_prof_ = GetCurrentCaptureProfile();
     mDevPPSelector = cap_prof_->GetName();
 
-    status = mDevices[0]->open();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Error:%d Device open failed", status);
-        goto error_exit;
-    }
-
     engine_ = ContextDetectionEngine::Create(this, sm_cfg_);
     if (!engine_) {
         status = -ENOMEM;
@@ -1116,15 +1110,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
 
     switch (ev_cfg->id_) {
         case ACD_EV_UNLOAD_SOUND_MODEL: {
-            if (acd_stream_.mDevices.size() > 0) {
-                auto& dev = acd_stream_.mDevices[0];
-                PAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
-                        dev->getPALDeviceName().c_str());
-                status = dev->close();
-                if (status)
-                    PAL_ERR(LOG_TAG, "Error:%d Device close failed", status);
-            }
-
             status = acd_stream_.engine_->TeardownEngine(&acd_stream_, acd_stream_.context_config_);
             if (status)
                 PAL_ERR(LOG_TAG, "Error:%d Unload engine failed", status);
@@ -1191,6 +1176,12 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
                     dev->getPALDeviceName().c_str());
             dev->setSndName(cap_prof->GetSndName());
+
+            status = dev->open();
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Error:%d Device open failed", status);
+                break;
+            }
 
             status = dev->start();
             if (0 != status) {
@@ -1263,13 +1254,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
-                    status, dev->getSndDeviceId());
-                goto connect_err;
-            }
-
             acd_stream_.mDevices.clear();
             acd_stream_.mDevices.push_back(dev);
 
@@ -1278,14 +1262,21 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d setupSessionDevice for %d failed",
                         status, dev->getSndDeviceId());
-                dev->close();
                 goto connect_err;
             }
             if (acd_stream_.isActive()) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
+                        status, dev->getSndDeviceId());
+                    goto connect_err;
+                }
+
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Error:%d device %d start failed",
                         status, dev->getSndDeviceId());
+                    dev->close();
                     goto connect_err;
                 }
             }
@@ -1426,10 +1417,12 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             // fall through to stop
             [[fallthrough]];
         }
+        case ACD_EV_UNLOAD_SOUND_MODEL:
         case ACD_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             bool backend_update = false;
-            if (ev_cfg->id_ == ACD_EV_STOP_RECOGNITION) {
+            if (ev_cfg->id_ == ACD_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ACD_EV_UNLOAD_SOUND_MODEL) {
                 backend_update = acd_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &acd_stream_, false);
                 if (backend_update) {
@@ -1452,6 +1445,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d Device stop failed", status);
 
             acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
+
+            status = dev->close();
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Device close failed", status);
+
             if (backend_update) {
                 status = rm->StartOtherDetectionStreams(&acd_stream_);
                 if (status)
@@ -1459,6 +1457,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
 
             TransitTo(ACD_STATE_LOADED);
+            if (ev_cfg->id_ == ACD_EV_UNLOAD_SOUND_MODEL) {
+                status = acd_stream_.ProcessInternalEvent(ev_cfg);
+                if (status != 0)
+                    PAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d", status);
+            }
             break;
         }
         case ACD_EV_DEVICE_DISCONNECTED: {
