@@ -446,7 +446,10 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
         return status;
     }
 
-    if (currentState == STREAM_OPENED || currentState == STREAM_STARTED) {
+    //we should allow writes to go through in Open/Start/Pause state as well.
+    if ( (currentState == STREAM_OPENED) ||
+        (currentState == STREAM_STARTED) ||
+        (currentState == STREAM_PAUSED)) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write failed with status %d", status);
@@ -461,7 +464,8 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
                 return status;
             }
         }
-        if (currentState != STREAM_STARTED) {
+        if ((currentState != STREAM_STARTED) &&
+            (currentState != STREAM_PAUSED)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
             for (int i = 0; i < mDevices.size(); i++) {
