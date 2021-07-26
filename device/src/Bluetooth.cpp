@@ -940,6 +940,7 @@ BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     init();
     param_bt_a2dp.reconfig = false;
     param_bt_a2dp.a2dp_suspended = false;
+    param_bt_a2dp.a2dp_capture_suspended = false;
     param_bt_a2dp.is_force_switch = false;
     isA2dpOffloadSupported =
             property_get_bool("ro.bluetooth.a2dp_offload.supported", false) &&
@@ -1069,6 +1070,8 @@ void BtA2dp::init_a2dp_sink()
                   dlsym(bt_lib_sink_handle, "audio_stop_stream");
             audio_source_check_a2dp_ready = (audio_source_check_a2dp_ready_t)
                   dlsym(bt_lib_sink_handle, "audio_check_a2dp_ready");
+            audio_source_suspend = (audio_source_suspend_t)
+                dlsym(bt_lib_sink_handle, "audio_suspend_stream");
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1264,8 +1267,13 @@ bool BtA2dp::isDeviceReady()
 {
     bool ret = false;
 
-    if (param_bt_a2dp.a2dp_suspended)
-        return ret;
+    if (a2dpRole == SOURCE) {
+        if (param_bt_a2dp.a2dp_suspended)
+            return ret;
+    } else if (a2dpRole == SINK) {
+        if (param_bt_a2dp.a2dp_capture_suspended)
+            return ret;
+    }
 
     if ((a2dpState != A2DP_STATE_DISCONNECTED) &&
         (isA2dpOffloadSupported)) {
@@ -1318,6 +1326,12 @@ int BtA2dp::startCapture()
             && audio_get_enc_config)) {
             PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
             return -ENOSYS;
+        }
+
+        if (param_bt_a2dp.a2dp_capture_suspended) {
+            // session will be restarted after suspend completion
+            PAL_INFO(LOG_TAG, "a2dp start capture requested during suspend state");
+            return 0;
         }
 
         if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
@@ -1437,6 +1451,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             } else {
                 totalActiveSessionRequests = 0;
                 param_bt_a2dp.a2dp_suspended = false;
+                param_bt_a2dp.a2dp_capture_suspended = false;
                 param_bt_a2dp.reconfig = false;
                 param_bt_a2dp.latency = 0;
                 a2dpState = A2DP_STATE_DISCONNECTED;
@@ -1533,6 +1548,41 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
         }
         break;
     }
+    case PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED:
+    {
+        if (bt_lib_sink_handle == nullptr)
+            goto exit;
+
+        if (param_bt_a2dp.a2dp_capture_suspended == param_a2dp->a2dp_capture_suspended)
+            goto exit;
+
+        if (param_a2dp->a2dp_capture_suspended == true) {
+            param_bt_a2dp.a2dp_capture_suspended = true;
+            if (a2dpState == A2DP_STATE_DISCONNECTED)
+                goto exit;
+
+            rm->a2dpCaptureSuspend();
+            if (audio_source_suspend)
+                audio_source_suspend();
+        } else {
+            if (clear_source_a2dpsuspend_flag)
+                clear_source_a2dpsuspend_flag();
+
+            param_bt_a2dp.a2dp_capture_suspended = false;
+
+            if (totalActiveSessionRequests > 0) {
+                if (audio_source_start) {
+                    status = audio_source_start();
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "BT controller start failed");
+                        goto exit;
+                    }
+                }
+            }
+            rm->a2dpCaptureResume();
+        }
+        break;
+    }
     default:
         return -EINVAL;
     }
@@ -1547,6 +1597,7 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     case PAL_PARAM_ID_BT_A2DP_RECONFIG:
     case PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
     case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
+    case PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED:
         *param = &param_bt_a2dp;
         break;
     case PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY:
