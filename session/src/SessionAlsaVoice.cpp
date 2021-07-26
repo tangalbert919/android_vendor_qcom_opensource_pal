@@ -592,9 +592,11 @@ int SessionAlsaVoice::start(Stream * s)
     if (ttyMode) {
         palPayload = (pal_param_payload *)calloc(1,
                                  sizeof(pal_param_payload) + sizeof(ttyMode));
-        palPayload->payload_size = sizeof(ttyMode);
-        *(palPayload->payload) = ttyMode;
-        setParameters(s, TTY_MODE, PAL_PARAM_ID_TTY_MODE, palPayload);
+        if(palPayload != NULL){
+            palPayload->payload_size = sizeof(ttyMode);
+            *(palPayload->payload) = ttyMode;
+            setParameters(s, TTY_MODE, PAL_PARAM_ID_TTY_MODE, palPayload);
+        }
     }
 
     /*set sidetone*/
