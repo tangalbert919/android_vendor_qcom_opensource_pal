@@ -357,13 +357,13 @@
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>
-            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <samplerate>48000</samplerate>
-            <snd_device_name>handset</snd_device_name>
+            <snd_device_name>handset-wcd</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
                 <samplerate>96000</samplerate>
@@ -475,10 +475,10 @@
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_ULTRASOUND</id>
-            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-1</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
-            <snd_device_name>ultrasound-handset</snd_device_name>
+            <snd_device_name>ultrasound-handset-wcd</snd_device_name>
         </out-device>
     </device_profile>
     <in_streams>
