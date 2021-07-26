@@ -1165,7 +1165,7 @@ int BtA2dp::startPlayback()
     if (param_bt_a2dp.a2dp_suspended) {
         // session will be restarted after suspend completion
         PAL_INFO(LOG_TAG, "a2dp start requested during suspend state");
-        return 0;
+        return -ENOSYS;
     }
 
     if (a2dpState != A2DP_STATE_STARTED && !totalActiveSessionRequests) {
