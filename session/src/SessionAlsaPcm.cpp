@@ -1201,9 +1201,11 @@ int SessionAlsaPcm::stop(Stream * s)
            DeviceId = pcmDevTxIds.at(0);
            RegisterForEvents = false;
         }
-        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
-                txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
-                payload_size);
+        if (!txAifBackEnds.empty()) {
+           SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                   txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+                   payload_size);
+        }
     } else if (sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload == NULL)
             goto done;
@@ -1213,9 +1215,11 @@ int SessionAlsaPcm::stop(Stream * s)
         event_cfg.event_id = eventId;
         event_cfg.event_config_payload_size = 0;
         event_cfg.is_register = 0;
-        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-            txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)&event_cfg,
-            payload_size);
+        if (!txAifBackEnds.empty()) {
+           SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+               txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)&event_cfg,
+               payload_size);
+        }
     } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
         status = register_asps_event(0);
     }
