@@ -439,6 +439,7 @@ void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *p
                     sizeof(struct acd_context_event) +
                     (event->num_contexts * sizeof(struct acd_per_context_event_info));
 
+    PAL_DBG(LOG_TAG, "Enter");
     recognition_event = (struct pal_st_recognition_event *) payload;
     recognition_event->status = PAL_RECOGNITION_STATUS_SUCCESS;
     recognition_event->type = PAL_SOUND_MODEL_TYPE_GENERIC;
@@ -453,8 +454,10 @@ void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *p
     st_header->key_id = ST_PARAM_KEY_CONTEXT_EVENT_INFO;
     st_header->payload_size = recognition_event->data_size - sizeof(struct st_param_header);
 
+    PAL_INFO(LOG_TAG, "Populated %d contexts", event->num_contexts);
     offset = sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header);
     memcpy((uint8_t *)payload + offset, event, st_header->payload_size);
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 void StreamACD::CacheEventData(struct acd_context_event *event)
@@ -468,6 +471,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
     uint8_t *per_context_info;
     int offset = 0;
 
+    PAL_DBG(LOG_TAG, "Enter");
     if (cached_event_data_) {
         offset = cached_event_data_->data_offset + sizeof(st_param_header);
         current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
@@ -489,6 +493,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
             event_data += sizeof(struct acd_per_context_event_info);
         }
         current_context_event->num_contexts += event->num_contexts;
+        PAL_INFO(LOG_TAG, "Total cached events = %d", current_context_event->num_contexts);
     } else {
         cached_event_data_ = (struct pal_st_recognition_event *) calloc(1, new_event_size);
         if (!cached_event_data_) {
@@ -497,6 +502,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         }
         PopulateCallbackPayload(event, cached_event_data_);
     }
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 void StreamACD::SendCachedEventData()
@@ -540,11 +546,13 @@ void StreamACD::NotifyClient(struct acd_context_event *event)
 
 void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
 {
+    PAL_DBG(LOG_TAG, "Enter");
     mStreamMutex.lock();
     std::shared_ptr<ACDEventConfig> ev_cfg(
        new ACDDetectedEventConfig((void *)event));
     cur_state_->ProcessEvent(ev_cfg);
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 pal_device_id_t StreamACD::GetAvailCaptureDevice()
