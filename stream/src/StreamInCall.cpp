@@ -279,7 +279,6 @@ int32_t StreamInCall::start()
                 PAL_ERR(LOG_TAG, "Sound card offline, informing RM");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto exit;
             }
             if (0 != status) {

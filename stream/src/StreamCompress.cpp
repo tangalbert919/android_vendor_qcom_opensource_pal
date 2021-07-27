@@ -285,13 +285,15 @@ int32_t StreamCompress::stop()
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG,"In PAL_AUDIO_OUTPUT case, device count - %zu", mDevices.size());
+
+            rm->lockGraph();
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Rx session stop failed with status %d",status);
             }
             PAL_VERBOSE(LOG_TAG,"session stop successful");
-            for (int32_t i = 0; i < mDevices.size(); i++) {
 
+            for (int32_t i = 0; i < mDevices.size(); i++) {
                 PAL_ERR(LOG_TAG, "device %d name %s, going to stop",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
@@ -300,6 +302,7 @@ int32_t StreamCompress::stop()
                     PAL_ERR(LOG_TAG,"Rx device stop failed with status %d",status);
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG,"devices stop successful");
             break;
         default:

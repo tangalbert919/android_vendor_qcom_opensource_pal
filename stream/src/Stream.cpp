@@ -784,17 +784,21 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
+            rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                rm->unlockGraph();
                 goto exit;
             }
 
             status = mDevices[i]->stop();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                rm->unlockGraph();
                 goto exit;
             }
+            rm->unlockGraph();
             rm->deregisterDevice(mDevices[i], this);
 
             status = mDevices[i]->close();
@@ -869,17 +873,21 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_close;
     }
 
+    rm->lockGraph();
     status = dev->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
             dev->getSndDeviceId(), dev->getPALDeviceName().c_str(), status);
+        rm->unlockGraph();
         goto dev_close;
     }
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
+        rm->unlockGraph();
         goto dev_stop;
     }
+    rm->unlockGraph();
     rm->registerDevice(dev, this);
     goto exit;
 

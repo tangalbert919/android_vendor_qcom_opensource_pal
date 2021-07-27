@@ -405,7 +405,6 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
@@ -460,7 +459,6 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
@@ -521,18 +519,22 @@ int32_t StreamPCM::stop()
             PAL_VERBOSE(LOG_TAG, "In PAL_AUDIO_OUTPUT case, device count - %zu",
                         mDevices.size());
 
+            rm->lockGraph();
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
             }
             PAL_VERBOSE(LOG_TAG, "session stop successful");
+
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Rx device stop failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "devices stop successful");
             break;
 
