@@ -84,13 +84,14 @@ class SpeakerProtection : public Speaker
 protected :
     bool spkrProtEnable;
     bool threadExit;
-    bool calThrdCreated;
     bool triggerCal;
     int minIdleTime;
     static speaker_prot_cal_state spkrCalState;
     spkr_prot_proc_state spkrProcessingState;
     int *spkerTempList;
     static bool isSpkrInUse;
+    static bool calThrdCreated;
+    static bool isDynamicCalTriggered;
     static struct timespec spkrLastTimeUsed;
     static struct mixer *mixer;
     static struct pcm *rxPcm;
@@ -124,7 +125,6 @@ public:
 
     SpeakerProtection(struct pal_device *device,
                       std::shared_ptr<ResourceManager> Rm);
-
     ~SpeakerProtection();
 
     int32_t start();
