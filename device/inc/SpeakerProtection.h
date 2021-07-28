@@ -93,7 +93,8 @@ protected :
     static bool calThrdCreated;
     static bool isDynamicCalTriggered;
     static struct timespec spkrLastTimeUsed;
-    static struct mixer *mixer;
+    static struct mixer *virtMixer;
+    static struct mixer *hwMixer;
     static struct pcm *rxPcm;
     static struct pcm *txPcm;
     static int numberOfChannels;

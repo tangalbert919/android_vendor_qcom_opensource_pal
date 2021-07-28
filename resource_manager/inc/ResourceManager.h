@@ -373,10 +373,13 @@ protected:
     static std::mutex mGraphMutex;
     static std::mutex mActiveStreamMutex;
     static std::mutex mSleepMonitorMutex;
-    static int snd_card;
+    static int snd_virt_card;
+    static int snd_hw_card;
+
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
-    static struct audio_mixer* audio_mixer;
+    static struct audio_mixer* audio_virt_mixer;
+    static struct audio_mixer* audio_hw_mixer;
     static std::vector <int> streamTag;
     static std::vector <int> streamPpTag;
     static std::vector <int> mixerTag;
@@ -540,10 +543,12 @@ public:
     int getParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
-    int getSndCard();
+    int getVirtualSndCard();
+    int getHwSndCard();
     int getPcmDeviceId(int deviceId);
     int getAudioRoute(struct audio_route** ar);
-    int getAudioMixer(struct audio_mixer **am);
+    int getVirtualAudioMixer(struct audio_mixer **am);
+    int getHwAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getOrphanStream(std::vector<Stream*> &orphanstreams);
