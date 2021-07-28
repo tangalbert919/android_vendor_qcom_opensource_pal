@@ -1837,7 +1837,9 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         }
         case PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS:
         {
-            pal_param_upd_event_detection_t *detection_payload = (pal_param_upd_event_detection_t *)payload;
+            pal_param_payload *param_payload = (pal_param_payload *)payload;
+            pal_param_upd_event_detection_t *detection_payload =
+                                   (pal_param_upd_event_detection_t *)param_payload->payload;
             RegisterForEvents = detection_payload->register_status;
             return 0;
         }
