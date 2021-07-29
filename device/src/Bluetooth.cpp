@@ -1663,15 +1663,17 @@ BtA2dp::getInstance(struct pal_device *device, std::shared_ptr<ResourceManager> 
 }
 
 /* Scope of BtScoRX/Tx class */
+// definition of static BtSco member variables
 std::shared_ptr<Device> BtSco::objRx = nullptr;
 std::shared_ptr<Device> BtSco::objTx = nullptr;
+bool BtSco::isScoOn = false;
+bool BtSco::isWbSpeechEnabled = false;
+int  BtSco::swbSpeechMode = SPEECH_MODE_INVALID;
+bool BtSco::isSwbLc3Enabled = false;
+audio_lc3_codec_cfg_t BtSco::lc3CodecInfo = {};
 
 BtSco::BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
-    : Bluetooth(device, Rm),
-      isScoOn(false),
-      isWbSpeechEnabled(false),
-      swbSpeechMode(SPEECH_MODE_INVALID),
-      isSwbLc3Enabled(false)
+    : Bluetooth(device, Rm)
 {
     codecType = (device->id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
 }
@@ -1715,7 +1717,6 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
         break;
     case PAL_PARAM_ID_BT_SCO_SWB:
         swbSpeechMode = param_bt_sco->bt_swb_speech_mode;
-        codecInfo = (void *)&swbSpeechMode;
         PAL_DBG(LOG_TAG, "swbSpeechMode = %d", swbSpeechMode);
         break;
     case PAL_PARAM_ID_BT_SCO_LC3:
@@ -1723,7 +1724,6 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
         if (isSwbLc3Enabled) {
             // parse sco lc3 parameters and pack into codec info
             convertCodecInfo(lc3CodecInfo, param_bt_sco->lc3_cfg);
-            codecInfo = (void *)&lc3CodecInfo;
         }
         PAL_DBG(LOG_TAG, "isSwbLc3Enabled = %d", isSwbLc3Enabled);
         break;
@@ -1860,8 +1860,10 @@ int BtSco::start()
 
     if (swbSpeechMode != SPEECH_MODE_INVALID) {
         codecFormat = CODEC_TYPE_APTX_AD_SPEECH;
+        codecInfo = (void *)&swbSpeechMode;
     } else if (isSwbLc3Enabled) {
         codecFormat = CODEC_TYPE_LC3;
+        codecInfo = (void *)&lc3CodecInfo;
     }
 
     updateDeviceMetadata();
