@@ -1684,9 +1684,9 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
     }
 exit:
-    PAL_DBG(LOG_TAG, "device id 0x%x channels %d samplerate %d, bitwidth %d format %d",
+    PAL_DBG(LOG_TAG, "device id 0x%x channels %d samplerate %d, bitwidth %d format %d SndDev %s",
             deviceattr->id, deviceattr->config.ch_info.channels, deviceattr->config.sample_rate,
-            deviceattr->config.bit_width, deviceattr->config.aud_fmt_id);
+            deviceattr->config.bit_width, deviceattr->config.aud_fmt_id, devinfo.sndDevName.c_str());
     return status;
 }
 
@@ -4814,21 +4814,21 @@ bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
     updateSndName(Dev1Attr->id, Dev2Info->sndDevName); /*set default to dev2*/
     if(Dev1Info->sndDevName_overwrite && !Dev2Info->sndDevName_overwrite) {
         updateSndName(Dev1Attr->id, Dev1Info->sndDevName);
-        PAL_ERR(LOG_TAG,"snd overwrite found");
+        PAL_DBG(LOG_TAG,"snd overwrite found");
         updated = true;
     }
     if((Dev1Info->sndDevName_overwrite && Dev2Info->sndDevName_overwrite) &&
         Dev1Info->priority < Dev2Info->priority){
         updateSndName(Dev1Attr->id, Dev1Info->sndDevName);
         updated = true;
-        PAL_ERR(LOG_TAG,"snd overwrite found and high prio");
+        PAL_DBG(LOG_TAG,"snd overwrite found and high prio");
     }
 
     /*set proper channels*/
     if(Dev1Info->channels_overwrite && !Dev2Info->channels_overwrite) {
         Dev2Attr->config.ch_info.channels = Dev1Attr->config.ch_info.channels;
         updated = true;
-        PAL_ERR(LOG_TAG,"ch overwrite found");
+        PAL_DBG(LOG_TAG,"ch overwrite found");
     }
     else if((Dev1Info->sndDevName_overwrite && Dev2Info->sndDevName_overwrite) &&
              Dev1Info->priority < Dev2Info->priority) {
@@ -8028,6 +8028,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     struct pal_device tempDev;
     char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     std::string key(incomingDev->custom_config.custom_key);
+    std::vector <struct pal_device> palDevices;
 
     if (!incomingDev || !currentStrAttr) {
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
@@ -8035,14 +8036,35 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         goto exit;
     }
 
-    /*get the incoming stream and set to high prio*/
+    /*get the incoming stream dev info*/
     getDeviceInfo(dev_id, currentStrAttr->type, key, &highPrioDevInfo);
     memcpy(&tempDev,incomingDev, sizeof(struct pal_device));
 
     for (auto elem: activestreams) {
         Stream *sharedStream = std::get<0>(elem);
+        if (!sharedStream) {
+            PAL_ERR(LOG_TAG, "invalid stream handle in active streams list cannot restore");
+            goto exit;
+        }
         sharedStream->getStreamAttributes(&sAttr);
-        getDeviceInfo(dev_id, sAttr.type, key, &devInfo);
+        sharedStream->getAssociatedPalDevices(palDevices);
+        /*get the device info for the proper streams key*/
+        for (auto palDev: palDevices) {
+            bool sharedBEDev = false;
+            /*check if pal dev id is a shared backend*/
+            for (auto bes: activestreams) {
+                if ( std::get<1>(bes) == palDev.id) {
+                    sharedBEDev = true;
+                }
+            }
+            if (sharedBEDev || dev_id == palDev.id) {
+                std::string streamKey(palDev.custom_config.custom_key);
+                getDeviceInfo(dev_id, sAttr.type, streamKey, &devInfo);
+                memcpy(&tempDev, &palDev, sizeof(struct pal_device));
+                tempDev.id = dev_id;
+                break;
+            }
+        }
         getDeviceConfig(&tempDev, &sAttr);
         compareAndUpdateDevAttr(&tempDev, &devInfo, incomingDev, &highPrioDevInfo);
         /*incoming stream prio is greater than or equal to active streams*/
@@ -8091,7 +8113,7 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
     }
     if((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)){
         PAL_DBG(LOG_TAG, "found new snd device %s, device switch needed",
-                CurrentSndDeviceName);
+                activeSndDeviceName);
         ret = true;
     }
     return ret;
