@@ -864,6 +864,7 @@ typedef enum {
     PAL_PARAM_ID_SP_GET_CAL = 49,
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
     PAL_PARAM_ID_SNDCARD_STATE = 51,
+    PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
