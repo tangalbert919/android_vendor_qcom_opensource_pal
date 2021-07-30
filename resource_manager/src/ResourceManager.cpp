@@ -4367,8 +4367,8 @@ const std::vector<int> ResourceManager::allocateFrontEndExtEcIds()
 
 void ResourceManager::freeFrontEndEcTxIds(const std::vector<int> frontend)
 {
-    PAL_INFO(LOG_TAG, "freeing ext ec dev %d\n", frontend.at(0));
     for (int i = 0; i < frontend.size(); i++) {
+        PAL_INFO(LOG_TAG, "freeing ext ec dev %d\n", frontend.at(i));
         listAllPcmExtEcTxFrontEnds.push_back(frontend.at(i));
     }
     return;
@@ -4664,6 +4664,10 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                                       const struct pal_stream_attributes sAttr,
                                       int lDirection)
 {
+    if (frontend.size() <= 0) {
+        PAL_ERR(LOG_TAG,"frontend size is invalid");
+        return;
+    }
     PAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
              frontend.at(0));
 

@@ -548,10 +548,16 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     std::ostringstream feName;
     struct mixer_ctl *feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
     struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
-    struct mixer *mixerHandle;
+    struct mixer *mixerHandle = nullptr;
+
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
+        goto exit;
+    }
+
+    if (DevIds.size() <= 0) {
+        PAL_ERR(LOG_TAG, "DevIds size is invalid \n");
         goto exit;
     }
 
@@ -562,6 +568,11 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         feName << PCM_SND_DEV_NAME_PREFIX << DevIds.at(0);
 
     status = rmHandle->getAudioMixer(&mixerHandle);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Error: Failed to get mixer handle\n");
+        goto exit;
+    }
+
     for (i = FE_CONTROL; i <= FE_DISCONNECT; ++i) {
         feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle,
             feName.str(), i);
@@ -757,7 +768,12 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     size_t payloadSize = 0;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
-    pcmDeviceName = rm->getDeviceNameFromID(DevIds.at(0));
+    if (DevIds.size() > 0) {
+        pcmDeviceName = rm->getDeviceNameFromID(DevIds.at(0));
+    } else {
+        PAL_ERR(LOG_TAG, "DevIds size is invalid");
+        return -EINVAL;
+    }
 
     if(!pcmDeviceName){
         PAL_ERR(LOG_TAG, "Device name from id not found");
