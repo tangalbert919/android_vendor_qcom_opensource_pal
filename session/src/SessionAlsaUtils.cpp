@@ -1813,7 +1813,11 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (PAL_STREAM_VOICE_CALL != streamType) {
-        if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+        if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
+            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_SCO &&
+            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            PAL_DBG(LOG_TAG, "Mmap usecase other than BT, no need to configure MFC\n");
+        } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
             status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                        aifBackEndsToConnect[0].second.data(),
                                                        TAG_DEVICE_MFC_SR, &miid);

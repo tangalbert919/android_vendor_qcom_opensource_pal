@@ -926,54 +926,77 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
                     goto exit;
                 }
-
-                /* Get PSPD MFC MIID and configure to match to device config */
-                /* This has to be done after sending all mixer controls and before connect */
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                               rxAifBackEnds[i].second.data(),
-                                                               TAG_DEVICE_MFC_SR, &miid);
-                if (status == 0) {
-                    PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                            pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                } else {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                    goto exit;
-                }
-
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-                    status = associatedDevices[i]->getCodecConfig(&codecConfig);
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                if(SessionAlsaUtils::isMmapUsecase(sAttr) &&
+                    dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_SCO &&
+                    dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                    /* Get PCM_CONV MIID and configure to match to device config */
+                    /* This has to be done after sending all mixer controls and before connect */
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                   rxAifBackEnds[i].second.data(),
+                                                                   STREAM_PCM_CONVERTER, &miid);
+                    if (status == 0) {
+                        PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                                pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                    } else {
+                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
                         goto exit;
                     }
-                    mfcData.bitWidth = codecConfig.bit_width;
-                    mfcData.sampleRate = codecConfig.sample_rate;
-                    mfcData.numChannel = codecConfig.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
+                    codecConfig.bit_width = dAttr.config.bit_width;
+                    codecConfig.sample_rate = dAttr.config.sample_rate;
+                    codecConfig.ch_info.channels = dAttr.config.ch_info.channels;
+                    builder->payloadPcmCnvConfig((uint8_t **)&payload, &payloadSize,
+                                                   miid, &codecConfig, false);
+                    /*isRx is false here as we want to configure interleaved as PCM_DEINTERLEAVED_UNPACKED */
+                    /*in case of BT it is opposite so payloadPcmCnvConfig has different notation*/
                 } else {
-                    mfcData.bitWidth = dAttr.config.bit_width;
-                    mfcData.sampleRate = dAttr.config.sample_rate;
-                    mfcData.numChannel = dAttr.config.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                }
-
-                if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                    (2 == dAttr.config.ch_info.channels)) {
-                    // Stereo Speakers. Check for the rotation type
-                    if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
-                        // Rotation is of RL, so need to swap the channels
-                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
+                    /* Get PSPD MFC MIID and configure to match to device config */
+                    /* This has to be done after sending all mixer controls and before connect */
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                                   rxAifBackEnds[i].second.data(),
+                                                                   TAG_DEVICE_MFC_SR, &miid);
+                    if (status == 0) {
+                        PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                                pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
+                    } else {
+                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                        goto exit;
                     }
-                }
-                if (dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL ||
-                    dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
-                    dAttr.id == PAL_DEVICE_OUT_HDMI)
-                    mfcData.ch_info = &dAttr.config.ch_info;
 
-                builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
+                    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
+                            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
+                        status = associatedDevices[i]->getCodecConfig(&codecConfig);
+                        if(0 != status) {
+                            PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                            goto exit;
+                        }
+                        mfcData.bitWidth = codecConfig.bit_width;
+                        mfcData.sampleRate = codecConfig.sample_rate;
+                        mfcData.numChannel = codecConfig.ch_info.channels;
+                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
+                        mfcData.ch_info = nullptr;
+                    } else {
+                        mfcData.bitWidth = dAttr.config.bit_width;
+                        mfcData.sampleRate = dAttr.config.sample_rate;
+                        mfcData.numChannel = dAttr.config.ch_info.channels;
+                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
+                        mfcData.ch_info = nullptr;
+                    }
+
+                    if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
+                        (2 == dAttr.config.ch_info.channels)) {
+                        // Stereo Speakers. Check for the rotation type
+                        if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
+                            // Rotation is of RL, so need to swap the channels
+                            mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
+                        }
+                    }
+                    if (dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL ||
+                        dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
+                        dAttr.id == PAL_DEVICE_OUT_HDMI)
+                        mfcData.ch_info = &dAttr.config.ch_info;
+
+                    builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
+                }
                 if (payloadSize) {
                     status = updateCustomPayload(payload, payloadSize);
                     delete payload;
@@ -982,7 +1005,6 @@ int SessionAlsaPcm::start(Stream * s)
                         goto exit;
                     }
                 }
-
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 if (customPayload) {
