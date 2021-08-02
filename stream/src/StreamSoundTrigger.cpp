@@ -70,6 +70,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     sm_config_ = nullptr;
     rec_config_ = nullptr;
     paused_ = false;
+    device_opened_ = false;
     pending_stop_ = false;
     currentState = STREAM_IDLE;
     capture_requested_ = false;
@@ -367,12 +368,13 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             delete dattr;
         }
 
-        if (mDevices.size() > 0) {
+        if (mDevices.size() > 0 && !device_opened_) {
             status = mDevices[0]->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
                 return status;
             }
+            device_opened_ = true;
         }
 
         cap_prof_ = GetCurrentCaptureProfile();
@@ -408,6 +410,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
 exit:
     if (mDevices.size() > 0) {
         status = mDevices[0]->close();
+        device_opened_ = false;
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
         }
@@ -3090,10 +3093,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 dev->setDeviceAttributes(dattr);
 
                 dev->setSndName(cap_prof->GetSndName());
-                status = dev->open();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                    break;
+                if (!st_stream_.device_opened_) {
+                    status = dev->open();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                        break;
+                    }
+                    st_stream_.device_opened_ = true;
                 }
                 /* now start the device */
                 PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
@@ -3103,6 +3109,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Device start failed, status %d", status);
                     dev->close();
+                    st_stream_.device_opened_ = false;
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev, &st_stream_);
@@ -3137,6 +3144,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.rm->deregisterDevice(st_stream_.mDevices[0], &st_stream_);
                 st_stream_.mDevices[0]->stop();
                 st_stream_.mDevices[0]->close();
+                st_stream_.device_opened_ = false;
             }
 
             break;
@@ -3169,6 +3177,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             for (auto& device: st_stream_.mDevices) {
                 st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
                     st_stream_.mStreamAttr->type, device);
+                if (st_stream_.device_opened_) {
+                    status = device->close();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "device %d close failed with status %d",
+                            device->getSndDeviceId(), status);
+                    }
+                    st_stream_.device_opened_ = false;
+                }
             }
             st_stream_.mDevices.clear();
             break;
@@ -3212,19 +3228,23 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            if (st_stream_.isActive() && !st_stream_.paused_) {
+            if (!st_stream_.device_opened_) {
                 status = dev->open();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device %d open failed with status %d",
                         dev->getSndDeviceId(), status);
                     goto connect_err;
                 }
+                st_stream_.device_opened_ = true;
+            }
 
+            if (st_stream_.isActive() && !st_stream_.paused_) {
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device %d start failed with status %d",
                         dev->getSndDeviceId(), status);
                     dev->close();
+                    st_stream_.device_opened_ = false;
                     goto connect_err;
                 }
             }
@@ -3237,6 +3257,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+                st_stream_.device_opened_ = false;
             } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
                 TransitTo(ST_STATE_ACTIVE);
@@ -3408,6 +3429,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getPALDeviceName().c_str());
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (status)
                     PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
@@ -3473,6 +3495,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 st_stream_.rm->deregisterDevice(device, &st_stream_);
 
                 status = device->close();
+                st_stream_.device_opened_ = false;
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
                     goto disconnect_err;
@@ -3520,11 +3543,14 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 goto connect_err;
             }
 
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto connect_err;
+            if (!st_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                        dev->getSndDeviceId(), status);
+                    goto connect_err;
+                }
+                st_stream_.device_opened_ = true;
             }
 
             status = dev->start();
@@ -3532,6 +3558,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "device %d start failed with status %d",
                     dev->getSndDeviceId(), status);
                 dev->close();
+                st_stream_.device_opened_ = false;
                 goto connect_err;
             }
 
@@ -3542,6 +3569,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+                st_stream_.device_opened_ = false;
             } else {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
             }
@@ -3680,6 +3708,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (status)
                     PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
@@ -3721,6 +3750,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (status)
                     PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
@@ -3762,6 +3792,7 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (0 != status)
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
             }
@@ -3891,6 +3922,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (0 != status)
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
             }
@@ -3937,6 +3969,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (status)
                     PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
@@ -4042,6 +4075,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 st_stream_.rm->deregisterDevice(dev, &st_stream_);
 
                 status = dev->close();
+                st_stream_.device_opened_ = false;
                 if (status)
                     PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
