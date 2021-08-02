@@ -5563,29 +5563,43 @@ int32_t ResourceManager::a2dpSuspend()
     a2dpDattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     a2dpDev = Device::getInstance(&a2dpDattr, rm);
 
+
+    mActiveStreamMutex.lock();
     getActiveStream_l(a2dpDev, activeStreams);
     if (activeStreams.size() == 0) {
         PAL_DBG(LOG_TAG, "no active streams found");
+        mActiveStreamMutex.unlock();
         goto exit;
     }
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        if (!((*sIter)->a2dpMuted)) {
-            struct pal_stream_attributes sAttr;
-            (*sIter)->getStreamAttributes(&sAttr);
-            if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
-                 (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
-                ((*sIter)->isActive())) {
-                (*sIter)->pause();
-            } else {
-                latencyMs = (*sIter)->getLatency();
-                if (maxLatencyMs < latencyMs)
-                    maxLatencyMs = latencyMs;
+        if((*sIter)->isActive()) {
+            if (!((*sIter)->a2dpMuted)) {
+                struct pal_stream_attributes sAttr;
+                (*sIter)->getStreamAttributes(&sAttr);
+                if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
+                     (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
+                    //First Mute & then Pause
+                    /*This is to ensure DSP has enough ramp down in Mute module.
+                    If we issue pause first then no data processing happen and mute
+                    ramp down will not happen which will then get processed after
+                    resume , which will be percieved as a leak. */
+                    (*sIter)->mute_l(true);
+                    (*sIter)->a2dpMuted = true;
+                    //Pause
+                    (*sIter)->pause();
+                } else {
+                    latencyMs = (*sIter)->getLatency();
+                    if (maxLatencyMs < latencyMs)
+                        maxLatencyMs = latencyMs;
+                    //Mute
+                    (*sIter)->mute_l(true);
+                    (*sIter)->a2dpMuted = true;
+                }
             }
-            (*sIter)->mute_l(true);
-            (*sIter)->a2dpMuted = true;
         }
     }
+    mActiveStreamMutex.unlock();
 
     // wait for stale pcm drained before switching to speaker
     if (maxLatencyMs > 0) {
