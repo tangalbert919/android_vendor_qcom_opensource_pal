@@ -27,10 +27,12 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define ATRACE_TAG (ATRACE_TAG_AUDIO | ATRACE_TAG_HAL)
 #define LOG_TAG "PAL: SoundTriggerEngineCapi"
 
 #include "SoundTriggerEngineCapi.h"
 
+#include <cutils/trace.h>
 #include <dlfcn.h>
 
 #include "StreamSoundTrigger.h"
@@ -225,6 +227,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
         /* need to take into consideration the start and end buffer*/
+        if (!reader_->isEnabled()) {
+            status = -EINVAL;
+            goto exit;
+        }
 
         /* advance the offset to ensure we are reading at the right place */
         if (!buffer_advanced && buffer_start_ > 0) {
@@ -239,8 +245,13 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
             continue;
 
         read_size = reader_->read((void*)process_input_buff, buffer_size_);
-        if (read_size == 0)
+        if (read_size == 0) {
             continue;
+        } else if (read_size < 0) {
+            status = read_size;
+            PAL_ERR(LOG_TAG, "Failed to read from buffer, status %d", status);
+            goto exit;
+        }
 
         PAL_INFO(LOG_TAG, "Processed: %u, start: %u, end: %u",
                  bytes_processed_, buffer_start_, buffer_end_);
@@ -256,8 +267,10 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process");
         capi_call_start = std::chrono::steady_clock::now();
+        ATRACE_BEGIN("Second stage KW process");
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
             &stream_input, nullptr);
+        ATRACE_END();
         capi_call_end = std::chrono::steady_clock::now();
         total_capi_process_duration +=
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -475,6 +488,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         (bytes_processed_ < buffer_end_ - buffer_start_)) {
         /* Original code had some time of wait will need to revisit*/
         /* need to take into consideration the start and end buffer*/
+        if (!reader_->isEnabled()) {
+            status = -EINVAL;
+            goto exit;
+        }
 
         /* advance the offset to ensure we are reading at the right place */
         if (!buffer_advanced && buffer_start_ > 0) {
@@ -489,8 +506,13 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
             continue;
 
         read_size = reader_->read((void*)process_input_buff, buffer_size_);
-        if (read_size == 0)
+        if (read_size == 0) {
             continue;
+        } else if (read_size < 0) {
+            status = read_size;
+            PAL_ERR(LOG_TAG, "Failed to read from buffer, status %d", status);
+            goto exit;
+        }
         PAL_INFO(LOG_TAG, "Processed: %u, start: %u, end: %u",
                  bytes_processed_, buffer_start_, buffer_end_);
         stream_input->bufs_num = 1;
@@ -505,8 +527,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi Process\n");
         capi_call_start = std::chrono::steady_clock::now();
+        ATRACE_BEGIN("Second stage uv process");
         rc = capi_handle_->vtbl_ptr->process(capi_handle_,
             &stream_input, nullptr);
+        ATRACE_END();
         capi_call_end = std::chrono::steady_clock::now();
         total_capi_process_duration +=
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -525,8 +549,10 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
 
         PAL_VERBOSE(LOG_TAG, "Calling Capi get param for result\n");
         capi_call_start = std::chrono::steady_clock::now();
+        ATRACE_BEGIN("Second stage uv get result");
         rc = capi_handle_->vtbl_ptr->get_param(capi_handle_,
             STAGE2_UV_WRAPPER_ID_RESULT, nullptr, &capi_result);
+        ATRACE_END();
         capi_call_end = std::chrono::steady_clock::now();
         total_capi_get_param_duration +=
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -596,7 +622,6 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     sm_data_ = nullptr;
     exit_thread_ = false;
     exit_buffering_ = false;
-    buffer_size_ = CNN_BUFFER_SIZE;  // 480ms of 16k 16bit mono worth;
     kw_start_timestamp_ = 0;
     kw_end_timestamp_ = 0;
     buffer_start_ = 0;
@@ -633,6 +658,7 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     channels_ = ss_cfg_->GetChannels();
     detection_type_ = ss_cfg_->GetDetectionType();
     lib_name_ = ss_cfg_->GetLibName();
+    buffer_size_ = UsToBytes(CNN_BUFFER_LENGTH);
 
     // TODO: ST_SM_TYPE_CUSTOM_DETECTION
     if (detection_type_ == ST_SM_TYPE_KEYWORD_DETECTION) {
