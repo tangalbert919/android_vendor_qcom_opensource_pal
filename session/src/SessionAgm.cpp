@@ -590,6 +590,21 @@ int SessionAgm::flush()
     return status;
 }
 
+int SessionAgm::suspend()
+{
+    int status = 0;
+
+    if (!agmSessHandle) {
+        PAL_ERR(LOG_TAG, "Handle is invalid");
+        return -EINVAL;
+    }
+
+    PAL_VERBOSE(LOG_TAG,"Enter suspend\n");
+    status = agm_session_suspend(agmSessHandle);
+    PAL_VERBOSE(LOG_TAG,"suspend complete\n");
+    return status;
+}
+
 int SessionAgm::drain(pal_drain_type_t type)
 {
     int status = 0;

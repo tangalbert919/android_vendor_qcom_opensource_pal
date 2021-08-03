@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -219,7 +219,8 @@ int32_t StreamNonTunnel::start()
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
               session, mStreamAttr->direction, currentState);
 
-    if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
+    if (currentState == STREAM_INIT || currentState == STREAM_STOPPED ||
+            currentState == STREAM_SUSPENDED) {
         status = session->prepare(this);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
@@ -525,6 +526,31 @@ int32_t StreamNonTunnel::flush()
 
     status = session->flush();
 
+exit:
+    mStreamMutex.unlock();
+    return status;
+}
+
+int32_t StreamNonTunnel::suspend()
+{
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    if ((rm->cardState == CARD_STATUS_OFFLINE) || ssrInNTMode) {
+         PAL_ERR(LOG_TAG, "Sound card offline currentState %d",
+                currentState);
+        status = -ENETRESET;
+        goto exit;
+    }
+
+    if (currentState == STREAM_STARTED) {
+        status = session->suspend();
+        if (status) {
+            PAL_ERR(LOG_TAG, "Rx session suspend failed with status %d", status);
+            goto exit;
+        }
+        currentState = STREAM_SUSPENDED;
+    }
 exit:
     mStreamMutex.unlock();
     return status;
