@@ -6207,6 +6207,13 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             }
         }
         break;
+        case PAL_PARAM_ID_SNDCARD_STATE:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for sndcard state");
+            *param_payload = (uint8_t*)&rm->cardState;
+            *payload_size = sizeof(rm->cardState);
+            break;
+        }
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);

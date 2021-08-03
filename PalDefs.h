@@ -863,6 +863,7 @@ typedef enum {
     PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
     PAL_PARAM_ID_SP_GET_CAL = 49,
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
+    PAL_PARAM_ID_SNDCARD_STATE = 51,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
