@@ -74,6 +74,7 @@ typedef void * (*audio_get_dec_config_t)(audio_format_t *codec_format);
 typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
 typedef int (*audio_sink_check_a2dp_ready_t)(void);
 typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
+typedef bool (*audio_is_scrambling_enabled_t)(void);
 
 // Abstract base class
 class Bluetooth : public Device
@@ -91,6 +92,7 @@ protected:
     bool                       isConfigured;
     bool                       isLC3MonoModeOn;
     bool                       isTwsMonoModeOn;
+    bool                       isScramblingEnabled;
     bool                       isDummySink;
     struct pcm                 *fbPcm;
     std::vector<int>           fbpcmDevIds;
@@ -144,6 +146,7 @@ private:
     static audio_get_dec_config_t               audio_get_dec_config;
     static audio_sink_session_setup_complete_t  audio_sink_session_setup_complete;
     static audio_sink_check_a2dp_ready_t        audio_sink_check_a2dp_ready;
+    static audio_is_scrambling_enabled_t        audio_is_scrambling_enabled;
 
     /* member variables */
     uint8_t         a2dpRole;  // source or sink

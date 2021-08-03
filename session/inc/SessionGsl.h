@@ -45,6 +45,7 @@
 #include "slimbus_api.h"
 #include "rate_adapted_timer_api.h"
 #include "cop_packetizer_cmn_api.h"
+#include "cop_packetizer_v0_api.h"
 #include "cop_v2_depacketizer_api.h"
 #include "cop_v2_packetizer_api.h"
 #include "lc3_encoder_api.h"
