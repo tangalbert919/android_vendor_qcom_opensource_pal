@@ -64,6 +64,8 @@ private:
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
     int32_t DisconnectDevice_l(pal_device_id_t device_id);
     int32_t ConnectDevice_l(pal_device_id_t device_id);
+    int32_t setECRef(std::shared_ptr<Device> dev, bool is_enable);
+    int32_t setECRef_l(std::shared_ptr<Device> dev, bool is_enable);
     std::shared_ptr<StreamConfig> sm_cfg_;
     std::shared_ptr<ACDPlatformInfo> acd_info_;
     std::shared_ptr<CaptureProfile> cap_prof_;
