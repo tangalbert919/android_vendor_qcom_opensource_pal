@@ -1721,7 +1721,7 @@ void BtSco::updateSampleRate(uint32_t *sampleRate)
     else if (isSwbLc3Enabled)
         *sampleRate = SAMPLINGRATE_96K;
     else
-        *sampleRate = deviceAttr.config.sample_rate;
+        *sampleRate = SAMPLINGRATE_8K;
 }
 
 int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
