@@ -1105,7 +1105,8 @@ pcm_start_loopback:
     // Setting the volume as in stream open, no default volume is set.
     if (sAttr.type != PAL_STREAM_ACD &&
         sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
-        sAttr.type != PAL_STREAM_ULTRASOUND) {
+        sAttr.type != PAL_STREAM_ULTRASOUND &&
+        sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) {
         if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
              PAL_ERR(LOG_TAG,"Setting volume failed");
         }

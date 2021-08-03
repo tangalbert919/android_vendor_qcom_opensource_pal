@@ -2944,9 +2944,6 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSPDCaptureProfileByPriority(
             continue;
         }
 
-        if (!active_streams_sensor_pcm_data[i]->isActive())
-            continue;
-
         cap_prof = active_streams_sensor_pcm_data[i]->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
@@ -3619,9 +3616,11 @@ void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t t
         }
     }
 
-    if (sns_pcm_data_tx_conc || sns_pcm_data_rx_conc) {
-        if (!IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA)) {
-            PAL_INFO(LOG_TAG, "LPI not enabled by platform, skip switch");
+    if (sns_pcm_data_conc_en && (sns_pcm_data_tx_conc || sns_pcm_data_rx_conc)) {
+        if (!IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA) ||
+            !isNLPISwitchSupported(PAL_STREAM_SENSOR_PCM_DATA)) {
+            PAL_INFO(LOG_TAG,
+                     "Skip switch as LPI disabled/NLPI switch disabled");
         } else if (active) {
             if (++SNSPCMDataConcurrencyEnableCount == 1)
                 do_sns_pcm_data_switch = true;

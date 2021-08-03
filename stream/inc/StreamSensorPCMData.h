@@ -52,8 +52,9 @@ public:
     int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable);
     int32_t open() override;
     int32_t start() override;
-    int32_t resume() override;
-    int32_t pause() override;
+    int32_t stop() override;
+    int32_t Resume() override;
+    int32_t Pause() override;
     int32_t EnableLPI(bool is_enable) override;
     int32_t HandleConcurrentStream(bool active) override;
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
@@ -71,6 +72,7 @@ private:
     std::shared_ptr<CaptureProfile> cap_prof_;
     uint32_t pcm_data_stream_effect;
     bool use_lpi_;
+    bool paused_;
 };
 
 #endif//StreamSensorPCMData_H_
