@@ -62,6 +62,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
+    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -137,7 +138,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             throw std::runtime_error("failed to create device object");
         }
         mStreamMutex.unlock();
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
 
         if (isDeviceConfigUpdated)
@@ -147,7 +148,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        //rm->registerDevice(dev);
+        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 
@@ -279,7 +280,15 @@ StreamPCM::~StreamPCM()
         mVolumeData = (struct pal_volume_data *)NULL;
     }
 
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     delete session;
     session = nullptr;
 }

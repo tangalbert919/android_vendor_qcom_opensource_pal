@@ -128,7 +128,7 @@ class Stream
 protected:
     uint32_t mNoOfDevices;
     std::vector <std::shared_ptr<Device>> mDevices;
-    static struct pal_device* mPalDevice;
+    std::vector <struct pal_device> mPalDevice;
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
     struct pal_volume_data* mVolumeData = NULL;
@@ -197,6 +197,7 @@ public:
     uint32_t getRenderLatency();
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
+    int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);

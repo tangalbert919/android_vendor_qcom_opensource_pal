@@ -72,6 +72,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -81,10 +83,13 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
+                <priority>2</priority>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
                 <sidetone_mode>HW</sidetone_mode>
+                <bit_width>16</bit_width>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
                     <snd_device_name>handset-dmic-endfire</snd_device_name>
@@ -125,6 +130,8 @@
             <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <channels>1</channels>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
@@ -135,13 +142,20 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
+                <priority>2</priority>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
                 <sidetone_mode>OFF</sidetone_mode>
+                <bit_width>16</bit_width>
                 <custom-config key="dual-mic">
                     <channels>2</channels>
-                    <snd_device_name>handset-dmic-endfire</snd_device_name>
+                    <snd_device_name>speaker-dmic-endfire</snd_device_name>
+                </custom-config>
+                <custom-config key="quad-mic">
+                    <channels>4</channels>
+                    <snd_device_name>quad-mic</snd_device_name>
                 </custom-config>
             </usecase>
             <usecase>
@@ -168,10 +182,15 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
+                <samplerate>48000</samplerate>
+                <bit_width>16</bit_width>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
+                <samplerate>48000</samplerate>
+                <bit_width>16</bit_width>
+                <priority>1</priority>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -186,6 +205,8 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -198,6 +219,7 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -208,6 +230,8 @@
             <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>va-mic</snd_device_name>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -221,6 +245,8 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>headset-va-mic</snd_device_name>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
                 <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
@@ -232,6 +258,8 @@
             <back_end_name>USB_AUDIO-TX</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>usb-headset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_VOIP_TX</name>
@@ -244,6 +272,7 @@
             </usecase>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
                 <sidetone_mode>HW</sidetone_mode>
             </usecase>
             <usecase>
@@ -275,6 +304,8 @@
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>32</bit_width>
             <snd_device_name>vi-feedback</snd_device_name>
         </in-device>
         <in-device>
@@ -283,6 +314,8 @@
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
@@ -299,6 +332,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-4</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>96000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>ultrasound-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
@@ -317,6 +352,8 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>none</snd_device_name>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -324,8 +361,10 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
+            <fractional_sr>0</fractional_sr>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <cps_enabled>0</cps_enabled>
@@ -346,11 +385,17 @@
             <quick_cal_time>0</quick_cal_time>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>2</priority>
                 <channels>1</channels>
                 <snd_device_name>speaker-mono-2</snd_device_name>
             </usecase>
             <usecase>
+                <name>PAL_STREAM_VOIP_RX</name>
+                <priority>3</priority>
+            </usecase>
+            <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
+                <priority>1</priority>
                 <samplerate>96000</samplerate>
             </usecase>
         </out-device>
@@ -362,17 +407,30 @@
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
+            <fractional_sr>0</fractional_sr>
             <snd_device_name>handset</snd_device_name>
-            <usecase>
-                <name>PAL_STREAM_ULTRASOUND</name>
-                <samplerate>96000</samplerate>
-            </usecase>
+          <usecase>
+              <name>PAL_STREAM_VOICE_CALL</name>
+              <priority>2</priority>
+              <snd_device_name>voice-handset</snd_device_name>
+          </usecase>
+          <usecase>
+              <name>PAL_STREAM_VOIP_RX</name>
+              <priority>3</priority>
+          </usecase>
+          <usecase>
+              <name>PAL_STREAM_ULTRASOUND</name>
+              <priority>1</priority>
+              <samplerate>96000</samplerate>
+          </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <fractional_sr>1</fractional_sr>
             <snd_device_name>headphones</snd_device_name>
         <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
             <usecase>
@@ -384,12 +442,25 @@
                 <snd_device_name>headphones-hifi-filter</snd_device_name>
             </usecase>
         -->
+           <usecase>
+               <name>PAL_STREAM_VOICE_CALL</name>
+               <priority>1</priority>
+               <samplerate>48000</samplerate>
+               <bit_width>16</bit_width>
+           </usecase>
+           <usecase>
+               <name>PAL_STREAM_VOIP_RX</name>
+               <priority>2</priority>
+               <samplerate>48000</samplerate>
+               <bit_width>16</bit_width>
+           </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADSET</id>
             <back_end_name>CODEC_DMA-LPAIF_RXTX-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <fractional_sr>1</fractional_sr>
             <snd_device_name>headphones</snd_device_name>
         <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
             <usecase>
@@ -401,13 +472,31 @@
                 <snd_device_name>headphones-hifi-filter</snd_device_name>
             </usecase>
         -->
-        </out-device>
+           <usecase>
+               <name>PAL_STREAM_VOICE_CALL</name>
+               <priority>1</priority>
+	       <samplerate>48000</samplerate>
+               <bit_width>16</bit_width>
+           </usecase>
+           <usecase>
+               <name>PAL_STREAM_VOIP_RX</name>
+               <priority>2</priority>
+               <samplerate>48000</samplerate>
+               <bit_width>16</bit_width>
+           </usecase>
+         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_A2DP</id>
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_BLUETOOTH_SCO</id>
@@ -415,6 +504,12 @@
             <max_channels>1</max_channels>
             <channels>1</channels>
             <snd_device_name>bt-a2dp</snd_device_name>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_AUX_DIGITAL</id>
@@ -422,13 +517,23 @@
             <max_channels>32</max_channels>
             <channels>2</channels>
             <snd_device_name>display-port</snd_device_name>
+            <fractional_sr>1</fractional_sr>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HDMI</id>
             <back_end_name>DISPLAY_PORT-RX</back_end_name>
             <max_channels>32</max_channels>
             <channels>2</channels>
+            <fractional_sr>1</fractional_sr>
             <snd_device_name>display-port</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_USB_DEVICE</id>
@@ -436,13 +541,27 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
+            <fractional_sr>1</fractional_sr>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_USB_HEADSET</id>
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>usb-headphones</snd_device_name>
+            <fractional_sr>1</fractional_sr>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_AUX_DIGITAL_1</id>
@@ -450,6 +569,11 @@
             <max_channels>8</max_channels>
             <channels>2</channels>
             <snd_device_name>display-port</snd_device_name>
+            <fractional_sr>1</fractional_sr>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_PROXY</id>
@@ -457,6 +581,12 @@
             <max_channels>8</max_channels>
             <channels>2</channels>
             <snd_device_name>afe-proxy</snd_device_name>
+            <fractional_sr>0</fractional_sr>
+            <samplerate>48000</samplerate>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HEARING_AID</id>
@@ -464,6 +594,11 @@
             <max_channels>8</max_channels>
             <channels>2</channels>
             <snd_device_name>afe-proxy</snd_device_name>
+            <fractional_sr>0</fractional_sr>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <priority>1</priority>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HAPTICS_DEVICE</id>
@@ -478,6 +613,8 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>ultrasound-handset</snd_device_name>
+            <samplerate>96000</samplerate>
+            <bit_width>16</bit_width>
         </out-device>
     </device_profile>
     <in_streams>

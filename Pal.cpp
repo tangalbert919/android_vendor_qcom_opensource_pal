@@ -630,14 +630,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
             PAL_DBG(LOG_TAG, "Device has no custom key");
             strlcpy(pDevices[i].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
         }
-        rm->getDeviceInfo(pDevices[i].id, sattr.type,
-                          pDevices[i].custom_config.custom_key, &devinfo);
-        if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
-            PAL_ERR(LOG_TAG, "Num channels[%d] is invalid", devinfo.channels);
-            status = -EINVAL;
-            goto exit;
-        }
-        status = rm->getDeviceConfig((struct pal_device *)&pDevices[i], &sattr, devinfo.channels);
+        status = rm->getDeviceConfig((struct pal_device *)&pDevices[i], &sattr);
         if (status) {
            PAL_ERR(LOG_TAG, "Failed to get Device config, err: %d", status);
            goto exit;

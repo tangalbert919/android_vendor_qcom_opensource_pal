@@ -37,8 +37,8 @@
 #include "kvh2xml.h"
 
 StreamACD::StreamACD(struct pal_stream_attributes *sattr,
-                                       struct pal_device *dattr __unused,
-                                       uint32_t no_of_devices __unused,
+                                       struct pal_device *dattr,
+                                       uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm)
@@ -71,6 +71,14 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     if (!mStreamAttr) {
         PAL_ERR(LOG_TAG, "Error:%d stream attributes allocation failed", -EINVAL);
         throw std::runtime_error("stream attributes allocation failed");
+    }
+
+    if (!dattr) {
+        goto exit;
+    }
+
+    for (int i=0; i < no_of_devices; i++) {
+        mPalDevice.push_back(dattr[i]);
     }
 
     ar_mem_cpy(mStreamAttr, sizeof(pal_stream_attributes),
@@ -146,7 +154,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     if (disable_concurrency_count) {
         paused_ = true;
     }
-
+exit:
     PAL_DBG(LOG_TAG, "Exit");
 }
 

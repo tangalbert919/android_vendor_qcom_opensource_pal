@@ -83,6 +83,8 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     outBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     outBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
+    mDevices.clear();
+    mPalDevice.clear();
     PAL_VERBOSE(LOG_TAG,"enter");
 
     //TBD handle modifiers later
@@ -132,14 +134,14 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             throw std::runtime_error("failed to create device object");
         }
         mStreamMutex.unlock();
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
 
         if (isDeviceConfigUpdated)
             PAL_VERBOSE(LOG_TAG, "Device config updated");
 
         mDevices.push_back(dev);
-        //rm->registerDevice(dev);
+        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
     mStreamMutex.unlock();
@@ -235,6 +237,7 @@ int32_t StreamCompress::close()
     PAL_VERBOSE(LOG_TAG,"closed the devices successfully");
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
+
     PAL_DBG(LOG_TAG,"Exit status: %d",status);
     return status;
 }
@@ -252,7 +255,16 @@ StreamCompress::~StreamCompress()
         free(mVolumeData);
         mVolumeData = (struct pal_volume_data *)NULL;
     }
+
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     if (session) {
         delete session;
         session = nullptr;
