@@ -253,19 +253,20 @@ void ACDEngine::ParseEventAndNotifyClient()
                         auto iter3 = stream_event_info.find(s);
                         struct acd_per_context_event_info *stream_event_data =
                             (struct acd_per_context_event_info *)calloc(1, sizeof(struct acd_per_context_event_info));
-                        memcpy(stream_event_data, event_info, sizeof(*event_info));
+                        if(stream_event_data != NULL){
+                            memcpy(stream_event_data, event_info, sizeof(*event_info));
+                            stream_event_data->event_type = event_type;
+                            context_cfg->last_event_type = event_type;
+                            context_cfg->last_confidence_score = event_info->confidence_score;
 
-                        stream_event_data->event_type = event_type;
-                        context_cfg->last_event_type = event_type;
-                        context_cfg->last_confidence_score = event_info->confidence_score;
-
-                        if (iter3 != stream_event_info.end()) {
-                            event_list = iter3->second;
-                            event_list->push_back(stream_event_data);
-                        } else {
-                            event_list = new(std::vector<struct acd_per_context_event_info *>);
-                            event_list->push_back(stream_event_data);
-                            stream_event_info.insert(std::make_pair(s, event_list));
+                            if (iter3 != stream_event_info.end()) {
+                                event_list = iter3->second;
+                                event_list->push_back(stream_event_data);
+                            } else {
+                                event_list = new(std::vector<struct acd_per_context_event_info *>);
+                                event_list->push_back(stream_event_data);
+                                stream_event_info.insert(std::make_pair(s, event_list));
+                            }
                         }
                     }
                 }
@@ -283,18 +284,20 @@ void ACDEngine::ParseEventAndNotifyClient()
 
         num_contexts = event_list.size();
         event = (struct acd_context_event *)calloc(1, sizeof(*event) + (num_contexts * sizeof(acd_per_context_event_info)));
-        event->detection_ts = detection_ts;
-        event->num_contexts = num_contexts;
-        opaque_ptr = (uint8_t *)event + sizeof(*event);
-        for (i = 0; i < num_contexts; i++) {
-            event_info = event_list[i];
-            memcpy(opaque_ptr, event_info, sizeof(*event_info));
-            free(event_info);
-            opaque_ptr += sizeof(*event_info);
+        if(event != NULL){
+            event->detection_ts = detection_ts;
+            event->num_contexts = num_contexts;
+            opaque_ptr = (uint8_t *)event + sizeof(*event);
+            for (i = 0; i < num_contexts; i++) {
+                event_info = event_list[i];
+                memcpy(opaque_ptr, event_info, sizeof(*event_info));
+                free(event_info);
+                opaque_ptr += sizeof(*event_info);
+            }
+            s->SetEngineDetectionData(event);
+            delete(iter4->second);
+            stream_event_info.erase(iter4++);
         }
-        s->SetEngineDetectionData(event);
-        delete(iter4->second);
-        stream_event_info.erase(iter4++);
     }
 }
 

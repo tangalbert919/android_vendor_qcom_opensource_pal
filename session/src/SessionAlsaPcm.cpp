@@ -1256,7 +1256,7 @@ int SessionAlsaPcm::close(Stream * s)
 
     switch (sAttr.direction) {
         case PAL_AUDIO_INPUT:
-            for (auto dev: associatedDevices) {
+            for (auto &dev: associatedDevices) {
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
                 PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
@@ -1289,7 +1289,7 @@ int SessionAlsaPcm::close(Stream * s)
             pcm = NULL;
             break;
         case PAL_AUDIO_OUTPUT:
-            for (auto dev: associatedDevices) {
+            for (auto &dev: associatedDevices) {
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
                 PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
