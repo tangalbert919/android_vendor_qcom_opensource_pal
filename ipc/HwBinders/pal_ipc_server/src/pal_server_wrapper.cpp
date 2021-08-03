@@ -48,33 +48,28 @@ namespace implementation {
 void PalClientDeathRecipient::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
 {
+    std::lock_guard<std::mutex> guard(mLock);
     ALOGD("%s : client died pid : %d", __func__, cookie);
     int pid = (int) cookie;
-    typename std::vector<session_info>::iterator sess_iter;
-    typename std::vector<client_info>::iterator client_iter;
-    for (client_iter = mPalInstance->mPalClients.begin();
-           client_iter != mPalInstance->mPalClients.end();
-           client_iter++) {
-        struct client_info clnt = (*client_iter);
-        if (clnt.pid == pid) {
-           for (sess_iter = clnt.mActiveSessions.begin();
-                 sess_iter != clnt.mActiveSessions.end(); sess_iter++) {
-               struct session_info session = (*sess_iter);
-               ALOGD("Closing the session %x", session.session_handle);
-               ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
-               session.callback_binder->client_died = true;
-               pal_stream_stop((pal_stream_handle_t *)session.session_handle);
-               pal_stream_close((pal_stream_handle_t *)session.session_handle);
+    auto & clients = mPalInstance->mPalClients;
+    for (auto itr = clients.begin(); itr != clients.end(); itr++) {
+        if (itr->pid == pid) {
+            for (auto sItr = itr->mActiveSessions.begin();
+                      sItr != itr->mActiveSessions.end(); sItr++) {
+               ALOGD("Closing the session %pK", sItr->session_handle);
+               ALOGV("hdle %x binder %p", sItr->session_handle, sItr->callback_binder.get());
+               sItr->callback_binder->client_died = true;
+               pal_stream_stop((pal_stream_handle_t *)sItr->session_handle);
+               pal_stream_close((pal_stream_handle_t *)sItr->session_handle);
                /*close the dupped fds in PAL server context*/
-               for (int j=0; j < session.callback_binder->sharedMemFdList.size(); j++) {
-                    close(session.callback_binder->sharedMemFdList[j].second);
+               for (int i = 0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
+                    close(sItr->callback_binder->sharedMemFdList[i].second);
                }
-               session.callback_binder.clear();
-           }
-           clnt.mActiveSessions.clear();
-           if (clnt.mActiveSessions.empty())
-               mPalInstance->mPalClients.erase(client_iter);
-           break;
+               sItr->callback_binder.clear();
+            }
+            itr->mActiveSessions.clear();
+            itr = clients.erase(itr);
+            break;
         }
     }
 }
@@ -193,14 +188,13 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
 
         rwDonePayload->buff.alloc_info.alloc_size = rw_done_payload->buff.alloc_info.alloc_size;
         rwDonePayload->buff.alloc_info.offset = rw_done_payload->buff.alloc_info.offset;
-
         if (!sr_clbk_dat->client_died) {
             auto status = clbk_bdr->event_callback_rw_done((uint64_t)stream_handle, event_id,
                               sizeof(struct pal_event_read_write_done_payload),
                               rwDonePayloadHidl,
                               sr_clbk_dat->client_data_);
             if (!status.isOk()) {
-                 ALOGE("%s: HIDL call failed.\n", __func__);
+                 ALOGE("%s: HIDL call failed during event_callback_rw_done\n", __func__);
             }
            // close(rw_done_payload->buff.alloc_info.alloc_handle);
         } else
@@ -214,7 +208,7 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
                               event_data_size, PayloadHidl,
                               sr_clbk_dat->client_data_);
             if (!status.isOk()) {
-                 ALOGE("%s: HIDL call failed.\n", __func__);
+                 ALOGE("%s: HIDL call failed during event_callback \n", __func__);
             }
         } else
             ALOGE("Client died dropping this event %d", event_id);
@@ -279,24 +273,15 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     struct pal_device *devices = NULL;
     struct modifier_kv *modifiers = NULL;
     pal_stream_handle_t *stream_handle = NULL;
-    pal_stream_callback callback = NULL;
     uint16_t in_ch = 0;
     uint16_t out_ch = 0;
     int cnt = 0;
     int32_t ret = -EINVAL;
     uint8_t *temp = NULL;
     int pid = ::android::hardware::IPCThreadState::self()->getCallingPid();
-    sp<SrvrClbk> sr_clbk_data = NULL;
+    sp<SrvrClbk> sr_clbk_data = (cb == nullptr) ? nullptr : new SrvrClbk (cb, ipc_clt_data, pid);
+    pal_stream_callback callback = (cb == nullptr) ? nullptr : pal_callback;
     bool new_client = true;
-
-    if (cb != NULL) {
-        if (this->client_death_recipient_.get() == NULL) {
-            this->client_death_recipient_ = new PalClientDeathRecipient(this);
-        }
-        cb->linkToDeath(this->client_death_recipient_, pid);
-        sr_clbk_data = new SrvrClbk (cb, ipc_clt_data, pid);
-        callback = pal_callback;
-    }
 
     in_ch = attr_hidl.data()->in_media_config.ch_info.channels;
     out_ch = attr_hidl.data()->out_media_config.ch_info.channels;
@@ -367,15 +352,15 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
                           callback, (uint64_t)sr_clbk_data.get(), &stream_handle);
 
     if (!ret) {
-        for(auto& s: mPalClients) {
-            if (s.pid == pid) {
+        for(auto& client: mPalClients) {
+            if (client.pid == pid) {
                 /*Another session from the same client*/
-                ALOGI("Add session for same pid %d session %x", pid, (uint64_t)stream_handle);
+                ALOGI("Add session for same pid %d session %pK", pid, (uint64_t)stream_handle);
                 struct session_info session;
                 session.session_handle = (uint64_t)stream_handle;
                 session.callback_binder = sr_clbk_data;
                 ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
-                s.mActiveSessions.push_back(session);
+                client.mActiveSessions.push_back(session);
                 new_client = false;
                 break;
             }
@@ -383,13 +368,19 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
         if (new_client) {
             struct client_info client;
             struct session_info session;
-            ALOGI("session from new pid %d session %x", pid, (uint64_t)stream_handle);
+            ALOGI("session from new pid %d session %pK", pid, (uint64_t)stream_handle);
             client.pid = pid;
             session.session_handle = (uint64_t)stream_handle;
             session.callback_binder = sr_clbk_data;
             ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
             client.mActiveSessions.push_back(session);
             mPalClients.push_back(client);
+            if (cb != NULL) {
+                if (this->mDeathRecipient.get() == nullptr) {
+                    this->mDeathRecipient = new PalClientDeathRecipient(this);
+                }
+                cb->linkToDeath(this->mDeathRecipient, pid);
+            }
         }
     } else {
         /*stream_open failed, free the callback binder object*/
