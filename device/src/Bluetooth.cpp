@@ -199,7 +199,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     uint32_t codecTagId = 0;
     uint32_t miid = 0, ratMiid = 0, copMiid = 0, cnvMiid = 0;
     std::shared_ptr<Device> dev = nullptr;
-    uint32_t num_payloads;
+    uint32_t num_payloads = 0;
 
     isConfigured = false;
     rm->getBackendName(deviceAttr.id, backEndName);
@@ -1173,6 +1173,7 @@ int BtA2dp::stop()
 int BtA2dp::startPlayback()
 {
     int ret = 0;
+    uint32_t slatency = 0;
     uint8_t multi_cast = 0, num_dev = 1;
 
     PAL_DBG(LOG_TAG, "a2dp_start_playback start");
@@ -1222,6 +1223,16 @@ int BtA2dp::startPlayback()
             PAL_ERR(LOG_TAG, "unable to configure DSP encoder");
             audio_source_stop();
             return ret;
+        }
+
+        /* Query and cache the a2dp latency */
+        if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED))
+            slatency = audio_sink_get_a2dp_latency();
+        if (pluginCodec) {
+            param_bt_a2dp.latency =
+                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
+        } else {
+            param_bt_a2dp.latency = 0;
         }
 
         a2dpState = A2DP_STATE_STARTED;
@@ -1621,23 +1632,10 @@ int32_t BtA2dp::getDeviceParameter(uint32_t param_id, void **param)
     case PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
     case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
     case PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED:
-        *param = &param_bt_a2dp;
-        break;
     case PAL_PARAM_ID_BT_A2DP_DECODER_LATENCY:
     case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
-    {
-        uint32_t slatency = 0;
-        if (audio_sink_get_a2dp_latency && (a2dpState != A2DP_STATE_DISCONNECTED))
-            slatency = audio_sink_get_a2dp_latency();
-        if (pluginCodec) {
-            param_bt_a2dp.latency =
-                pluginCodec->plugin_get_codec_latency(pluginCodec, slatency);
-        } else {
-            param_bt_a2dp.latency = 0;
-        }
         *param = &param_bt_a2dp;
         break;
-    }
     case PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH:
     {
         if (param_bt_a2dp.reconfig ||
