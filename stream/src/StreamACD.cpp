@@ -491,6 +491,9 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
             PAL_ERR(LOG_TAG, "failed to allocate memory for cached_event_data_");
             return;
         }
+        /* Update current_context_event after realloc */
+        current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
+
         cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
         per_context_info = (uint8_t *) ((uint8_t *) current_context_event +
                             sizeof(struct acd_context_event) +
