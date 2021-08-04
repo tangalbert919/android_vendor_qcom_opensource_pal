@@ -1675,11 +1675,23 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     struct mixer *mixerHandle = nullptr;
     struct mixer_ctl *disconnectCtrl = nullptr;
     struct pal_stream_attributes sAttr;
+    std::vector <std::pair<int, int>> emptyKV;
+    std::ostringstream feName;
+    struct agmMetaData deviceMetaData(nullptr, 0);
+    struct agmMetaData streamDeviceMetaData(nullptr, 0);
+    uint32_t devicePropId[] = { 0x08000010, 2, 0x2, 0x5 };
+    uint32_t streamDevicePropId[] = { 0x08000010, 1, 0x3 };
+    struct mixer_ctl* feMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    struct mixer_ctl* beMetaDataMixerCtrl = nullptr;
+    std::vector <std::tuple<Stream*, uint32_t>> activeStreamsDevices;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
     int sub = 1;
+    uint32_t i;
 
     switch (streamType) {
         case PAL_STREAM_COMPRESSED:
             disconnectCtrlName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
+            feName << COMPRESS_SND_DEV_NAME_PREFIX << pcmDevIds.at(0);
             break;
         case PAL_STREAM_VOICE_CALL:
             status = streamHandle->getStreamAttributes(&sAttr);
@@ -1692,12 +1704,16 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
                 sub = 1;
             else
                 sub = 2;
-            if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID)
+            if (dAttr.id >= PAL_DEVICE_OUT_HANDSET && dAttr.id <= PAL_DEVICE_OUT_HEARING_AID) {
+                feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "p" << " disconnect";
-            else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY)
+            } else if (dAttr.id >= PAL_DEVICE_IN_HANDSET_MIC && dAttr.id <= PAL_DEVICE_IN_PROXY) {
+                feName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c";
                 disconnectCtrlName << PCM_SND_VOICE_DEV_NAME_PREFIX << sub << "c" << " disconnect";
+            }
             break;
         default:
+            feName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0);
             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmDevIds.at(0) << " disconnect";
             break;
     }
@@ -1707,9 +1723,60 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
         return -EINVAL;
     }
+    for (i = FE_CONTROL; i <= FE_DISCONNECT; ++i) {
+        feMixerCtrls[i] = SessionAlsaUtils::getFeMixerControl(mixerHandle,
+            feName.str(), i);
+        if (!feMixerCtrls[i]) {
+            PAL_ERR(LOG_TAG, "invalid mixer control: %s %s",
+                feName.str().data(), feCtrlNames[i]);
+            status = -EINVAL;
+            goto exit;
+        }
+    }
+
     /** Disconnect FE to BE */
     mixer_ctl_set_enum_by_string(disconnectCtrl, aifBackEndsToDisconnect[0].second.data());
 
+    /** clear device metadata*/
+    getAgmMetaData(emptyKV, emptyKV, (struct prop_data*)devicePropId,
+        deviceMetaData);
+    getAgmMetaData(emptyKV, emptyKV, (struct prop_data*)streamDevicePropId,
+        streamDeviceMetaData);
+    if (!deviceMetaData.size || !streamDeviceMetaData.size) {
+        PAL_ERR(LOG_TAG, "stream/device metadata is zero");
+        status = -ENOMEM;
+        goto freeMetaData;
+    }
+    beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle,
+        aifBackEndsToDisconnect[0].second, BE_METADATA);
+    if (!beMetaDataMixerCtrl) {
+        PAL_ERR(LOG_TAG, "invalid mixer control: %s %s", aifBackEndsToDisconnect[0].second.data(),
+            beCtrlNames[BE_METADATA]);
+        status = -EINVAL;
+        goto freeMetaData;
+    }
+
+    //To check if any active stream present on same backend
+    activeStreamsDevices.clear();
+    rm->getSharedBEActiveStreamDevs(activeStreamsDevices, aifBackEndsToDisconnect[0].first);
+    if (activeStreamsDevices.size() > 0) {
+        PAL_INFO(LOG_TAG, "No need to free device metadata since active streams present on device");
+    } else {
+        mixer_ctl_set_array(beMetaDataMixerCtrl, (void*)deviceMetaData.buf,
+            deviceMetaData.size);
+    }
+
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL],
+        aifBackEndsToDisconnect[0].second.data());
+    mixer_ctl_set_array(feMixerCtrls[FE_METADATA], (void*)streamDeviceMetaData.buf,
+        streamDeviceMetaData.size);
+
+freeMetaData:
+    if (streamDeviceMetaData.buf)
+        free(streamDeviceMetaData.buf);
+    if (deviceMetaData.buf)
+        free(deviceMetaData.buf);
+exit:
     return status;
 }
 
