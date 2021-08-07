@@ -188,11 +188,11 @@ protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
     BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
-    bool isScoOn;
-    bool isWbSpeechEnabled;
-    int  swbSpeechMode;
-    bool isSwbLc3Enabled;
-    audio_lc3_codec_cfg_t lc3CodecInfo;
+    static bool isScoOn;
+    static bool isWbSpeechEnabled;
+    static int  swbSpeechMode;
+    static bool isSwbLc3Enabled;
+    static audio_lc3_codec_cfg_t lc3CodecInfo;
     int startSwb();
 
 public:
