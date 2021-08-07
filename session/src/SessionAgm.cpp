@@ -423,31 +423,35 @@ exit:
 int SessionAgm::start(Stream * s __unused)
 {
     int32_t status = 0;
-
+    rm->voteSleepMonitor(s, true);
     if (agmSessHandle)
         status = agm_session_start(agmSessHandle);
-    if (status != 0)
+    if (status != 0) {
+        rm->voteSleepMonitor(s, false);
         PAL_ERR(LOG_TAG, "agm_session_start failed %d", status);
+    }
     return status;
 }
 
 int SessionAgm::pause(Stream * s __unused)
 {
-   return -EINVAL;
+    return -EINVAL;
 }
 
 int SessionAgm::resume(Stream * s __unused)
 {
-   return -EINVAL;
+    return -EINVAL;
 }
 
 int SessionAgm::stop(Stream * s __unused)
 {
     int32_t status = 0;
 
-    if (agmSessHandle)
+    if (agmSessHandle) {
         status = agm_session_stop(agmSessHandle);
-   return status;
+        rm->voteSleepMonitor(s, false);
+    }
+    return status;
 }
 
 int SessionAgm::read(Stream *s, int tag __unused, struct pal_buffer *buf, int *size )

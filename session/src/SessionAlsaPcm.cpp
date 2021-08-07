@@ -603,6 +603,7 @@ int SessionAlsaPcm::start(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
 
+    rm->voteSleepMonitor(s, true);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -1137,6 +1138,8 @@ pcm_start_loopback:
     mState = SESSION_STARTED;
 
 exit:
+    if (status != 0)
+        rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
@@ -1207,6 +1210,7 @@ int SessionAlsaPcm::stop(Stream * s)
             }
             break;
     }
+   rm->voteSleepMonitor(s, false);
     mState = SESSION_STOPPED;
 
     if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents)) {
