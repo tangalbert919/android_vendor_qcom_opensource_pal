@@ -746,7 +746,6 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
         }
@@ -841,7 +840,6 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
         }

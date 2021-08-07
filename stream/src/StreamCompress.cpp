@@ -472,7 +472,6 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 return errno;
             } else {
-                status = errno;
                 return status;
             }
         }
