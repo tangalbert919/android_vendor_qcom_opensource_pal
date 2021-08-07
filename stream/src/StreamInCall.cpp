@@ -285,7 +285,6 @@ int32_t StreamInCall::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto exit;
             }
             if (0 != status) {

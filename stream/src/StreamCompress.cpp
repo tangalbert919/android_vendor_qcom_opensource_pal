@@ -285,13 +285,15 @@ int32_t StreamCompress::stop()
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG,"In PAL_AUDIO_OUTPUT case, device count - %zu", mDevices.size());
+
+            rm->lockGraph();
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Rx session stop failed with status %d",status);
             }
             PAL_VERBOSE(LOG_TAG,"session stop successful");
-            for (int32_t i = 0; i < mDevices.size(); i++) {
 
+            for (int32_t i = 0; i < mDevices.size(); i++) {
                 PAL_ERR(LOG_TAG, "device %d name %s, going to stop",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
@@ -300,6 +302,7 @@ int32_t StreamCompress::stop()
                     PAL_ERR(LOG_TAG,"Rx device stop failed with status %d",status);
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG,"devices stop successful");
             break;
         default:
@@ -326,6 +329,7 @@ exit:
 int32_t StreamCompress::start()
 {
     int32_t status = 0;
+    bool a2dpSuspend = false;
 
     mStreamMutex.lock();
 
@@ -341,10 +345,15 @@ int32_t StreamCompress::start()
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
-            rm->lockGraph();
-            PAL_VERBOSE(LOG_TAG,"Inside PAL_AUDIO_OUTPUT device count - %zu", mDevices.size());
-            for (int32_t i=0; i < mDevices.size(); i++) {
+            PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_OUTPUT device count - %zu", mDevices.size());
 
+            // handle scenario where BT device is not ready
+            status = handleBTDeviceNotReady(a2dpSuspend);
+            if (0 != status)
+                goto exit;
+
+            rm->lockGraph();
+            for (int32_t i=0; i < mDevices.size(); i++) {
                 PAL_ERR(LOG_TAG, "device %d name %s, going to start",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
@@ -356,6 +365,7 @@ int32_t StreamCompress::start()
                 }
             }
             PAL_VERBOSE(LOG_TAG,"devices started successfully");
+
             status = session->prepare(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Rx session prepare is failed with status %d",status);
@@ -363,6 +373,7 @@ int32_t StreamCompress::start()
                 goto session_fail;
             }
             PAL_VERBOSE(LOG_TAG,"session prepare successful");
+
             status = session->start(this);
             if (errno == -ENETRESET) {
                 if (rm->cardState != CARD_STATUS_OFFLINE) {
@@ -378,8 +389,17 @@ int32_t StreamCompress::start()
                 rm->unlockGraph();
                 goto session_fail;
             }
-            PAL_VERBOSE(LOG_TAG,"session start successful");
+            PAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
+
+            if (a2dpSuspend) {
+                PAL_DBG(LOG_TAG, "mute the stream on speaker");
+                if (!a2dpMuted) {
+                    mute_l(true);
+                    a2dpMuted = true;
+                }
+                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            }
             break;
         default:
             status = -EINVAL;

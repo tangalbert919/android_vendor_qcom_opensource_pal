@@ -7107,6 +7107,18 @@ bool ResourceManager::isDeviceAvailable(pal_device_id_t id)
     return is_available;
 }
 
+bool ResourceManager::isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id)
+{
+    bool isAvailable = false;
+
+    for (int i = 0; i < devices.size(); i++) {
+        if (devices[i]->getSndDeviceId() == id)
+            isAvailable = true;
+    }
+
+    return isAvailable;
+}
+
 bool ResourceManager::isDeviceReady(pal_device_id_t id)
 {
     struct pal_device dAttr;

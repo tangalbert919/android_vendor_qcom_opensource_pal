@@ -658,6 +658,7 @@ public:
     static pal_device_id_t getDeviceId(std::string device_name);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
+    bool isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
@@ -666,6 +667,10 @@ public:
     int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
     bool isDpDevice(pal_device_id_t id);
+
+    /* Separate device reference counts are maintained in PAL device and GSL device SGs.
+     * lock graph is to sychronize these reference counts during device and session operations
+     */
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
