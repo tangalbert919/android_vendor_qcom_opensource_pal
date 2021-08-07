@@ -896,10 +896,12 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                  */
                 if (state == CARD_STATUS_ONLINE) {
                     if (isContextManagerEnabled) {
+                        mActiveStreamMutex.unlock();
                         ret = ctxMgr->ssrUpHandler();
                         if (0 != ret) {
                             PAL_ERR(LOG_TAG, "Ssr up handling failed for ContextManager ret %d", ret);
                         }
+                        mActiveStreamMutex.lock();
                     }
                 }
 
@@ -922,18 +924,22 @@ void ResourceManager::ssrHandlingLoop(std::shared_ptr<ResourceManager> rm)
                     }
                 }
                 if (isContextManagerEnabled) {
+                    mActiveStreamMutex.unlock();
                     ret = ctxMgr->ssrDownHandler();
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr down handling failed for ContextManager ret %d", ret);
                     }
+                    mActiveStreamMutex.lock();
                 }
                 prevState = state;
             } else if (state == CARD_STATUS_ONLINE) {
                 if (isContextManagerEnabled) {
+                    mActiveStreamMutex.unlock();
                     ret = ctxMgr->ssrUpHandler();
                     if (0 != ret) {
                         PAL_ERR(LOG_TAG, "Ssr up handling failed for ContextManager ret %d", ret);
                     }
+                    mActiveStreamMutex.lock();
                 }
 
                 for (auto str: rm->mActiveStreams) {
@@ -2149,6 +2155,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sPCM, active_streams_sensor_pcm_data);
             break;
         }
+        case PAL_STREAM_CONTEXT_PROXY:
+        {
+            StreamContextProxy* sCtxt = dynamic_cast<StreamContextProxy*>(s);
+            ret = registerstream(sCtxt, active_streams_context_proxy);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -2319,6 +2331,12 @@ int ResourceManager::deregisterStream(Stream *s)
                 SNSPCMDataConcurrencyDisableCount = 0;
                 SNSPCMDataConcurrencyEnableCount = 0;
             }
+            break;
+        }
+        case PAL_STREAM_CONTEXT_PROXY:
+        {
+            StreamContextProxy* sCtxt = dynamic_cast<StreamContextProxy*>(s);
+            ret = deregisterstream(sCtxt, active_streams_context_proxy);
             break;
         }
         default:

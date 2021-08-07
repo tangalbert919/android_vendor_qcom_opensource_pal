@@ -284,6 +284,7 @@ class SndCardMonitor;
 class StreamUltraSound;
 class ContextManager;
 class StreamSensorPCMData;
+class StreamContextProxy;
 
 struct deviceIn {
     int deviceId;
@@ -359,6 +360,7 @@ protected:
     std::vector <StreamACD*> active_streams_acd;
     std::vector <StreamUltraSound*> active_streams_ultrasound;
     std::vector <StreamSensorPCMData*> active_streams_sensor_pcm_data;
+    std::vector <StreamContextProxy*> active_streams_context_proxy;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
