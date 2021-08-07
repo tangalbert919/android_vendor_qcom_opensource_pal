@@ -444,6 +444,7 @@ class StreamACD : public Stream {
     struct pal_st_recognition_event *cached_event_data_;
     uint32_t                      detection_state_;
     bool                          paused_;
+    bool                          device_opened_;
 
     pal_stream_callback callback_;
     uint64_t            cookie_;

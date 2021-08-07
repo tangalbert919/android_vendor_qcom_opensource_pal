@@ -550,6 +550,7 @@ class StreamSoundTrigger : public Stream {
     bool exit_timer_thread_;
     bool pending_stop_;
     bool paused_;
+    bool device_opened_;
     st_module_type_t model_type_;
 
     void AddState(StState* state);
