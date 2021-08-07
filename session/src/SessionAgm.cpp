@@ -510,7 +510,7 @@ int SessionAgm::fileWrite(Stream *s __unused, int tag __unused, struct pal_buffe
 
 int SessionAgm::write(Stream *s, int tag __unused, struct pal_buffer *buf, int * size, int flag __unused)
 {
-    uint32_t bytes_written = 0;
+    size_t bytes_written = 0;
     int status;
     struct agm_buff agm_buffer = {0, 0, 0, NULL, 0, NULL, {0, 0, 0}};
     struct pal_stream_attributes sAttr;
