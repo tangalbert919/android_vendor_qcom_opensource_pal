@@ -70,6 +70,8 @@
 #define XML_PATH_MAX_LENGTH 100
 #define HW_INFO_ARRAY_MAX_SIZE 32
 
+#define VBAT_BCL_SUFFIX "-vbat"
+
 #if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
 #define SNDPARSER "/etc/card-defs.xml"
 #else
@@ -404,6 +406,7 @@ uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
+bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 pal_audio_fmt_t ResourceManager::bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
 bool ResourceManager::isRasEnabled = false;
@@ -4246,6 +4249,8 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
     if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
+        if (isVbatEnabled && deviceId == PAL_DEVICE_OUT_SPEAKER)
+            strlcat(device_name, VBAT_BCL_SUFFIX, DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
         PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
@@ -7681,6 +7686,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                bitFormatSupported = PAL_AUDIO_FMT_PCM_S32_LE;
             else
                bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
+        } else if (!strcmp(tag_name, "vbat_enabled")) {
+            if (atoi(data->data_buf))
+                isVbatEnabled = true;
         }
         else if (!strcmp(tag_name, "bit_width")) {
             size = deviceInfo.size() - 1;
