@@ -45,7 +45,8 @@ CaptureProfile::CaptureProfile(const std::string name) :
     channels_(1),
     bitwidth_(16),
     device_pp_kv_(std::make_pair(0, 0)),
-    snd_name_("va-mic")
+    snd_name_("va-mic"),
+    is_ec_req_(false)
 {
 
 }
@@ -72,6 +73,8 @@ void CaptureProfile::HandleStartTag(const char* tag, const char** attribs) {
                 channels_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "snd_name")) {
                 snd_name_ = attribs[++i];
+            } else if (!strcmp(attribs[i], "ec_ref")) {
+                is_ec_req_ = !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }
