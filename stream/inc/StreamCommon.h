@@ -62,7 +62,9 @@ public:
     int32_t mute(bool state __unused) override {return 0;}
     int32_t mute_l(bool state __unused) override {return 0;}
     int32_t pause() override {return 0;}
+    int32_t pause_l() override {return 0;}
     int32_t resume() override {return 0;}
+    int32_t resume_l() override {return 0;}
     int32_t flush() {return 0;}
     int32_t addRemoveEffect(pal_audio_effect_t effect __unused, bool enable __unused) override {return 0;}
     int32_t read(struct pal_buffer *buf __unused) override {return 0;}

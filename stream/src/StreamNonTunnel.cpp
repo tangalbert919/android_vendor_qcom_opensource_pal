@@ -501,18 +501,6 @@ int32_t StreamNonTunnel::drain(pal_drain_type_t type)
     return session->drain(type);
 }
 
-int32_t StreamNonTunnel::pause()
-{
-    PAL_ERR(LOG_TAG, "Pause not supported yet on NON-TUNNEL session");
-    return -EINVAL;
-}
-
-int32_t StreamNonTunnel::resume()
-{
-    PAL_ERR(LOG_TAG, "Pause not supported yet on NON-TUNNEL session");
-    return -EINVAL;
-}
-
 int32_t StreamNonTunnel::flush()
 {
     int32_t status = 0;

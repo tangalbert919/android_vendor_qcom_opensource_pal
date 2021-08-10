@@ -169,7 +169,9 @@ public:
     virtual int32_t mute(bool state) = 0;
     virtual int32_t mute_l(bool state) = 0;
     virtual int32_t pause() = 0;
+    virtual int32_t pause_l() = 0;
     virtual int32_t resume() = 0;
+    virtual int32_t resume_l() = 0;
     virtual int32_t flush() {return 0;}
     virtual int32_t suspend() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
@@ -257,8 +259,10 @@ public:
    int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;};
    int32_t mute(bool state __unused) {return 0;};
    int32_t mute_l(bool state __unused) {return 0;};
-   int32_t pause() override;
-   int32_t resume() override;
+   int32_t pause() {return 0;};
+   int32_t pause_l() {return 0;};
+   int32_t resume() {return 0;};
+   int32_t resume_l() {return 0;};
    int32_t drain(pal_drain_type_t type) override;
    int32_t flush();
    int32_t suspend() override;

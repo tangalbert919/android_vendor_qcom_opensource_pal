@@ -55,7 +55,9 @@ public:
    int32_t mute(bool state) override;
    int32_t mute_l(bool state) override;
    int32_t pause() override;
+   int32_t pause_l() override;
    int32_t resume() override;
+   int32_t resume_l() override;
    int32_t flush();
    int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) override;
    int32_t read(struct pal_buffer *buf) override;
