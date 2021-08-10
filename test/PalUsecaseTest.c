@@ -29,6 +29,7 @@
 
 #include"PalUsecaseTest.h"
 #include <errno.h>
+#include <string.h>
 
 static struct pal_stream_attributes *stream_attributes;
 static struct pal_device *pal_devices;
@@ -130,8 +131,8 @@ close_stream:
      pal_stream_close(pal_stream);
      pal_stream = NULL;
 exit:
-     if (payload)
-        free(payload);
+     if (param_payload)
+        free(param_payload);
      return status;
 }
 
