@@ -79,6 +79,8 @@ protected:
     void *customPayload;
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
+    int freeCustomPayload(uint8_t **payload, size_t *payloadSize);
+    int freeCustomPayload();
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
@@ -135,7 +137,6 @@ public:
     virtual int openGraph(Stream *s __unused) { return 0; }
     virtual int getTagsWithModuleInfo(Stream *s __unused, size_t *size __unused,
                                       uint8_t *payload __unused) {return -EINVAL;}
-
 };
 
 #endif //SESSION_H

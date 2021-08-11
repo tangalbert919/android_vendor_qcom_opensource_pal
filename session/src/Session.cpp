@@ -332,6 +332,24 @@ int Session::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
+int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize) {
+    if (*payload) {
+        free(*payload);
+        *payload = NULL;
+        *payloadSize = 0;
+    }
+    return 0;
+}
+
+int Session::freeCustomPayload() {
+    if (customPayload) {
+        free(customPayload);
+        customPayload = NULL;
+        customPayloadSize = 0;
+    }
+    return 0;
+}
+
 int Session::pause(Stream * s __unused)
 {
     return 0;

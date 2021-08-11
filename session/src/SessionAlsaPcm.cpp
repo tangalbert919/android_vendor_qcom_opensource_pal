@@ -799,7 +799,7 @@ int SessionAlsaPcm::start(Stream * s)
                 builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                 if (payloadSize && payload) {
                     status = updateCustomPayload(payload, payloadSize);
-                    free(payload);
+                    freeCustomPayload(&payload, &payloadSize);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         goto exit;
@@ -807,11 +807,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
-                if (customPayload) {
-                    free(customPayload);
-                    customPayload = NULL;
-                    customPayloadSize = 0;
-                }
+                freeCustomPayload();
                 if (status != 0) {
                     PAL_ERR(LOG_TAG,"setMixerParameter failed");
                     goto exit;
@@ -831,7 +827,7 @@ int SessionAlsaPcm::start(Stream * s)
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize && payload) {
                         status = updateCustomPayload(payload, payloadSize);
-                        free(payload);
+                        freeCustomPayload(&payload, &payloadSize);
                         if (0 != status) {
                             PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                             goto exit;
@@ -839,11 +835,7 @@ int SessionAlsaPcm::start(Stream * s)
                     }
                     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                                  customPayload, customPayloadSize);
-                    if (customPayload) {
-                        free(customPayload);
-                        customPayload = NULL;
-                        customPayloadSize = 0;
-                    }
+                    freeCustomPayload();
                     if (status != 0) {
                         PAL_ERR(LOG_TAG,"setMixerParameter failed for RAT render");
                         goto exit;
@@ -869,12 +861,7 @@ int SessionAlsaPcm::start(Stream * s)
             } else if (sAttr.type == PAL_STREAM_VOICE_UI || (sAttr.type == PAL_STREAM_ACD)) {
                 SessionAlsaUtils::setMixerParameter(mixer,
                     pcmDevIds.at(0), customPayload, customPayloadSize);
-                if (customPayload) {
-                    free(customPayload);
-                    customPayload = NULL;
-                    customPayloadSize = 0;
-                }
-            }
+                freeCustomPayload();            }
             if (ResourceManager::isLpiLoggingEnabled()) {
                 PAL_INFO(LOG_TAG, "LPI data logging Param ON");
                 /* No error check as TAG/TKV may not required for non LPI usecases */
@@ -903,7 +890,7 @@ int SessionAlsaPcm::start(Stream * s)
                 builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                 if (payloadSize && payload) {
                     status = updateCustomPayload(payload, payloadSize);
-                    free(payload);
+                    freeCustomPayload(&payload, &payloadSize);
                     if (0 != status) {
                         PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                         goto exit;
@@ -911,11 +898,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
-                if (customPayload) {
-                    free(customPayload);
-                    customPayload = NULL;
-                    customPayloadSize = 0;
-                }
+                freeCustomPayload();
                 if (status != 0) {
                     PAL_ERR(LOG_TAG,"setMixerParameter failed for RAT render");
                     goto exit;
@@ -1014,11 +997,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
-                if (customPayload) {
-                    free(customPayload);
-                    customPayload = NULL;
-                    customPayloadSize = 0;
-                }
+                freeCustomPayload();
                 if (status != 0) {
                     PAL_ERR(LOG_TAG,"setMixerParameter failed");
                     goto exit;
@@ -1411,11 +1390,7 @@ int SessionAlsaPcm::close(Stream * s)
         }
     }
 
-    if (customPayload) {
-        free(customPayload);
-        customPayload = NULL;
-        customPayloadSize = 0;
-    }
+    freeCustomPayload();
     if (eventPayload) {
         free(eventPayload);
         eventPayload = NULL;
@@ -1837,7 +1812,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                paramData, paramSize);
                 PAL_INFO(LOG_TAG, "mixer set tws config status=%d\n", status);
-                free(paramData);
+                freeCustomPayload(&paramData, &paramSize);
             }
             return 0;
         }
@@ -1858,7 +1833,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                paramData, paramSize);
                 PAL_INFO(LOG_TAG, "mixer set lc3 config status=%d\n", status);
-                free(paramData);
+                freeCustomPayload(&paramData, &paramSize);
             }
             return 0;
         }
@@ -2203,8 +2178,7 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
 
 
 exit:
-    if (payloadData)
-        free(payloadData);
+    freeCustomPayload(&payloadData, &payloadSize);
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }

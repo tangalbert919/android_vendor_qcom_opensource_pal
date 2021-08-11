@@ -52,8 +52,6 @@ SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
 {
    rm = Rm;
    builder = new PayloadBuilder();
-   customPayload = NULL;
-   customPayloadSize = 0;
    pcmEcTx = NULL;
 }
 
@@ -174,38 +172,38 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
 {
     int status = 0;
     int pcmId = 0;
-    uint8_t *payload = NULL;
-    size_t payloadSize = 0;
 
     if (dir == RX_HOSTLESS) {
         pcmId = pcmDevRxIds.at(0);
-        status = populate_rx_mfc_payload(s, &payload, &payloadSize);
+
+        status = build_rx_mfc_payload(s);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"populating mfc payload failed :%d", status);
+            PAL_ERR(LOG_TAG,"populating Rx mfc payload failed :%d", status);
             goto exit;
         }
 
         // populate_vsid_payload, appends to the existing payload
-        status = populate_vsid_payload(s, &payload, &payloadSize);
+        status = populate_vsid_payload(s);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
     } else {
         pcmId = pcmDevTxIds.at(0);
-        status = populate_vsid_payload(s, &payload, &payloadSize);
+        status = populate_vsid_payload(s);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"populating vsid payload for TX Failed:%d", status);
             goto exit;
         }
-        status = populate_ch_info_payload(s, &payload, &payloadSize);
+        status = populate_ch_info_payload(s);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"populating channel info for TX Failed..skipping:%d", status);
         }
     }
 
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmId,
-                                                 payload, payloadSize);
+            customPayload, customPayloadSize);
+
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed:%d for dir:%s",
                 status, (dir == RX_HOSTLESS)?"RX":"TX");
@@ -213,20 +211,17 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
     }
 
 exit:
-    if (payload) {
-        free(payload);
-    }
+    freeCustomPayload();
     return status;
 }
 
-int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payload,
-                                            size_t *payloadSize)
+int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused)
 {
     int status = 0;
     apm_module_param_data_t* header;
     uint8_t* vsidPayload = NULL;
     size_t vsidpayloadSize = 0, padBytes = 0;
-    uint8_t *vsid_pl;
+    uint8_t *vsid_pl = NULL;
     vcpm_param_vsid_payload_t vsid_payload;
 
 
@@ -234,18 +229,11 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
                   sizeof(vcpm_param_vsid_payload_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(vsidpayloadSize);
 
-    vsidPayload =  (uint8_t *) realloc((void *)*payload,
-                                       (*payloadSize + vsidpayloadSize + padBytes));
+    vsidPayload = (uint8_t *) calloc(1, vsidpayloadSize + padBytes);
     if (!vsidPayload) {
-        PAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "vsid payload allocation failed %s", strerror(errno));
         return -EINVAL;
     }
-    //set base out pointer to new address
-    *payload = vsidPayload;
-    //update payloadinfo so vsid can be added
-    vsidPayload = vsidPayload + (*payloadSize);
-    //update overall payload size
-    *payloadSize += (vsidpayloadSize + padBytes);
 
     header = (apm_module_param_data_t*)vsidPayload;
     header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
@@ -257,10 +245,20 @@ int SessionAlsaVoice::populate_vsid_payload(Stream *s __unused, uint8_t **payloa
     vsid_pl = (uint8_t*)vsidPayload + sizeof(apm_module_param_data_t);
     ar_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
+    vsidpayloadSize += padBytes;
+
+    if (vsidPayload && vsidpayloadSize) {
+        status = updateCustomPayload(vsidPayload, vsidpayloadSize);
+        freeCustomPayload(&vsidPayload, &vsidpayloadSize);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"updateCustomPayload for vsid payload Failed %d\n", status);
+            return status;
+        }
+    }
 
     /* call loopback delay playload if in loopback mode*/
     if ((vsid == VOICELBMMODE1 || vsid == VOICELBMMODE2)) {
-        populateVSIDLoopbackPayload(payload,payloadSize);
+        populateVSIDLoopbackPayload(s);
     }
 
     return status;
@@ -322,8 +320,7 @@ exit:
     return status;
 }
 
-int SessionAlsaVoice::populate_ch_info_payload(Stream *s, uint8_t **payload,
-                                            size_t *payloadSize)
+int SessionAlsaVoice::populate_ch_info_payload(Stream *s)
 {
     int status = 0;
     apm_module_param_data_t* header;
@@ -343,19 +340,13 @@ int SessionAlsaVoice::populate_ch_info_payload(Stream *s, uint8_t **payload,
                   sizeof(vcpm_param_id_tx_dev_pp_channel_info_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(ch_info_payloadSize);
 
-    ch_infoPayload =  (uint8_t *) realloc((void *)*payload,
-                                       (*payloadSize + ch_info_payloadSize + padBytes));
+    ch_infoPayload = (uint8_t *) calloc(1, (ch_info_payloadSize + padBytes));
+
     if (!ch_infoPayload) {
-        PAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "channel info payload allocation failed %s",
+            strerror(errno));
         return -ENOMEM;
     }
-    //set base out pointer to new address
-    *payload = ch_infoPayload;
-    //update payloadinfo so channel info can be added
-    ch_infoPayload = ch_infoPayload + (*payloadSize);
-    //update overall payload size
-    *payloadSize += (ch_info_payloadSize + padBytes);
-
     header = (apm_module_param_data_t*)ch_infoPayload;
     header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
     header->param_id = VCPM_PARAM_ID_TX_DEV_PP_CHANNEL_INFO;
@@ -369,11 +360,21 @@ int SessionAlsaVoice::populate_ch_info_payload(Stream *s, uint8_t **payload,
     ch_info_pl = (uint8_t*)ch_infoPayload + sizeof(apm_module_param_data_t);
     ar_mem_cpy(ch_info_pl,  sizeof(vcpm_param_id_tx_dev_pp_channel_info_t),
                      &ch_info_payload,  sizeof(vcpm_param_id_tx_dev_pp_channel_info_t));
+    ch_info_payloadSize += padBytes;
 
+    if (ch_infoPayload && ch_info_payloadSize) {
+        status = updateCustomPayload(ch_infoPayload, ch_info_payloadSize);
+        freeCustomPayload(&ch_infoPayload, &ch_info_payloadSize);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"updateCustomPayload for channel info payload Failed %d\n",
+                status);
+            return status;
+        }
+    }
     return status;
 }
 
-int SessionAlsaVoice::populateVSIDLoopbackPayload(uint8_t **payload, size_t *payloadSize){
+int SessionAlsaVoice::populateVSIDLoopbackPayload(Stream* s){
     int status = 0;
     struct vsid_info vsidInfo;
     apm_module_param_data_t* header;
@@ -394,19 +395,12 @@ int SessionAlsaVoice::populateVSIDLoopbackPayload(uint8_t **payload, size_t *pay
                   sizeof(vcpm_param_id_voc_pkt_loopback_delay_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(loopbackPayloadSize);
 
-    loopbackPayload =  (uint8_t *) realloc((void *)*payload,
-                                       (*payloadSize + loopbackPayloadSize + padBytes));
+    loopbackPayload = (uint8_t *) calloc(1, loopbackPayloadSize + padBytes);
     if (!loopbackPayload) {
-        PAL_ERR(LOG_TAG, "payloadInfo realloc failed %s", strerror(errno));
+        PAL_ERR(LOG_TAG, "loopback payload allocation failed %s",
+            strerror(errno));
         return -EINVAL;
     }
-    //set base out pointer to new address
-    *payload = loopbackPayload;
-    //update payloadinfo so vsid can be added
-    loopbackPayload = loopbackPayload + (*payloadSize);
-    //update overall payload size
-    *payloadSize += (loopbackPayloadSize + padBytes);
-
     header = (apm_module_param_data_t*)loopbackPayload;
     header->module_instance_id = VCPM_MODULE_INSTANCE_ID;
     header->param_id = VCPM_PARAM_ID_VOC_PKT_LOOPBACK_DELAY;
@@ -418,16 +412,48 @@ int SessionAlsaVoice::populateVSIDLoopbackPayload(uint8_t **payload, size_t *pay
     loopback_pl = (uint8_t*)loopbackPayload + sizeof(apm_module_param_data_t);
     ar_mem_cpy(loopback_pl,  sizeof(vcpm_param_id_voc_pkt_loopback_delay_t),
                      &vsid_loopback_payload,  sizeof(vcpm_param_id_voc_pkt_loopback_delay_t));
+
+    loopbackPayloadSize += padBytes;
+
+    if (loopbackPayload && loopbackPayloadSize) {
+        status = updateCustomPayload(loopbackPayload, loopbackPayloadSize);
+        freeCustomPayload(&loopbackPayload, &loopbackPayloadSize);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"updateCustomPayload for loopback payload Failed %d\n", status);
+            return status;
+        }
+    }
 exit:
     return status;
 }
 
-int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize)
+int SessionAlsaVoice::build_rx_mfc_payload(Stream *s) {
+    int status = 0;
+    std::vector<uint32_t> rx_mfc_tags{PER_STREAM_PER_DEVICE_MFC, TAG_DEVICE_PP_MFC};
+
+    for (uint32_t rx_mfc_tag : rx_mfc_tags) {
+        status = populate_rx_mfc_payload(s, rx_mfc_tag);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"populating Rx mfc: %X payload failed :%d",
+                    rx_mfc_tag, status);
+            if (rx_mfc_tag == TAG_DEVICE_PP_MFC)
+                goto exit;
+        }
+    }
+    status = 0;
+
+exit:
+    return status;
+}
+
+int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
 {
     int status = 0;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
     struct sessionToPayloadParam deviceData;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
     uint32_t miid = 0;
     int dev_id = 0;
     int idx = 0;
@@ -448,9 +474,10 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
 
     status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
                                                    rxAifBackEnds[0].second.c_str(),
-                                                   TAG_DEVICE_PP_MFC, &miid);
+                                                   rx_mfc_tag, &miid);
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"getModuleInstanceId failed status:%d", status);
+        PAL_ERR(LOG_TAG,"getModuleInstanceId failed for Rx mfc: %X status: %d",
+            rx_mfc_tag, status);
         return status;
     }
 
@@ -486,7 +513,13 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint8_t **payload, size
         deviceData.numChannel = dAttr.config.ch_info.channels;
         deviceData.ch_info = nullptr;
     }
-    builder->payloadMFCConfig((uint8_t**)payload, payloadSize, miid, &deviceData);
+    builder->payloadMFCConfig(&payload, &payloadSize, miid, &deviceData);
+    if (payload && payloadSize) {
+        status = updateCustomPayload(payload, payloadSize);
+        freeCustomPayload(&payload, &payloadSize);
+        if (status != 0)
+            PAL_ERR(LOG_TAG,"updateCustomPayload for Rx mfc %XFailed\n", rx_mfc_tag);
+    }
 
 exit:
     return status;
@@ -612,13 +645,16 @@ int SessionAlsaVoice::start(Stream * s)
         }
     }
 
-    status = populate_rx_mfc_payload(s, &payload, &payloadSize);
+    /* configuring Rx MFC's, updating custom payload and send mixer controls at once*/
+    status = build_rx_mfc_payload(s);
+
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"Exit Configuring RX MFC failed");
+        PAL_ERR(LOG_TAG,"Exit Configuring Rx mfc failed with status %d", status);
         return status;
     }
     status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
-                                                 payload, payloadSize);
+                                                 customPayload, customPayloadSize);
+    freeCustomPayload();
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed");
         goto exit;
@@ -643,6 +679,7 @@ int SessionAlsaVoice::start(Stream * s)
     }
 
 exit:
+    freeCustomPayload();
     if (payload)
         free(payload);
     if (palPayload) {
@@ -939,20 +976,18 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
 
         case VSID:
             device = pcmDevRxIds.at(0);
-            status = payloadSetVSID(&paramData, &paramSize);
+            status = payloadSetVSID(s);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
+                goto exit;
+            }
             status = SessionAlsaVoice::setVoiceMixerParameter(s, mixer,
-                                                              paramData,
-                                                              paramSize,
+                                                              customPayload,
+                                                              customPayloadSize,
                                                               dir);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to set voice params status = %d",
                         status);
-                break;
-            }
-
-            if (!paramData) {
-                status = -ENOMEM;
-                PAL_ERR(LOG_TAG, "failed to get payload status %d", status);
                 goto exit;
             }
 
@@ -992,9 +1027,8 @@ int SessionAlsaVoice::setConfig(Stream * s, configType type __unused, int tag, i
     PAL_VERBOSE(LOG_TAG, "%x - payload and %zu size", *paramData , paramSize);
 
 exit:
-if (paramData) {
-    free(paramData);
-}
+    freeCustomPayload();
+    freeCustomPayload(&paramData, &paramSize);
     PAL_DBG(LOG_TAG,"Exit status:%d ", status);
     return status;
 }
@@ -1063,7 +1097,7 @@ exit:
     return status;
 }
 
-int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
+int SessionAlsaVoice::payloadSetVSID(Stream* s){
     int status = 0;
     apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
@@ -1075,7 +1109,7 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
                   sizeof(vcpm_param_vsid_payload_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
 
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    payloadInfo = (uint8_t *) calloc(1, payloadSize + padBytes);
     if (!payloadInfo) {
         PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
         return -EINVAL;
@@ -1090,13 +1124,20 @@ int SessionAlsaVoice::payloadSetVSID(uint8_t **payload, size_t *size){
     vsid_pl = (uint8_t*)payloadInfo + sizeof(apm_module_param_data_t);
     ar_mem_cpy(vsid_pl,  sizeof(vcpm_param_vsid_payload_t),
                      &vsid_payload,  sizeof(vcpm_param_vsid_payload_t));
+    payloadSize += padBytes;
 
-    *size = payloadSize + padBytes;
-    *payload = payloadInfo;
+    if (payloadInfo && payloadSize) {
+        status = updateCustomPayload(payloadInfo, payloadSize);
+        freeCustomPayload(&payloadInfo, &payloadSize);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+            return status;
+        }
+    }
 
     /* call loopback delay playload if in loopback mode*/
     if ((vsid == VOICELBMMODE1 || vsid == VOICELBMMODE2)) {
-        populateVSIDLoopbackPayload(payload,size);
+        populateVSIDLoopbackPayload(s);
     }
 
 
