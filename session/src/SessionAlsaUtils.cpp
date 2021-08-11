@@ -335,24 +335,25 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     uint32_t streamDevicePropId[] = {0x08000010, 1, 0x3}; /** gsl_subgraph_platform_driver_props.xml */
     struct pal_device_info devinfo = {};
     struct pal_device dAttr;
+    PayloadBuilder* builder = nullptr;
 
     PAL_DBG(LOG_TAG,"Entry \n");
 
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
+        goto exit;
     }
 
     if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD && sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC) {
         status = streamHandle->getAssociatedDevices(associatedDevices);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "getAssociatedDevices Failed \n");
-            return status;
+            goto exit;
         }
     }
 
-    PayloadBuilder* builder = new PayloadBuilder();
+    builder = new PayloadBuilder();
     // get streamKV
     if ((status = builder->populateStreamKV(streamHandle, streamKV)) != 0) {
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
@@ -529,6 +530,7 @@ exit:
        delete builder;
        builder = NULL;
     }
+    PAL_DBG(LOG_TAG,"Exit, status %d", status);
     return status;
 }
 

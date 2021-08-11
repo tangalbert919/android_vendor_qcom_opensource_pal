@@ -69,11 +69,13 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     uint32_t count = 0;
     struct pal_device *palDevsAttr = nullptr;
 
+    PAL_DBG(LOG_TAG, "Enter.");
+
     if (!sAttr || ((noOfDevices > 0) && !dAttr)) {
         PAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Enter.");
+
     /* get RM instance */
     if (!rm) {
         rm = ResourceManager::getInstance();
@@ -234,13 +236,12 @@ exit:
     if (palDevsAttr) {
         delete [] palDevsAttr;
     }
-    if (stream) {
-        PAL_DBG(LOG_TAG, "Exit. stream creation success");
-    } else {
+    if (!stream) {
         PAL_ERR(LOG_TAG, "stream creation failed");
     }
 
-    PAL_DBG(LOG_TAG, "stream %pK created", stream);
+    PAL_DBG(LOG_TAG, "Exit stream %pK create %s", stream,
+            stream ? "successful" : "failed");
     return stream;
 }
 

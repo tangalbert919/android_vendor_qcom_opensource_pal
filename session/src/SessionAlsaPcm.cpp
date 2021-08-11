@@ -90,7 +90,7 @@ int SessionAlsaPcm::open(Stream * s)
     status = s->getStreamAttributes(&sAttr);
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
+        goto exit;
     }
     if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD &&
         sAttr.type != PAL_STREAM_VOICE_CALL_MUSIC  &&
@@ -1121,7 +1121,7 @@ int SessionAlsaPcm::stop(Stream * s)
         }
     } else if (sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload == NULL)
-            goto done;
+            goto exit;
 
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
@@ -1136,7 +1136,7 @@ int SessionAlsaPcm::stop(Stream * s)
     } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
         status = register_asps_event(0);
     }
-done:
+exit:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
@@ -1163,7 +1163,7 @@ int SessionAlsaPcm::close(Stream * s)
         status = s->getAssociatedDevices(associatedDevices);
         if (status != 0) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
-            return status;
+            goto exit;
         }
     }
 
@@ -1771,10 +1771,10 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
 
     PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
 free_payload :
     free(paramData);
 exit:
+    PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -1944,17 +1944,19 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             config.silence_threshold = 0;
             pcmEcTx = pcm_open(rm->getVirtualSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
             if (!pcmEcTx) {
-                PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open failed");
+                PAL_ERR(LOG_TAG, "pcm-ec-tx open failed");
                 dev->stop();
                 dev->close();
-                return errno;
+                status = errno;
+                goto exit;
             }
             if (!pcm_is_ready(pcmEcTx)) {
-                PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open not ready");
+                PAL_ERR(LOG_TAG, " pcm-ec-tx open not ready");
                 pcmEcTx = NULL;
                 dev->stop();
                 dev->close();
-                return errno;
+                status = errno;
+                goto exit;
             }
             status = pcm_start(pcmEcTx);
             if (status) {
@@ -1963,7 +1965,8 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 pcm_close(pcmEcTx);
                 dev->stop();
                 dev->close();
-                return status;
+                status = errno;
+                goto exit;
             }
             PAL_INFO(LOG_TAG, "backend name %s", extEcbackendNames.at(0).c_str());
         } else {

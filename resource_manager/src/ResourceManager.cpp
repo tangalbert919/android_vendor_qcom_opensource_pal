@@ -700,7 +700,7 @@ ResourceManager::ResourceManager()
         PAL_INFO(LOG_TAG, "usecase manager xml parsing successful");
     }
 
-    PAL_ERR(LOG_TAG, "Creating ContextManager");
+    PAL_DBG(LOG_TAG, "Creating ContextManager");
     ctxMgr = new ContextManager();
     if (!ctxMgr) {
         throw std::runtime_error("Failed to allocate ContextManager");
@@ -1002,6 +1002,7 @@ void ResourceManager::ssrHandler(card_status_t state)
     msgQ.push(state);
     cvMutex.unlock();
     cv.notify_all();
+    PAL_DBG(LOG_TAG, "Exit. state %d", state);
     return;
 }
 
@@ -1020,6 +1021,7 @@ char* ResourceManager::getDeviceNameFromID(uint32_t id)
 int ResourceManager::init_audio()
 {
     int retry = 0;
+    int status = 0;
     bool snd_card_found = false;
 
     char *snd_card_name = NULL;
@@ -1041,7 +1043,8 @@ int ResourceManager::init_audio()
                 if (!snd_card_name) {
                     PAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
                     mixer_close(tmp_mixer);
-                    return -EINVAL;
+                    status = -EINVAL;
+                    goto exit;
                 }
                 PAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s",
                 snd_hw_card, snd_card_name);
@@ -1076,7 +1079,8 @@ int ResourceManager::init_audio()
 
     if (snd_hw_card >= MAX_SND_CARD || !audio_hw_mixer) {
         PAL_ERR(LOG_TAG, "audio mixer open failure");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
 
     audio_virt_mixer = mixer_open(snd_virt_card);
@@ -1113,20 +1117,18 @@ int ResourceManager::init_audio()
         PAL_ERR(LOG_TAG, "audio route init failed");
         mixer_close(audio_virt_mixer);
         mixer_close(audio_hw_mixer);
-        if (snd_card_name)
-            free(snd_card_name);
-        return -EINVAL;
+        status = -EINVAL;
     }
     // audio_route init success
-
-    PAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d. audio route init with card %d mixer path %s", status,
             snd_hw_card, mixer_xml_file);
     if (snd_card_name) {
         free(snd_card_name);
         snd_card_name = NULL;
     }
 
-    return 0;
+    return status;
 }
 
 int ResourceManager::initContextManager()
@@ -2382,7 +2384,7 @@ int ResourceManager::deregisterStream(Stream *s)
     ret = s->getStreamType(&type);
     if (0 != ret) {
         PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
-        return ret;
+        goto exit;
     }
 #if 0
     remove s from mAllActiveStreams
@@ -2519,6 +2521,7 @@ int ResourceManager::deregisterStream(Stream *s)
 
     deregisterstream(s, mActiveStreams);
     mActiveStreamMutex.unlock();
+exit:
     PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
@@ -2535,6 +2538,7 @@ bool isStreamActive(T s, std::list<T> &streams)
         ret = true;
     }
 
+    PAL_DBG(LOG_TAG, "Exit, ret %d", ret);
     return ret;
 }
 
@@ -2562,7 +2566,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        return status;
+        goto exit;
     }
 
     mResourceManagerMutex.lock();
@@ -2605,7 +2609,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
-            goto exit;
+            goto unlock;
         }
 
         for (auto dev: associatedDevices) {
@@ -2669,9 +2673,10 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
 
-exit:
+unlock:
     mResourceManagerMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
+exit:
+    PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 
@@ -2707,7 +2712,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        return status;
+        goto exit;
     }
 
     mResourceManagerMutex.lock();
@@ -2761,7 +2766,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty");
-            goto exit;
+            goto unlock;
         }
 
         for (auto dev: associatedDevices) {
@@ -2787,10 +2792,10 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
     deregisterDevice_l(d, s);
-
-exit:
+unlock:
     mResourceManagerMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
+exit:
+    PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 
@@ -3388,7 +3393,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
 
     if (!is_sva_ds_supported && !is_acd_ds_supported) {
         PAL_INFO(LOG_TAG, "Device switch not supported, return");
-        return 0;
+        goto exit;
     }
 
     // TODO: add support for other devices
@@ -3399,7 +3404,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         dest_device = PAL_DEVICE_IN_HEADSET_VA_MIC;
     } else {
         PAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
-        return status;
+        goto exit;
     }
 
     SoundTriggerCaptureProfile = nullptr;
@@ -3451,8 +3456,8 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
     }
 
     mResourceManagerMutex.lock();
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -3555,7 +3560,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
             }
         }
         if (ResourceManager::mixerClosed) {
-            PAL_INFO(LOG_TAG, "mixerClosed, exit mixerEventWaitThreadLoop");
+            PAL_INFO(LOG_TAG, "mixerClosed, closed mixerEventWaitThreadLoop");
             return;
         }
     }
@@ -3946,7 +3951,6 @@ void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t t
         HandleDetectionStreamAction(st_stream_type_to_start, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
         mResourceManagerMutex.lock();
     }
-
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -3962,6 +3966,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     struct pal_stream_attributes rx_attr;
     std::vector <std::shared_ptr<Device>> tx_device_list;
     std::vector <std::shared_ptr<Device>> rx_device_list;
+
+    PAL_DBG(LOG_TAG, "Enter");
 
     // check stream direction
     status = tx_str->getStreamAttributes(&tx_attr);
@@ -5470,21 +5476,23 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
 
     if (cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit_no_unlock;
     }
     mActiveStreamMutex.lock();
     status = streamDevDisconnect(streamDevDisconnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"disconnect failed");
-        goto error;
+        goto exit;
     }
     status = streamDevConnect(streamDevConnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"Connect failed");
     }
-error:
+exit:
     mActiveStreamMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit ret: %d", status);
+exit_no_unlock:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -5828,20 +5836,19 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     int ret = 0;
     char *kv_pairs = str_parms_to_str(parms);
 
+    PAL_DBG(LOG_TAG,"Enter: %s", kv_pairs);
     if(kv_pairs == NULL) {
         ret = -ENOMEM;
         PAL_ERR(LOG_TAG," key-value pair is NULL");
-        goto done;
+        goto exit;
     }
-
-    PAL_DBG(LOG_TAG," enter: %s", kv_pairs);
 
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
     if(value == NULL) {
         ret = -ENOMEM;
         PAL_ERR(LOG_TAG,"failed to allocate memory");
-        goto done;
+        goto exit;
     }
     ret = setNativeAudioParams(parms, value, len);
 
@@ -5854,8 +5861,8 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
 
-done:
-    PAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
+exit:
+    PAL_DBG(LOG_TAG,"Exit, status %d", ret);
     if(value != NULL)
         free(value);
     return ret;
@@ -7374,7 +7381,7 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
         }
     }
 error :
-    PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange");
+    PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange, status %d", status);
     return status;
 }
 

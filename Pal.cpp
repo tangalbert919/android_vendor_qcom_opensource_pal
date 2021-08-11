@@ -82,12 +82,13 @@ int32_t pal_init(void)
         ri = ResourceManager::getInstance();
     } catch (const std::exception& e) {
         PAL_ERR(LOG_TAG, "pal init failed: %s", e.what());
-        return -EINVAL;
+        ret = -EINVAL;
+        goto exit;
     }
     ret = ri->initSndMonitor();
     if (ret != 0) {
         PAL_ERR(LOG_TAG, "snd monitor init failed");
-        return ret;
+        goto exit;
     }
 
     ri->init();
@@ -95,10 +96,11 @@ int32_t pal_init(void)
     ret = ri->initContextManager();
     if (ret != 0) {
         PAL_ERR(LOG_TAG, "ContextManager init failed, error:%d", ret);
-        return ret;
+        goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "Exit. ret : %d ", ret);
+exit:
+    PAL_DBG(LOG_TAG, "Exit. exit status : %d ", ret);
     return ret;
 }
 
@@ -143,15 +145,16 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
         return status;
     }
 
-    PAL_INFO(LOG_TAG, "Enter, stream type:%d", attributes->type);
+    PAL_DBG(LOG_TAG, "Enter, stream type:%d", attributes->type);
 
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,
                            no_of_modifiers);
     } catch (const std::exception& e) {
+        status = -EINVAL;
         PAL_ERR(LOG_TAG, "Stream create failed: %s", e.what());
         Stream::handleStreamException(attributes, cb, cookie);
-        return -EINVAL;
+        goto exit;
     }
     if (!s) {
         status = -EINVAL;
@@ -173,7 +176,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
 exit:
-    PAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
+    PAL_DBG(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
 }
 
@@ -181,7 +184,6 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
     int status;
-    PAL_DBG(LOG_TAG, "Enter");
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
@@ -193,9 +195,10 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
     status = s->close();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream closed failed. status %d", status);
-        return status;
+        goto exit;
     }
 
+exit:
     delete s;
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
@@ -219,12 +222,13 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
     status = s->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-        return status;
+        goto exit;
     }
 
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
     notify_concurrent_stream(type, dir, true);
+exit:
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
@@ -249,11 +253,12 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
         notify_concurrent_stream(type, dir, false);
-        return status;
+        goto exit;
     }
 
     notify_concurrent_stream(type, dir, false);
 
+exit:
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
@@ -409,7 +414,7 @@ int32_t pal_stream_resume(pal_stream_handle_t *stream_handle)
 
     if (!stream_handle) {
         status = -EINVAL;
-        PAL_DBG(LOG_TAG, "Invalid stream handle status %d", status);
+        PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
 
@@ -491,7 +496,6 @@ int32_t pal_stream_suspend(pal_stream_handle_t *stream_handle)
     status = s->suspend();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "suspend failed with status %d", status);
-        return status;
     }
 
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
@@ -591,13 +595,13 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (no_of_devices == 0 || !devices) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid device status %d", status);
-        return status;
+        goto exit;
     }
 
     rm = ResourceManager::getInstance();
     if (!rm) {
         PAL_ERR(LOG_TAG, "Invalid resource manager");
-        return status;
+        goto exit;
     }
 
     /* Choose best device config for this stream */
@@ -609,7 +613,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (sattr.type == PAL_STREAM_VOICE_UI) {
         PAL_DBG(LOG_TAG,
                 "Device switch handles in global param set, skip here");
-        return status;
+        goto exit;
     }
 
     pDevices = (struct pal_device *) calloc(no_of_devices, sizeof(struct pal_device));
@@ -617,7 +621,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if(!pDevices) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "Memory alloc failed");
-        return status;
+        goto exit;
     }
 
     ar_mem_cpy(pDevices, no_of_devices * sizeof(struct pal_device),
@@ -648,12 +652,11 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
 
 exit:
     if(pDevices)
         free(pDevices);
-
+    PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -673,6 +676,7 @@ int32_t pal_stream_get_tags_with_module_info(pal_stream_handle_t *stream_handle,
     s =  reinterpret_cast<Stream *>(stream_handle);
     status = s->getTagsWithModuleInfo(size, payload);
 
+    PAL_DBG(LOG_TAG, "Exit. Stream handle: %pK, status %d", stream_handle, status);
     return status;
 }
 
@@ -694,7 +698,7 @@ int32_t pal_set_param(uint32_t param_id, void *param_payload,
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit:");
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -718,7 +722,7 @@ int32_t pal_get_param(uint32_t param_id, void **param_payload,
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit: %d", status);
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -824,6 +828,8 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
     int status = 0;
     std::shared_ptr<ResourceManager> rm = NULL;
     rm = ResourceManager::getInstance();
+
+    PAL_DBG(LOG_TAG, "Enter.");
     if (rm) {
         status = rm->rwParameterACDB(param_id, param_payload, payload_size,
                                         pal_device_id, pal_stream_type,
@@ -836,7 +842,7 @@ int32_t pal_gef_rw_param_acdb(uint32_t param_id __unused, void *param_payload,
         PAL_ERR(LOG_TAG, "Pal has not been initialized yet");
         status = -EINVAL;
     }
-    PAL_DBG(LOG_TAG, "Exit:");
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
 }

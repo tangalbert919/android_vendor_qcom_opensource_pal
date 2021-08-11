@@ -381,14 +381,15 @@ int Device::open()
     ++deviceCount;
 
 exit:
-    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s)", deviceCount,
-            this->deviceAttr.id, mPALDeviceName.c_str());
+    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s), exit status: %d", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str(), status);
     mDeviceMutex.unlock();
     return status;
 }
 
 int Device::close()
 {
+    int status = 0;
     mDeviceMutex.lock();
     PAL_INFO(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
             this->deviceAttr.id, mPALDeviceName.c_str());
@@ -401,10 +402,10 @@ int Device::close()
            mCurrentPriority = MIN_USECASE_PRIORITY;
        }
     }
-    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s)", deviceCount,
-            this->deviceAttr.id, mPALDeviceName.c_str());
+    PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s), exit status %d", deviceCount,
+            this->deviceAttr.id, mPALDeviceName.c_str(), status);
     mDeviceMutex.unlock();
-    return 0;
+    return status;
 }
 
 int Device::prepare()
@@ -429,7 +430,7 @@ int Device::start_l()
     int status = 0;
     std::string backEndName;
 
-    PAL_INFO(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
+    PAL_DBG(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
             this->deviceAttr.id, mPALDeviceName.c_str());
     if (deviceCount == 1) {
         rm->getBackendName(deviceAttr.id, backEndName);
@@ -450,6 +451,7 @@ int Device::start_l()
         }
     }
 exit :
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
