@@ -1528,7 +1528,7 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
     int32_t extEcbackendId;
     std::vector <std::string> extEcbackendNames;
     struct pal_device device;
-    struct pal_device rxDevAttr;
+    struct pal_device rxDevAttr = {};
     struct pal_device_info rxDevInfo;
     int dev_id = 0;
 
