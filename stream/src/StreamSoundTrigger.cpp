@@ -82,6 +82,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     lab_fd_ = nullptr;
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
+    concurrency_handling_ = false;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -477,11 +478,13 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
     uint64_t transit_duration = 0;
 
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+
     if (!active) {
         transit_start_time_ = std::chrono::steady_clock::now();
+        concurrency_handling_ = true;
     }
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     PAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
         new StConcurrentStreamEventConfig(active));
@@ -492,6 +495,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
         transit_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 transit_end_time_ - transit_start_time_).count();
+        concurrency_handling_ = false;
         PAL_INFO(LOG_TAG, "LPI/NLPI switch takes %llums",
             (long long)transit_duration);
     }
@@ -3059,9 +3063,10 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
              * 1. start recognition excuted
              * 2. resume excuted and current common capture profile is null
              */
-            if (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
+            if (!st_stream_.concurrency_handling_ &&
+                (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
                 (ev_cfg->id_ == ST_EV_RESUME &&
-                !st_stream_.rm->GetSoundTriggerCaptureProfile())) {
+                !st_stream_.rm->GetSoundTriggerCaptureProfile()))) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
@@ -3395,8 +3400,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             bool backend_update = false;
-            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
-                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
+            if (!st_stream_.concurrency_handling_ &&
+                (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL)) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
