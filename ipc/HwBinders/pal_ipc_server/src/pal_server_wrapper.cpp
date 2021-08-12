@@ -283,6 +283,10 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     pal_stream_callback callback = (cb == nullptr) ? nullptr : pal_callback;
     bool new_client = true;
 
+    if (attr_hidl == NULL) {
+        ALOGE("Invalid hidl attributes\n");
+        return Void();
+    }
     in_ch = attr_hidl.data()->in_media_config.ch_info.channels;
     out_ch = attr_hidl.data()->out_media_config.ch_info.channels;
     attr = (struct pal_stream_attributes *)calloc(1,
@@ -304,15 +308,17 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
     attr->in_media_config.bit_width = attr_hidl.data()->in_media_config.bit_width;
     attr->in_media_config.aud_fmt_id =
                      (pal_audio_fmt_t)attr_hidl.data()->in_media_config.aud_fmt_id;
-    memcpy(&attr->in_media_config.ch_info, &attr_hidl.data()->in_media_config.ch_info,
-           sizeof(struct pal_channel_info));
+    attr->in_media_config.ch_info.channels = attr_hidl.data()->in_media_config.ch_info.channels;
+    memcpy(&attr->in_media_config.ch_info.ch_map, &attr_hidl.data()->in_media_config.ch_info.ch_map,
+           sizeof(uint8_t [64]));
     attr->out_media_config.sample_rate = attr_hidl.data()->out_media_config.sample_rate;
     attr->out_media_config.bit_width =
                         attr_hidl.data()->out_media_config.bit_width;
     attr->out_media_config.aud_fmt_id =
                         (pal_audio_fmt_t)attr_hidl.data()->out_media_config.aud_fmt_id;
-    memcpy(&attr->out_media_config.ch_info, &attr_hidl.data()->out_media_config.ch_info,
-           sizeof(struct pal_channel_info));
+    attr->out_media_config.ch_info.channels = attr_hidl.data()->out_media_config.ch_info.channels;
+    memcpy(&attr->out_media_config.ch_info.ch_map, &attr_hidl.data()->out_media_config.ch_info.ch_map,
+           sizeof(uint8_t [64]));
 
     if (devs_hidl.size()) {
         PalDevice *dev_hidl = NULL;
@@ -327,8 +333,9 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
              devices[cnt].id = (pal_device_id_t)dev_hidl->id;
              devices[cnt].config.sample_rate = dev_hidl->config.sample_rate;
              devices[cnt].config.bit_width = dev_hidl->config.bit_width;
-             memcpy(&devices[cnt].config.ch_info, &dev_hidl->config.ch_info,
-                    sizeof(struct pal_channel_info));
+             devices[cnt].config.ch_info.channels = dev_hidl->config.ch_info.channels;
+             memcpy(&devices[cnt].config.ch_info.ch_map, &dev_hidl->config.ch_info.ch_map,
+                    sizeof(uint8_t [64]));
              devices[cnt].config.aud_fmt_id =
                                   (pal_audio_fmt_t)dev_hidl->config.aud_fmt_id;
              dev_hidl =  (PalDevice *)(dev_hidl + sizeof(PalDevice));
@@ -676,8 +683,9 @@ Return<int32_t> PAL::ipc_pal_stream_set_device(const uint64_t streamHandle,
             devices[cnt].id = (pal_device_id_t)dev_hidl->id;
             devices[cnt].config.sample_rate = dev_hidl->config.sample_rate;
             devices[cnt].config.bit_width = dev_hidl->config.bit_width;
-            memcpy(&devices[cnt].config.ch_info, &dev_hidl->config.ch_info,
-                   sizeof(struct pal_channel_info));
+            devices[cnt].config.ch_info.channels = dev_hidl->config.ch_info.channels;
+            memcpy(&devices[cnt].config.ch_info.ch_map, &dev_hidl->config.ch_info.ch_map,
+                   sizeof(uint8_t [64]));
             devices[cnt].config.aud_fmt_id =
                                 (pal_audio_fmt_t)dev_hidl->config.aud_fmt_id;
             dev_hidl = (PalDevice *)(dev_hidl + sizeof(PalDevice));

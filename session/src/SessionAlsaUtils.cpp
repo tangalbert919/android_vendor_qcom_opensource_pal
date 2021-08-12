@@ -338,6 +338,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
 
     PAL_DBG(LOG_TAG,"Entry \n");
 
+    memset(&dAttr, 0, sizeof(pal_device));
     status = streamHandle->getStreamAttributes(&sAttr);
     if(0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
