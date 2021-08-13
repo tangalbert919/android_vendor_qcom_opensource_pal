@@ -376,7 +376,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
 
              if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
                   (2 == dAttr.config.ch_info.channels)) {
-                 /* Get PSPD MFC MIID and configure to match to device config */
+                 /* Get DevicePP MFC MIID and configure to match to device config */
                  /* This has to be done after sending all mixer controls and
                   * before connect
                   */
@@ -384,7 +384,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                         SessionAlsaUtils::getModuleInstanceId(mixer,
                                                               device,
                                                               rxAifBackEnds[i].second.data(),
-                                                              TAG_DEVICE_MFC_SR,
+                                                              TAG_MFC_SPEAKER_SWAP,
                                                               &miid);
                 if (status != 0) {
                     PAL_ERR(LOG_TAG,"getModuleInstanceId failed");

@@ -74,6 +74,7 @@ typedef void * (*audio_get_dec_config_t)(audio_format_t *codec_format);
 typedef void * (*audio_sink_session_setup_complete_t)(uint64_t system_latency);
 typedef int (*audio_sink_check_a2dp_ready_t)(void);
 typedef uint16_t (*audio_sink_get_a2dp_latency_t)(void);
+typedef bool (*audio_is_scrambling_enabled_t)(void);
 
 // Abstract base class
 class Bluetooth : public Device
@@ -91,12 +92,14 @@ protected:
     bool                       isConfigured;
     bool                       isLC3MonoModeOn;
     bool                       isTwsMonoModeOn;
+    bool                       isScramblingEnabled;
     bool                       isDummySink;
     struct pcm                 *fbPcm;
     std::vector<int>           fbpcmDevIds;
     std::shared_ptr<Bluetooth> fbDev;
     int                        abrRefCnt;
     std::mutex                 mAbrMutex;
+    int                        totalActiveSessionRequests;
 
     int getPluginPayload(void **handle, bt_codec_t **btCodec,
                          bt_enc_payload_t **out_buf,
@@ -143,12 +146,12 @@ private:
     static audio_get_dec_config_t               audio_get_dec_config;
     static audio_sink_session_setup_complete_t  audio_sink_session_setup_complete;
     static audio_sink_check_a2dp_ready_t        audio_sink_check_a2dp_ready;
+    static audio_is_scrambling_enabled_t        audio_is_scrambling_enabled;
 
     /* member variables */
     uint8_t         a2dpRole;  // source or sink
     enum A2DP_STATE a2dpState;
     bool            isA2dpOffloadSupported;
-    int             totalActiveSessionRequests;
 
     int startPlayback();
     int stopPlayback();
@@ -185,11 +188,11 @@ protected:
     static std::shared_ptr<Device> objRx;
     static std::shared_ptr<Device> objTx;
     BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
-    bool isScoOn;
-    bool isWbSpeechEnabled;
-    int  swbSpeechMode;
-    bool isSwbLc3Enabled;
-    audio_lc3_codec_cfg_t lc3CodecInfo;
+    static bool isScoOn;
+    static bool isWbSpeechEnabled;
+    static int  swbSpeechMode;
+    static bool isSwbLc3Enabled;
+    static audio_lc3_codec_cfg_t lc3CodecInfo;
     int startSwb();
 
 public:

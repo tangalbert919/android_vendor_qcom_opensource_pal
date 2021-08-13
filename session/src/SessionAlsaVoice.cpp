@@ -76,6 +76,7 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
         device = pcmDevRxIds.at(0);
         break;
     case RAT_RENDER:
+    case BT_PCM_CONVERTER:
         if(strstr(backendName,"TX"))
             device = pcmDevTxIds.at(0);
         else
@@ -85,6 +86,13 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
         device = pcmDevTxIds.at(0);
         break;
     case BT_PLACEHOLDER_ENCODER:
+        device = pcmDevRxIds.at(0);
+        break;
+    case COP_DEPACKETIZER_V2:
+        device = pcmDevTxIds.at(0);
+        break;
+    case COP_PACKETIZER_V2:
+    case COP_PACKETIZER_V0:
         device = pcmDevRxIds.at(0);
         break;
     case MODULE_SP:
@@ -498,6 +506,8 @@ int SessionAlsaVoice::start(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
 
+    rm->voteSleepMonitor(s, true);
+
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -584,9 +594,11 @@ int SessionAlsaVoice::start(Stream * s)
     if (ttyMode) {
         palPayload = (pal_param_payload *)calloc(1,
                                  sizeof(pal_param_payload) + sizeof(ttyMode));
-        palPayload->payload_size = sizeof(ttyMode);
-        *(palPayload->payload) = ttyMode;
-        setParameters(s, TTY_MODE, PAL_PARAM_ID_TTY_MODE, palPayload);
+        if(palPayload != NULL){
+            palPayload->payload_size = sizeof(ttyMode);
+            *(palPayload->payload) = ttyMode;
+            setParameters(s, TTY_MODE, PAL_PARAM_ID_TTY_MODE, palPayload);
+        }
     }
 
     /*set sidetone*/
@@ -638,6 +650,8 @@ exit:
     }
     if (volume)
         free(volume);
+    if (status)
+        rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }
@@ -672,6 +686,7 @@ int SessionAlsaVoice::stop(Stream * s __unused)
         }
     }
 
+    rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }

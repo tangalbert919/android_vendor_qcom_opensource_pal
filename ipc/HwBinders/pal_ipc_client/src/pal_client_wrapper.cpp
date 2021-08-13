@@ -386,6 +386,19 @@ int32_t pal_stream_drain(pal_stream_handle_t *stream_handle, pal_drain_type_t dr
     return -EINVAL;
 }
 
+int32_t pal_stream_suspend(pal_stream_handle_t *stream_handle)
+{
+    if (!pal_server_died) {
+        ALOGD("%s:%d:", __func__, __LINE__);
+        android::sp<IPAL> pal_client = get_pal_server();
+        if (pal_client == nullptr)
+            return -EINVAL;
+
+        return pal_client->ipc_pal_stream_suspend((PalStreamHandle)stream_handle);
+    }
+    return -EINVAL;
+}
+
 int32_t pal_stream_set_buffer_size(pal_stream_handle_t *stream_handle,
                                     pal_buffer_config_t *in_buff_cfg,
                                     pal_buffer_config_t *out_buff_cfg)

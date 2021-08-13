@@ -1713,6 +1713,48 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     return status;
 }
 
+int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rmHandle, struct pal_device &dAttr,
+        const std::vector<int> &pcmTxDevIds,const std::vector<int> &pcmRxDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect)
+{
+    std::ostringstream disconnectCtrlName;
+    int status = 0;
+    struct mixer *mixerHandle = nullptr;
+    struct mixer_ctl *disconnectCtrl = nullptr;
+    struct mixer_ctl *txFeMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    std::ostringstream txFeName;
+
+    switch (streamType) {
+         case PAL_STREAM_ULTRASOUND:
+             status = rmHandle->getAudioMixer(&mixerHandle);
+             txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
+             txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
+             if (!txFeMixerCtrls[FE_LOOPBACK]) {
+                 PAL_ERR(LOG_TAG, "invalid mixer control %s",
+                         txFeName.str().data());
+                 status = -EINVAL;
+                 return status;
+             }
+             mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
+             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
+             break;
+        default:
+            disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
+            break;
+    }
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    disconnectCtrl = mixer_get_ctl_by_name(mixerHandle, disconnectCtrlName.str().data());
+    if (!disconnectCtrl) {
+        PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
+        return -EINVAL;
+    }
+    /** Disconnect FE to BE */
+    mixer_ctl_set_enum_by_string(disconnectCtrl, aifBackEndsToDisconnect[0].second.data());
+
+    return status;
+}
+
 int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rmHandle, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
@@ -1771,8 +1813,11 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Get PSPD MFC MIID and configure to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (PAL_STREAM_VOICE_CALL != streamType) {
-        if (sAttr.direction == PAL_AUDIO_OUTPUT &&
-                !(SessionAlsaUtils::isMmapUsecase(sAttr))) {
+        if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
+            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_SCO &&
+            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+            PAL_DBG(LOG_TAG, "Mmap usecase other than BT, no need to configure MFC\n");
+        } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
             status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmDevIds.at(0),
                                                        aifBackEndsToConnect[0].second.data(),
                                                        TAG_DEVICE_MFC_SR, &miid);
@@ -1844,6 +1889,101 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         goto exit;
     }
     status = mixer_ctl_set_enum_by_string(connectCtrl, aifBackEndsToConnect[0].second.data());
+
+exit:
+    if(builder) {
+       delete builder;
+       builder = NULL;
+    }
+    return status;
+}
+
+int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rmHandle, struct pal_device &dAttr,
+        const std::vector<int> &pcmTxDevIds,const std::vector<int> &pcmRxDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect)
+{
+    std::ostringstream connectCtrlName;
+    int status = 0;
+    struct mixer *mixerHandle = nullptr;
+    struct mixer_ctl *connectCtrl = nullptr;
+    struct mixer_ctl *txFeMixerCtrls[FE_MAX_NUM_MIXER_CONTROLS] = { nullptr };
+    std::ostringstream txFeName,rxFeName;
+    struct pal_stream_attributes sAttr;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    struct sessionToPayloadParam mfcData;
+    PayloadBuilder* builder = new PayloadBuilder();
+    uint32_t miid = 0;
+
+    connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
+
+    status = rmHandle->getAudioMixer(&mixerHandle);
+    if (status) {
+        PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
+        goto exit;
+    }
+    if (dAttr.id == PAL_DEVICE_OUT_SPEAKER &&
+        streamType == PAL_STREAM_ULTRASOUND) {
+        status = SessionAlsaUtils::getModuleInstanceId(mixerHandle, pcmRxDevIds.at(0),
+                                                   aifBackEndsToConnect[0].second.data(),
+                                                   TAG_DEVICE_MFC_SR, &miid);
+        if (status == 0) {
+            PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
+                  pcmRxDevIds.at(0), aifBackEndsToConnect[0].second.data(), dAttr.id);
+        } else {
+            PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+            goto exit;
+        }
+
+        mfcData.bitWidth = dAttr.config.bit_width;
+        mfcData.sampleRate = dAttr.config.sample_rate;
+        mfcData.numChannel = dAttr.config.ch_info.channels;
+        mfcData.ch_info = nullptr;
+
+       builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
+       if (!payloadSize) {
+            PAL_ERR(LOG_TAG, "payloadMFCConfig failed\n");
+            status = -EINVAL;
+            goto exit;
+       }
+
+       status = SessionAlsaUtils::setMixerParameter(mixerHandle, pcmRxDevIds.at(0),
+                                                 payload, payloadSize);
+       free(payload);
+       if (status != 0) {
+           PAL_ERR(LOG_TAG,"setMixerParameter failed");
+           goto exit;
+       }
+    }
+
+    connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
+    if (!connectCtrl) {
+        PAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
+        status = -EINVAL;
+        goto exit;
+    }
+    /** connect FE to BE */
+    mixer_ctl_set_enum_by_string(connectCtrl, aifBackEndsToConnect[0].second.data());
+
+    switch (streamType) {
+         case PAL_STREAM_ULTRASOUND:
+             status = rmHandle->getAudioMixer(&mixerHandle);
+             txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
+             rxFeName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0);
+             txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
+             if (!txFeMixerCtrls[FE_LOOPBACK]) {
+                 PAL_ERR(LOG_TAG, "invalid mixer control %s",
+                         txFeName.str().data());
+                 status = -EINVAL;
+                 goto exit;
+             }
+             mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], rxFeName.str().data());
+             break;
+         default:
+             PAL_ERR(LOG_TAG, "unknown stream type %d",streamType);
+             break;
+    }
 
 exit:
     if(builder) {

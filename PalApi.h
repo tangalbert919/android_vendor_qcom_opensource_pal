@@ -201,6 +201,17 @@ int32_t pal_stream_flush(pal_stream_handle_t *stream_handle);
 int32_t pal_stream_drain(pal_stream_handle_t *stream_handle, pal_drain_type_t type);
 
 /**
+  * \brief Suspend graph and stop processing data from the stream.
+  * Stream must be in started state before suspending.
+  *
+  * \param[in] stream_handle - Valid stream handle obtained
+  *       from pal_stream_open
+  *
+  * \return 0 on success, error code otherwise
+  */
+int32_t pal_stream_suspend(pal_stream_handle_t *stream_handle);
+
+/**
   * Get audio buffer size based on the direction of the stream.
   *
   * \param[in] stream_handle - Valid stream handle obtained

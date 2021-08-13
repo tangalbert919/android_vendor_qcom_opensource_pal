@@ -82,6 +82,8 @@ std::mutex SpeakerProtection::cvMutex;
 std::mutex SpeakerProtection::calibrationMutex;
 
 bool SpeakerProtection::isSpkrInUse;
+bool SpeakerProtection::calThrdCreated;
+bool SpeakerProtection::isDynamicCalTriggered = false;
 struct timespec SpeakerProtection::spkrLastTimeUsed;
 struct mixer *SpeakerProtection::mixer;
 speaker_prot_cal_state SpeakerProtection::spkrCalState;
@@ -873,7 +875,6 @@ void SpeakerProtection::spkrCalibrationThread()
 {
     unsigned long sec = 0;
     bool proceed = false;
-    std::string line;
     int i;
 
     while (!threadExit) {
@@ -886,8 +887,11 @@ void SpeakerProtection::spkrCalibrationThread()
             continue;
         }
         else {
-            PAL_DBG(LOG_TAG, "Speaker not in use, let's check for idle time");
-            if (sec < minIdleTime) {
+            PAL_DBG(LOG_TAG, "Speaker not in use");
+            if (isDynamicCalTriggered) {
+                PAL_DBG(LOG_TAG, "Dynamic Calibration triggered");
+            }
+            else if (sec < minIdleTime) {
                 PAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %lu", sec);
                 spkrCalibrateWait();
                 PAL_DBG(LOG_TAG, "Waited for speaker to be idle for min time");
@@ -897,7 +901,7 @@ void SpeakerProtection::spkrCalibrationThread()
         }
 
         if (proceed) {
-            PAL_DBG(LOG_TAG, "Gettingtemperature of speakers");
+            PAL_DBG(LOG_TAG, "Getting temperature of speakers");
             getSpeakerTemperatureList();
 
             for (i = 0; i < numberOfChannels; i++) {
@@ -930,8 +934,11 @@ void SpeakerProtection::spkrCalibrationThread()
             continue;
         }
         else {
-            PAL_DBG(LOG_TAG, "Speaker not in use, let's check for idle time");
-            if (sec < minIdleTime) {
+            PAL_DBG(LOG_TAG, "Speaker not in use");
+            if (isDynamicCalTriggered) {
+                PAL_DBG(LOG_TAG, "Dynamic calibration triggered");
+            }
+            else if (sec < minIdleTime) {
                 PAL_DBG(LOG_TAG, "Speaker not idle for minimum time. %lu", sec);
                 spkrCalibrateWait();
                 PAL_DBG(LOG_TAG, "Waited for speaker to be idle for min time");
@@ -952,6 +959,7 @@ void SpeakerProtection::spkrCalibrationThread()
             continue;
         }
     }
+    isDynamicCalTriggered = false;
     calThrdCreated = false;
     PAL_DBG(LOG_TAG, "Calibration done, exiting the thread");
 }
@@ -1637,10 +1645,11 @@ int SpeakerProtection::speakerProtectionDynamicCal()
 {
     int ret = 0;
 
-    PAL_DBG(LOG_TAG, "Trigger Dynamic Cal");
+    PAL_DBG(LOG_TAG, "Enter");
 
-    if ((spkrCalState == SPKR_CALIB_IN_PROGRESS) || calThrdCreated) {
-        PAL_DBG(LOG_TAG, "Calibration already triggered");
+    if (calThrdCreated) {
+        PAL_DBG(LOG_TAG, "Calibration already triggered Thread State %d",
+                        calThrdCreated);
         return ret;
     }
 
@@ -1650,9 +1659,15 @@ int SpeakerProtection::speakerProtectionDynamicCal()
     calibrationCallbackStatus = 0;
     mDspCallbackRcvd = false;
 
-    mCalThread = std::thread(&SpeakerProtection::spkrCalibrationThread,
-                        this);
     calThrdCreated = true;
+    isDynamicCalTriggered = true;
+
+    std::thread dynamicCalThread(&SpeakerProtection::spkrCalibrationThread, this);
+
+    dynamicCalThread.detach();
+
+    PAL_DBG(LOG_TAG, "Exit");
+
     return ret;
 }
 

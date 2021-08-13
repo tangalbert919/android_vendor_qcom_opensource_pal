@@ -69,6 +69,7 @@ typedef enum {
 #define AUDIO_PARAMETER_KEY_UPD_DEDICATED_BE "upd_dedicated_be"
 #define MAX_PCM_NAME_SIZE 50
 #define MAX_STREAM_INSTANCES (sizeof(uint64_t) << 3)
+#define MIN_USECASE_PRIORITY 0xFFFFFFFF
 #if LINUX_ENABLED
 #if defined(__LP64__)
 #define ADM_LIBRARY_PATH "/usr/lib64/libadm.so"
@@ -112,6 +113,8 @@ typedef enum {
     TAG_POLICIES,
     TAG_ECREF,
     TAG_CUSTOMCONFIG,
+    TAG_LPI_VOTE_STREAM,
+    TAG_SLEEP_MONITOR_LPI_STREAM
 } resource_xml_tags_t;
 
 typedef enum {
@@ -179,6 +182,8 @@ struct usecase_custom_config_info
     int channel;
     sidetone_mode_t sidetoneMode;
     int samplerate;
+    uint32_t priority;
+    uint32_t bit_width;
 };
 
 struct usecase_info {
@@ -188,6 +193,8 @@ struct usecase_info {
     std::string sndDevName;
     int channel;
     std::vector<usecase_custom_config_info> config;
+    uint32_t priority;
+    uint32_t bit_width;
 
 };
 
@@ -197,6 +204,13 @@ struct pal_device_info {
      int samplerate;
      std::string sndDevName;
      bool isExternalECRefEnabledFlag;
+     uint32_t priority;
+     bool fractionalSRSupported;
+     bool channels_overwrite;
+     bool samplerate_overwrite;
+     bool sndDevName_overwrite;
+     bool bit_width_overwrite;
+     uint32_t bit_width;
 };
 
 struct vsid_modepair {
@@ -270,6 +284,7 @@ class SndCardMonitor;
 class StreamUltraSound;
 class ContextManager;
 class StreamSensorPCMData;
+class StreamContextProxy;
 
 struct deviceIn {
     int deviceId;
@@ -293,6 +308,8 @@ struct deviceIn {
     std::map<int, std::vector<std::pair<Stream *, int>>> ec_ref_count_map;
     std::string sndDevName;
     bool isExternalECRefEnabled;
+    bool fractionalSRSupported;
+    uint32_t bit_width;
 };
 
 class ResourceManager
@@ -303,24 +320,6 @@ private:
     int mPriorityHighestPriorityActiveStream; //priority of the highest priority active stream
     Stream* mHighestPriorityActiveStream; //pointer to the highest priority active stream
     int getNumFEs(const pal_stream_type_t sType) const;
-    /* shouldDeviceSwitch will return true, if the incoming stream properties and device
-     * properties should force a device switch, these are the points to consider
-     *
-     * order of priority
-     *
-     *     100 - voice and VOIP call streams have the highest priority (10 points or 0 points),
-     *     and device properties should be derived from that
-     *
-     *     50 - points if the stream is a 44.1 stream. This has the second highest priority
-     *
-     *     25 - points if the stream is a 24 bit stream. This has the third highest priority
-     *
-     * const bool shouldDeviceSwitch(const pal_stream_attributes* sExistingAttr,
-     * const pal_stream_attributes* sIncomingAttr) const
-     */
-
-    bool shouldDeviceSwitch(const pal_stream_attributes* sExistingAttr,
-         const pal_stream_attributes* sIncomingAttr) const;
     bool ifVoiceorVoipCall (pal_stream_type_t streamType) const;
     int getCallPriority(bool ifVoiceCall) const;
     int getStreamAttrPriority (const pal_stream_attributes* sAttr) const;
@@ -342,7 +341,7 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
-
+    static bool isBitWidthSupported(uint32_t bitWidth);
 protected:
     std::vector <Stream*> mActiveStreams;
     std::vector <StreamPCM*> active_streams_ll;
@@ -361,6 +360,7 @@ protected:
     std::vector <StreamACD*> active_streams_acd;
     std::vector <StreamUltraSound*> active_streams_ultrasound;
     std::vector <StreamSensorPCMData*> active_streams_sensor_pcm_data;
+    std::vector <StreamContextProxy*> active_streams_context_proxy;
     std::vector <SoundTriggerEngine*> active_engines_st;
     std::vector <std::pair<std::shared_ptr<Device>, Stream*>> active_devices;
     std::vector <std::shared_ptr<Device>> plugin_devices_;
@@ -372,6 +372,7 @@ protected:
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
     static std::mutex mActiveStreamMutex;
+    static std::mutex mSleepMonitorMutex;
     static int snd_card;
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
@@ -410,6 +411,7 @@ protected:
     static struct vsid_info vsidInfo;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
+    static std::vector <uint32_t> lpi_vote_streams_;
     /* condition variable for which ssrHandlerLoop will wait */
     static std::condition_variable cv;
     static std::mutex cvMutex;
@@ -434,6 +436,9 @@ protected:
     std::shared_ptr<CaptureProfile> SoundTriggerCaptureProfile;
     ResourceManager();
     ContextManager *ctxMgr;
+    int32_t lpi_counter_;
+    int32_t nlpi_counter_;
+    int sleepmon_fd_;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -482,7 +487,7 @@ public:
     bool isStreamSupported(struct pal_stream_attributes *attributes,
                            struct pal_device *devices, int no_of_devices);
     int32_t getDeviceConfig(struct pal_device *deviceattr,
-                            struct pal_stream_attributes *attributes, int32_t channel);
+                            struct pal_stream_attributes *attributes);
     /*getDeviceInfo - updates channels, fluence info of the device*/
     void getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t type,
                        std::string key, struct pal_device_info *devinfo);
@@ -565,7 +570,7 @@ public:
     void getBackEndNames( const std::vector<std::shared_ptr<Device>> &deviceList,
                           std::vector<std::pair<int32_t, std::string>> &rxBackEndNames,
                           std::vector<std::pair<int32_t, std::string>> &txBackEndNames) const;
-    bool updateDeviceConfig(std::shared_ptr<Device> inDev,
+    bool updateDeviceConfig(std::shared_ptr<Device> *inDev,
              struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
     int32_t forceDeviceSwitch(std::shared_ptr<Device> inDev, struct pal_device *newDevAttr);
     const std::string getPALDeviceName(const pal_device_id_t id) const;
@@ -605,6 +610,9 @@ public:
     void ConcurrentStreamStatus(pal_stream_type_t type,
                                 pal_stream_direction_t dir,
                                 bool active);
+    void HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t type,
+                                pal_stream_direction_t dir,
+                                bool active);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices(Stream *tx_str);
     std::shared_ptr<Device> getActiveEchoReferenceRxDevices_l(Stream *tx_str);
     std::vector<Stream*> getConcurrentTxStream(
@@ -620,6 +628,8 @@ public:
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_lpi_vote_streams(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
@@ -648,14 +658,19 @@ public:
     static pal_device_id_t getDeviceId(std::string device_name);
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
+    bool isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
     int32_t a2dpResume();
+    int32_t a2dpCaptureSuspend();
+    int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
-    bool isDeviceSwitchRequired(struct pal_device *activeDevAttr,
-         struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr);
     bool isDpDevice(pal_device_id_t id);
+
+    /* Separate device reference counts are maintained in PAL device and GSL device SGs.
+     * lock graph is to sychronize these reference counts during device and session operations
+     */
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
@@ -679,6 +694,19 @@ public:
     static void process_custom_config(const XML_Char **attr);
     static void process_usecase();
     void getVendorConfigPath(char* config_file_path, int path_size);
+    void restoreDevice(std::shared_ptr<Device> dev);
+    bool doDevAttrDiffer(struct pal_device *inDevAttr,
+                         const char *CurrentSndDeviceName,
+                         struct pal_device *curDevAttr);
+    int updatePriorityAttr(pal_device_id_t dev_id,
+                           std::vector <std::tuple<Stream *, uint32_t>> activestreams,
+                           struct pal_device *incomingDev,
+                           const pal_stream_attributes* currentStrAttr);
+    bool compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
+                                 const struct pal_device_info *Dev1Info,
+                                 struct pal_device *Dev2Attr,
+                                 const struct pal_device_info *Dev2Info);
+    int32_t voteSleepMonitor(Stream *str, bool vote);
 };
 
 #endif

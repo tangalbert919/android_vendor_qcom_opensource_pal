@@ -35,6 +35,21 @@ LOCAL_C_INCLUDES := \
     $(TOP)/system/media/audio_route/include \
     $(TOP)/system/media/audio/include
 
+ifneq ($(TARGET_KERNEL_VERSION), 3.18)
+ifneq ($(TARGET_KERNEL_VERSION), 4.14)
+ifneq ($(TARGET_KERNEL_VERSION), 4.19)
+ifneq ($(TARGET_KERNEL_VERSION), 4.4)
+ifneq ($(TARGET_KERNEL_VERSION), 4.9)
+ifneq ($(TARGET_KERNEL_VERSION), 5.4)
+LOCAL_CFLAGS        += -DADSP_SLEEP_MONITOR
+LOCAL_C_INCLUDES += $(TOP)/kernel_platform/msm-kernel/include/uapi/misc
+endif
+endif
+endif
+endif
+endif
+endif
+
 LOCAL_C_INCLUDES              += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES              += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/techpack/audio/include
 LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
@@ -123,6 +138,28 @@ endif
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_USE_VNDK := true
+
+LOCAL_C_INCLUDES     := $(TOP)/vendor/qcom/opensource/pal
+
+LOCAL_CFLAGS += -Wno-tautological-compare
+LOCAL_CFLAGS += -Wno-macro-redefined
+
+LOCAL_SRC_FILES  := test/PalUsecaseTest.c \
+                    test/PalTest_main.c
+
+LOCAL_MODULE               := PalTest
+LOCAL_MODULE_OWNER         := qti
+LOCAL_MODULE_TAGS          := optional
+
+LOCAL_SHARED_LIBRARIES := \
+                          libpalclient
+LOCAL_VENDOR_MODULE := true
+
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
 include $(PAL_BASE_PATH)/plugins/Android.mk
 include $(PAL_BASE_PATH)/ipc/HwBinders/Android.mk
 

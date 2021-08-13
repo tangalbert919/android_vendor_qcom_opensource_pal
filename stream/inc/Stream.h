@@ -54,6 +54,7 @@ typedef enum {
     STREAM_OPENED,
     STREAM_STARTED,
     STREAM_PAUSED,
+    STREAM_SUSPENDED,
     STREAM_STOPPED
 } stream_state_t;
 
@@ -127,7 +128,7 @@ class Stream
 protected:
     uint32_t mNoOfDevices;
     std::vector <std::shared_ptr<Device>> mDevices;
-    static struct pal_device* mPalDevice;
+    std::vector <struct pal_device> mPalDevice;
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
     struct pal_volume_data* mVolumeData = NULL;
@@ -170,6 +171,7 @@ public:
     virtual int32_t pause() = 0;
     virtual int32_t resume() = 0;
     virtual int32_t flush() {return 0;}
+    virtual int32_t suspend() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
 
     virtual int32_t addRemoveEffect(pal_audio_effect_t effect, bool enable) = 0; //TBD: make this non virtual and prrovide implementation as StreamPCM and StreamCompressed are doing the same things
@@ -195,6 +197,7 @@ public:
     uint32_t getRenderLatency();
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
+    int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);
@@ -209,6 +212,7 @@ public:
          uint32_t no_of_devices, struct modifier_kv *modifiers, uint32_t no_of_modifiers);
     bool isStreamAudioOutFmtSupported(pal_audio_fmt_t format);
     int32_t getTimestamp(struct pal_session_time *stime);
+    int32_t handleBTDeviceNotReady(bool& a2dpSuspend);
     int disconnectStreamDevice(Stream* streamHandle,  pal_device_id_t dev_id);
     int disconnectStreamDevice_l(Stream* streamHandle,  pal_device_id_t dev_id);
     int connectStreamDevice(Stream* streamHandle, struct pal_device *dattr);
@@ -257,6 +261,7 @@ public:
    int32_t resume() override;
    int32_t drain(pal_drain_type_t type) override;
    int32_t flush();
+   int32_t suspend() override;
    int32_t getTagsWithModuleInfo(size_t *size , uint8_t *payload) override;
    int32_t setBufInfo(size_t *in_buf_size, size_t in_buf_count,
                        size_t *out_buf_size, size_t out_buf_count);

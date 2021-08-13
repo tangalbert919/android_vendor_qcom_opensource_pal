@@ -48,7 +48,7 @@ using ChronoSteadyClock_t = std::chrono::time_point<std::chrono::steady_clock>;
 #define BITS_PER_BYTE 8
 #define US_PER_SEC 1000000
 #define MS_PER_SEC 1000
-#define CNN_BUFFER_SIZE 15360
+#define CNN_BUFFER_LENGTH 10000
 #define CNN_FRAME_SIZE 320
 #define CUSTOM_CONFIG_OPAQUE_DATA_SIZE 12
 #define CONF_LEVELS_INTF_VERSION_0002 0x02

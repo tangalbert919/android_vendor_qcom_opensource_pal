@@ -83,6 +83,8 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
     outBufSize = COMPRESS_OFFLOAD_FRAGMENT_SIZE;
     inBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
     outBufCount = COMPRESS_OFFLOAD_NUM_FRAGMENTS;
+    mDevices.clear();
+    mPalDevice.clear();
     PAL_VERBOSE(LOG_TAG,"enter");
 
     //TBD handle modifiers later
@@ -132,14 +134,14 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             throw std::runtime_error("failed to create device object");
         }
         mStreamMutex.unlock();
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
 
         if (isDeviceConfigUpdated)
             PAL_VERBOSE(LOG_TAG, "Device config updated");
 
         mDevices.push_back(dev);
-        //rm->registerDevice(dev);
+        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
     mStreamMutex.unlock();
@@ -235,6 +237,7 @@ int32_t StreamCompress::close()
     PAL_VERBOSE(LOG_TAG,"closed the devices successfully");
     currentState = STREAM_IDLE;
     mStreamMutex.unlock();
+
     PAL_DBG(LOG_TAG,"Exit status: %d",status);
     return status;
 }
@@ -252,7 +255,16 @@ StreamCompress::~StreamCompress()
         free(mVolumeData);
         mVolumeData = (struct pal_volume_data *)NULL;
     }
+
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     if (session) {
         delete session;
         session = nullptr;
@@ -273,13 +285,15 @@ int32_t StreamCompress::stop()
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG,"In PAL_AUDIO_OUTPUT case, device count - %zu", mDevices.size());
+
+            rm->lockGraph();
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Rx session stop failed with status %d",status);
             }
             PAL_VERBOSE(LOG_TAG,"session stop successful");
-            for (int32_t i = 0; i < mDevices.size(); i++) {
 
+            for (int32_t i = 0; i < mDevices.size(); i++) {
                 PAL_ERR(LOG_TAG, "device %d name %s, going to stop",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
@@ -288,6 +302,7 @@ int32_t StreamCompress::stop()
                     PAL_ERR(LOG_TAG,"Rx device stop failed with status %d",status);
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG,"devices stop successful");
             break;
         default:
@@ -314,6 +329,7 @@ exit:
 int32_t StreamCompress::start()
 {
     int32_t status = 0;
+    bool a2dpSuspend = false;
 
     mStreamMutex.lock();
 
@@ -329,10 +345,15 @@ int32_t StreamCompress::start()
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
-            rm->lockGraph();
-            PAL_VERBOSE(LOG_TAG,"Inside PAL_AUDIO_OUTPUT device count - %zu", mDevices.size());
-            for (int32_t i=0; i < mDevices.size(); i++) {
+            PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_OUTPUT device count - %zu", mDevices.size());
 
+            // handle scenario where BT device is not ready
+            status = handleBTDeviceNotReady(a2dpSuspend);
+            if (0 != status)
+                goto exit;
+
+            rm->lockGraph();
+            for (int32_t i=0; i < mDevices.size(); i++) {
                 PAL_ERR(LOG_TAG, "device %d name %s, going to start",
                     mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
@@ -344,6 +365,7 @@ int32_t StreamCompress::start()
                 }
             }
             PAL_VERBOSE(LOG_TAG,"devices started successfully");
+
             status = session->prepare(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Rx session prepare is failed with status %d",status);
@@ -351,6 +373,7 @@ int32_t StreamCompress::start()
                 goto session_fail;
             }
             PAL_VERBOSE(LOG_TAG,"session prepare successful");
+
             status = session->start(this);
             if (errno == -ENETRESET) {
                 if (rm->cardState != CARD_STATUS_OFFLINE) {
@@ -366,8 +389,17 @@ int32_t StreamCompress::start()
                 rm->unlockGraph();
                 goto session_fail;
             }
-            PAL_VERBOSE(LOG_TAG,"session start successful");
+            PAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
+
+            if (a2dpSuspend) {
+                PAL_DBG(LOG_TAG, "mute the stream on speaker");
+                if (!a2dpMuted) {
+                    mute_l(true);
+                    a2dpMuted = true;
+                }
+                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            }
             break;
         default:
             status = -EINVAL;
@@ -446,7 +478,10 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
         return status;
     }
 
-    if (currentState == STREAM_OPENED || currentState == STREAM_STARTED) {
+    //we should allow writes to go through in Open/Start/Pause state as well.
+    if ( (currentState == STREAM_OPENED) ||
+        (currentState == STREAM_STARTED) ||
+        (currentState == STREAM_PAUSED)) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         if (0 != status) {
             PAL_ERR(LOG_TAG, "session write failed with status %d", status);
@@ -457,11 +492,11 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
                 return errno;
             } else {
-                status = errno;
                 return status;
             }
         }
-        if (currentState != STREAM_STARTED) {
+        if ((currentState != STREAM_STARTED) &&
+            (currentState != STREAM_PAUSED)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
             for (int i = 0; i < mDevices.size(); i++) {

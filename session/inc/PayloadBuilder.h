@@ -201,7 +201,7 @@ public:
     void payloadRATConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
     void payloadPcmCnvConfig(uint8_t** payload, size_t* size, uint32_t miid,
-                             struct pal_media_config *data);
+                             struct pal_media_config *data, bool isRx);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
     void payloadCopV2DepackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data,
@@ -211,6 +211,8 @@ public:
                           bool isTwsMonoModeOn, uint32_t codecFormat);
     void payloadSPConfig(uint8_t** payload, size_t* size, uint32_t miid,
                          int paramId, void *data);
+    void payloadScramblingConfig(uint8_t** payload, size_t* size,
+            uint32_t miid, uint32_t enable);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx ,struct vsid_info vsidinfo);
@@ -242,10 +244,13 @@ public:
     static std::vector <std::string> retrieveSelectors(int32_t type,
         std::vector<allKVs> any_type);
     static std::vector <std::pair<selector_type_t, std::string>> getSelectorValues(
-        std::vector<std::string> &selectors, Stream* s);
+        std::vector<std::string> &selectors, Stream* s, struct pal_device* dAttr);
     static bool compareSelectorPairs(std::vector <std::pair<selector_type_t, std::string>>
         &selector_val, std::vector<std::pair<selector_type_t, std::string>> &filled_selector_pairs);
     static int retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
+        &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+        std::vector<std::pair<int32_t, int32_t>> &keyVector);
+    static bool findKVs(std::vector<std::pair<selector_type_t, std::string>>
         &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
         std::vector<std::pair<int32_t, int32_t>> &keyVector);
     static std::string removeSpaces(const std::string& str);

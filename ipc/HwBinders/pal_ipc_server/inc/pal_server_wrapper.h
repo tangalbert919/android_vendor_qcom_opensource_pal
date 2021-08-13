@@ -36,6 +36,7 @@
 #include <hidl/MQDescriptor.h>
 #include <hidl/Status.h>
 #include <utils/RefBase.h>
+#include <mutex>
 #include "PalApi.h"
 #include<log/log.h>
 
@@ -117,6 +118,7 @@ struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
     Return<int32_t> ipc_pal_stream_start(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_stop(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_pause(const uint64_t streamHandle) override;
+    Return<int32_t> ipc_pal_stream_suspend(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_resume(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_flush(const uint64_t streamHandle) override;
     Return<int32_t> ipc_pal_stream_drain(const uint64_t streamHandle,
@@ -176,7 +178,7 @@ struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
     Return<void>ipc_pal_stream_get_tags_with_module_info(const uint64_t streamHandle,
                                      uint32_t size,
                                      ipc_pal_stream_get_tags_with_module_info_cb _hidl_cb) override;
-    sp<PalClientDeathRecipient> client_death_recipient_;
+    sp<PalClientDeathRecipient> mDeathRecipient;
     std::vector<client_info> mPalClients;
 private:
     int find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd);
@@ -192,6 +194,7 @@ class PalClientDeathRecipient : public android::hardware::hidl_death_recipient
          const android::wp<::android::hidl::base::V1_0::IBase>& who) override ;
     private:
        sp<PAL> mPalInstance;
+       std::mutex mLock;
 };
 
 }

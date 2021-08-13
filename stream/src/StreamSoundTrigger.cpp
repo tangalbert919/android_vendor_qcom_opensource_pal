@@ -51,7 +51,7 @@
 ST_DBG_DECLARE(static int lab_cnt = 0);
 
 StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
-                                       struct pal_device *dattr __unused,
+                                       struct pal_device *dattr,
                                        uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
@@ -70,6 +70,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     sm_config_ = nullptr;
     rec_config_ = nullptr;
     paused_ = false;
+    device_opened_ = false;
     pending_stop_ = false;
     currentState = STREAM_IDLE;
     capture_requested_ = false;
@@ -81,6 +82,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     lab_fd_ = nullptr;
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
+    mDevices.clear();
+    mPalDevice.clear();
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -106,6 +109,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     if (!st_info_) {
         PAL_ERR(LOG_TAG, "Failed to get sound trigger platform info");
         throw std::runtime_error("Failed to get sound trigger platform info");
+    }
+
+    if (!dattr) {
+        PAL_ERR(LOG_TAG,"Error:invalid device arguments");
+        throw std::runtime_error("invalid device arguments");
+    }
+
+    for (int i=0; i < no_of_devices; i++) {
+        mPalDevice.push_back(dattr[i]);
     }
 
     mStreamAttr = (struct pal_stream_attributes *)calloc(1,
@@ -244,6 +256,7 @@ int32_t StreamSoundTrigger::close() {
         free(st_conf_levels_v2_);
         st_conf_levels_v2_ = nullptr;
     }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -303,15 +316,16 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
     size = cur_state_->ProcessEvent(ev_cfg);
 
     /*
-     * st stream read pcm data from ringbuffer with no almost
+     * st stream read pcm data from ringbuffer with almost no
      * delay, sleep for some time after each read even if read
-     * fails.
+     * fails or no enough data in ring buffer
      */
-
-    sleep_ms = (buf->size * BITS_PER_BYTE * MS_PER_SEC) /
-        (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
-         sm_cfg_->GetOutChannels());
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+    if (size <= 0 || reader_->getUnreadSize() < buf->size) {
+        sleep_ms = (buf->size * BITS_PER_BYTE * MS_PER_SEC) /
+            (sm_cfg_->GetSampleRate() * sm_cfg_->GetBitWidth() *
+             sm_cfg_->GetOutChannels());
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+    }
 
     PAL_VERBOSE(LOG_TAG, "Exit, read size %d", size);
 
@@ -354,12 +368,13 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
             delete dattr;
         }
 
-        if (mDevices.size() > 0) {
+        if (mDevices.size() > 0 && !device_opened_) {
             status = mDevices[0]->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
                 return status;
             }
+            device_opened_ = true;
         }
 
         cap_prof_ = GetCurrentCaptureProfile();
@@ -395,6 +410,7 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
 exit:
     if (mDevices.size() > 0) {
         status = mDevices[0]->close();
+        device_opened_ = false;
         if (0 != status) {
             PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
         }
@@ -790,7 +806,7 @@ int32_t StreamSoundTrigger::SetEngineDetectionState(int32_t det_type) {
         if (lock_status)
             mStreamMutex.unlock();
         PAL_DBG(LOG_TAG, "Exit as stream not in proper state");
-        return status;
+        return -EINVAL;
     }
 
     if (det_type == GMM_DETECTED) {
@@ -2789,13 +2805,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 dev = nullptr;
                 delete dattr;
             }
-            if (st_stream_.mDevices.size() > 0) {
-                status = st_stream_.mDevices[0]->open();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                    goto err_exit;
-                }
-            }
 
             cap_prof = st_stream_.GetCurrentCaptureProfile();
             st_stream_.cap_prof_ = cap_prof;
@@ -2963,16 +2972,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL: {
             int ret = 0;
 
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                PAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
-                        dev->getPALDeviceName().c_str());
-                ret = dev->close();
-                if (0 != ret) {
-                    PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                    status = ret;
-                }
-            }
             st_stream_.mDevices.clear();
 
             for (auto& eng: st_stream_.engines_) {
@@ -3013,7 +3012,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             status = st_stream_.SendRecognitionConfig(
                (struct pal_st_recognition_config *)data->data_);
             if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to send recog config, status %d",
+                PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
                         status);
             }
             break;
@@ -3024,6 +3023,15 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 // Possible if App has stopped recognition during active
                 // concurrency.
                 break;
+            }
+            // Update conf levels in case conf level is set to 100 in pause
+            if (st_stream_.rec_config_) {
+                status = st_stream_.SendRecognitionConfig(st_stream_.rec_config_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to send recognition config, status %d",
+                        status);
+                    break;
+                }
             }
             // fall through to start
             [[fallthrough]];
@@ -3084,13 +3092,24 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 dattr.config.sample_rate = cap_prof->GetSampleRate();
                 dev->setDeviceAttributes(dattr);
 
+                dev->setSndName(cap_prof->GetSndName());
+                if (!st_stream_.device_opened_) {
+                    status = dev->open();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
+                        break;
+                    }
+                    st_stream_.device_opened_ = true;
+                }
                 /* now start the device */
                 PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
                         dev->getPALDeviceName().c_str());
-                dev->setSndName(cap_prof->GetSndName());
+
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Device start failed, status %d", status);
+                    dev->close();
+                    st_stream_.device_opened_ = false;
                     break;
                 } else {
                     st_stream_.rm->registerDevice(dev, &st_stream_);
@@ -3124,6 +3143,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             if (st_stream_.mDevices.size() > 0) {
                 st_stream_.rm->deregisterDevice(st_stream_.mDevices[0], &st_stream_);
                 st_stream_.mDevices[0]->stop();
+                st_stream_.mDevices[0]->close();
+                st_stream_.device_opened_ = false;
             }
 
             break;
@@ -3156,10 +3177,13 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             for (auto& device: st_stream_.mDevices) {
                 st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
                     st_stream_.mStreamAttr->type, device);
-
-                status = device->close();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "dev close failed, status %d", status);
+                if (st_stream_.device_opened_) {
+                    status = device->close();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "device %d close failed with status %d",
+                            device->getSndDeviceId(), status);
+                    }
+                    st_stream_.device_opened_ = false;
                 }
             }
             st_stream_.mDevices.clear();
@@ -3187,13 +3211,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             }
             st_stream_.mDevices.push_back(dev);
 
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto connect_err;
-            }
-
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
@@ -3208,15 +3225,26 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         "setupSessionDevice for %d failed with status %d",
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
-                dev->close();
                 goto connect_err;
             }
 
-            if (st_stream_.isActive()) {
+            if (!st_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                        dev->getSndDeviceId(), status);
+                    goto connect_err;
+                }
+                st_stream_.device_opened_ = true;
+            }
+
+            if (st_stream_.isActive() && !st_stream_.paused_) {
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device %d start failed with status %d",
                         dev->getSndDeviceId(), status);
+                    dev->close();
+                    st_stream_.device_opened_ = false;
                     goto connect_err;
                 }
             }
@@ -3229,7 +3257,8 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
-            } else if (st_stream_.isActive()) {
+                st_stream_.device_opened_ = false;
+            } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
                 TransitTo(ST_STATE_ACTIVE);
             }
@@ -3393,6 +3422,16 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                PAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
+                        dev->getPALDeviceName().c_str());
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (status)
+                    PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
 
             if (backend_update) {
@@ -3402,11 +3441,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 }
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
             if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
                 status = st_stream_.ProcessInternalEvent(ev_cfg);
                 if (status != 0) {
@@ -3461,6 +3495,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 st_stream_.rm->deregisterDevice(device, &st_stream_);
 
                 status = device->close();
+                st_stream_.device_opened_ = false;
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
                     goto disconnect_err;
@@ -3492,13 +3527,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             }
             st_stream_.mDevices.push_back(dev);
 
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device %d open failed with status %d",
-                    dev->getSndDeviceId(), status);
-                goto connect_err;
-            }
-
             PAL_DBG(LOG_TAG, "Update capture profile and stream attr in device switch");
             st_stream_.cap_prof_ = st_stream_.GetCurrentCaptureProfile();
             st_stream_.mDevPPSelector = st_stream_.cap_prof_->GetName();
@@ -3512,14 +3540,25 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
-                dev->close();
                 goto connect_err;
+            }
+
+            if (!st_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "device %d open failed with status %d",
+                        dev->getSndDeviceId(), status);
+                    goto connect_err;
+                }
+                st_stream_.device_opened_ = true;
             }
 
             status = dev->start();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device %d start failed with status %d",
                     dev->getSndDeviceId(), status);
+                dev->close();
+                st_stream_.device_opened_ = false;
                 goto connect_err;
             }
 
@@ -3530,6 +3569,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                         dev->getSndDeviceId(), status);
                 st_stream_.mDevices.pop_back();
                 dev->close();
+                st_stream_.device_opened_ = false;
             } else {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
             }
@@ -3664,13 +3704,15 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (status)
+                    PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
 
             if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
                 status = st_stream_.ProcessInternalEvent(ev_cfg);
@@ -3704,13 +3746,15 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (status)
+                    PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
@@ -3744,13 +3788,15 @@ int32_t StreamSoundTrigger::StDetected::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (0 != status)
+                    PAL_ERR(LOG_TAG, "device close failed with status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
@@ -3872,13 +3918,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (0 != status)
+                    PAL_ERR(LOG_TAG, "device close failed with status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to handle recognition config, status %d",
@@ -3917,14 +3965,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (status)
+                    PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
-
             if (ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
                 status = st_stream_.ProcessInternalEvent(ev_cfg);
                 if (status != 0) {
@@ -4022,13 +4071,15 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 status = dev->stop();
                 if (status)
                     PAL_ERR(LOG_TAG, "Device stop failed, status %d", status);
+
+                st_stream_.rm->deregisterDevice(dev, &st_stream_);
+
+                status = dev->close();
+                st_stream_.device_opened_ = false;
+                if (status)
+                    PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
             }
             TransitTo(ST_STATE_LOADED);
-            // make sure disable ec ref handled in LOADED/ACTIVE state
-            if (st_stream_.mDevices.size() > 0) {
-                auto& dev = st_stream_.mDevices[0];
-                st_stream_.rm->deregisterDevice(dev, &st_stream_);
-            }
             status = st_stream_.ProcessInternalEvent(ev_cfg);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to handle device connection, status %d",
@@ -4082,7 +4133,15 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
     switch (ev_cfg->id_) {
         case ST_EV_SSR_ONLINE: {
             TransitTo(ST_STATE_IDLE);
-
+            /*
+             * sm_config_ can be NULL if load sound model is failed in
+             * previous SSR online event. This scenario can occur if
+             * back to back SSR happens in less than 1 sec.
+             */
+            if (!st_stream_.sm_config_) {
+                PAL_ERR(LOG_TAG, "sound model config is NULL");
+                break;
+            }
             if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
                 st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
                 std::shared_ptr<StEventConfig> ev_cfg1(

@@ -100,6 +100,7 @@ public:
     //virtual int getConfig(Stream * s) = 0;
     virtual int start(Stream * s) = 0;
     virtual int pause(Stream * s);
+    virtual int suspend() {return 0;};
     virtual int resume(Stream * s);
     virtual int stop(Stream * s) = 0;
     virtual int close(Stream * s) = 0;

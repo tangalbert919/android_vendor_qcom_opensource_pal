@@ -38,15 +38,16 @@
 StreamContextProxy::StreamContextProxy(const struct pal_stream_attributes *sattr __unused,
                     struct pal_device *dattr __unused, const uint32_t no_of_devices __unused,
                     const struct modifier_kv *modifiers __unused, const uint32_t no_of_modifiers __unused,
-                    const std::shared_ptr<ResourceManager> rm __unused) :
+                    const std::shared_ptr<ResourceManager> rm) :
                StreamCommon(sattr,dattr,no_of_devices,modifiers,no_of_modifiers,rm)
 {
     //registering for a callback
     session->registerCallBack((session_callback)HandleCallBack, (uint64_t) this);
+    rm->registerStream(this);
 }
 
 StreamContextProxy::~StreamContextProxy() {
-
+    rm->deregisterStream(this);
 }
 
 int32_t  StreamContextProxy::setParameters(uint32_t param_id, void *payload)

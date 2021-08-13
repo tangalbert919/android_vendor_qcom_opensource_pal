@@ -37,8 +37,8 @@
 #include "kvh2xml.h"
 
 StreamACD::StreamACD(struct pal_stream_attributes *sattr,
-                                       struct pal_device *dattr __unused,
-                                       uint32_t no_of_devices __unused,
+                                       struct pal_device *dattr,
+                                       uint32_t no_of_devices,
                                        struct modifier_kv *modifiers __unused,
                                        uint32_t no_of_modifiers __unused,
                                        std::shared_ptr<ResourceManager> rm)
@@ -49,6 +49,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     rec_config_ = nullptr;
     context_config_ = nullptr;
     paused_ = false;
+    device_opened_ = false;
     currentState = STREAM_IDLE;
 
     // Setting default volume to unity
@@ -71,6 +72,14 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     if (!mStreamAttr) {
         PAL_ERR(LOG_TAG, "Error:%d stream attributes allocation failed", -EINVAL);
         throw std::runtime_error("stream attributes allocation failed");
+    }
+
+    if (!dattr) {
+        goto exit;
+    }
+
+    for (int i=0; i < no_of_devices; i++) {
+        mPalDevice.push_back(dattr[i]);
     }
 
     ar_mem_cpy(mStreamAttr, sizeof(pal_stream_attributes),
@@ -146,7 +155,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     if (disable_concurrency_count) {
         paused_ = true;
     }
-
+exit:
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -439,6 +448,7 @@ void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *p
                     sizeof(struct acd_context_event) +
                     (event->num_contexts * sizeof(struct acd_per_context_event_info));
 
+    PAL_DBG(LOG_TAG, "Enter");
     recognition_event = (struct pal_st_recognition_event *) payload;
     recognition_event->status = PAL_RECOGNITION_STATUS_SUCCESS;
     recognition_event->type = PAL_SOUND_MODEL_TYPE_GENERIC;
@@ -453,8 +463,10 @@ void StreamACD::PopulateCallbackPayload(struct acd_context_event *event, void *p
     st_header->key_id = ST_PARAM_KEY_CONTEXT_EVENT_INFO;
     st_header->payload_size = recognition_event->data_size - sizeof(struct st_param_header);
 
+    PAL_INFO(LOG_TAG, "Populated %d contexts", event->num_contexts);
     offset = sizeof(struct pal_st_recognition_event) + sizeof(struct st_param_header);
     memcpy((uint8_t *)payload + offset, event, st_header->payload_size);
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 void StreamACD::CacheEventData(struct acd_context_event *event)
@@ -468,6 +480,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
     uint8_t *per_context_info;
     int offset = 0;
 
+    PAL_DBG(LOG_TAG, "Enter");
     if (cached_event_data_) {
         offset = cached_event_data_->data_offset + sizeof(st_param_header);
         current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
@@ -489,6 +502,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
             event_data += sizeof(struct acd_per_context_event_info);
         }
         current_context_event->num_contexts += event->num_contexts;
+        PAL_INFO(LOG_TAG, "Total cached events = %d", current_context_event->num_contexts);
     } else {
         cached_event_data_ = (struct pal_st_recognition_event *) calloc(1, new_event_size);
         if (!cached_event_data_) {
@@ -497,6 +511,7 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         }
         PopulateCallbackPayload(event, cached_event_data_);
     }
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 void StreamACD::SendCachedEventData()
@@ -540,11 +555,13 @@ void StreamACD::NotifyClient(struct acd_context_event *event)
 
 void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
 {
+    PAL_DBG(LOG_TAG, "Enter");
     mStreamMutex.lock();
     std::shared_ptr<ACDEventConfig> ev_cfg(
        new ACDDetectedEventConfig((void *)event));
     cur_state_->ProcessEvent(ev_cfg);
     mStreamMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 pal_device_id_t StreamACD::GetAvailCaptureDevice()
@@ -788,12 +805,6 @@ int32_t StreamACD::SetupDetectionEngine()
 
     cap_prof_ = GetCurrentCaptureProfile();
     mDevPPSelector = cap_prof_->GetName();
-
-    status = mDevices[0]->open();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Error:%d Device open failed", status);
-        goto error_exit;
-    }
 
     engine_ = ContextDetectionEngine::Create(this, sm_cfg_);
     if (!engine_) {
@@ -1116,15 +1127,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
 
     switch (ev_cfg->id_) {
         case ACD_EV_UNLOAD_SOUND_MODEL: {
-            if (acd_stream_.mDevices.size() > 0) {
-                auto& dev = acd_stream_.mDevices[0];
-                PAL_DBG(LOG_TAG, "Close device %d-%s", dev->getSndDeviceId(),
-                        dev->getPALDeviceName().c_str());
-                status = dev->close();
-                if (status)
-                    PAL_ERR(LOG_TAG, "Error:%d Device close failed", status);
-            }
-
             status = acd_stream_.engine_->TeardownEngine(&acd_stream_, acd_stream_.context_config_);
             if (status)
                 PAL_ERR(LOG_TAG, "Error:%d Unload engine failed", status);
@@ -1192,6 +1194,15 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                     dev->getPALDeviceName().c_str());
             dev->setSndName(cap_prof->GetSndName());
 
+            if (!acd_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Error:%d Device open failed", status);
+                    break;
+                }
+                acd_stream_.device_opened_ = true;
+            }
+
             status = dev->start();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d Device start failed", status);
@@ -1246,6 +1257,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             status = dev->close();
             if (0 != status)
                 PAL_ERR(LOG_TAG, "Error:%d dev close failed", status);
+            acd_stream_.device_opened_ = false;
 
             acd_stream_.mDevices.clear();
             break;
@@ -1263,13 +1275,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 goto connect_err;
             }
 
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
-                    status, dev->getSndDeviceId());
-                goto connect_err;
-            }
-
             acd_stream_.mDevices.clear();
             acd_stream_.mDevices.push_back(dev);
 
@@ -1278,14 +1283,25 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d setupSessionDevice for %d failed",
                         status, dev->getSndDeviceId());
-                dev->close();
                 goto connect_err;
             }
             if (acd_stream_.isActive()) {
+                if (!acd_stream_.device_opened_) {
+                    status = dev->open();
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG, "Error:%d device %d open failed",
+                            status, dev->getSndDeviceId());
+                        goto connect_err;
+                    }
+                    acd_stream_.device_opened_ = true;
+                }
+
                 status = dev->start();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Error:%d device %d start failed",
                         status, dev->getSndDeviceId());
+                    dev->close();
+                    acd_stream_.device_opened_ = false;
                     goto connect_err;
                 }
             }
@@ -1296,6 +1312,7 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d connectSessionDevice for %d failed",
                       status, dev->getSndDeviceId());
                 dev->close();
+                acd_stream_.device_opened_ = false;
             } else {
                 if (acd_stream_.isActive())
                     acd_stream_.rm->registerDevice(dev, &acd_stream_);
@@ -1426,10 +1443,12 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             // fall through to stop
             [[fallthrough]];
         }
+        case ACD_EV_UNLOAD_SOUND_MODEL:
         case ACD_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             bool backend_update = false;
-            if (ev_cfg->id_ == ACD_EV_STOP_RECOGNITION) {
+            if (ev_cfg->id_ == ACD_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ACD_EV_UNLOAD_SOUND_MODEL) {
                 backend_update = acd_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &acd_stream_, false);
                 if (backend_update) {
@@ -1452,6 +1471,12 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d Device stop failed", status);
 
             acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
+
+            status = dev->close();
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Device close failed", status);
+            acd_stream_.device_opened_ = false;
+
             if (backend_update) {
                 status = rm->StartOtherDetectionStreams(&acd_stream_);
                 if (status)
@@ -1459,6 +1484,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
 
             TransitTo(ACD_STATE_LOADED);
+            if (ev_cfg->id_ == ACD_EV_UNLOAD_SOUND_MODEL) {
+                status = acd_stream_.ProcessInternalEvent(ev_cfg);
+                if (status != 0)
+                    PAL_ERR(LOG_TAG, "Failed to unload sound model, status = %d", status);
+            }
             break;
         }
         case ACD_EV_DEVICE_DISCONNECTED: {
@@ -1486,6 +1516,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
 
             status = dev->close();
+            acd_stream_.device_opened_ = false;
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Error:%d device close failed", status);
                 goto disconnect_err;
@@ -1506,11 +1537,14 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 status = -EINVAL;
                 break;
             }
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Error:%d device %d open failed", status,
-                    dev->getSndDeviceId());
-                break;
+            if (!acd_stream_.device_opened_) {
+                status = dev->open();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Error:%d device %d open failed", status,
+                        dev->getSndDeviceId());
+                    break;
+                }
+                acd_stream_.device_opened_ = true;
             }
 
             acd_stream_.mDevices.clear();
@@ -1522,6 +1556,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d setupSessionDevice for %d failed",
                         status, dev->getSndDeviceId());
                 dev->close();
+                acd_stream_.device_opened_ = false;
                 break;
             }
 
@@ -1538,6 +1573,7 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d connectSessionDevice for %d failed",
                       status, dev->getSndDeviceId());
                 dev->close();
+                acd_stream_.device_opened_ = false;
             } else {
                 PAL_DBG(LOG_TAG, "Update capture profile after device switch");
                 acd_stream_.rm->registerDevice(dev, &acd_stream_);

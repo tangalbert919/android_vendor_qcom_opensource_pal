@@ -62,6 +62,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
     mDevices.clear();
+    mPalDevice.clear();
     currentState = STREAM_IDLE;
     //Modify cached values only at time of SSR down.
     cachedState = STREAM_IDLE;
@@ -137,7 +138,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             throw std::runtime_error("failed to create device object");
         }
         mStreamMutex.unlock();
-        isDeviceConfigUpdated = rm->updateDeviceConfig(dev, &dattr[i], sattr);
+        isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
 
         if (isDeviceConfigUpdated)
@@ -147,7 +148,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        //rm->registerDevice(dev);
+        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 
@@ -279,7 +280,15 @@ StreamPCM::~StreamPCM()
         mVolumeData = (struct pal_volume_data *)NULL;
     }
 
+    /*switch back to proper config if there is a concurrency and device is still running*/
+    for (int32_t i=0; i < mDevices.size(); i++) {
+        if (mDevices[i]->getDeviceCount()) {
+            rm->restoreDevice(mDevices[i]);
+        }
+    }
+
     mDevices.clear();
+    mPalDevice.clear();
     delete session;
     session = nullptr;
 }
@@ -288,6 +297,7 @@ StreamPCM::~StreamPCM()
 int32_t StreamPCM::start()
 {
     int32_t status = 0, devStatus = 0;
+    bool a2dpSuspend = false;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
             session, mStreamAttr->direction, currentState);
@@ -303,9 +313,15 @@ int32_t StreamPCM::start()
     if (currentState == STREAM_INIT || currentState == STREAM_STOPPED) {
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
-            rm->lockGraph();
             PAL_VERBOSE(LOG_TAG, "Inside PAL_AUDIO_OUTPUT device count - %zu",
                             mDevices.size());
+
+            // handle scenario where BT device is not ready
+            status = handleBTDeviceNotReady(a2dpSuspend);
+            if (0 != status)
+                goto exit;
+
+            rm->lockGraph();
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->start();
                 if (0 != status) {
@@ -349,6 +365,15 @@ int32_t StreamPCM::start()
             }
             PAL_VERBOSE(LOG_TAG, "session start successful");
             rm->unlockGraph();
+
+            if (a2dpSuspend) {
+                PAL_DBG(LOG_TAG, "mute the stream on speaker");
+                if (!a2dpMuted) {
+                    mute_l(true);
+                    a2dpMuted = true;
+                }
+                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+            }
             break;
 
         case PAL_AUDIO_INPUT:
@@ -380,7 +405,6 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
@@ -435,7 +459,6 @@ int32_t StreamPCM::start()
                 }
                 status = 0;
                 cachedState = STREAM_STARTED;
-                rm->unlockGraph();
                 goto session_fail;
             }
             if (0 != status) {
@@ -496,18 +519,22 @@ int32_t StreamPCM::stop()
             PAL_VERBOSE(LOG_TAG, "In PAL_AUDIO_OUTPUT case, device count - %zu",
                         mDevices.size());
 
+            rm->lockGraph();
             status = session->stop(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Rx session stop failed with status %d", status);
             }
             PAL_VERBOSE(LOG_TAG, "session stop successful");
+
             for (int32_t i=0; i < mDevices.size(); i++) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "Rx device stop failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
             }
+            rm->unlockGraph();
             PAL_VERBOSE(LOG_TAG, "devices stop successful");
             break;
 
@@ -737,7 +764,6 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
         }
@@ -809,7 +835,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         return size;
     }
 
-    if (currentState == STREAM_STARTED) {
+    //we should allow writes to go through in Start/Pause state as well.
+    if ( (currentState == STREAM_STARTED) ||
+        (currentState == STREAM_PAUSED) ) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         mStreamMutex.unlock();
         if (0 != status) {
@@ -830,7 +858,6 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
                 PAL_DBG(LOG_TAG, "dropped buffer size - %d", size);
                 goto exit;
             } else {
-                status = errno;
                 goto exit;
             }
         }

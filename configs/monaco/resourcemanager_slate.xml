@@ -84,10 +84,15 @@
             <modepair key="0x121C6000" value="0xB3000001"/>
         </mode_map>
     </config_voice>
+    <low_power_vote_streams>
+        <stream_type>PAL_STREAM_VOICE_UI</stream_type>
+        <stream_type>PAL_STREAM_ACD</stream_type>
+        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
+    </low_power_vote_streams>
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
-            <back_end_name>MI2S-LPAIF_RXTX-TX-PRIMARY</back_end_name>
+            <back_end_name>MI2S-LPAIF_VA-TX-PRIMARY</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>handset-mic</snd_device_name>
@@ -114,7 +119,7 @@
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
-            <back_end_name>MI2S-LPAIF_RXTX-TX-PRIMARY</back_end_name>
+            <back_end_name>MI2S-LPAIF_VA-TX-PRIMARY</back_end_name>
             <max_channels>4</max_channels>
             <channels>1</channels>
             <snd_device_name>speaker-mic</snd_device_name>

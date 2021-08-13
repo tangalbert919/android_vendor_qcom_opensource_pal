@@ -117,9 +117,17 @@ public:
         std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect);
+    static int disconnectSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rmHandle, struct pal_device &dAttr,
+        const std::vector<int> &pcmTxDevIds,const std::vector<int> &pcmRxDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToDisconnect);
     static int connectSessionDevice(Session* sess, Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,
         const std::vector<int> &pcmDevIds,
+        const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
+    static int connectSessionDevice(Session* sess, Stream* streamHandle, pal_stream_type_t streamType,
+        std::shared_ptr<ResourceManager> rmHandle, struct pal_device &dAttr,
+        const std::vector<int> &pcmTxDevIds,const std::vector<int> &pcmRxDevIds,
         const std::vector<std::pair<int32_t, std::string>> &aifBackEndsToConnect);
     static int setupSessionDevice(Stream* streamHandle, pal_stream_type_t streamType,
         std::shared_ptr<ResourceManager> rm, struct pal_device &dAttr,

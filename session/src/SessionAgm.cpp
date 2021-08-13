@@ -423,31 +423,35 @@ exit:
 int SessionAgm::start(Stream * s __unused)
 {
     int32_t status = 0;
-
+    rm->voteSleepMonitor(s, true);
     if (agmSessHandle)
         status = agm_session_start(agmSessHandle);
-    if (status != 0)
+    if (status != 0) {
+        rm->voteSleepMonitor(s, false);
         PAL_ERR(LOG_TAG, "agm_session_start failed %d", status);
+    }
     return status;
 }
 
 int SessionAgm::pause(Stream * s __unused)
 {
-   return -EINVAL;
+    return -EINVAL;
 }
 
 int SessionAgm::resume(Stream * s __unused)
 {
-   return -EINVAL;
+    return -EINVAL;
 }
 
 int SessionAgm::stop(Stream * s __unused)
 {
     int32_t status = 0;
 
-    if (agmSessHandle)
+    if (agmSessHandle) {
         status = agm_session_stop(agmSessHandle);
-   return status;
+        rm->voteSleepMonitor(s, false);
+    }
+    return status;
 }
 
 int SessionAgm::read(Stream *s, int tag __unused, struct pal_buffer *buf, int *size )
@@ -510,7 +514,7 @@ int SessionAgm::fileWrite(Stream *s __unused, int tag __unused, struct pal_buffe
 
 int SessionAgm::write(Stream *s, int tag __unused, struct pal_buffer *buf, int * size, int flag __unused)
 {
-    uint32_t bytes_written = 0;
+    size_t bytes_written = 0;
     int status;
     struct agm_buff agm_buffer = {0, 0, 0, NULL, 0, NULL, {0, 0, 0}};
     struct pal_stream_attributes sAttr;
@@ -587,6 +591,21 @@ int SessionAgm::flush()
     PAL_VERBOSE(LOG_TAG,"Enter flush\n");
     status = agm_session_flush(agmSessHandle);
     PAL_VERBOSE(LOG_TAG,"flush complete\n");
+    return status;
+}
+
+int SessionAgm::suspend()
+{
+    int status = 0;
+
+    if (!agmSessHandle) {
+        PAL_ERR(LOG_TAG, "Handle is invalid");
+        return -EINVAL;
+    }
+
+    PAL_VERBOSE(LOG_TAG,"Enter suspend\n");
+    status = agm_session_suspend(agmSessHandle);
+    PAL_VERBOSE(LOG_TAG,"suspend complete\n");
     return status;
 }
 

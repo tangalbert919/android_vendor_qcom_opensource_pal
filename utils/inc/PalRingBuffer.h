@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -59,11 +59,12 @@ class PalRingBufferReader {
     ~PalRingBufferReader() {};
 
     size_t advanceReadOffset(size_t advanceSize);
-    size_t read(void* readBuffer, size_t readSize);
+    int32_t read(void* readBuffer, size_t readSize);
     void updateState(pal_ring_buffer_reader_state state);
     void getIndices(uint32_t *startIndice, uint32_t *endIndice);
     size_t getUnreadSize();
     void reset();
+    bool isEnabled() { return state_ == READER_ENABLED; }
 
     friend class PalRingBuffer;
     friend class StreamSoundTrigger;

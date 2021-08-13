@@ -862,6 +862,8 @@ typedef enum {
     PAL_PARAM_ID_DEVICE_MUTE = 47,
     PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS = 48,
     PAL_PARAM_ID_SP_GET_CAL = 49,
+    PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
+    PAL_PARAM_ID_SNDCARD_STATE = 51,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1030,6 +1032,7 @@ typedef struct pal_param_bta2dp {
     int32_t  reconfig_supported;
     bool     reconfig;
     bool     a2dp_suspended;
+    bool     a2dp_capture_suspended;
     bool     is_tws_mono_mode_on;
     bool     is_lc3_mono_mode_on;
     bool     is_force_switch;

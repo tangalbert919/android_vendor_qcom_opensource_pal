@@ -146,7 +146,7 @@
         <stream type="PAL_STREAM_VOICE_UI">
             <keys_and_values VUIModuleType="GMM" Instance="1">
                 <!-- STREAM_CONFIG - STREAM_CFG_VUI_GMM -->
-                <graph_kv key="0xBC000000" value="0xBC000005"/>
+                <graph_kv key="0xBC000000" value="0xBC000001"/>
                 <!-- STREAMTX - VOICE_UI -->
                 <graph_kv key="0xB1000000" value="0xB1000003"/>
                 <!-- INSTANCE - INSTANCE_1 -->
@@ -154,7 +154,7 @@
             </keys_and_values>
             <keys_and_values VUIModuleType="GMM" Instance="2">
                 <!-- STREAM_CONFIG - STREAM_CFG_VUI_GMM -->
-                <graph_kv key="0xBC000000" value="0xBC000005"/>
+                <graph_kv key="0xBC000000" value="0xBC000001"/>
                 <!-- STREAMTX - VOICE_UI -->
                 <graph_kv key="0xB1000000" value="0xB1000003"/>
                 <!-- INSTANCE - INSTANCE_2 -->
@@ -615,12 +615,6 @@
                 <!-- DEVICEPP_TX - DEVICEPP_TX_AUDIO_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000002"/>
             </keys_and_values>
-            <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER" CustomConfig="camcorder_landscape">
-                <!-- DEVICETX - HANDSETMIC -->
-                <graph_kv key="0xA3000000" value="0xA3000004"/>
-                <!-- DEVICEPP_TX - DEVICEPP_TX_AUDIO_FLUENCE_SMECNS -->
-                <graph_kv key="0xAD000000" value="0xAD000002"/>
-            </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER" CustomConfig="dual-mic">
                 <!-- DEVICETX - HANDSETMIC -->
                 <graph_kv key="0xA3000000" value="0xA3000004"/>
@@ -685,12 +679,6 @@
         <!-- IN Speaker MIC DevicePPs -->
         <devicepp id="PAL_DEVICE_IN_SPEAKER_MIC">
             <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER">
-                <!-- DEVICETX - SPEAKER_MIC -->
-                <graph_kv key="0xA3000000" value="0xA3000001"/>
-                <!-- DEVICEPP_TX - DEVICEPP_TX_AUDIO_FLUENCE_SMECNS -->
-                <graph_kv key="0xAD000000" value="0xAD000002"/>
-            </keys_and_values>
-            <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER" CustomConfig="camcorder_landscape">
                 <!-- DEVICETX - SPEAKER_MIC -->
                 <graph_kv key="0xA3000000" value="0xA3000001"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_AUDIO_FLUENCE_SMECNS -->
