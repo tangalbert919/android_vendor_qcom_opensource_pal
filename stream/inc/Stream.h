@@ -157,6 +157,7 @@ public:
     uint64_t cookie;
     bool isPaused = false;
     bool a2dpMuted = false;
+    bool a2dpPaused = false;
     pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;

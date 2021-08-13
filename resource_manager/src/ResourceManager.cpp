@@ -5718,6 +5718,9 @@ int32_t ResourceManager::a2dpSuspend()
         }
     }
 
+    PAL_DBG(LOG_TAG, "selecting active device_id[%d] and muting streams",
+        switchDevDattr.id);
+
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
         if((*sIter)->isActive()) {
             if (!((*sIter)->a2dpMuted)) {
@@ -5732,8 +5735,12 @@ int32_t ResourceManager::a2dpSuspend()
                     resume , which will be percieved as a leak. */
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
-                    //Pause
-                    (*sIter)->pause_l();
+                    //Pause - Only if the stream is not explicitly paused.
+                    //Insome scenarios - stream might have already paused prior to a2dpsuspend.
+                    if (((*sIter)->isPaused) == false) {
+                        (*sIter)->pause_l();
+                        (*sIter)->a2dpPaused = true;
+                    }
                 } else {
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
@@ -5763,8 +5770,7 @@ int32_t ResourceManager::a2dpSuspend()
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "selecting active device_id[%d] and muting stream",
-        switchDevDattr.id);
+
     mResourceManagerMutex.unlock();
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
     mResourceManagerMutex.lock();
@@ -5776,7 +5782,10 @@ int32_t ResourceManager::a2dpSuspend()
             (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
             (!(*sIter)->isActive())) {
             //Resume if the offload stream is paused
-            (*sIter)->resume_l();
+            //Only resume if it was paused during a2dpSuspend.
+            //This is to avoid resuming if the stream is pause via explict pause from PAL Clients.
+            if (((*sIter)->a2dpPaused) == true)
+                (*sIter)->resume_l();
         }
         (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     }
