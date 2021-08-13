@@ -7377,6 +7377,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
+            mActiveStreamMutex.lock();
             std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
@@ -7390,6 +7391,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     }
                 }
             }
+            mActiveStreamMutex.unlock();
         }
         break;
         default:
