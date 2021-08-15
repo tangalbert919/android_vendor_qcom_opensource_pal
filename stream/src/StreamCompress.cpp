@@ -646,7 +646,7 @@ int32_t StreamCompress::mute(bool state)
     return status;
 }
 
-int32_t StreamCompress::pause()
+int32_t StreamCompress::pause_l()
 {
     int32_t status = 0;
     std::unique_lock<std::mutex> pauseLock(pauseMutex);
@@ -681,7 +681,15 @@ exit:
     return status;
 }
 
-int32_t StreamCompress::resume()
+int32_t StreamCompress::pause()
+{
+    int32_t status = 0;
+    status = pause_l();
+
+    return status;
+}
+
+int32_t StreamCompress::resume_l()
 {
     int32_t status = 0;
 
@@ -706,6 +714,14 @@ int32_t StreamCompress::resume()
 
 exit:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
+    return status;
+}
+
+int32_t StreamCompress::resume()
+{
+    int32_t status = 0;
+    status = resume_l();
+
     return status;
 }
 

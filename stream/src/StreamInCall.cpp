@@ -683,12 +683,11 @@ int32_t StreamInCall::mute(bool state)
     return status;
 }
 
-int32_t StreamInCall::pause()
+int32_t StreamInCall::pause_l()
 {
     int32_t status = 0;
     std::unique_lock<std::mutex> pauseLock(pauseMutex);
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_PAUSED;
         isPaused = true;
@@ -711,15 +710,24 @@ int32_t StreamInCall::pause()
     currentState = STREAM_PAUSED;
     PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
-    mStreamMutex.unlock();
     return status;
 }
 
-int32_t StreamInCall::resume()
+int32_t StreamInCall::pause()
+{
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    status = pause_l();
+    mStreamMutex.unlock();
+
+    return status;
+}
+
+int32_t StreamInCall::resume_l()
 {
     int32_t status = 0;
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK", session);
-    mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         cachedState = STREAM_STARTED;
         PAL_ERR(LOG_TAG, "Sound Card offline, cached state %d", cachedState);
@@ -736,7 +744,17 @@ int32_t StreamInCall::resume()
     currentState = STREAM_STARTED;
     PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
 exit:
+    return status;
+}
+
+int32_t StreamInCall::resume()
+{
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    status = resume_l();
     mStreamMutex.unlock();
+
     return status;
 }
 
