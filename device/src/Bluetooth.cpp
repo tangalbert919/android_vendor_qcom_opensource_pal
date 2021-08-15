@@ -1763,7 +1763,13 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     uint32_t audio_location = 0;
     uint8_t stream_id = 0;
     uint8_t direction = 0;
+    uint8_t value = 0;
     int idx = 0;
+    std::string vendorStr(lc3Cfg.vendor);
+    std::string streamMapStr(lc3Cfg.streamMap);
+    std::regex vendorPattern("([0-9a-fA-F]{2})[,[:s:]]?");
+    std::regex streamMapPattern("([0-9])[,[:s:]]+([0-9])[,[:s:]]+([MLR])");
+    std::smatch match;
 
     // convert and fill in encoder cfg
     lc3CodecInfo.enc_cfg.toAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.txconfig_index].sampling_freq;
@@ -1776,8 +1782,6 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     lc3CodecInfo.enc_cfg.toAirConfig.num_blocks           = lc3Cfg.num_blocks;
     lc3CodecInfo.enc_cfg.toAirConfig.default_q_level      = 0;
     lc3CodecInfo.enc_cfg.toAirConfig.mode                 = 0x1;
-    for (int i=0; i<16; i++)
-        lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[i] = 0;
 
     // convert and fill in decoder cfg
     lc3CodecInfo.dec_cfg.fromAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.rxconfig_index].sampling_freq;
@@ -1790,14 +1794,24 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     lc3CodecInfo.dec_cfg.fromAirConfig.num_blocks           = lc3Cfg.num_blocks;
     lc3CodecInfo.dec_cfg.fromAirConfig.default_q_level      = 0;
     lc3CodecInfo.dec_cfg.fromAirConfig.mode                 = 0x1;
-    for (int i=0; i<16; i++)
-        lc3CodecInfo.dec_cfg.fromAirConfig.vendor_specific[i] = 0;
+
+    // parse vendor specific string
+    idx = 15;
+    while (std::regex_search(vendorStr, match, vendorPattern)) {
+        if (idx < 0) {
+            PAL_ERR(LOG_TAG, "wrong vendor info length, string %s", lc3Cfg.vendor);
+            break;
+        }
+        value = (uint8_t)strtol(match[1].str().c_str(), NULL, 16);
+        lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[idx] = value;
+        lc3CodecInfo.dec_cfg.fromAirConfig.vendor_specific[idx--] = value;
+        vendorStr = match.suffix().str();
+    }
+    if (idx != -1)
+        PAL_ERR(LOG_TAG, "wrong vendor info length, string %s", lc3Cfg.vendor);
 
     // parse stream map string and append stream map structures
-    std::string s(lc3Cfg.streamMap);
-    std::regex pattern("([0-9])[,[:s:]]+([0-9])[,[:s:]]+([MLR])");
-    std::smatch match;
-    while (std::regex_search(s, match, pattern)) {
+    while (std::regex_search(streamMapStr, match, streamMapPattern)) {
         stream_id = atoi(match[1].str().c_str());
         direction = atoi(match[2].str().c_str());
         if (!strcmp(match[3].str().c_str(), "M")) {
@@ -1817,7 +1831,7 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
         else
             steamMapIn.push_back({audio_location, stream_id, direction});
 
-        s = match.suffix().str();
+        streamMapStr = match.suffix().str();
     }
 
     PAL_DBG(LOG_TAG, "stream map out size: %d, stream map in size: %d", steamMapOut.size(), steamMapIn.size());
@@ -1827,6 +1841,7 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
         return;
     }
 
+    idx = 0;
     lc3CodecInfo.enc_cfg.stream_map_size = steamMapOut.size();
     if (lc3CodecInfo.enc_cfg.streamMapOut != NULL)
         delete [] lc3CodecInfo.enc_cfg.streamMapOut;
