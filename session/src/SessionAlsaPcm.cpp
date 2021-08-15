@@ -109,7 +109,7 @@ int SessionAlsaPcm::open(Stream * s)
 
         }
     }
-    status = rm->getAudioMixer(&mixer);
+    status = rm->getVirtualAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG,"mixer error");
         goto exit;
@@ -643,10 +643,10 @@ int SessionAlsaPcm::start(Stream * s)
                     config.silence_threshold = 0;
                     config.silence_size = 0;
                     config.avail_min = config.period_size;
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                         PCM_IN |PCM_MMAP| PCM_NOIRQ, &config);
                 } else {
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_IN, &config);
                 }
 
                 if (!pcm) {
@@ -668,10 +668,10 @@ int SessionAlsaPcm::start(Stream * s)
                     config.silence_threshold = 0;
                     config.silence_size = 0;
                     config.avail_min = config.period_size;
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                         PCM_OUT |PCM_MMAP| PCM_NOIRQ, &config);
                 } else {
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 }
 
                 if (!pcm) {
@@ -687,7 +687,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 break;
             case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                pcmRx = pcm_open(rm->getSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
+                pcmRx = pcm_open(rm->getVirtualSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
                 if (!pcmRx) {
                     PAL_ERR(LOG_TAG, "pcm-rx open failed");
                     status = errno;
@@ -699,7 +699,7 @@ int SessionAlsaPcm::start(Stream * s)
                     status = errno;
                     goto exit;
                 }
-                pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
+                pcmTx = pcm_open(rm->getVirtualSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
                 if (!pcmTx) {
                     PAL_ERR(LOG_TAG, "pcm-tx open failed");
                     status = errno;
@@ -2055,7 +2055,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             config.start_threshold = 0;
             config.stop_threshold = 0;
             config.silence_threshold = 0;
-            pcmEcTx = pcm_open(rm->getSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
+            pcmEcTx = pcm_open(rm->getVirtualSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
             if (!pcmEcTx) {
                 PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open failed");
                 dev->stop();
@@ -2386,9 +2386,9 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
         this->adjustMmapPeriodCount(&config, min_size_frames);
 
         PAL_DBG(LOG_TAG, "Opening PCM device card_id(%d) device_id(%d), channels %d",
-                rm->getSndCard(), pcmDevIds.at(0), config.channels);
+                rm->getVirtualSndCard(), pcmDevIds.at(0), config.channels);
 
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+        pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                              pcm_flags, &config);
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");
@@ -2560,7 +2560,7 @@ int SessionAlsaPcm::openGraph(Stream *s) {
         config.stop_threshold = 0;
         config.silence_threshold = 0;
 
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+        pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_IN, &config);
 
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");

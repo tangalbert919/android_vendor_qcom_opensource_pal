@@ -629,7 +629,7 @@ int SessionAlsaCompress::open(Stream * s)
         PAL_DBG(LOG_TAG, "devid size %zu, compressDevIds[%d] %d", compressDevIds.size(), i, compressDevIds[i]);
     }
     rm->getBackEndNames(associatedDevices, rxAifBackEnds, emptyBackEnds);
-    status = rm->getAudioMixer(&mixer);
+    status = rm->getVirtualAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG,"mixer error");
         goto exit;
@@ -1088,7 +1088,7 @@ int SessionAlsaCompress::start(Stream * s)
     compress_config.fragments = out_buf_count;
     compress_config.codec = &codec;
     // compress_open
-    compress = compress_open(rm->getSndCard(), compressDevIds.at(0), COMPRESS_IN, &compress_config);
+    compress = compress_open(rm->getVirtualSndCard(), compressDevIds.at(0), COMPRESS_IN, &compress_config);
     if (!compress) {
         PAL_ERR(LOG_TAG, "compress open failed");
         status = -EINVAL;
