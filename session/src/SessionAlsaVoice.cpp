@@ -1562,8 +1562,7 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
     if (rxDevInfo.isExternalECRefEnabledFlag) {
         PAL_DBG(LOG_TAG, "Ext EC Ref flag is enabled");
         device.id = PAL_DEVICE_IN_EXT_EC_REF;
-        memcpy(&device.config, &rxDevAttr.config,
-            sizeof(struct pal_media_config));
+        rm->getDeviceConfig(&device, &sAttr);
         dev = Device::getInstance(&device, rm);
         if (!dev) {
             PAL_ERR(LOG_TAG, "dev get instance failed");
