@@ -1701,6 +1701,8 @@ BtSco::BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Bluetooth(device, Rm)
 {
     codecType = (device->id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
+    pluginHandler = NULL;
+    pluginCodec = NULL;
 }
 
 BtSco::~BtSco()
