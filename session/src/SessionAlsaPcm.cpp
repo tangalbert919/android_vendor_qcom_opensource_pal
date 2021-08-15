@@ -597,7 +597,7 @@ int SessionAlsaPcm::start(Stream * s)
     uint32_t miid;
     int payload_size = 0;
     struct agm_event_reg_cfg event_cfg;
-    struct agm_event_reg_cfg *acd_event_cfg;
+    struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
 
@@ -742,14 +742,20 @@ int SessionAlsaPcm::start(Stream * s)
             payload_size = sizeof(struct agm_event_reg_cfg) + eventPayloadSize;
 
             acd_event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
-            acd_event_cfg->event_id = eventId;
-            acd_event_cfg->event_config_payload_size = eventPayloadSize;
-            acd_event_cfg->is_register = 1;
-            memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
-            SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)acd_event_cfg,
-                payload_size);
-            free(acd_event_cfg);
+            if (acd_event_cfg) {
+                acd_event_cfg->event_id = eventId;
+                acd_event_cfg->event_config_payload_size = eventPayloadSize;
+                acd_event_cfg->is_register = 1;
+                memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
+                SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+                    txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)acd_event_cfg,
+                    payload_size);
+                free(acd_event_cfg);
+            } else {
+                PAL_ERR(LOG_TAG, "get acd_event_cfg instance memory allocation failed");
+                status = -ENOMEM;
+                goto exit;
+            }
         }
     } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
         status = register_asps_event(1);
@@ -783,7 +789,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
 
                 if (isPalPCMFormat(sAttr.in_media_config.aud_fmt_id))
-                    streamData.bitWidth = palFormatToBitwidthTable[sAttr.in_media_config.aud_fmt_id];
+                    streamData.bitWidth = ResourceManager::palFormatToBitwidthLookup(sAttr.in_media_config.aud_fmt_id);
                 else
                     streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
