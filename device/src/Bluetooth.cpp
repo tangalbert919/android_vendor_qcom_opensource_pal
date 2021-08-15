@@ -611,11 +611,9 @@ void Bluetooth::startAbr()
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
-        if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
-            (codecFormat == CODEC_TYPE_LC3))
-            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
-        else
-            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+        fbDevice.id = ((deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ?
+            PAL_DEVICE_OUT_BLUETOOTH_A2DP :
+            PAL_DEVICE_OUT_BLUETOOTH_SCO);
         dir = RX_HOSTLESS;
         flags = PCM_OUT;
     } else {
