@@ -94,7 +94,9 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                     status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                     gsl_engine->CheckAndSetDetectionConfLevels(s);
                     lck.unlock();
-                    s->SetEngineDetectionState(GMM_DETECTED);
+                    status = s->SetEngineDetectionState(GMM_DETECTED);
+                    if (status < 0)
+                        gsl_engine->RestartRecognition(s);
                     lck.lock();
                 }
             }
@@ -114,9 +116,33 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                     } else {
                         status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                         lck.unlock();
-                        s->SetEngineDetectionState(GMM_DETECTED);
+                        status = s->SetEngineDetectionState(GMM_DETECTED);
+                        /*
+                         * In Dual VA, when the detections are ignored for a
+                         * stopped stream, SPF session will be in same state.
+                         * If engine is not reset and recognition is not restarted,
+                         * SPF modules are not reset properly and further detections
+                         * don't work. So, restart recognition to handle this.
+                         * TODO: When PDK library adds support to ignore detection
+                         * for stopped model, remove this change.
+                         */
+                        if (status < 0)
+                            gsl_engine->RestartRecognition(s);
                         lck.lock();
                     }
+                }
+            }
+        }
+        /*
+         * After detection is handled, update the state to Active
+         * if other streams are attached to engine and active
+         */
+        if (s && gsl_engine->CheckIfOtherStreamsAttached(s)) {
+            for (uint32_t i = 0; i < gsl_engine->eng_streams_.size(); i++) {
+                StreamSoundTrigger *st =
+                    dynamic_cast<StreamSoundTrigger *> (gsl_engine->eng_streams_[i]);
+                if (st != s && st->GetCurrentStateId() == ST_STATE_ACTIVE) {
+                    gsl_engine->UpdateState(ENG_ACTIVE);
                 }
             }
         }
@@ -332,6 +358,8 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     CheckAndSetDetectionConfLevels(s);
                     mutex_.unlock();
                     status = s->SetEngineDetectionState(GMM_DETECTED);
+                    if (status < 0)
+                        RestartRecognition(s);
                     mutex_.lock();
                 }
             } else {
@@ -347,6 +375,17 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     if (s) {
                         mutex_.unlock();
                         status = s->SetEngineDetectionState(GMM_DETECTED);
+                        /*
+                         * In Dual VA, when the detections are ignored for a
+                         * stopped stream, SPF session will be in same state.
+                         * If engine is not reset and recognition is not restarted,
+                         * SPF modules are not reset properly and further detections
+                         * don't work. So, restart recognition to handle this.
+                         * TODO: When PDK library adds support to ignore detection
+                         * for stopped model, remove this change.
+                         */
+                        if (status < 0)
+                            RestartRecognition(s);
                         mutex_.lock();
                     }
                 }
@@ -458,13 +497,16 @@ int32_t SoundTriggerEngineGsl::ParseDetectionPayloadPDK(void *event_data) {
                     detected_keyword_id = model_stat->detected_keyword_id;
                     PAL_DBG(LOG_TAG, "detected keyword id : %u",
                             detection_event_info_multi_model_.detected_model_stats[i].
-                            detected_keyword_id );
+                            detected_keyword_id);
 
                     detection_event_info_multi_model_.detected_model_stats[i].
                     best_channel_idx = model_stat->best_channel_idx;
 
                     detection_event_info_multi_model_.detected_model_stats[i].
                     best_confidence_level = model_stat->best_confidence_level;
+                    PAL_DBG(LOG_TAG, "detected best conf level : %u",
+                            detection_event_info_multi_model_.detected_model_stats[i].
+                            best_confidence_level);
 
                     detection_event_info_multi_model_.detected_model_stats[i].
                     kw_start_timestamp_lsw = model_stat->kw_start_timestamp_lsw;
@@ -2479,7 +2521,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
             det_event_cnt);
         det_event_cnt++;
     }
-    PAL_INFO(LOG_TAG, "singal event processing thread");
+    PAL_INFO(LOG_TAG, "signal event processing thread");
     ATRACE_BEGIN("stEngine: keyword detected");
     ATRACE_END();
     UpdateState(ENG_DETECTED);
