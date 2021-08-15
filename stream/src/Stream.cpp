@@ -1232,3 +1232,20 @@ bool Stream::checkStreamMatch(pal_device_id_t pal_device_id,
     return match;
 }
 
+
+void Stream::handleStreamException(struct pal_stream_attributes *attributes,
+                                   pal_stream_callback cb, uint64_t cookie)
+{
+    if (!attributes || !cb) {
+        PAL_ERR(LOG_TAG,"Invalid params for exception handling \n");
+        return;
+    }
+
+    if (attributes->type == PAL_STREAM_COMPRESSED) {
+         PAL_DBG(LOG_TAG, "Exception for Compressed clip");
+         // Notify flinger about the error occurred while creating compress
+         // offload session
+         cb(NULL, PAL_STREAM_CBK_EVENT_ERROR, 0, 0, cookie);
+
+    }
+}
