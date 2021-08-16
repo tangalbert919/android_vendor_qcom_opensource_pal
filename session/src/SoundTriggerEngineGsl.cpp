@@ -2175,42 +2175,44 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
 
     std::lock_guard<std::mutex> lck(mutex_);
 
-    if (IsEngineActive())
+    if (IsEngineActive()) {
         restore_eng_state = true;
+        status = ProcessStopRecognition(s);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "Failed to stop recognition, status = %d", status);
+            goto exit;
+        }
 
-    status = ProcessStopRecognition(s);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to stop recognition, status = %d", status);
-        goto exit;
-    }
-
-    if (CheckIfOtherStreamsAttached(s)) {
-        PAL_INFO(LOG_TAG, "Other streams are attached to current engine");
-        if (restore_eng_state) {
-            PAL_DBG(LOG_TAG, "Other streams are active, restart recognition");
-            UpdateEngineConfigOnStop(s);
-            if (IS_MODULE_TYPE_PDK(module_type_)) {
-                StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
-                model_id = st->GetModelId();
-                PAL_DBG(LOG_TAG, "Update conf level for model id : %d",
-                        model_id);
-                for (int i = 0; i < mid_wakeup_cfg_[model_id].num_keywords; ++i) {
-                     old_conf = mid_wakeup_cfg_[model_id].confidence_levels[i];
-                     mid_wakeup_cfg_[model_id].confidence_levels[i] = 100;
-                     PAL_DBG(LOG_TAG,
-                         "Older conf level : %d Updated conf level : %d",
-                     old_conf, mid_wakeup_cfg_[model_id].confidence_levels[i]);
+        if (CheckIfOtherStreamsAttached(s)) {
+            PAL_INFO(LOG_TAG, "Other streams are attached to current engine");
+            if (restore_eng_state) {
+                PAL_DBG(LOG_TAG, "Other streams are active, restart recognition");
+                UpdateEngineConfigOnStop(s);
+                if (IS_MODULE_TYPE_PDK(module_type_)) {
+                    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+                    model_id = st->GetModelId();
+                    PAL_DBG(LOG_TAG, "Update conf level for model id : %d",
+                            model_id);
+                    for (int i = 0; i < mid_wakeup_cfg_[model_id].num_keywords; ++i) {
+                        old_conf = mid_wakeup_cfg_[model_id].confidence_levels[i];
+                        mid_wakeup_cfg_[model_id].confidence_levels[i] = 100;
+                        PAL_DBG(LOG_TAG,
+                             "Older conf level : %d Updated conf level : %d",
+                        old_conf, mid_wakeup_cfg_[model_id].confidence_levels[i]);
+                    }
+                    updated_cfg_.push_back(model_id);
+                    PAL_DBG(LOG_TAG, "Model id : %d added in updated_cfg_",
+                         model_id);
                 }
-                updated_cfg_.push_back(model_id);
-                PAL_DBG(LOG_TAG, "Model id : %d added in updated_cfg_",
-                        model_id);
-            }
-            status = ProcessStartRecognition(eng_streams_[0]);
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
-                goto exit;
+                status = ProcessStartRecognition(eng_streams_[0]);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to start recognition, status = %d", status);
+                    goto exit;
+                }
             }
         }
+    } else {
+        PAL_DBG(LOG_TAG, "Engine is not active hence no need to stop engine");
     }
 exit:
     if (status == -ENETRESET) {
