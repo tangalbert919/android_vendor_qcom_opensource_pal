@@ -635,6 +635,11 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     capi_handle_ = nullptr;
     capi_lib_handle_ = nullptr;
     capi_init_ = nullptr;
+    confidence_score_ = 0;
+    keyword_detected_ = false;
+    det_conf_score_ = 0;
+    memset(&in_model_buffer_param_, 0, sizeof(in_model_buffer_param_));
+    memset(&scratch_param_, 0, sizeof(scratch_param_));
 
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
