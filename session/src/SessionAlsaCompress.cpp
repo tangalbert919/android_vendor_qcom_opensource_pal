@@ -752,14 +752,14 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, pal_stream_t
     deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToConnect);
         for (const auto &elem : rxAifBackEndsToConnect)
             rxAifBackEnds.push_back(elem);
     }
 
     if (!txAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToConnect);
         for (const auto &elem : txAifBackEndsToConnect)
             txAifBackEnds.push_back(elem);
@@ -1075,11 +1075,6 @@ int SessionAlsaCompress::start(Stream * s)
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
-    struct pal_media_config codecConfig;
-    struct sessionToPayloadParam mfcData;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    uint32_t miid;
 
     PAL_DBG(LOG_TAG,"Enter");
     /** create an offload thread for posting callbacks */
@@ -1135,56 +1130,13 @@ int SessionAlsaCompress::start(Stream * s)
                     PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
                     goto exit;
                 }
-
-                /* Get PSPD MFC MIID and configure to match to device config */
-                /* This has to be done after sending all mixer controls and before connect */
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
-                                                               rxAifBackEnds[i].second.data(),
-                                                               TAG_DEVICE_MFC_SR, &miid);
-                if (status == 0) {
-                    PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                            compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                } else {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                status = configureMFC(rm, sAttr, dAttr, compressDevIds,
+                            rxAifBackEnds[i].second.data());
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"configure MFC failed");
                     goto exit;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-                    status = associatedDevices[i]->getCodecConfig(&codecConfig);
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                        goto exit;
-                    }
-                    mfcData.bitWidth = codecConfig.bit_width;
-                    mfcData.sampleRate = codecConfig.sample_rate;
-                    mfcData.numChannel = codecConfig.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                } else {
-                    mfcData.bitWidth = dAttr.config.bit_width;
-                    mfcData.sampleRate = dAttr.config.sample_rate;
-                    mfcData.numChannel = dAttr.config.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                }
-                if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                    (2 == dAttr.config.ch_info.channels)) {
-                    // Stereo Speakers. Check for the rotation type
-                    if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
-                        // Rotation is of RL, so need to swap the channels
-                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
-                    }
-                }
-                builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &mfcData);
-                if (payloadSize) {
-                    status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-                        goto exit;
-                    }
-                }
                 if (isGaplessFmt) {
                     status = configureEarlyEOSDelay();
                 }
@@ -1206,15 +1158,6 @@ int SessionAlsaCompress::start(Stream * s)
                         status = 0;
                         isPauseRegistrationDone = false;
                     }
-                }
-
-                status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
-                                                             customPayload, customPayloadSize);
-                freeCustomPayload();
-
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
-                    goto exit;
                 }
             }
             break;

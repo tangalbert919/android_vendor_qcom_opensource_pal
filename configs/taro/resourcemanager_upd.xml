@@ -71,6 +71,30 @@
         <stream_type>PAL_STREAM_ACD</stream_type>
         <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
     </low_power_vote_streams>
+    <group_device_cfg>
+        <upd_rx>
+            <group_dev sample_rate = "0" channels="0" bit_width="0" slot_mask="1" />
+        </upd_rx>
+        <handset>
+            <group_dev sample_rate = "0" channels="0" bit_width="0" slot_mask="1" />
+        </handset>
+        <speaker>
+            <group_dev sample_rate = "0" channels="0" bit_width="0" slot_mask="3" />
+        </speaker>
+        <speaker_voice>
+            <group_dev sample_rate = "0" channels="0" bit_width="0" slot_mask="1" />
+        </speaker_voice>
+        <upd_rx_handset>
+            <snd_device name="speaker" />
+            <devicepp_mfc sample_rate="96000" channels="2" bit_width="16" />
+            <group_dev sample_rate = "96000" channels="2" bit_width="16" slot_mask="3" />
+        </upd_rx_handset>
+        <upd_rx_speaker>
+            <snd_device name="speaker" />
+            <devicepp_mfc sample_rate="96000" channels="2" bit_width="16" />
+            <group_dev sample_rate = "96000" channels="2" bit_width="16" slot_mask="3" />
+        </upd_rx_speaker>
+    </group_device_cfg>
     <device_profile>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_MIC</id>
@@ -362,7 +386,7 @@
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_SPEAKER</id>
-            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0-VIRT-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
             <samplerate>48000</samplerate>
@@ -406,7 +430,7 @@
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>
-            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0-VIRT-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
@@ -614,7 +638,7 @@
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_ULTRASOUND</id>
-            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0-VIRT-1</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>ultrasound-handset</snd_device_name>

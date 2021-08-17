@@ -188,6 +188,13 @@ int SessionAlsaVoice::setSessionParameters(Stream *s, int dir)
             PAL_ERR(LOG_TAG,"populating vsid payload for RX Failed:%d", status);
             goto exit;
         }
+
+        // set tagged slot mask
+        status = setTaggedSlotMask(s);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"setTaggedSlotMask failed:%d", status);
+            goto exit;
+        }
     } else {
         pcmId = pcmDevTxIds.at(0);
         status = populate_vsid_payload(s);
@@ -508,6 +515,15 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
         deviceData.ch_info = nullptr;
         PAL_DBG(LOG_TAG,"set devicePPMFC to match codec configuration for SCO\n");
     } else {
+        // update device pp configuration if virtual port is enabled
+        if (rm->activeGroupDevConfig &&
+            (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
+             dAttr.id == PAL_DEVICE_OUT_HANDSET)) {
+            if (rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate)
+                dAttr.config.sample_rate = rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate;
+            if (rm->activeGroupDevConfig->devpp_mfc_cfg.channels)
+                dAttr.config.ch_info.channels = rm->activeGroupDevConfig->devpp_mfc_cfg.channels;
+        }
         deviceData.bitWidth = dAttr.config.bit_width;
         deviceData.sampleRate = dAttr.config.sample_rate;
         deviceData.numChannel = dAttr.config.ch_info.channels;
@@ -522,6 +538,49 @@ int SessionAlsaVoice::populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag)
     }
 
 exit:
+    return status;
+}
+
+int SessionAlsaVoice::setTaggedSlotMask(Stream * s)
+{
+    int status = 0;
+    struct pal_device dAttr;
+    struct pal_stream_attributes sAttr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    int dev_id = 0;
+    int idx = 0;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG,"stream get attributes failed");
+        return status;
+    }
+
+    memset(&dAttr, 0, sizeof(struct pal_device));
+    status = s->getAssociatedDevices(associatedDevices);
+    if ((0 != status) || (associatedDevices.size() == 0)) {
+        PAL_ERR(LOG_TAG, "getAssociatedDevices fails or empty associated devices");
+        return status;
+    }
+
+    for (idx = 0; idx < associatedDevices.size(); idx++) {
+        dev_id = associatedDevices[idx]->getSndDeviceId();
+        if (rm->isOutputDevId(dev_id)) {
+            status = associatedDevices[idx]->getDeviceAttributes(&dAttr);
+            break;
+        }
+    }
+    if (dAttr.id == 0) {
+        PAL_ERR(LOG_TAG, "Failed to get device attributes");
+        status = -EINVAL;
+        return status;
+    }
+    if (rm->activeGroupDevConfig &&
+        (dAttr.id == PAL_DEVICE_OUT_SPEAKER ||
+         dAttr.id == PAL_DEVICE_OUT_HANDSET)) {
+        status = setSlotMask(rm, sAttr, dAttr, pcmDevRxIds);
+    }
+
     return status;
 }
 
@@ -657,6 +716,13 @@ int SessionAlsaVoice::start(Stream * s)
     freeCustomPayload();
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed");
+        goto exit;
+    }
+
+    /* set slot_mask as TKV to configure MUX module */
+    status = setTaggedSlotMask(s);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG,"setTaggedSlotMask failed");
         goto exit;
     }
 

@@ -158,11 +158,8 @@ StreamCommon::~StreamCommon()
     }
 
     /*switch back to proper config if there is a concurrency and device is still running*/
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getDeviceCount()) {
-            rm->restoreDevice(mDevices[i]);
-        }
-    }
+    for (int32_t i=0; i < mDevices.size(); i++)
+        rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
     mPalDevice.clear();

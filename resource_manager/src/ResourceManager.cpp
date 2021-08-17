@@ -444,6 +444,9 @@ struct vsid_info ResourceManager::vsidInfo;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 
+std::shared_ptr<group_dev_config_t> ResourceManager::activeGroupDevConfig = nullptr;
+std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> ResourceManager::groupDevConfigMap;
+
 #define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
 std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_AAC),
@@ -1654,6 +1657,8 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     bool is_wfd_in_progress = false;
     struct pal_stream_attributes tx_attr;
     struct pal_device_info devinfo = {};
+    std::vector <Stream *> streamsToSwitch;
+    struct pal_device streamDevAttr;
 
     if (!deviceattr) {
         PAL_ERR(LOG_TAG, "Invalid deviceattr");
@@ -1679,6 +1684,13 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     dev_ch_info.channels = devinfo.channels;
     getChannelMap(&(dev_ch_info.ch_map[0]), devinfo.channels);
     deviceattr->config.ch_info = dev_ch_info;
+
+    // check if it's grouped device and group config needs to update
+    status = checkAndUpdateGroupDevConfig(deviceattr, sAttr, streamsToSwitch, &streamDevAttr, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
 
     /*set proper sample rate*/
     if (devinfo.samplerate) {
@@ -4358,6 +4370,245 @@ int ResourceManager::checkAndGetDeviceConfig(struct pal_device *device, bool* bl
     return ret;
 }
 
+/* check if group dev configuration exists for a given group device */
+bool ResourceManager::isGroupConfigAvailable(group_dev_config_idx_t idx)
+{
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+
+    it = groupDevConfigMap.find(idx);
+    if (it != groupDevConfigMap.end())
+        return true;
+
+    return false;
+}
+
+/* this if for setting group device config for device with virtual port */
+int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr, const struct pal_stream_attributes *sAttr,
+        std::vector<Stream*> &streamsToSwitch, struct pal_device *streamDevAttr, bool streamEnable)
+{
+    struct pal_device activeDevattr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::string backEndName;
+    std::vector<Stream*> activeStream;
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+    std::vector<Stream*>::iterator sIter;
+    group_dev_config_idx_t group_cfg_idx = GRP_DEV_CONFIG_INVALID;
+
+    if (!deviceattr) {
+        PAL_ERR(LOG_TAG, "Invalid deviceattr");
+        return -EINVAL;
+    }
+
+    /* handle special case for UPD device with virtual port:
+     * 1. Enable
+     *   1) if upd is coming and there's any active stream on speaker or handset,
+     *      upadate group device config and disconnect and connect current stream;
+     *   2) if stream on speaker or handset is coming and upd is already active,
+     *      update group config disconnect and connect upd stream;
+     * 2. Disable (restore device config)
+     *   1) if upd goes away, and stream on speaker or handset is active, need to
+     *      restore group config to speaker or handset standalone;
+     *   2) if stream on speaker/handset goes away, and upd is still active, need to restore
+     *      restore group config to upd standalone
+     */
+    if (getBackendName(deviceattr->id, backEndName) == 0 &&
+            strstr(backEndName.c_str(), "-VIRT-")) {
+        PAL_DBG(LOG_TAG, "virtual port enabled for device %d", deviceattr->id);
+
+        /* check for UPD comming or goes away */
+        if (deviceattr->id == PAL_DEVICE_OUT_ULTRASOUND) {
+            group_cfg_idx = GRP_UPD_RX;
+            // check if stream active on speaker or handset exists
+            // update group config and stream to streamsToSwitch to switch device for current stream if needed
+            pal_device_id_t conc_dev[] = {PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+            for (int i = 0; i < sizeof(conc_dev)/sizeof(conc_dev[0]); i++) {
+                activeDevattr.id = conc_dev[i];
+                dev = Device::getInstance(&activeDevattr, rm);
+                if (!dev)
+                    continue;
+                getActiveStream(dev, activeStream);
+                if (activeStream.empty())
+                    continue;
+                for (sIter = activeStream.begin(); sIter != activeStream.end(); sIter++) {
+                    pal_stream_type_t type;
+                    (*sIter)->getStreamType(&type);
+                    switch (conc_dev[i]) {
+                        case PAL_DEVICE_OUT_SPEAKER:
+                            if (streamEnable) {
+                                PAL_DBG(LOG_TAG, "upd is coming, found stream %d active on speaker", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_speaker");
+                                    group_cfg_idx = GRP_UPD_RX_SPEAKER;
+                                    streamsToSwitch.push_back(*sIter);
+                                } else {
+                                    PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to upd");
+                                    group_cfg_idx = GRP_UPD_RX;
+                                }
+                            } else {
+                                PAL_DBG(LOG_TAG, "upd goes away, stream %d active on speaker", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to speaker");
+                                    streamsToSwitch.push_back(*sIter);
+                                    if (type == PAL_STREAM_VOICE_CALL &&
+                                        isGroupConfigAvailable(GRP_SPEAKER_VOICE)) {
+                                        PAL_DBG(LOG_TAG, "voice stream active, set to speaker voice cfg");
+                                        group_cfg_idx = GRP_SPEAKER_VOICE;
+                                    } else {
+                                        // if voice usecase is active, always use voice config
+                                        if (group_cfg_idx != GRP_SPEAKER_VOICE)
+                                            group_cfg_idx = GRP_SPEAKER;
+                                    }
+                                }
+                            }
+                        break;
+                        case PAL_DEVICE_OUT_HANDSET:
+                            if (streamEnable) {
+                                PAL_DBG(LOG_TAG, "upd is coming, stream %d active on handset", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_handset");
+                                    group_cfg_idx = GRP_UPD_RX_HANDSET;
+                                    streamsToSwitch.push_back(*sIter);
+                                } else {
+                                    PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to upd");
+                                    group_cfg_idx = GRP_UPD_RX;
+                                }
+                            } else {
+                                PAL_DBG(LOG_TAG, "upd goes away, stream %d active on handset", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to handset");
+                                    streamsToSwitch.push_back(*sIter);
+                                    group_cfg_idx = GRP_HANDSET;
+                                }
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                dev->getDeviceAttributes(streamDevAttr);
+                activeStream.clear();
+            }
+            it = groupDevConfigMap.find(group_cfg_idx);
+            if (it != groupDevConfigMap.end()) {
+                ResourceManager::activeGroupDevConfig = it->second;
+            } else {
+                PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                return -EINVAL;
+            }
+        /* check for streams on speaker or handset comming/goes away */
+        } else if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER ||
+                    deviceattr->id == PAL_DEVICE_OUT_HANDSET) {
+            if (streamEnable) {
+                PAL_DBG(LOG_TAG, "stream on device:%d is coming, update group config", deviceattr->id);
+                if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER)
+                    group_cfg_idx = GRP_SPEAKER;
+                else
+                    group_cfg_idx = GRP_HANDSET;
+            } // else {} do nothing if stream on handset or speaker goes away without active upd
+            activeDevattr.id = PAL_DEVICE_OUT_ULTRASOUND;
+            dev = Device::getInstance(&activeDevattr, rm);
+            if (dev) {
+                getActiveStream(dev, activeStream);
+                if (!activeStream.empty()) {
+                    sIter = activeStream.begin();
+                    dev->getDeviceAttributes(streamDevAttr);
+                    if (streamEnable) {
+                        PAL_DBG(LOG_TAG, "upd is already active, stream on device:%d is coming", deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER) {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_speaker");
+                                group_cfg_idx = GRP_UPD_RX_SPEAKER;
+                                streamsToSwitch.push_back(*sIter);
+                            } else {
+                                PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to speaker");
+                                group_cfg_idx = GRP_SPEAKER;
+                            }
+                        } else if (deviceattr->id == PAL_DEVICE_OUT_HANDSET){
+                            if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_handset");
+                                group_cfg_idx = GRP_UPD_RX_HANDSET;
+                                streamsToSwitch.push_back(*sIter);
+                            } else {
+                                PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to handset");
+                                group_cfg_idx = GRP_HANDSET;
+                            }
+                        }
+                    } else {
+                        PAL_DBG(LOG_TAG, "upd is still active, stream on device:%d goes away", deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER) {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd");
+                                streamsToSwitch.push_back(*sIter);
+                            }
+                        } else {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd");
+                                streamsToSwitch.push_back(*sIter);
+                            }
+                        }
+                        group_cfg_idx = GRP_UPD_RX;
+                    }
+                } else {
+                    // it could be mono speaker when voice call is coming without UPD
+                    if (streamEnable) {
+                        PAL_DBG(LOG_TAG, "upd is not active, stream type %d on device:%d is coming",
+                                    sAttr->type, deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER &&
+                            sAttr->type == PAL_STREAM_VOICE_CALL) {
+                            if (isGroupConfigAvailable(GRP_SPEAKER_VOICE)) {
+                                PAL_DBG(LOG_TAG, "set to speaker voice cfg");
+                                group_cfg_idx = GRP_SPEAKER_VOICE;
+                            }
+                        // if coming usecase is not voice call but voice call already active
+                        // still set group config for speaker as voice speaker
+                        } else {
+                            pal_stream_type_t type;
+                            for (auto& str: mActiveStreams) {
+                                str->getStreamType(&type);
+                                if (type == PAL_STREAM_VOICE_CALL) {
+                                    group_cfg_idx = GRP_SPEAKER_VOICE;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            it = groupDevConfigMap.find(group_cfg_idx);
+            if (it != groupDevConfigMap.end()) {
+                ResourceManager::activeGroupDevConfig = it->second;
+            } else {
+                PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                return -EINVAL;
+            }
+        }
+
+        // update snd device name so all concurrent stream can apply the same mixer path
+        if (ResourceManager::activeGroupDevConfig) {
+            // first update incoming device name
+            dev = Device::getInstance(deviceattr, rm);
+            if (dev) {
+                if (!ResourceManager::activeGroupDevConfig->snd_dev_name.empty()) {
+                    dev->setSndName(ResourceManager::activeGroupDevConfig->snd_dev_name);
+                } else {
+                    dev->clearSndName();
+                }
+            }
+            // then update current active device name
+            dev = Device::getInstance(streamDevAttr, rm);
+            if (dev) {
+                if (!ResourceManager::activeGroupDevConfig->snd_dev_name.empty()) {
+                    dev->setSndName(ResourceManager::activeGroupDevConfig->snd_dev_name);
+                } else {
+                    dev->clearSndName();
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
     PAL_DBG(LOG_TAG, "Enter.");
@@ -5256,6 +5507,9 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     struct pal_device_info inDeviceInfo;
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
     char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    std::vector <Stream *> streamsToSwitch;
+    std::vector <Stream*>::iterator sIter;
+    struct pal_device streamDevAttr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -5268,6 +5522,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     rm->getDeviceInfo(inDevAttr->id, inStrAttr->type,
                       inDevAttr->custom_config.custom_key, &inDeviceInfo);
+
+    // check if device has virtual port enabled, update the active group devcie config
+    // if streams has same virtual backend, it will be handled in shared backend case
+    status = checkAndUpdateGroupDevConfig(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
 
     //get the active streams on the device
     //if higher priority stream exists on any of the incoming device, update the config of incoming device
@@ -5322,6 +5584,13 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     /*if there is no shared backend just updated the snd device name and prio*/
     } else {
         updateSndName(inDevAttr->id, inDeviceInfo.sndDevName);
+        /* handle special case for UPD with virtual backend */
+        if (!streamsToSwitch.empty()) {
+            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+            }
+        }
     }
 
     //if device switch is needed, perform it
@@ -8060,6 +8329,70 @@ void ResourceManager::process_input_streams(struct xml_userdata *data, const XML
     }
 }
 
+void ResourceManager::process_group_device_config(struct xml_userdata *data, const char* tag, const char** attr)
+{
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+    std::shared_ptr<group_dev_config_t> group_device_config = NULL;
+
+    PAL_DBG(LOG_TAG, "processing tag :%s", tag);
+    if (!strcmp(tag, "upd_rx")) {
+        data->group_dev_idx = GRP_UPD_RX;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX, grp_dev_cfg));
+    } else if (!strcmp(tag, "handset")) {
+        data->group_dev_idx = GRP_HANDSET;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_HANDSET, grp_dev_cfg));
+    } else if (!strcmp(tag, "speaker")) {
+        data->group_dev_idx = GRP_SPEAKER;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_SPEAKER, grp_dev_cfg));
+    }else if (!strcmp(tag, "speaker_voice")) {
+        data->group_dev_idx = GRP_SPEAKER_VOICE;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_SPEAKER_VOICE, grp_dev_cfg));
+    } else if (!strcmp(tag, "upd_rx_handset")) {
+        data->group_dev_idx = GRP_UPD_RX_HANDSET;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX_HANDSET, grp_dev_cfg));
+    } else if (!strcmp(tag, "upd_rx_speaker")) {
+        data->group_dev_idx = GRP_UPD_RX_SPEAKER;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX_SPEAKER, grp_dev_cfg));
+    }
+
+    if (!strcmp(tag, "snd_device")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->snd_dev_name = attr[1];
+            }
+        }
+    } else if (!strcmp(tag, "devicepp_mfc")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->devpp_mfc_cfg.sample_rate = atoi(attr[1]);
+                group_device_config->devpp_mfc_cfg.channels = atoi(attr[3]);
+                group_device_config->devpp_mfc_cfg.bit_width = atoi(attr[5]);
+            }
+        }
+    } else if (!strcmp(tag, "group_dev")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->grp_dev_hwep_cfg.sample_rate = atoi(attr[1]);
+                group_device_config->grp_dev_hwep_cfg.channels = atoi(attr[3]);
+                group_device_config->grp_dev_hwep_cfg.bit_width = atoi(attr[5]);
+                group_device_config->grp_dev_hwep_cfg.slot_mask = atoi(attr[7]);
+            }
+        }
+    }
+}
+
 void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name)
 {
     if (data->offs <= 0)
@@ -8121,6 +8454,12 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     }
 
+    if (data->is_parsing_group_device) {
+        process_group_device_config(data, (const char *)tag_name, (const char **)attr);
+        snd_reset_data_buf(data);
+        return;
+    }
+
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = true;
         st_info = SoundTriggerPlatformInfo::GetInstance();
@@ -8130,6 +8469,11 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     if (!strcmp(tag_name, "acd_platform_info")) {
         data->is_parsing_acd = true;
         acd_info = ACDPlatformInfo::GetInstance();
+        return;
+    }
+
+    if (!strcmp(tag_name, "group_device_cfg")) {
+        data->is_parsing_group_device = true;
         return;
     }
 
@@ -8194,6 +8538,7 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->inCustomConfig = 1;
         data->tag = TAG_CUSTOMCONFIG;
     }
+
     if (!strcmp(tag_name, "card"))
         data->current_tag = TAG_CARD;
     if (strcmp(tag_name, "pcm-device") == 0) {
@@ -8240,6 +8585,12 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
         snd_reset_data_buf(data);
         return;
     }
+
+    if (!strcmp(tag_name, "group_device_cfg")) {
+        data->is_parsing_group_device = false;
+        return;
+    }
+
     process_config_voice(data,tag_name);
     process_device_info(data,tag_name);
     process_input_streams(data,tag_name);
@@ -8376,6 +8727,8 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
     pal_device_info devInfo;
     std::string key;
+    std::vector <Stream *> streamsToSwitch;
+    std::vector <Stream*>::iterator sIter;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -8384,11 +8737,21 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         goto exit;
     }
 
+    /*get current running device info*/
+    dev->getDeviceAttributes(&curDevAttr);
+
+    // check if need to update active group devcie config when usecase goes aways
+    // if stream device is with same virtual backend, it can be handled in shared backend case
+    status = checkAndUpdateGroupDevConfig(&curDevAttr, &sAttr, streamsToSwitch, &newDevAttr, false);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
+
+    getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
     if (sharedBEStreamDev.size() > 0) {
-        /*get current running device info*/
-        dev->getDeviceAttributes(&curDevAttr);
-        getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
+
         /*assign attr to first active stream*/
         sharedStream = std::get<0>(sharedBEStreamDev[0]);
         if (!sharedStream) {
@@ -8453,7 +8816,15 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             PAL_ERR(LOG_TAG,"device switch failed with %d", status);
         }
     } else {
-        PAL_DBG(LOG_TAG, "no active device, switch un-needed");
+        if (!streamsToSwitch.empty()) {
+            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                streamDevDisconnect.push_back({(*sIter), newDevAttr.id});
+                StreamDevConnect.push_back({(*sIter), &newDevAttr});
+            }
+            streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+        } else {
+            PAL_DBG(LOG_TAG, "no active device, switch un-needed");
+        }
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit");

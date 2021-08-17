@@ -106,6 +106,7 @@ private:
     int populateVSIDLoopbackPayload(Stream* s);
     int getDeviceChannelInfo(Stream *s, uint16_t *channels);
     int build_rx_mfc_payload(Stream *s);
+    int setTaggedSlotMask(Stream * s);
 };
 
 #endif //SESSION_ALSAVOICE_H

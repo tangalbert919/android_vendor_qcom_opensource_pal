@@ -136,6 +136,18 @@ typedef enum {
     ST_HANDLE_CHARGING_STATE,
 } st_action;
 
+typedef enum
+{
+    GRP_DEV_CONFIG_INVALID = -1,
+    GRP_UPD_RX,
+    GRP_HANDSET,
+    GRP_SPEAKER,
+    GRP_SPEAKER_VOICE,
+    GRP_UPD_RX_HANDSET,
+    GRP_UPD_RX_SPEAKER,
+    GRP_DEV_CONFIG_IDX_MAX,
+} group_dev_config_idx_t;
+
 struct xml_userdata {
     char data_buf[1024];
     size_t offs;
@@ -149,6 +161,8 @@ struct xml_userdata {
     snd_card_defs_xml_tags_t current_tag;
     bool is_parsing_sound_trigger;
     bool is_parsing_acd;
+    bool is_parsing_group_device;
+    group_dev_config_idx_t group_dev_idx;
     resource_xml_tags_t tag;
     bool inCustomConfig;
 };
@@ -249,6 +263,28 @@ struct nativeAudioProp {
    bool ui_na_prop_enabled;
    int na_mode;
 };
+
+typedef struct devpp_mfc_config
+{
+    uint32_t sample_rate;
+    uint32_t channels;
+    uint32_t bit_width;
+} devpp_mfc_config_t;
+
+typedef struct group_dev_hwep_config_ctl
+{
+    uint32_t sample_rate;
+    uint32_t channels;
+    uint32_t bit_width;
+    uint32_t slot_mask;
+} group_dev_hwep_config_t;
+
+typedef struct group_dev_config
+{
+    std::string snd_dev_name;
+    devpp_mfc_config_t  devpp_mfc_cfg;
+    group_dev_hwep_config_t grp_dev_hwep_cfg;
+} group_dev_config_t;
 
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
                 uint32_t event_size);
@@ -439,6 +475,7 @@ protected:
     int32_t lpi_counter_;
     int32_t nlpi_counter_;
     int sleepmon_fd_;
+    static std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> groupDevConfigMap;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -488,6 +525,7 @@ public:
     static cl_init_t cl_init;
     static cl_deinit_t cl_deinit;
     static cl_set_boost_state_t cl_set_boost_state;
+    static std::shared_ptr<group_dev_config_t> activeGroupDevConfig;
 
     /* checks config for both stream and device */
     bool isStreamSupported(struct pal_stream_attributes *attributes,
@@ -650,6 +688,7 @@ public:
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);
     static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);
     static void processDeviceCapability(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_group_device_config(struct xml_userdata *data, const char* tag, const char** attr);
     static int getNativeAudioSupport();
     static int setNativeAudioSupport(int na_mode);
     static void getNativeAudioParams(struct str_parms *query,struct str_parms *reply,char *value, int len);
@@ -726,6 +765,12 @@ public:
     static void onChargerListenerStatusChanged(int event_type, int status,
                                                  bool concurrent_state);
     int chargerListenerSetBoostState(bool state);
+    static bool isGroupConfigAvailable(group_dev_config_idx_t idx);
+    int checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
+                                 const struct pal_stream_attributes *sAttr,
+                                 std::vector<Stream*> &streamsToSwitch,
+                                 struct pal_device *streamDevAttr,
+                                 bool streamEnable);
 };
 
 #endif

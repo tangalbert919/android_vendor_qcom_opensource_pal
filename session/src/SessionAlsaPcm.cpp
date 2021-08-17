@@ -590,7 +590,6 @@ int SessionAlsaPcm::start(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
     struct pal_media_config codecConfig;
-    struct sessionToPayloadParam mfcData;
     struct sessionToPayloadParam streamData;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
@@ -939,68 +938,12 @@ int SessionAlsaPcm::start(Stream * s)
                     /*isRx is false here as we want to configure interleaved as PCM_DEINTERLEAVED_UNPACKED */
                     /*in case of BT it is opposite so payloadPcmCnvConfig has different notation*/
                 } else {
-                    /* Get PSPD MFC MIID and configure to match to device config */
-                    /* This has to be done after sending all mixer controls and before connect */
-                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                                   rxAifBackEnds[i].second.data(),
-                                                                   TAG_DEVICE_MFC_SR, &miid);
-                    if (status == 0) {
-                        PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                                pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                    } else {
-                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    status = configureMFC(rm, sAttr, dAttr, pcmDevIds,
+                                rxAifBackEnds[i].second.data());
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"configure MFC failed");
                         goto exit;
                     }
-
-                    if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                            dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-                        status = associatedDevices[i]->getCodecConfig(&codecConfig);
-                        if(0 != status) {
-                            PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                            goto exit;
-                        }
-                        mfcData.bitWidth = codecConfig.bit_width;
-                        mfcData.sampleRate = codecConfig.sample_rate;
-                        mfcData.numChannel = codecConfig.ch_info.channels;
-                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                        mfcData.ch_info = nullptr;
-                    } else {
-                        mfcData.bitWidth = dAttr.config.bit_width;
-                        mfcData.sampleRate = dAttr.config.sample_rate;
-                        mfcData.numChannel = dAttr.config.ch_info.channels;
-                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                        mfcData.ch_info = nullptr;
-                    }
-
-                    if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                        (2 == dAttr.config.ch_info.channels)) {
-                        // Stereo Speakers. Check for the rotation type
-                        if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
-                            // Rotation is of RL, so need to swap the channels
-                            mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
-                        }
-                    }
-                    if (dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL ||
-                        dAttr.id == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
-                        dAttr.id == PAL_DEVICE_OUT_HDMI)
-                        mfcData.ch_info = &dAttr.config.ch_info;
-
-                    builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
-                }
-                if (payloadSize) {
-                    status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-                        goto exit;
-                    }
-                }
-                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
-                                                             customPayload, customPayloadSize);
-                freeCustomPayload();
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
-                    goto exit;
                 }
             }
 
@@ -1048,56 +991,13 @@ pcm_start:
                     PAL_ERR(LOG_TAG,"get Device Attributes Failed");
                     goto exit;
                 }
-
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
-                        rxAifBackEnds[0].second.data(),
-                        TAG_DEVICE_MFC_SR, &miid);
-                if (status == 0) {
-                    PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                            pcmDevRxIds.at(0), rxAifBackEnds[0].second.data(), dAttr.id);
-                } else {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                    status = 0;
-                    goto pcm_start_loopback;
-                }
-
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                    dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO  ) {
-                    status = associatedDevices[i]->getCodecConfig(&codecConfig);
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                        goto exit;
-                    }
-                    mfcData.bitWidth = codecConfig.bit_width;
-                    mfcData.sampleRate = codecConfig.sample_rate;
-                    mfcData.numChannel = codecConfig.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                } else {
-                    mfcData.bitWidth = dAttr.config.bit_width;
-                    mfcData.sampleRate = dAttr.config.sample_rate;
-                    mfcData.numChannel = dAttr.config.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                }
-
-                builder->payloadMFCConfig((uint8_t **)&payload, &payloadSize, miid, &mfcData);
-                if (payloadSize) {
-                    status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-                        goto exit;
-                    }
-                }
-                status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
-                        customPayload, customPayloadSize);
+                status = configureMFC(rm, sAttr, dAttr, pcmDevRxIds,
+                            rxAifBackEnds[0].second.data());
                 if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    PAL_ERR(LOG_TAG,"configure MFC failed");
                     goto exit;
                 }
             }
-pcm_start_loopback:
             status = pcm_start(pcmRx);
             if (status) {
                 status = errno;
@@ -1498,10 +1398,10 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
 
     if (!rxAifBackEndsToConnect.empty()) {
         if (streamType != PAL_STREAM_ULTRASOUND)
-            status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+            status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
                      dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevRxIds), rxAifBackEndsToConnect);
         else
-            status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+            status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
                      dAttr, pcmDevTxIds, pcmDevRxIds, rxAifBackEndsToConnect);
 
         for (const auto &elem : rxAifBackEndsToConnect)
@@ -1509,7 +1409,7 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
     }
 
     if (!txAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevTxIds), txAifBackEndsToConnect);
         for (const auto &elem : txAifBackEndsToConnect)
             txAifBackEnds.push_back(elem);

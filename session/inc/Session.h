@@ -92,6 +92,10 @@ public:
     int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,
         int device, struct mixer *mixer, PayloadBuilder* builder,
         std::vector<std::pair<int32_t, std::string>> rxAifBackEnds);
+    int setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
+            struct pal_device &dAttr, const std::vector<int> &pcmDevIds);
+    int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
+            struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
