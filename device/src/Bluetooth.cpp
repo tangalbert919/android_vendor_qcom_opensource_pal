@@ -386,18 +386,18 @@ int Bluetooth::configureA2dpEncoderDecoder()
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", RAT_RENDER, status);
                 goto error;
-            }
-
-            builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
-            if (paramSize) {
-                dev->updateCustomPayload(paramData, paramSize);
-                delete [] paramData;
-                paramData = NULL;
-                paramSize = 0;
             } else {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "Invalid RAT module param size");
-                goto error;
+                builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
+                if (paramSize) {
+                    dev->updateCustomPayload(paramData, paramSize);
+                    delete [] paramData;
+                    paramData = NULL;
+                    paramSize = 0;
+                } else {
+                    status = -EINVAL;
+                    PAL_ERR(LOG_TAG, "Invalid RAT module param size");
+                    goto error;
+                }
             }
 
             /* PCM CNV Module Configuration */
@@ -500,20 +500,28 @@ int Bluetooth::configureA2dpEncoderDecoder()
     /* RAT Module Configuration */
     status = session->getMIID(backEndName.c_str(), RAT_RENDER, &ratMiid);
     if (status) {
-        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", RAT_RENDER, status);
-        goto error;
-    }
-
-    builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
-    if (paramSize) {
-        dev->updateCustomPayload(paramData, paramSize);
-        delete [] paramData;
-        paramData = NULL;
-        paramSize = 0;
+        //Graphs with abr enabled will have RAT, Other graphs do not need a RAT.
+        //Hence not configuring RAT module can be ignored.
+        if (isAbrEnabled) {
+            PAL_ERR(LOG_TAG, "Failed to get tag for RAT_RENDER for isAbrEnabled %d,"
+                        "codecFormat = %x", isAbrEnabled, codecFormat);
+            goto error;
+        } else {
+            PAL_INFO(LOG_TAG, "Failed to get tag info %x, status = %d - can be ignored",
+                        RAT_RENDER, status);
+        }
     } else {
-        status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid RAT module param size");
-        goto error;
+        builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &codecConfig);
+        if (paramSize) {
+            dev->updateCustomPayload(paramData, paramSize);
+            delete [] paramData;
+            paramData = NULL;
+            paramSize = 0;
+        } else {
+            status = -EINVAL;
+            PAL_ERR(LOG_TAG, "Invalid RAT module param size");
+            goto error;
+        }
     }
 
     /* PCM CNV Module Configuration */
