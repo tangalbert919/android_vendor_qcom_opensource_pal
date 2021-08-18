@@ -387,8 +387,11 @@ int32_t ContextManager::StreamProxyCallback (pal_stream_handle_t *stream_handle,
     ContextManager* cm = ((ContextManager*)cookie);
 
     PAL_VERBOSE(LOG_TAG, "Enter");
+    std::unique_lock<std::mutex> lck(cm->request_queue_mtx);
     request_command = RequestCommandFactory::RequestCommandCreate(event_id, event_data);
     cm->request_cmd_queue.push(request_command);
+    //Manual unlock to avoid waking up the waiting thread only to block again
+    lck.unlock();
     cm->request_queue_cv.notify_one();
 
     PAL_VERBOSE(LOG_TAG, "Exit");
@@ -475,23 +478,21 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
 {
     RequestCommand *request_command;
     int32_t rc = 0;
-    std::unique_lock<std::mutex> lck(cm.request_queue_mtx, std::defer_lock);
+
     PAL_VERBOSE(LOG_TAG, "Entering CommandThreadRunner");
 
+    std::unique_lock<std::mutex> lck(cm.request_queue_mtx);
     while (!cm.exit_cmd_thread_) {
-        lck.lock();
         // wait until we have a command to process.
         cm.request_queue_cv.wait(lck);
 
         // Continue so that we can terminate properly
         if (cm.request_cmd_queue.empty()) {
-            lck.unlock();
             continue;
         }
 
         request_command = cm.request_cmd_queue.front();
         cm.request_cmd_queue.pop();
-        lck.unlock();
 
         rc = request_command->Process(cm);
         if (rc) {

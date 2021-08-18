@@ -90,10 +90,8 @@ void StreamContextProxy::ParseASPSEventPayload(uint32_t event_id,
                                    uint32_t event_size, void *data) {
     if (callback_) {
         PAL_INFO(LOG_TAG, "Notify detection event to client");
-        mStreamMutex.lock();
         callback_((pal_stream_handle_t *)this, event_id, (uint32_t *)data,
                    event_size, cookie_);
-        mStreamMutex.unlock();
     }
 }
 
