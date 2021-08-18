@@ -396,10 +396,12 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_AAC_ADTS:
         case PAL_AUDIO_FMT_AAC_ADIF:
         case PAL_AUDIO_FMT_AAC_LATM:
+        case PAL_AUDIO_FMT_VORBIS:
         case PAL_AUDIO_FMT_FLAC:
-            isSupported = true;
-            break;
+        case PAL_AUDIO_FMT_WMA_PRO:
+        case PAL_AUDIO_FMT_APE:
         case PAL_AUDIO_FMT_WMA_STD:
+            isSupported = true;
             break;
         case PAL_AUDIO_FMT_PCM_S8:
         case PAL_AUDIO_FMT_PCM_S16_LE:
@@ -409,13 +411,7 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_ALAC:
             break;
-        case PAL_AUDIO_FMT_APE:
-            break;
-        case PAL_AUDIO_FMT_WMA_PRO:
-            break;
         case PAL_AUDIO_FMT_FLAC_OGG:
-            break;
-        case PAL_AUDIO_FMT_VORBIS:
             break;
         default:
             break;
@@ -522,6 +518,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                     lock.lock();
                     continue;
                 }
+                compressObj->sendNextTrackParams = false;
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg && msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
@@ -535,6 +532,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                                 ret = compress_partial_drain(compressObj->compress);
                                 PAL_INFO(LOG_TAG, "out of partial compress_drain, ret %d", ret);
                             }
+                            compressObj->sendNextTrackParams = true;
                             event_id = PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY;
                         } else {
                             PAL_DBG(LOG_TAG, "calling compress_drain");
@@ -542,6 +540,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                             PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
                             is_drain_called = true;
                             event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
+                            compressObj->sendNextTrackParams = false;
                         }
                     }
                 } else {
@@ -1505,6 +1504,11 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
             updateCodecOptions((pal_param_payload *) payload);
+            if (sendNextTrackParams && audio_fmt != PAL_AUDIO_FMT_VORBIS) {
+                PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
+                compress_set_codec_params(compress, &codec);
+                sendNextTrackParams = false;
+            }
         break;
         case PAL_PARAM_ID_GAPLESS_MDATA:
         {

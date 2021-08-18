@@ -111,6 +111,7 @@ private:
     std::vector <std::pair<int, int>> ckv;
     std::vector <std::pair<int, int>> tkv;
     bool isGaplessFmt = false;
+    bool sendNextTrackParams = false;
     bool isGaplessFormat(pal_audio_fmt_t fmt);
     int configureEarlyEOSDelay(void);
     void updateCodecOptions(pal_param_payload *param_payload);
