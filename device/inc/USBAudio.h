@@ -127,6 +127,8 @@ public:
     int init(pal_param_device_connection_t device_conn);
     int deinit(pal_param_device_connection_t device_conn);
     int getDefaultConfig(pal_param_device_capability_t capability);
+    static bool isUsbConnected(struct pal_usb_device_address addr);
+    static bool isUsbAlive(int card);
     int selectBestConfig(struct pal_device *dattr,
                                    struct pal_stream_attributes *sattr,
                                    bool is_playback, struct pal_device_info *devinfo);
