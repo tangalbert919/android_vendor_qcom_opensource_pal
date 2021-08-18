@@ -1284,8 +1284,8 @@ int SessionAlsaCompress::stop(Stream * s __unused)
     PAL_DBG(LOG_TAG,"Enter");
     if (compress && playback_started) {
         status = compress_stop(compress);
-        rm->voteSleepMonitor(s, false);
     }
+    rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
