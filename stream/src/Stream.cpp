@@ -696,6 +696,13 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     continue;
                 }
 
+                // Invoke session API to explicitly update the device metadata
+                status = session->disconnectSessionDevice(this, mStreamAttr->type, (*iter));
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    goto exit;
+                }
+
                 status = (*iter)->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
@@ -722,6 +729,12 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     continue;
                 }
 
+                status = session->disconnectSessionDevice(this, mStreamAttr->type, (*iter));
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    goto exit;
+                }
+
                 status = (*iter)->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
@@ -733,6 +746,11 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             // For non-combo device, mute the stream and route to speaker
             PAL_DBG(LOG_TAG, "BT A2DP output device is not ready, mute stream and route to speaker");
             for (int i = 0; i < mDevices.size(); i++) {
+                status = session->disconnectSessionDevice(this, mStreamAttr->type, mDevices[i]);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    goto exit;
+                }
                 status = mDevices[i]->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
@@ -751,6 +769,13 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             status = dev->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device open failed with status %d", status);
+                goto exit;
+            }
+
+            status = session->setupSessionDevice(this, mStreamAttr->type, dev);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "setupSessionDevice failed:%d", status);
+                dev->close();
                 goto exit;
             }
             mDevices.push_back(dev);
