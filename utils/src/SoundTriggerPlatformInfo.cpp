@@ -190,11 +190,19 @@ std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleI
 }
 
 st_module_type_t SoundModelConfig::GetModuleType() {
-     return GetSoundTriggerModuleInfo()->GetModuleType();
+    std::shared_ptr<SoundTriggerModuleInfo> sTModuleInfo = GetSoundTriggerModuleInfo();
+    if (sTModuleInfo != nullptr)
+        return sTModuleInfo->GetModuleType();
+    else
+        return ST_MODULE_TYPE_NONE;
 }
 
 std::string SoundModelConfig::GetModuleName() {
-     return GetSoundTriggerModuleInfo()->GetModuleName();
+    std::shared_ptr<SoundTriggerModuleInfo> sTModuleInfo = GetSoundTriggerModuleInfo();
+    if (sTModuleInfo != nullptr)
+        return sTModuleInfo->GetModuleName();
+    else
+        return std::string();
 }
 
 void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
