@@ -860,6 +860,7 @@
             <param mmap_enable="true" />
             <param mmap_buffer_duration="5000" />
             <param mmap_frame_length="5" /> <!-- 5ms duration of data -->
+            <param notify_second_stage_failure="false"/>
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS">
