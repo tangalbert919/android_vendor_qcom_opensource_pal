@@ -83,12 +83,6 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         throw std::runtime_error("invalid arguments");
     }
 
-    if (dattr) {
-        for (int i=0; i < no_of_devices; i++) {
-            mPalDevice.push_back(dattr[i]);
-        }
-    }
-
     attribute_size = sizeof(struct pal_stream_attributes);
     mStreamAttr = (struct pal_stream_attributes *) calloc(1, attribute_size);
     if (!mStreamAttr) {
@@ -142,6 +136,12 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
         /* Create only update device attributes first time so update here using set*/
         /* this will have issues if same device is being currently used by different stream */
         mDevices.push_back(dev);
+    }
+
+    if (dattr) {
+        for (int i=0; i < no_of_devices; i++) {
+            mPalDevice.push_back(dattr[i]);
+        }
     }
 
     mStreamMutex.unlock();
