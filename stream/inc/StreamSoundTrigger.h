@@ -603,5 +603,6 @@ class StreamSoundTrigger : public Stream {
     ChronoSteadyClock_t transit_end_time_;
     // set to true only when mutex is not locked after callback
     bool mutex_unlocked_after_cb_;
+    bool concurrency_handling_;
 };
 #endif // STREAMSOUNDTRIGGER_H_
