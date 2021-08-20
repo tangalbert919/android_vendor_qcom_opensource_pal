@@ -6159,6 +6159,14 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             *payload_size = sizeof(rm->cardState);
             break;
         }
+        case PAL_PARAM_ID_HIFI_PCM_FILTER:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for HIFI PCM Filter");
+
+            *payload_size = sizeof(isHifiFilterEnabled);
+            **(bool **)param_payload = isHifiFilterEnabled;
+        }
+        break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);

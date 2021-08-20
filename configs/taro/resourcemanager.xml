@@ -442,11 +442,21 @@
         <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
             <usecase>
                 <name>PAL_STREAM_COMPRESSED</name>
-                <snd_device_name>headphones-hifi-filter</snd_device_name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_PCM_OFFLOAD</name>
-                <snd_device_name>headphones-hifi-filter</snd_device_name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
             </usecase>
         -->
            <usecase>
@@ -472,11 +482,21 @@
         <!--HIFI Filter Headphones-Uncomment this when param key hifi_filter is true
             <usecase>
                 <name>PAL_STREAM_COMPRESSED</name>
-                <snd_device_name>headphones-hifi-filter</snd_device_name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_PCM_OFFLOAD</name>
-                <snd_device_name>headphones-hifi-filter</snd_device_name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+                <custom-config key="hifi-filter_custom_key">
+                    <snd_device_name>headphones-hifi-filter</snd_device_name>
+                </custom-config>
             </usecase>
         -->
            <usecase>
