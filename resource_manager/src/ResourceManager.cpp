@@ -3328,8 +3328,10 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
         return -EINVAL;
     }
 
+    mResourceManagerMutex.lock();
     if (mixerEventRegisterCount == 0 && !is_register) {
         PAL_ERR(LOG_TAG, "Cannot deregister unregistered callback");
+        mResourceManagerMutex.unlock();
         return -EINVAL;
     }
 
@@ -3365,6 +3367,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
         mixerEventRegisterCount--;
     }
 
+    mResourceManagerMutex.unlock();
     return status;
 }
 
