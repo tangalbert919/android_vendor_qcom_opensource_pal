@@ -73,6 +73,7 @@ class CaptureProfile : public SoundTriggerXml {
     uint32_t GetBitWidth() const { return bitwidth_; }
     uint32_t GetChannels() const { return channels_; }
     std::string GetSndName() const { return snd_name_; }
+    bool isECRequired() const { return is_ec_req_; }
     void SetSampleRate(uint32_t sample_rate) { sample_rate_ = sample_rate; }
     void SetBitWidth(uint32_t bit_width) { bitwidth_ = bit_width; }
     void SetChannels(uint32_t channels) { channels_ = channels; }
@@ -89,5 +90,6 @@ class CaptureProfile : public SoundTriggerXml {
     uint32_t bitwidth_;
     std::pair<uint32_t,uint32_t> device_pp_kv_;
     std::string snd_name_;
+    bool is_ec_req_;
 };
 #endif

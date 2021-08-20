@@ -542,9 +542,8 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
         goto exit;
     }
 
-    if (mDevPPSelector.empty() ||
-        mDevPPSelector.find("FFECNS") == std::string::npos) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref for other than FFECNS capture profile");
+    if (!cap_prof_ || !cap_prof_->isECRequired()) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref");
         goto exit;
     }
 
@@ -2718,10 +2717,10 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     }
 
     if (cap_prof) {
-        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s, ec_ref=%d",
             cap_prof->GetName().c_str(), cap_prof->GetDevId(),
             cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-            cap_prof->GetSndName().c_str());
+            cap_prof->GetSndName().c_str(), cap_prof->isECRequired());
     }
 
     return cap_prof;
@@ -2927,17 +2926,19 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (active) {
                     if (st_stream_.sm_config_) {
                         std::shared_ptr<StEventConfig> ev_cfg1(
@@ -3310,17 +3311,19 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<StEventConfig> ev_cfg1(
                         new StUnloadEventConfig());
@@ -3622,17 +3625,19 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<StEventConfig> ev_cfg1(
                         new StStopRecognitionEventConfig(false));

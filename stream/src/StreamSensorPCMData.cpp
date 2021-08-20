@@ -271,9 +271,9 @@ int32_t StreamSensorPCMData::Resume()
         dev.config.sample_rate = cap_prof->GetSampleRate();
         device->setDeviceAttributes(dev);
         device->setSndName(cap_prof->GetSndName());
-        PAL_DBG(LOG_TAG, "cap_prof %s, updated device attr dev_id=%d, chs=%d, sr=%d\n",
+        PAL_DBG(LOG_TAG, "cap_prof %s, updated device attr dev_id=%d, chs=%d, sr=%d, ec_ref=%d\n",
                 cap_prof->GetName().c_str(), dev.id, cap_prof->GetChannels(),
-                cap_prof->GetSampleRate());
+                cap_prof->GetSampleRate(), cap_prof->isECRequired());
     } else {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Error:%d Invalid capture profile", status);
@@ -396,14 +396,13 @@ std::shared_ptr<CaptureProfile> StreamSensorPCMData::GetCurrentCaptureProfile()
              && !use_lpi_)
         operating_mode = ST_OPERATING_MODE_HIGH_PERF_NS;
 
-    cap_prof = sm_cfg_->GetCaptureProfile(
-                                std::make_pair(operating_mode, input_mode));
+    cap_prof = sm_cfg_->GetCaptureProfile(std::make_pair(operating_mode, input_mode));
 
     if (cap_prof) {
-        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=%d, chs=%d, sr=%d, snd_name=%s",
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=%d, chs=%d, sr=%d, snd_name=%s, ec_ref=%d",
                 cap_prof->GetName().c_str(), cap_prof->GetDevId(),
                 cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-                cap_prof->GetSndName().c_str());
+                cap_prof->GetSndName().c_str(), cap_prof->isECRequired());
 
         // update the best device
         dev.id = GetAvailCaptureDevice();
@@ -499,17 +498,19 @@ int32_t StreamSensorPCMData::HandleConcurrentStream(bool active)
     new_cap_prof = GetCurrentCaptureProfile();
     if (new_cap_prof && cap_prof_ != new_cap_prof) {
         PAL_DBG(LOG_TAG,
-            "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+            "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
             cap_prof_->GetName().c_str(),
             cap_prof_->GetDevId(),
             cap_prof_->GetChannels(),
-            cap_prof_->GetSampleRate());
+            cap_prof_->GetSampleRate(),
+            cap_prof_->isECRequired());
         PAL_DBG(LOG_TAG,
-            "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+            "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
             new_cap_prof->GetName().c_str(),
             new_cap_prof->GetDevId(),
             new_cap_prof->GetChannels(),
-            new_cap_prof->GetSampleRate());
+            new_cap_prof->GetSampleRate(),
+            new_cap_prof->isECRequired());
 
         if (!active) {
             PAL_DBG(LOG_TAG, "disconnect device %d", GetAvailCaptureDevice());
@@ -649,10 +650,10 @@ int32_t StreamSensorPCMData::ConnectDevice_l(pal_device_id_t device_id)
         mDevices[0]->close();
     } else {
         PAL_DBG(LOG_TAG, "Update capture profile after device switch");
-        this->rm->registerDevice(mDevices[0], this);
         cap_prof_ = GetCurrentCaptureProfile();
         if (cap_prof_)
             mDevPPSelector = cap_prof_->GetName();
+        this->rm->registerDevice(mDevices[0], this);
     }
 
 connect_err:
@@ -679,10 +680,8 @@ int32_t StreamSensorPCMData::setECRef_l(std::shared_ptr<Device> dev, bool is_ena
 
     PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
-    if (mDevPPSelector.empty() ||
-        mDevPPSelector.find("FFEC") == std::string::npos) {
-        PAL_DBG(LOG_TAG, "No need to set EC Ref for profile:%s",
-                mDevPPSelector.c_str());
+    if (!cap_prof_ || !cap_prof_->isECRequired()) {
+        PAL_DBG(LOG_TAG, "No need to set EC Ref");
         goto exit;
     }
 
