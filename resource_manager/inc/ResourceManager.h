@@ -446,6 +446,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isCpsEnabled;
     static pal_audio_fmt_t bitFormatSupported;
+    static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
     static bool isContextManagerEnabled;
