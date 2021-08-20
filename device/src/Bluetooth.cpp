@@ -1356,6 +1356,15 @@ int BtA2dp::startCapture()
                 PAL_ERR(LOG_TAG, "invalid encoder config");
                 return -EINVAL;
             }
+
+            /* Update Device GKV based on Decoder type */
+            updateDeviceMetadata();
+
+            ret = configureA2dpEncoderDecoder();
+            if (ret) {
+                PAL_DBG(LOG_TAG, "unable to configure DSP decoder");
+                return ret;
+            }
         }
     } else {
         uint8_t multi_cast = 0, num_dev = 1;
@@ -1387,15 +1396,16 @@ int BtA2dp::startCapture()
                 PAL_ERR(LOG_TAG, "invalid codec config");
                 return -EINVAL;
             }
-        }
-    }
-    /* Update Device GKV based on Decoder type */
-    updateDeviceMetadata();
 
-    ret = configureA2dpEncoderDecoder();
-    if (ret) {
-        PAL_DBG(LOG_TAG, "unable to configure DSP decoder");
-        return ret;
+            /* Update Device GKV based on Decoder type */
+            updateDeviceMetadata();
+
+            ret = configureA2dpEncoderDecoder();
+            if (ret) {
+                PAL_DBG(LOG_TAG, "unable to configure DSP decoder");
+                return ret;
+            }
+        }
     }
 
     if (!isDummySink) {
