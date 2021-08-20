@@ -945,6 +945,20 @@ void StreamSoundTrigger::updateStreamAttributes() {
             mStreamAttr->in_media_config.ch_info.channels =
                 sm_cfg_->GetOutChannels();
         }
+        /* Update channel map in stream attributes to be in sync with channels */
+        switch (mStreamAttr->in_media_config.ch_info.channels) {
+            case CHANNELS_2:
+                mStreamAttr->in_media_config.ch_info.ch_map[0] =
+                    PAL_CHMAP_CHANNEL_FL;
+                mStreamAttr->in_media_config.ch_info.ch_map[1] =
+                    PAL_CHMAP_CHANNEL_FR;
+                break;
+            case CHANNELS_1:
+            default:
+                mStreamAttr->in_media_config.ch_info.ch_map[0] =
+                    PAL_CHMAP_CHANNEL_FL;
+                break;
+        }
 
         mStreamAttr->in_media_config.sample_rate =
             sm_cfg_->GetSampleRate();
