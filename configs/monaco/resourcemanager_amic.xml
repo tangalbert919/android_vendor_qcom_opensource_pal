@@ -95,6 +95,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -108,6 +110,7 @@
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
+                <bit_width>16</bit_width>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -149,6 +152,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -162,6 +167,7 @@
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
+                <bit_width>16</bit_width>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
@@ -178,6 +184,8 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -200,6 +208,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>va-mic</snd_device_name>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -212,6 +222,8 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </in-device>
         <out-device>
@@ -220,6 +232,7 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
@@ -246,6 +259,7 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
@@ -253,6 +267,8 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
         <out-device>
@@ -260,6 +276,8 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
     </device_profile>
