@@ -573,7 +573,8 @@ void Bluetooth::startAbr()
     struct pcm_config config;
     struct mixer_ctl *connectCtrl = NULL;
     struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
-    struct mixer *mixerHandle = NULL;
+    struct mixer *virtualMixerHandle = NULL;
+    struct mixer *hwMixerHandle = NULL;
     std::ostringstream connectCtrlName;
     unsigned int flags;
     uint32_t codecTagId = 0, miid = 0;
@@ -610,11 +611,9 @@ void Bluetooth::startAbr()
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
     if (codecType == DEC) { /* Usecase is TX, feedback device will be RX */
-        if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
-            (codecFormat == CODEC_TYPE_LC3))
-            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
-        else
-            fbDevice.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+        fbDevice.id = ((deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ?
+            PAL_DEVICE_OUT_BLUETOOTH_A2DP :
+            PAL_DEVICE_OUT_BLUETOOTH_SCO);
         dir = RX_HOSTLESS;
         flags = PCM_OUT;
     } else {
@@ -653,14 +652,19 @@ void Bluetooth::startAbr()
         ret = -ENOSYS;
         goto done;
     }
-    ret = rm->getAudioMixer(&mixerHandle);
+    ret = rm->getVirtualAudioMixer(&virtualMixerHandle);
     if (ret) {
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", ret);
         goto free_fe;
     }
+    ret = rm->getHwAudioMixer(&hwMixerHandle);
+    if (ret) {
+        PAL_ERR(LOG_TAG, "get hw mixer handle failed %d", ret);
+        goto free_fe;
+    }
 
     connectCtrlName << "PCM" << fbpcmDevIds.at(0) << " connect";
-    connectCtrl = mixer_get_ctl_by_name(mixerHandle, connectCtrlName.str().data());
+    connectCtrl = mixer_get_ctl_by_name(virtualMixerHandle, connectCtrlName.str().data());
     if (!connectCtrl) {
         PAL_ERR(LOG_TAG, "invalid mixer control: %s", connectCtrlName.str().data());
         goto free_fe;
@@ -675,7 +679,7 @@ void Bluetooth::startAbr()
 
     // Notify ABR usecase information to BT driver to distinguish
     // between SCO and feedback usecase
-    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(mixerHandle,
+    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(hwMixerHandle,
                                         MIXER_SET_FEEDBACK_CHANNEL);
     if (!btSetFeedbackChannelCtrl) {
         PAL_ERR(LOG_TAG, "ERROR %s mixer control not identified",
@@ -703,7 +707,7 @@ void Bluetooth::startAbr()
         }
 
         codecTagId = (codecType == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
-        ret = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
+        ret = SessionAlsaUtils::getModuleInstanceId(virtualMixerHandle,
                      fbpcmDevIds.at(0), backEndName.c_str(), codecTagId, &miid);
         if (ret) {
             PAL_ERR(LOG_TAG, "getMiid for feedback device failed");
@@ -769,7 +773,7 @@ void Bluetooth::startAbr()
         }
 
         /* configure COP v2 depacketizer */
-        ret = SessionAlsaUtils::getModuleInstanceId(mixerHandle,
+        ret = SessionAlsaUtils::getModuleInstanceId(virtualMixerHandle,
                      fbpcmDevIds.at(0), backEndName.c_str(), COP_DEPACKETIZER_V2, &miid);
         if (ret) {
             PAL_ERR(LOG_TAG, "Failed to get tag info %x, ret = %d",
@@ -803,7 +807,7 @@ start_pcm:
     config.start_threshold = 0;
     config.stop_threshold = 0;
     config.silence_threshold = 0;
-    fbPcm = pcm_open(rm->getSndCard(), fbpcmDevIds.at(0), flags, &config);
+    fbPcm = pcm_open(rm->getVirtualSndCard(), fbpcmDevIds.at(0), flags, &config);
     if (!fbPcm) {
         PAL_ERR(LOG_TAG, "pcm open failed");
         goto free_fe;
@@ -853,7 +857,7 @@ void Bluetooth::stopAbr()
 {
     struct pal_stream_attributes sAttr;
     struct mixer_ctl *btSetFeedbackChannelCtrl = NULL;
-    struct mixer *mixerHandle = NULL;
+    struct mixer *hwMixerHandle = NULL;
     int dir, ret = 0;
 
     mAbrMutex.lock();
@@ -876,13 +880,13 @@ void Bluetooth::stopAbr()
     pcm_stop(fbPcm);
     pcm_close(fbPcm);
 
-    ret = rm->getAudioMixer(&mixerHandle);
+    ret = rm->getHwAudioMixer(&hwMixerHandle);
     if (ret) {
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", ret);
         goto free_fe;
     }
     // Reset BT driver mixer control for ABR usecase
-    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(mixerHandle,
+    btSetFeedbackChannelCtrl = mixer_get_ctl_by_name(hwMixerHandle,
                                         MIXER_SET_FEEDBACK_CHANNEL);
     if (!btSetFeedbackChannelCtrl) {
         PAL_ERR(LOG_TAG, "%s mixer control not identified",
@@ -1697,6 +1701,8 @@ BtSco::BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Bluetooth(device, Rm)
 {
     codecType = (device->id == PAL_DEVICE_OUT_BLUETOOTH_SCO) ? ENC : DEC;
+    pluginHandler = NULL;
+    pluginCodec = NULL;
 }
 
 BtSco::~BtSco()
@@ -1763,7 +1769,13 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     uint32_t audio_location = 0;
     uint8_t stream_id = 0;
     uint8_t direction = 0;
+    uint8_t value = 0;
     int idx = 0;
+    std::string vendorStr(lc3Cfg.vendor);
+    std::string streamMapStr(lc3Cfg.streamMap);
+    std::regex vendorPattern("([0-9a-fA-F]{2})[,[:s:]]?");
+    std::regex streamMapPattern("([0-9])[,[:s:]]+([0-9])[,[:s:]]+([MLR])");
+    std::smatch match;
 
     // convert and fill in encoder cfg
     lc3CodecInfo.enc_cfg.toAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.txconfig_index].sampling_freq;
@@ -1776,8 +1788,6 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     lc3CodecInfo.enc_cfg.toAirConfig.num_blocks           = lc3Cfg.num_blocks;
     lc3CodecInfo.enc_cfg.toAirConfig.default_q_level      = 0;
     lc3CodecInfo.enc_cfg.toAirConfig.mode                 = 0x1;
-    for (int i=0; i<16; i++)
-        lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[i] = 0;
 
     // convert and fill in decoder cfg
     lc3CodecInfo.dec_cfg.fromAirConfig.sampling_freq        = LC3_CSC[lc3Cfg.rxconfig_index].sampling_freq;
@@ -1790,14 +1800,24 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
     lc3CodecInfo.dec_cfg.fromAirConfig.num_blocks           = lc3Cfg.num_blocks;
     lc3CodecInfo.dec_cfg.fromAirConfig.default_q_level      = 0;
     lc3CodecInfo.dec_cfg.fromAirConfig.mode                 = 0x1;
-    for (int i=0; i<16; i++)
-        lc3CodecInfo.dec_cfg.fromAirConfig.vendor_specific[i] = 0;
+
+    // parse vendor specific string
+    idx = 15;
+    while (std::regex_search(vendorStr, match, vendorPattern)) {
+        if (idx < 0) {
+            PAL_ERR(LOG_TAG, "wrong vendor info length, string %s", lc3Cfg.vendor);
+            break;
+        }
+        value = (uint8_t)strtol(match[1].str().c_str(), NULL, 16);
+        lc3CodecInfo.enc_cfg.toAirConfig.vendor_specific[idx] = value;
+        lc3CodecInfo.dec_cfg.fromAirConfig.vendor_specific[idx--] = value;
+        vendorStr = match.suffix().str();
+    }
+    if (idx != -1)
+        PAL_ERR(LOG_TAG, "wrong vendor info length, string %s", lc3Cfg.vendor);
 
     // parse stream map string and append stream map structures
-    std::string s(lc3Cfg.streamMap);
-    std::regex pattern("([0-9])[,[:s:]]+([0-9])[,[:s:]]+([MLR])");
-    std::smatch match;
-    while (std::regex_search(s, match, pattern)) {
+    while (std::regex_search(streamMapStr, match, streamMapPattern)) {
         stream_id = atoi(match[1].str().c_str());
         direction = atoi(match[2].str().c_str());
         if (!strcmp(match[3].str().c_str(), "M")) {
@@ -1817,7 +1837,7 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
         else
             steamMapIn.push_back({audio_location, stream_id, direction});
 
-        s = match.suffix().str();
+        streamMapStr = match.suffix().str();
     }
 
     PAL_DBG(LOG_TAG, "stream map out size: %d, stream map in size: %d", steamMapOut.size(), steamMapIn.size());
@@ -1827,6 +1847,7 @@ void BtSco::convertCodecInfo(audio_lc3_codec_cfg_t &lc3CodecInfo,
         return;
     }
 
+    idx = 0;
     lc3CodecInfo.enc_cfg.stream_map_size = steamMapOut.size();
     if (lc3CodecInfo.enc_cfg.streamMapOut != NULL)
         delete [] lc3CodecInfo.enc_cfg.streamMapOut;

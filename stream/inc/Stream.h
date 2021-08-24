@@ -157,6 +157,7 @@ public:
     uint64_t cookie;
     bool isPaused = false;
     bool a2dpMuted = false;
+    bool a2dpPaused = false;
     pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
@@ -169,7 +170,9 @@ public:
     virtual int32_t mute(bool state) = 0;
     virtual int32_t mute_l(bool state) = 0;
     virtual int32_t pause() = 0;
+    virtual int32_t pause_l() = 0;
     virtual int32_t resume() = 0;
+    virtual int32_t resume_l() = 0;
     virtual int32_t flush() {return 0;}
     virtual int32_t suspend() {return 0;}
     virtual int32_t read(struct pal_buffer *buf) = 0;
@@ -238,6 +241,8 @@ public:
     virtual int32_t HandleChargingStateUpdate(bool state, bool active) { return 0; }
     static void handleSoftPauseCallBack(uint64_t hdl, uint32_t event_id, void *data,
                                                            uint32_t event_size);
+    static void handleStreamException(struct pal_stream_attributes *attributes,
+                                      pal_stream_callback cb, uint64_t cookie);
 };
 
 class StreamNonTunnel : public Stream
@@ -257,8 +262,10 @@ public:
    int32_t setVolume( struct pal_volume_data *volume __unused) {return 0;};
    int32_t mute(bool state __unused) {return 0;};
    int32_t mute_l(bool state __unused) {return 0;};
-   int32_t pause() override;
-   int32_t resume() override;
+   int32_t pause() {return 0;};
+   int32_t pause_l() {return 0;};
+   int32_t resume() {return 0;};
+   int32_t resume_l() {return 0;};
    int32_t drain(pal_drain_type_t type) override;
    int32_t flush();
    int32_t suspend() override;

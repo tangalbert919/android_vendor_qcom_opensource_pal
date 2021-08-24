@@ -174,6 +174,12 @@ typedef enum {
     SIDETONE_SW,
 } sidetone_mode_t;
 
+typedef enum {
+    AUDIO_BIT_WIDTH_8 = 8,
+    AUDIO_BIT_WIDTH_DEFAULT_16 = 16,
+    AUDIO_BIT_WIDTH_24 = 24,
+    AUDIO_BIT_WIDTH_32 = 32,
+} audio_bit_width_t;
 
 struct usecase_custom_config_info
 {
@@ -246,17 +252,6 @@ struct nativeAudioProp {
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
                 uint32_t event_size);
 bool isPalPCMFormat(uint32_t fmt_id);
-
-/*This table gets bit_width only Hence we have 24
- *as the bitwidth for 24_LE, dont use this to get bits_per_sample,
- *because in case of 24_LE that would be 32*/
-const uint32_t palFormatToBitwidthTable[] = {
-    [PAL_AUDIO_FMT_PCM_S8] = 8,
-    [PAL_AUDIO_FMT_PCM_S16_LE] = 16,
-    [PAL_AUDIO_FMT_PCM_S24_3LE] = 24,
-    [PAL_AUDIO_FMT_PCM_S24_LE] = 24,
-    [PAL_AUDIO_FMT_PCM_S32_LE] = 32,
-};
 
 typedef void* (*adm_init_t)();
 typedef void (*adm_deinit_t)(void *);
@@ -373,10 +368,13 @@ protected:
     static std::mutex mGraphMutex;
     static std::mutex mActiveStreamMutex;
     static std::mutex mSleepMonitorMutex;
-    static int snd_card;
+    static int snd_virt_card;
+    static int snd_hw_card;
+
     static std::shared_ptr<ResourceManager> rm;
     static struct audio_route* audio_route;
-    static struct audio_mixer* audio_mixer;
+    static struct audio_mixer* audio_virt_mixer;
+    static struct audio_mixer* audio_hw_mixer;
     static std::vector <int> streamTag;
     static std::vector <int> streamPpTag;
     static std::vector <int> mixerTag;
@@ -448,6 +446,7 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isCpsEnabled;
     static pal_audio_fmt_t bitFormatSupported;
+    static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
     static bool isContextManagerEnabled;
@@ -540,10 +539,12 @@ public:
     int getParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
-    int getSndCard();
+    int getVirtualSndCard();
+    int getHwSndCard();
     int getPcmDeviceId(int deviceId);
     int getAudioRoute(struct audio_route** ar);
-    int getAudioMixer(struct audio_mixer **am);
+    int getVirtualAudioMixer(struct audio_mixer **am);
+    int getHwAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getOrphanStream(std::vector<Stream*> &orphanstreams);
@@ -707,6 +708,7 @@ public:
                                  struct pal_device *Dev2Attr,
                                  const struct pal_device_info *Dev2Info);
     int32_t voteSleepMonitor(Stream *str, bool vote);
+    static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
 };
 
 #endif

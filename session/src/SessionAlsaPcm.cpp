@@ -109,7 +109,7 @@ int SessionAlsaPcm::open(Stream * s)
 
         }
     }
-    status = rm->getAudioMixer(&mixer);
+    status = rm->getVirtualAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG,"mixer error");
         goto exit;
@@ -597,7 +597,7 @@ int SessionAlsaPcm::start(Stream * s)
     uint32_t miid;
     int payload_size = 0;
     struct agm_event_reg_cfg event_cfg;
-    struct agm_event_reg_cfg *acd_event_cfg;
+    struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
 
@@ -643,10 +643,10 @@ int SessionAlsaPcm::start(Stream * s)
                     config.silence_threshold = 0;
                     config.silence_size = 0;
                     config.avail_min = config.period_size;
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                         PCM_IN |PCM_MMAP| PCM_NOIRQ, &config);
                 } else {
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_IN, &config);
                 }
 
                 if (!pcm) {
@@ -668,10 +668,10 @@ int SessionAlsaPcm::start(Stream * s)
                     config.silence_threshold = 0;
                     config.silence_size = 0;
                     config.avail_min = config.period_size;
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                         PCM_OUT |PCM_MMAP| PCM_NOIRQ, &config);
                 } else {
-                    pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
+                    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_OUT, &config);
                 }
 
                 if (!pcm) {
@@ -687,7 +687,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
                 break;
             case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
-                pcmRx = pcm_open(rm->getSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
+                pcmRx = pcm_open(rm->getVirtualSndCard(), pcmDevRxIds.at(0), PCM_OUT, &config);
                 if (!pcmRx) {
                     PAL_ERR(LOG_TAG, "pcm-rx open failed");
                     status = errno;
@@ -699,7 +699,7 @@ int SessionAlsaPcm::start(Stream * s)
                     status = errno;
                     goto exit;
                 }
-                pcmTx = pcm_open(rm->getSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
+                pcmTx = pcm_open(rm->getVirtualSndCard(), pcmDevTxIds.at(0), PCM_IN, &config);
                 if (!pcmTx) {
                     PAL_ERR(LOG_TAG, "pcm-tx open failed");
                     status = errno;
@@ -742,14 +742,20 @@ int SessionAlsaPcm::start(Stream * s)
             payload_size = sizeof(struct agm_event_reg_cfg) + eventPayloadSize;
 
             acd_event_cfg = (struct agm_event_reg_cfg *)calloc(1, payload_size);
-            acd_event_cfg->event_id = eventId;
-            acd_event_cfg->event_config_payload_size = eventPayloadSize;
-            acd_event_cfg->is_register = 1;
-            memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
-            SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
-                txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)acd_event_cfg,
-                payload_size);
-            free(acd_event_cfg);
+            if (acd_event_cfg) {
+                acd_event_cfg->event_id = eventId;
+                acd_event_cfg->event_config_payload_size = eventPayloadSize;
+                acd_event_cfg->is_register = 1;
+                memcpy(acd_event_cfg->event_config_payload, eventPayload, eventPayloadSize);
+                SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+                    txAifBackEnds[0].second.data(), CONTEXT_DETECTION_ENGINE, (void *)acd_event_cfg,
+                    payload_size);
+                free(acd_event_cfg);
+            } else {
+                PAL_ERR(LOG_TAG, "get acd_event_cfg instance memory allocation failed");
+                status = -ENOMEM;
+                goto exit;
+            }
         }
     } else if(sAttr.type == PAL_STREAM_CONTEXT_PROXY) {
         status = register_asps_event(1);
@@ -783,7 +789,7 @@ int SessionAlsaPcm::start(Stream * s)
                 }
 
                 if (isPalPCMFormat(sAttr.in_media_config.aud_fmt_id))
-                    streamData.bitWidth = palFormatToBitwidthTable[sAttr.in_media_config.aud_fmt_id];
+                    streamData.bitWidth = ResourceManager::palFormatToBitwidthLookup(sAttr.in_media_config.aud_fmt_id);
                 else
                     streamData.bitWidth = sAttr.in_media_config.bit_width;
                 streamData.sampleRate = sAttr.in_media_config.sample_rate;
@@ -1967,8 +1973,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
 
     if (rxDevInfo.isExternalECRefEnabledFlag) {
         device.id = PAL_DEVICE_IN_EXT_EC_REF;
-        ar_mem_cpy(&device.config, sizeof(struct pal_media_config), &rxDevAttr.config,
-            sizeof(struct pal_media_config));
+        rm->getDeviceConfig(&device, &sAttr);
         dev = Device::getInstance(&device, rm);
         if (!dev) {
             PAL_ERR(LOG_TAG, "getInstance failed");
@@ -2056,7 +2061,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             config.start_threshold = 0;
             config.stop_threshold = 0;
             config.silence_threshold = 0;
-            pcmEcTx = pcm_open(rm->getSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
+            pcmEcTx = pcm_open(rm->getVirtualSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
             if (!pcmEcTx) {
                 PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open failed");
                 dev->stop();
@@ -2387,9 +2392,9 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
         this->adjustMmapPeriodCount(&config, min_size_frames);
 
         PAL_DBG(LOG_TAG, "Opening PCM device card_id(%d) device_id(%d), channels %d",
-                rm->getSndCard(), pcmDevIds.at(0), config.channels);
+                rm->getVirtualSndCard(), pcmDevIds.at(0), config.channels);
 
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0),
+        pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                              pcm_flags, &config);
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");
@@ -2561,7 +2566,7 @@ int SessionAlsaPcm::openGraph(Stream *s) {
         config.stop_threshold = 0;
         config.silence_threshold = 0;
 
-        pcm = pcm_open(rm->getSndCard(), pcmDevIds.at(0), PCM_IN, &config);
+        pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0), PCM_IN, &config);
 
         if (!pcm) {
             PAL_ERR(LOG_TAG, "pcm open failed");

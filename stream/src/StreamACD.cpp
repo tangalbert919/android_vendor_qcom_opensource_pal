@@ -417,10 +417,8 @@ int32_t StreamACD::setECRef_l(std::shared_ptr<Device> dev, bool is_enable)
 
     PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
-    if (mDevPPSelector.empty() ||
-        mDevPPSelector.find("FFECNS") == std::string::npos) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref for profile:%s",
-            mDevPPSelector.c_str());
+    if (!cap_prof_ || !cap_prof_->isECRequired()) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref");
         goto exit;
     }
 
@@ -488,9 +486,12 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
 
         cached_event_data_ = (struct pal_st_recognition_event *)realloc(cached_event_data_, new_event_size);
         if (!cached_event_data_) {
-            PAL_ERR(LOG_TAG, "failed to allocate memory for cached_event_data_");
-            return;
+            PAL_ERR(LOG_TAG, "Error:%d Failed to reallocate new memory space for cached_event_data_", -ENOMEM);
+            goto exit;
         }
+        /* Update current_context_event after realloc */
+        current_context_event =  (struct acd_context_event *)((uint8_t *)cached_event_data_ + offset);
+
         cached_event_data_->data_size += event->num_contexts * sizeof(struct acd_per_context_event_info);
         per_context_info = (uint8_t *) ((uint8_t *) current_context_event +
                             sizeof(struct acd_context_event) +
@@ -511,7 +512,10 @@ void StreamACD::CacheEventData(struct acd_context_event *event)
         }
         PopulateCallbackPayload(event, cached_event_data_);
     }
+
+exit:
     PAL_DBG(LOG_TAG, "Exit");
+    return;
 }
 
 void StreamACD::SendCachedEventData()
@@ -592,10 +596,10 @@ std::shared_ptr<CaptureProfile> StreamACD::GetCurrentCaptureProfile()
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
+    PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s, ec_ref=%d",
         cap_prof->GetName().c_str(), cap_prof->GetDevId(),
         cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-        cap_prof->GetSndName().c_str());
+        cap_prof->GetSndName().c_str(), cap_prof->isECRequired());
 
 exit:
     return cap_prof;
@@ -1186,8 +1190,9 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             dattr.config.sample_rate = cap_prof->GetSampleRate();
             dev->setDeviceAttributes(dattr);
 
-            PAL_INFO(LOG_TAG, "updated device attr dev_id=0x%x, chs=%d, sr=%d\n",
-                    cap_prof->GetDevId(), cap_prof->GetChannels(), cap_prof->GetSampleRate());
+            PAL_INFO(LOG_TAG, "updated device attr dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
+                    cap_prof->GetDevId(), cap_prof->GetChannels(),
+                    cap_prof->GetSampleRate(), cap_prof->isECRequired());
 
             /* now start the device */
             PAL_DBG(LOG_TAG, "Start device %d-%s", dev->getSndDeviceId(),
@@ -1314,12 +1319,11 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 dev->close();
                 acd_stream_.device_opened_ = false;
             } else {
-                if (acd_stream_.isActive())
-                    acd_stream_.rm->registerDevice(dev, &acd_stream_);
-
                 PAL_INFO(LOG_TAG, "Update capture profile after device switch");
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
                 acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
+                if (acd_stream_.isActive())
+                    acd_stream_.rm->registerDevice(dev, &acd_stream_);
             }
 
 
@@ -1370,17 +1374,19 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             }
             if (acd_stream_.cap_prof_ != new_cap_prof) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     acd_stream_.cap_prof_->GetName().c_str(),
                     acd_stream_.cap_prof_->GetDevId(),
                     acd_stream_.cap_prof_->GetChannels(),
-                    acd_stream_.cap_prof_->GetSampleRate());
+                    acd_stream_.cap_prof_->GetSampleRate(),
+                    acd_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceDisconnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
@@ -1576,9 +1582,9 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 acd_stream_.device_opened_ = false;
             } else {
                 PAL_DBG(LOG_TAG, "Update capture profile after device switch");
-                acd_stream_.rm->registerDevice(dev, &acd_stream_);
                 acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
                 acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
+                acd_stream_.rm->registerDevice(dev, &acd_stream_);
             }
             break;
         }
@@ -1628,17 +1634,19 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
             if (acd_stream_.cap_prof_ != new_cap_prof) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     acd_stream_.cap_prof_->GetName().c_str(),
                     acd_stream_.cap_prof_->GetDevId(),
                     acd_stream_.cap_prof_->GetChannels(),
-                    acd_stream_.cap_prof_->GetSampleRate());
+                    acd_stream_.cap_prof_->GetSampleRate(),
+                    acd_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceDisconnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));

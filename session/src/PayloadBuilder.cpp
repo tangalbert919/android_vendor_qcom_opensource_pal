@@ -1739,12 +1739,15 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
     }
     memset(sattr, 0, sizeof(struct pal_stream_attributes));
 
-    if (s) {
-        status = s->getStreamAttributes(sattr);
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
-            goto free_sattr;
-        }
+    if (!s) {
+        PAL_ERR(LOG_TAG, "stream is NULL");
+        goto exit;
+    }
+
+    status = s->getStreamAttributes(sattr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "getStreamAttributes failed status %d", status);
+        goto free_sattr;
     }
 
     for (int i = 0; i < selector_names.size(); i++) {

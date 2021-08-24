@@ -48,7 +48,9 @@ public:
     int32_t stop() override;
     int32_t prepare() override;
     int32_t pause() override;
+    int32_t pause_l() override;
     int32_t resume() override;
+    int32_t resume_l() override;
     int32_t drain(pal_drain_type_t type);
     int32_t flush();
     int32_t setStreamAttributes(struct pal_stream_attributes *sattr) override;

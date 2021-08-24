@@ -190,11 +190,19 @@ std::shared_ptr<SoundTriggerModuleInfo> SoundModelConfig::GetSoundTriggerModuleI
 }
 
 st_module_type_t SoundModelConfig::GetModuleType() {
-     return GetSoundTriggerModuleInfo()->GetModuleType();
+    std::shared_ptr<SoundTriggerModuleInfo> sTModuleInfo = GetSoundTriggerModuleInfo();
+    if (sTModuleInfo != nullptr)
+        return sTModuleInfo->GetModuleType();
+    else
+        return ST_MODULE_TYPE_NONE;
 }
 
 std::string SoundModelConfig::GetModuleName() {
-     return GetSoundTriggerModuleInfo()->GetModuleName();
+    std::shared_ptr<SoundTriggerModuleInfo> sTModuleInfo = GetSoundTriggerModuleInfo();
+    if (sTModuleInfo != nullptr)
+        return sTModuleInfo->GetModuleName();
+    else
+        return std::string();
 }
 
 void SoundModelConfig::ReadCapProfileNames(StOperatingModes mode,
@@ -362,6 +370,7 @@ SoundTriggerPlatformInfo::SoundTriggerPlatformInfo() :
     concurrent_voip_call_(false),
     low_latency_bargein_enable_(false),
     mmap_enable_(false),
+    notify_second_stage_failure_(false),
     mmap_buffer_duration_(0),
     mmap_frame_length_(0),
     sound_model_lib_("liblistensoundmodel2vendor.so"),
@@ -500,6 +509,9 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
                 mmap_frame_length_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "sound_model_lib")) {
                 sound_model_lib_ = std::string(attribs[++i]);
+            } else if (!strcmp(attribs[i], "notify_second_stage_failure")) {
+                notify_second_stage_failure_ =
+                    !strncasecmp(attribs[++i], "true", 4) ? true : false;
             } else {
                 PAL_INFO(LOG_TAG, "Invalid attribute %s", attribs[i++]);
             }

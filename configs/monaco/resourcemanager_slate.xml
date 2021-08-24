@@ -118,6 +118,33 @@
             </ec_rx_device>
         </in-device>
         <in-device>
+            <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
+            <back_end_name>MI2S-LPAIF_VA-TX-PRIMARY</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>handset-mic</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_LOW_LATENCY</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_DEEP_BUFFER</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOIP_TX</name>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_VOICE_CALL</name>
+                <sidetone_mode>HW</sidetone_mode>
+            </usecase>
+            <usecase>
+                <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
+            </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_HANDSET</id>
+                <id>PAL_DEVICE_OUT_SPEAKER</id>
+            </ec_rx_device>
+        </in-device>
+        <in-device>
             <id>PAL_DEVICE_IN_SPEAKER_MIC</id>
             <back_end_name>MI2S-LPAIF_VA-TX-PRIMARY</back_end_name>
             <max_channels>4</max_channels>
@@ -387,6 +414,7 @@ ports not conflicting with other audio paths  -->
             <param concurrent_voip_call="true" />
             <param low_latency_bargein_enable="false" />
             <param sound_model_lib="liblistensoundmodel2.so" /> <!-- sound model lib name -->
+            <param notify_second_stage_failure="false"/>
         </common_config>
         <capture_profile_list>
             <capture_profile name="SINGLE_MIC_16KHZ_16BIT_RAW_LPI">

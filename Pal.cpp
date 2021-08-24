@@ -150,6 +150,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
                            no_of_modifiers);
     } catch (const std::exception& e) {
         PAL_ERR(LOG_TAG, "Stream create failed: %s", e.what());
+        Stream::handleStreamException(attributes, cb, cookie);
         return -EINVAL;
     }
     if (!s) {

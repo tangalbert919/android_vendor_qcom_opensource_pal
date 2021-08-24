@@ -864,6 +864,7 @@ typedef enum {
     PAL_PARAM_ID_SP_GET_CAL = 49,
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
     PAL_PARAM_ID_SNDCARD_STATE = 51,
+    PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -984,6 +985,7 @@ static const char* lc3_reserved_params[] = {
     "txconfig_index",
     "version",
     "Blocks_forSDU",
+    "vendor",
 };
 
 enum {
@@ -994,13 +996,15 @@ enum {
     LC3_TXCFG_IDX_BIT      = 0x1 << 4,
     LC3_VERSION_BIT        = 0x1 << 5,
     LC3_BLOCKS_FORSDU_BIT  = 0x1 << 6,
+    LC3_VENDOR_BIT         = 0x1 << 7,
     LC3_BIT_ALL            = LC3_STREAM_MAP_BIT |
                              LC3_CODEC_BIT |
                              LC3_FRAME_DURATION_BIT |
                              LC3_RXCFG_IDX_BIT |
                              LC3_TXCFG_IDX_BIT |
                              LC3_VERSION_BIT |
-                             LC3_BLOCKS_FORSDU_BIT,
+                             LC3_BLOCKS_FORSDU_BIT |
+                             LC3_VENDOR_BIT,
     LC3_BIT_MASK           = LC3_BIT_ALL & ~LC3_FRAME_DURATION_BIT, // frame duration is optional
     LC3_BIT_VALID          = LC3_BIT_MASK,
 };
@@ -1014,7 +1018,8 @@ typedef struct btsco_lc3_cfg {
     uint32_t api_version;
     uint32_t frame_duration;
     uint32_t num_blocks;
-    char streamMap[PAL_LC3_MAX_STRING_LEN];
+    char     streamMap[PAL_LC3_MAX_STRING_LEN];
+    char     vendor[PAL_LC3_MAX_STRING_LEN];
 } btsco_lc3_cfg_t;
 
 typedef struct pal_param_btsco {

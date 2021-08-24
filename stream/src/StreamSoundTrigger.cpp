@@ -82,6 +82,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     lab_fd_ = nullptr;
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
+    concurrency_handling_ = false;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -477,11 +478,13 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
     uint64_t transit_duration = 0;
 
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+
     if (!active) {
         transit_start_time_ = std::chrono::steady_clock::now();
+        concurrency_handling_ = true;
     }
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
     PAL_DBG(LOG_TAG, "Enter");
     std::shared_ptr<StEventConfig> ev_cfg(
         new StConcurrentStreamEventConfig(active));
@@ -492,6 +495,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
         transit_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 transit_end_time_ - transit_start_time_).count();
+        concurrency_handling_ = false;
         PAL_INFO(LOG_TAG, "LPI/NLPI switch takes %llums",
             (long long)transit_duration);
     }
@@ -538,9 +542,8 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
         goto exit;
     }
 
-    if (mDevPPSelector.empty() ||
-        mDevPPSelector.find("FFECNS") == std::string::npos) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref for other than FFECNS capture profile");
+    if (!cap_prof_ || !cap_prof_->isECRequired()) {
+        PAL_DBG(LOG_TAG, "No need to set ec ref");
         goto exit;
     }
 
@@ -940,6 +943,20 @@ void StreamSoundTrigger::updateStreamAttributes() {
         } else {
             mStreamAttr->in_media_config.ch_info.channels =
                 sm_cfg_->GetOutChannels();
+        }
+        /* Update channel map in stream attributes to be in sync with channels */
+        switch (mStreamAttr->in_media_config.ch_info.channels) {
+            case CHANNELS_2:
+                mStreamAttr->in_media_config.ch_info.ch_map[0] =
+                    PAL_CHMAP_CHANNEL_FL;
+                mStreamAttr->in_media_config.ch_info.ch_map[1] =
+                    PAL_CHMAP_CHANNEL_FR;
+                break;
+            case CHANNELS_1:
+            default:
+                mStreamAttr->in_media_config.ch_info.ch_map[0] =
+                    PAL_CHMAP_CHANNEL_FL;
+                break;
         }
 
         mStreamAttr->in_media_config.sample_rate =
@@ -2220,7 +2237,11 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels->kw_levels[0].kw_level:
                     sm_levels->kw_levels[0].user_levels[0].level;
-                PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level);
+                if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level);
+                } else {
+                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level);
+                }
                 for (auto& eng: engines_) {
                     if (sm_levels->sm_id & eng->GetEngineId() ||
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
@@ -2260,7 +2281,11 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                     (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) ?
                     sm_levels_v2->kw_levels[0].kw_level:
                     sm_levels_v2->kw_levels[0].user_levels[0].level;
-                PAL_DBG(LOG_TAG, "confidence level = %d", confidence_level_v2);
+                if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD) {
+                    PAL_DBG(LOG_TAG, "second stage keyword confidence level = %d", confidence_level_v2);
+                } else {
+                    PAL_DBG(LOG_TAG, "second stage user confidence level = %d", confidence_level_v2);
+                }
                 for (auto& eng: engines_) {
                     PAL_VERBOSE(LOG_TAG, "sm id %d, engine id %d ",
                         sm_levels_v2->sm_id , eng->GetEngineId());
@@ -2484,10 +2509,10 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
+            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
                 sm_levels->kw_levels[i].kw_level);
             for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
+                PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
                     sm_levels->kw_levels[i].user_levels[j].user_id,
                     sm_levels->kw_levels[i].user_levels[j].level);
             }
@@ -2568,10 +2593,10 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
+            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
                 sm_levels_v2->kw_levels[i].kw_level);
             for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
+                PAL_VERBOSE(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
                      sm_levels_v2->kw_levels[i].user_levels[j].user_id,
                      sm_levels_v2->kw_levels[i].user_levels[j].level);
             }
@@ -2692,10 +2717,10 @@ std::shared_ptr<CaptureProfile> StreamSoundTrigger::GetCurrentCaptureProfile() {
     }
 
     if (cap_prof) {
-        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s",
+        PAL_DBG(LOG_TAG, "cap_prof %s: dev_id=0x%x, chs=%d, sr=%d, snd_name=%s, ec_ref=%d",
             cap_prof->GetName().c_str(), cap_prof->GetDevId(),
             cap_prof->GetChannels(), cap_prof->GetSampleRate(),
-            cap_prof->GetSndName().c_str());
+            cap_prof->GetSndName().c_str(), cap_prof->isECRequired());
     }
 
     return cap_prof;
@@ -2901,17 +2926,19 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (active) {
                     if (st_stream_.sm_config_) {
                         std::shared_ptr<StEventConfig> ev_cfg1(
@@ -3059,9 +3086,10 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
              * 1. start recognition excuted
              * 2. resume excuted and current common capture profile is null
              */
-            if (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
+            if (!st_stream_.concurrency_handling_ &&
+                (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
                 (ev_cfg->id_ == ST_EV_RESUME &&
-                !st_stream_.rm->GetSoundTriggerCaptureProfile())) {
+                !st_stream_.rm->GetSoundTriggerCaptureProfile()))) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, true);
                 if (backend_update) {
@@ -3283,17 +3311,19 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<StEventConfig> ev_cfg1(
                         new StUnloadEventConfig());
@@ -3395,8 +3425,9 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             bool backend_update = false;
-            if (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
-                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL) {
+            if (!st_stream_.concurrency_handling_ &&
+                (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
+                ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL)) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
                     &st_stream_, false);
                 if (backend_update) {
@@ -3594,17 +3625,19 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
             new_cap_prof = st_stream_.GetCurrentCaptureProfile();
             if (new_cap_prof && (st_stream_.cap_prof_ != new_cap_prof)) {
                 PAL_DBG(LOG_TAG,
-                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "current capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     st_stream_.cap_prof_->GetName().c_str(),
                     st_stream_.cap_prof_->GetDevId(),
                     st_stream_.cap_prof_->GetChannels(),
-                    st_stream_.cap_prof_->GetSampleRate());
+                    st_stream_.cap_prof_->GetSampleRate(),
+                    st_stream_.cap_prof_->isECRequired());
                 PAL_DBG(LOG_TAG,
-                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d\n",
+                    "new capture profile %s: dev_id=0x%x, chs=%d, sr=%d, ec_ref=%d\n",
                     new_cap_prof->GetName().c_str(),
                     new_cap_prof->GetDevId(),
                     new_cap_prof->GetChannels(),
-                    new_cap_prof->GetSampleRate());
+                    new_cap_prof->GetSampleRate(),
+                    new_cap_prof->isECRequired());
                 if (!active) {
                     std::shared_ptr<StEventConfig> ev_cfg1(
                         new StStopRecognitionEventConfig(false));
@@ -3998,6 +4031,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                     PAL_DBG(LOG_TAG, "Already notified client with second stage rejection");
                     break;
                 }
+
                 PAL_DBG(LOG_TAG, "Second stage rejected, type %d",
                         data->det_type_);
 
@@ -4018,10 +4052,29 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                 if (st_stream_.reader_) {
                     st_stream_.reader_->reset();
                 }
-                st_stream_.rejection_notified_ = true;
-                st_stream_.notifyClient(false);
-                st_stream_.PostDelayedStop();
 
+                if (st_stream_.st_info_->GetNotifySecondStageFailure()) {
+                    st_stream_.rejection_notified_ = true;
+                    st_stream_.notifyClient(false);
+                    if (!st_stream_.rec_config_->capture_requested &&
+                         st_stream_.GetCurrentStateId() == ST_STATE_BUFFERING)
+                    st_stream_.PostDelayedStop();
+                } else {
+                    PAL_DBG(LOG_TAG, "Notification for second stage rejection is disabled");
+                    for (auto& eng : st_stream_.engines_) {
+                        status = eng->GetEngine()->RestartRecognition(&st_stream_);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "Restart engine %d failed, status %d",
+                                  eng->GetEngineId(), status);
+                            break;
+                        }
+                    }
+                    if (!status) {
+                        TransitTo(ST_STATE_ACTIVE);
+                    } else {
+                        TransitTo(ST_STATE_LOADED);
+                    }
+                }
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||

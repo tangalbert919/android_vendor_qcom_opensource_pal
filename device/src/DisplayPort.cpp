@@ -294,7 +294,7 @@ int DisplayPort::updateExtDispSysfsNode(int node_value, int controller, int stre
     int ext_disp_type = -EINVAL;
     int status = 0;
 
-    status = rm->getAudioMixer(&mixer);
+    status = rm->getHwAudioMixer(&mixer);
     if (status) {
          PAL_ERR(LOG_TAG," mixer error");
          return status;
@@ -332,7 +332,7 @@ int DisplayPort::updateAudioAckState(int node_value, int controller, int stream)
     char mixer_ctl_name[MIXER_PATH_MAX_LENGTH] = {0};
     struct mixer *mixer;
 
-    ret = rm->getAudioMixer(&mixer);
+    ret = rm->getHwAudioMixer(&mixer);
     if (ret) {
          PAL_ERR(LOG_TAG," mixer error");
          return ret;
@@ -387,7 +387,7 @@ int DisplayPort::init(pal_param_device_connection_t device_conn)
     int status = 0;
     static bool is_hdmi_sysfs_node_init = false;
     struct mixer *mixer;
-    status = rm->getAudioMixer(&mixer);
+    status = rm->getHwAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG," mixer error");
         return status;

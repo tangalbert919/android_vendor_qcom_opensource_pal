@@ -70,6 +70,8 @@
 #define XML_PATH_MAX_LENGTH 100
 #define HW_INFO_ARRAY_MAX_SIZE 32
 
+#define VBAT_BCL_SUFFIX "-vbat"
+
 #if defined(FEATURE_IPQ_OPENWRT) || defined(LINUX_ENABLED)
 #define SNDPARSER "/etc/card-defs.xml"
 #else
@@ -88,6 +90,10 @@
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
 #define DEVICE_NAME_MAX_SIZE 128
+
+#define SND_CARD_VIRTUAL 100
+#define SND_CARD_HW      0        // This will be used to intialize the sound card,
+                                  // actual will be updated during init_audio
 
 #define DEFAULT_BIT_WIDTH 16
 #define DEFAULT_SAMPLE_RATE 48000
@@ -372,9 +378,11 @@ std::vector <int> ResourceManager::listAllPcmInCallRecordFrontEnds = {0};
 std::vector <int> ResourceManager::listAllPcmInCallMusicFrontEnds = {0};
 std::vector <int> ResourceManager::listAllNonTunnelSessionIds = {0};
 std::vector <int> ResourceManager::listAllPcmContextProxyFrontEnds = {0};
-struct audio_mixer* ResourceManager::audio_mixer = NULL;
+struct audio_mixer* ResourceManager::audio_virt_mixer = NULL;
+struct audio_mixer* ResourceManager::audio_hw_mixer = NULL;
 struct audio_route* ResourceManager::audio_route = NULL;
-int ResourceManager::snd_card = 0;
+int ResourceManager::snd_virt_card = SND_CARD_VIRTUAL;
+int ResourceManager::snd_hw_card = SND_CARD_HW;
 std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 static bool isHifiFilterEnabled = false;
@@ -398,6 +406,7 @@ uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
+bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
 pal_audio_fmt_t ResourceManager::bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
 bool ResourceManager::isRasEnabled = false;
@@ -566,14 +575,22 @@ ResourceManager::ResourceManager()
 
     vsidInfo.loopback_delay = 0;
 
+    ret = ResourceManager::XmlParser(SNDPARSER);
+    if (ret) {
+        PAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
+        throw std::runtime_error("error in snd xml parsing");
+    }
+
     ret = ResourceManager::init_audio();
     if (ret) {
         PAL_ERR(LOG_TAG, "error in init audio route and audio mixer ret %d", ret);
+        throw std::runtime_error("error in init audio route and audio mixer");
     }
 
     ret = ResourceManager::XmlParser(rmngr_xml_file);
     if (ret) {
         PAL_ERR(LOG_TAG, "error in resource xml parsing ret %d", ret);
+        throw std::runtime_error("error in resource xml parsing");
     }
 
     if (isHifiFilterEnabled)
@@ -604,10 +621,6 @@ ResourceManager::ResourceManager()
     memset(stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
     memset(in_stream_instances, 0, PAL_STREAM_MAX * sizeof(uint64_t));
 
-    ret = ResourceManager::XmlParser(SNDPARSER);
-    if (ret) {
-        PAL_ERR(LOG_TAG, "error in snd xml parsing ret %d", ret);
-    }
     for (int i=0; i < devInfo.size(); i++) {
 
         if (devInfo[i].type == PCM) {
@@ -964,7 +977,7 @@ int ResourceManager::initSndMonitor()
 {
     int ret = 0;
     workerThread = std::thread(&ResourceManager::ssrHandlingLoop, this, rm);
-    sndmon = new SndCardMonitor(snd_card);
+    sndmon = new SndCardMonitor(snd_hw_card);
     if (!sndmon) {
         ret = -EINVAL;
         PAL_ERR(LOG_TAG, "Sound monitor creation failed, ret %d", ret);
@@ -1012,10 +1025,10 @@ int ResourceManager::init_audio()
     do {
         /* Look for only default codec sound card */
         /* Ignore USB sound card if detected */
-        snd_card = 0;
-        while (snd_card < MAX_SND_CARD) {
+        snd_hw_card = SND_CARD_HW;
+        while (snd_hw_card < MAX_SND_CARD) {
             struct audio_mixer* tmp_mixer = NULL;
-            tmp_mixer = mixer_open(snd_card);
+            tmp_mixer = mixer_open(snd_hw_card);
             if (tmp_mixer) {
                 snd_card_name = strdup(mixer_get_name(tmp_mixer));
                 if (!snd_card_name) {
@@ -1023,8 +1036,8 @@ int ResourceManager::init_audio()
                     mixer_close(tmp_mixer);
                     return -EINVAL;
                 }
-                PAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s, am:%p",
-                snd_card, snd_card_name, rm->audio_mixer);
+                PAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s",
+                snd_hw_card, snd_card_name);
 
                 /* TODO: Needs to extend for new targets */
                 if (strstr(snd_card_name, "kona") ||
@@ -1035,7 +1048,7 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "monaco")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
-                    audio_mixer = tmp_mixer;
+                    audio_hw_mixer = tmp_mixer;
                     break;
                 } else {
                     if (snd_card_name) {
@@ -1045,7 +1058,7 @@ int ResourceManager::init_audio()
                     mixer_close(tmp_mixer);
                 }
             }
-            snd_card++;
+            snd_hw_card++;
         }
 
         if (!snd_card_found) {
@@ -1054,9 +1067,18 @@ int ResourceManager::init_audio()
         }
     } while (!snd_card_found && retry <= MAX_RETRY_CNT);
 
-    if (snd_card >= MAX_SND_CARD || !audio_mixer) {
+    if (snd_hw_card >= MAX_SND_CARD || !audio_hw_mixer) {
         PAL_ERR(LOG_TAG, "audio mixer open failure");
         return -EINVAL;
+    }
+
+    audio_virt_mixer = mixer_open(snd_virt_card);
+    if(!audio_virt_mixer) {
+        PAL_ERR(LOG_TAG, "Error: %d virtual audio mixer open failure", -EIO);
+        if (snd_card_name)
+            free(snd_card_name);
+        mixer_close(audio_hw_mixer);
+        return -EIO;
     }
 
     split_snd_card(snd_card_name);
@@ -1096,11 +1118,12 @@ int ResourceManager::init_audio()
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
-    audio_route = audio_route_init(snd_card, mixer_xml_file);
+    audio_route = audio_route_init(snd_hw_card, mixer_xml_file);
     PAL_INFO(LOG_TAG, "audio route %pK, mixer path %s", audio_route, mixer_xml_file);
     if (!audio_route) {
         PAL_ERR(LOG_TAG, "audio route init failed");
-        mixer_close(audio_mixer);
+        mixer_close(audio_virt_mixer);
+        mixer_close(audio_hw_mixer);
         if (snd_card_name)
             free(snd_card_name);
         return -EINVAL;
@@ -1108,7 +1131,12 @@ int ResourceManager::init_audio()
     // audio_route init success
 
     PAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
-            snd_card, mixer_xml_file);
+            snd_hw_card, mixer_xml_file);
+    if (snd_card_name) {
+        free(snd_card_name);
+        snd_card_name = NULL;
+    }
+
     return 0;
 }
 
@@ -1544,7 +1572,6 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     /*special cases to update attrs for hot plug devices*/
     switch (deviceattr->id) {
         case PAL_DEVICE_IN_WIRED_HEADSET:
-
             status = (HeadsetMic::checkAndUpdateSampleRate(&deviceattr->config.sample_rate));
             if (status) {
                 PAL_ERR(LOG_TAG, "failed to update samplerate/bitwidth");
@@ -1639,7 +1666,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
             if (isPalPCMFormat(sAttr->in_media_config.aud_fmt_id))
                 deviceattr->config.bit_width =
-                          palFormatToBitwidthTable[sAttr->in_media_config.aud_fmt_id];
+                          palFormatToBitwidthLookup(sAttr->in_media_config.aud_fmt_id);
             else
                 deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
             deviceattr->config.aud_fmt_id = sAttr->in_media_config.aud_fmt_id;
@@ -1672,7 +1699,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
                     if (isPalPCMFormat(proxyIn_dattr.config.aud_fmt_id))
                         deviceattr->config.bit_width =
-                                  palFormatToBitwidthTable[proxyIn_dattr.config.aud_fmt_id];
+                                  palFormatToBitwidthLookup(proxyIn_dattr.config.aud_fmt_id);
                     else
                         deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
                     deviceattr->config.aud_fmt_id = proxyIn_dattr.config.aud_fmt_id;
@@ -2711,14 +2738,25 @@ int ResourceManager::getAudioRoute(struct audio_route** ar)
     return 0;
 }
 
-int ResourceManager::getAudioMixer(struct audio_mixer ** am)
+int ResourceManager::getVirtualAudioMixer(struct audio_mixer ** am)
 {
-    if (!audio_mixer || !am) {
+    if (!audio_virt_mixer || !am) {
         PAL_ERR(LOG_TAG, "no audio mixer found");
         return -ENOENT;
     }
-    *am = audio_mixer;
-    PAL_DBG(LOG_TAG, "ar %pK audio_mixer %pK", am, audio_mixer);
+    *am = audio_virt_mixer;
+    PAL_DBG(LOG_TAG, "ar %pK audio_virt_mixer %pK", am, audio_virt_mixer);
+    return 0;
+}
+
+int ResourceManager::getHwAudioMixer(struct audio_mixer ** am)
+{
+    if (!audio_hw_mixer || !am) {
+        PAL_ERR(LOG_TAG, "no audio mixer found");
+        return -ENOENT;
+    }
+    *am = audio_hw_mixer;
+    PAL_DBG(LOG_TAG, "ar %pK audio_hw_mixer %pK", am, audio_hw_mixer);
     return 0;
 }
 
@@ -3293,8 +3331,10 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
         return -EINVAL;
     }
 
+    mResourceManagerMutex.lock();
     if (mixerEventRegisterCount == 0 && !is_register) {
         PAL_ERR(LOG_TAG, "Cannot deregister unregistered callback");
+        mResourceManagerMutex.unlock();
         return -EINVAL;
     }
 
@@ -3330,6 +3370,7 @@ int ResourceManager::registerMixerEventCallback(const std::vector<int> &DevIds,
         mixerEventRegisterCount--;
     }
 
+    mResourceManagerMutex.unlock();
     return status;
 }
 
@@ -3339,7 +3380,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
     struct ctl_event mixer_event = {0, {.data8 = {0}}};
     struct mixer *mixer = nullptr;
 
-    ret = rm->getAudioMixer(&mixer);
+    ret = rm->getVirtualAudioMixer(&mixer);
     if (ret) {
         PAL_ERR(LOG_TAG, "Failed to get audio mxier");
         return;
@@ -4197,15 +4238,22 @@ std::shared_ptr<ResourceManager> ResourceManager::getInstance()
     return rm;
 }
 
-int ResourceManager::getSndCard()
+int ResourceManager::getVirtualSndCard()
 {
-    return snd_card;
+    return snd_virt_card;
+}
+
+int ResourceManager::getHwSndCard()
+{
+    return snd_hw_card;
 }
 
 int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
     if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
+        if (isVbatEnabled && deviceId == PAL_DEVICE_OUT_SPEAKER)
+            strlcat(device_name, VBAT_BCL_SUFFIX, DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
         PAL_ERR(LOG_TAG, "Invalid device id %d", deviceId);
@@ -4244,7 +4292,8 @@ void ResourceManager::deinit()
     card_status_t state = CARD_STATUS_NONE;
 
     mixerClosed = true;
-    mixer_close(audio_mixer);
+    mixer_close(audio_virt_mixer);
+    mixer_close(audio_hw_mixer);
     if (audio_route) {
        audio_route_free(audio_route);
     }
@@ -4367,8 +4416,8 @@ const std::vector<int> ResourceManager::allocateFrontEndExtEcIds()
 
 void ResourceManager::freeFrontEndEcTxIds(const std::vector<int> frontend)
 {
-    PAL_INFO(LOG_TAG, "freeing ext ec dev %d\n", frontend.at(0));
     for (int i = 0; i < frontend.size(); i++) {
+        PAL_INFO(LOG_TAG, "freeing ext ec dev %d\n", frontend.at(i));
         listAllPcmExtEcTxFrontEnds.push_back(frontend.at(i));
     }
     return;
@@ -4664,6 +4713,10 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                                       const struct pal_stream_attributes sAttr,
                                       int lDirection)
 {
+    if (frontend.size() <= 0) {
+        PAL_ERR(LOG_TAG,"frontend size is invalid");
+        return;
+    }
     PAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
              frontend.at(0));
 
@@ -5673,6 +5726,9 @@ int32_t ResourceManager::a2dpSuspend()
         }
     }
 
+    PAL_DBG(LOG_TAG, "selecting active device_id[%d] and muting streams",
+        switchDevDattr.id);
+
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
         if((*sIter)->isActive()) {
             if (!((*sIter)->a2dpMuted)) {
@@ -5687,8 +5743,12 @@ int32_t ResourceManager::a2dpSuspend()
                     resume , which will be percieved as a leak. */
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
-                    //Pause
-                    (*sIter)->pause();
+                    //Pause - Only if the stream is not explicitly paused.
+                    //Insome scenarios - stream might have already paused prior to a2dpsuspend.
+                    if (((*sIter)->isPaused) == false) {
+                        (*sIter)->pause_l();
+                        (*sIter)->a2dpPaused = true;
+                    }
                 } else {
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
@@ -5718,8 +5778,7 @@ int32_t ResourceManager::a2dpSuspend()
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "selecting active device_id[%d] and muting stream",
-        switchDevDattr.id);
+
     mResourceManagerMutex.unlock();
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
     mResourceManagerMutex.lock();
@@ -5731,7 +5790,10 @@ int32_t ResourceManager::a2dpSuspend()
             (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
             (!(*sIter)->isActive())) {
             //Resume if the offload stream is paused
-            (*sIter)->resume();
+            //Only resume if it was paused during a2dpSuspend.
+            //This is to avoid resuming if the stream is pause via explict pause from PAL Clients.
+            if (((*sIter)->a2dpPaused) == true)
+                (*sIter)->resume_l();
         }
         (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     }
@@ -6102,6 +6164,14 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
             *payload_size = sizeof(rm->cardState);
             break;
         }
+        case PAL_PARAM_ID_HIFI_PCM_FILTER:
+        {
+            PAL_INFO(LOG_TAG, "get parameter for HIFI PCM Filter");
+
+            *payload_size = sizeof(isHifiFilterEnabled);
+            **(bool **)param_payload = isHifiFilterEnabled;
+        }
+        break;
         default:
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "Unknown ParamID:%d", param_id);
@@ -6526,7 +6596,7 @@ setdevparam:
                 (pal_param_haptics_intensity *)param_payload;
             PAL_DBG(LOG_TAG, "Haptics Intensity %d", hInt->intensity);
             char mixer_ctl_name[128] =  "Haptics Amplitude Step";
-            struct mixer_ctl *ctl = mixer_get_ctl_by_name(mixer, mixer_ctl_name);
+            struct mixer_ctl *ctl = mixer_get_ctl_by_name(audio_hw_mixer, mixer_ctl_name);
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Could not get ctl for mixer cmd - %s", mixer_ctl_name);
                 status = -EINVAL;
@@ -7329,10 +7399,10 @@ done:
 
 void ResourceManager::processCardInfo(struct xml_userdata *data, const XML_Char *tag_name)
 {
-    int card;
     if (!strcmp(tag_name, "id")) {
-        card = atoi(data->data_buf);
+        snd_virt_card = atoi(data->data_buf);
         data->card_found = true;
+        PAL_VERBOSE(LOG_TAG, "virtual soundcard number : %d ", snd_virt_card);
     }
 }
 
@@ -7557,6 +7627,27 @@ void ResourceManager::process_lpi_vote_streams(struct xml_userdata *data,
 
 }
 
+uint32_t ResourceManager::palFormatToBitwidthLookup(const pal_audio_fmt_t format)
+{
+    audio_bit_width_t bit_width_ret = AUDIO_BIT_WIDTH_DEFAULT_16;
+    switch (format) {
+        case PAL_AUDIO_FMT_PCM_S8:
+            bit_width_ret = AUDIO_BIT_WIDTH_8;
+            break;
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+            bit_width_ret = AUDIO_BIT_WIDTH_24;
+            break;
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+            bit_width_ret = AUDIO_BIT_WIDTH_32;
+            break;
+        default:
+            break;
+    }
+
+    return static_cast<uint32_t>(bit_width_ret);
+};
+
 void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
 {
 
@@ -7615,6 +7706,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                bitFormatSupported = PAL_AUDIO_FMT_PCM_S32_LE;
             else
                bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
+        } else if (!strcmp(tag_name, "vbat_enabled")) {
+            if (atoi(data->data_buf))
+                isVbatEnabled = true;
         }
         else if (!strcmp(tag_name, "bit_width")) {
             size = deviceInfo.size() - 1;
@@ -8200,8 +8294,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
 
     if (!incomingDev || !currentStrAttr) {
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
-        status = -EINVAL;
-        goto exit;
+        return -EINVAL;
     }
 
     /*get the incoming stream dev info*/
@@ -8262,6 +8355,10 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
     char activeSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
 
     dev = Device::getInstance(curDevAttr, rm);
+    if (!dev) {
+        PAL_ERR(LOG_TAG, "No device instance found");
+        goto exit;
+    }
     getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
 
     if (inDevAttr->config.sample_rate != curDevAttr->config.sample_rate) {
@@ -8284,5 +8381,7 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
                 activeSndDeviceName);
         ret = true;
     }
+
+exit:
     return ret;
 }
