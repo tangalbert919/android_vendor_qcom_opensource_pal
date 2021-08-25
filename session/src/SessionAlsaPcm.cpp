@@ -1303,6 +1303,7 @@ int SessionAlsaPcm::close(Stream * s)
         eventId = 0;
     }
 exit:
+    ecRefDevId = PAL_DEVICE_OUT_MIN;
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }

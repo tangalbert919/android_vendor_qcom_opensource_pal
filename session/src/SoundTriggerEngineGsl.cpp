@@ -1529,19 +1529,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
     }
 
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        /* Unload the current sound model */
-        exit_thread_ = true;
-        exit_buffering_ = true;
-        if (buffer_thread_handler_.joinable()) {
-            cv_.notify_one();
-            lck.unlock();
-            buffer_thread_handler_.join();
-            lck.lock();
-           PAL_INFO(LOG_TAG, "Thread joined");
-        }
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+        mmap_buffer_.buffer = nullptr;
         UpdateState(ENG_IDLE);
 
         /* Update the engine with merged sound model */
@@ -1574,18 +1565,6 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
             PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d",
                                                                     status);
             session_->close(eng_streams_[0]);
-            goto exit;
-        }
-
-        exit_thread_ = false;
-        buffer_thread_handler_ =
-            std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
-
-        if (!buffer_thread_handler_.joinable()) {
-            PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
-                    status);
-            session_->close(eng_streams_[0]);
-            status = -EINVAL;
             goto exit;
         }
     } else {
@@ -1671,20 +1650,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
     if (IS_MODULE_TYPE_PDK(module_type_)) {
         status = HandleMultiStreamUnloadPDK(s);
     } else {
-        /* Unload the current sound model */
-        exit_thread_ = true;
-        exit_buffering_ = true;
-        if (buffer_thread_handler_.joinable()) {
-            cv_.notify_one();
-            lck.unlock();
-            buffer_thread_handler_.join();
-            lck.lock();
-            PAL_INFO(LOG_TAG, "Thread joined");
-        }
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-
+        mmap_buffer_.buffer = nullptr;
         UpdateState(ENG_IDLE);
         /* Update the engine with modified sound model after deletion */
         status = UpdateEngineModel(s, nullptr, 0, false);
@@ -1715,18 +1684,6 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
             PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d",
                                                                      status);
             session_->close(eng_streams_[0]);
-            goto exit;
-        }
-
-        exit_thread_ = false;
-        buffer_thread_handler_ =
-            std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
-
-        if (!buffer_thread_handler_.joinable()) {
-            PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
-                    status);
-            session_->close(eng_streams_[0]);
-            status = -EINVAL;
             goto exit;
         }
         UpdateState(ENG_LOADED);
@@ -1870,15 +1827,6 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         status = HandleMultiStreamUnload(s);
         lck.lock();
         goto exit;
-    }
-
-    exit_thread_ = true;
-    if (buffer_thread_handler_.joinable()) {
-        cv_.notify_one();
-        lck.unlock();
-        buffer_thread_handler_.join();
-        lck.lock();
-        PAL_INFO(LOG_TAG, "Thread joined");
     }
 
     status = session_->close(s);
@@ -2128,6 +2076,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     status = UpdateEngineModel(s, nullptr, 0, false);
     if (status)
         PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+    st->GetSoundModelInfo()->SetModelData(nullptr, 0);
 
     if (status == -ENETRESET) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
