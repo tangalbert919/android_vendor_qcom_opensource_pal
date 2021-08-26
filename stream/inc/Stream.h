@@ -246,6 +246,8 @@ public:
                                                            uint32_t event_size);
     static void handleStreamException(struct pal_stream_attributes *attributes,
                                       pal_stream_callback cb, uint64_t cookie);
+    void lockStreamMutex() { mStreamMutex.lock();};
+    void unlockStreamMutex() { mStreamMutex.unlock();};
 };
 
 class StreamNonTunnel : public Stream
