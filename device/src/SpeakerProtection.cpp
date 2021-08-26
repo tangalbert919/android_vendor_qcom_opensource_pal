@@ -1501,7 +1501,10 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
 
         // Setting Excursion mode
-        viExModeConfg.operation_mode = 0; // Normal Mode
+        if (rm->mSpkrProtModeValue.operationMode == PAL_SP_MODE_FACTORY_TEST)
+            viExModeConfg.operation_mode = 1; // FTM Mode
+        else
+            viExModeConfg.operation_mode = 0; // Normal Mode
         payloadSize = 0;
 
         builder->payloadSPConfig(&payload, &payloadSize, miid,
@@ -1519,27 +1522,47 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
             PAL_DBG(LOG_TAG, "Operation mode %d", rm->mSpkrProtModeValue.operationMode);
             param_id_sp_th_vi_ftm_cfg_t viFtmConfg;
             viFtmConfg.num_ch = numberOfChannels;
-            payloadSize = 0;
             switch (rm->mSpkrProtModeValue.operationMode) {
                 case PAL_SP_MODE_FACTORY_TEST:
                     viParamId = PARAM_ID_SP_TH_VI_FTM_CFG;
+                    payloadSize = 0;
+                    builder->payloadSPConfig (&payload, &payloadSize, miid,
+                            viParamId, (void *) &viFtmConfg);
+                    if (payloadSize) {
+                        ret = updateCustomPayload(payload, payloadSize);
+                        free(payload);
+                        if (0 != ret) {
+                            PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
+                        }
+                    }
+                    viParamId = PARAM_ID_SP_EX_VI_FTM_CFG;
+                    payloadSize = 0;
+                    builder->payloadSPConfig (&payload, &payloadSize, miid,
+                            viParamId, (void *) &viFtmConfg);
+                    if (payloadSize) {
+                        ret = updateCustomPayload(payload, payloadSize);
+                        free(payload);
+                        if (0 != ret) {
+                            PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
+                        }
+                    }
                 break;
                 case PAL_SP_MODE_V_VALIDATION:
                     viParamId = PARAM_ID_SP_TH_VI_V_VALI_CFG;
+                    payloadSize = 0;
+                    builder->payloadSPConfig (&payload, &payloadSize, miid,
+                            viParamId, (void *) &viFtmConfg);
+                    if (payloadSize) {
+                        ret = updateCustomPayload(payload, payloadSize);
+                        free(payload);
+                        if (0 != ret) {
+                            PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
+                        }
+                    }
                 break;
                 case PAL_SP_MODE_DYNAMIC_CAL:
                     PAL_ERR(LOG_TAG, "Dynamic cal in Processing mode!!");
                 break;
-            }
-            builder->payloadSPConfig (&payload, &payloadSize, miid,
-                    viParamId, (void *) &viFtmConfg);
-            if (payloadSize) {
-                ret = updateCustomPayload(payload, payloadSize);
-                free(payload);
-                if (0 != ret) {
-                    PAL_ERR(LOG_TAG," Payload Failed for FTM mode\n");
-                    ret = 0;
-                }
             }
         }
 
@@ -1870,44 +1893,55 @@ int32_t SpeakerProtection::setParameter(uint32_t param_id, void *param)
 int32_t SpeakerProtection::getFTMParameter(void **param)
 {
     int size = 0, status = 0 ;
+    int spkr1_status = 0;
+    int spkr2_status = 0;
+    uint32_t miid = 0;
     const char *getParamControl = "getParam";
+    char *pcmDeviceName = NULL;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    struct mixer_ctl *ctl;
     std::ostringstream cntrlName;
     std::ostringstream resString;
     std::string backendName;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    char *pcmDeviceName = NULL;
-    struct mixer_ctl *ctl;
-    uint32_t miid = 0;
     param_id_sp_th_vi_ftm_params_t ftm;
-    param_id_sp_th_vi_v_vali_params_t v_val;
+    param_id_sp_ex_vi_ftm_params_t exFtm;
     PayloadBuilder* builder = new PayloadBuilder();
     vi_th_ftm_params_t ftm_ret[numberOfChannels];
-    vi_th_v_vali_params_t v_vali_ret[numberOfChannels];
-    param_id_sp_th_vi_v_vali_params_t *v_valValue;
+    vi_ex_ftm_params_t exFtm_ret[numberOfChannels];
     param_id_sp_th_vi_ftm_params_t *ftmValue;
-    int spkr1_status = 0;
-    int spkr2_status = 0;
+    param_id_sp_ex_vi_ftm_params_t *exFtmValue;
 
-    memset(&ftm_ret, 0,sizeof(vi_th_ftm_params_t)*numberOfChannels);
-    memset(&v_vali_ret, 0,sizeof(vi_th_v_vali_params_t)*numberOfChannels);
+    memset(&ftm_ret, 0,sizeof(vi_th_ftm_params_t) * numberOfChannels);
+    memset(&exFtm_ret, 0,sizeof(vi_ex_ftm_params_t) * numberOfChannels);
 
     pcmDeviceName = rm->getDeviceNameFromID(pcmDevIdTx.at(0));
-    if (pcmDeviceName)
+    if (pcmDeviceName) {
         cntrlName<<pcmDeviceName<<" "<<getParamControl;
+    }
+    else {
+        PAL_ERR(LOG_TAG, "Error: %d Unable to get Device name\n", -EINVAL);
+        goto exit;
+    }
 
     ctl = mixer_get_ctl_by_name(virtMixer, cntrlName.str().data());
     if (!ctl) {
-        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", cntrlName.str().data());
         status = -ENOENT;
+        PAL_ERR(LOG_TAG, "Error: %d Invalid mixer control: %s\n", status,cntrlName.str().data());
         goto exit;
     }
     rm->getBackendName(PAL_DEVICE_IN_VI_FEEDBACK, backendName);
+    if (!strlen(backendName.c_str())) {
+        status = -ENOENT;
+        PAL_ERR(LOG_TAG, "Error: %d Failed to obtain VI backend name", status);
+        goto exit;
+    }
 
     status = SessionAlsaUtils::getModuleInstanceId(virtMixer, pcmDevIdTx.at(0),
                         backendName.c_str(), MODULE_VI, &miid);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", MODULE_VI, status);
+        PAL_ERR(LOG_TAG, "Error: %d Failed to get tag info %x", status, MODULE_VI);
+        goto exit;
     }
 
     ftm.num_ch = numberOfChannels;
@@ -1946,13 +1980,13 @@ int32_t SpeakerProtection::getFTMParameter(void **param)
         payload = NULL;
     }
 
-    v_val.num_ch = numberOfChannels;
+    exFtm.num_ch = numberOfChannels;
     builder->payloadSPConfig (&payload, &payloadSize, miid,
-            PARAM_ID_SP_TH_VI_V_VALI_PARAMS, &v_val);
+            PARAM_ID_SP_EX_VI_FTM_PARAMS, &exFtm);
 
     status = mixer_ctl_set_array(ctl, payload, payloadSize);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "Set failed status = %d", status);
+        PAL_ERR(LOG_TAG, "Error: %d Mixer cntrl Set failed", status);
         goto exit;
     }
 
@@ -1960,18 +1994,21 @@ int32_t SpeakerProtection::getFTMParameter(void **param)
 
     status = mixer_ctl_get_array(ctl, payload, payloadSize);
     if (0 != status) {
-        PAL_ERR(LOG_TAG, "Get failed status = %d", status);
+        PAL_ERR(LOG_TAG, "Error: %d Get failed ", status);
     }
     else {
-        v_valValue = (param_id_sp_th_vi_v_vali_params_t *) (payload +
-                            sizeof(struct apm_module_param_data_t));
-
+        exFtmValue = (param_id_sp_ex_vi_ftm_params_t *) (payload +
+                                sizeof(struct apm_module_param_data_t));
         for (int i = 0; i < numberOfChannels; i++) {
-            v_vali_ret[i].vrms_q24 = v_valValue->vi_th_v_vali_params[i].vrms_q24;
-            v_vali_ret[i].status = v_valValue->vi_th_v_vali_params[i].status;
+            exFtm_ret[i].ftm_Re_q24 = exFtmValue->vi_ex_ftm_params[i].ftm_Re_q24;
+            exFtm_ret[i].ftm_Bl_q24 = exFtmValue->vi_ex_ftm_params[i].ftm_Bl_q24;
+            exFtm_ret[i].ftm_Kms_q24 = exFtmValue->vi_ex_ftm_params[i].ftm_Kms_q24;
+            exFtm_ret[i].ftm_Fres_q20 = exFtmValue->vi_ex_ftm_params[i].ftm_Fres_q20;
+            exFtm_ret[i].ftm_Qms_q24 = exFtmValue->vi_ex_ftm_params[i].ftm_Qms_q24;
+            exFtm_ret[i].status = exFtmValue->vi_ex_ftm_params[i].status;
         }
     }
-    PAL_DBG(LOG_TAG, "Got V-Val value with status %d", v_vali_ret[0].status);
+    PAL_DBG(LOG_TAG, "Got FTM Excursion value with status %d", exFtm_ret[0].status);
 
     if (payload) {
         delete payload;
@@ -1981,29 +2018,44 @@ int32_t SpeakerProtection::getFTMParameter(void **param)
 
     switch(numberOfChannels) {
         case 1 :
-            if (v_vali_ret[0].status == 1 || ftm_ret[0].status == 4)
+            if (exFtm_ret[0].status == 4 && ftm_ret[0].status == 4)
                 spkr1_status = 1;
             resString << "SpkrParamStatus: " << spkr1_status << "; Rdc: "
                     << ((ftm_ret[0].ftm_dc_res_q24)/(1<<24)) << "; Temp: "
-                    << ((ftm_ret[0].ftm_temp_q22)/(1<<22)) << "; Rms: "
-                    << ((v_vali_ret[0].vrms_q24)/(1<<24));
+                    << ((ftm_ret[0].ftm_temp_q22)/(1<<22)) << "; Res: "
+                    << ((exFtm_ret[0].ftm_Re_q24)/(1<<24)) << "; Bl: "
+                    << ((exFtm_ret[0].ftm_Bl_q24)/(1<<24)) << "; Rms: "
+                    << ((exFtm_ret[0].ftm_Rms_q24)/(1<<24)) << "; Kms: "
+                    << ((exFtm_ret[0].ftm_Kms_q24)/(1<<24)) << "; Fres: "
+                    << ((exFtm_ret[0].ftm_Fres_q20)/(1<<20)) << "; Qms: "
+                    << ((exFtm_ret[0].ftm_Qms_q24)/(1<<24));
         break;
         case 2 :
-            if (v_vali_ret[0].status == 1 || ftm_ret[0].status == 4)
+            if (exFtm_ret[0].status == 4 && ftm_ret[0].status == 4)
                 spkr1_status = 1;
-            if (v_vali_ret[1].status == 1 || ftm_ret[1].status == 4)
+            if (exFtm_ret[1].status == 4 && ftm_ret[1].status == 4)
                 spkr2_status = 1;
             resString << "SpkrParamStatus: " << spkr1_status <<", "<< spkr2_status
                     << "; Rdc: " << ((ftm_ret[0].ftm_dc_res_q24)/(1<<24)) << ", "
                     << ((ftm_ret[1].ftm_dc_res_q24)/(1<<24)) << "; Temp: "
                     << ((ftm_ret[0].ftm_temp_q22)/(1<<22)) << ", "
-                    << ((ftm_ret[1].ftm_temp_q22)/(1<<22)) <<"; Rms: "
-                    << ((v_vali_ret[0].vrms_q24)/(1<<24)) << ", "
-                    << ((v_vali_ret[1].vrms_q24)/(1<<24));
+                    << ((ftm_ret[1].ftm_temp_q22)/(1<<22)) <<"; Res: "
+                    << ((exFtm_ret[0].ftm_Re_q24)/(1<<24)) << ", "
+                    << ((exFtm_ret[1].ftm_Re_q24)/(1<<24)) << "; Bl: "
+                    << ((exFtm_ret[0].ftm_Bl_q24)/(1<<24)) << ", "
+                    << ((exFtm_ret[1].ftm_Bl_q24)/(1<<24)) << "; Rms: "
+                    << ((exFtm_ret[0].ftm_Rms_q24)/(1<<24)) << ", "
+                    << ((exFtm_ret[1].ftm_Rms_q24)/(1<<24)) << "; Kms: "
+                    << ((exFtm_ret[0].ftm_Kms_q24)/(1<<24)) << ", "
+                    << ((exFtm_ret[1].ftm_Kms_q24)/(1<<24)) << "; Fres: "
+                    << ((exFtm_ret[0].ftm_Fres_q20)/(1<<20)) << ", "
+                    << ((exFtm_ret[1].ftm_Fres_q20)/(1<<20)) << "; Qms: "
+                    << ((exFtm_ret[0].ftm_Qms_q24)/(1<<24)) << ", "
+                    << ((exFtm_ret[1].ftm_Qms_q24)/(1<<24));
         break;
         default :
             PAL_ERR(LOG_TAG, "No support for Speakers > 2");
-        break;
+            goto exit;
     }
 
     PAL_DBG(LOG_TAG, "Get param value %s", resString.str().c_str());
@@ -2020,7 +2072,7 @@ exit :
     if(builder) {
        delete builder;
        builder = NULL;
-        }
+    }
     if(!status)
        return size;
     else
