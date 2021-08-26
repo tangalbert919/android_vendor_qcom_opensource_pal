@@ -1930,11 +1930,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     /* Configure MFC to match to device config */
     /* This has to be done after sending all mixer controls and before connect */
     if (PAL_STREAM_VOICE_CALL != streamType) {
-        if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
-            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_SCO &&
-            dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-            PAL_DBG(LOG_TAG, "Mmap usecase other than BT, no need to configure MFC\n");
-        } else if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+        if (sAttr.direction == PAL_AUDIO_OUTPUT) {
             if (sess) {
                 sess->configureMFC(rmHandle, sAttr, dAttr, pcmDevIds,
                                     aifBackEndsToConnect[0].second.data());
