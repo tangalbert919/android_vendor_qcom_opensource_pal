@@ -48,6 +48,7 @@
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
 #define ST_MODEL_TYPE_SHIFT       (16)
+#define ST_MAX_FSTAGE_CONF_LEVEL  (100)
 
 ST_DBG_DECLARE(static int lab_cnt = 0);
 
@@ -1657,28 +1658,26 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
     else
         capture_requested_ = true;
     gsl_engine_->SetCaptureRequested(capture_requested_);
-    return status;
+    goto exit;
 
 error_exit:
-    if (conf_levels)
-        free(conf_levels);
-
     if (rec_config_) {
         free(rec_config_);
         rec_config_ = nullptr;
     }
 
-    if (status) {
-        if (st_conf_levels_) {
-            free(st_conf_levels_);
-            st_conf_levels_ = nullptr;
-        }
-        if (st_conf_levels_v2_) {
-            free(st_conf_levels_v2_);
-            st_conf_levels_v2_ = nullptr;
-        }
+    if (st_conf_levels_) {
+        free(st_conf_levels_);
+        st_conf_levels_ = nullptr;
+    }
+    if (st_conf_levels_v2_) {
+        free(st_conf_levels_v2_);
+        st_conf_levels_v2_ = nullptr;
     }
 exit:
+    if (conf_levels)
+        free(conf_levels);
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -2249,8 +2248,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
     struct st_confidence_levels_info_v2 *conf_levels_v2 = nullptr;
     struct st_sound_model_conf_levels *sm_levels = nullptr;
     struct st_sound_model_conf_levels_v2 *sm_levels_v2 = nullptr;
-    uint8_t confidence_level = 0;
-    uint8_t confidence_level_v2 = 0;
+    int32_t confidence_level = 0;
+    int32_t confidence_level_v2 = 0;
     bool gmm_conf_found = false;
 
     PAL_DBG(LOG_TAG, "Enter");
@@ -2275,8 +2274,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
             sm_levels = &conf_levels->conf_levels[i];
             if (sm_levels->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
-                FillOpaqueConfLevels((void *)sm_levels, out_conf_levels,
-                                     out_num_conf_levels, version);
+                status = FillOpaqueConfLevels((void *)sm_levels,
+                    out_conf_levels, out_num_conf_levels, version);
             } else if (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
                        sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level =
@@ -2293,7 +2292,7 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
                         (sm_levels->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
-                            &confidence_level, 1);
+                            (uint8_t *)&confidence_level, 1);
                     }
                 }
             }
@@ -2319,8 +2318,8 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
             sm_levels_v2 = &conf_levels_v2->conf_levels[i];
             if (sm_levels_v2->sm_id == ST_SM_ID_SVA_F_STAGE_GMM) {
                 gmm_conf_found = true;
-                FillOpaqueConfLevels((void *)sm_levels_v2, out_conf_levels,
-                                     out_num_conf_levels, version);
+                status = FillOpaqueConfLevels((void *)sm_levels_v2,
+                    out_conf_levels, out_num_conf_levels, version);
             } else if (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_KWD ||
                        sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_USER) {
                 confidence_level_v2 =
@@ -2339,17 +2338,16 @@ int32_t StreamSoundTrigger::ParseOpaqueConfLevels(
                         ((eng->GetEngineId() & ST_SM_ID_SVA_S_STAGE_RNN) &&
                         (sm_levels_v2->sm_id & ST_SM_ID_SVA_S_STAGE_PDK))) {
                         eng->GetEngine()->UpdateConfLevels(this, rec_config_,
-                            &confidence_level_v2, 1);
+                            (uint8_t *)&confidence_level_v2, 1);
                     }
                 }
             }
         }
     }
 
-    if (!gmm_conf_found) {
+    if (!gmm_conf_found || status) {
         PAL_ERR(LOG_TAG, "Did not receive GMM confidence threshold, error!");
         status = -EINVAL;
-        goto exit;
     }
 
 exit:
@@ -2417,14 +2415,25 @@ int32_t StreamSoundTrigger::FillConfLevels(
         goto exit;
     }
 
-    /* for debug */
     for (i = 0; i < config->num_phrases; i++) {
         PAL_VERBOSE(LOG_TAG, "[%d] kw level %d", i,
         config->phrases[i].confidence_level);
+        if (config->phrases[i].confidence_level > ST_MAX_FSTAGE_CONF_LEVEL) {
+            PAL_ERR(LOG_TAG, "Invalid kw level %d",
+                config->phrases[i].confidence_level);
+            status = -EINVAL;
+            goto exit;
+        }
         for (j = 0; j < config->phrases[i].num_levels; j++) {
             PAL_VERBOSE(LOG_TAG, "[%d] user_id %d level %d ", i,
                         config->phrases[i].levels[j].user_id,
                         config->phrases[i].levels[j].level);
+            if (config->phrases[i].levels[j].level > ST_MAX_FSTAGE_CONF_LEVEL) {
+                PAL_ERR(LOG_TAG, "Invalid user level %d",
+                    config->phrases[i].levels[j].level);
+                status = -EINVAL;
+                goto exit;
+            }
         }
     }
 
@@ -2461,7 +2470,8 @@ int32_t StreamSoundTrigger::FillConfLevels(
                                 status);
                         goto exit;
                     }
-                    conf_levels[user_id] = (user_level < 100) ? user_level : 100;
+                    conf_levels[user_id] = (user_level < ST_MAX_FSTAGE_CONF_LEVEL) ?
+                        user_level : ST_MAX_FSTAGE_CONF_LEVEL;
                     user_id_tracker[user_id] = 1;
                     PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d", user_id,
                                 conf_levels[user_id]);
@@ -2474,6 +2484,12 @@ int32_t StreamSoundTrigger::FillConfLevels(
     *out_num_conf_levels = num_conf_levels;
 
 exit:
+    if (status && conf_levels) {
+        free(conf_levels);
+        *out_conf_levels = nullptr;
+        *out_num_conf_levels = 0;
+    }
+
     if (user_id_tracker)
         free(user_id_tracker);
 
@@ -2489,6 +2505,7 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
     uint32_t version) {
 
     int status = 0;
+    int32_t level = 0;
     unsigned int num_conf_levels = 0;
     unsigned int user_level = 0, user_id = 0;
     unsigned char *conf_levels = nullptr;
@@ -2524,6 +2541,29 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
+            level = sm_levels->kw_levels[i].kw_level;
+            if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
+                PAL_ERR(LOG_TAG, "Invalid First stage [%d] kw level %d", i, level);
+                status = -EINVAL;
+                goto exit;
+            } else {
+                PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i, level);
+            }
+            for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
+                level = sm_levels->kw_levels[i].user_levels[j].level;
+                if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
+                    PAL_ERR(LOG_TAG, "Invalid First stage [%d] user_id %d level %d", i,
+                        sm_levels->kw_levels[i].user_levels[j].user_id, level);
+                    status = -EINVAL;
+                    goto exit;
+                } else {
+                    PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
+                        sm_levels->kw_levels[i].user_levels[j].user_id, level);
+                }
+            }
+        }
+
+        for (i = 0; i < sm_levels->num_kw_levels; i++) {
             num_conf_levels++;
             if (model_id_ == 0) {
                 for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++)
@@ -2555,16 +2595,6 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels->num_kw_levels; i++) {
-            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
-                sm_levels->kw_levels[i].kw_level);
-            for (j = 0; j < sm_levels->kw_levels[i].num_user_levels; j++) {
-                PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
-                    sm_levels->kw_levels[i].user_levels[j].user_id,
-                    sm_levels->kw_levels[i].user_levels[j].level);
-            }
-        }
-
-        for (i = 0; i < sm_levels->num_kw_levels; i++) {
             if (i < num_conf_levels) {
                 conf_levels[i] = sm_levels->kw_levels[i].kw_level;
             } else {
@@ -2589,8 +2619,7 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
                                     user_id);
                             goto exit;
                         }
-                        conf_levels[user_id] = (user_level < 100) ?
-                                               user_level: 100;
+                        conf_levels[user_id] = user_level;
                         user_id_tracker[user_id] = 1;
                         PAL_ERR(LOG_TAG, "user_conf_levels[%d] = %d",
                                 user_id, conf_levels[user_id]);
@@ -2605,6 +2634,29 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
             status = -EINVAL;
             PAL_ERR(LOG_TAG, "ERROR. Invalid inputs");
             goto exit;
+        }
+
+        for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
+            level = sm_levels_v2->kw_levels[i].kw_level;
+            if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
+                PAL_ERR(LOG_TAG, "Invalid First stage [%d] kw level %d", i, level);
+                status = -EINVAL;
+                goto exit;
+            } else {
+                PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i, level);
+            }
+            for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
+                level = sm_levels_v2->kw_levels[i].user_levels[j].level;
+                if (level < 0 || level > ST_MAX_FSTAGE_CONF_LEVEL) {
+                    PAL_ERR(LOG_TAG, "Invalid First stage [%d] user_id %d level %d", i,
+                        sm_levels_v2->kw_levels[i].user_levels[j].user_id, level);
+                    status = -EINVAL;
+                    goto exit;
+                } else {
+                    PAL_DBG(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
+                        sm_levels_v2->kw_levels[i].user_levels[j].user_id, level);
+                }
+            }
         }
 
         for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
@@ -2639,16 +2691,6 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
         }
 
         for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
-            PAL_DBG(LOG_TAG, "First stage [%d] kw level %d", i,
-                sm_levels_v2->kw_levels[i].kw_level);
-            for (j = 0; j < sm_levels_v2->kw_levels[i].num_user_levels; j++) {
-                PAL_VERBOSE(LOG_TAG, "First stage [%d] user_id %d level %d ", i,
-                     sm_levels_v2->kw_levels[i].user_levels[j].user_id,
-                     sm_levels_v2->kw_levels[i].user_levels[j].level);
-            }
-        }
-
-        for (i = 0; i < sm_levels_v2->num_kw_levels; i++) {
             if (i < num_conf_levels) {
                 conf_levels[i] = sm_levels_v2->kw_levels[i].kw_level;
             } else {
@@ -2673,8 +2715,7 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
                                 user_id);
                             goto exit;
                         }
-                        conf_levels[user_id] = (user_level < 100) ?
-                                                user_level: 100;
+                        conf_levels[user_id] = user_level;
                         user_id_tracker[user_id] = 1;
                         PAL_VERBOSE(LOG_TAG, "user_conf_levels[%d] = %d",
                         user_id, conf_levels[user_id]);
@@ -2688,6 +2729,12 @@ int32_t StreamSoundTrigger::FillOpaqueConfLevels(
     *out_payload_size = num_conf_levels;
     PAL_DBG(LOG_TAG, "Returning number of conf levels : %d", *out_payload_size);
 exit:
+    if (status && conf_levels) {
+        free(conf_levels);
+        *out_payload = nullptr;
+        *out_payload_size = 0;
+    }
+
     if (user_id_tracker)
         free(user_id_tracker);
 

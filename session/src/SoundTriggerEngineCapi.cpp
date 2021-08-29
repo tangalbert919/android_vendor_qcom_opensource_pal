@@ -1097,7 +1097,7 @@ int32_t SoundTriggerEngineCapi::UpdateConfLevels(
     }
 
     std::lock_guard<std::mutex> lck(mutex_);
-    confidence_threshold_ = *conf_levels;
+    confidence_threshold_ = *(int32_t *)conf_levels;
     PAL_DBG(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
 
     return status;
