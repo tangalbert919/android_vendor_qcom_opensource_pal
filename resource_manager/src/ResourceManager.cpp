@@ -1535,9 +1535,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.bit_width : sAttr->out_media_config.bit_width);
      }
      deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
-     /*special case if PAL_AUDIO_FMT_PCM_S24_3LE is requested*/
-     if (bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_3LE) {
-         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+     /*special case if bitFormatSupported is requested*/
+     if (bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
+         deviceattr->config.aud_fmt_id = bitFormatSupported;
+         deviceattr->config.bit_width = palFormatToBitwidthLookup(bitFormatSupported);
      }
 
     /*special cases to update attrs for hot plug devices*/
