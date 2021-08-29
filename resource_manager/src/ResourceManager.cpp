@@ -2195,7 +2195,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
 }
 
 template <class T>
-int registerstream(T s, std::vector<T> &streams)
+int registerstream(T s, std::list<T> &streams)
 {
     int ret = 0;
     streams.push_back(s);
@@ -2351,10 +2351,10 @@ int ResourceManager::registerStream(Stream *s)
 
 // template function to deregister stream
 template <class T>
-int deregisterstream(T s, std::vector<T> &streams)
+int deregisterstream(T s, std::list<T> &streams)
 {
     int ret = 0;
-    typename std::vector<T>::iterator iter = std::find(streams.begin(), streams.end(), s);
+    typename std::list<T>::iterator iter = std::find(streams.begin(), streams.end(), s);
     if (iter != streams.end())
         streams.erase(iter);
     else
@@ -2512,12 +2512,12 @@ int ResourceManager::deregisterStream(Stream *s)
 }
 
 template <class T>
-bool isStreamActive(T s, std::vector<T> &streams)
+bool isStreamActive(T s, std::list<T> &streams)
 {
     bool ret = false;
 
     PAL_DBG(LOG_TAG, "Enter.");
-    typename std::vector<T>::iterator iter =
+    typename std::list<T>::iterator iter =
         std::find(streams.begin(), streams.end(), s);
     if (iter != streams.end()) {
         ret = true;
@@ -3177,16 +3177,16 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetACDCaptureProfileByPriority(
     StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_acd.size(); i++) {
-        // NOTE: input param s can be nullptr here
-        if (active_streams_acd[i] == s) {
+       for (auto& str: active_streams_acd) {
+       // NOTE: input param s can be nullptr here
+        if (str == s) {
             continue;
         }
 
-        if (!active_streams_acd[i]->isActive())
+        if (!str->isActive())
             continue;
 
-        cap_prof = active_streams_acd[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3203,9 +3203,9 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfileByPriority(
     StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_st.size(); i++) {
+    for (auto& str: active_streams_st) {
         // NOTE: input param s can be nullptr here
-        if (active_streams_st[i] == s) {
+        if (str == s) {
             continue;
         }
 
@@ -3214,10 +3214,10 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfileByPriority(
          * 1. sound model loaded but not started by sthal
          * 2. stop recognition called by sthal
          */
-        if (!active_streams_st[i]->isActive())
+        if (!str->isActive())
             continue;
 
-        cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3234,13 +3234,13 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSPDCaptureProfileByPriority(
     StreamSensorPCMData *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_sensor_pcm_data.size(); i++) {
+    for (auto& str: active_streams_sensor_pcm_data) {
         // NOTE: input param s can be nullptr here
-        if (active_streams_sensor_pcm_data[i] == s) {
+        if (str == s) {
             continue;
         }
 
-        cap_prof = active_streams_sensor_pcm_data[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3661,6 +3661,7 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
 
     PAL_DBG(LOG_TAG, "Enter");
     mActiveStreamMutex.lock();
+
     for (auto& str: mActiveStreams) {
         str->getStreamAttributes(&st_attr);
         if (st_attr.type != type)
@@ -4209,9 +4210,9 @@ void ResourceManager::getHigherPriorityActiveStreams(const int inComingStreamPri
 
 template <class T>
 void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams,
-                      std::vector<T> sourcestreams)
+                      std::list<T> sourcestreams)
 {
-    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
+    for (typename std::list<T>::iterator iter = sourcestreams.begin();
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
@@ -4266,9 +4267,9 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 
 template <class T>
 void getOrphanStreams(std::vector<Stream*> &orphanstreams,
-                      std::vector<T> sourcestreams)
+                      std::list<T> sourcestreams)
 {
-    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
+    for (typename std::list<T>::iterator iter = sourcestreams.begin();
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
@@ -6331,7 +6332,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
@@ -6781,7 +6782,7 @@ setdevparam:
         break;
         case PAL_PARAM_ID_HAPTICS_VOLUME:
         {
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             pal_stream_attributes st_attr;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 (*sIter)->getStreamAttributes(&st_attr);
@@ -6883,7 +6884,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id,
@@ -6919,7 +6920,7 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
     struct pal_device dattr;
     bool match = false;
     uint32_t matchCount = 0;
-    std::vector<Stream*>::iterator sIter;
+    std::list<Stream*>::iterator sIter;
 
     PAL_DBG(LOG_TAG, "Enter: device=%d type=%d rate=%d instance=%d is_param_write=%d\n",
             palDeviceId, palStreamType, sampleRate,
