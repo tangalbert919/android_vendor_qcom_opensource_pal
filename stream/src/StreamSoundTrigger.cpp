@@ -538,12 +538,6 @@ int32_t StreamSoundTrigger::setECRef_l(std::shared_ptr<Device> dev, bool is_enab
 
     PAL_DBG(LOG_TAG, "Enter, enable %d", is_enable);
 
-    // TODO: add barge-in support for 3rd party graph
-    if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
-        PAL_DBG(LOG_TAG, "No need to set ec ref for 3rd party va session");
-        goto exit;
-    }
-
     if (!cap_prof_ || !cap_prof_->isECRequired()) {
         PAL_DBG(LOG_TAG, "No need to set ec ref");
         goto exit;
