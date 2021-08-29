@@ -8370,6 +8370,12 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         }
     }
 
+    /*custom key comparison is needed only in the case where in device configuraton is same but only devicePP KV is different*/
+    if (strcmp(inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key) != 0) {
+        PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
+                inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key);
+        ret = true;
+    }
 exit:
     return ret;
 }
