@@ -45,6 +45,7 @@
 #include <queue>
 #include <deque>
 #include "PalDefs.h"
+#include "ChargerListener.h"
 #include "SndCardMonitor.h"
 #include "SoundTriggerPlatformInfo.h"
 #include "ACDPlatformInfo.h"
@@ -363,6 +364,8 @@ protected:
     bool bOverwriteFlag;
     bool screen_state_;
     bool charging_state_;
+    bool is_charger_online_;
+    bool is_concurrent_boost_state_;
     pal_speaker_rotation_type rotation_type_;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
@@ -444,6 +447,7 @@ public:
     bool ssrStarted = false;
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
+    static bool isChargeConcurrencyEnabled;
     static bool isCpsEnabled;
     static pal_audio_fmt_t bitFormatSupported;
     static bool isVbatEnabled;
@@ -481,6 +485,10 @@ public:
     adm_request_focus_v2_1_t  admRequestFocus_v2_1Fn = NULL;
     void *admData = NULL;
     void *admLibHdl = NULL;
+    static void *cl_lib_handle;
+    static cl_init_t cl_init;
+    static cl_deinit_t cl_deinit;
+    static cl_set_boost_state_t cl_set_boost_state;
 
     /* checks config for both stream and device */
     bool isStreamSupported(struct pal_stream_attributes *attributes,
@@ -530,6 +538,8 @@ public:
     int setParameter(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type);
+    int setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Device> dev,
+                             int tag);
     int rwParameterACDB(uint32_t param_id, void *param_payload,
                      size_t payload_size, pal_device_id_t pal_device_id,
                      pal_stream_type_t pal_stream_type, uint32_t sample_rate,
@@ -586,6 +596,8 @@ public:
     bool IsDedicatedBEForUPDEnabled();
     void GetSoundTriggerConcurrencyCount(pal_stream_type_t type, int32_t *enable_count, int32_t *disable_count);
     bool GetChargingState() const { return charging_state_; }
+    bool getChargerOnlineState(void) const { return is_charger_online_; }
+    bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);
@@ -709,6 +721,12 @@ public:
                                  const struct pal_device_info *Dev2Info);
     int32_t voteSleepMonitor(Stream *str, bool vote);
     static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
+    void chargerListenerFeatureInit();
+    static void chargerListenerInit(charger_status_change_fn_t);
+    static void chargerListenerDeinit();
+    static void onChargerListenerStatusChanged(int event_type, int status,
+                                                 bool concurrent_state);
+    int chargerListenerSetBoostState(bool state);
 };
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -124,4 +124,24 @@ int32_t Speaker::isBitWidthSupported(uint32_t bitWidth)
             break;
     }
     return rc;
+}
+
+int Speaker::stop()
+{
+    int status = 0;
+
+    status = Device::stop();
+    if (status == 0 && deviceCount == 0) {
+        std::shared_ptr<ResourceManager> Rm = nullptr;
+        Rm = ResourceManager::getInstance();
+        if (Rm->isChargeConcurrencyEnabled && Rm->getChargerOnlineState() &&
+            Rm->getConcurrentBoostState()) {
+            status = Rm->chargerListenerSetBoostState(false);
+            if (0 != status)
+                PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+        } else {
+            PAL_DBG(LOG_TAG, "Concurrent State unchanged, ignore notifying");
+        }
+    }
+    return status;
 }

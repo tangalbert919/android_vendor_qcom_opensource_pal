@@ -83,6 +83,16 @@
 #include <adsp_sleepmon.h>
 #endif
 
+#if LINUX_ENABLED
+#if defined(__LP64__)
+#define CL_LIBRARY_PATH "/usr/lib64/libaudiochargerlistener.so"
+#else
+#define CL_LIBRARY_PATH "/usr/lib/libaudiochargerlistener.so"
+#endif
+#else
+#define CL_LIBRARY_PATH "libaudiochargerlistener.so"
+#endif
+
 #define MIXER_XML_BASE_STRING_NAME "mixer_paths"
 #define RMNGR_XMLFILE_BASE_STRING_NAME "resourcemanager"
 
@@ -378,6 +388,10 @@ std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 static bool isHifiFilterEnabled = false;
 SndCardMonitor* ResourceManager::sndmon = NULL;
+void* ResourceManager::cl_lib_handle = NULL;
+cl_init_t ResourceManager::cl_init = NULL;
+cl_deinit_t ResourceManager::cl_deinit = NULL;
+cl_set_boost_state_t ResourceManager::cl_set_boost_state = NULL;
 std::mutex ResourceManager::cvMutex;
 std::queue<card_status_t> ResourceManager::msgQ;
 std::condition_variable ResourceManager::cv;
@@ -396,6 +410,7 @@ int ResourceManager::wake_unlock_fd = -1;
 uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
+bool ResourceManager::isChargeConcurrencyEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
@@ -1142,6 +1157,10 @@ int ResourceManager::init()
 
     mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
 
+    //Initialize audio_charger_listener
+    if (rm && isChargeConcurrencyEnabled)
+        rm->chargerListenerFeatureInit();
+
     // Get the speaker instance and activate speaker protection
     dattr.id = PAL_DEVICE_OUT_SPEAKER;
     dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
@@ -1252,6 +1271,148 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
     return 0;
 }
 #endif
+
+int ResourceManager::setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Device> dev,
+                                          int tag)
+{
+    int status = 0;
+    Stream *stream = nullptr;
+    Session *session = nullptr;
+    std::vector<Stream*> activestreams;
+
+    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
+
+    switch (param_id) {
+        case PAL_PARAM_ID_CHARGER_STATE:
+        {
+            if (dev) {
+                //Setting deviceRX: Config ICL Tag in AL module.
+                status = rm->getActiveStream_l(dev, activestreams);
+                if ((0 != status) || (activestreams.size() == 0)) {
+                    PAL_DBG(LOG_TAG, "no active stream available");
+                    goto exit;
+                }
+                stream = static_cast<Stream*>(activestreams[0]);
+                stream->getAssociatedSession(&session);
+                status = session->setConfig(stream, MODULE, tag);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Setting Param failed with status %d", status);
+                    goto exit;
+                }
+                if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
+                    status = rm->chargerListenerSetBoostState(true);
+                else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
+                    status = rm->chargerListenerSetBoostState(false);
+                else
+                    PAL_DBG(LOG_TAG, "Concurrency state unchanged");
+
+                if (0 != status)
+                    PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+            }
+        }
+        break;
+        default:
+            PAL_INFO(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+void ResourceManager::onChargerListenerStatusChanged(int event_type, int status,
+                                                       bool concurrent_state)
+{
+    int result = 0;
+    pal_param_charger_state_t charger_state;
+    std::shared_ptr<ResourceManager> rm = nullptr;
+
+    switch (event_type) {
+        case CHARGER_EVENT:
+            charger_state.is_charger_online =  status ? true : false;
+            PAL_DBG(LOG_TAG, "charger status is %s ", status ? "online" : "offline");
+            charger_state.is_concurrent_boost_enable = concurrent_state;
+            rm = ResourceManager::getInstance();
+            if (rm) {
+                result = rm->setParameter(PAL_PARAM_ID_CHARGER_STATE,(void*)&charger_state,
+                                          sizeof(pal_param_charger_state_t));
+                if (0 != result) {
+                    PAL_DBG(LOG_TAG, "Failed to enable audio limiter before charging  %d\n",
+                            result);
+                }
+            }
+            break;
+        case BATTERY_EVENT:
+            break;
+        default:
+            PAL_ERR(LOG_TAG, "Invalid Uevent_type");
+            break;
+    }
+}
+
+void ResourceManager::chargerListenerInit(charger_status_change_fn_t fn)
+{
+    cl_lib_handle = dlopen(CL_LIBRARY_PATH, RTLD_NOW);
+
+    if (!cl_lib_handle) {
+        PAL_ERR(LOG_TAG, "dlopen for charger_listener failed %s", dlerror());
+        return;
+    }
+
+    cl_init = (cl_init_t)dlsym(cl_lib_handle, "chargerPropertiesListenerInit");
+    cl_deinit = (cl_deinit_t)dlsym(cl_lib_handle, "chargerPropertiesListenerDeinit");
+    cl_set_boost_state = (cl_set_boost_state_t)dlsym(cl_lib_handle,
+                                 "chargerPropertiesListenerSetBoostState");
+    if (!cl_init || !cl_deinit || !cl_set_boost_state) {
+        PAL_ERR(LOG_TAG, "dlsym for charger_listener failed");
+        goto feature_disabled;
+    }
+    cl_init(fn);
+    return;
+
+feature_disabled:
+    if (cl_lib_handle) {
+        dlclose(cl_lib_handle);
+        cl_lib_handle = NULL;
+    }
+
+    cl_init = NULL;
+    cl_deinit = NULL;
+    cl_set_boost_state = NULL;
+    PAL_INFO(LOG_TAG, "---- Feature charger_listener is disabled ----");
+}
+
+void ResourceManager::chargerListenerDeinit()
+{
+    if (cl_deinit)
+        cl_deinit();
+    if (cl_lib_handle) {
+        dlclose(cl_lib_handle);
+        cl_lib_handle = NULL;
+    }
+    cl_init = NULL;
+    cl_deinit = NULL;
+    cl_set_boost_state = NULL;
+}
+
+int ResourceManager::chargerListenerSetBoostState(bool state)
+{
+    int status = 0;
+
+    if (cl_set_boost_state) {
+        status = cl_set_boost_state(state);
+        if (0 == status)
+            is_concurrent_boost_state_ = state;
+    }
+    PAL_INFO(LOG_TAG, "Concurrent Boost state is set: status %d", status);
+    return status;
+}
+
+void ResourceManager::chargerListenerFeatureInit()
+{
+    ResourceManager::chargerListenerInit(onChargerListenerStatusChanged);
+}
 
 bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype)
 {
@@ -4276,6 +4437,9 @@ void ResourceManager::deinit()
     if (sndmon)
         delete sndmon;
 
+   if (isChargeConcurrencyEnabled)
+       chargerListenerDeinit();
+
     cvMutex.lock();
     msgQ.push(state);
     cvMutex.unlock();
@@ -6349,6 +6513,44 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
+        case PAL_PARAM_ID_CHARGER_STATE:
+        {
+            int i, tag;
+            struct pal_device dattr;
+            std::shared_ptr<Device> dev = nullptr;
+
+            pal_param_charger_state *charger_state =
+                (pal_param_charger_state *)param_payload;
+
+            if (!isChargeConcurrencyEnabled) goto exit;
+
+            if (payload_size != sizeof(pal_param_charger_state)) {
+                PAL_ERR(LOG_TAG, "Incorrect size: expected (%zu), received(%zu)",
+                                  sizeof(pal_param_charger_state), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+            if (is_charger_online_ != charger_state->is_charger_online) {
+                dattr.id = PAL_DEVICE_OUT_SPEAKER;
+                is_charger_online_ = charger_state->is_charger_online;
+                is_concurrent_boost_state_ = charger_state->is_concurrent_boost_enable;
+                for (i = 0; i < active_devices.size(); i++) {
+                    int deviceId = active_devices[i].first->getSndDeviceId();
+                    if (deviceId == dattr.id) {
+                        dev = Device::getInstance(&dattr, rm);
+                        tag = is_charger_online_ ? CHARGE_CONCURRENCY_ON_TAG
+                        : CHARGE_CONCURRENCY_OFF_TAG;
+                        status = setDeviceParamConfig(param_id, dev, tag);
+                        break;
+                    }
+                }
+                if (i == active_devices.size())
+                    PAL_DBG(LOG_TAG, "Device %d is not available\n", dattr.id);
+            } else {
+                PAL_DBG(LOG_TAG, "Charger state unchanged, ignore");
+            }
+        }
+        break;
         case PAL_PARAM_ID_BT_SCO_WB:
         case PAL_PARAM_ID_BT_SCO_SWB:
         case PAL_PARAM_ID_BT_SCO_LC3:
@@ -7666,6 +7868,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                 PAL_DBG(LOG_TAG, "found ext ec ref enabled device is %d",
                     deviceInfo[size].deviceId);
             }
+        } else if (!strcmp(tag_name, "Charge_concurrency_enabled")) {
+            if (atoi(data->data_buf))
+                isChargeConcurrencyEnabled = true;
         } else if (!strcmp(tag_name, "cps_enabled")) {
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
