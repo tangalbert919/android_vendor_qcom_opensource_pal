@@ -415,6 +415,22 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
+int32_t Stream::UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Updatepaldevice from %d to %d", Dev_id, dattr->id);
+    for (int i = 0; i < mPalDevice.size(); i++) {
+        if (Dev_id == mPalDevice[i].id) {
+            mPalDevice.erase(mPalDevice.begin() + i);
+            break;
+        }
+    }
+    mPalDevice.push_back(*dattr);
+    return status;
+}
+
+
 int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevices)
 {
     int32_t status = 0;
