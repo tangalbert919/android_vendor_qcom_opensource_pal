@@ -269,7 +269,7 @@ void PalRingBufferReader::getIndices(uint32_t *startIndice, uint32_t *endIndice)
 
 size_t PalRingBufferReader::getUnreadSize()
 {
-    PAL_DBG(LOG_TAG, "unread size %zu", unreadSize_);
+    PAL_VERBOSE(LOG_TAG, "unread size %zu", unreadSize_);
     return unreadSize_;
 }
 

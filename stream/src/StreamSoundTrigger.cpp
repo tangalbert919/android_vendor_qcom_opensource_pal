@@ -47,6 +47,7 @@
 #endif
 
 #define ST_DEFERRED_STOP_DEALY_MS (1000)
+#define ST_MODEL_TYPE_SHIFT       (16)
 
 ST_DBG_DECLARE(static int lab_cnt = 0);
 
@@ -67,6 +68,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     outBufSize = BUF_SIZE_PLAYBACK;
     inBufCount = NO_OF_BUF;
     outBufCount = NO_OF_BUF;
+    model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
     paused_ = false;
@@ -966,6 +968,11 @@ void StreamSoundTrigger::updateStreamAttributes() {
     }
 }
 
+void StreamSoundTrigger::UpdateModelId(st_module_type_t type) {
+    if (IS_MODULE_TYPE_PDK(type) && mInstanceID)
+        model_id_ = ((uint32_t)type << ST_MODEL_TYPE_SHIFT) + mInstanceID;
+}
+
 /* TODO:
  *   - Need to track vendor UUID
  */
@@ -988,7 +995,6 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     int32_t engine_id = 0;
     std::shared_ptr<EngineCfg> engine_cfg = nullptr;
     class SoundTriggerUUID uuid;
-    model_id_ = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1119,6 +1125,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                     common_sm->data_offset = sizeof(*phrase_sm);
                     common_sm = (struct pal_st_sound_model *)&phrase_sm->common;
 
+                    UpdateModelId((st_module_type_t)big_sm->versionMajor);
                     gsl_engine_ = HandleEngineLoad(sm_data + sizeof(*phrase_sm),
                                                      big_sm->size, big_sm->type,
                                          (st_module_type_t)big_sm->versionMajor);
