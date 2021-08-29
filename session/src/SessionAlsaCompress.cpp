@@ -682,8 +682,11 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, pal_strea
         for (const auto &elem : rxAifBackEnds) {
             cnt++;
             for (const auto &disConnectElem : rxAifBackEndsToDisconnect) {
-                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                if (std::get<0>(elem) == std::get<0>(disConnectElem)) {
                     rxAifBackEnds.erase(rxAifBackEnds.begin() + cnt - 1, rxAifBackEnds.begin() + cnt);
+                    cnt--;
+                    break;
+                }
             }
         }
     }
@@ -697,8 +700,11 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, pal_strea
         for (const auto &elem : txAifBackEnds) {
             cnt++;
             for (const auto &disConnectElem : txAifBackEndsToDisconnect) {
-                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                if (std::get<0>(elem) == std::get<0>(disConnectElem)) {
                     txAifBackEnds.erase(txAifBackEnds.begin() + cnt - 1, txAifBackEnds.begin() + cnt);
+                    cnt--;
+                    break;
+                }
             }
         }
     }
