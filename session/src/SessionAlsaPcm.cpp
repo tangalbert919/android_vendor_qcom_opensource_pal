@@ -1896,15 +1896,21 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             PAL_DBG(LOG_TAG, "Ext EC Ref flag is enabled");
             extEcTxDeviceList.push_back(dev);
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
+            if (pcmDevEcTxIds.size() == 0) {
+                PAL_ERR(LOG_TAG, "ResourceManger::getBackEndNames returned no EXT_EC device Ids");
+                goto exit;
+            }
             status = dev->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "dev open failed");
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 goto exit;
             }
             status = dev->start();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "dev start failed");
                 dev->close();
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 goto exit;
             }
             extEcbackendId = extEcTxDeviceList[0]->getSndDeviceId();
@@ -1915,6 +1921,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 PAL_ERR(LOG_TAG, "SessionAlsaUtils::openDev failed");
                 dev->stop();
                 dev->close();
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 goto exit;
             }
             config.rate = rxDevAttr.config.sample_rate;
@@ -1931,6 +1938,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 PAL_ERR(LOG_TAG, "pcm-ec-tx open failed");
                 dev->stop();
                 dev->close();
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 status = errno;
                 goto exit;
             }
@@ -1939,6 +1947,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 pcmEcTx = NULL;
                 dev->stop();
                 dev->close();
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 status = errno;
                 goto exit;
             }
@@ -1947,8 +1956,10 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 status = errno;
                 PAL_ERR(LOG_TAG, "pcm_start ec_tx failed %d", status);
                 pcm_close(pcmEcTx);
+                pcmEcTx = NULL;
                 dev->stop();
                 dev->close();
+                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
                 status = errno;
                 goto exit;
             }
