@@ -896,6 +896,21 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      */
     dev->setDeviceAttributes(*dattr);
 
+    /* For A2DP UCs streams may play on combo devices like Speaker and A2DP
+     * However, if the a2dp suspend is called - all streams on a2dp will temporarily
+     * move to speakers.  If the stream is already connected to speaker. then we will
+     * entrying the speaker device information twice. Below snippet will handle that case
+     */
+    for (auto iter = mDevices.begin(); iter != mDevices.end(); iter++) {
+        if ((*iter)->getSndDeviceId() == dev->getSndDeviceId()) {
+            PAL_INFO(LOG_TAG,
+                "stream is already connected to device %d name %s - return",
+                dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
+            status = 0;
+            goto exit;
+        }
+    }
+
     PAL_DBG(LOG_TAG, "device %d name %s, going to start",
         dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
 
@@ -1169,7 +1184,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
                     matchFound = true;
                 } else {
-                    matchFound = false; 
+                    matchFound = false;
                 }
             }
         } else {
