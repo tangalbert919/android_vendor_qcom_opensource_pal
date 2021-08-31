@@ -1928,6 +1928,8 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     int sr = dp_device->getHighestSupportedSR();
                     if (sAttr->out_media_config.sample_rate > sr)
                         deviceattr->config.sample_rate = sr;
+                    else
+                        deviceattr->config.sample_rate = SAMPLINGRATE_48K;
                 }
 
                 if (DisplayPort::isBitWidthSupported(
@@ -1951,6 +1953,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 } else {
                     deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
                 }
+
+                PAL_DBG(LOG_TAG, "devcie %d sample rate %d bitwidth %d",
+                        deviceattr->id, deviceattr->config.sample_rate,
+                        deviceattr->config.bit_width);
             }
             break;
         case PAL_DEVICE_OUT_HAPTICS_DEVICE:
