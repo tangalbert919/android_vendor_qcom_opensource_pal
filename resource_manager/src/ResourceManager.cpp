@@ -6234,6 +6234,7 @@ int32_t ResourceManager::a2dpSuspend()
     std::vector <Stream *> activeA2dpStreams;
     std::vector <Stream *> activeStreams;
     std::vector <Stream*>::iterator sIter;
+    std::vector <std::shared_ptr<Device>> associatedDevices;
 
     PAL_DBG(LOG_TAG, "enter");
 
@@ -6251,19 +6252,18 @@ int32_t ResourceManager::a2dpSuspend()
         goto exit;
     }
 
-    //device selected to switch by default is speaker.
+    // device selected to switch by default is speaker
     switchDevDattr.id = PAL_DEVICE_OUT_SPEAKER;
     getActiveStream_l(spkrDev, activeStreams);
-    //check whether Handset/Speaker device is active when
-    //the suspend is called.
-    if(activeStreams.empty())
-    {
-        //No Streams active on speaker-check handset as well
+    // check whether Handset/Speaker device is active when
+    // the suspend is called.
+    if (activeStreams.empty()) {
+        // No Streams active on speaker, then check handset as well
         handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
         handsetDev = Device::getInstance(&handsetDattr, rm);
         getActiveStream_l(handsetDev, activeStreams);
         if (activeStreams.size() != 0) {
-            //device selected to switch is handset-it is currently active.
+            // device selected to switch is handset-it is currently active.
             switchDevDattr.id = PAL_DEVICE_OUT_HANDSET;
         }
     }
@@ -6272,21 +6272,22 @@ int32_t ResourceManager::a2dpSuspend()
         switchDevDattr.id);
 
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        if((*sIter)->isActive()) {
+        if ((*sIter)->isActive()) {
             if (!((*sIter)->a2dpMuted)) {
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
                      (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
-                    //First Mute & then Pause
-                    /*This is to ensure DSP has enough ramp down in Mute module.
-                    If we issue pause first then no data processing happen and mute
-                    ramp down will not happen which will then get processed after
-                    resume , which will be percieved as a leak. */
+                    /* First mute & then pause
+                     * This is to ensure DSP has enough ramp down period in volume module.
+                     * If pause is issued firstly, then there's no enough data for processing.
+                     * As a result, ramp down will not happen and will only occur after resume,
+                     * which is perceived as audio leakage.
+                     */
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
-                    //Pause - Only if the stream is not explicitly paused.
-                    //Insome scenarios - stream might have already paused prior to a2dpsuspend.
+                    // Pause only if the stream is not explicitly paused.
+                    // In some scenarios, stream might have already paused prior to a2dpsuspend.
                     if (((*sIter)->isPaused) == false) {
                         (*sIter)->pause_l();
                         (*sIter)->a2dpPaused = true;
@@ -6295,7 +6296,7 @@ int32_t ResourceManager::a2dpSuspend()
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
                         maxLatencyMs = latencyMs;
-                    //Mute
+                    // Mute
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
                 }
@@ -6303,6 +6304,24 @@ int32_t ResourceManager::a2dpSuspend()
             }
         }
     }
+
+    // For a2dp + spkr or handset combo use case,
+    // add speaker or handset into suspended devices for restore during a2dpResume
+    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
+        status = (*sIter)->getAssociatedDevices(associatedDevices);
+        if ((0 != status) ||
+            !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {
+            PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", sIter);
+            mActiveStreamMutex.unlock();
+            goto exit;
+        }
+
+        if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
+            (*sIter)->suspendedDevIds.clear();
+            (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
+        }
+    }
+
     mActiveStreamMutex.unlock();
 
     // wait for stale pcm drained before switching to speaker
@@ -6313,8 +6332,7 @@ int32_t ResourceManager::a2dpSuspend()
         usleep(maxLatencyMs * 1000 * latencyMuteFactor);
     }
 
-
-    // force switch to speaker
+    // force switch to speaker or handset
     status = getDeviceConfig(&switchDevDattr, NULL);
     if (status) {
         goto exit;
@@ -6325,20 +6343,24 @@ int32_t ResourceManager::a2dpSuspend()
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
     mResourceManagerMutex.lock();
 
+    mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        struct pal_stream_attributes sAttr;
-        (*sIter)->getStreamAttributes(&sAttr);
-        if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
-            (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
-            (!(*sIter)->isActive())) {
-            //Resume if the offload stream is paused
-            //Only resume if it was paused during a2dpSuspend.
-            //This is to avoid resuming if the stream is pause via explict pause from PAL Clients.
-            if (((*sIter)->a2dpPaused) == true)
-                (*sIter)->resume_l();
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            struct pal_stream_attributes sAttr;
+            (*sIter)->getStreamAttributes(&sAttr);
+            if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
+                (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
+                (!(*sIter)->isActive())) {
+                /* Resume only when it was paused during a2dpSuspend.
+                 * This is to avoid resuming during regular pause.
+                 */
+                if (((*sIter)->a2dpPaused) == true)
+                    (*sIter)->resume_l();
+            }
+            (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
         }
-        (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     }
+    mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
@@ -6373,12 +6395,12 @@ int32_t ResourceManager::a2dpResume()
 
     mActiveStreamMutex.lock();
     getActiveStream_l(activeDev, activeStreams);
-    //No-Streams active on Speaker - possibly streams are
-    //associated handset device (due to voip/voice sco ended) and
-    //device switch did not happen for all the streams
-    if(activeStreams.empty())
-    {
-        //Hence try to check handset device as well.
+    /* No-Streams active on Speaker - possibly streams are
+     * associated handset device (due to voip/voice sco ended) and
+     * device switch did not happen for all the streams
+     */
+    if (activeStreams.empty()) {
+        // Hence try to check handset device as well.
         activeDattr.id = PAL_DEVICE_OUT_HANDSET;
         activeDev = Device::getInstance(&activeDattr, rm);
         getActiveStream_l(activeDev, activeStreams);
@@ -6391,19 +6413,26 @@ int32_t ResourceManager::a2dpResume()
         goto exit;
     }
 
-    // check all active streams associated with speaker.
-    // If actual device is a2dp, store into stream vector for device switch.
+    /* Check all active streams associated with speaker or handset.
+     * If actual device is a2dp only, store into stream vector for device switch.
+     * If actual device is combo(a2dp + spkr/handset), restore to combo.
+     * That is to connect a2dp and do not disconnect from current associated device.
+     */
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
-            streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+            if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
+                streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+            }
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
     }
 
     // retry all orphan streams which failed to restore previously.
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
@@ -6428,7 +6457,7 @@ int32_t ResourceManager::a2dpResume()
     mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
-            (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
+            (*sIter)->suspendedDevIds.clear();
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
@@ -6478,7 +6507,8 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     mResourceManagerMutex.lock();
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        (*sIter)->suspendedDevId = PAL_DEVICE_IN_BLUETOOTH_A2DP;
+        (*sIter)->suspendedDevIds.clear();
+        (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_IN_BLUETOOTH_A2DP);
     }
 
 exit:
@@ -6519,7 +6549,8 @@ int32_t ResourceManager::a2dpCaptureResume()
     // check all active streams associated with handset_mic.
     // If actual device is a2dp, store into stream vector for device switch.
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_IN_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevDisconnect.push_back({ (*sIter), handsetmicDattr.id });
             streamDevConnect.push_back({ (*sIter), &a2dpDattr });
@@ -6528,7 +6559,8 @@ int32_t ResourceManager::a2dpCaptureResume()
 
     // retry all orphan streams which failed to restore previously.
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_IN_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({ (*sIter), &a2dpDattr });
         }
@@ -6553,7 +6585,7 @@ int32_t ResourceManager::a2dpCaptureResume()
     mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if ((*sIter) != NULL && isStreamActive(*sIter, mActiveStreams)) {
-            (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
+            (*sIter)->suspendedDevIds.clear();
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }

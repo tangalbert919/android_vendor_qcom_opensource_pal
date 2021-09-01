@@ -1118,7 +1118,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     if (a2dpMuted && !isNewDeviceA2dp) {
         mute_l(false);
         a2dpMuted = false;
-        suspendedDevId = PAL_DEVICE_NONE;
+        suspendedDevIds.clear();
     }
 
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
