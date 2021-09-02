@@ -85,6 +85,7 @@ protected:
     void *eventPayload;
     size_t eventPayloadSize;
     bool RegisterForEvents = false;
+    Stream *streamHandle;
 public:
     bool isPauseRegistrationDone;
     virtual ~Session();

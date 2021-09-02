@@ -64,6 +64,7 @@ SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
    pcmEcTx = NULL;
    mState = SESSION_IDLE;
    ecRefDevId = PAL_DEVICE_OUT_MIN;
+   streamHandle = NULL;
 }
 
 SessionAlsaPcm::~SessionAlsaPcm()
@@ -88,6 +89,7 @@ int SessionAlsaPcm::open(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;
@@ -300,7 +302,63 @@ struct mixer_ctl* SessionAlsaPcm::getFEMixerCtl(const char *controlName, int *de
 uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32_t *miid)
 {
     int status = 0;
-    int device = pcmDevIds.at(0);
+    int device = 0;
+    struct pal_stream_attributes sAttr;
+
+    if (!streamHandle) {
+        PAL_ERR(LOG_TAG, "Session handle not found");
+        status = -EINVAL;
+        goto exit;
+    }
+    status = streamHandle->getStreamAttributes(&sAttr);
+    if (0 != status) {
+        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
+        goto exit;
+    }
+    if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT)) {
+        switch (tagId) {
+            case DEVICE_HW_ENDPOINT_TX:
+            case BT_PLACEHOLDER_DECODER:
+            case COP_DEPACKETIZER_V2:
+                if (!pcmDevTxIds.size()){
+                    PAL_ERR(LOG_TAG,"pcmDevTxIds not found \n");
+                    status = -EINVAL;
+                    goto exit;
+                }
+                device = pcmDevTxIds.at(0);
+                break;
+            case DEVICE_HW_ENDPOINT_RX:
+            case BT_PLACEHOLDER_ENCODER:
+            case COP_PACKETIZER_V2:
+            case COP_PACKETIZER_V0:
+            case MODULE_SP:
+                if (!pcmDevRxIds.size()){
+                    PAL_ERR(LOG_TAG,"pcmDevRxIds not found \n");
+                    status = -EINVAL;
+                    goto exit;
+                }
+                device = pcmDevRxIds.at(0);
+                break;
+            case RAT_RENDER:
+            case BT_PCM_CONVERTER:
+                if(strstr(backendName,"TX"))
+                    device = pcmDevTxIds.at(0);
+                else
+                    device = pcmDevRxIds.at(0);
+                break;
+            default:
+                PAL_INFO(LOG_TAG, "Unsupported loopback tag info %x",tagId);
+                status = -EINVAL;
+                goto exit;
+        }
+    } else {
+        if (!pcmDevIds.size()){
+            PAL_ERR(LOG_TAG,"pcmDevIds not found \n");
+            status = -EINVAL;
+            goto exit;
+        }
+        device = pcmDevIds.at(0);
+    }
     /* REPLACE THIS WITH STORED INFO DURING INITIAL SETUP */
     if (backendName) {
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
@@ -309,6 +367,8 @@ uint32_t SessionAlsaPcm::getMIID(const char *backendName, uint32_t tagId, uint32
         status = SessionAlsaUtils::getModuleInstanceId(mixer,
             device, txAifBackEnds[0].second.data(), tagId, miid);
     }
+
+exit:
     if (0 != status)
         PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
 
