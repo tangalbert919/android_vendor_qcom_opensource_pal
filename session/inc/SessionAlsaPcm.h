@@ -68,6 +68,7 @@ private:
     session_callback sessionCb;
     uint64_t cbCookie;
     pal_device_id_t ecRefDevId;
+    uint32_t svaMiid;
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);

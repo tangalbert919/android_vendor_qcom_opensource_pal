@@ -838,8 +838,12 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     builder_ = new PayloadBuilder();
     eng_sm_info_ = new SoundModelInfo();
     dev_disconnect_count_ = 0;
+    lpi_miid_ = 0;
+    nlpi_miid_ = 0;
 
     UpdateState(ENG_IDLE);
+
+    use_lpi_ = dynamic_cast<StreamSoundTrigger *>(s)->GetLPIEnabled();
 
     std::memset(&detection_event_info_, 0, sizeof(struct detection_event_info));
     std::memset(&pdk_wakeup_config_, 0, sizeof(pdk_wakeup_config_));
@@ -905,15 +909,18 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
 
     session_->registerCallBack(HandleSessionCallBack, (uint64_t)this);
 
+    buffer_thread_handler_ =
+        std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
+    if (!buffer_thread_handler_.joinable()) {
+        PAL_ERR(LOG_TAG, "failed to create even processing thread");
+        throw std::runtime_error("failed to create even processing thread");
+    }
+
     PAL_DBG(LOG_TAG, "Exit");
 }
 
 SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
     PAL_INFO(LOG_TAG, "Enter");
-    /*
-     * join thread if it is not joined, sometimes
-     * stop/unload may fail before deconstruction.
-     */
     if (buffer_thread_handler_.joinable()) {
         exit_buffering_ = true;
         std::unique_lock<std::mutex> lck(mutex_);
@@ -1522,19 +1529,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
     }
 
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
-        /* Unload the current sound model */
-        exit_thread_ = true;
-        exit_buffering_ = true;
-        if (buffer_thread_handler_.joinable()) {
-            cv_.notify_one();
-            lck.unlock();
-            buffer_thread_handler_.join();
-            lck.lock();
-           PAL_INFO(LOG_TAG, "Thread joined");
-        }
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+        mmap_buffer_.buffer = nullptr;
         UpdateState(ENG_IDLE);
 
         /* Update the engine with merged sound model */
@@ -1567,18 +1565,6 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
             PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d",
                                                                     status);
             session_->close(eng_streams_[0]);
-            goto exit;
-        }
-
-        exit_thread_ = false;
-        buffer_thread_handler_ =
-            std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
-
-        if (!buffer_thread_handler_.joinable()) {
-            PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
-                    status);
-            session_->close(eng_streams_[0]);
-            status = -EINVAL;
             goto exit;
         }
     } else {
@@ -1664,20 +1650,10 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
     if (IS_MODULE_TYPE_PDK(module_type_)) {
         status = HandleMultiStreamUnloadPDK(s);
     } else {
-        /* Unload the current sound model */
-        exit_thread_ = true;
-        exit_buffering_ = true;
-        if (buffer_thread_handler_.joinable()) {
-            cv_.notify_one();
-            lck.unlock();
-            buffer_thread_handler_.join();
-            lck.lock();
-            PAL_INFO(LOG_TAG, "Thread joined");
-        }
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-
+        mmap_buffer_.buffer = nullptr;
         UpdateState(ENG_IDLE);
         /* Update the engine with modified sound model after deletion */
         status = UpdateEngineModel(s, nullptr, 0, false);
@@ -1708,18 +1684,6 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
             PAL_ERR(LOG_TAG, "Failed to update session payload, status = %d",
                                                                      status);
             session_->close(eng_streams_[0]);
-            goto exit;
-        }
-
-        exit_thread_ = false;
-        buffer_thread_handler_ =
-            std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
-
-        if (!buffer_thread_handler_.joinable()) {
-            PAL_ERR(LOG_TAG, "failed to create event processing thread, status = %d",
-                    status);
-            session_->close(eng_streams_[0]);
-            status = -EINVAL;
             goto exit;
         }
         UpdateState(ENG_LOADED);
@@ -1788,10 +1752,6 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
             return -EINVAL;
         }
 
-        PAL_DBG(LOG_TAG,
-         "param_id_detection_engine_register_multi_sound_model :%zu, data_size : %u",
-          sizeof(struct param_id_detection_engine_register_multi_sound_model_t),
-          data_size);
         pdk_data->model_id = model_id;
         pdk_data->model_size = data_size;
         ar_mem_cpy(pdk_data->model, data_size, data, data_size);
@@ -1836,17 +1796,6 @@ int32_t SoundTriggerEngineGsl::LoadSoundModel(Stream *s, uint8_t *data,
         goto exit;
     }
 
-    exit_thread_ = false;
-    buffer_thread_handler_ =
-        std::thread(SoundTriggerEngineGsl::EventProcessingThread, this);
-
-    if (!buffer_thread_handler_.joinable()) {
-        PAL_ERR(LOG_TAG, "failed to create even processing thread, status = %d",
-                status);
-        session_->close(s);
-        status = -EINVAL;
-        goto exit;
-    }
     UpdateState(ENG_LOADED);
 exit:
     if (!status)
@@ -1856,6 +1805,9 @@ exit:
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
+
+    if (pdk_data)
+        free(pdk_data);
 
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
@@ -1875,15 +1827,6 @@ int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
         status = HandleMultiStreamUnload(s);
         lck.lock();
         goto exit;
-    }
-
-    exit_thread_ = true;
-    if (buffer_thread_handler_.joinable()) {
-        cv_.notify_one();
-        lck.unlock();
-        buffer_thread_handler_.join();
-        lck.lock();
-        PAL_INFO(LOG_TAG, "Thread joined");
     }
 
     status = session_->close(s);
@@ -2100,6 +2043,46 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
+    PAL_DBG(LOG_TAG, "Exit, status = %d", status);
+    return status;
+}
+
+int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
+    int32_t status = 0;
+    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
+
+    PAL_DBG(LOG_TAG, "Enter");
+    std::unique_lock<std::mutex> lck(mutex_);
+
+    DetachStream(s);
+
+    /*
+     * For PDK or sound model merging usecase, multi streams will
+     * be attached to same gsl engine, so we only need to close
+     * session when all attached streams are detached.
+     */
+    if (eng_streams_.size() == 0) {
+
+        status = session_->close(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
+
+        UpdateState(ENG_IDLE);
+        mmap_buffer_.buffer = nullptr;
+        use_lpi_ = st->GetLPIEnabled();
+    }
+
+    /* Delete sound model of stream s from merged sound model */
+    status = UpdateEngineModel(s, nullptr, 0, false);
+    if (status)
+        PAL_ERR(LOG_TAG, "Failed to update engine model, status = %d", status);
+    st->GetSoundModelInfo()->SetModelData(nullptr, 0);
+
+    if (status == -ENETRESET) {
+        PAL_INFO(LOG_TAG, "Update the status in case of SSR");
+        status = 0;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
@@ -2680,12 +2663,12 @@ int32_t SoundTriggerEngineGsl::GetCustomDetectionEvent(uint8_t **event,
 
 int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
     int32_t status = 0;
-    uint32_t miid = 0;
     uint32_t tag_id = 0;
     uint32_t param_id = 0;
     uint8_t *payload = nullptr;
     size_t payload_size = 0;
     uint32_t ses_param_id = 0;
+    uint32_t detection_miid = 0;
 
     PAL_DBG(LOG_TAG, "Enter, param : %u", param);
 
@@ -2701,7 +2684,16 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
         return -EINVAL;
     }
 
-    status = session_->getMIID(nullptr, tag_id, &miid);
+    if (use_lpi_) {
+        if (lpi_miid_ == 0)
+            status = session_->getMIID(nullptr, tag_id, &lpi_miid_);
+        detection_miid = lpi_miid_;
+    } else {
+        if (nlpi_miid_ == 0)
+            status = session_->getMIID(nullptr, tag_id, &nlpi_miid_);
+        detection_miid = nlpi_miid_;
+    }
+
     if (status != 0) {
         PAL_ERR(LOG_TAG, "Failed to get instance id for tag %x, status = %d",
             tag_id, status);
@@ -2716,11 +2708,11 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
                 /* Set payload data and size from engine's sound model info */
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                     eng_sm_info_->GetModelData(), eng_sm_info_->GetModelSize(),
-                    miid, param_id);
+                    detection_miid, param_id);
 
             } else {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
-                         sm_data_, sm_data_size_, miid, param_id);
+                         sm_data_, sm_data_size_, detection_miid, param_id);
             }
             break;
         }
@@ -2729,12 +2721,12 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
             ses_param_id = PAL_PARAM_ID_UNLOAD_SOUND_MODEL;
             if (!IS_MODULE_TYPE_PDK(module_type_)) {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
-                nullptr, 0, miid, param_id);
+                nullptr, 0, detection_miid, param_id);
             } else {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                   (uint8_t *) &deregister_config_, sizeof(
                    struct param_id_detection_engine_deregister_multi_sound_model_t),
-                   miid, param_id);
+                   detection_miid, param_id);
             }
             break;
         }
@@ -2764,7 +2756,7 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
                 }
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                     (uint8_t *)wakeup_payload, wakeup_payload_size,
-                    miid, param_id);
+                    detection_miid, param_id);
                 delete[] wakeup_payload;
             } else {
                 size_t fixedConfigVoiceWakeupSize = sizeof(
@@ -2787,7 +2779,7 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
                     confidence_level[i] = pdk_wakeup_config_.confidence_levels[i];
                 }
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
-                          (uint8_t *)wakeup_payload, payloadSize, miid, param_id);
+                          (uint8_t *)wakeup_payload, payloadSize, detection_miid, param_id);
             }
             break;
         }
@@ -2798,12 +2790,12 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                        (uint8_t *)(&buffer_config_.hist_buffer_duration_in_ms),
                        sizeof(struct detection_engine_multi_model_buffering_config)
-                       - sizeof(uint32_t), miid, param_id);
+                       - sizeof(uint32_t), detection_miid, param_id);
             } else {
                 status = builder_->payloadSVAConfig(&payload, &payload_size,
                         (uint8_t *)&buffer_config_,
                         sizeof(struct detection_engine_multi_model_buffering_config),
-                        miid, param_id);
+                        detection_miid, param_id);
 
             }
             break;
@@ -2811,12 +2803,12 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
         case ENGINE_RESET:
             ses_param_id = PAL_PARAM_ID_WAKEUP_ENGINE_RESET;
             status = builder_->payloadSVAConfig(&payload, &payload_size,
-                nullptr, 0, miid, param_id);
+                nullptr, 0, detection_miid, param_id);
             break;
         case CUSTOM_CONFIG:
             ses_param_id = PAL_PARAM_ID_WAKEUP_CUSTOM_CONFIG;
             status = builder_->payloadSVAConfig(&payload, &payload_size,
-                custom_data, custom_data_size, miid, param_id);
+                custom_data, custom_data_size, detection_miid, param_id);
             // release local custom data
             if (custom_data) {
                 free(custom_data);
@@ -2862,7 +2854,7 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     return eng_[key];
 }
 
-void SoundTriggerEngineGsl::ResetEngineInstance(Stream *s) {
+void SoundTriggerEngineGsl::DetachStream(Stream *s) {
     st_module_type_t key;
 
     if (s) {

@@ -718,21 +718,24 @@ int SessionAlsaPcm::start(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
             registerAdmStream(s, sAttr.direction, sAttr.flags, pcm, &config);
     }
-    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents)) {
+    if (sAttr.type == PAL_STREAM_VOICE_UI) {
+        payload_size = sizeof(struct agm_event_reg_cfg);
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 1;
+        event_cfg.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+        event_cfg.module_instance_id = svaMiid;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)&event_cfg, payload_size);
+    } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
         payload_size = sizeof(struct agm_event_reg_cfg);
 
         memset(&event_cfg, 0, sizeof(event_cfg));
         event_cfg.event_config_payload_size = 0;
         event_cfg.is_register = 1;
-        if(sAttr.type == PAL_STREAM_VOICE_UI) {
-           event_cfg.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
-           tagId = DEVICE_SVA;
-           DeviceId = pcmDevIds.at(0);
-        } else {
-           event_cfg.event_id = EVENT_ID_GENERIC_US_DETECTION;
-           tagId = ULTRASOUND_DETECTION_MODULE;
-           DeviceId = pcmDevTxIds.at(0);
-        }
+        event_cfg.event_id = EVENT_ID_GENERIC_US_DETECTION;
+        tagId = ULTRASOUND_DETECTION_MODULE;
+        DeviceId = pcmDevTxIds.at(0);
         SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
                 txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
                 payload_size);
@@ -1012,12 +1015,13 @@ pcm_start:
     }
     // Setting the volume as in stream open, no default volume is set.
     if (sAttr.type != PAL_STREAM_ACD &&
+        sAttr.type != PAL_STREAM_VOICE_UI &&
         sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
         sAttr.type != PAL_STREAM_ULTRASOUND &&
         sAttr.type != PAL_STREAM_SENSOR_PCM_DATA &&
         sAttr.type != PAL_STREAM_HAPTICS) {
         if (setConfig(s, CALIBRATION, TAG_STREAM_VOLUME) != 0) {
-             PAL_ERR(LOG_TAG,"Setting volume failed");
+            PAL_ERR(LOG_TAG,"Setting volume failed");
         }
     }
 
@@ -1099,26 +1103,27 @@ int SessionAlsaPcm::stop(Stream * s)
    rm->voteSleepMonitor(s, false);
     mState = SESSION_STOPPED;
 
-    if ((sAttr.type == PAL_STREAM_VOICE_UI) || (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents)) {
+    if (sAttr.type == PAL_STREAM_VOICE_UI) {
         payload_size = sizeof(struct agm_event_reg_cfg);
         memset(&event_cfg, 0, sizeof(event_cfg));
         event_cfg.event_config_payload_size = 0;
         event_cfg.is_register = 0;
-        if(sAttr.type == PAL_STREAM_VOICE_UI) {
-           event_cfg.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
-           tagId = DEVICE_SVA;
-           DeviceId = pcmDevIds.at(0);
-        } else {
-           event_cfg.event_id = EVENT_ID_GENERIC_US_DETECTION;
-           tagId = ULTRASOUND_DETECTION_MODULE;
-           DeviceId = pcmDevTxIds.at(0);
-           RegisterForEvents = false;
-        }
-        if (!txAifBackEnds.empty()) {
-           SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
-                   txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
-                   payload_size);
-        }
+        event_cfg.event_id = EVENT_ID_DETECTION_ENGINE_GENERIC_INFO;
+        event_cfg.module_instance_id = svaMiid;
+        SessionAlsaUtils::registerMixerEvent(mixer, pcmDevIds.at(0),
+            (void *)&event_cfg, payload_size);
+    } else if (sAttr.type == PAL_STREAM_ULTRASOUND && RegisterForEvents) {
+        payload_size = sizeof(struct agm_event_reg_cfg);
+        memset(&event_cfg, 0, sizeof(event_cfg));
+        event_cfg.event_config_payload_size = 0;
+        event_cfg.is_register = 0;
+        event_cfg.event_id = EVENT_ID_GENERIC_US_DETECTION;
+        tagId = ULTRASOUND_DETECTION_MODULE;
+        DeviceId = pcmDevTxIds.at(0);
+        RegisterForEvents = false;
+        SessionAlsaUtils::registerMixerEvent(mixer, DeviceId,
+                txAifBackEnds[0].second.data(), tagId, (void *)&event_cfg,
+                payload_size);
     } else if (sAttr.type == PAL_STREAM_ACD) {
         if (eventPayload == NULL)
             goto exit;
@@ -1298,6 +1303,7 @@ int SessionAlsaPcm::close(Stream * s)
         eventId = 0;
     }
 exit:
+    ecRefDevId = PAL_DEVICE_OUT_MIN;
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
@@ -1633,6 +1639,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         {
             struct apm_module_param_data_t* header =
                 (struct apm_module_param_data_t *)payload;
+            svaMiid = header->module_instance_id;
             paramData = (uint8_t *)payload;
             paramSize = PAL_ALIGN_8BYTE(header->param_size +
                 sizeof(struct apm_module_param_data_t));

@@ -446,6 +446,8 @@ public:
             sm_data_ = nullptr;
         }
         sm_size_ = size;
+        if (!sm_size_)
+            return;
         sm_data_ = (uint8_t*) calloc(1, sm_size_);
         if (!sm_data_)
             return;
