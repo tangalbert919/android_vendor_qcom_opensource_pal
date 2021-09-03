@@ -476,7 +476,13 @@ int SessionAgm::read(Stream *s, int tag __unused, struct pal_buffer *buf, int *s
     agm_buffer.metadata = buf->metadata;
     if (buf->ts && (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP)) {
        agm_buffer.flags = AGM_BUFF_FLAG_TS_VALID;
-       agm_buffer.timestamp = buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
+       if (ULONG_MAX/MICRO_SECS_PER_SEC > buf->ts->tv_sec) {
+           agm_buffer.timestamp =
+               buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
+       } else {
+           PAL_ERR(LOG_TAG, "timestamp tv_sec overflown %lu", buf->ts->tv_sec);
+           return -EINVAL;
+       }
     }
     agm_buffer.addr = buf->buffer;
     if (sAttr.flags & PAL_STREAM_FLAG_EXTERN_MEM) {
@@ -534,7 +540,13 @@ int SessionAgm::write(Stream *s, int tag __unused, struct pal_buffer *buf, int *
     agm_buffer.metadata = buf->metadata;
     if (buf->ts && (sAttr.flags & PAL_STREAM_FLAG_TIMESTAMP)) {
        agm_buffer.flags = AGM_BUFF_FLAG_TS_VALID;
-       agm_buffer.timestamp = buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
+       if (ULONG_MAX/MICRO_SECS_PER_SEC > buf->ts->tv_sec) {
+           agm_buffer.timestamp =
+               buf->ts->tv_sec * MICRO_SECS_PER_SEC +  (buf->ts->tv_nsec/1000);
+       } else {
+           PAL_ERR(LOG_TAG, "timestamp tv_sec overflown %lu", buf->ts->tv_sec);
+           return -EINVAL;
+       }
     }
     if (buf->flags & PAL_STREAM_FLAG_EOF)
        agm_buffer.flags |= AGM_BUFF_FLAG_EOF;
