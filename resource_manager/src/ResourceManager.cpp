@@ -2922,6 +2922,7 @@ void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
     memcpy(qstp, &qst_properties, sizeof(struct pal_st_properties));
 
     if (st_info) {
+        qstp->version = st_info->GetVersion();
         qstp->concurrent_capture = st_info->GetConcurrentCaptureEnable();
     }
 }

@@ -796,8 +796,9 @@
         </stream_config>
     </acd_platform_info>
     <sound_trigger_platform_info>
-        <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
+            <!-- Param used by apk to indicate the SVA version current platform supports -->
+            <param version="0x0102" />
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
             <param support_nlpi_switch="true" />
