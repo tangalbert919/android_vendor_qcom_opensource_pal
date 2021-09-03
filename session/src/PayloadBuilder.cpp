@@ -2797,8 +2797,9 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 spConf->operation_mode = data->operation_mode;
             }
         break;
-        case PARAM_ID_SP_TH_VI_FTM_CFG:
+        case PARAM_ID_SP_TH_VI_FTM_CFG :
         case PARAM_ID_SP_TH_VI_V_VALI_CFG :
+        case PARAM_ID_SP_EX_VI_FTM_CFG :
             {
                 param_id_sp_th_vi_ftm_cfg_t *spConf;
                 param_id_sp_th_vi_ftm_cfg_t *data;
@@ -2848,13 +2849,13 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                 header = (struct apm_module_param_data_t*) payloadInfo;
             }
         break;
-        case PARAM_ID_SP_TH_VI_V_VALI_PARAMS:
+        case PARAM_ID_SP_EX_VI_FTM_PARAMS:
             {
-                param_id_sp_th_vi_v_vali_params_t *data;
-                data = (param_id_sp_th_vi_v_vali_params_t *) param;
+                param_id_sp_ex_vi_ftm_params_t *data;
+                data = (param_id_sp_ex_vi_ftm_params_t *) param;
                 payloadSize = sizeof(struct apm_module_param_data_t) +
-                                    sizeof(param_id_sp_th_vi_v_vali_params_t) +
-                                    sizeof(vi_th_v_vali_params_t) * data->num_ch;
+                                    sizeof(param_id_sp_ex_vi_ftm_params_t) +
+                                    sizeof(vi_ex_ftm_params_t) * data->num_ch;
                 padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
                 payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
                 if (!payloadInfo) {
