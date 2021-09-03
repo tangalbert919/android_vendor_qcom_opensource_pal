@@ -1755,6 +1755,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
 
     if (!s) {
         PAL_ERR(LOG_TAG, "stream is NULL");
+        filled_selector_pairs.clear();
         goto exit;
     }
 

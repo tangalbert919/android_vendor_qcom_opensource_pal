@@ -149,6 +149,7 @@ SoundModelLib::SoundModelLib() :
     std::string sml_lib;
     std::shared_ptr<SoundTriggerPlatformInfo> st_info = nullptr;
 
+    sml_lib_handle_ = NULL;
     st_info = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info) {
         status = -EINVAL;

@@ -8853,6 +8853,8 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     std::string key(incomingDev->custom_config.custom_key);
     std::vector <struct pal_device> palDevices;
 
+    memset(&devInfo, 0, sizeof(pal_device_info));
+
     if (!incomingDev || !currentStrAttr) {
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
         return -EINVAL;
@@ -8896,7 +8898,6 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     }
     stream_count++;
 
-exit:
     getSndDeviceName(dev_id, CurrentSndDeviceName);
     PAL_DBG(LOG_TAG,"dev attr configured are, ch %d, sr %d, bit_width %d, fmt %d, sndDev %s",
             incomingDev->config.ch_info.channels,
@@ -8904,6 +8905,8 @@ exit:
             incomingDev->config.bit_width,
             incomingDev->config.aud_fmt_id,
             CurrentSndDeviceName);
+
+exit:
     return status;
 }
 
