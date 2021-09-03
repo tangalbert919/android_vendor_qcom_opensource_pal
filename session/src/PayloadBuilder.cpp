@@ -1649,7 +1649,7 @@ exit:
 }
 
 bool PayloadBuilder::findKVs(std::vector<std::pair<selector_type_t, std::string>>
-    &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+    &filled_selector_pairs, uint32_t type, std::vector<allKVs> &any_type,
     std::vector<std::pair<int, int>> &keyVector)
 {
     bool found = false;
@@ -1694,7 +1694,7 @@ bool PayloadBuilder::findKVs(std::vector<std::pair<selector_type_t, std::string>
 }
 
 int PayloadBuilder::retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
-    &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+    &filled_selector_pairs, uint32_t type, std::vector<allKVs> &any_type,
     std::vector<std::pair<int, int>> &keyVector)
 {
     bool found = false, custom_config_fallback = false;
@@ -1902,7 +1902,7 @@ bool PayloadBuilder::isIdTypeAvailable(int32_t type, std::vector<int>& id_type)
     return false;
 }
 
-std::vector<std::string> PayloadBuilder::retrieveSelectors(int32_t type, std::vector<allKVs> any_type)
+std::vector<std::string> PayloadBuilder::retrieveSelectors(int32_t type, std::vector<allKVs> &any_type)
 {
     std::vector<std::string> gkv_selectors;
     PAL_DBG(LOG_TAG, "Enter: size_of_all :%zu type:%d", any_type.size(), type);
