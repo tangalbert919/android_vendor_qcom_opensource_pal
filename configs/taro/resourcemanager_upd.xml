@@ -73,6 +73,7 @@
     </low_power_vote_streams>
     <group_device_cfg>
         <upd_rx>
+            <snd_device name="handset" />
             <group_dev sample_rate = "0" channels="0" bit_width="0" slot_mask="1" />
         </upd_rx>
         <handset>
