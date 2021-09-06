@@ -407,7 +407,7 @@
                 <graph_kv key="0xB5000000" value="0xB5000002"/>
             </keys_and_values>
             <!-- In APTX_AD ABR is always enabled -->
-            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD" AbrEnabled="TRUE" Hostless="TRUE,FALSE">
+            <keys_and_values CodecFormat="CODEC_TYPE_APTX_AD" AbrEnabled="TRUE,FALSE" Hostless="TRUE,FALSE">
                 <!-- DEVICERX - BT_RX -->
                 <graph_kv key="0xA2000000" value="0xA2000003"/>
                 <!-- BT_PROFILE - A2DP -->
