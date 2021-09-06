@@ -360,8 +360,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         PAL_ERR(LOG_TAG, "get stream KV failed %d", status);
         goto exit;
     }
-    if (sAttr.type != PAL_STREAM_HAPTICS &&
-        sAttr.type != PAL_STREAM_ACD &&
+    if (sAttr.type != PAL_STREAM_ACD &&
         sAttr.type != PAL_STREAM_CONTEXT_PROXY &&
         sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) {
         status = builder->populateStreamCkv(streamHandle, streamCKV, 0,
