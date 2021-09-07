@@ -818,6 +818,13 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
 {
     int32_t status = -EINVAL;
 
+    if (currentState == STREAM_IDLE ||
+        currentState == STREAM_STOPPED) {
+        PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch device", currentState);
+        status = 0;
+        goto exit;
+    }
+
     // Stream does not know if the same device is being used by other streams or not
     // So if any other streams are using the same device that has to be handled outside of stream
     // resouce manager ??
@@ -834,12 +841,13 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
                 rm->unlockGraph();
                 goto exit;
             }
-
-            status = mDevices[i]->stop();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
-                rm->unlockGraph();
-                goto exit;
+            if (currentState != STREAM_INIT) {
+                status = mDevices[i]->stop();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
+                    rm->unlockGraph();
+                    goto exit;
+                }
             }
             rm->unlockGraph();
 
@@ -896,6 +904,13 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      */
     dev->setDeviceAttributes(*dattr);
 
+    if (currentState == STREAM_IDLE ||
+        currentState == STREAM_STOPPED) {
+        PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch device", currentState);
+        status = 0;
+        goto exit;
+    }
+
     /* For A2DP UCs streams may play on combo devices like Speaker and A2DP
      * However, if the a2dp suspend is called - all streams on a2dp will temporarily
      * move to speakers.  If the stream is already connected to speaker. then we will
@@ -931,12 +946,14 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     rm->lockGraph();
-    status = dev->start();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
-            dev->getSndDeviceId(), dev->getPALDeviceName().c_str(), status);
-        rm->unlockGraph();
-        goto dev_close;
+    if (currentState != STREAM_INIT) {
+        status = dev->start();
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
+                dev->getSndDeviceId(), dev->getPALDeviceName().c_str(), status);
+            rm->unlockGraph();
+            goto dev_close;
+        }
     }
     status = session->connectSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
