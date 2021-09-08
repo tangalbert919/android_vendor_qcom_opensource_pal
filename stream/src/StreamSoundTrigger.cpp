@@ -3050,13 +3050,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         st_stream_.mDevices.push_back(dev);
                         dev = nullptr;
                     }
-                    if (st_stream_.mDevices.size() > 0) {
-                        status = st_stream_.mDevices[0]->open();
-                        if (0 != status) {
-                            PAL_ERR(LOG_TAG, "Device open failed, status %d", status);
-                            goto err_concurrent;
-                        }
-                    }
 
                     st_stream_.cap_prof_ = new_cap_prof;
                     st_stream_.mDevPPSelector = new_cap_prof->GetName();
@@ -3101,12 +3094,6 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Failed to unload sound model, status %d", status);
 
         err_concurrent:
-            if (st_stream_.mDevices.size() > 0) {
-                status = st_stream_.mDevices[0]->close();
-                if (0 != status)
-                    PAL_ERR(LOG_TAG, "Failed to close device, status %d", status);
-                st_stream_.mDevices.clear();
-            }
             break;
         }
         case ST_EV_SSR_OFFLINE:
