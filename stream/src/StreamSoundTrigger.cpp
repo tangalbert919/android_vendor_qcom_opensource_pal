@@ -2018,8 +2018,8 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     struct st_param_header *param_hdr = nullptr;
     struct st_keyword_indices_info *kw_indices = nullptr;
     struct st_timestamp_info *timestamps = nullptr;
-    struct detection_event_info_pdk *detection_event_info_multi_model =
-                                                                nullptr;
+    struct model_stats *det_model_stat = nullptr;
+    struct detection_event_info_pdk *det_ev_info_pdk = nullptr;
     struct detection_event_info *det_ev_info = nullptr;
     size_t opaque_size = 0;
     size_t event_size = 0, conf_levels_size = 0;
@@ -2036,11 +2036,10 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
     PAL_DBG(LOG_TAG, "Enter");
     *event = nullptr;
     if (sound_model_type_ == PAL_SOUND_MODEL_TYPE_KEYPHRASE) {
-        if (model_id_ > 0){
-            detection_event_info_multi_model =
-                    (struct detection_event_info_pdk *)gsl_engine_->
-                            GetDetectionEventInfo();
-            if (!detection_event_info_multi_model){
+        if (model_id_ > 0) {
+            det_ev_info_pdk = (struct detection_event_info_pdk *)
+                gsl_engine_->GetDetectionEventInfo();
+            if (!det_ev_info_pdk) {
                 PAL_ERR(LOG_TAG, "detection info multi model not available");
                 status = -EINVAL;
                 goto exit;
@@ -2120,24 +2119,17 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
             ar_mem_cpy(opaque_data, param_hdr->payload_size,
                 st_conf_levels_v2_, param_hdr->payload_size);
         if (model_id_ > 0) {
-            num_models = detection_event_info_multi_model->num_detected_models;
+            num_models = det_ev_info_pdk->num_detected_models;
             for (int i = 0; i < num_models; ++i) {
-                if (model_id_ == detection_event_info_multi_model->
-                                    detected_model_stats[i].detected_model_id) {
-                    det_keyword_id = detection_event_info_multi_model->
-                                        detected_model_stats[i].
-                                        detected_keyword_id;
-                    best_conf_level = detection_event_info_multi_model->
-                                        detected_model_stats[i].
-                                        best_confidence_level;
-                    detection_timestamp_lsw = detection_event_info_multi_model->
-                                                detected_model_stats[i].
-                                                detection_timestamp_lsw;
-                    detection_timestamp_msw = detection_event_info_multi_model->
-                                                detected_model_stats[i].
-                                                detection_timestamp_msw;
-                    PAL_DBG(LOG_TAG,
-                            "keywordID : %u and best_conf_level : %u is updated",
+                det_model_stat = &det_ev_info_pdk->detected_model_stats[i];
+                if (model_id_ == det_model_stat->detected_model_id) {
+                    det_keyword_id = det_model_stat->detected_keyword_id;
+                    best_conf_level = det_model_stat->best_confidence_level;
+                    detection_timestamp_lsw =
+                        det_model_stat->detection_timestamp_lsw;
+                    detection_timestamp_msw =
+                        det_model_stat->detection_timestamp_msw;
+                    PAL_DBG(LOG_TAG, "keywordID: %u, best_conf_level: %u",
                             det_keyword_id, best_conf_level);
                     break;
                 }
@@ -2183,11 +2175,11 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         // dump detection event opaque data
         if ((*event)->data_offset > 0 && (*event)->data_size > 0 &&
             st_info_->GetEnableDebugDumps()) {
+            opaque_data = (uint8_t *)phrase_event + phrase_event->common.data_offset;
             ST_DBG_DECLARE(FILE *det_opaque_fd = NULL; static int det_opaque_cnt = 0);
             ST_DBG_FILE_OPEN_WR(det_opaque_fd, ST_DEBUG_DUMP_LOCATION,
                 "det_event_opaque", "bin", det_opaque_cnt);
-            ST_DBG_FILE_WRITE(det_opaque_fd,
-                (uint8_t *)(*event) + (*event)->data_offset, (*event)->data_size);
+            ST_DBG_FILE_WRITE(det_opaque_fd, opaque_data, (*event)->data_size);
             ST_DBG_FILE_CLOSE(det_opaque_fd);
             PAL_DBG(LOG_TAG, "detection event opaque data stored in: det_event_opaque_%d.bin",
                 det_opaque_cnt);
@@ -2408,7 +2400,6 @@ int32_t StreamSoundTrigger::FillConfLevels(
 
     user_id_tracker = (unsigned char *)calloc(1, num_conf_levels);
     if (!user_id_tracker) {
-        free(conf_levels);
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "failed to allocate user_id_tracker status %d",
                 status);
