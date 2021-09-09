@@ -8947,7 +8947,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                     palDev.id = PAL_DEVICE_OUT_HANDSET;
                 }
                 getDeviceConfig(&palDev, &sAttr);
-                memcpy(&newDevAttr, &palDev, sizeof(struct pal_device));
+                newDevAttr = palDev;
                 rm->updatePriorityAttr(palDev.id,
                                        sharedBEStreamDev,
                                        &newDevAttr,
@@ -9033,7 +9033,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
 
     /*get the incoming stream dev info*/
     getDeviceInfo(dev_id, currentStrAttr->type, key, &highPrioDevInfo);
-    memcpy(&tempDev,incomingDev, sizeof(struct pal_device));
+    tempDev = *incomingDev;
 
     for (auto elem: activestreams) {
         Stream *sharedStream = std::get<0>(elem);
@@ -9055,7 +9055,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
             if (sharedBEDev || dev_id == palDev.id) {
                 std::string streamKey(palDev.custom_config.custom_key);
                 getDeviceInfo(dev_id, sAttr.type, streamKey, &devInfo);
-                memcpy(&tempDev, &palDev, sizeof(struct pal_device));
+                tempDev = palDev;
                 tempDev.id = dev_id;
                 break;
             }
@@ -9064,7 +9064,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         compareAndUpdateDevAttr(&tempDev, &devInfo, incomingDev, &highPrioDevInfo);
         /*incoming stream prio is greater than or equal to active streams*/
         if (devInfo.priority <= highPrioDevInfo.priority  ) {
-            memcpy(&highPrioDevInfo,&devInfo,sizeof(struct pal_device_info));
+            highPrioDevInfo = devInfo;
         }
     }
     stream_count++;
