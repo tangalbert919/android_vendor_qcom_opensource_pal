@@ -1387,15 +1387,26 @@ int SessionAlsaPcm::connectSessionDevice(Stream* streamHandle, pal_stream_type_t
             status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
                      dAttr, pcmDevTxIds, pcmDevRxIds, rxAifBackEndsToConnect);
 
-        for (const auto &elem : rxAifBackEndsToConnect)
-            rxAifBackEnds.push_back(elem);
+        if (!status) {
+            for (const auto &elem : rxAifBackEndsToConnect)
+                rxAifBackEnds.push_back(elem);
+        } else {
+            PAL_ERR(LOG_TAG, "failed to connect rxAifBackEnds: %d",
+                    (pcmDevIds.size() ? pcmDevIds.at(0) : pcmDevRxIds.at(0)));
+        }
     }
 
     if (!txAifBackEndsToConnect.empty()) {
         status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, (pcmDevIds.size() ? pcmDevIds : pcmDevTxIds), txAifBackEndsToConnect);
-        for (const auto &elem : txAifBackEndsToConnect)
-            txAifBackEnds.push_back(elem);
+
+        if (!status) {
+            for (const auto &elem : txAifBackEndsToConnect)
+                txAifBackEnds.push_back(elem);
+        } else {
+            PAL_ERR(LOG_TAG, "failed to connect txAifBackEnds: %d",
+                    (pcmDevIds.size() ? pcmDevIds.at(0) : pcmDevTxIds.at(0)));
+        }
     }
 
     return status;
