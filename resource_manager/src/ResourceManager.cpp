@@ -9101,22 +9101,24 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
                 inDevAttr->config.ch_info.channels, curDevAttr->config.ch_info.channels);
         ret = true;
     }
-    if((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)){
+    if ((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)) {
         PAL_DBG(LOG_TAG, "found new snd device %s, device switch needed",
                 activeSndDeviceName);
         ret = true;
     }
-    /*special case for A2DP device to override device switch*/
-    if (inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+
+    // special case for A2DP device to override device switch
+    if ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
+            (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
         std::shared_ptr<Device> dev = nullptr;
         pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
         if (isDeviceAvailable(inDevAttr->id)) {
             dev = Device::getInstance(inDevAttr , rm);
-            if (!(dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH, (void **)&param_bt_a2dp))){
+            if (!(dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH, (void **)&param_bt_a2dp))) {
                 if (param_bt_a2dp) {
                     ret = param_bt_a2dp->is_force_switch;
-                    PAL_ERR(LOG_TAG, "A2DP force device switch is %d", ret);
+                    PAL_INFO(LOG_TAG, "A2DP force device switch is %d", ret);
                 }
             } else {
                 PAL_ERR(LOG_TAG, "get A2DP force device switch device parameter failed");
