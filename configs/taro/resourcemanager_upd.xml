@@ -237,7 +237,7 @@
             <channels>1</channels>
             <samplerate>8000</samplerate>
             <bit_width>16</bit_width>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-sco-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
@@ -343,7 +343,7 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-a2dp-mic</snd_device_name>
             <samplerate>44100</samplerate>
             <bit_width>16</bit_width>
         </in-device>
@@ -533,7 +533,7 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-sco</snd_device_name>
             <samplerate>8000</samplerate>
             <bit_width>16</bit_width>
             <usecase>

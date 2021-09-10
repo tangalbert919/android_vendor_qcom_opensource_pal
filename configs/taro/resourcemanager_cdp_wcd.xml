@@ -187,7 +187,7 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-sco-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
             </usecase>
@@ -283,7 +283,7 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-a2dp-mic</snd_device_name>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_TELEPHONY_RX</id>
@@ -438,7 +438,7 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
-            <snd_device_name>bt-a2dp</snd_device_name>
+            <snd_device_name>bt-sco</snd_device_name>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_AUX_DIGITAL</id>
