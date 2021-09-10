@@ -1689,7 +1689,7 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
         UpdateState(ENG_LOADED);
     }
 
-    if (restore_eng_state) {
+    if (restore_eng_state && CheckIfOtherStreamsActive(s)) {
         if (IS_MODULE_TYPE_PDK(module_type_)) {
             std::map<uint32_t, struct detection_engine_config_stage1_pdk>::
                                      iterator itr = mid_wakeup_cfg_.begin();
@@ -2178,6 +2178,18 @@ bool SoundTriggerEngineGsl::CheckIfOtherStreamsAttached(Stream *s) {
     for (uint32_t i = 0; i < eng_streams_.size(); i++)
         if (s != eng_streams_[i])
             return true;
+
+    return false;
+}
+
+bool SoundTriggerEngineGsl::CheckIfOtherStreamsActive(Stream *s) {
+    StreamSoundTrigger *st = nullptr;
+
+    for (uint32_t i = 0; i < eng_streams_.size(); i++) {
+        st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
+        if (s != eng_streams_[i] && st && st->GetCurrentStateId() == ST_STATE_ACTIVE)
+            return true;
+    }
 
     return false;
 }
