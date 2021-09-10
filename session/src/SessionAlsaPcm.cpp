@@ -918,35 +918,12 @@ int SessionAlsaPcm::start(Stream * s)
                     PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
                     goto exit;
                 }
-                if(SessionAlsaUtils::isMmapUsecase(sAttr) &&
-                    dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_SCO &&
-                    dAttr.id != PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-                    /* Get PCM_CONV MIID and configure to match to device config */
-                    /* This has to be done after sending all mixer controls and before connect */
-                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
-                                                                   rxAifBackEnds[i].second.data(),
-                                                                   STREAM_PCM_CONVERTER, &miid);
-                    if (status == 0) {
-                        PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                                pcmDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                    } else {
-                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
-                        goto exit;
-                    }
-                    codecConfig.bit_width = dAttr.config.bit_width;
-                    codecConfig.sample_rate = dAttr.config.sample_rate;
-                    codecConfig.ch_info.channels = dAttr.config.ch_info.channels;
-                    builder->payloadPcmCnvConfig((uint8_t **)&payload, &payloadSize,
-                                                   miid, &codecConfig, false);
-                    /*isRx is false here as we want to configure interleaved as PCM_DEINTERLEAVED_UNPACKED */
-                    /*in case of BT it is opposite so payloadPcmCnvConfig has different notation*/
-                } else {
-                    status = configureMFC(rm, sAttr, dAttr, pcmDevIds,
-                                rxAifBackEnds[i].second.data());
-                    if (status != 0) {
-                        PAL_ERR(LOG_TAG,"configure MFC failed");
-                        goto exit;
-                    }
+
+                status = configureMFC(rm, sAttr, dAttr, pcmDevIds,
+                            rxAifBackEnds[i].second.data());
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"configure MFC failed");
+                    goto exit;
                 }
             }
 
