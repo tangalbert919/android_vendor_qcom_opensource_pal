@@ -5468,11 +5468,75 @@ error:
     return status;
 }
 
+int32_t ResourceManager::streamDevDisconnect_l(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList){
+    int status = 0;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    /* disconnect active list from the current devices they are attached to */
+    for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+            status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
+            if (status) {
+                PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
+                        std::get<0>(*sIter), std::get<1>(*sIter));
+                goto error;
+            } else {
+                PAL_DBG(LOG_TAG, "disconnect stream %pK from device %d",
+                       std::get<0>(*sIter), std::get<1>(*sIter));
+            }
+        }
+    }
+error:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList){
+    int status = 0;
+    std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    /* connect active list from the current devices they are attached to */
+    for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+            status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
+            if (status) {
+                PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
+                        std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+                goto error;
+            } else {
+                PAL_DBG(LOG_TAG,"connected stream %pK from device %d",
+                        std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+            }
+        }
+    }
+error:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+
+template <class T>
+void SortAndUnique(std::vector<T> &streams)
+{
+    std::sort(streams.begin(), streams.end());
+    typename std::vector<T>::iterator iter =
+        std::unique(streams.begin(), streams.end());
+    streams.erase(iter, streams.end());
+    return;
+}
 
 int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                                          std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList)
 {
     int status = 0;
+    std::vector <Stream*>::iterator sIter;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter1;
+    std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
+    std::vector <Stream*> uniqueStreamsList;
+
     PAL_DBG(LOG_TAG, "Enter");
 
     if (cardState == CARD_STATUS_OFFLINE) {
@@ -5481,16 +5545,53 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
         goto exit_no_unlock;
     }
     mActiveStreamMutex.lock();
-    status = streamDevDisconnect(streamDevDisconnectList);
+
+    /*Need to lock all streams that are involved in devSwitch
+      When we are doing Switch to avoid any stream specific calls to happen.
+      We want to avoid stream close or any other control operations to happen when we are in the
+      middle of the switch */
+    for (sIter1 = streamDevDisconnectList.begin(); sIter1 != streamDevDisconnectList.end(); sIter1++) {
+        if ((std::get<0>(*sIter1) != NULL) && isStreamActive(std::get<0>(*sIter1), mActiveStreams)) {
+            uniqueStreamsList.push_back(std::get<0>(*sIter1));
+            PAL_VERBOSE(LOG_TAG,"streamDevDisconnectList stream %pK",
+                        std::get<0>(*sIter1));
+        }
+    }
+
+    for (sIter2 = streamDevConnectList.begin(); sIter2 != streamDevConnectList.end(); sIter2++) {
+        if ((std::get<0>(*sIter2) != NULL) && isStreamActive(std::get<0>(*sIter2), mActiveStreams)) {
+            uniqueStreamsList.push_back(std::get<0>(*sIter2));
+            PAL_VERBOSE(LOG_TAG,"streamDevConnectList stream %pK",
+                        std::get<0>(*sIter2));
+        }
+    }
+
+    //Find and Removedup elements between streamDevDisconnectList && streamDevConnectList and add to the list.
+    SortAndUnique(uniqueStreamsList);
+
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        //lock All Stream Mutexes
+        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK lock",
+                        (*sIter));
+        (*sIter)->lockStreamMutex();
+    }
+
+    status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"disconnect failed");
         goto exit;
     }
-    status = streamDevConnect(streamDevConnectList);
+    status = streamDevConnect_l(streamDevConnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"Connect failed");
     }
 exit:
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        //unlock All Stream Mutexes
+        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK unlock",
+                        (*sIter));
+        (*sIter)->unlockStreamMutex();
+    }
     mActiveStreamMutex.unlock();
 exit_no_unlock:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
