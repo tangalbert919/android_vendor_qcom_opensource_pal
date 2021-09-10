@@ -260,6 +260,7 @@ public:
     static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
     static bool isBtDevice(int32_t beDevId);
     static bool compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2);
+    static int payloadDualMono(uint8_t **payloadInfo);
     PayloadBuilder();
     ~PayloadBuilder();
 };

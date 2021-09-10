@@ -170,6 +170,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
 int32_t  StreamPCM::open()
 {
     int32_t status = 0;
+    int32_t ret = 0;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
             mDevices.size());
@@ -190,11 +191,50 @@ int32_t  StreamPCM::open()
         }
         PAL_VERBOSE(LOG_TAG, "session open successful");
 
+        bool checkDeviceCustomKeyForDualMono = false;
+        // enable dual mono
+        if (rm->isDualMonoEnabled == true) {
+            PAL_INFO(LOG_TAG, "Dual mono feature is on");
+            if (mStreamAttr->type == PAL_STREAM_LOW_LATENCY) {
+                PAL_INFO(LOG_TAG, "stream type is low-latency");
+                checkDeviceCustomKeyForDualMono = true;
+            }
+        }
+
         for (int32_t i = 0; i < mDevices.size(); i++) {
             status = mDevices[i]->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device open failed with status %d", status);
                 goto exit;
+            }
+
+            if (checkDeviceCustomKeyForDualMono) {
+                struct pal_device deviceAttribute;
+                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute);
+                if (ret) {
+                    PAL_ERR(LOG_TAG, "getDeviceAttributes failed with status %d", ret);
+                }
+                PAL_INFO(LOG_TAG, "device custom key=%s",
+                            deviceAttribute.custom_config.custom_key);
+                if (deviceAttribute.id == PAL_DEVICE_OUT_SPEAKER &&
+                        !strncmp(deviceAttribute.custom_config.custom_key,
+                            "speaker-safe", sizeof("speaker-safe"))) {
+                    uint8_t* paramData = NULL;
+                    ret = PayloadBuilder::payloadDualMono(&paramData);
+                    if (ret) {
+                        PAL_ERR(LOG_TAG, "failed to create dual mono info");
+                        continue;
+                    }
+
+                    ret = session->setParameters(this, PER_STREAM_PER_DEVICE_MFC,
+                        PAL_PARAM_ID_UIEFFECT, paramData);
+                    if (ret) {
+                        PAL_ERR(LOG_TAG, "failed to set dual mono param.");
+                    } else {
+                        PAL_INFO(LOG_TAG, "dual mono setparameter succeeded.");
+                    }
+                    free(paramData);
+                }
             }
         }
         currentState = STREAM_INIT;

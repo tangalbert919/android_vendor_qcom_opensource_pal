@@ -45,6 +45,14 @@
 #define USECASE_XML_FILE "/vendor/etc/usecaseKvManager.xml"
 #endif
 
+#define PARAM_ID_CHMIXER_COEFF 0x0800101F
+#define CUSTOM_STEREO_NUM_OUT_CH 0x0002
+#define CUSTOM_STEREO_NUM_IN_CH 0x0002
+#define Q14_GAIN_ZERO_POINT_FIVE 0x2000
+#define PCM_CHANNEL_FL 1
+#define PCM_CHANNEL_FR 2
+#define CUSTOM_STEREO_CMD_PARAM_SIZE 24
+
 #define PARAM_ID_DISPLAY_PORT_INTF_CFG   0x8001154
 
 #define PARAM_ID_USB_AUDIO_INTF_CFG                               0x080010D6
@@ -971,6 +979,56 @@ void PayloadBuilder::payloadQuery(uint8_t **payload, size_t *size,
 
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
+}
+
+
+int PayloadBuilder::payloadDualMono(uint8_t **payloadInfo)
+{
+    uint8_t *payload = NULL;
+    uint32_t payload_size = 0;
+    uint16_t *update_params_value16 = nullptr;
+
+    payload_size = sizeof(pal_param_payload) + sizeof(effect_pal_payload_t) +
+                    sizeof(pal_effect_custom_payload_t) + CUSTOM_STEREO_CMD_PARAM_SIZE;
+    payload = (uint8_t *)calloc(1, payload_size);
+    if (!payload) {
+        ALOGE("%s: no mem. %d\n", __func__, __LINE__);
+        return -ENOMEM;
+    }
+
+    pal_param_payload *pal_payload = (pal_param_payload *)payload;
+    pal_payload->payload_size = payload_size - sizeof(pal_param_payload);
+    effect_pal_payload_t *effect_payload = nullptr;
+    effect_payload = (effect_pal_payload_t *)(payload +
+            sizeof(pal_param_payload));
+    effect_payload->isTKV = PARAM_NONTKV;
+    effect_payload->tag = PER_STREAM_PER_DEVICE_MFC;
+    effect_payload->payloadSize = payload_size - sizeof(pal_param_payload)
+                                    - sizeof(effect_pal_payload_t);
+    pal_effect_custom_payload_t *custom_stereo_payload =
+        (pal_effect_custom_payload_t *)(payload +
+            sizeof(pal_param_payload) + sizeof(effect_pal_payload_t));
+    custom_stereo_payload->paramId = PARAM_ID_CHMIXER_COEFF;
+    custom_stereo_payload->data[0] = 1;// num of coeff table
+    update_params_value16 = (uint16_t *)&(custom_stereo_payload->data[1]);
+    /*for stereo mixing num out ch*/
+    *update_params_value16++ = CUSTOM_STEREO_NUM_OUT_CH;
+    /*for stereo mixing num in ch*/
+    *update_params_value16++ = CUSTOM_STEREO_NUM_IN_CH;
+    /* Out ch map FL/FR*/
+    *update_params_value16++ = PCM_CHANNEL_FL;
+    *update_params_value16++ = PCM_CHANNEL_FR;
+    /* In ch map FL/FR*/
+    *update_params_value16++ = PCM_CHANNEL_FL;
+    *update_params_value16++ = PCM_CHANNEL_FR;
+    /* weight */
+    *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
+    *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
+    *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
+    *update_params_value16++ = Q14_GAIN_ZERO_POINT_FIVE;
+    *payloadInfo = payload;
+
+    return 0;
 }
 
 void PayloadBuilder::payloadDOAInfo(uint8_t **payload, size_t *size, uint32_t moduleId)

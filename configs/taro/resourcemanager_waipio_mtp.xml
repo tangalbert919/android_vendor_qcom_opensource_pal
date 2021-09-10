@@ -36,6 +36,7 @@
         <param key="logging_level" value ="3" />
         <param key="context_manager_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
+        <param key="dual_mono" value ="false" />
     </config_params>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
