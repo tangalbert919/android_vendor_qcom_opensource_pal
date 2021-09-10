@@ -1843,7 +1843,7 @@ std::vector<std::pair<selector_type_t, std::string>> PayloadBuilder::getSelector
             break;
             case INSTANCE_SEL:
                 if (sattr->type == PAL_STREAM_VOICE_UI)
-                    instance_id = s->getInstanceId();
+                    instance_id = dynamic_cast<StreamSoundTrigger *>(s)->GetInstanceId();
                 else
                     instance_id = rm->getStreamInstanceID(s);
                 if (instance_id < INSTANCE_1) {

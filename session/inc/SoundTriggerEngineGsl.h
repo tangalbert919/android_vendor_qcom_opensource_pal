@@ -70,7 +70,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
                           listen_model_indicator_enum type,
                           st_module_type_t module_type,
                           std::shared_ptr<SoundModelConfig> sm_cfg);
-    void DetachStream(Stream *s) override;
+    void DetachStream(Stream *s, bool erase_engine) override;
     int32_t LoadSoundModel(Stream *s, uint8_t *data,
                            uint32_t data_size) override;
     int32_t UnloadSoundModel(Stream *s) override;

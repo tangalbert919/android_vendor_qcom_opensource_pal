@@ -947,6 +947,18 @@ error_exit:
     return nullptr;
 }
 
+/*
+ * Return stream instance id for gkv popluation
+ * For PDK: always return INSTANCE_1
+ * For SVA4: just return stream instance id
+ */
+uint32_t StreamSoundTrigger::GetInstanceId() {
+    if (IS_MODULE_TYPE_PDK(model_type_))
+        return INSTANCE_1;
+    else
+        return mInstanceID;
+}
+
 void StreamSoundTrigger::GetUUID(class SoundTriggerUUID *uuid,
                                 struct pal_st_sound_model *sound_model) {
 
@@ -3155,7 +3167,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.reader_ = nullptr;
             }
             st_stream_.engines_.clear();
-            st_stream_.gsl_engine_->DetachStream(&st_stream_);
+            st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
             if (st_stream_.sm_info_) {
                 delete st_stream_.sm_info_;
