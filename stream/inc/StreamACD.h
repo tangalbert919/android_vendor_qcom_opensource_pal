@@ -131,7 +131,6 @@ class StreamACD : public Stream {
 
     pal_device_id_t GetAvailCaptureDevice();
     std::shared_ptr<CaptureProfile> GetCurrentCaptureProfile();
-    void NotifyClient(struct acd_context_event *event);
     void CacheEventData(struct acd_context_event *event);
     void SendCachedEventData();
     void PopulateCallbackPayload(struct acd_context_event *event, void *payload);
