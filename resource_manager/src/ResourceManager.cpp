@@ -1570,7 +1570,8 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
                                         type,
                                         deviceNameLUT.at(deviceId).c_str());
                             }
-                            if (deviceInfo[i].usecase[j].config[k].priority) {
+                            if (deviceInfo[i].usecase[j].config[k].priority &&
+                                deviceInfo[i].usecase[j].config[k].priority != MIN_USECASE_PRIORITY) {
                                 devinfo->priority = deviceInfo[i].usecase[j].config[k].priority;
                                 PAL_VERBOSE(LOG_TAG, "got priority %d for custom key %s usecase %d for dev %s",
                                         devinfo->priority,
@@ -2023,9 +2024,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
     }
 exit:
-    PAL_DBG(LOG_TAG, "device id 0x%x channels %d samplerate %d, bitwidth %d format %d SndDev %s",
+    PAL_DBG(LOG_TAG, "device id 0x%x channels %d samplerate %d, bitwidth %d format %d SndDev %s priority 0x%x",
             deviceattr->id, deviceattr->config.ch_info.channels, deviceattr->config.sample_rate,
-            deviceattr->config.bit_width, deviceattr->config.aud_fmt_id, devinfo.sndDevName.c_str());
+            deviceattr->config.bit_width, deviceattr->config.aud_fmt_id,
+            devinfo.sndDevName.c_str(), devinfo.priority);
     return status;
 }
 
