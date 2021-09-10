@@ -1019,6 +1019,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool isNewDeviceA2dp = false;
     bool isCurDeviceA2dp = false;
     bool isCurrentDeviceProxyOut = false;
+    bool isCurrentDeviceDpOut = false;
     bool matchFound = false;
     uint32_t curDeviceSlots[PAL_DEVICE_IN_MAX], newDeviceSlots[PAL_DEVICE_IN_MAX];
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
@@ -1056,6 +1057,10 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         if (curDevId == PAL_DEVICE_OUT_PROXY)
             isCurrentDeviceProxyOut = true;
 
+        if (curDevId == PAL_DEVICE_OUT_AUX_DIGITAL ||
+            curDevId == PAL_DEVICE_OUT_AUX_DIGITAL_1 ||
+            curDevId == PAL_DEVICE_OUT_HDMI)
+            isCurrentDeviceDpOut = true;
         /* If stream is currently running on same device, then check if
          * it needs device switch. If not needed, then do not add it to
          * streamDevConnect and streamDevDisconnect list. This handles case 2,3.
@@ -1077,7 +1082,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     for (int i = 0; i < numDev; i++) {
         struct pal_device_info devinfo = {};
         /*
-         * When A2DP and Out Proxy device is disconnected the
+         * When A2DP, Out Proxy and DP device is disconnected the
          * music playback is paused and the policy manager sends routing=0
          * But the audioflinger continues to write data until standby time
          * (3sec). As BT is turned off, the write gets blocked.
@@ -1085,7 +1090,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          */
         if ((newDevices[i].id == PAL_DEVICE_NONE) &&   /* This assumes that PAL_DEVICE_NONE comes as single device */
             (((isCurDeviceA2dp == true) && !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) ||
-             (isCurrentDeviceProxyOut))) {
+             (isCurrentDeviceProxyOut) || (isCurrentDeviceDpOut))) {
             newDevices[i].id = PAL_DEVICE_OUT_SPEAKER;
 
             if (rm->getDeviceConfig(&newDevices[i], mStreamAttr)) {
