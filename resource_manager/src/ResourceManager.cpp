@@ -6311,7 +6311,7 @@ int32_t ResourceManager::a2dpSuspend()
         status = (*sIter)->getAssociatedDevices(associatedDevices);
         if ((0 != status) ||
             !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {
-            PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", sIter);
+            PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", *sIter);
             mActiveStreamMutex.unlock();
             goto exit;
         }
