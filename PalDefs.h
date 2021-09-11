@@ -421,6 +421,7 @@ typedef enum {
     PAL_STREAM_LOOPBACK_HFP_TX,
     PAL_STREAM_LOOPBACK_COMPRESS,
     PAL_STREAM_LOOPBACK_FM,
+    PAL_STREAM_LOOPBACK_KARAOKE,
 } pal_stream_loopback_type_t;
 
 typedef enum {
@@ -591,6 +592,7 @@ const std::map<uint32_t, std::string> loopbackLUT {
     {PAL_STREAM_LOOPBACK_HFP_TX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
     {PAL_STREAM_LOOPBACK_COMPRESS,   std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
     {PAL_STREAM_LOOPBACK_FM,         std::string{ "PAL_STREAM_LOOPBACK_FM" } },
+    {PAL_STREAM_LOOPBACK_KARAOKE,    std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
 };
 
 #endif
