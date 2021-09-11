@@ -611,5 +611,6 @@ class StreamSoundTrigger : public Stream {
     // set to true only when mutex is not locked after callback
     bool mutex_unlocked_after_cb_;
     bool concurrency_handling_;
+    bool second_stage_processing_;
 };
 #endif // STREAMSOUNDTRIGGER_H_
