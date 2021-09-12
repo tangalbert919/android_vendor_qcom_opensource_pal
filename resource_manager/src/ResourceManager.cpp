@@ -123,7 +123,6 @@
 #define MAX_SESSIONS_ACD 8
 #define MAX_SESSIONS_PROXY 8
 #define DEFAULT_MAX_SESSIONS 8
-#define DEFAULT_MAX_NT_SESSIONS 2
 #define MAX_SESSIONS_INCALL_MUSIC 1
 #define MAX_SESSIONS_INCALL_RECORD 1
 #define MAX_SESSIONS_NON_TUNNEL 4
@@ -528,6 +527,40 @@ pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
     return type;
 }
 
+uint32_t ResourceManager::getNTPathForStreamAttr(
+                              const pal_stream_attributes attr)
+{
+    uint32_t streamInputFormat = attr.out_media_config.aud_fmt_id;
+    if (streamInputFormat == PAL_AUDIO_FMT_PCM_S16_LE ||
+            streamInputFormat == PAL_AUDIO_FMT_PCM_S8 ||
+            streamInputFormat == PAL_AUDIO_FMT_PCM_S24_3LE ||
+            streamInputFormat == PAL_AUDIO_FMT_PCM_S24_LE ||
+            streamInputFormat == PAL_AUDIO_FMT_PCM_S32_LE) {
+        return NT_PATH_ENCODE;
+    }
+    return NT_PATH_DECODE;
+}
+
+ssize_t ResourceManager::getAvailableNTStreamInstance(
+                              const pal_stream_attributes attr)
+{
+    uint32_t pathIdx = getNTPathForStreamAttr(attr);
+    auto NTStreamInstancesMap = mNTStreamInstancesList[pathIdx];
+    for (int inst = INSTANCE_1; inst <= max_nt_sessions; ++inst) {
+         auto it = NTStreamInstancesMap->find(inst);
+         if (it == NTStreamInstancesMap->end()) {
+             NTStreamInstancesMap->emplace(inst, true);
+             return inst;
+         } else if (!NTStreamInstancesMap->at(inst)) {
+             NTStreamInstancesMap->at(inst) = true;
+             return inst;
+         } else {
+             PAL_DBG(LOG_TAG, "Path %d, instanceId %d is in use", pathIdx, inst);
+         }
+     }
+     return -EINVAL;
+}
+
 void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_name_extn)
 {
     /* Sound card name follows below mentioned convention:
@@ -574,7 +607,7 @@ ResourceManager::ResourceManager()
     na_props.na_mode = NATIVE_AUDIO_MODE_INVALID;
 
     max_session_num = DEFAULT_MAX_SESSIONS;
-    max_nt_sessions = DEFAULT_MAX_NT_SESSIONS;
+    max_nt_sessions = DEFAULT_NT_SESSION_TYPE_COUNT;
     //TODO: parse the tag and populate in the tags
     streamTag.clear();
     deviceTag.clear();
@@ -691,6 +724,11 @@ ResourceManager::ResourceManager()
     if (ret) {
         PAL_ERR(LOG_TAG, "AGM service not up%d", ret);
     }
+
+    auto encodeMap = std::make_shared<std::unordered_map<uint32_t, bool>>();
+    auto decodeMap = std::make_shared<std::unordered_map<uint32_t, bool>>();
+    mNTStreamInstancesList[NT_PATH_ENCODE] = encodeMap;
+    mNTStreamInstancesList[NT_PATH_DECODE] = decodeMap;
 
     ResourceManager::loadAdmLib();
     ResourceManager::initWakeLocks();
@@ -7678,7 +7716,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
     mResourceManagerMutex.lock();
 
     switch (StrAttr.type) {
-        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_VOICE_UI: {
             streamSelector = str->getStreamSelector();
 
             if (streamSelector.empty()) {
@@ -7706,12 +7744,17 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
                 }
             }
             break;
-        case PAL_STREAM_NON_TUNNEL:
-            if (stream_instances[StrAttr.type - 1] > 0)
-                stream_instances[StrAttr.type - 1] -= 1;
+        }
+        case PAL_STREAM_NON_TUNNEL: {
+            uint32_t pathIdx = getNTPathForStreamAttr(StrAttr);
+            auto NTStreamInstancesMap = mNTStreamInstancesList[pathIdx];
+            if (NTStreamInstancesMap->find(str->getInstanceId()) != NTStreamInstancesMap->end()) {
+                NTStreamInstancesMap->at(str->getInstanceId()) = false;
+            }
             str->setInstanceId(0);
             break;
-        default:
+        }
+        default: {
             if (StrAttr.direction == PAL_AUDIO_INPUT) {
                 in_stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
                 str->setInstanceId(0);
@@ -7719,6 +7762,7 @@ int ResourceManager::resetStreamInstanceID(Stream *str, uint32_t sInstanceID) {
                 stream_instances[StrAttr.type - 1] &= ~(1 << (sInstanceID - 1));
                 str->setInstanceId(0);
             }
+        }
     }
 
     mResourceManagerMutex.unlock();
@@ -7740,7 +7784,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
     mResourceManagerMutex.lock();
 
     switch (StrAttr.type) {
-        case PAL_STREAM_VOICE_UI:
+        case PAL_STREAM_VOICE_UI: {
             PAL_DBG(LOG_TAG,"STInstancesLists.size (%zu)", STInstancesLists.size());
 
             streamSelector = str->getStreamSelector();
@@ -7787,20 +7831,21 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
                 }
             }
             break;
-        case PAL_STREAM_NON_TUNNEL:
-            status = str->getInstanceId();
-            if (!status) {
-                if (stream_instances[StrAttr.type - 1] == max_nt_sessions) {
-                    PAL_ERR(LOG_TAG, "All stream instances taken");
-                    status = -EINVAL;
+        }
+        case PAL_STREAM_NON_TUNNEL: {
+            int instanceId = str->getInstanceId();
+            if (!instanceId) {
+                status = instanceId = getAvailableNTStreamInstance(StrAttr);
+                if (status < 0) {
+                    PAL_ERR(LOG_TAG, "No available stream instance");
                     break;
                 }
-                status = stream_instances[StrAttr.type - 1] + 1;
-                stream_instances[StrAttr.type - 1] = stream_instances[StrAttr.type - 1] + 1;
-                str->setInstanceId(status);
+                str->setInstanceId(instanceId);
+                PAL_DBG(LOG_TAG, "NT instance id %d", instanceId);
             }
             break;
-        default:
+        }
+        default: {
             status = str->getInstanceId();
             if (StrAttr.direction == PAL_AUDIO_INPUT && !status) {
                 if (in_stream_instances[StrAttr.type - 1] ==  -1) {
@@ -7829,6 +7874,7 @@ int ResourceManager::getStreamInstanceID(Stream *str) {
                     }
                 str->setInstanceId(status);
             }
+        }
     }
 
     mResourceManagerMutex.unlock();
