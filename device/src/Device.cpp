@@ -207,6 +207,12 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
     case PAL_DEVICE_IN_EXT_EC_REF:
         PAL_VERBOSE(LOG_TAG, "ExtEC device %d", dev_id);
         return ExtEC::getObject();
+    case PAL_DEVICE_IN_HANDSET_VA_MIC:
+        PAL_VERBOSE(LOG_TAG, "Handset VA Mic device %d", dev_id);
+        return HandsetVaMic::getObject();
+    case PAL_DEVICE_IN_HEADSET_VA_MIC:
+        PAL_VERBOSE(LOG_TAG, "Headset VA Mic device %d", dev_id);
+        return HeadsetVaMic::getObject();
     default:
         PAL_ERR(LOG_TAG,"Unsupported device id %d",dev_id);
         return nullptr;
