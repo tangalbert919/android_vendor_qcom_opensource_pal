@@ -1821,7 +1821,7 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     //To check if any active stream present on same backend
     activeStreamsDevices.clear();
     rm->getSharedBEActiveStreamDevs(activeStreamsDevices, aifBackEndsToDisconnect[0].first);
-    if (activeStreamsDevices.size() > 0) {
+    if (activeStreamsDevices.size() > 1) {
         PAL_INFO(LOG_TAG, "No need to free device metadata since active streams present on device");
     } else {
         mixer_ctl_set_array(beMetaDataMixerCtrl, (void*)deviceMetaData.buf,
