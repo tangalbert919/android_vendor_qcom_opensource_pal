@@ -443,7 +443,6 @@ class StreamACD : public Stream {
     struct acd_recognition_cfg    *rec_config_;
     struct pal_param_context_list *context_config_;
     struct pal_st_recognition_event *cached_event_data_;
-    uint32_t                      detection_state_;
     bool                          paused_;
     bool                          device_opened_;
 
