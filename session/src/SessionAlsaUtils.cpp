@@ -1504,6 +1504,12 @@ int SessionAlsaUtils::openDev(std::shared_ptr<ResourceManager> rmHandle,
 
     PAL_DBG(LOG_TAG, "Ext EC Ref Open Dev is called");
 
+    if( DevIds.size() == 0)
+    {
+         PAL_ERR(LOG_TAG, "No Device id provided");
+         status = -EINVAL;
+         goto freeMetaData;
+    }
     /** Get mixer controls (struct mixer_ctl *) for both FE and BE */
     feName << "ExtEC" << DevIds.at(0);
     for (i = FE_CONTROL; i <= FE_CONNECT; ++i) {

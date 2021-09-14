@@ -1704,29 +1704,36 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
         goto exit;
     }
     extEcTxDeviceList.push_back(dev);
+    pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
+    if (pcmDevEcTxIds.size() == 0) {
+        PAL_ERR(LOG_TAG, "ResourceManger::getBackEndNames returned no EXT_EC device Ids");
+        goto exit;
+    }
     status = dev->open();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "dev open failed");
         status = -EINVAL;
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         goto exit;
     }
     status = dev->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "dev start failed");
         dev->close();
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         status = -EINVAL;
         goto exit;
     }
 
     extEcbackendId = extEcTxDeviceList[0]->getSndDeviceId();
     extEcbackendNames = rm->getBackEndNames(extEcTxDeviceList);
-    pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
     status = SessionAlsaUtils::openDev(rm, pcmDevEcTxIds, extEcbackendId,
         extEcbackendNames.at(0).c_str());
     if (0 != status) {
         PAL_ERR(LOG_TAG, "SessionAlsaUtils::openDev failed");
         dev->stop();
         dev->close();
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         status = -EINVAL;
         goto exit;
     }
@@ -1735,6 +1742,7 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
         PAL_ERR(LOG_TAG, "Exit pcm-ec-tx open failed");
         dev->stop();
         dev->close();
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         status = -EINVAL;
         goto exit;
     }
@@ -1744,6 +1752,7 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
         pcmEcTx = NULL;
         dev->stop();
         dev->close();
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         status = -EINVAL;
         goto exit;
     }
@@ -1752,8 +1761,10 @@ int SessionAlsaVoice::setECRef(Stream *s, std::shared_ptr<Device> rx_dev __unuse
     if (status) {
         PAL_ERR(LOG_TAG, "pcm_start ec_tx failed %d", status);
         pcm_close(pcmEcTx);
+        pcmEcTx = NULL;
         dev->stop();
         dev->close();
+        rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
         status = -EINVAL;
         goto exit;
     }
