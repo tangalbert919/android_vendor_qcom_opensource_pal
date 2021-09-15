@@ -3654,6 +3654,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                 }
             }
             for (auto& device: st_stream_.mDevices) {
+                st_stream_.rm->deregisterDevice(device, &st_stream_);
                 st_stream_.gsl_engine_->DisconnectSessionDevice(&st_stream_,
                     st_stream_.mStreamAttr->type, device);
 
@@ -3662,8 +3663,6 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
                     goto disconnect_err;
                 }
-
-                st_stream_.rm->deregisterDevice(device, &st_stream_);
 
                 status = device->close();
                 st_stream_.device_opened_ = false;
