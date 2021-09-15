@@ -3127,6 +3127,14 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL: {
             int ret = 0;
 
+            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
+                        status);
+                }
+            }
+
             st_stream_.mDevices.clear();
 
             for (auto& eng: st_stream_.engines_) {
