@@ -1510,6 +1510,8 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
             auto& dev = acd_stream_.mDevices[0];
 
+            acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
+
             acd_stream_.engine_->DisconnectSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
 
@@ -1518,8 +1520,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d device stop failed", status);
                 goto disconnect_err;
             }
-
-            acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
 
             status = dev->close();
             acd_stream_.device_opened_ = false;
