@@ -5591,7 +5591,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
     std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
     std::vector <Stream*> uniqueStreamsList;
 
-    PAL_DBG(LOG_TAG, "Enter");
+    PAL_INFO(LOG_TAG, "Enter");
 
     if (cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline");
@@ -5648,7 +5648,7 @@ exit:
     }
     mActiveStreamMutex.unlock();
 exit_no_unlock:
-    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    PAL_INFO(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
