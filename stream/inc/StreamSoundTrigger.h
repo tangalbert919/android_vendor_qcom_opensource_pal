@@ -610,7 +610,8 @@ class StreamSoundTrigger : public Stream {
     ChronoSteadyClock_t transit_end_time_;
     // set to true only when mutex is not locked after callback
     bool mutex_unlocked_after_cb_;
-    bool concurrency_handling_;
+    // flag to indicate whether we should update common capture profile in RM
+    bool common_cp_update_disable_;
     bool second_stage_processing_;
 };
 #endif // STREAMSOUNDTRIGGER_H_
