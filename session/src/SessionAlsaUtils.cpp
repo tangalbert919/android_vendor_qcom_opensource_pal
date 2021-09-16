@@ -1236,6 +1236,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     struct vsid_info vsidinfo = {};
     sidetone_mode_t sidetoneMode = SIDETONE_OFF;
     struct pal_device dAttr;
+    bool isDeviceFound = false;
 
     if (RxDevIds.empty() || TxDevIds.empty()) {
         PAL_ERR(LOG_TAG, "RX and TX FE Dev Ids are empty");
@@ -1265,14 +1266,16 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     for (i = 0; i < associatedDevices.size(); i++) {
         associatedDevices[i]->getDeviceAttributes(&dAttr);
         if (txBackEnds[0].first == dAttr.id) {
+            isDeviceFound = true;
             break;
         }
     }
-    if (i >= associatedDevices.size() ) {
-        PAL_ERR(LOG_TAG,"could not find associated device kv cannot be set");
-    } else{
+    if (isDeviceFound) {
         rmHandle->getDeviceInfo((pal_device_id_t)txBackEnds[0].first, sAttr.type,
-                                dAttr.custom_config.custom_key, &devinfo);
+                dAttr.custom_config.custom_key, &devinfo);
+    }
+    else {
+        PAL_ERR(LOG_TAG, "could not find associated device kv cannot be set");
     }
 
     if(sAttr.type == PAL_STREAM_VOICE_CALL){
