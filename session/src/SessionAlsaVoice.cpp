@@ -1453,6 +1453,9 @@ int SessionAlsaVoice::disconnectSessionDevice(Stream *streamHandle,
     deviceToDisconnect->getDeviceAttributes(&dAttr);
 
     if (rxAifBackEnds.size() > 0) {
+        /*config mute on pop suppressor*/
+        setPopSuppressorMute(streamHandle);
+
         status =  SessionAlsaUtils::disconnectSessionDevice(streamHandle,
                                                             streamType, rm,
                                                             dAttr, pcmDevRxIds,
@@ -1796,6 +1799,53 @@ int SessionAlsaVoice::getTXDeviceId(Stream *s, int *id)
     if(i >= PAL_DEVICE_IN_MAX){
         status = -EINVAL;
     }
+    return status;
+}
+
+int SessionAlsaVoice::setPopSuppressorMute(Stream *s)
+{
+    int status = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    uint8_t* payload = NULL;
+    size_t payloadSize = 0;
+    uint32_t miid = 0;
+
+    if (!rxAifBackEnds.size()) {
+        PAL_ERR(LOG_TAG,"No RX backends found failed");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevRxIds.at(0),
+                                                   rxAifBackEnds[0].second.c_str(),
+                                                   DEVICE_POP_SUPPRESSOR, &miid);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG,"getModuleInstanceId failed for Rx pop suppressor: 0x%x status: %d",
+            DEVICE_POP_SUPPRESSOR, status);
+        goto exit;
+    }
+
+    if (!builder) {
+        PAL_ERR(LOG_TAG,"failed: builder instance not found")
+        status = -EINVAL;
+        goto exit;
+    }
+
+    status = builder->payloadPopSuppressorConfig((uint8_t**)&payload, &payloadSize, miid, true);
+    if (status) {
+        PAL_ERR(LOG_TAG,"pop suppressor payload creation failed: status: %d",
+                status);
+        goto exit;
+    }
+
+    status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevRxIds.at(0),
+                                                 payload, payloadSize);
+    if (status) {
+        PAL_ERR(LOG_TAG,"setMixerParameter failed");
+    }
+exit:
+    if (payload)
+        free(payload);
     return status;
 }
 

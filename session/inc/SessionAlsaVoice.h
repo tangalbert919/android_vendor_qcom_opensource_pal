@@ -107,6 +107,7 @@ private:
     int getDeviceChannelInfo(Stream *s, uint16_t *channels);
     int build_rx_mfc_payload(Stream *s);
     int setTaggedSlotMask(Stream * s);
+    int setPopSuppressorMute(Stream *s);
 };
 
 #endif //SESSION_ALSAVOICE_H
