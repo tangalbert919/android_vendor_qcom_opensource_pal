@@ -1640,14 +1640,16 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
-    gsl_engine_->UpdateConfLevels(this, config,
+    if (num_conf_levels > 0) {
+        gsl_engine_->UpdateConfLevels(this, config,
                                   conf_levels, num_conf_levels);
 
-    gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
-    if (!gsl_conf_levels_) {
-        PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
-        status = -ENOMEM;
-        goto error_exit;
+        gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
+        if (!gsl_conf_levels_) {
+            PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
+            status = -ENOMEM;
+            goto error_exit;
+        }
     }
     ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
     gsl_conf_levels_size_ = num_conf_levels;
