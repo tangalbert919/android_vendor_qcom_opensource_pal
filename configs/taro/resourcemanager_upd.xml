@@ -70,6 +70,7 @@
         <stream_type>PAL_STREAM_VOICE_UI</stream_type>
         <stream_type>PAL_STREAM_ACD</stream_type>
         <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
+        <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
     </low_power_vote_streams>
     <group_device_cfg>
         <upd_rx>
@@ -701,6 +702,15 @@
                     <ec_ref>
                         <disabled_stream>PAL_STREAM_COMPRESSED</disabled_stream>
                         <disabled_stream>PAL_STREAM_ULTRA_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
+                        <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
+                    </ec_ref>
+                </policies>
+        </in_stream>
+        <in_stream>
+            <name>PAL_STREAM_SENSOR_PCM_DATA</name>
+                <policies>
+                    <ec_ref>
                         <disabled_stream>PAL_STREAM_LOW_LATENCY</disabled_stream>
                         <disabled_stream>PAL_STREAM_GENERIC</disabled_stream>
                     </ec_ref>
