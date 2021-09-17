@@ -555,7 +555,10 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
             PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
                     pcmDevIds.at(0), intf, dAttr.id);
 
-            mfcData.bitWidth = dAttr.config.bit_width;
+            if (rm->activeGroupDevConfig->devpp_mfc_cfg.bit_width)
+                mfcData.bitWidth = rm->activeGroupDevConfig->devpp_mfc_cfg.bit_width;
+            else
+                mfcData.bitWidth = dAttr.config.bit_width;
             if (rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate)
                 mfcData.sampleRate = rm->activeGroupDevConfig->devpp_mfc_cfg.sample_rate;
             else
