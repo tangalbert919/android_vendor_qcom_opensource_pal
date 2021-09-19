@@ -39,11 +39,13 @@
 #include "audio_route/audio_route.h"
 #include <tinyalsa/asoundlib.h>
 #include "PalCommon.h"
+#include <array>
 #include <map>
 #include <expat.h>
 #include <stdio.h>
 #include <queue>
 #include <deque>
+#include <unordered_map>
 #include "PalDefs.h"
 #include "ChargerListener.h"
 #include "SndCardMonitor.h"
@@ -87,6 +89,7 @@ typedef enum {
 #endif
 
 using InstanceListNode_t = std::vector<std::pair<int32_t, bool>> ;
+using nonTunnelInstMap_t = std::unordered_map<uint32_t, bool>;
 
 typedef enum {
     TAG_ROOT,
@@ -287,6 +290,13 @@ typedef struct group_dev_config
     group_dev_hwep_config_t grp_dev_hwep_cfg;
 } group_dev_config_t;
 
+static const constexpr uint32_t DEFAULT_NT_SESSION_TYPE_COUNT = 2;
+
+enum NTStreamTypes_t : uint32_t {
+    NT_PATH_ENCODE = 0,
+    NT_PATH_DECODE
+};
+
 typedef void (*session_callback)(uint64_t hdl, uint32_t event_id, void *event_data,
                 uint32_t event_size);
 bool isPalPCMFormat(uint32_t fmt_id);
@@ -377,6 +387,8 @@ private:
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
     static bool isBitWidthSupported(uint32_t bitWidth);
+    uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
+    ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
 protected:
     std::list <Stream*> mActiveStreams;
     std::list <StreamPCM*> active_streams_ll;
@@ -479,6 +491,7 @@ protected:
     int32_t nlpi_counter_;
     int sleepmon_fd_;
     static std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> groupDevConfigMap;
+    std::array<std::shared_ptr<nonTunnelInstMap_t>, DEFAULT_NT_SESSION_TYPE_COUNT> mNTStreamInstancesList;
 public:
     ~ResourceManager();
     static bool mixerClosed;

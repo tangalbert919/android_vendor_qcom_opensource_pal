@@ -1765,6 +1765,12 @@ int DisplayPort::getHighestSupportedSR()
     }
     else {
         PAL_ERR(LOG_TAG," info is NULL");
+        highestSR = SAMPLINGRATE_48K;
+    }
+
+    if (highestSR == 0) {
+        PAL_ERR(LOG_TAG,"Unable to get Highest SR. Setting default SR");
+        highestSR = SAMPLINGRATE_48K;
     }
 
     PAL_VERBOSE(LOG_TAG," returns [%d] for highest supported sr", highestSR);
