@@ -60,6 +60,7 @@ public:
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     pal_device_id_t GetAvailCaptureDevice();
+    std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile);
 private:
     void GetUUID(class SoundTriggerUUID *uuid, const struct st_uuid *vendor_uuid);
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);
