@@ -284,21 +284,20 @@ SoundModelInfo & SoundModelInfo::operator =(SoundModelInfo &smi) {
         memcpy(sm_data_, smi.sm_data_, sm_size_);
 
     /* Free cf_levels and det_cf_levels if they exists, then create and copy them */
-    cf_levels_size_ = smi.cf_levels_size_;
     if (cf_levels_)
         free(cf_levels_);
-    cf_levels_ = (uint8_t *)calloc(1, 2 * cf_levels_size_);
+    cf_levels_ = (uint8_t *)calloc(1, 2 * smi.cf_levels_size_);
     if (cf_levels_)
-        memcpy(cf_levels_, smi.cf_levels_, cf_levels_size_);
+        memcpy(cf_levels_, smi.cf_levels_, smi.cf_levels_size_);
 
-    det_cf_levels_ = cf_levels_ + cf_levels_size_;
+    det_cf_levels_ = cf_levels_ + smi.cf_levels_size_;
     if (det_cf_levels_)
-        memcpy(det_cf_levels_, smi.det_cf_levels_, cf_levels_size_);
+        memcpy(det_cf_levels_, smi.det_cf_levels_, smi.cf_levels_size_);
 
     /* Free key phrases if it exists and then create and copy it */
-    num_keyphrases_ = smi.num_keyphrases_;
     if (keyphrases_)
         SoundModelInfo::FreeArrayPtrs(keyphrases_, num_keyphrases_);
+    num_keyphrases_ = smi.num_keyphrases_;
     SoundModelInfo::AllocArrayPtrs(&keyphrases_, num_keyphrases_, MAX_STRING_LEN);
     if (keyphrases_) {
         for (uint32_t i = 0; i < num_keyphrases_; i++)
@@ -308,9 +307,9 @@ SoundModelInfo & SoundModelInfo::operator =(SoundModelInfo &smi) {
     }
 
     /* Free users if it exists and then create and copy it */
-    num_users_ = smi.num_users_;
     if (users_)
         SoundModelInfo::FreeArrayPtrs(users_, num_users_);
+    num_users_ = smi.num_users_;
     SoundModelInfo::AllocArrayPtrs(&users_, num_users_, MAX_STRING_LEN);
     if (users_) {
         for (uint32_t i = 0; i < num_users_; i++)
@@ -322,6 +321,7 @@ SoundModelInfo & SoundModelInfo::operator =(SoundModelInfo &smi) {
     /* Free cf_levels_kw_users if it exists and then create and copy it */
     if (cf_levels_kw_users_)
         SoundModelInfo::FreeArrayPtrs(cf_levels_kw_users_, cf_levels_size_);
+    cf_levels_size_ = smi.cf_levels_size_;
     SoundModelInfo::AllocArrayPtrs(&cf_levels_kw_users_, cf_levels_size_,
                      MAX_KW_USERS_NAME_LEN);
     if (cf_levels_kw_users_) {
