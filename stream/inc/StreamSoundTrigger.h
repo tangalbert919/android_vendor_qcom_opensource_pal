@@ -179,6 +179,7 @@ class StreamSoundTrigger : public Stream {
     void SetModelType(st_module_type_t model_type) { model_type_ = model_type; }
     st_module_type_t GetModelType() { return model_type_; }
     bool GetLPIEnabled() { return use_lpi_; }
+    uint32_t GetInstanceId();
  private:
     class EngineCfg {
      public:
@@ -610,5 +611,6 @@ class StreamSoundTrigger : public Stream {
     // set to true only when mutex is not locked after callback
     bool mutex_unlocked_after_cb_;
     bool concurrency_handling_;
+    bool second_stage_processing_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

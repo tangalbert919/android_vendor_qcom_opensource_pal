@@ -2052,9 +2052,9 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
     PAL_DBG(LOG_TAG, "Enter");
-    std::unique_lock<std::mutex> lck(mutex_);
 
-    DetachStream(s);
+    DetachStream(s, false);
+    std::unique_lock<std::mutex> lck(mutex_);
 
     /*
      * For PDK or sound model merging usecase, multi streams will
@@ -2866,15 +2866,17 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     return eng_[key];
 }
 
-void SoundTriggerEngineGsl::DetachStream(Stream *s) {
+void SoundTriggerEngineGsl::DetachStream(Stream *s, bool erase_engine) {
     st_module_type_t key;
+
+    std::unique_lock<std::mutex> lck(mutex_);
 
     if (s) {
         auto iter = std::find(eng_streams_.begin(), eng_streams_.end(), s);
         if (iter != eng_streams_.end())
             eng_streams_.erase(iter);
     }
-    if (!eng_streams_.size()) {
+    if (!eng_streams_.size() && erase_engine) {
         key = this->module_type_;
         if (IS_MODULE_TYPE_PDK(this->module_type_)) {
             key = ST_MODULE_TYPE_PDK;

@@ -86,6 +86,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
     concurrency_handling_ = false;
+    second_stage_processing_ = false;
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
     mDevices.clear();
@@ -945,6 +946,18 @@ unload_model:
 
 error_exit:
     return nullptr;
+}
+
+/*
+ * Return stream instance id for gkv popluation
+ * For PDK: always return INSTANCE_1
+ * For SVA4: just return stream instance id
+ */
+uint32_t StreamSoundTrigger::GetInstanceId() {
+    if (IS_MODULE_TYPE_PDK(model_type_))
+        return INSTANCE_1;
+    else
+        return mInstanceID;
 }
 
 void StreamSoundTrigger::GetUUID(class SoundTriggerUUID *uuid,
@@ -3133,7 +3146,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 st_stream_.reader_ = nullptr;
             }
             st_stream_.engines_.clear();
-            st_stream_.gsl_engine_->DetachStream(&st_stream_);
+            st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
             st_stream_.reader_list_.clear();
             if (st_stream_.sm_info_) {
                 delete st_stream_.sm_info_;
@@ -3526,6 +3539,8 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
                     st_stream_.PostDelayedStop();
                 }
             } else {
+                if (st_stream_.engines_.size() > 1)
+                    st_stream_.second_stage_processing_ = true;
                 TransitTo(ST_STATE_BUFFERING);
                 st_stream_.SetDetectedToEngines(true);
             }
@@ -4165,6 +4180,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                         }
                     }
                 }
+                st_stream_.second_stage_processing_ = false;
                 st_stream_.detection_state_ = ENGINE_IDLE;
 
                 if (st_stream_.reader_) {
@@ -4202,6 +4218,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
             // notify client until both keyword detection/user verification done
             if (st_stream_.detection_state_ == st_stream_.notification_state_) {
                 PAL_DBG(LOG_TAG, "Second stage detected");
+                st_stream_.second_stage_processing_ = false;
                 st_stream_.detection_state_ = ENGINE_IDLE;
                 if (!st_stream_.rec_config_->capture_requested) {
                     if (st_stream_.reader_) {
@@ -4262,7 +4279,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         }
         case ST_EV_SSR_OFFLINE: {
             if (st_stream_.state_for_restore_ == ST_STATE_NONE) {
-                st_stream_.state_for_restore_ = ST_STATE_LOADED;
+                if (st_stream_.second_stage_processing_)
+                    st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+                else
+                    st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
 
             std::shared_ptr<StEventConfig> ev_cfg2(
