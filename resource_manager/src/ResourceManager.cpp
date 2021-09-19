@@ -6363,6 +6363,7 @@ int32_t ResourceManager::a2dpSuspend()
     // For a2dp + spkr or handset combo use case,
     // add speaker or handset into suspended devices for restore during a2dpResume
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
+        associatedDevices.clear();
         status = (*sIter)->getAssociatedDevices(associatedDevices);
         if ((0 != status) ||
             !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {

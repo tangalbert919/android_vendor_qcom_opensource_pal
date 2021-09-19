@@ -697,6 +697,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
     int32_t status = 0;
     struct pal_device dattr;
     std::shared_ptr<Device> dev = nullptr;
+    pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
     a2dpSuspend = false;
 
@@ -706,7 +707,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
         // If it's sco + speaker combo device, route to speaker.
         // Otherwise, return -EAGAIN.
         if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_SPEAKER)) {
-            PAL_DBG(LOG_TAG, "BT SCO output device is not ready, route to speaker");
+            PAL_INFO(LOG_TAG, "BT SCO output device is not ready, route to speaker");
             for (auto iter = mDevices.begin(); iter != mDevices.end();) {
                 if ((*iter)->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) {
                     iter++;
@@ -714,17 +715,21 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 }
 
                 // Invoke session API to explicitly update the device metadata
+                rm->lockGraph();
                 status = session->disconnectSessionDevice(this, mStreamAttr->type, (*iter));
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
 
                 status = (*iter)->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
+                rm->unlockGraph();
                 iter = mDevices.erase(iter);
             }
         } else {
@@ -735,47 +740,69 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
     }
 
     /* A2DP device is not ready */
-    if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
-        !rm->isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+    if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+        dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+        dev = Device::getInstance(&dattr, rm);
+        if (!dev) {
+            status = -ENODEV;
+            PAL_ERR(LOG_TAG, "failed to get a2dp device object");
+            goto exit;
+        }
+        dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                        (void **)&param_bt_a2dp);
+        if (param_bt_a2dp->a2dp_suspended == false) {
+            PAL_DBG(LOG_TAG, "BT A2DP output device is good to go");
+            goto exit;
+        }
+
         if (rm->isDeviceAvailable(mDevices, PAL_DEVICE_OUT_SPEAKER)) {
             // If it's a2dp + speaker combo device, route to speaker.
-            PAL_DBG(LOG_TAG, "BT A2DP output device is not ready, route to speaker");
+            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready, route to speaker");
             for (auto iter = mDevices.begin(); iter != mDevices.end();) {
                 if ((*iter)->getSndDeviceId() == PAL_DEVICE_OUT_SPEAKER) {
                     iter++;
                     continue;
                 }
 
+                rm->lockGraph();
                 status = session->disconnectSessionDevice(this, mStreamAttr->type, (*iter));
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
 
                 status = (*iter)->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
+                rm->unlockGraph();
                 iter = mDevices.erase(iter);
             }
         } else {
             // For non-combo device, mute the stream and route to speaker
-            PAL_DBG(LOG_TAG, "BT A2DP output device is not ready, mute stream and route to speaker");
+            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready, mute stream and route to speaker");
             for (int i = 0; i < mDevices.size(); i++) {
+                rm->lockGraph();
                 status = session->disconnectSessionDevice(this, mStreamAttr->type, mDevices[i]);
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
                 status = mDevices[i]->close();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device close failed with status %d", status);
+                    rm->unlockGraph();
                     goto exit;
                 }
+                rm->unlockGraph();
             }
             mDevices.clear();
 
+            // NOTE: lockGraph is not intended for speaker device
             dattr.id = PAL_DEVICE_OUT_SPEAKER;
             dev = Device::getInstance(&dattr , rm);
             if (!dev) {
@@ -792,6 +819,13 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             status = session->setupSessionDevice(this, mStreamAttr->type, dev);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "setupSessionDevice failed:%d", status);
+                dev->close();
+                goto exit;
+            }
+
+            status = session->connectSessionDevice(this, mStreamAttr->type, dev);
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "connectSessionDevice failed:%d", status);
                 dev->close();
                 goto exit;
             }
