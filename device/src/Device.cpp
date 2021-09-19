@@ -167,6 +167,8 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         return Headphone::getObject(dev_id);
     case PAL_DEVICE_OUT_USB_DEVICE:
     case PAL_DEVICE_OUT_USB_HEADSET:
+    case PAL_DEVICE_IN_USB_DEVICE:
+    case PAL_DEVICE_IN_USB_HEADSET:
         PAL_VERBOSE(LOG_TAG, "USB device");
         return USB::getObject(dev_id);
     case PAL_DEVICE_OUT_AUX_DIGITAL:

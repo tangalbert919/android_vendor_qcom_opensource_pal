@@ -53,6 +53,7 @@ SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
    rm = Rm;
    builder = new PayloadBuilder();
    pcmEcTx = NULL;
+   streamHandle = NULL;
 }
 
 SessionAlsaVoice::~SessionAlsaVoice()
@@ -124,6 +125,7 @@ int SessionAlsaVoice::open(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
     if(0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;

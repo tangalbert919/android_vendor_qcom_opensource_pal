@@ -605,6 +605,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     this->cbCookie = 0;
     playback_started = false;
     playback_paused = false;
+    streamHandle = NULL;
 }
 
 SessionAlsaCompress::~SessionAlsaCompress()
@@ -621,6 +622,7 @@ int SessionAlsaCompress::open(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;
