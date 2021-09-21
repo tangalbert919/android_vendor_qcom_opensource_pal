@@ -43,8 +43,6 @@ class Session;
 class SessionAlsaVoice : public Session
 {
 private:
-    void * customPayload;
-    size_t customPayloadSize;
     PayloadBuilder* builder;
     struct pcm *pcmRx;
     struct pcm *pcmTx;
@@ -92,7 +90,7 @@ public:
 private:
     int payloadCalKeys(Stream * s, uint8_t **payload, size_t *size);
     int payloadTaged(Stream * s, configType type, int tag, int device, int dir);
-    int payloadSetVSID(uint8_t **payload, size_t *size);
+    int payloadSetVSID(Stream* s);
     int payloadSetChannelInfo(Stream * s, uint8_t **payload, size_t *size);
     int payloadSetTTYMode(uint8_t **payload, size_t *size, uint32_t mode);
     int setVoiceMixerParameter(Stream * s, struct mixer *mixer, void *payload,
@@ -102,11 +100,13 @@ private:
     int setSidetone(int deviceId, Stream * s, bool enable);
     int setHWSidetone(Stream * s, bool enable);
     int getTXDeviceId(Stream *s, int *id);
-    int populate_rx_mfc_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
-    int populate_vsid_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
-    int populate_ch_info_payload(Stream *s, uint8_t **payload, size_t *payloadSize);
-    int populateVSIDLoopbackPayload(uint8_t **payload, size_t *payloadSize);
+    int populate_rx_mfc_payload(Stream *s, uint32_t rx_mfc_tag);
+    int populate_vsid_payload(Stream *s);
+    int populate_ch_info_payload(Stream *s);
+    int populateVSIDLoopbackPayload(Stream* s);
     int getDeviceChannelInfo(Stream *s, uint16_t *channels);
+    int build_rx_mfc_payload(Stream *s);
+    int setTaggedSlotMask(Stream * s);
 };
 
 #endif //SESSION_ALSAVOICE_H

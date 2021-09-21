@@ -421,6 +421,7 @@ typedef enum {
     PAL_STREAM_LOOPBACK_HFP_TX,
     PAL_STREAM_LOOPBACK_COMPRESS,
     PAL_STREAM_LOOPBACK_FM,
+    PAL_STREAM_LOOPBACK_KARAOKE,
 } pal_stream_loopback_type_t;
 
 typedef enum {
@@ -591,6 +592,7 @@ const std::map<uint32_t, std::string> loopbackLUT {
     {PAL_STREAM_LOOPBACK_HFP_TX,     std::string{ "PAL_STREAM_LOOPBACK_HFP_TX" } },
     {PAL_STREAM_LOOPBACK_COMPRESS,   std::string{ "PAL_STREAM_LOOPBACK_COMPRESS" } },
     {PAL_STREAM_LOOPBACK_FM,         std::string{ "PAL_STREAM_LOOPBACK_FM" } },
+    {PAL_STREAM_LOOPBACK_KARAOKE,    std::string{ "PAL_STREAM_LOOPBACK_KARAOKE" }},
 };
 
 #endif
@@ -865,6 +867,7 @@ typedef enum {
     PAL_PARAM_ID_BT_A2DP_CAPTURE_SUSPENDED = 50,
     PAL_PARAM_ID_SNDCARD_STATE = 51,
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
+    PAL_PARAM_ID_CHARGER_STATE = 53,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -953,6 +956,14 @@ typedef struct pal_param_screen_state {
 typedef struct pal_param_charging_state {
     bool              charging_state;
 } pal_param_charging_state_t;
+
+/* Payload For ID: PAL_PARAM_ID_CHARGER_STATE
+ * Description   : Charger State
+*/
+typedef struct pal_param_charger_state {
+    bool              is_charger_online;
+    bool              is_concurrent_boost_enable;
+} pal_param_charger_state_t;
 
 /*
  * Used to identify the swapping type

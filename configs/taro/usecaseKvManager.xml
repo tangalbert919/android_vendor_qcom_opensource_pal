@@ -143,7 +143,7 @@
                 <!-- STREAMTX - HFP_RX_CAPTURE -->
                 <graph_kv key="0xB1000000" value="0xB1000005"/>
             </keys_and_values>
-            <keys_and_values Direction="RX_TX" SubType="PAL_STREAM_LOOPBACK_PCM,PAL_STREAM_LOOPBACK_FM">
+            <keys_and_values Direction="RX_TX" SubType="PAL_STREAM_LOOPBACK_PCM,PAL_STREAM_LOOPBACK_FM,PAL_STREAM_LOOPBACK_KARAOKE">
                 <!-- STREAMRX - PCM_RX_LOOPBACK -->
                 <graph_kv key="0xA1000000" value="0xA1000003"/>
             </keys_and_values>

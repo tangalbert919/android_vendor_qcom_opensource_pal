@@ -1,54 +1,29 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
-<!-- Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
--->
-<!--
--->
-<!-- Redistribution and use in source and binary forms, with or without
--->
-<!-- modification, are permitted provided that the following conditions are
--->
-<!-- met:
--->
-<!--     * Redistributions of source code must retain the above copyright
--->
-<!--       notice, this list of conditions and the following disclaimer.
--->
-<!--     * Redistributions in binary form must reproduce the above
--->
-<!--       copyright notice, this list of conditions and the following
--->
-<!--       disclaimer in the documentation and/or other materials provided
--->
-<!--       with the distribution.
--->
-<!--     * Neither the name of The Linux Foundation nor the names of its
--->
-<!--       contributors may be used to endorse or promote products derived
--->
-<!--       from this software without specific prior written permission.
--->
-<!--
--->
-<!-- THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
--->
-<!-- WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
--->
-<!-- MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
--->
-<!-- ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
--->
-<!-- BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
--->
-<!-- CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
--->
-<!-- SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
--->
-<!-- BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
--->
-<!-- OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
--->
-<!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
--->
+<!-- Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.       -->
+<!--                                                                           -->
+<!-- Redistribution and use in source and binary forms, with or without        -->
+<!-- modification, are permitted provided that the following conditions are    -->
+<!-- met:                                                                      -->
+<!--     * Redistributions of source code must retain the above copyright      -->
+<!--       notice, this list of conditions and the following disclaimer.       -->
+<!--     * Redistributions in binary form must reproduce the above             -->
+<!--       copyright notice, this list of conditions and the following         -->
+<!--       disclaimer in the documentation and/or other materials provided     -->
+<!--       with the distribution.                                              -->
+<!--     * Neither the name of The Linux Foundation nor the names of its       -->
+<!--       contributors may be used to endorse or promote products derived     -->
+<!--       from this software without specific prior written permission.       -->
+<!--                                                                           -->
+<!-- THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED              -->
+<!-- WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF      -->
+<!-- MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT    -->
+<!-- ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS    -->
+<!-- BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR    -->
+<!-- CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF      -->
+<!-- SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR           -->
+<!-- BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,     -->
+<!-- OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN    -->
+<!-- IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                             -->
 <resource_manager_info>
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
@@ -95,6 +70,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -108,6 +85,7 @@
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>HW</sidetone_mode>
+                <bit_width>16</bit_width>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
@@ -149,6 +127,8 @@
             <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
             <max_channels>4</max_channels>
             <channels>1</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker-mic</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -162,6 +142,7 @@
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
                 <sidetone_mode>OFF</sidetone_mode>
+                <bit_width>16</bit_width>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
@@ -178,6 +159,8 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOW_LATENCY</name>
@@ -197,9 +180,11 @@
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_HANDSET_VA_MIC</id>
-            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-3</back_end_name>
+            <back_end_name>CODEC_DMA-LPAIF_VA-TX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
+            <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>va-mic</snd_device_name>
             <ec_rx_device>
                 <id>PAL_DEVICE_OUT_SPEAKER</id>
@@ -212,6 +197,8 @@
             <back_end_name>SLIM-DEV1-TX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </in-device>
         <out-device>
@@ -220,6 +207,7 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>speaker</snd_device_name>
             <speaker_protection_enabled>0</speaker_protection_enabled>
             <cps_enabled>0</cps_enabled>
@@ -246,6 +234,7 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <samplerate>48000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>handset</snd_device_name>
         </out-device>
         <out-device>
@@ -253,6 +242,8 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>44100</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
         <out-device>
@@ -260,6 +251,8 @@
             <back_end_name>SLIM-DEV1-RX-7</back_end_name>
             <max_channels>1</max_channels>
             <channels>1</channels>
+            <samplerate>8000</samplerate>
+            <bit_width>16</bit_width>
             <snd_device_name>bt-a2dp</snd_device_name>
         </out-device>
     </device_profile>

@@ -52,6 +52,7 @@ protected:
     struct pal_device deviceAttr;
     std::shared_ptr<ResourceManager> rm;
     int deviceCount = 0;
+    bool deviceStartDone = false;
     struct audio_route *audioRoute = NULL;   //getAudioRoute() from RM and store
     struct audio_mixer *audioMixer = NULL;   //getVirtualAudioMixer() from RM and store
     char mSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
@@ -91,6 +92,7 @@ public:
     virtual int32_t getParameter(uint32_t param_id, void **param);
     virtual bool isDeviceReady() { return true;}
     void setSndName (std::string snd_name) { UpdatedSndName = snd_name;}
+    void clearSndName () { UpdatedSndName.clear();}
     virtual ~Device();
     void getCurrentSndDevName(char *name);
     uint32_t getCurrentPriority(){return mCurrentPriority;};

@@ -457,7 +457,7 @@ void SoundTriggerPlatformInfo::HandleStartTag(const char* tag,
             if (!attribs[i]) {
                 PAL_ERR(LOG_TAG,"missing attrib value for tag %s", tag);
             } else if (!strcmp(attribs[i], "version")) {
-                version_ = std::stoi(attribs[++i]);
+                version_ = std::strtoul(attribs[++i], nullptr, 16);
             } else if (!strcmp(attribs[i], "enable_failure_detection")) {
                 enable_failure_detection_ =
                     !strncasecmp(attribs[++i], "true", 4) ? true : false;

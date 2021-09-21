@@ -472,7 +472,7 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
         }
         status = SessionAlsaUtils::setMixerParameter(mixer,
                         compressDevIds.at(0), payload, payloadSize);
-        free(payload);
+        freeCustomPayload(&payload, &payloadSize);
         if (status != 0) {
             PAL_ERR(LOG_TAG,"setMixerParameter failed");
             return status;
@@ -682,8 +682,11 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, pal_strea
         for (const auto &elem : rxAifBackEnds) {
             cnt++;
             for (const auto &disConnectElem : rxAifBackEndsToDisconnect) {
-                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                if (std::get<0>(elem) == std::get<0>(disConnectElem)) {
                     rxAifBackEnds.erase(rxAifBackEnds.begin() + cnt - 1, rxAifBackEnds.begin() + cnt);
+                    cnt--;
+                    break;
+                }
             }
         }
     }
@@ -697,8 +700,11 @@ int SessionAlsaCompress::disconnectSessionDevice(Stream* streamHandle, pal_strea
         for (const auto &elem : txAifBackEnds) {
             cnt++;
             for (const auto &disConnectElem : txAifBackEndsToDisconnect) {
-                if (std::get<0>(elem) == std::get<0>(disConnectElem))
+                if (std::get<0>(elem) == std::get<0>(disConnectElem)) {
                     txAifBackEnds.erase(txAifBackEnds.begin() + cnt - 1, txAifBackEnds.begin() + cnt);
+                    cnt--;
+                    break;
+                }
             }
         }
     }
@@ -746,14 +752,14 @@ int SessionAlsaCompress::connectSessionDevice(Stream* streamHandle, pal_stream_t
     deviceToConnect->getDeviceAttributes(&dAttr);
 
     if (!rxAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, compressDevIds, rxAifBackEndsToConnect);
         for (const auto &elem : rxAifBackEndsToConnect)
             rxAifBackEnds.push_back(elem);
     }
 
     if (!txAifBackEndsToConnect.empty()) {
-        status = SessionAlsaUtils::connectSessionDevice(NULL, streamHandle, streamType, rm,
+        status = SessionAlsaUtils::connectSessionDevice(this, streamHandle, streamType, rm,
             dAttr, compressDevIds, txAifBackEndsToConnect);
         for (const auto &elem : txAifBackEndsToConnect)
             txAifBackEnds.push_back(elem);
@@ -1052,8 +1058,7 @@ int SessionAlsaCompress::configureEarlyEOSDelay(void)
     }
     if (payloadSize) {
         status = updateCustomPayload(payload, payloadSize);
-        if (payload)
-            free(payload);
+        freeCustomPayload(&payload, &payloadSize);
         if(0 != status) {
             PAL_ERR(LOG_TAG,"%s: updateCustomPayload Failed\n", __func__);
             return status;
@@ -1070,11 +1075,6 @@ int SessionAlsaCompress::start(Stream * s)
     size_t in_buf_size, in_buf_count, out_buf_size, out_buf_count;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     struct pal_device dAttr;
-    struct pal_media_config codecConfig;
-    struct sessionToPayloadParam mfcData;
-    uint8_t* payload = NULL;
-    size_t payloadSize = 0;
-    uint32_t miid;
 
     PAL_DBG(LOG_TAG,"Enter");
     /** create an offload thread for posting callbacks */
@@ -1130,56 +1130,13 @@ int SessionAlsaCompress::start(Stream * s)
                     PAL_ERR(LOG_TAG,"getAssociatedDevices Failed \n");
                     goto exit;
                 }
-
-                /* Get PSPD MFC MIID and configure to match to device config */
-                /* This has to be done after sending all mixer controls and before connect */
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, compressDevIds.at(0),
-                                                               rxAifBackEnds[i].second.data(),
-                                                               TAG_DEVICE_MFC_SR, &miid);
-                if (status == 0) {
-                    PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
-                            compressDevIds.at(0), rxAifBackEnds[i].second.data(), dAttr.id);
-                } else {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                status = configureMFC(rm, sAttr, dAttr, compressDevIds,
+                            rxAifBackEnds[i].second.data());
+                if (status != 0) {
+                    PAL_ERR(LOG_TAG,"configure MFC failed");
                     goto exit;
                 }
 
-                if (dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
-                        dAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
-                    status = associatedDevices[i]->getCodecConfig(&codecConfig);
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
-                        goto exit;
-                    }
-                    mfcData.bitWidth = codecConfig.bit_width;
-                    mfcData.sampleRate = codecConfig.sample_rate;
-                    mfcData.numChannel = codecConfig.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                } else {
-                    mfcData.bitWidth = dAttr.config.bit_width;
-                    mfcData.sampleRate = dAttr.config.sample_rate;
-                    mfcData.numChannel = dAttr.config.ch_info.channels;
-                    mfcData.rotation_type = PAL_SPEAKER_ROTATION_LR;
-                    mfcData.ch_info = nullptr;
-                }
-                if ((PAL_DEVICE_OUT_SPEAKER == dAttr.id) &&
-                    (2 == dAttr.config.ch_info.channels)) {
-                    // Stereo Speakers. Check for the rotation type
-                    if (PAL_SPEAKER_ROTATION_RL == rm->getCurrentRotationType()) {
-                        // Rotation is of RL, so need to swap the channels
-                        mfcData.rotation_type = PAL_SPEAKER_ROTATION_RL;
-                    }
-                }
-                builder->payloadMFCConfig((uint8_t**)&payload, &payloadSize, miid, &mfcData);
-                if (payloadSize) {
-                    status = updateCustomPayload(payload, payloadSize);
-                    delete payload;
-                    if(0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
-                        goto exit;
-                    }
-                }
                 if (isGaplessFmt) {
                     status = configureEarlyEOSDelay();
                 }
@@ -1201,19 +1158,6 @@ int SessionAlsaCompress::start(Stream * s)
                         status = 0;
                         isPauseRegistrationDone = false;
                     }
-                }
-
-                status = SessionAlsaUtils::setMixerParameter(mixer, compressDevIds.at(0),
-                                                             customPayload, customPayloadSize);
-                if (customPayload) {
-                    free(customPayload);
-                    customPayload = NULL;
-                    customPayloadSize = 0;
-                }
-
-                if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
-                    goto exit;
                 }
             }
             break;
@@ -1284,8 +1228,8 @@ int SessionAlsaCompress::stop(Stream * s __unused)
     PAL_DBG(LOG_TAG,"Enter");
     if (compress && playback_started) {
         status = compress_stop(compress);
-        rm->voteSleepMonitor(s, false);
     }
+    rm->voteSleepMonitor(s, false);
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
     return status;
 }
@@ -1322,11 +1266,7 @@ int SessionAlsaCompress::close(Stream * s)
     PAL_DBG(LOG_TAG, "out of compress close");
 
     rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-    if (customPayload) {
-        free(customPayload);
-        customPayload = NULL;
-        customPayloadSize = 0;
-    }
+    freeCustomPayload();
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
@@ -1518,7 +1458,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                                                              alsaParamData,
                                                              alsaPayloadSize);
                 PAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
-                free(alsaParamData);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
             }
             break;
         }
@@ -1538,7 +1478,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                alsaParamData, alsaPayloadSize);
                 PAL_INFO(LOG_TAG, "mixer set tws config status=%d\n", status);
-                free(alsaParamData);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
             }
             return 0;
         }
@@ -1558,7 +1498,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
                 status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                alsaParamData, alsaPayloadSize);
                 PAL_INFO(LOG_TAG, "mixer set lc3 config status=%d\n", status);
-                free(alsaParamData);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
             }
             return 0;
         }

@@ -79,6 +79,8 @@ protected:
     void *customPayload;
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
+    int freeCustomPayload(uint8_t **payload, size_t *payloadSize);
+    int freeCustomPayload();
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
@@ -90,6 +92,10 @@ public:
     int handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_type,
         int device, struct mixer *mixer, PayloadBuilder* builder,
         std::vector<std::pair<int32_t, std::string>> rxAifBackEnds);
+    int setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
+            struct pal_device &dAttr, const std::vector<int> &pcmDevIds);
+    int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
+            struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
@@ -135,7 +141,6 @@ public:
     virtual int openGraph(Stream *s __unused) { return 0; }
     virtual int getTagsWithModuleInfo(Stream *s __unused, size_t *size __unused,
                                       uint8_t *payload __unused) {return -EINVAL;}
-
 };
 
 #endif //SESSION_H

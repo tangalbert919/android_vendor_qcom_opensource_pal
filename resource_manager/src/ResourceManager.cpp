@@ -65,6 +65,7 @@
 #include <cutils/str_parms.h>
 #endif
 
+#define XML_PATH_EXTN_MAX_SIZE 80
 #define XML_FILE_DELIMITER "_"
 #define XML_FILE_EXT ".xml"
 #define XML_PATH_MAX_LENGTH 100
@@ -80,6 +81,16 @@
 
 #if defined(ADSP_SLEEP_MONITOR)
 #include <adsp_sleepmon.h>
+#endif
+
+#if LINUX_ENABLED
+#if defined(__LP64__)
+#define CL_LIBRARY_PATH "/usr/lib64/libaudiochargerlistener.so"
+#else
+#define CL_LIBRARY_PATH "/usr/lib/libaudiochargerlistener.so"
+#endif
+#else
+#define CL_LIBRARY_PATH "libaudiochargerlistener.so"
 #endif
 
 #define MIXER_XML_BASE_STRING_NAME "mixer_paths"
@@ -106,7 +117,7 @@
 #define MAX_SESSIONS_DEEP_BUFFER 3
 #define MAX_SESSIONS_COMPRESSED 10
 #define MAX_SESSIONS_GENERIC 1
-#define MAX_SESSIONS_PCM_OFFLOAD 1
+#define MAX_SESSIONS_PCM_OFFLOAD 2
 #define MAX_SESSIONS_VOICE_UI 8
 #define MAX_SESSIONS_RAW 1
 #define MAX_SESSIONS_ACD 8
@@ -132,16 +143,6 @@ static struct str_parms *configParamKVPairs;
 char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
-
-struct snd_card_split {
-    char device[HW_INFO_ARRAY_MAX_SIZE];
-    char form_factor[HW_INFO_ARRAY_MAX_SIZE];
-};
-
-static struct snd_card_split cur_snd_card_split{
-    .device = {0},
-    .form_factor = {0},
-};
 
 // default properties which will be updated based on platform configuration
 static struct pal_st_properties qst_properties = {
@@ -387,6 +388,10 @@ std::vector<deviceCap> ResourceManager::devInfo;
 static struct nativeAudioProp na_props;
 static bool isHifiFilterEnabled = false;
 SndCardMonitor* ResourceManager::sndmon = NULL;
+void* ResourceManager::cl_lib_handle = NULL;
+cl_init_t ResourceManager::cl_init = NULL;
+cl_deinit_t ResourceManager::cl_deinit = NULL;
+cl_set_boost_state_t ResourceManager::cl_set_boost_state = NULL;
 std::mutex ResourceManager::cvMutex;
 std::queue<card_status_t> ResourceManager::msgQ;
 std::condition_variable ResourceManager::cv;
@@ -405,6 +410,7 @@ int ResourceManager::wake_unlock_fd = -1;
 uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
+bool ResourceManager::isChargeConcurrencyEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
@@ -413,6 +419,7 @@ bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
+bool ResourceManager::isDualMonoEnabled = false;
 bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
@@ -437,6 +444,9 @@ std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
+
+std::shared_ptr<group_dev_config_t> ResourceManager::activeGroupDevConfig = nullptr;
+std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> ResourceManager::groupDevConfigMap;
 
 #define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
 std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
@@ -518,39 +528,36 @@ pal_stream_type_t ResourceManager::getStreamType(std::string stream_name)
     return type;
 }
 
-void ResourceManager::split_snd_card(const char* in_snd_card_name)
+void ResourceManager::getFileNameExtn(const char *in_snd_card_name, char* file_name_extn)
 {
     /* Sound card name follows below mentioned convention:
-       <target name>-<form factor>-snd-card.
-       Parse target name and form factor.
+       <target name>-<form factor>-<variant>-snd-card.
     */
     char *snd_card_name = NULL;
     char *tmp = NULL;
-    char *device = NULL;
-    char *form_factor = NULL;
+    char *card_sub_str = NULL;
 
-    if (in_snd_card_name == NULL) {
-        PAL_ERR(LOG_TAG,"snd_card_name passed is NULL");
+    snd_card_name = strdup(in_snd_card_name);
+    if (snd_card_name == NULL) {
         goto err;
     }
-    snd_card_name = strdup(in_snd_card_name);
 
-    device = strtok_r(snd_card_name, "-", &tmp);
-    if (device == NULL) {
+    card_sub_str = strtok_r(snd_card_name, "-", &tmp);
+    if (card_sub_str == NULL) {
         PAL_ERR(LOG_TAG,"called on invalid snd card name");
         goto err;
     }
-    strlcpy(cur_snd_card_split.device, device, HW_INFO_ARRAY_MAX_SIZE);
+    strlcat(file_name_extn, card_sub_str, XML_PATH_EXTN_MAX_SIZE);
 
-    form_factor = strtok_r(NULL, "-", &tmp);
-    if (form_factor == NULL) {
-        PAL_ERR(LOG_TAG, "called on invalid snd card name");
-        goto err;
+    while ((card_sub_str = strtok_r(NULL, "-", &tmp))) {
+        if (strncmp(card_sub_str, "snd", strlen("snd"))) {
+            strlcat(file_name_extn, XML_FILE_DELIMITER, XML_PATH_EXTN_MAX_SIZE);
+            strlcat(file_name_extn, card_sub_str, XML_PATH_EXTN_MAX_SIZE);
+        }
+        else
+            break;
     }
-    strlcpy(cur_snd_card_split.form_factor, form_factor, HW_INFO_ARRAY_MAX_SIZE);
-
-    PAL_INFO(LOG_TAG, "snd_card_name(%s) device(%s) form_factor(%s)",
-             in_snd_card_name, device, form_factor);
+    PAL_DBG(LOG_TAG,"file path extension(%s)", file_name_extn);
 
 err:
     if (snd_card_name)
@@ -694,7 +701,7 @@ ResourceManager::ResourceManager()
         PAL_INFO(LOG_TAG, "usecase manager xml parsing successful");
     }
 
-    PAL_ERR(LOG_TAG, "Creating ContextManager");
+    PAL_DBG(LOG_TAG, "Creating ContextManager");
     ctxMgr = new ContextManager();
     if (!ctxMgr) {
         throw std::runtime_error("Failed to allocate ContextManager");
@@ -996,6 +1003,7 @@ void ResourceManager::ssrHandler(card_status_t state)
     msgQ.push(state);
     cvMutex.unlock();
     cv.notify_all();
+    PAL_DBG(LOG_TAG, "Exit. state %d", state);
     return;
 }
 
@@ -1014,11 +1022,13 @@ char* ResourceManager::getDeviceNameFromID(uint32_t id)
 int ResourceManager::init_audio()
 {
     int retry = 0;
+    int status = 0;
     bool snd_card_found = false;
 
     char *snd_card_name = NULL;
 
     char mixer_xml_file[XML_PATH_MAX_LENGTH] = {0};
+    char file_name_extn[XML_PATH_EXTN_MAX_SIZE] = {0};
 
     PAL_DBG(LOG_TAG, "Enter.");
 
@@ -1034,7 +1044,8 @@ int ResourceManager::init_audio()
                 if (!snd_card_name) {
                     PAL_ERR(LOG_TAG, "failed to allocate memory for snd_card_name");
                     mixer_close(tmp_mixer);
-                    return -EINVAL;
+                    status = -EINVAL;
+                    goto exit;
                 }
                 PAL_INFO(LOG_TAG, "mixer_open success. snd_card_num = %d, snd_card_name %s",
                 snd_hw_card, snd_card_name);
@@ -1069,7 +1080,8 @@ int ResourceManager::init_audio()
 
     if (snd_hw_card >= MAX_SND_CARD || !audio_hw_mixer) {
         PAL_ERR(LOG_TAG, "audio mixer open failure");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
 
     audio_virt_mixer = mixer_open(snd_virt_card);
@@ -1081,7 +1093,7 @@ int ResourceManager::init_audio()
         return -EIO;
     }
 
-    split_snd_card(snd_card_name);
+    getFileNameExtn(snd_card_name, file_name_extn);
 
     getVendorConfigPath(vendor_config_path, sizeof(vendor_config_path));
 
@@ -1092,29 +1104,11 @@ int ResourceManager::init_audio()
     snprintf(rmngr_xml_file, sizeof(rmngr_xml_file),
             "%s/%s", vendor_config_path, RMNGR_XMLFILE_BASE_STRING_NAME);
 
-    /* Note: This assumes IDP/MTP form factor will use mixer_paths.xml /
-             resourcemanager.xml.
-       TODO: Add support for form factors other than IDP/QRD.
-    */
-    if (!strncmp(cur_snd_card_split.form_factor, "qrd", sizeof ("qrd"))||
-        !strncmp(cur_snd_card_split.form_factor, "cdp", sizeof ("cdp"))){
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
+    strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+    strlcat(mixer_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
+    strlcat(rmngr_xml_file, file_name_extn, XML_PATH_MAX_LENGTH);
 
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-    } else if (!strncmp(cur_snd_card_split.form_factor, "scubaidp", sizeof("scubaidp"))) {
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, cur_snd_card_split.form_factor, XML_PATH_MAX_LENGTH);
-    }
-    if (strstr(snd_card_name, "slate")) {
-            strlcat(mixer_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(mixer_xml_file, "slate", XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, XML_FILE_DELIMITER, XML_PATH_MAX_LENGTH);
-            strlcat(rmngr_xml_file, "slate", XML_PATH_MAX_LENGTH);
-    }
     strlcat(mixer_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
     strlcat(rmngr_xml_file, XML_FILE_EXT, XML_PATH_MAX_LENGTH);
 
@@ -1124,20 +1118,18 @@ int ResourceManager::init_audio()
         PAL_ERR(LOG_TAG, "audio route init failed");
         mixer_close(audio_virt_mixer);
         mixer_close(audio_hw_mixer);
-        if (snd_card_name)
-            free(snd_card_name);
-        return -EINVAL;
+        status = -EINVAL;
     }
     // audio_route init success
-
-    PAL_DBG(LOG_TAG, "Exit. audio route init success with card %d mixer path %s",
+exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d. audio route init with card %d mixer path %s", status,
             snd_hw_card, mixer_xml_file);
     if (snd_card_name) {
         free(snd_card_name);
         snd_card_name = NULL;
     }
 
-    return 0;
+    return status;
 }
 
 int ResourceManager::initContextManager()
@@ -1170,6 +1162,10 @@ int ResourceManager::init()
     struct pal_device dattr;
 
     mixerEventTread = std::thread(mixerEventWaitThreadLoop, rm);
+
+    //Initialize audio_charger_listener
+    if (rm && isChargeConcurrencyEnabled)
+        rm->chargerListenerFeatureInit();
 
     // Get the speaker instance and activate speaker protection
     dattr.id = PAL_DEVICE_OUT_SPEAKER;
@@ -1281,6 +1277,148 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
     return 0;
 }
 #endif
+
+int ResourceManager::setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Device> dev,
+                                          int tag)
+{
+    int status = 0;
+    Stream *stream = nullptr;
+    Session *session = nullptr;
+    std::vector<Stream*> activestreams;
+
+    PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
+
+    switch (param_id) {
+        case PAL_PARAM_ID_CHARGER_STATE:
+        {
+            if (dev) {
+                //Setting deviceRX: Config ICL Tag in AL module.
+                status = rm->getActiveStream_l(dev, activestreams);
+                if ((0 != status) || (activestreams.size() == 0)) {
+                    PAL_DBG(LOG_TAG, "no active stream available");
+                    goto exit;
+                }
+                stream = static_cast<Stream*>(activestreams[0]);
+                stream->getAssociatedSession(&session);
+                status = session->setConfig(stream, MODULE, tag);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Setting Param failed with status %d", status);
+                    goto exit;
+                }
+                if (!is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_ON_TAG)
+                    status = rm->chargerListenerSetBoostState(true);
+                else if (is_concurrent_boost_state_ && tag == CHARGE_CONCURRENCY_OFF_TAG)
+                    status = rm->chargerListenerSetBoostState(false);
+                else
+                    PAL_DBG(LOG_TAG, "Concurrency state unchanged");
+
+                if (0 != status)
+                    PAL_ERR(LOG_TAG, "Failed to notify PMIC: %d", status);
+            }
+        }
+        break;
+        default:
+            PAL_INFO(LOG_TAG, "Unknown ParamID:%d", param_id);
+            break;
+    }
+
+exit:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+void ResourceManager::onChargerListenerStatusChanged(int event_type, int status,
+                                                       bool concurrent_state)
+{
+    int result = 0;
+    pal_param_charger_state_t charger_state;
+    std::shared_ptr<ResourceManager> rm = nullptr;
+
+    switch (event_type) {
+        case CHARGER_EVENT:
+            charger_state.is_charger_online =  status ? true : false;
+            PAL_DBG(LOG_TAG, "charger status is %s ", status ? "online" : "offline");
+            charger_state.is_concurrent_boost_enable = concurrent_state;
+            rm = ResourceManager::getInstance();
+            if (rm) {
+                result = rm->setParameter(PAL_PARAM_ID_CHARGER_STATE,(void*)&charger_state,
+                                          sizeof(pal_param_charger_state_t));
+                if (0 != result) {
+                    PAL_DBG(LOG_TAG, "Failed to enable audio limiter before charging  %d\n",
+                            result);
+                }
+            }
+            break;
+        case BATTERY_EVENT:
+            break;
+        default:
+            PAL_ERR(LOG_TAG, "Invalid Uevent_type");
+            break;
+    }
+}
+
+void ResourceManager::chargerListenerInit(charger_status_change_fn_t fn)
+{
+    cl_lib_handle = dlopen(CL_LIBRARY_PATH, RTLD_NOW);
+
+    if (!cl_lib_handle) {
+        PAL_ERR(LOG_TAG, "dlopen for charger_listener failed %s", dlerror());
+        return;
+    }
+
+    cl_init = (cl_init_t)dlsym(cl_lib_handle, "chargerPropertiesListenerInit");
+    cl_deinit = (cl_deinit_t)dlsym(cl_lib_handle, "chargerPropertiesListenerDeinit");
+    cl_set_boost_state = (cl_set_boost_state_t)dlsym(cl_lib_handle,
+                                 "chargerPropertiesListenerSetBoostState");
+    if (!cl_init || !cl_deinit || !cl_set_boost_state) {
+        PAL_ERR(LOG_TAG, "dlsym for charger_listener failed");
+        goto feature_disabled;
+    }
+    cl_init(fn);
+    return;
+
+feature_disabled:
+    if (cl_lib_handle) {
+        dlclose(cl_lib_handle);
+        cl_lib_handle = NULL;
+    }
+
+    cl_init = NULL;
+    cl_deinit = NULL;
+    cl_set_boost_state = NULL;
+    PAL_INFO(LOG_TAG, "---- Feature charger_listener is disabled ----");
+}
+
+void ResourceManager::chargerListenerDeinit()
+{
+    if (cl_deinit)
+        cl_deinit();
+    if (cl_lib_handle) {
+        dlclose(cl_lib_handle);
+        cl_lib_handle = NULL;
+    }
+    cl_init = NULL;
+    cl_deinit = NULL;
+    cl_set_boost_state = NULL;
+}
+
+int ResourceManager::chargerListenerSetBoostState(bool state)
+{
+    int status = 0;
+
+    if (cl_set_boost_state) {
+        status = cl_set_boost_state(state);
+        if (0 == status)
+            is_concurrent_boost_state_ = state;
+    }
+    PAL_INFO(LOG_TAG, "Concurrent Boost state is set: status %d", status);
+    return status;
+}
+
+void ResourceManager::chargerListenerFeatureInit()
+{
+    ResourceManager::chargerListenerInit(onChargerListenerStatusChanged);
+}
 
 bool ResourceManager::getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype)
 {
@@ -1522,6 +1660,8 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     bool is_wfd_in_progress = false;
     struct pal_stream_attributes tx_attr;
     struct pal_device_info devinfo = {};
+    std::vector <Stream *> streamsToSwitch;
+    struct pal_device streamDevAttr;
 
     if (!deviceattr) {
         PAL_ERR(LOG_TAG, "Invalid deviceattr");
@@ -1548,6 +1688,13 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     getChannelMap(&(dev_ch_info.ch_map[0]), devinfo.channels);
     deviceattr->config.ch_info = dev_ch_info;
 
+    // check if it's grouped device and group config needs to update
+    status = checkAndUpdateGroupDevConfig(deviceattr, sAttr, streamsToSwitch, &streamDevAttr, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
+
     /*set proper sample rate*/
     if (devinfo.samplerate) {
          deviceattr->config.sample_rate = devinfo.samplerate;
@@ -1564,9 +1711,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.bit_width : sAttr->out_media_config.bit_width);
      }
      deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
-     /*special case if PAL_AUDIO_FMT_PCM_S24_3LE is requested*/
-     if (bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_3LE) {
-         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+     /*special case if bitFormatSupported is requested*/
+     if (bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
+         deviceattr->config.aud_fmt_id = bitFormatSupported;
+         deviceattr->config.bit_width = palFormatToBitwidthLookup(bitFormatSupported);
      }
 
     /*special cases to update attrs for hot plug devices*/
@@ -2062,7 +2210,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
 }
 
 template <class T>
-int registerstream(T s, std::vector<T> &streams)
+int registerstream(T s, std::list<T> &streams)
 {
     int ret = 0;
     streams.push_back(s);
@@ -2218,10 +2366,10 @@ int ResourceManager::registerStream(Stream *s)
 
 // template function to deregister stream
 template <class T>
-int deregisterstream(T s, std::vector<T> &streams)
+int deregisterstream(T s, std::list<T> &streams)
 {
     int ret = 0;
-    typename std::vector<T>::iterator iter = std::find(streams.begin(), streams.end(), s);
+    typename std::list<T>::iterator iter = std::find(streams.begin(), streams.end(), s);
     if (iter != streams.end())
         streams.erase(iter);
     else
@@ -2237,7 +2385,7 @@ int ResourceManager::deregisterStream(Stream *s)
     ret = s->getStreamType(&type);
     if (0 != ret) {
         PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", ret);
-        return ret;
+        goto exit;
     }
 #if 0
     remove s from mAllActiveStreams
@@ -2374,22 +2522,24 @@ int ResourceManager::deregisterStream(Stream *s)
 
     deregisterstream(s, mActiveStreams);
     mActiveStreamMutex.unlock();
+exit:
     PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
 }
 
 template <class T>
-bool isStreamActive(T s, std::vector<T> &streams)
+bool isStreamActive(T s, std::list<T> &streams)
 {
     bool ret = false;
 
     PAL_DBG(LOG_TAG, "Enter.");
-    typename std::vector<T>::iterator iter =
+    typename std::list<T>::iterator iter =
         std::find(streams.begin(), streams.end(), s);
     if (iter != streams.end()) {
         ret = true;
     }
 
+    PAL_DBG(LOG_TAG, "Exit, ret %d", ret);
     return ret;
 }
 
@@ -2417,7 +2567,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        return status;
+        goto exit;
     }
 
     mResourceManagerMutex.lock();
@@ -2460,7 +2610,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
-            goto exit;
+            goto unlock;
         }
 
         for (auto dev: associatedDevices) {
@@ -2524,9 +2674,10 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
 
-exit:
+unlock:
     mResourceManagerMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
+exit:
+    PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 
@@ -2562,7 +2713,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        return status;
+        goto exit;
     }
 
     mResourceManagerMutex.lock();
@@ -2616,7 +2767,7 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty");
-            goto exit;
+            goto unlock;
         }
 
         for (auto dev: associatedDevices) {
@@ -2642,10 +2793,10 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
         }
     }
     deregisterDevice_l(d, s);
-
-exit:
+unlock:
     mResourceManagerMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit. ret: %d", status);
+exit:
+    PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
 }
 
@@ -2772,6 +2923,7 @@ void ResourceManager::GetVoiceUIProperties(struct pal_st_properties *qstp)
     memcpy(qstp, &qst_properties, sizeof(struct pal_st_properties));
 
     if (st_info) {
+        qstp->version = st_info->GetVersion();
         qstp->concurrent_capture = st_info->GetConcurrentCaptureEnable();
     }
 }
@@ -3044,16 +3196,16 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetACDCaptureProfileByPriority(
     StreamACD *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_acd.size(); i++) {
-        // NOTE: input param s can be nullptr here
-        if (active_streams_acd[i] == s) {
+       for (auto& str: active_streams_acd) {
+       // NOTE: input param s can be nullptr here
+        if (str == s) {
             continue;
         }
 
-        if (!active_streams_acd[i]->isActive())
+        if (!str->isActive())
             continue;
 
-        cap_prof = active_streams_acd[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3070,9 +3222,9 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfileByPriority(
     StreamSoundTrigger *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_st.size(); i++) {
+    for (auto& str: active_streams_st) {
         // NOTE: input param s can be nullptr here
-        if (active_streams_st[i] == s) {
+        if (str == s) {
             continue;
         }
 
@@ -3081,10 +3233,10 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSVACaptureProfileByPriority(
          * 1. sound model loaded but not started by sthal
          * 2. stop recognition called by sthal
          */
-        if (!active_streams_st[i]->isActive())
+        if (!str->isActive())
             continue;
 
-        cap_prof = active_streams_st[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3101,13 +3253,13 @@ std::shared_ptr<CaptureProfile> ResourceManager::GetSPDCaptureProfileByPriority(
     StreamSensorPCMData *s, std::shared_ptr<CaptureProfile> cap_prof_priority) {
     std::shared_ptr<CaptureProfile> cap_prof = nullptr;
 
-    for (int i = 0; i < active_streams_sensor_pcm_data.size(); i++) {
+    for (auto& str: active_streams_sensor_pcm_data) {
         // NOTE: input param s can be nullptr here
-        if (active_streams_sensor_pcm_data[i] == s) {
+        if (str == s) {
             continue;
         }
 
-        cap_prof = active_streams_sensor_pcm_data[i]->GetCurrentCaptureProfile();
+        cap_prof = str->GetCurrentCaptureProfile();
         if (!cap_prof) {
             PAL_ERR(LOG_TAG, "Failed to get capture profile");
             continue;
@@ -3243,7 +3395,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
 
     if (!is_sva_ds_supported && !is_acd_ds_supported) {
         PAL_INFO(LOG_TAG, "Device switch not supported, return");
-        return 0;
+        goto exit;
     }
 
     // TODO: add support for other devices
@@ -3254,7 +3406,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         dest_device = PAL_DEVICE_IN_HEADSET_VA_MIC;
     } else {
         PAL_DBG(LOG_TAG, "Unsupported device %d", device_id);
-        return status;
+        goto exit;
     }
 
     SoundTriggerCaptureProfile = nullptr;
@@ -3306,8 +3458,8 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
     }
 
     mResourceManagerMutex.lock();
+exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
-
     return status;
 }
 
@@ -3410,7 +3562,7 @@ void ResourceManager::mixerEventWaitThreadLoop(
             }
         }
         if (ResourceManager::mixerClosed) {
-            PAL_INFO(LOG_TAG, "mixerClosed, exit mixerEventWaitThreadLoop");
+            PAL_INFO(LOG_TAG, "mixerClosed, closed mixerEventWaitThreadLoop");
             return;
         }
     }
@@ -3528,6 +3680,7 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
 
     PAL_DBG(LOG_TAG, "Enter");
     mActiveStreamMutex.lock();
+
     for (auto& str: mActiveStreams) {
         str->getStreamAttributes(&st_attr);
         if (st_attr.type != type)
@@ -3800,7 +3953,6 @@ void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t t
         HandleDetectionStreamAction(st_stream_type_to_start, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
         mResourceManagerMutex.lock();
     }
-
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -3816,6 +3968,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
     struct pal_stream_attributes rx_attr;
     std::vector <std::shared_ptr<Device>> tx_device_list;
     std::vector <std::shared_ptr<Device>> rx_device_list;
+
+    PAL_DBG(LOG_TAG, "Enter");
 
     // check stream direction
     status = tx_str->getStreamAttributes(&tx_attr);
@@ -4076,9 +4230,9 @@ void ResourceManager::getHigherPriorityActiveStreams(const int inComingStreamPri
 
 template <class T>
 void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams,
-                      std::vector<T> sourcestreams)
+                      std::list<T> sourcestreams)
 {
-    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
+    for (typename std::list<T>::iterator iter = sourcestreams.begin();
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
@@ -4133,9 +4287,9 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 
 template <class T>
 void getOrphanStreams(std::vector<Stream*> &orphanstreams,
-                      std::vector<T> sourcestreams)
+                      std::list<T> sourcestreams)
 {
-    for (typename std::vector<T>::iterator iter = sourcestreams.begin();
+    for (typename std::list<T>::iterator iter = sourcestreams.begin();
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
@@ -4224,6 +4378,245 @@ int ResourceManager::checkAndGetDeviceConfig(struct pal_device *device, bool* bl
     return ret;
 }
 
+/* check if group dev configuration exists for a given group device */
+bool ResourceManager::isGroupConfigAvailable(group_dev_config_idx_t idx)
+{
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+
+    it = groupDevConfigMap.find(idx);
+    if (it != groupDevConfigMap.end())
+        return true;
+
+    return false;
+}
+
+/* this if for setting group device config for device with virtual port */
+int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr, const struct pal_stream_attributes *sAttr,
+        std::vector<Stream*> &streamsToSwitch, struct pal_device *streamDevAttr, bool streamEnable)
+{
+    struct pal_device activeDevattr;
+    std::shared_ptr<Device> dev = nullptr;
+    std::string backEndName;
+    std::vector<Stream*> activeStream;
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+    std::vector<Stream*>::iterator sIter;
+    group_dev_config_idx_t group_cfg_idx = GRP_DEV_CONFIG_INVALID;
+
+    if (!deviceattr) {
+        PAL_ERR(LOG_TAG, "Invalid deviceattr");
+        return -EINVAL;
+    }
+
+    /* handle special case for UPD device with virtual port:
+     * 1. Enable
+     *   1) if upd is coming and there's any active stream on speaker or handset,
+     *      upadate group device config and disconnect and connect current stream;
+     *   2) if stream on speaker or handset is coming and upd is already active,
+     *      update group config disconnect and connect upd stream;
+     * 2. Disable (restore device config)
+     *   1) if upd goes away, and stream on speaker or handset is active, need to
+     *      restore group config to speaker or handset standalone;
+     *   2) if stream on speaker/handset goes away, and upd is still active, need to restore
+     *      restore group config to upd standalone
+     */
+    if (getBackendName(deviceattr->id, backEndName) == 0 &&
+            strstr(backEndName.c_str(), "-VIRT-")) {
+        PAL_DBG(LOG_TAG, "virtual port enabled for device %d", deviceattr->id);
+
+        /* check for UPD comming or goes away */
+        if (deviceattr->id == PAL_DEVICE_OUT_ULTRASOUND) {
+            group_cfg_idx = GRP_UPD_RX;
+            // check if stream active on speaker or handset exists
+            // update group config and stream to streamsToSwitch to switch device for current stream if needed
+            pal_device_id_t conc_dev[] = {PAL_DEVICE_OUT_SPEAKER, PAL_DEVICE_OUT_HANDSET};
+            for (int i = 0; i < sizeof(conc_dev)/sizeof(conc_dev[0]); i++) {
+                activeDevattr.id = conc_dev[i];
+                dev = Device::getInstance(&activeDevattr, rm);
+                if (!dev)
+                    continue;
+                getActiveStream(dev, activeStream);
+                if (activeStream.empty())
+                    continue;
+                for (sIter = activeStream.begin(); sIter != activeStream.end(); sIter++) {
+                    pal_stream_type_t type;
+                    (*sIter)->getStreamType(&type);
+                    switch (conc_dev[i]) {
+                        case PAL_DEVICE_OUT_SPEAKER:
+                            if (streamEnable) {
+                                PAL_DBG(LOG_TAG, "upd is coming, found stream %d active on speaker", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_speaker");
+                                    group_cfg_idx = GRP_UPD_RX_SPEAKER;
+                                    streamsToSwitch.push_back(*sIter);
+                                } else {
+                                    PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to upd");
+                                    group_cfg_idx = GRP_UPD_RX;
+                                }
+                            } else {
+                                PAL_DBG(LOG_TAG, "upd goes away, stream %d active on speaker", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to speaker");
+                                    streamsToSwitch.push_back(*sIter);
+                                    if (type == PAL_STREAM_VOICE_CALL &&
+                                        isGroupConfigAvailable(GRP_SPEAKER_VOICE)) {
+                                        PAL_DBG(LOG_TAG, "voice stream active, set to speaker voice cfg");
+                                        group_cfg_idx = GRP_SPEAKER_VOICE;
+                                    } else {
+                                        // if voice usecase is active, always use voice config
+                                        if (group_cfg_idx != GRP_SPEAKER_VOICE)
+                                            group_cfg_idx = GRP_SPEAKER;
+                                    }
+                                }
+                            }
+                        break;
+                        case PAL_DEVICE_OUT_HANDSET:
+                            if (streamEnable) {
+                                PAL_DBG(LOG_TAG, "upd is coming, stream %d active on handset", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_handset");
+                                    group_cfg_idx = GRP_UPD_RX_HANDSET;
+                                    streamsToSwitch.push_back(*sIter);
+                                } else {
+                                    PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to upd");
+                                    group_cfg_idx = GRP_UPD_RX;
+                                }
+                            } else {
+                                PAL_DBG(LOG_TAG, "upd goes away, stream %d active on handset", type);
+                                if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                    PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to handset");
+                                    streamsToSwitch.push_back(*sIter);
+                                    group_cfg_idx = GRP_HANDSET;
+                                }
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                dev->getDeviceAttributes(streamDevAttr);
+                activeStream.clear();
+            }
+            it = groupDevConfigMap.find(group_cfg_idx);
+            if (it != groupDevConfigMap.end()) {
+                ResourceManager::activeGroupDevConfig = it->second;
+            } else {
+                PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                return -EINVAL;
+            }
+        /* check for streams on speaker or handset comming/goes away */
+        } else if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER ||
+                    deviceattr->id == PAL_DEVICE_OUT_HANDSET) {
+            if (streamEnable) {
+                PAL_DBG(LOG_TAG, "stream on device:%d is coming, update group config", deviceattr->id);
+                if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER)
+                    group_cfg_idx = GRP_SPEAKER;
+                else
+                    group_cfg_idx = GRP_HANDSET;
+            } // else {} do nothing if stream on handset or speaker goes away without active upd
+            activeDevattr.id = PAL_DEVICE_OUT_ULTRASOUND;
+            dev = Device::getInstance(&activeDevattr, rm);
+            if (dev) {
+                getActiveStream(dev, activeStream);
+                if (!activeStream.empty()) {
+                    sIter = activeStream.begin();
+                    dev->getDeviceAttributes(streamDevAttr);
+                    if (streamEnable) {
+                        PAL_DBG(LOG_TAG, "upd is already active, stream on device:%d is coming", deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER) {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_speaker");
+                                group_cfg_idx = GRP_UPD_RX_SPEAKER;
+                                streamsToSwitch.push_back(*sIter);
+                            } else {
+                                PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to speaker");
+                                group_cfg_idx = GRP_SPEAKER;
+                            }
+                        } else if (deviceattr->id == PAL_DEVICE_OUT_HANDSET){
+                            if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd_handset");
+                                group_cfg_idx = GRP_UPD_RX_HANDSET;
+                                streamsToSwitch.push_back(*sIter);
+                            } else {
+                                PAL_DBG(LOG_TAG, "concurrency config doesn't exist, update active group config to handset");
+                                group_cfg_idx = GRP_HANDSET;
+                            }
+                        }
+                    } else {
+                        PAL_DBG(LOG_TAG, "upd is still active, stream on device:%d goes away", deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER) {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_SPEAKER)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd");
+                                streamsToSwitch.push_back(*sIter);
+                            }
+                        } else {
+                            if (isGroupConfigAvailable(GRP_UPD_RX_HANDSET)) {
+                                PAL_DBG(LOG_TAG, "concurrency config exists, update active group config to upd");
+                                streamsToSwitch.push_back(*sIter);
+                            }
+                        }
+                        group_cfg_idx = GRP_UPD_RX;
+                    }
+                } else {
+                    // it could be mono speaker when voice call is coming without UPD
+                    if (streamEnable) {
+                        PAL_DBG(LOG_TAG, "upd is not active, stream type %d on device:%d is coming",
+                                    sAttr->type, deviceattr->id);
+                        if (deviceattr->id == PAL_DEVICE_OUT_SPEAKER &&
+                            sAttr->type == PAL_STREAM_VOICE_CALL) {
+                            if (isGroupConfigAvailable(GRP_SPEAKER_VOICE)) {
+                                PAL_DBG(LOG_TAG, "set to speaker voice cfg");
+                                group_cfg_idx = GRP_SPEAKER_VOICE;
+                            }
+                        // if coming usecase is not voice call but voice call already active
+                        // still set group config for speaker as voice speaker
+                        } else {
+                            pal_stream_type_t type;
+                            for (auto& str: mActiveStreams) {
+                                str->getStreamType(&type);
+                                if (type == PAL_STREAM_VOICE_CALL) {
+                                    group_cfg_idx = GRP_SPEAKER_VOICE;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            it = groupDevConfigMap.find(group_cfg_idx);
+            if (it != groupDevConfigMap.end()) {
+                ResourceManager::activeGroupDevConfig = it->second;
+            } else {
+                PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                return -EINVAL;
+            }
+        }
+
+        // update snd device name so all concurrent stream can apply the same mixer path
+        if (ResourceManager::activeGroupDevConfig) {
+            // first update incoming device name
+            dev = Device::getInstance(deviceattr, rm);
+            if (dev) {
+                if (!ResourceManager::activeGroupDevConfig->snd_dev_name.empty()) {
+                    dev->setSndName(ResourceManager::activeGroupDevConfig->snd_dev_name);
+                } else {
+                    dev->clearSndName();
+                }
+            }
+            // then update current active device name
+            dev = Device::getInstance(streamDevAttr, rm);
+            if (dev) {
+                if (!ResourceManager::activeGroupDevConfig->snd_dev_name.empty()) {
+                    dev->setSndName(ResourceManager::activeGroupDevConfig->snd_dev_name);
+                } else {
+                    dev->clearSndName();
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
     PAL_DBG(LOG_TAG, "Enter.");
@@ -4303,6 +4696,9 @@ void ResourceManager::deinit()
     PAL_DBG(LOG_TAG, "Mixer event thread joined");
     if (sndmon)
         delete sndmon;
+
+   if (isChargeConcurrencyEnabled)
+       chargerListenerDeinit();
 
     cvMutex.lock();
     msgQ.push(state);
@@ -5032,7 +5428,7 @@ int32_t ResourceManager::streamDevDisconnect(std::vector <std::tuple<Stream *, u
 
     /* disconnect active list from the current devices they are attached to */
     for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
-        if (isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
             status = (std::get<0>(*sIter))->disconnectStreamDevice(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
@@ -5056,7 +5452,7 @@ int32_t ResourceManager::streamDevConnect(std::vector <std::tuple<Stream *, stru
     PAL_DBG(LOG_TAG, "Enter");
     /* connect active list from the current devices they are attached to */
     for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
-        if (isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
             status = std::get<0>(*sIter)->connectStreamDevice(std::get<0>(*sIter), std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
@@ -5073,30 +5469,133 @@ error:
     return status;
 }
 
+int32_t ResourceManager::streamDevDisconnect_l(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList){
+    int status = 0;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
+    /* disconnect active list from the current devices they are attached to */
+    for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+            status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
+            if (status) {
+                PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
+                        std::get<0>(*sIter), std::get<1>(*sIter));
+                goto error;
+            } else {
+                PAL_DBG(LOG_TAG, "disconnect stream %pK from device %d",
+                       std::get<0>(*sIter), std::get<1>(*sIter));
+            }
+        }
+    }
+error:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList){
+    int status = 0;
+    std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    /* connect active list from the current devices they are attached to */
+    for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+            status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
+            if (status) {
+                PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
+                        std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+                goto error;
+            } else {
+                PAL_DBG(LOG_TAG,"connected stream %pK from device %d",
+                        std::get<0>(*sIter), (std::get<1>(*sIter))->id);
+            }
+        }
+    }
+error:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    return status;
+}
+
+
+template <class T>
+void SortAndUnique(std::vector<T> &streams)
+{
+    std::sort(streams.begin(), streams.end());
+    typename std::vector<T>::iterator iter =
+        std::unique(streams.begin(), streams.end());
+    streams.erase(iter, streams.end());
+    return;
+}
 
 int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,
                                          std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnectList)
 {
     int status = 0;
+    std::vector <Stream*>::iterator sIter;
+    std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter1;
+    std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
+    std::vector <Stream*> uniqueStreamsList;
+
     PAL_DBG(LOG_TAG, "Enter");
 
     if (cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit_no_unlock;
     }
     mActiveStreamMutex.lock();
-    status = streamDevDisconnect(streamDevDisconnectList);
+
+    /*Need to lock all streams that are involved in devSwitch
+      When we are doing Switch to avoid any stream specific calls to happen.
+      We want to avoid stream close or any other control operations to happen when we are in the
+      middle of the switch */
+    for (sIter1 = streamDevDisconnectList.begin(); sIter1 != streamDevDisconnectList.end(); sIter1++) {
+        if ((std::get<0>(*sIter1) != NULL) && isStreamActive(std::get<0>(*sIter1), mActiveStreams)) {
+            uniqueStreamsList.push_back(std::get<0>(*sIter1));
+            PAL_VERBOSE(LOG_TAG,"streamDevDisconnectList stream %pK",
+                        std::get<0>(*sIter1));
+        }
+    }
+
+    for (sIter2 = streamDevConnectList.begin(); sIter2 != streamDevConnectList.end(); sIter2++) {
+        if ((std::get<0>(*sIter2) != NULL) && isStreamActive(std::get<0>(*sIter2), mActiveStreams)) {
+            uniqueStreamsList.push_back(std::get<0>(*sIter2));
+            PAL_VERBOSE(LOG_TAG,"streamDevConnectList stream %pK",
+                        std::get<0>(*sIter2));
+        }
+    }
+
+    //Find and Removedup elements between streamDevDisconnectList && streamDevConnectList and add to the list.
+    SortAndUnique(uniqueStreamsList);
+
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        //lock All Stream Mutexes
+        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK lock",
+                        (*sIter));
+        (*sIter)->lockStreamMutex();
+    }
+
+    status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"disconnect failed");
-        goto error;
+        goto exit;
     }
-    status = streamDevConnect(streamDevConnectList);
+    status = streamDevConnect_l(streamDevConnectList);
     if (status) {
         PAL_ERR(LOG_TAG,"Connect failed");
     }
-error:
+exit:
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        //unlock All Stream Mutexes
+        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK unlock",
+                        (*sIter));
+        (*sIter)->unlockStreamMutex();
+    }
     mActiveStreamMutex.unlock();
-    PAL_DBG(LOG_TAG, "Exit ret: %d", status);
+exit_no_unlock:
+    PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
 
@@ -5119,6 +5618,9 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     struct pal_device_info inDeviceInfo;
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
     char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    std::vector <Stream *> streamsToSwitch;
+    std::vector <Stream*>::iterator sIter;
+    struct pal_device streamDevAttr;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -5131,6 +5633,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     rm->getDeviceInfo(inDevAttr->id, inStrAttr->type,
                       inDevAttr->custom_config.custom_key, &inDeviceInfo);
+
+    // check if device has virtual port enabled, update the active group devcie config
+    // if streams has same virtual backend, it will be handled in shared backend case
+    status = checkAndUpdateGroupDevConfig(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr, true);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
 
     //get the active streams on the device
     //if higher priority stream exists on any of the incoming device, update the config of incoming device
@@ -5185,6 +5695,13 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     /*if there is no shared backend just updated the snd device name and prio*/
     } else {
         updateSndName(inDevAttr->id, inDeviceInfo.sndDevName);
+        /* handle special case for UPD with virtual backend */
+        if (!streamsToSwitch.empty()) {
+            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+            }
+        }
     }
 
     //if device switch is needed, perform it
@@ -5422,20 +5939,19 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     int ret = 0;
     char *kv_pairs = str_parms_to_str(parms);
 
+    PAL_DBG(LOG_TAG,"Enter: %s", kv_pairs);
     if(kv_pairs == NULL) {
         ret = -ENOMEM;
         PAL_ERR(LOG_TAG," key-value pair is NULL");
-        goto done;
+        goto exit;
     }
-
-    PAL_DBG(LOG_TAG," enter: %s", kv_pairs);
 
     len = strlen(kv_pairs);
     value = (char*)calloc(len, sizeof(char));
     if(value == NULL) {
         ret = -ENOMEM;
         PAL_ERR(LOG_TAG,"failed to allocate memory");
-        goto done;
+        goto exit;
     }
     ret = setNativeAudioParams(parms, value, len);
 
@@ -5444,12 +5960,13 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
     ret = setContextManagerEnableParam(parms, value, len);
 
     ret = setUpdDedicatedBeEnableParam(parms, value, len);
+    ret = setDualMonoEnableParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
 
-done:
-    PAL_VERBOSE(LOG_TAG," exit with code(%d)", ret);
+exit:
+    PAL_DBG(LOG_TAG,"Exit, status %d", ret);
     if(value != NULL)
         free(value);
     return ret;
@@ -5536,6 +6053,31 @@ int ResourceManager::setUpdDedicatedBeEnableParam(struct str_parms *parms,
 
     return ret;
 
+}
+
+
+int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    PAL_INFO(LOG_TAG, "dual mono enabled was=%x", isDualMonoEnabled);
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_DUAL_MONO,
+                                value, len);
+    PAL_INFO(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isDualMonoEnabled= true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_DUAL_MONO);
+    }
+
+    PAL_INFO(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
+
+    return ret;
 }
 
 int ResourceManager::setNativeAudioParams(struct str_parms *parms,
@@ -5692,6 +6234,7 @@ int32_t ResourceManager::a2dpSuspend()
     std::vector <Stream *> activeA2dpStreams;
     std::vector <Stream *> activeStreams;
     std::vector <Stream*>::iterator sIter;
+    std::vector <std::shared_ptr<Device>> associatedDevices;
 
     PAL_DBG(LOG_TAG, "enter");
 
@@ -5709,19 +6252,18 @@ int32_t ResourceManager::a2dpSuspend()
         goto exit;
     }
 
-    //device selected to switch by default is speaker.
+    // device selected to switch by default is speaker
     switchDevDattr.id = PAL_DEVICE_OUT_SPEAKER;
     getActiveStream_l(spkrDev, activeStreams);
-    //check whether Handset/Speaker device is active when
-    //the suspend is called.
-    if(activeStreams.empty())
-    {
-        //No Streams active on speaker-check handset as well
+    // check whether Handset/Speaker device is active when
+    // the suspend is called.
+    if (activeStreams.empty()) {
+        // No Streams active on speaker, then check handset as well
         handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
         handsetDev = Device::getInstance(&handsetDattr, rm);
         getActiveStream_l(handsetDev, activeStreams);
         if (activeStreams.size() != 0) {
-            //device selected to switch is handset-it is currently active.
+            // device selected to switch is handset-it is currently active.
             switchDevDattr.id = PAL_DEVICE_OUT_HANDSET;
         }
     }
@@ -5730,21 +6272,22 @@ int32_t ResourceManager::a2dpSuspend()
         switchDevDattr.id);
 
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        if((*sIter)->isActive()) {
+        if ((*sIter)->isActive()) {
             if (!((*sIter)->a2dpMuted)) {
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
                      (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
-                    //First Mute & then Pause
-                    /*This is to ensure DSP has enough ramp down in Mute module.
-                    If we issue pause first then no data processing happen and mute
-                    ramp down will not happen which will then get processed after
-                    resume , which will be percieved as a leak. */
+                    /* First mute & then pause
+                     * This is to ensure DSP has enough ramp down period in volume module.
+                     * If pause is issued firstly, then there's no enough data for processing.
+                     * As a result, ramp down will not happen and will only occur after resume,
+                     * which is perceived as audio leakage.
+                     */
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
-                    //Pause - Only if the stream is not explicitly paused.
-                    //Insome scenarios - stream might have already paused prior to a2dpsuspend.
+                    // Pause only if the stream is not explicitly paused.
+                    // In some scenarios, stream might have already paused prior to a2dpsuspend.
                     if (((*sIter)->isPaused) == false) {
                         (*sIter)->pause_l();
                         (*sIter)->a2dpPaused = true;
@@ -5753,7 +6296,7 @@ int32_t ResourceManager::a2dpSuspend()
                     latencyMs = (*sIter)->getLatency();
                     if (maxLatencyMs < latencyMs)
                         maxLatencyMs = latencyMs;
-                    //Mute
+                    // Mute
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
                 }
@@ -5761,6 +6304,24 @@ int32_t ResourceManager::a2dpSuspend()
             }
         }
     }
+
+    // For a2dp + spkr or handset combo use case,
+    // add speaker or handset into suspended devices for restore during a2dpResume
+    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
+        status = (*sIter)->getAssociatedDevices(associatedDevices);
+        if ((0 != status) ||
+            !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {
+            PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", *sIter);
+            mActiveStreamMutex.unlock();
+            goto exit;
+        }
+
+        if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
+            (*sIter)->suspendedDevIds.clear();
+            (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
+        }
+    }
+
     mActiveStreamMutex.unlock();
 
     // wait for stale pcm drained before switching to speaker
@@ -5771,8 +6332,7 @@ int32_t ResourceManager::a2dpSuspend()
         usleep(maxLatencyMs * 1000 * latencyMuteFactor);
     }
 
-
-    // force switch to speaker
+    // force switch to speaker or handset
     status = getDeviceConfig(&switchDevDattr, NULL);
     if (status) {
         goto exit;
@@ -5783,20 +6343,24 @@ int32_t ResourceManager::a2dpSuspend()
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
     mResourceManagerMutex.lock();
 
+    mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        struct pal_stream_attributes sAttr;
-        (*sIter)->getStreamAttributes(&sAttr);
-        if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
-            (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
-            (!(*sIter)->isActive())) {
-            //Resume if the offload stream is paused
-            //Only resume if it was paused during a2dpSuspend.
-            //This is to avoid resuming if the stream is pause via explict pause from PAL Clients.
-            if (((*sIter)->a2dpPaused) == true)
-                (*sIter)->resume_l();
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            struct pal_stream_attributes sAttr;
+            (*sIter)->getStreamAttributes(&sAttr);
+            if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
+                (sAttr.type == PAL_STREAM_PCM_OFFLOAD)) &&
+                (!(*sIter)->isActive())) {
+                /* Resume only when it was paused during a2dpSuspend.
+                 * This is to avoid resuming during regular pause.
+                 */
+                if (((*sIter)->a2dpPaused) == true)
+                    (*sIter)->resume_l();
+            }
+            (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
         }
-        (*sIter)->suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
     }
+    mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
@@ -5831,12 +6395,12 @@ int32_t ResourceManager::a2dpResume()
 
     mActiveStreamMutex.lock();
     getActiveStream_l(activeDev, activeStreams);
-    //No-Streams active on Speaker - possibly streams are
-    //associated handset device (due to voip/voice sco ended) and
-    //device switch did not happen for all the streams
-    if(activeStreams.empty())
-    {
-        //Hence try to check handset device as well.
+    /* No-Streams active on Speaker - possibly streams are
+     * associated handset device (due to voip/voice sco ended) and
+     * device switch did not happen for all the streams
+     */
+    if (activeStreams.empty()) {
+        // Hence try to check handset device as well.
         activeDattr.id = PAL_DEVICE_OUT_HANDSET;
         activeDev = Device::getInstance(&activeDattr, rm);
         getActiveStream_l(activeDev, activeStreams);
@@ -5849,19 +6413,26 @@ int32_t ResourceManager::a2dpResume()
         goto exit;
     }
 
-    // check all active streams associated with speaker.
-    // If actual device is a2dp, store into stream vector for device switch.
+    /* Check all active streams associated with speaker or handset.
+     * If actual device is a2dp only, store into stream vector for device switch.
+     * If actual device is combo(a2dp + spkr/handset), restore to combo.
+     * That is to connect a2dp and do not disconnect from current associated device.
+     */
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
-            streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+            if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
+                streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+            }
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
     }
 
     // retry all orphan streams which failed to restore previously.
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
@@ -5886,7 +6457,7 @@ int32_t ResourceManager::a2dpResume()
     mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
-            (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
+            (*sIter)->suspendedDevIds.clear();
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
@@ -5936,7 +6507,8 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     mResourceManagerMutex.lock();
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        (*sIter)->suspendedDevId = PAL_DEVICE_IN_BLUETOOTH_A2DP;
+        (*sIter)->suspendedDevIds.clear();
+        (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_IN_BLUETOOTH_A2DP);
     }
 
 exit:
@@ -5977,7 +6549,8 @@ int32_t ResourceManager::a2dpCaptureResume()
     // check all active streams associated with handset_mic.
     // If actual device is a2dp, store into stream vector for device switch.
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_IN_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevDisconnect.push_back({ (*sIter), handsetmicDattr.id });
             streamDevConnect.push_back({ (*sIter), &a2dpDattr });
@@ -5986,7 +6559,8 @@ int32_t ResourceManager::a2dpCaptureResume()
 
     // retry all orphan streams which failed to restore previously.
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
-        if ((*sIter)->suspendedDevId == PAL_DEVICE_IN_BLUETOOTH_A2DP) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_IN_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({ (*sIter), &a2dpDattr });
         }
@@ -6011,7 +6585,7 @@ int32_t ResourceManager::a2dpCaptureResume()
     mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if ((*sIter) != NULL && isStreamActive(*sIter, mActiveStreams)) {
-            (*sIter)->suspendedDevId = PAL_DEVICE_NONE;
+            (*sIter)->suspendedDevIds.clear();
             (*sIter)->mute_l(false);
             (*sIter)->a2dpMuted = false;
         }
@@ -6195,7 +6769,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
@@ -6374,6 +6948,44 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             } else {
                 PAL_DBG(LOG_TAG,
                           "transit_to_non_lpi_on_charging set to false\n");
+            }
+        }
+        break;
+        case PAL_PARAM_ID_CHARGER_STATE:
+        {
+            int i, tag;
+            struct pal_device dattr;
+            std::shared_ptr<Device> dev = nullptr;
+
+            pal_param_charger_state *charger_state =
+                (pal_param_charger_state *)param_payload;
+
+            if (!isChargeConcurrencyEnabled) goto exit;
+
+            if (payload_size != sizeof(pal_param_charger_state)) {
+                PAL_ERR(LOG_TAG, "Incorrect size: expected (%zu), received(%zu)",
+                                  sizeof(pal_param_charger_state), payload_size);
+                status = -EINVAL;
+                goto exit;
+            }
+            if (is_charger_online_ != charger_state->is_charger_online) {
+                dattr.id = PAL_DEVICE_OUT_SPEAKER;
+                is_charger_online_ = charger_state->is_charger_online;
+                is_concurrent_boost_state_ = charger_state->is_concurrent_boost_enable;
+                for (i = 0; i < active_devices.size(); i++) {
+                    int deviceId = active_devices[i].first->getSndDeviceId();
+                    if (deviceId == dattr.id) {
+                        dev = Device::getInstance(&dattr, rm);
+                        tag = is_charger_online_ ? CHARGE_CONCURRENCY_ON_TAG
+                        : CHARGE_CONCURRENCY_OFF_TAG;
+                        status = setDeviceParamConfig(param_id, dev, tag);
+                        break;
+                    }
+                }
+                if (i == active_devices.size())
+                    PAL_DBG(LOG_TAG, "Device %d is not available\n", dattr.id);
+            } else {
+                PAL_DBG(LOG_TAG, "Charger state unchanged, ignore");
             }
         }
         break;
@@ -6607,7 +7219,7 @@ setdevparam:
         break;
         case PAL_PARAM_ID_HAPTICS_VOLUME:
         {
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             pal_stream_attributes st_attr;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 (*sIter)->getStreamAttributes(&st_attr);
@@ -6709,7 +7321,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_UIEFFECT:
         {
             bool match = false;
-            std::vector<Stream*>::iterator sIter;
+            std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id,
@@ -6745,7 +7357,7 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
     struct pal_device dattr;
     bool match = false;
     uint32_t matchCount = 0;
-    std::vector<Stream*>::iterator sIter;
+    std::list<Stream*>::iterator sIter;
 
     PAL_DBG(LOG_TAG, "Enter: device=%d type=%d rate=%d instance=%d is_param_write=%d\n",
             palDeviceId, palStreamType, sampleRate,
@@ -6930,7 +7542,7 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
         }
     }
 error :
-    PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange");
+    PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange, status %d", status);
     return status;
 }
 
@@ -7694,6 +8306,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
                 PAL_DBG(LOG_TAG, "found ext ec ref enabled device is %d",
                     deviceInfo[size].deviceId);
             }
+        } else if (!strcmp(tag_name, "Charge_concurrency_enabled")) {
+            if (atoi(data->data_buf))
+                isChargeConcurrencyEnabled = true;
         } else if (!strcmp(tag_name, "cps_enabled")) {
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
@@ -7882,6 +8497,70 @@ void ResourceManager::process_input_streams(struct xml_userdata *data, const XML
     }
 }
 
+void ResourceManager::process_group_device_config(struct xml_userdata *data, const char* tag, const char** attr)
+{
+    std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>>::iterator it;
+    std::shared_ptr<group_dev_config_t> group_device_config = NULL;
+
+    PAL_DBG(LOG_TAG, "processing tag :%s", tag);
+    if (!strcmp(tag, "upd_rx")) {
+        data->group_dev_idx = GRP_UPD_RX;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX, grp_dev_cfg));
+    } else if (!strcmp(tag, "handset")) {
+        data->group_dev_idx = GRP_HANDSET;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_HANDSET, grp_dev_cfg));
+    } else if (!strcmp(tag, "speaker")) {
+        data->group_dev_idx = GRP_SPEAKER;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_SPEAKER, grp_dev_cfg));
+    }else if (!strcmp(tag, "speaker_voice")) {
+        data->group_dev_idx = GRP_SPEAKER_VOICE;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_SPEAKER_VOICE, grp_dev_cfg));
+    } else if (!strcmp(tag, "upd_rx_handset")) {
+        data->group_dev_idx = GRP_UPD_RX_HANDSET;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX_HANDSET, grp_dev_cfg));
+    } else if (!strcmp(tag, "upd_rx_speaker")) {
+        data->group_dev_idx = GRP_UPD_RX_SPEAKER;
+        auto grp_dev_cfg = std::make_shared<group_dev_config_t>();
+        groupDevConfigMap.insert(std::make_pair(GRP_UPD_RX_SPEAKER, grp_dev_cfg));
+    }
+
+    if (!strcmp(tag, "snd_device")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->snd_dev_name = attr[1];
+            }
+        }
+    } else if (!strcmp(tag, "devicepp_mfc")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->devpp_mfc_cfg.sample_rate = atoi(attr[1]);
+                group_device_config->devpp_mfc_cfg.channels = atoi(attr[3]);
+                group_device_config->devpp_mfc_cfg.bit_width = atoi(attr[5]);
+            }
+        }
+    } else if (!strcmp(tag, "group_dev")) {
+        it = groupDevConfigMap.find(data->group_dev_idx);
+        if (it != groupDevConfigMap.end()) {
+            group_device_config =  it->second;
+            if (group_device_config) {
+                group_device_config->grp_dev_hwep_cfg.sample_rate = atoi(attr[1]);
+                group_device_config->grp_dev_hwep_cfg.channels = atoi(attr[3]);
+                group_device_config->grp_dev_hwep_cfg.bit_width = atoi(attr[5]);
+                group_device_config->grp_dev_hwep_cfg.slot_mask = atoi(attr[7]);
+            }
+        }
+    }
+}
+
 void ResourceManager::snd_process_data_buf(struct xml_userdata *data, const XML_Char *tag_name)
 {
     if (data->offs <= 0)
@@ -7943,6 +8622,12 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     }
 
+    if (data->is_parsing_group_device) {
+        process_group_device_config(data, (const char *)tag_name, (const char **)attr);
+        snd_reset_data_buf(data);
+        return;
+    }
+
     if (!strcmp(tag_name, "sound_trigger_platform_info")) {
         data->is_parsing_sound_trigger = true;
         st_info = SoundTriggerPlatformInfo::GetInstance();
@@ -7952,6 +8637,11 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     if (!strcmp(tag_name, "acd_platform_info")) {
         data->is_parsing_acd = true;
         acd_info = ACDPlatformInfo::GetInstance();
+        return;
+    }
+
+    if (!strcmp(tag_name, "group_device_cfg")) {
+        data->is_parsing_group_device = true;
         return;
     }
 
@@ -8016,6 +8706,7 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->inCustomConfig = 1;
         data->tag = TAG_CUSTOMCONFIG;
     }
+
     if (!strcmp(tag_name, "card"))
         data->current_tag = TAG_CARD;
     if (strcmp(tag_name, "pcm-device") == 0) {
@@ -8062,6 +8753,12 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
         snd_reset_data_buf(data);
         return;
     }
+
+    if (!strcmp(tag_name, "group_device_cfg")) {
+        data->is_parsing_group_device = false;
+        return;
+    }
+
     process_config_voice(data,tag_name);
     process_device_info(data,tag_name);
     process_input_streams(data,tag_name);
@@ -8198,6 +8895,8 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
     pal_device_info devInfo;
     std::string key;
+    std::vector <Stream *> streamsToSwitch;
+    std::vector <Stream*>::iterator sIter;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -8206,11 +8905,21 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         goto exit;
     }
 
+    /*get current running device info*/
+    dev->getDeviceAttributes(&curDevAttr);
+
+    // check if need to update active group devcie config when usecase goes aways
+    // if stream device is with same virtual backend, it can be handled in shared backend case
+    status = checkAndUpdateGroupDevConfig(&curDevAttr, &sAttr, streamsToSwitch, &newDevAttr, false);
+    if (status) {
+        PAL_ERR(LOG_TAG, "no valid group device config found");
+        streamsToSwitch.clear();
+    }
+
+    getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
     if (sharedBEStreamDev.size() > 0) {
-        /*get current running device info*/
-        dev->getDeviceAttributes(&curDevAttr);
-        getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
+
         /*assign attr to first active stream*/
         sharedStream = std::get<0>(sharedBEStreamDev[0]);
         if (!sharedStream) {
@@ -8233,6 +8942,11 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                                        sharedBEStreamDev,
                                        &newDevAttr,
                                        &sAttr);
+                if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
+                    && dev->getSndDeviceId() != PAL_DEVICE_OUT_HANDSET) {
+                    sharedStream->UpdatePalDevice(&newDevAttr,
+                             (pal_device_id_t)dev->getSndDeviceId());
+                }
                 break;
             }
         }
@@ -8270,7 +8984,15 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             PAL_ERR(LOG_TAG,"device switch failed with %d", status);
         }
     } else {
-        PAL_DBG(LOG_TAG, "no active device, switch un-needed");
+        if (!streamsToSwitch.empty()) {
+            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                streamDevDisconnect.push_back({(*sIter), newDevAttr.id});
+                StreamDevConnect.push_back({(*sIter), &newDevAttr});
+            }
+            streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+        } else {
+            PAL_DBG(LOG_TAG, "no active device, switch un-needed");
+        }
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit");
@@ -8291,6 +9013,8 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     std::string key(incomingDev->custom_config.custom_key);
     std::vector <struct pal_device> palDevices;
+
+    memset(&devInfo, 0, sizeof(pal_device_info));
 
     if (!incomingDev || !currentStrAttr) {
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
@@ -8335,7 +9059,6 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     }
     stream_count++;
 
-exit:
     getSndDeviceName(dev_id, CurrentSndDeviceName);
     PAL_DBG(LOG_TAG,"dev attr configured are, ch %d, sr %d, bit_width %d, fmt %d, sndDev %s",
             incomingDev->config.ch_info.channels,
@@ -8343,6 +9066,8 @@ exit:
             incomingDev->config.bit_width,
             incomingDev->config.aud_fmt_id,
             CurrentSndDeviceName);
+
+exit:
     return status;
 }
 
@@ -8376,22 +9101,24 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
                 inDevAttr->config.ch_info.channels, curDevAttr->config.ch_info.channels);
         ret = true;
     }
-    if((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)){
+    if ((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)) {
         PAL_DBG(LOG_TAG, "found new snd device %s, device switch needed",
                 activeSndDeviceName);
         ret = true;
     }
-    /*special case for A2DP device to override device switch*/
-    if (inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+
+    // special case for A2DP device to override device switch
+    if ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
+            (curDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
         std::shared_ptr<Device> dev = nullptr;
         pal_param_bta2dp_t *param_bt_a2dp = nullptr;
 
         if (isDeviceAvailable(inDevAttr->id)) {
             dev = Device::getInstance(inDevAttr , rm);
-            if (!(dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH, (void **)&param_bt_a2dp))){
+            if (!(dev->getDeviceParameter(PAL_PARAM_ID_BT_A2DP_FORCE_SWITCH, (void **)&param_bt_a2dp))) {
                 if (param_bt_a2dp) {
                     ret = param_bt_a2dp->is_force_switch;
-                    PAL_ERR(LOG_TAG, "A2DP force device switch is %d", ret);
+                    PAL_INFO(LOG_TAG, "A2DP force device switch is %d", ret);
                 }
             } else {
                 PAL_ERR(LOG_TAG, "get A2DP force device switch device parameter failed");
@@ -8399,6 +9126,12 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         }
     }
 
+    /*custom key comparison is needed only in the case where in device configuraton is same but only devicePP KV is different*/
+    if (strcmp(inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key) != 0) {
+        PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
+                inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key);
+        ret = true;
+    }
 exit:
     return ret;
 }

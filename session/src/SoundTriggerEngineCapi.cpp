@@ -635,6 +635,11 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
     capi_handle_ = nullptr;
     capi_lib_handle_ = nullptr;
     capi_init_ = nullptr;
+    confidence_score_ = 0;
+    keyword_detected_ = false;
+    det_conf_score_ = 0;
+    memset(&in_model_buffer_param_, 0, sizeof(in_model_buffer_param_));
+    memset(&scratch_param_, 0, sizeof(scratch_param_));
 
     st_info_ = SoundTriggerPlatformInfo::GetInstance();
     if (!st_info_) {
@@ -1092,7 +1097,7 @@ int32_t SoundTriggerEngineCapi::UpdateConfLevels(
     }
 
     std::lock_guard<std::mutex> lck(mutex_);
-    confidence_threshold_ = *conf_levels;
+    confidence_threshold_ = *(int32_t *)conf_levels;
     PAL_DBG(LOG_TAG, "confidence threshold: %d", confidence_threshold_);
 
     return status;

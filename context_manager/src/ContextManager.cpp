@@ -387,8 +387,11 @@ int32_t ContextManager::StreamProxyCallback (pal_stream_handle_t *stream_handle,
     ContextManager* cm = ((ContextManager*)cookie);
 
     PAL_VERBOSE(LOG_TAG, "Enter");
+    std::unique_lock<std::mutex> lck(cm->request_queue_mtx);
     request_command = RequestCommandFactory::RequestCommandCreate(event_id, event_data);
     cm->request_cmd_queue.push(request_command);
+    //Manual unlock to avoid waking up the waiting thread only to block again
+    lck.unlock();
     cm->request_queue_cv.notify_one();
 
     PAL_VERBOSE(LOG_TAG, "Exit");
@@ -475,23 +478,21 @@ void ContextManager::CommandThreadRunner(ContextManager& cm)
 {
     RequestCommand *request_command;
     int32_t rc = 0;
-    std::unique_lock<std::mutex> lck(cm.request_queue_mtx, std::defer_lock);
+
     PAL_VERBOSE(LOG_TAG, "Entering CommandThreadRunner");
 
+    std::unique_lock<std::mutex> lck(cm.request_queue_mtx);
     while (!cm.exit_cmd_thread_) {
-        lck.lock();
         // wait until we have a command to process.
         cm.request_queue_cv.wait(lck);
 
         // Continue so that we can terminate properly
         if (cm.request_cmd_queue.empty()) {
-            lck.unlock();
             continue;
         }
 
         request_command = cm.request_cmd_queue.front();
         cm.request_cmd_queue.pop();
-        lck.unlock();
 
         rc = request_command->Process(cm);
         if (rc) {
@@ -895,20 +896,25 @@ Usecase* UsecaseFactory::UsecaseCreate(int32_t usecase_id)
 
     PAL_VERBOSE(LOG_TAG, "Enter usecase_id:0x%x", usecase_id);
 
-    switch (usecase_id) {
-    case ASPS_USECASE_ID_ACD:
-        ret_usecase = new UsecaseACD(usecase_id);
-        break;
-    case ASPS_USECASE_ID_PCM_DATA:
-        ret_usecase = new UsecasePCMData(usecase_id);
-        break;
-    case ASPS_USECASE_ID_UPD:
-        ret_usecase = new UsecaseUPD(usecase_id);
-        break;
-    default:
-        ret_usecase = NULL;
-        PAL_ERR(LOG_TAG, "Error:%d Invalid usecaseid:%d", -EINVAL, usecase_id);
-        break;
+    try {
+        switch (usecase_id) {
+        case ASPS_USECASE_ID_ACD:
+            ret_usecase = new UsecaseACD(usecase_id);
+            break;
+        case ASPS_USECASE_ID_PCM_DATA:
+            ret_usecase = new UsecasePCMData(usecase_id);
+            break;
+        case ASPS_USECASE_ID_UPD:
+            ret_usecase = new UsecaseUPD(usecase_id);
+            break;
+        default:
+            ret_usecase = NULL;
+            PAL_ERR(LOG_TAG, "Error:%d Invalid usecaseid:%d", -EINVAL, usecase_id);
+            break;
+        }
+    }
+    catch (std::exception &) {
+        return NULL;
     }
 
     PAL_VERBOSE(LOG_TAG, "Exit:");
@@ -924,7 +930,7 @@ Usecase::Usecase(uint32_t usecase_id)
         calloc (1, sizeof(struct pal_stream_attributes));
     if (!this->stream_attributes) {
         PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for Usecase StreamAtrributes", -ENOMEM);
-
+        throw std::runtime_error("Failed to allocate memory for Usecase StreamAtrributes");
     }
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
@@ -933,11 +939,15 @@ Usecase::~Usecase()
 {
     PAL_VERBOSE(LOG_TAG, "Enter");
 
-    free(this->stream_attributes);
-    this->stream_attributes = NULL;
+    if (this->stream_attributes) {
+        free(this->stream_attributes);
+        this->stream_attributes = NULL;
+    }
 
-    free(this->pal_devices);
-    this->pal_devices = NULL;
+    if (this->pal_devices) {
+        free(this->pal_devices);
+        this->pal_devices = NULL;
+    }
 
     this->usecase_id = 0;
     this->no_of_devices = 0;
@@ -1092,18 +1102,13 @@ UsecaseACD::UsecaseACD(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
 
-    if (!this->stream_attributes) {
-        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
-        goto exit;
-    }
-
     this->requested_context_list = NULL;
     this->stream_attributes->type = PAL_STREAM_ACD;
     this->no_of_devices = 1;
     this->pal_devices = (struct pal_device *) calloc (this->no_of_devices, sizeof(struct pal_device));
     if (!this->pal_devices) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for usecaseACD constructor", -ENOMEM);
-        goto exit;
+        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for pal_devices",-ENOMEM);
+        throw std::runtime_error("Failed to allocate memory for pal_devices");
     }
 
     //input device
@@ -1114,7 +1119,6 @@ UsecaseACD::UsecaseACD(uint32_t usecase_id) : Usecase(usecase_id)
 
     this->tags.push_back(CONTEXT_DETECTION_ENGINE);
 
-exit:
     PAL_VERBOSE(LOG_TAG, "Exit ");
 }
 
@@ -1275,18 +1279,13 @@ UsecasePCMData::UsecasePCMData(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
 
-    if (!this->stream_attributes) {
-        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
-        goto exit;
-    }
-
     this->stream_attributes->type = PAL_STREAM_SENSOR_PCM_DATA;
     this->stream_attributes->direction = PAL_AUDIO_INPUT;
     this->no_of_devices = 1;
     this->pal_devices = (struct pal_device *) calloc (this->no_of_devices, sizeof(struct pal_device));
     if (!this->pal_devices) {
-        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for usecasePCMData constructor", -ENOMEM);
-        goto exit;
+        PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for pal_devices", -ENOMEM);
+        throw std::runtime_error("Failed to allocate mem for pal_devices");
     }
 
     //input device
@@ -1299,7 +1298,6 @@ UsecasePCMData::UsecasePCMData(uint32_t usecase_id) : Usecase(usecase_id)
     this->tags.push_back(TAG_STREAM_MFC);
     this->tags.push_back(STREAM_PCM_CONVERTER);
 
-exit:
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 
@@ -1397,23 +1395,18 @@ UsecaseUPD::UsecaseUPD(uint32_t usecase_id) : Usecase(usecase_id)
 {
     PAL_VERBOSE(LOG_TAG, "Enter usecase:0x%x", usecase_id);
 
-    if (!this->stream_attributes) {
-        PAL_ERR(LOG_TAG, "stream attributes are not initialized");
-        goto exit;
-    }
-
     this->stream_attributes->type = PAL_STREAM_ULTRASOUND;
     this->stream_attributes->direction = PAL_AUDIO_INPUT_OUTPUT;
 
     this->no_of_devices = 2;
     this->pal_devices = (struct pal_device *) calloc(this->no_of_devices, sizeof(struct pal_device));
     if (!this->pal_devices) {
-         PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for usecaseUPD constructor", -ENOMEM);
-         goto exit;
+         PAL_ERR(LOG_TAG, "Error:%d Failed to allocate memory for pal_devices", -ENOMEM);
+         throw std::runtime_error("Failed to allocate memory for pal_devices");
     }
 
     this->tags.push_back(ULTRASOUND_DETECTION_MODULE);
-exit:
+
     PAL_VERBOSE(LOG_TAG, "Exit");
 }
 

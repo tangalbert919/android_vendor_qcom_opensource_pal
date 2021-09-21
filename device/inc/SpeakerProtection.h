@@ -138,12 +138,13 @@ public:
     int speakerProtectionDynamicCal();
     void updateSPcustomPayload();
     static int32_t spkrProtSetR0T0Value(vi_r0t0_cfg_t r0t0Array[]);
-    static void mixer_ctl_callback (uint64_t hdl, uint32_t event_id, void *event_data,
-                             uint32_t event_size);
+    static void handleSPCallback (uint64_t hdl, uint32_t event_id, void *event_data,
+                                  uint32_t event_size);
     void updateCpsCustomPayload(int miid);
     int getCpsDevNumber(std::string mixer);
     int32_t getCalibrationData(void **param);
     int32_t getFTMParameter(void **param);
+    void disconnectFeandBe(std::vector<int> pcmDevIds, std::string backEndName);
 
 };
 

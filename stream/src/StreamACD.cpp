@@ -220,6 +220,11 @@ int32_t StreamACD::close()
         context_config_ = nullptr;
     }
 
+    if (cached_event_data_) {
+        free(cached_event_data_);
+        cached_event_data_ = nullptr;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -531,30 +536,6 @@ void StreamACD::SendCachedEventData()
     }
     free(cached_event_data_);
     cached_event_data_ = NULL;
-}
-void StreamACD::NotifyClient(struct acd_context_event *event)
-{
-    uint8_t *event_data = NULL;
-    int offset = 0;
-    struct pal_st_recognition_event *recognition_event = NULL;
-    size_t event_size = sizeof(struct pal_st_recognition_event) +
-                        sizeof(struct st_param_header) +
-                        sizeof(struct acd_context_event) +
-                        (event->num_contexts * sizeof(struct acd_per_context_event_info));
-
-    event_data = (uint8_t *)calloc(1, event_size);
-    if (!event_data) {
-        PAL_ERR(LOG_TAG, "Failed to allocate memory for event_data");
-        return;
-    }
-
-    if (callback_) {
-        PAL_INFO(LOG_TAG, "Notify detection event to client");
-        PopulateCallbackPayload(event, event_data);
-        callback_((pal_stream_handle_t *)this, 0, (uint32_t *)event_data,
-                  event_size, cookie_);
-    }
-    free(event_data);
 }
 
 void StreamACD::SetEngineDetectionData(struct acd_context_event *event)
@@ -1224,6 +1205,14 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 goto err_exit;
             }
             TransitTo(ACD_STATE_ACTIVE);
+            if (acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) {
+                TransitTo(ACD_STATE_DETECTED);
+                acd_stream_.state_for_restore_ = ACD_STATE_NONE;
+            } else if (acd_stream_.cached_event_data_) {
+                std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+                acd_stream_.cv_.notify_one();
+                TransitTo(ACD_STATE_DETECTED);
+            }
             break;
         err_exit:
             if (acd_stream_.mDevices.size() > 0) {
@@ -1411,6 +1400,13 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             }
             break;
         }
+        case ACD_EV_DETECTED: {
+            ACDDetectedEventConfigData *data =
+                (ACDDetectedEventConfigData *) ev_cfg->data_.get();
+            std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+            acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
+            break;
+        }
         case ACD_EV_SSR_OFFLINE: {
             if (acd_stream_.state_for_restore_ == ACD_STATE_NONE) {
                 acd_stream_.state_for_restore_ = ACD_STATE_LOADED;
@@ -1440,8 +1436,12 @@ int32_t StreamACD::ACDActive::ProcessEvent(
         case ACD_EV_DETECTED: {
             ACDDetectedEventConfigData *data =
                 (ACDDetectedEventConfigData *) ev_cfg->data_.get();
-            acd_stream_.NotifyClient((struct acd_context_event *)data->data_);
-            TransitTo(ACD_STATE_DETECTED);
+            std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+            acd_stream_.CacheEventData((struct acd_context_event *)data->data_);
+            if (acd_stream_.cached_event_data_) {
+                acd_stream_.cv_.notify_one();
+                TransitTo(ACD_STATE_DETECTED);
+            }
             break;
         }
         case ACD_EV_PAUSE: {
@@ -1726,6 +1726,25 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
 
             break;
         }
+        case ACD_EV_RESUME:
+            acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
+            TransitTo(ACD_STATE_LOADED);
+            status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
+            break;
+        case ACD_EV_UNLOAD_SOUND_MODEL:
+        case ACD_EV_STOP_RECOGNITION:
+            /* if stream already in stopped state, move to LOADED state */
+            if (acd_stream_.paused_ == true)
+                TransitTo(ACD_STATE_LOADED);
+            else
+                TransitTo(ACD_STATE_ACTIVE);
+
+            status = acd_stream_.ProcessInternalEvent(ev_cfg);
+            if (status)
+                PAL_ERR(LOG_TAG, "Error:%d Failed to process event %d", status, ev_cfg->id_);
+            break;
         case ACD_EV_RECOGNITION_CONFIG:
         case ACD_EV_CONTEXT_CONFIG:
         case ACD_EV_EC_REF:
@@ -1733,6 +1752,7 @@ int32_t StreamACD::ACDDetected::ProcessEvent(
         case ACD_EV_DEVICE_CONNECTED:
         case ACD_EV_SSR_OFFLINE:
         case ACD_EV_CONCURRENT_STREAM:
+        case ACD_EV_PAUSE:
             acd_stream_.state_for_restore_ = ACD_STATE_DETECTED;
             // fall through to default
             [[fallthrough]];
@@ -1866,8 +1886,10 @@ int32_t StreamACD::ACDSSR::ProcessEvent(std::shared_ptr<ACDEventConfig> ev_cfg)
                 }
 
             if ((acd_stream_.state_for_restore_ == ACD_STATE_DETECTED) &&
-                (acd_stream_.cached_event_data_ != NULL))
-                acd_stream_.SendCachedEventData();
+                (acd_stream_.cached_event_data_ != NULL)) {
+                std::unique_lock<std::mutex> lck(acd_stream_.mutex_);
+                acd_stream_.cv_.notify_one();
+            }
             else
                 acd_stream_.state_for_restore_ = ACD_STATE_ACTIVE;
             }

@@ -242,16 +242,16 @@ public:
     static bool isIdTypeAvailable(int32_t type, std::vector<int32_t>& id_type);
     static void removeDuplicateSelectors(std::vector<std::string> &gkv_selectors);
     static std::vector <std::string> retrieveSelectors(int32_t type,
-        std::vector<allKVs> any_type);
+        std::vector<allKVs> &any_type);
     static std::vector <std::pair<selector_type_t, std::string>> getSelectorValues(
         std::vector<std::string> &selectors, Stream* s, struct pal_device* dAttr);
     static bool compareSelectorPairs(std::vector <std::pair<selector_type_t, std::string>>
         &selector_val, std::vector<std::pair<selector_type_t, std::string>> &filled_selector_pairs);
     static int retrieveKVs(std::vector<std::pair<selector_type_t, std::string>>
-        &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+        &filled_selector_pairs, uint32_t type, std::vector<allKVs> &any_type,
         std::vector<std::pair<int32_t, int32_t>> &keyVector);
     static bool findKVs(std::vector<std::pair<selector_type_t, std::string>>
-        &filled_selector_pairs, uint32_t type, std::vector<allKVs> any_type,
+        &filled_selector_pairs, uint32_t type, std::vector<allKVs> &any_type,
         std::vector<std::pair<int32_t, int32_t>> &keyVector);
     static std::string removeSpaces(const std::string& str);
     static std::vector<std::string> splitStrings(const std::string& str);
@@ -260,6 +260,7 @@ public:
     static int getDeviceKV(int dev_id, std::vector<std::pair<int, int>> &deviceKV);
     static bool isBtDevice(int32_t beDevId);
     static bool compareNumSelectors(struct kvInfo info_1, struct kvInfo info_2);
+    static int payloadDualMono(uint8_t **payloadInfo);
     PayloadBuilder();
     ~PayloadBuilder();
 };

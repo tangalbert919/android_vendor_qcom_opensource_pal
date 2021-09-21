@@ -178,6 +178,7 @@ class StreamSoundTrigger : public Stream {
     void SetModelId(uint32_t model_id) { model_id_ = model_id; }
     void SetModelType(st_module_type_t model_type) { model_type_ = model_type; }
     st_module_type_t GetModelType() { return model_type_; }
+    bool GetLPIEnabled() { return use_lpi_; }
  private:
     class EngineCfg {
      public:
@@ -511,6 +512,7 @@ class StreamSoundTrigger : public Stream {
                          st_module_type_t module_type);
     void AddEngine(std::shared_ptr<EngineCfg> engine_cfg);
     void updateStreamAttributes();
+    void UpdateModelId(st_module_type_t type);
     int32_t LoadSoundModel(struct pal_st_sound_model *sm_data);
     int32_t UpdateSoundModel(struct pal_st_sound_model *sm_data);
     int32_t SendRecognitionConfig(struct pal_st_recognition_config *config);
@@ -574,6 +576,10 @@ class StreamSoundTrigger : public Stream {
     pal_stream_callback callback_;
     uint64_t cookie_;
     PalRingBufferReader *reader_;
+    uint8_t *gsl_engine_model_;
+    uint32_t gsl_engine_model_size_;
+    uint8_t *gsl_conf_levels_;
+    uint32_t gsl_conf_levels_size_;
 
     StState *st_idle_;
     StState *st_loaded_;

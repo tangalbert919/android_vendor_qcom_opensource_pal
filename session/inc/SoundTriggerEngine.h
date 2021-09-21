@@ -131,9 +131,10 @@ public:
         Stream* streamHandle,
         pal_stream_type_t streamType,
         std::shared_ptr<Device> deviceToConnect) = 0;
-    virtual void ResetEngineInstance(Stream *s) = 0;
+    virtual void DetachStream(Stream *s) {}
     virtual void SetCaptureRequested(bool is_requested) = 0;
     virtual void* GetDetectionEventInfo() = 0;
+    virtual int32_t ReconfigureDetectionGraph(Stream *s) { return 0; }
     virtual int32_t setECRef(
         Stream *s,
         std::shared_ptr<Device> dev,

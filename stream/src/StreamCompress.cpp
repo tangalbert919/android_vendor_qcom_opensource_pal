@@ -257,11 +257,8 @@ StreamCompress::~StreamCompress()
     }
 
     /*switch back to proper config if there is a concurrency and device is still running*/
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getDeviceCount()) {
-            rm->restoreDevice(mDevices[i]);
-        }
-    }
+    for (int32_t i=0; i < mDevices.size(); i++)
+        rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
     mPalDevice.clear();
@@ -398,7 +395,8 @@ int32_t StreamCompress::start()
                     mute_l(true);
                     a2dpMuted = true;
                 }
-                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+                suspendedDevIds.clear();
+                suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
             }
             break;
         default:

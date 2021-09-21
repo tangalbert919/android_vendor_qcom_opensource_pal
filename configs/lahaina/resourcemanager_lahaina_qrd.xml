@@ -28,6 +28,7 @@
     <config_params>
         <param key="native_audio_mode" value="multiple_mix_dsp"/>
         <param key="max_sessions" value="128"/>
+        <param key="max_nonTunnel_sessions" value="4"/>
         <param key="logging_level" value ="3" />
         <param key="context_manager_enable" value ="false" />
     </config_params>
@@ -41,6 +42,7 @@
         <codec codec_format="CODEC_TYPE_APTX_AD" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_DUAL_MONO" codec_type="enc" codec_library="lib_bt_aptx.so" />
         <codec codec_format="CODEC_TYPE_APTX_AD_SPEECH" codec_type="enc|dec" codec_library="lib_bt_aptx.so" />
+        <codec codec_format="CODEC_TYPE_LC3" codec_type="enc|dec" codec_library="lib_bt_ble.so" />
     </bt_codecs>
     <gain_db_to_level_mapping>
         <gain_level_map db="-59" level="5"/>
@@ -325,8 +327,8 @@
             <id>PAL_DEVICE_IN_VI_FEEDBACK</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-TX-0</back_end_name>
             <max_channels>2</max_channels>
-            <channels>2</channels>
-            <snd_device_name>vi-feedback</snd_device_name>
+            <channels>1</channels>
+            <snd_device_name>vi-feedback-mono-2</snd_device_name>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_BLUETOOTH_A2DP</id>
@@ -343,6 +345,18 @@
             <snd_device_name>afe-proxy</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_PROXY</name>
+                <devicePP-metadata>
+                </devicePP-metadata>
+            </usecase>
+        </in-device>
+        <in-device>
+            <id>PAL_DEVICE_IN_ULTRASOUND_MIC</id>
+            <back_end_name>CODEC_DMA-LPAIF_RXTX-TX-4</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-mic</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_ULTRASOUND</name>
                 <devicePP-metadata>
                 </devicePP-metadata>
             </usecase>
@@ -365,7 +379,10 @@
             <cps_enabled>0</cps_enabled>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
-            <is_24_bit_supported>0</is_24_bit_supported>
+            <!--specify the supported bit format on speaker end point -->
+            <!--this should be in the form of pal_audio_fmt_id-->
+            <!--e.g <supported_bit_format >PAL_AUDIO_FMT_PCM_S24_LE</supported_bit_format>-->
+            <supported_bit_format>PAL_AUDIO_FMT_PCM_S16_LE</supported_bit_format>
             <!-- RAS should be enabled with speaker protection always -->
             <ras_enabled>0</ras_enabled>
             <!-- Flag to specify speaker in case Voice call is switched from
@@ -377,16 +394,24 @@
             <speaker_mono_right>0</speaker_mono_right>
             <!-- Time in seconds for Quick cal. Set 0 to disable -->
             <quick_cal_time>0</quick_cal_time>
+            <usecase>
+                <name>PAL_STREAM_ULTRASOUND</name>
+                <samplerate>96000</samplerate>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_HANDSET</id>
             <back_end_name>CODEC_DMA-LPAIF_WSA-RX-0</back_end_name>
             <max_channels>2</max_channels>
             <channels>1</channels>
-            <samplerate>48000</samplerate>
             <!-- To enable external EC reference the flag extec_ref_enabled must be added as 1 -->
             <ext_ec_ref_enabled>0</ext_ec_ref_enabled>
+            <samplerate>48000</samplerate>
             <snd_device_name>handset</snd_device_name>
+            <usecase>
+                <name>PAL_STREAM_ULTRASOUND</name>
+                <samplerate>96000</samplerate>
+            </usecase>
         </out-device>
         <out-device>
             <id>PAL_DEVICE_OUT_WIRED_HEADPHONE</id>
@@ -471,6 +496,13 @@
             <max_channels>2</max_channels>
             <channels>1</channels>
             <snd_device_name>haptics-dev</snd_device_name>
+        </out-device>
+        <out-device>
+            <id>PAL_DEVICE_OUT_ULTRASOUND</id>
+            <back_end_name>CODEC_DMA-LPAIF_WSA-RX-1</back_end_name>
+            <max_channels>2</max_channels>
+            <channels>1</channels>
+            <snd_device_name>ultrasound-handset</snd_device_name>
         </out-device>
     </device_profile>
     <in_streams>
@@ -719,8 +751,9 @@
         </stream_config>
     </acd_platform_info>
     <sound_trigger_platform_info>
-        <param version="0x0100" /> <!-- this must be the first param -->
         <common_config>
+            <!-- Param used by apk to indicate the SVA version current platform supports -->
+            <param version="0x0102" />
             <param enable_failure_detection="false" />
             <param support_device_switch="true" />
             <param support_nlpi_switch="true" />
@@ -963,8 +996,8 @@
             <module_params>
                 <param module_type="PDK" />
                 <param load_sound_model_ids="0xC0000008, 0x0800124E"/>
-                <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
                 <param wakeup_config_ids="0xC0000008, 0x08001049" />
+                <param unload_sound_model_ids="0xC0000008, 0x08001250"/>
                 <param buffering_config_ids="0xC0000008, 0x0800124F"/>
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
                 <streamConfig-metadata>
@@ -999,7 +1032,7 @@
                 <param buffering_config_ids="0xC0000008, 0x08001044" />
                 <param version_ids="0xC0000008, 0x18000101" />
                 <param engine_reset_ids="0xC0000008, 0x08001051" />
-                <streamConfig-metadata>
+               <streamConfig-metadata>
                     <!-- refer kvh2xml.h -->
                     <kvpair key="0xBC000000" value="0xBC000002"/>
                 </streamConfig-metadata>

@@ -104,6 +104,8 @@ typedef enum {
 #define DEVICE_MUTE 40
 #define DEVICE_UNMUTE 41
 #define CHANNEL_INFO 42
+#define CHARGE_CONCURRENCY_ON_TAG 43
+#define CHARGE_CONCURRENCY_OFF_TAG 44
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -158,7 +160,7 @@ public:
     bool isPaused = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
-    pal_device_id_t suspendedDevId = PAL_DEVICE_NONE;
+    std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;
     virtual int32_t start() = 0;
@@ -201,6 +203,7 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
+    int32_t UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);
@@ -243,6 +246,8 @@ public:
                                                            uint32_t event_size);
     static void handleStreamException(struct pal_stream_attributes *attributes,
                                       pal_stream_callback cb, uint64_t cookie);
+    void lockStreamMutex() { mStreamMutex.lock();};
+    void unlockStreamMutex() { mStreamMutex.unlock();};
 };
 
 class StreamNonTunnel : public Stream

@@ -69,11 +69,13 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     uint32_t count = 0;
     struct pal_device *palDevsAttr = nullptr;
 
+    PAL_DBG(LOG_TAG, "Enter.");
+
     if (!sAttr || ((noOfDevices > 0) && !dAttr)) {
         PAL_ERR(LOG_TAG, "Invalid input paramters");
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Enter.");
+
     /* get RM instance */
     if (!rm) {
         rm = ResourceManager::getInstance();
@@ -234,13 +236,12 @@ exit:
     if (palDevsAttr) {
         delete [] palDevsAttr;
     }
-    if (stream) {
-        PAL_DBG(LOG_TAG, "Exit. stream creation success");
-    } else {
+    if (!stream) {
         PAL_ERR(LOG_TAG, "stream creation failed");
     }
 
-    PAL_DBG(LOG_TAG, "stream %pK created", stream);
+    PAL_DBG(LOG_TAG, "Exit stream %pK create %s", stream,
+            stream ? "successful" : "failed");
     return stream;
 }
 
@@ -414,6 +415,22 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
 
     return status;
 }
+
+int32_t Stream::UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id)
+{
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Updatepaldevice from %d to %d", Dev_id, dattr->id);
+    for (int i = 0; i < mPalDevice.size(); i++) {
+        if (Dev_id == mPalDevice[i].id) {
+            mPalDevice.erase(mPalDevice.begin() + i);
+            break;
+        }
+    }
+    mPalDevice.push_back(*dattr);
+    return status;
+}
+
 
 int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevices)
 {
@@ -809,6 +826,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
 
+            rm->deregisterDevice(mDevices[i], this);
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
@@ -824,7 +842,6 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
                 goto exit;
             }
             rm->unlockGraph();
-            rm->deregisterDevice(mDevices[i], this);
 
             status = mDevices[i]->close();
             if (0 != status) {
@@ -878,6 +895,21 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      * created previously so set device config explictly.
      */
     dev->setDeviceAttributes(*dattr);
+
+    /* For A2DP UCs streams may play on combo devices like Speaker and A2DP
+     * However, if the a2dp suspend is called - all streams on a2dp will temporarily
+     * move to speakers.  If the stream is already connected to speaker. then we will
+     * entrying the speaker device information twice. Below snippet will handle that case
+     */
+    for (auto iter = mDevices.begin(); iter != mDevices.end(); iter++) {
+        if ((*iter)->getSndDeviceId() == dev->getSndDeviceId()) {
+            PAL_INFO(LOG_TAG,
+                "stream is already connected to device %d name %s - return",
+                dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
+            status = 0;
+            goto exit;
+        }
+    }
 
     PAL_DBG(LOG_TAG, "device %d name %s, going to start",
         dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
@@ -1086,7 +1118,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     if (a2dpMuted && !isNewDeviceA2dp) {
         mute_l(false);
         a2dpMuted = false;
-        suspendedDevId = PAL_DEVICE_NONE;
+        suspendedDevIds.clear();
     }
 
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
@@ -1152,7 +1184,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
                     matchFound = true;
                 } else {
-                    matchFound = false; 
+                    matchFound = false;
                 }
             }
         } else {

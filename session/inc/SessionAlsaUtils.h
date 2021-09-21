@@ -68,6 +68,7 @@ enum BeCtrlsIndex {
     BE_METADATA,
     BE_MEDIAFMT,
     BE_SETPARAM,
+    BE_GROUP_ATTR,
     BE_MAX_NUM_MIXER_CONTROLS,
 };
 

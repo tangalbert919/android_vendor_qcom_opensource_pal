@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -45,6 +45,7 @@ public:
     static int32_t isChannelSupported(uint32_t numChannels);
     static int32_t isBitWidthSupported(uint32_t bitWidth);
     static std::shared_ptr<Device> getObject();
+    int stop();
     Speaker();
     virtual ~Speaker();
 };

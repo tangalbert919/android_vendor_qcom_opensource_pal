@@ -175,6 +175,7 @@ class SoundTriggerPlatformInfo : public SoundTriggerXml {
 
     static std::shared_ptr<SoundTriggerPlatformInfo> GetInstance();
     std::string GetSoundModelLib() const { return sound_model_lib_; }
+    uint32_t GetVersion() const { return version_; }
     bool GetEnableFailureDetection() const {
         return enable_failure_detection_; }
     bool GetSupportDevSwitch() const { return support_device_switch_; }

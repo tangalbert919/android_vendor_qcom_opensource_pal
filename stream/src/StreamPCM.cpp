@@ -170,6 +170,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
 int32_t  StreamPCM::open()
 {
     int32_t status = 0;
+    int32_t ret = 0;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu", session,
             mDevices.size());
@@ -190,11 +191,50 @@ int32_t  StreamPCM::open()
         }
         PAL_VERBOSE(LOG_TAG, "session open successful");
 
+        bool checkDeviceCustomKeyForDualMono = false;
+        // enable dual mono
+        if (rm->isDualMonoEnabled == true) {
+            PAL_INFO(LOG_TAG, "Dual mono feature is on");
+            if (mStreamAttr->type == PAL_STREAM_LOW_LATENCY) {
+                PAL_INFO(LOG_TAG, "stream type is low-latency");
+                checkDeviceCustomKeyForDualMono = true;
+            }
+        }
+
         for (int32_t i = 0; i < mDevices.size(); i++) {
             status = mDevices[i]->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device open failed with status %d", status);
                 goto exit;
+            }
+
+            if (checkDeviceCustomKeyForDualMono) {
+                struct pal_device deviceAttribute;
+                ret = mDevices[i]->getDeviceAttributes(&deviceAttribute);
+                if (ret) {
+                    PAL_ERR(LOG_TAG, "getDeviceAttributes failed with status %d", ret);
+                }
+                PAL_INFO(LOG_TAG, "device custom key=%s",
+                            deviceAttribute.custom_config.custom_key);
+                if (deviceAttribute.id == PAL_DEVICE_OUT_SPEAKER &&
+                        !strncmp(deviceAttribute.custom_config.custom_key,
+                            "speaker-safe", sizeof("speaker-safe"))) {
+                    uint8_t* paramData = NULL;
+                    ret = PayloadBuilder::payloadDualMono(&paramData);
+                    if (ret) {
+                        PAL_ERR(LOG_TAG, "failed to create dual mono info");
+                        continue;
+                    }
+
+                    ret = session->setParameters(this, PER_STREAM_PER_DEVICE_MFC,
+                        PAL_PARAM_ID_UIEFFECT, paramData);
+                    if (ret) {
+                        PAL_ERR(LOG_TAG, "failed to set dual mono param.");
+                    } else {
+                        PAL_INFO(LOG_TAG, "dual mono setparameter succeeded.");
+                    }
+                    free(paramData);
+                }
             }
         }
         currentState = STREAM_INIT;
@@ -281,11 +321,8 @@ StreamPCM::~StreamPCM()
     }
 
     /*switch back to proper config if there is a concurrency and device is still running*/
-    for (int32_t i=0; i < mDevices.size(); i++) {
-        if (mDevices[i]->getDeviceCount()) {
-            rm->restoreDevice(mDevices[i]);
-        }
-    }
+    for (int32_t i=0; i < mDevices.size(); i++)
+        rm->restoreDevice(mDevices[i]);
 
     mDevices.clear();
     mPalDevice.clear();
@@ -372,7 +409,8 @@ int32_t StreamPCM::start()
                     mute_l(true);
                     a2dpMuted = true;
                 }
-                suspendedDevId = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
+                suspendedDevIds.clear();
+                suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
             }
             break;
 
@@ -496,7 +534,7 @@ session_fail:
         rm->deregisterDevice(mDevices[i], this);
     }
 exit:
-    PAL_DBG(LOG_TAG, "Exit. state %d", currentState);
+    PAL_DBG(LOG_TAG, "Exit. state %d, status %d", currentState, status);
     mStreamMutex.unlock();
     return status;
 }
@@ -605,9 +643,9 @@ int32_t StreamPCM::stop()
         status = -EINVAL;
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
 
 exit:
+    PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
     mStreamMutex.unlock();
     return status;
 }
@@ -652,8 +690,9 @@ int32_t  StreamPCM::setStreamAttributes(struct pal_stream_attributes *sattr)
         goto exit;
     }
 
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
@@ -775,7 +814,7 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
     PAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
-    PAL_DBG(LOG_TAG, "session read failed status %d", status);
+    PAL_DBG(LOG_TAG, "Exit. session read failed status %d", status);
     return status;
 }
 
@@ -825,7 +864,8 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         if ((frameSize == 0) || (sampleRate == 0)) {
             PAL_ERR(LOG_TAG, "frameSize=%d, sampleRate=%d", frameSize, sampleRate);
             mStreamMutex.unlock();
-            return  -EINVAL;
+            status = -EINVAL;
+            goto exit;
         }
         size = buf->size;
         usleep((uint64_t)size * 1000000 / frameSize / sampleRate);
@@ -875,7 +915,7 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
     }
 
 exit:
-    PAL_ERR(LOG_TAG, "session write failed status %d", status);
+    PAL_ERR(LOG_TAG, "Exit session write failed status %d", status);
     return status;
 }
 
@@ -900,14 +940,14 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
+    PAL_DBG(LOG_TAG, "Enter, set parameter %u, session handle - %p", param_id, session);
+
     if (!payload)
     {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "wrong params");
-        goto error;
+        goto exit;
     }
-
-    PAL_DBG(LOG_TAG, "Enter, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
     // Stream may not know about tags, so use setParameters instead of setConfig
@@ -994,8 +1034,8 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.unlock();
+exit:
     PAL_DBG(LOG_TAG, "exit, session parameter %u set with status %d", param_id, status);
-error:
     return status;
 }
 
@@ -1215,8 +1255,9 @@ int32_t StreamPCM::addRemoveEffect(pal_audio_effect_t effect, bool enable)
                 status);
         goto exit;
     }
-    PAL_DBG(LOG_TAG, "Exit. session setConfig successful");
+    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
+    PAL_DBG(LOG_TAG, "Exit, status %d", status);
     mStreamMutex.unlock();
     return status;
 }
