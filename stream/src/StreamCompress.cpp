@@ -660,19 +660,23 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    status = session->setConfig(this, MODULE, PAUSE_TAG);
-    if (0 != status) {
-       PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
-       goto exit;
+    if (currentState != STREAM_PAUSED) {
+        status = session->setConfig(this, MODULE, PAUSE_TAG);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
+            goto exit;
+        }
+        PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+        if (session->isPauseRegistrationDone)
+            cvPause.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
+        else
+            usleep(VOLUME_RAMP_PERIOD);
+        isPaused = true;
+        currentState = STREAM_PAUSED;
+        PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
+    } else {
+       PAL_INFO(LOG_TAG, "Stream is already paused");
     }
-    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
-    if (session->isPauseRegistrationDone)
-        cvPause.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
-    else
-        usleep(VOLUME_RAMP_PERIOD);
-    isPaused = true;
-    currentState = STREAM_PAUSED;
-    PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
 
 exit:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);
