@@ -6410,8 +6410,10 @@ int32_t ResourceManager::a2dpSuspend()
                 /* Resume only when it was paused during a2dpSuspend.
                  * This is to avoid resuming during regular pause.
                  */
-                if (((*sIter)->a2dpPaused) == true)
+                if (((*sIter)->a2dpPaused) == true) {
                     (*sIter)->resume_l();
+                    (*sIter)->a2dpPaused = false;
+                }
             }
             (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
         }
