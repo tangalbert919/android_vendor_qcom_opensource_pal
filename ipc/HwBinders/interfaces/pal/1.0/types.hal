@@ -203,6 +203,7 @@ enum PalParamId : uint32_t {
     PAL_PARAM_ID_SNDCARD_STATE = 51,
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
     PAL_PARAM_ID_CHARGER_STATE = 53,
+    PAL_PARAM_ID_BT_SCO_NREC = 54,
 };
 
 /**< PAL stream attributes to be specified, used in pal_stream_open cmd */

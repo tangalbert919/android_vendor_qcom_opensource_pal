@@ -916,7 +916,7 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
     for (i = 0; i < tag_info->num_tags; i++) {
         tag_entry += offset/sizeof(struct gsl_tag_module_info_entry);
 
-        PAL_DBG(LOG_TAG, "tag id[%d] = 0x%x, num_modules = %x\n", i, tag_entry->tag_id, tag_entry->num_modules);
+        PAL_DBG(LOG_TAG, "tag id[%d] = 0x%x, num_modules = 0x%x\n", i, tag_entry->tag_id, tag_entry->num_modules);
         offset = sizeof(struct gsl_tag_module_info_entry) + (tag_entry->num_modules * sizeof(struct gsl_module_id_info_entry));
         if (tag_entry->tag_id == tag_id) {
             struct gsl_module_id_info_entry *mod_info_entry;
@@ -924,7 +924,7 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
             if (tag_entry->num_modules) {
                  mod_info_entry = &tag_entry->module_entry[0];
                  *miid = mod_info_entry->module_iid;
-                 PAL_DBG(LOG_TAG, "MIID is %x\n", *miid);
+                 PAL_DBG(LOG_TAG, "MIID is 0x%x\n", *miid);
                  ret = 0;
                  break;
             }

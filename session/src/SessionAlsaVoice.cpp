@@ -90,6 +90,9 @@ uint32_t SessionAlsaVoice::getMIID(const char *backendName, uint32_t tagId, uint
     case COP_DEPACKETIZER_V2:
         device = pcmDevTxIds.at(0);
         break;
+    case TAG_ECNS:
+        device = pcmDevTxIds.at(0);
+        break;
     case COP_PACKETIZER_V2:
     case COP_PACKETIZER_V0:
         device = pcmDevRxIds.at(0);
