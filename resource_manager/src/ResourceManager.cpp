@@ -442,6 +442,7 @@ std::vector<uint32_t> ResourceManager::lpi_vote_streams_;
 std::vector<deviceIn> ResourceManager::deviceInfo;
 std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
+struct volume_set_param_info ResourceManager::volumeSetParamInfo_;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 std::map<int, std::string> ResourceManager::spkrTempCtrlsMap;
@@ -1623,6 +1624,20 @@ int32_t ResourceManager::getSidetoneMode(pal_device_id_t deviceId,
         }
     }
     return status;
+}
+
+int32_t ResourceManager::getVolumeSetParamInfo(struct volume_set_param_info *volinfo)
+{
+    if (!volinfo)
+       return 0;
+
+    volinfo->isVolumeUsingSetParam = volumeSetParamInfo_.isVolumeUsingSetParam;
+
+    for (int size = 0; size < volumeSetParamInfo_.streams_.size(); size++) {
+        volinfo->streams_.push_back(volumeSetParamInfo_.streams_[size]);
+    }
+
+    return 0;
 }
 
 int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
@@ -8321,6 +8336,33 @@ void ResourceManager::process_voicemode_info(const XML_Char **attr)
     vsidInfo.modepair.push_back(modepair);
 }
 
+void ResourceManager::process_config_volume(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    if (data->offs <= 0 || data->resourcexml_parsed)
+        return;
+
+    data->data_buf[data->offs] = '\0';
+    if (data->tag == TAG_CONFIG_VOLUME) {
+        if (strcmp(tag_name, "use_volume_set_param") == 0) {
+            volumeSetParamInfo_.isVolumeUsingSetParam = atoi(data->data_buf);
+        }
+    }
+    if (data->tag == TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM) {
+        std::string stream_name(data->data_buf);
+        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        uint32_t st = usecaseIdLUT.at(stream_name);
+        volumeSetParamInfo_.streams_.push_back(st);
+        PAL_DBG(LOG_TAG, "[PKU]Stream type added for volume set param : %d", st);
+    }
+    if (!strcmp(tag_name, "supported_stream")) {
+        data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS;
+    } else if (!strcmp(tag_name, "supported_streams")) {
+        data->tag = TAG_CONFIG_VOLUME;
+    } else if (!strcmp(tag_name, "config_volume")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+    }
+}
+
 void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_Char *tag_name)
 {
     if(data->voice_info_parsed)
@@ -8881,6 +8923,12 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         process_custom_config(attr);
         data->inCustomConfig = 1;
         data->tag = TAG_CUSTOMCONFIG;
+    } else if (!strcmp(tag_name, "config_volume")) {
+        data->tag = TAG_CONFIG_VOLUME;
+    } else if (!strcmp(tag_name, "supported_streams")) {
+        data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS;
+    } else if (!strcmp(tag_name, "supported_stream")) {
+        data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM;
     }
 
     if (!strcmp(tag_name, "card"))
@@ -8939,6 +8987,7 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     process_device_info(data,tag_name);
     process_input_streams(data,tag_name);
     process_lpi_vote_streams(data, tag_name);
+    process_config_volume(data, tag_name);
 
     if (data->card_parsed)
         return;

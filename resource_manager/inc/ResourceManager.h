@@ -119,7 +119,10 @@ typedef enum {
     TAG_ECREF,
     TAG_CUSTOMCONFIG,
     TAG_LPI_VOTE_STREAM,
-    TAG_SLEEP_MONITOR_LPI_STREAM
+    TAG_SLEEP_MONITOR_LPI_STREAM,
+    TAG_CONFIG_VOLUME,
+    TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM,
+    TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS,
 } resource_xml_tags_t;
 
 typedef enum {
@@ -247,6 +250,11 @@ struct vsid_info {
      int vsid;
      std::vector<vsid_modepair> modepair;
      int loopback_delay;
+};
+
+struct volume_set_param_info {
+    int isVolumeUsingSetParam;
+    std::vector<uint32_t> streams_;
 };
 
 struct tx_ecinfo {
@@ -463,6 +471,7 @@ protected:
     static std::vector<deviceIn> deviceInfo;
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
+    static struct volume_set_param_info volumeSetParamInfo_;
     static std::vector<struct pal_amp_db_and_gain_table> gainLvlMap;
     static SndCardMonitor *sndmon;
     static std::vector <uint32_t> lpi_vote_streams_;
@@ -557,6 +566,7 @@ public:
                        std::string key, struct pal_device_info *devinfo);
     bool getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
+    int32_t getVolumeSetParamInfo(struct volume_set_param_info *volinfo);
     void getChannelMap(uint8_t *channel_map, int channels);
     pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
     int registerStream(Stream *s);
@@ -701,6 +711,7 @@ public:
     static void process_device_info(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_input_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_config_voice(struct xml_userdata *data, const XML_Char *tag_name);
+    static void process_config_volume(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_lpi_vote_streams(struct xml_userdata *data, const XML_Char *tag_name);
     static void process_kvinfo(const XML_Char **attr, bool overwrite);
     static void process_voicemode_info(const XML_Char **attr);

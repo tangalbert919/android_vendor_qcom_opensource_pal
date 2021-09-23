@@ -869,6 +869,7 @@ typedef enum {
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
     PAL_PARAM_ID_CHARGER_STATE = 53,
     PAL_PARAM_ID_BT_SCO_NREC = 54,
+    PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
 } pal_param_id_type_t;
 
 /** HDMI/DP */

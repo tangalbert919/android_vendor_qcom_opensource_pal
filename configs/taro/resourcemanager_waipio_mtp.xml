@@ -38,6 +38,13 @@
         <param key="upd_dedicated_be" value ="true" />
         <param key="dual_mono" value ="false" />
     </config_params>
+    <config_volume>
+        <use_volume_set_param>0</use_volume_set_param>
+        <supported_streams>
+            <supported_stream>PAL_STREAM_ULTRA_LOW_LATENCY</supported_stream>
+            <supported_stream>PAL_STREAM_COMPRESSED</supported_stream>
+        </supported_streams>
+    </config_volume>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />

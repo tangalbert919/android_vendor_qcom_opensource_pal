@@ -59,6 +59,24 @@
 
 #define PARAM_ID_USB_AUDIO_INTF_CFG                               0x080010D6
 
+/* ID of the Master Gain parameter used by MODULE_ID_VOL_CTRL. */
+#define PARAM_ID_VOL_CTRL_MASTER_GAIN 0x08001035
+
+struct volume_ctrl_master_gain_t
+{
+    uint16_t master_gain;
+    /**< @h2xmle_description  {Specifies linear master gain in Q13 format\n}
+     *   @h2xmle_dataFormat   {Q13}
+     *   @h2xmle_default      {0x2000} */
+
+    uint16_t reserved;
+    /**< @h2xmle_description  {Clients must set this field to 0.\n}
+     *   @h2xmle_rangeList    {"0" = 0}
+     *   @h2xmle_default      {0}     */
+};
+/* Structure type def for above payload. */
+typedef struct volume_ctrl_master_gain_t volume_ctrl_master_gain_t;
+
 /* ID of the Output Media Format parameters used by MODULE_ID_MFC */
 #define PARAM_ID_MFC_OUTPUT_MEDIA_FORMAT            0x08001024
 #include "spf_begin_pack.h"
@@ -277,6 +295,43 @@ void PayloadBuilder::payloadDpAudioConfig(uint8_t** payload, size_t* size,
     *size = payloadSize;
     *payload = payloadInfo;
     PAL_DBG(LOG_TAG, "Exit:");
+}
+
+#define PLAYBACK_VOLUME_MAX 0x2000
+void PayloadBuilder::payloadVolumeConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, struct pal_volume_data* voldata)
+{
+    struct apm_module_param_data_t* header = nullptr;
+    volume_ctrl_master_gain_t *volConf = nullptr;
+    float voldB = 0.0f;
+    long vol = 0;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    PAL_VERBOSE(LOG_TAG,"volume sent:%f \n",(voldata->volume_pair[0].vol));
+    voldB = (voldata->volume_pair[0].vol);
+    vol = (long)(voldB * (PLAYBACK_VOLUME_MAX*1.0));
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct volume_ctrl_master_gain_t);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+    payloadInfo = new uint8_t[payloadSize + padBytes]();
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        return;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_VOL_CTRL_MASTER_GAIN;
+    header->error_code = 0x0;
+    header->param_size = payloadSize -  sizeof(struct apm_module_param_data_t);
+    volConf = (volume_ctrl_master_gain_t *) (payloadInfo + sizeof(struct apm_module_param_data_t));
+    volConf->master_gain = vol;
+    PAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
+                  header->module_instance_id, header->param_id,
+                  header->error_code, header->param_size);
+    *size = payloadSize + padBytes;;
+    *payload = payloadInfo;
+    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
 }
 
 void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
