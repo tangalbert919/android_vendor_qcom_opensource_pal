@@ -7489,13 +7489,15 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                     PAL_ERR(LOG_TAG, "pal_stream_open failed with status %d", status);
                     mResourceManagerMutex.unlock();
                     if (s->close() != 0) {
-                        PAL_ERR(LOG_TAG, "stream closed failed.");
+                        PAL_ERR(LOG_TAG, "stream close failed.");
                     }
                     delete s;
                     goto error;
                 }
                 status = s->rwACDBParameters(paramPayload, sampleRate, isParamWrite);
-                status = s->close();
+                if (s->close())
+                    PAL_ERR(LOG_TAG, "stream failed to close");
+
                 delete s;
             }
         }

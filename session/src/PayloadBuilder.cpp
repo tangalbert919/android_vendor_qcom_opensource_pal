@@ -817,6 +817,8 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
                     - sizeof(pal_effect_custom_payload_t);
 
     paddedSize = PAL_ALIGN_8BYTE(payloadSize);
+    PAL_INFO(LOG_TAG, "payloadSize=%d paddedSize=%x", payloadSize, paddedSize);
+
     if (sampleRate) {
         //CKV
         // step 1. check sample rate is in kv or not
@@ -858,7 +860,8 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
     payloadInfo->blob_size = payloadInfo->blob_size +
                             sizeof(struct apm_module_param_data_t) -
                             sizeof(pal_effect_custom_payload_t) +
-                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair)
+                            + paddedSize - payloadSize;
     payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
     if (appendSampleRateInCKV) {
         ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
@@ -875,7 +878,7 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
                                 ((uint8_t *)acdbParam + dataLength);
     header->module_instance_id = moduleInstanceId;
     header->param_id = effectCustomPayload->paramId;
-    header->param_size = paddedSize;
+    header->param_size = payloadSize;
     header->error_code = 0x0;
 
     if (paddedSize) {
