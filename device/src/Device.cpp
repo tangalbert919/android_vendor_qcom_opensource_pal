@@ -63,7 +63,7 @@ std::shared_ptr<Device> Device::getInstance(struct pal_device *device,
         return NULL;
     }
 
-    PAL_DBG(LOG_TAG, "Enter device id %d", device->id);
+    PAL_VERBOSE(LOG_TAG, "Enter device id %d", device->id);
 
     //TBD: decide on supported devices from XML and not in code
     switch (device->id) {

@@ -4670,7 +4670,6 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
 
 std::shared_ptr<ResourceManager> ResourceManager::getInstance()
 {
-    PAL_DBG(LOG_TAG, "Enter.");
     if(!rm) {
         std::lock_guard<std::mutex> lock(ResourceManager::mResourceManagerMutex);
         if (!rm) {
@@ -4678,7 +4677,6 @@ std::shared_ptr<ResourceManager> ResourceManager::getInstance()
             rm = sp;
         }
     }
-    PAL_DBG(LOG_TAG, "Exit.");
     return rm;
 }
 
@@ -6327,8 +6325,24 @@ int32_t ResourceManager::a2dpSuspend()
         switchDevDattr.id);
 
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        if ((*sIter)->isActive()) {
-            if (!((*sIter)->a2dpMuted)) {
+        if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            associatedDevices.clear();
+            status = (*sIter)->getAssociatedDevices(associatedDevices);
+            if ((0 != status) ||
+                !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {
+                PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", *sIter);
+                continue;
+            }
+            /* For a2dp + spkr or handset combo use case,
+             * add speaker or handset into suspended devices for restore during a2dpResume
+             */
+            if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
+                //Combo use-case; just remember to keep the non-a2dp devices when restoring.
+                PAL_DBG(LOG_TAG, "Stream %pK is on combo device; Dont Pause/Mute", *sIter);
+                (*sIter)->suspendedDevIds.clear();
+                (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
+            } else if (!((*sIter)->a2dpMuted)) {
+                //Only perform Mute/Pause for non combo use-case only.
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
@@ -6355,26 +6369,7 @@ int32_t ResourceManager::a2dpSuspend()
                     (*sIter)->mute_l(true);
                     (*sIter)->a2dpMuted = true;
                 }
-
             }
-        }
-    }
-
-    // For a2dp + spkr or handset combo use case,
-    // add speaker or handset into suspended devices for restore during a2dpResume
-    for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
-        associatedDevices.clear();
-        status = (*sIter)->getAssociatedDevices(associatedDevices);
-        if ((0 != status) ||
-            !(rm->isDeviceAvailable(associatedDevices, PAL_DEVICE_OUT_BLUETOOTH_A2DP))) {
-            PAL_ERR(LOG_TAG, "Error: stream %pK is not associated with A2DP device", *sIter);
-            mActiveStreamMutex.unlock();
-            goto exit;
-        }
-
-        if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
-            (*sIter)->suspendedDevIds.clear();
-            (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
         }
     }
 
