@@ -257,8 +257,8 @@
         <in-device>
             <id>PAL_DEVICE_IN_FM_TUNER</id>
             <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
-            <max_channels>1</max_channels>
-            <channels>1</channels>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
             <snd_device_name>play-fm</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
