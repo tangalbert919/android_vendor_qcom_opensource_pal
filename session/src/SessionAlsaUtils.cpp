@@ -742,7 +742,6 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
     } else {
         aif_media_config[2] = palToSndDriverFormat((uint32_t)dAttr->config.aud_fmt_id);
         aif_media_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
-        aif_group_atrr_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
     }
 
     // if it's virtual port, need to set group attribute as well
@@ -767,13 +766,11 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
             aif_group_atrr_config[1] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.channels;
         else
             aif_group_atrr_config[1] = dAttr->config.ch_info.channels;
-        if (rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.bit_width)
-            aif_group_atrr_config[2] = bitsToAlsaFormat(
-                rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.bit_width);
-        else
-            aif_group_atrr_config[2] = palToSndDriverFormat((uint32_t)dAttr->config.aud_fmt_id);
+        aif_group_atrr_config[2] = palToSndDriverFormat(
+                                    rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id);
+        aif_group_atrr_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
+        aif_group_atrr_config[4] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask;
 
-            aif_group_atrr_config[4] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask;
         mixer_ctl_set_array(ctl, &aif_group_atrr_config,
                                sizeof(aif_group_atrr_config)/sizeof(aif_group_atrr_config[0]));
         PAL_INFO(LOG_TAG, "%s rate ch fmt data_fmt slot_mask %ld %ld %ld %ld %ld\n", truncatedBeName.c_str(),

@@ -8618,7 +8618,14 @@ void ResourceManager::process_group_device_config(struct xml_userdata *data, con
             if (group_device_config) {
                 group_device_config->grp_dev_hwep_cfg.sample_rate = atoi(attr[1]);
                 group_device_config->grp_dev_hwep_cfg.channels = atoi(attr[3]);
-                group_device_config->grp_dev_hwep_cfg.bit_width = atoi(attr[5]);
+                if(!strcmp(attr[5], "PAL_AUDIO_FMT_PCM_S24_3LE"))
+                   group_device_config->grp_dev_hwep_cfg.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
+                else if(!strcmp(attr[5], "PAL_AUDIO_FMT_PCM_S24_LE"))
+                   group_device_config->grp_dev_hwep_cfg.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
+                else if(!strcmp(attr[5], "PAL_AUDIO_FMT_PCM_S32_LE"))
+                   group_device_config->grp_dev_hwep_cfg.aud_fmt_id = PAL_AUDIO_FMT_PCM_S32_LE;
+                else
+                   group_device_config->grp_dev_hwep_cfg.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
                 group_device_config->grp_dev_hwep_cfg.slot_mask = atoi(attr[7]);
             }
         }
