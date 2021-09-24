@@ -379,17 +379,17 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 {
     int status = 0;
     uint32_t tagsent;
-    struct agm_tag_config* tagConfig;
+    struct agm_tag_config *tagConfig = nullptr;
+    struct agm_cal_config *calConfig = nullptr;
     const char *setParamTagControl = "setParamTag";
     const char *stream = "PCM";
     const char *setCalibrationControl = "setCalibration";
     struct mixer_ctl *ctl;
-    struct agm_cal_config *calConfig;
     std::ostringstream tagCntrlName;
     std::ostringstream calCntrlName;
     pal_stream_attributes sAttr;
-    int tkv_size = 0;
-    int ckv_size = 0;
+    int tag_config_size = 0;
+    int cal_config_size = 0;
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -411,8 +411,9 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
 
-            tagConfig = (struct agm_tag_config*)malloc(sizeof(struct agm_tag_config) +
-                            (tkv.size() * sizeof(agm_key_value)));
+            tag_config_size = sizeof(struct agm_tag_config) +
+                              tkv.size() * sizeof(struct agm_key_value);
+            tagConfig = (struct agm_tag_config*)malloc(tag_config_size);
 
             if (!tagConfig) {
                 status = -EINVAL;
@@ -425,29 +426,32 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             }
 
             if (PAL_STREAM_LOOPBACK == sAttr.type) {
-                tagCntrlName<<stream<<pcmDevRxIds.at(0)<<" "<<setParamTagControl;
+                if (pcmDevRxIds.size() > 0)
+                    tagCntrlName << stream << pcmDevRxIds.at(0) << " " << setParamTagControl;
             } else {
-                tagCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setParamTagControl;
+                if (pcmDevIds.size() > 0)
+                    tagCntrlName << stream << pcmDevIds.at(0) << " " << setParamTagControl;
+            }
+
+            if (tagCntrlName.str().length() == 0) {
+                status = -EINVAL;
+                goto exit;
             }
 
             ctl = mixer_get_ctl_by_name(mixer, tagCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", tagCntrlName.str().data());
-                return -ENOENT;
+                status = -ENOENT;
+                goto exit;
             }
 
-            tkv_size = tkv.size()*sizeof(struct agm_key_value);
-            status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
+            status = mixer_ctl_set_array(ctl, tagConfig, tag_config_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
                 goto exit;
             }
-            ctl = NULL;
-            if (tagConfig)
-                free(tagConfig);
             tkv.clear();
             break;
-            //todo calibration
         case CALIBRATION:
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
@@ -460,8 +464,9 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
                 goto exit;
             }
 
-            calConfig = (struct agm_cal_config*)malloc(sizeof(struct agm_cal_config) +
-                            (ckv.size() * sizeof(agm_key_value)));
+            cal_config_size = sizeof(struct agm_cal_config) +
+                              (ckv.size() * sizeof(agm_key_value));
+            calConfig = (struct agm_cal_config*)malloc(cal_config_size);
 
             if (!calConfig) {
                 status = -EINVAL;
@@ -470,35 +475,44 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
 
             status = SessionAlsaUtils::getCalMetadata(ckv, calConfig);
             if (PAL_STREAM_LOOPBACK == sAttr.type) {
-                calCntrlName<<stream<<pcmDevRxIds.at(0)<<" "<<setCalibrationControl;
+                if (pcmDevRxIds.size() > 0)
+                    calCntrlName << stream << pcmDevRxIds.at(0) << " " << setCalibrationControl;
             } else {
-                calCntrlName<<stream<<pcmDevIds.at(0)<<" "<<setCalibrationControl;
+                if (pcmDevIds.size() > 0)
+                    calCntrlName << stream << pcmDevIds.at(0) << " " << setCalibrationControl;
+            }
+
+            if (calCntrlName.str().length() == 0) {
+                status = -EINVAL;
+                goto exit;
             }
 
             ctl = mixer_get_ctl_by_name(mixer, calCntrlName.str().data());
             if (!ctl) {
                 PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", calCntrlName.str().data());
-                return -ENOENT;
+                status = -ENOENT;
+                goto exit;
             }
 
-            ckv_size = ckv.size()*sizeof(struct agm_key_value);
-            status = mixer_ctl_set_array(ctl, calConfig, sizeof(struct agm_cal_config) + ckv_size);
+            status = mixer_ctl_set_array(ctl, calConfig, cal_config_size);
             if (status != 0) {
                 PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
                 goto exit;
             }
-            ctl = NULL;
-            if (calConfig)
-                free(calConfig);
             ckv.clear();
             break;
         default:
-            PAL_ERR(LOG_TAG,"invalid type ");
+            PAL_ERR(LOG_TAG, "invalid type %d", type);
             status = -EINVAL;
             goto exit;
     }
 
 exit:
+    if (tagConfig)
+        free(tagConfig);
+    if (calConfig)
+        free(calConfig);
+
     PAL_DBG(LOG_TAG,"exit status: %d ", status);
     return status;
 }
