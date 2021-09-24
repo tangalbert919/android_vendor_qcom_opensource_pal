@@ -85,7 +85,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     lab_fd_ = nullptr;
     rejection_notified_ = false;
     mutex_unlocked_after_cb_ = false;
-    concurrency_handling_ = false;
+    common_cp_update_disable_ = false;
     second_stage_processing_ = false;
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
@@ -494,7 +494,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
 
     if (!active) {
         transit_start_time_ = std::chrono::steady_clock::now();
-        concurrency_handling_ = true;
+        common_cp_update_disable_ = true;
     }
 
     PAL_DBG(LOG_TAG, "Enter");
@@ -507,7 +507,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
         transit_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 transit_end_time_ - transit_start_time_).count();
-        concurrency_handling_ = false;
+        common_cp_update_disable_ = false;
         if (use_lpi_) {
             PAL_INFO(LOG_TAG, "NLPI->LPI switch takes %llums",
                 (long long)transit_duration);
@@ -3216,7 +3216,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
              * 1. start recognition excuted
              * 2. resume excuted and current common capture profile is null
              */
-            if (!st_stream_.concurrency_handling_ &&
+            if (!st_stream_.common_cp_update_disable_ &&
                 (ev_cfg->id_ == ST_EV_START_RECOGNITION ||
                 (ev_cfg->id_ == ST_EV_RESUME &&
                 !st_stream_.rm->GetSoundTriggerCaptureProfile()))) {
@@ -3560,7 +3560,7 @@ int32_t StreamSoundTrigger::StActive::ProcessEvent(
         case ST_EV_STOP_RECOGNITION: {
             // Do not update capture profile when pausing stream
             bool backend_update = false;
-            if (!st_stream_.concurrency_handling_ &&
+            if (!st_stream_.common_cp_update_disable_ &&
                 (ev_cfg->id_ == ST_EV_STOP_RECOGNITION ||
                 ev_cfg->id_ == ST_EV_UNLOAD_SOUND_MODEL)) {
                 backend_update = st_stream_.rm->UpdateSoundTriggerCaptureProfile(
@@ -4455,8 +4455,10 @@ int32_t StreamSoundTrigger::ssrDownHandler() {
     int32_t status = 0;
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    common_cp_update_disable_ = true;
     std::shared_ptr<StEventConfig> ev_cfg(new StSSROfflineConfig());
     status = cur_state_->ProcessEvent(ev_cfg);
+    common_cp_update_disable_ = false;
 
     return status;
 }
@@ -4465,8 +4467,10 @@ int32_t StreamSoundTrigger::ssrUpHandler() {
     int32_t status = 0;
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    common_cp_update_disable_ = true;
     std::shared_ptr<StEventConfig> ev_cfg(new StSSROnlineConfig());
     status = cur_state_->ProcessEvent(ev_cfg);
+    common_cp_update_disable_ = false;
 
     return status;
 }
