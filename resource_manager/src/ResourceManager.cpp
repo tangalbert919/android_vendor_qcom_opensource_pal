@@ -5675,9 +5675,15 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     PAL_DBG(LOG_TAG, "Enter");
 
-    if (!inDev || !inDevAttr) {
+    if (!inDev || !inDevAttr || !inStrAttr) {
         goto error;
     }
+
+    /* Soundtrigger stream device attributes is updated via capture profile */
+    if (inStrAttr->type == PAL_STREAM_ACD ||
+        inStrAttr->type == PAL_STREAM_VOICE_UI ||
+        inStrAttr->type == PAL_STREAM_SENSOR_PCM_DATA)
+        goto error;
 
     if (strlen(inDevAttr->custom_config.custom_key))
         ck.assign(inDevAttr->custom_config.custom_key);
