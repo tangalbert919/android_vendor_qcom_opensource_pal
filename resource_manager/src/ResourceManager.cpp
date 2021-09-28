@@ -1699,8 +1699,6 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     bool is_wfd_in_progress = false;
     struct pal_stream_attributes tx_attr;
     struct pal_device_info devinfo = {};
-    std::vector <Stream *> streamsToSwitch;
-    struct pal_device streamDevAttr;
 
     if (!deviceattr) {
         PAL_ERR(LOG_TAG, "Invalid deviceattr");
@@ -1726,13 +1724,6 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
     dev_ch_info.channels = devinfo.channels;
     getChannelMap(&(dev_ch_info.ch_map[0]), devinfo.channels);
     deviceattr->config.ch_info = dev_ch_info;
-
-    // check if it's grouped device and group config needs to update
-    status = checkAndUpdateGroupDevConfig(deviceattr, sAttr, streamsToSwitch, &streamDevAttr, true);
-    if (status) {
-        PAL_ERR(LOG_TAG, "no valid group device config found");
-        streamsToSwitch.clear();
-    }
 
     /*set proper sample rate*/
     if (devinfo.samplerate) {
@@ -4460,6 +4451,11 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
         return -EINVAL;
     }
 
+    if (!sAttr) {
+        PAL_ERR(LOG_TAG, "Invalid stream attr");
+        return -EINVAL;
+    }
+
     /* handle special case for UPD device with virtual port:
      * 1. Enable
      *   1) if upd is coming and there's any active stream on speaker or handset,
@@ -4476,6 +4472,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
             strstr(backEndName.c_str(), "-VIRT-")) {
         PAL_DBG(LOG_TAG, "virtual port enabled for device %d", deviceattr->id);
 
+        mActiveStreamMutex.lock();
         /* check for UPD comming or goes away */
         if (deviceattr->id == PAL_DEVICE_OUT_ULTRASOUND) {
             group_cfg_idx = GRP_UPD_RX;
@@ -4487,7 +4484,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 dev = Device::getInstance(&activeDevattr, rm);
                 if (!dev)
                     continue;
-                getActiveStream(dev, activeStream);
+                getActiveStream_l(dev, activeStream);
                 if (activeStream.empty())
                     continue;
                 for (sIter = activeStream.begin(); sIter != activeStream.end(); sIter++) {
@@ -4554,6 +4551,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 ResourceManager::activeGroupDevConfig = it->second;
             } else {
                 PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                mActiveStreamMutex.unlock();
                 return -EINVAL;
             }
         /* check for streams on speaker or handset comming/goes away */
@@ -4569,7 +4567,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
             activeDevattr.id = PAL_DEVICE_OUT_ULTRASOUND;
             dev = Device::getInstance(&activeDevattr, rm);
             if (dev) {
-                getActiveStream(dev, activeStream);
+                getActiveStream_l(dev, activeStream);
                 if (!activeStream.empty()) {
                     sIter = activeStream.begin();
                     dev->getDeviceAttributes(streamDevAttr);
@@ -4640,6 +4638,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 ResourceManager::activeGroupDevConfig = it->second;
             } else {
                 PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
+                mActiveStreamMutex.unlock();
                 return -EINVAL;
             }
         }
@@ -4665,6 +4664,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 }
             }
         }
+        mActiveStreamMutex.unlock();
     }
 
     return 0;
@@ -5689,13 +5689,11 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     // check if device has virtual port enabled, update the active group devcie config
     // if streams has same virtual backend, it will be handled in shared backend case
-    mActiveStreamMutex.lock();
     status = checkAndUpdateGroupDevConfig(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr, true);
     if (status) {
         PAL_ERR(LOG_TAG, "no valid group device config found");
         streamsToSwitch.clear();
     }
-    mActiveStreamMutex.unlock();
 
     //get the active streams on the device
     //if higher priority stream exists on any of the incoming device, update the config of incoming device
@@ -8977,13 +8975,13 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
 
     // check if need to update active group devcie config when usecase goes aways
     // if stream device is with same virtual backend, it can be handled in shared backend case
-    mActiveStreamMutex.lock();
-    status = checkAndUpdateGroupDevConfig(&curDevAttr, &sAttr, streamsToSwitch, &newDevAttr, false);
-    if (status) {
-        PAL_ERR(LOG_TAG, "no valid group device config found");
-        streamsToSwitch.clear();
+    if (dev->getDeviceCount() == 0) {
+        status = checkAndUpdateGroupDevConfig(&curDevAttr, &sAttr, streamsToSwitch, &newDevAttr, false);
+        if (status) {
+            PAL_ERR(LOG_TAG, "no valid group device config found");
+            streamsToSwitch.clear();
+        }
     }
-    mActiveStreamMutex.unlock();
 
     getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
