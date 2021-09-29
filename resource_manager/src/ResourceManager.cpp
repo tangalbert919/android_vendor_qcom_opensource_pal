@@ -9135,6 +9135,8 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         /*incoming stream prio is greater than or equal to active streams*/
         if (devInfo.priority <= highPrioDevInfo.priority  ) {
             highPrioDevInfo = devInfo;
+            getSndDeviceName(dev_id, CurrentSndDeviceName);
+            highPrioDevInfo.sndDevName.assign(CurrentSndDeviceName);
         }
     }
     stream_count++;
