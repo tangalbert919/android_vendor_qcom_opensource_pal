@@ -505,6 +505,8 @@
                 <graph_kv key="0xA2000000" value="0xA2000003"/>
                 <!-- BT_PROFILE - A2DP -->
                 <graph_kv key="0xB4000000" value="0xB4000002"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_LC3" AbrEnabled="TRUE,FALSE" Hostless="FALSE">
                 <!-- DEVICERX - BT_RX -->
@@ -542,6 +544,8 @@
                 <graph_kv key="0xA3000000" value="0xA3000002"/>
                 <!-- BT_PROFILE - A2DP -->
                 <graph_kv key="0xB4000000" value="0xB4000002"/>
+                <!-- BT_FORMAT - LC3 -->
+                <graph_kv key="0xB5000000" value="0xB5000005"/>
             </keys_and_values>
             <keys_and_values CodecFormat="CODEC_TYPE_LC3" Hostless="FALSE">
                 <!-- DEVICETX - BT_TX -->
