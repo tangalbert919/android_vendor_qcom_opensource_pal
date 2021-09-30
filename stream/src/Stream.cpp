@@ -1247,6 +1247,19 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             rm-> updateSndName(newDevices[newDeviceSlots[i]].id, deviceInfo.sndDevName);
             matchFound = true;
         }
+        /*switch all streams that are running on the current device if voice call is switching to aviod dangling ec refs*/
+        if (type == PAL_STREAM_VOICE_CALL) {
+            sharedBEStreamDev.clear();
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[i]->getSndDeviceId());
+                for (const auto &elem : sharedBEStreamDev) {
+                    streamDevDisconnect.push_back(elem);
+                    StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
+                }
+            }
+        }
+
+
         /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
         for (int j = 0; j < disconnectCount; j++) {
             // check to make sure device direction is the same
