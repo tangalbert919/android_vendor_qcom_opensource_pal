@@ -1679,14 +1679,15 @@ bool PayloadBuilder::compareSelectorPairs(
     PAL_DBG(LOG_TAG, "Enter: selector size: %zu filled_sel size: %zu",
         selector_pairs.size(), filled_selector_pairs.size());
     if (selector_pairs.size() == filled_selector_pairs.size()) {
+        std::sort(filled_selector_pairs.begin(), filled_selector_pairs.end());
+        std::sort(selector_pairs.begin(), selector_pairs.end());
         result = std::equal(selector_pairs.begin(), selector_pairs.end(),
             filled_selector_pairs.begin());
         if (result) {
-             PAL_DBG(LOG_TAG,"Return True");
+            PAL_DBG(LOG_TAG,"Return True");
             goto exit;
         }
-    }
-    else {
+    } else {
         for (int i = 0; i < filled_selector_pairs.size(); i++) {
             if (selector_pairs.end() != std::find(selector_pairs.begin(),
                 selector_pairs.end(), filled_selector_pairs[i])) {
@@ -1702,9 +1703,6 @@ bool PayloadBuilder::compareSelectorPairs(
         }
     }
 exit:
-    if(result) {
-        PAL_DBG(LOG_TAG, "No matching selectors found");
-    }
     PAL_DBG(LOG_TAG, "Exit result: %d", result);
     return result;
 }
@@ -1733,9 +1731,7 @@ bool PayloadBuilder::findKVs(std::vector<std::pair<selector_type_t, std::string>
                         break;
                     }
                 } else {
-                    if (std::equal(any_type[i].keys_values[j].selector_pairs.begin(),
-                        any_type[i].keys_values[j].selector_pairs.end(),
-                        filled_selector_pairs.begin())) {
+                    if (any_type[i].keys_values[j].selector_pairs.empty()) {
                         for (int32_t k = 0; k < any_type[i].keys_values[j].kv_pairs.size(); k++) {
                             keyVector.push_back(
                                 std::make_pair(any_type[i].keys_values[j].kv_pairs[k].key,
