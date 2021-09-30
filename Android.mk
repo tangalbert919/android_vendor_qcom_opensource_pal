@@ -151,14 +151,7 @@ LOCAL_SRC_FILES:= utils/src/ChargerListener.cpp
 
 LOCAL_CFLAGS += -Wall -Werror -Wno-unused-function -Wno-unused-variable
 
-LOCAL_SHARED_LIBRARIES := \
-    libaudioroute \
-    libaudioutils \
-    libbase \
-    libcutils \
-    libdl \
-    liblog \
-    libutils
+LOCAL_SHARED_LIBRARIES += libcutils liblog
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/utils/inc
 
