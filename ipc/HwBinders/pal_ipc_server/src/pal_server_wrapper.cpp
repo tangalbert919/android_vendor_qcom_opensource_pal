@@ -45,29 +45,35 @@ namespace pal {
 namespace V1_0 {
 namespace implementation {
 
+PAL* PAL::sInstance;
+
 void PalClientDeathRecipient::serviceDied(uint64_t cookie,
                    const android::wp<::android::hidl::base::V1_0::IBase>& who)
 {
     std::lock_guard<std::mutex> guard(mLock);
     ALOGD("%s : client died pid : %d", __func__, cookie);
     int pid = (int) cookie;
-    auto & clients = mPalInstance->mPalClients;
+    auto &clients = mPalInstance->mPalClients;
     for (auto itr = clients.begin(); itr != clients.end(); itr++) {
-        if (itr->pid == pid) {
-            for (auto sItr = itr->mActiveSessions.begin();
-                      sItr != itr->mActiveSessions.end(); sItr++) {
-               ALOGD("Closing the session %pK", sItr->session_handle);
-               ALOGV("hdle %x binder %p", sItr->session_handle, sItr->callback_binder.get());
-               sItr->callback_binder->client_died = true;
-               pal_stream_stop((pal_stream_handle_t *)sItr->session_handle);
-               pal_stream_close((pal_stream_handle_t *)sItr->session_handle);
-               /*close the dupped fds in PAL server context*/
-               for (int i = 0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
-                    close(sItr->callback_binder->sharedMemFdList[i].second);
-               }
-               sItr->callback_binder.clear();
+        auto client = *itr;
+        if (client->pid == pid) {
+            {
+                std::lock_guard<std::mutex> lock(client->mActiveSessionsLock);
+                for (auto sItr = client->mActiveSessions.begin();
+                          sItr != client->mActiveSessions.end(); sItr++) {
+                   ALOGD("Closing the session %pK", sItr->session_handle);
+                   ALOGV("hdle %x binder %p", sItr->session_handle, sItr->callback_binder.get());
+                   sItr->callback_binder->client_died = true;
+                   pal_stream_stop((pal_stream_handle_t *)sItr->session_handle);
+                   pal_stream_close((pal_stream_handle_t *)sItr->session_handle);
+                   /*close the dupped fds in PAL server context*/
+                   for (int i = 0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
+                       close(sItr->callback_binder->sharedMemFdList[i].second);
+                   }
+                   sItr->callback_binder.clear();
+                }
+                client->mActiveSessions.clear();
             }
-            itr->mActiveSessions.clear();
             itr = clients.erase(itr);
             break;
         }
@@ -77,19 +83,22 @@ void PalClientDeathRecipient::serviceDied(uint64_t cookie,
 int PAL::find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd)
 {
     for (auto& s: mPalClients) {
-        for (int i =0; i < s.mActiveSessions.size(); i++) {
-             if (s.mActiveSessions[i].session_handle == streamHandle) {
-                 for (int j=0; j < s.mActiveSessions[i].callback_binder->sharedMemFdList.size(); j++) {
-                      ALOGV("fd list, input %d dup %d", s.mActiveSessions[i].callback_binder->sharedMemFdList[j].first,
-                             s.mActiveSessions[i].callback_binder->sharedMemFdList[j].second);
-                      if (s.mActiveSessions[i].callback_binder->sharedMemFdList[j].first == input_fd) {
-                          *dup_fd = s.mActiveSessions[i].callback_binder->sharedMemFdList[j].second;
-                           ALOGV("matching input fd found, return dup fd %d", *dup_fd);
-                           return 0;
-                      }
-                 }
-             }
-         }
+        std::lock_guard<std::mutex> lock(s->mActiveSessionsLock);
+        for (int i = 0; i < s->mActiveSessions.size(); i++) {
+            session_info session = s->mActiveSessions[i];
+            if (session.session_handle == streamHandle) {
+                for (int j = 0; j < session.callback_binder->sharedMemFdList.size(); j++) {
+                    ALOGV("fd list, input %d dup %d",
+                           session.callback_binder->sharedMemFdList[j].first,
+                           session.callback_binder->sharedMemFdList[j].second);
+                    if (session.callback_binder->sharedMemFdList[j].first == input_fd) {
+                        *dup_fd = session.callback_binder->sharedMemFdList[j].second;
+                        ALOGV("matching input fd found, return dup fd %d", *dup_fd);
+                        return 0;
+                    }
+                }
+            }
+        }
     }
     return -1;
 }
@@ -98,18 +107,21 @@ void PAL::add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int du
 {
     std::vector<std::pair<int, int>>::iterator it;
     for (auto& s: mPalClients) {
-        for (int i =0; i < s.mActiveSessions.size(); i++) {
-             if (s.mActiveSessions[i].session_handle == streamHandle) {
-                 /*If number of FDs increase than the MAX Cache size we delete the oldest one
-                   NOTE: We still create a new fd for every input fd*/
-                 if (s.mActiveSessions[i].callback_binder->sharedMemFdList.size() > MAX_CACHE_SIZE) {
-                     close(s.mActiveSessions[i].callback_binder->sharedMemFdList.front().second);
-                     it = s.mActiveSessions[i].callback_binder->sharedMemFdList.begin();
-                     s.mActiveSessions[i].callback_binder->sharedMemFdList.erase(it);
-                 }
-                 s.mActiveSessions[i].callback_binder->sharedMemFdList.push_back(std::make_pair(input_fd, dup_fd));
-             }
-         }
+        std::lock_guard<std::mutex> lock(s->mActiveSessionsLock);
+        for (int i = 0; i < s->mActiveSessions.size(); i++) {
+            session_info session = s->mActiveSessions[i];
+            if (session.session_handle == streamHandle) {
+                /*If number of FDs increase than the MAX Cache size we delete the oldest one
+                  NOTE: We still create a new fd for every input fd*/
+                if (session.callback_binder->sharedMemFdList.size() > MAX_CACHE_SIZE) {
+                    close(session.callback_binder->sharedMemFdList.front().second);
+                    it = session.callback_binder->sharedMemFdList.begin();
+                    session.callback_binder->sharedMemFdList.erase(it);
+                }
+                session.callback_binder->sharedMemFdList.push_back(
+                                            std::make_pair(input_fd, dup_fd));
+            }
+        }
     }
 }
 
@@ -118,6 +130,27 @@ static int32_t pal_callback(pal_stream_handle_t *stream_handle,
                             uint32_t event_data_size,
                             uint64_t cookie)
 {
+    auto isPalSessionActive = [&](const uint64_t stream_handle) {
+        if (!PAL::getInstance()) {
+           ALOGE("%s: No PAL instance running", __func__);
+           return false;
+        }
+        for (auto& s: PAL::getInstance()->mPalClients) {
+            std::lock_guard<std::mutex> lock(s->mActiveSessionsLock);
+            for (int idx = 0; idx < s->mActiveSessions.size(); idx++) {
+                session_info session = s->mActiveSessions[idx];
+                if (session.session_handle == stream_handle)
+                    return true;
+            }
+        }
+        return false;
+    };
+
+    if (!isPalSessionActive((uint64_t)stream_handle)) {
+        ALOGE("%s: PAL session %pK is no longer active", __func__, stream_handle);
+        return -EINVAL;
+    }
+
     sp<SrvrClbk> sr_clbk_dat = (SrvrClbk *) cookie;
     sp<IPALCallback> clbk_bdr = sr_clbk_dat->clbk_binder;
 
@@ -360,27 +393,33 @@ Return<void> PAL::ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attr_
 
     if (!ret) {
         for(auto& client: mPalClients) {
-            if (client.pid == pid) {
+            if (client->pid == pid) {
                 /*Another session from the same client*/
                 ALOGI("Add session for same pid %d session %pK", pid, (uint64_t)stream_handle);
                 struct session_info session;
                 session.session_handle = (uint64_t)stream_handle;
                 session.callback_binder = sr_clbk_data;
                 ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
-                client.mActiveSessions.push_back(session);
+                {
+                    std::lock_guard<std::mutex> lock(client->mActiveSessionsLock);
+                    client->mActiveSessions.push_back(session);
+                }
                 new_client = false;
                 break;
             }
         }
         if (new_client) {
-            struct client_info client;
+            auto client = std::make_shared<client_info>();
             struct session_info session;
             ALOGI("session from new pid %d session %pK", pid, (uint64_t)stream_handle);
-            client.pid = pid;
+            client->pid = pid;
             session.session_handle = (uint64_t)stream_handle;
             session.callback_binder = sr_clbk_data;
             ALOGV("hdle %x binder %p", session.session_handle, session.callback_binder.get());
-            client.mActiveSessions.push_back(session);
+            {
+                std::lock_guard<std::mutex> lock(client->mActiveSessionsLock);
+                client->mActiveSessions.push_back(session);
+            }
             mPalClients.push_back(client);
             if (cb != NULL) {
                 if (this->mDeathRecipient.get() == nullptr) {
@@ -403,26 +442,29 @@ Return<int32_t> PAL::ipc_pal_stream_close(const uint64_t streamHandle)
     Return<int32_t> status = pal_stream_close((pal_stream_handle_t *)streamHandle);
 
     for (auto itr = mPalClients.begin(); itr != mPalClients.end(); ) {
-        if (itr->pid == pid) {
-            auto sItr = itr->mActiveSessions.begin();
-            for (; sItr != itr->mActiveSessions.end(); sItr++) {
-                if (sItr->session_handle == streamHandle) {
-                    /*close the shared mem fds dupped in PAL server context*/
-                    for (int i=0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
-                         close(sItr->callback_binder->sharedMemFdList[i].second);
+        auto client = *itr;
+        if (client->pid == pid) {
+            {
+                std::lock_guard<std::mutex> lock(client->mActiveSessionsLock);
+                auto sItr = client->mActiveSessions.begin();
+                for (; sItr != client->mActiveSessions.end(); sItr++) {
+                    if (sItr->session_handle == streamHandle) {
+                        /*close the shared mem fds dupped in PAL server context*/
+                        for (int i=0; i < sItr->callback_binder->sharedMemFdList.size(); i++) {
+                             close(sItr->callback_binder->sharedMemFdList[i].second);
+                        }
+                        ALOGV("Closing the session %pK", streamHandle);
+                        sItr->callback_binder->sharedMemFdList.clear();
+                        sItr->callback_binder.clear();
+                        break;
                     }
-                    ALOGV("Closing the session %pK", streamHandle);
-                    sItr->callback_binder->sharedMemFdList.clear();
-                    sItr->callback_binder.clear();
-                    break;
+                }
+                if (sItr != client->mActiveSessions.end()) {
+                    ALOGV("Delete session info %pK", sItr->session_handle);
+                    client->mActiveSessions.erase(sItr);
                 }
             }
-            if (sItr != itr->mActiveSessions.end()) {
-                ALOGV("Delete session info %pK", sItr->session_handle);
-                itr->mActiveSessions.erase(sItr);
-            }
-
-            if (itr->mActiveSessions.empty()) {
+            if (client->mActiveSessions.empty()) {
                 ALOGV("Delete client info");
                 itr = mPalClients.erase(itr);
             } else {

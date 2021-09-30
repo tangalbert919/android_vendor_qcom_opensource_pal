@@ -68,7 +68,7 @@ class SrvrClbk : public ::android::RefBase {
     struct pal_stream_attributes session_attr;
     int pid_;
     bool client_died;
-    std::vector<std::pair<int, int>> sharedMemFdList;;
+    std::vector<std::pair<int, int>> sharedMemFdList;
 
     SrvrClbk()
     {
@@ -99,13 +99,27 @@ typedef struct session_info {
     sp<SrvrClbk> callback_binder;
 }session_info;
 
-typedef struct client_info {
+struct client_info {
     int pid;
     std::vector<session_info> mActiveSessions;
-}client_info;
+    std::mutex mActiveSessionsLock;
+};
 
 struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
     public:
+    PAL()
+    {
+        sInstance = this;
+    }
+    ~PAL()
+    {
+        sInstance = nullptr;
+    }
+    // TODO: Implement Singleton and use smart pointers to access instance
+    static PAL* getInstance()
+    {
+        return sInstance;
+    }
     Return<void> ipc_pal_stream_open(const hidl_vec<PalStreamAttributes>& attributes,
                                     uint32_t noOfDevices,
                                     const hidl_vec<PalDevice>& devices,
@@ -179,8 +193,9 @@ struct PAL : public IPAL /*, public android::hardware::hidl_death_recipient*/{
                                      uint32_t size,
                                      ipc_pal_stream_get_tags_with_module_info_cb _hidl_cb) override;
     sp<PalClientDeathRecipient> mDeathRecipient;
-    std::vector<client_info> mPalClients;
+    std::vector<std::shared_ptr<client_info>> mPalClients;
 private:
+    static PAL* sInstance;
     int find_dup_fd_from_input_fd(const uint64_t streamHandle, int input_fd, int *dup_fd);
     void add_input_and_dup_fd(const uint64_t streamHandle, int input_fd, int dup_fd);
 };
