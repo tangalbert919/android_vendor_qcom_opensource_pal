@@ -6289,7 +6289,6 @@ int32_t ResourceManager::a2dpSuspend()
     std::shared_ptr<Device> handsetDev = nullptr;
     struct pal_device spkrDattr;
     struct pal_device handsetDattr;
-    struct pal_device_info devinfo = {};
     std::vector <Stream *> activeA2dpStreams;
     std::vector <Stream *> activeStreams;
     std::vector <Stream*>::iterator sIter;
@@ -6324,7 +6323,29 @@ int32_t ResourceManager::a2dpSuspend()
         if (activeStreams.size() != 0) {
             // device selected to switch is handset-it is currently active.
             switchDevDattr.id = PAL_DEVICE_OUT_HANDSET;
+            //ActiveStreams Found on Handset- Get Device Properties from DeviceInstance.
+            status = handsetDev->getDeviceAttributes(&switchDevDattr);
+        } else {
+            //No Active Streams Found on Speaker or Handset
+            //Get the deafult
+            pal_device_info devInfo;
+            memset(&devInfo, 0, sizeof(pal_device_info));
+            status = getDeviceConfig(&switchDevDattr, NULL);
+            if (!status) {
+                //Get the Default Device Info and Update SndName*/
+                getDeviceInfo(switchDevDattr.id, (pal_stream_type_t)0,
+                    switchDevDattr.custom_config.custom_key, &devInfo);
+                updateSndName(switchDevDattr.id, devInfo.sndDevName);
+            }
         }
+    } else {
+        //ActiveStreams Found on Speaker - Get Device Properties from DeviceInstance.
+        status = spkrDev->getDeviceAttributes(&switchDevDattr);
+    }
+    if (status) {
+        PAL_ERR(LOG_TAG, "Switch DevAttributes Query Failed");
+        mActiveStreamMutex.unlock();
+        goto exit;
     }
 
     PAL_DBG(LOG_TAG, "selecting active device_id[%d] and muting streams",
@@ -6388,13 +6409,6 @@ int32_t ResourceManager::a2dpSuspend()
         const int latencyMuteFactor = 2;
         usleep(maxLatencyMs * 1000 * latencyMuteFactor);
     }
-
-    // force switch to speaker or handset
-    status = getDeviceConfig(&switchDevDattr, NULL);
-    if (status) {
-        goto exit;
-    }
-
 
     mResourceManagerMutex.unlock();
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
