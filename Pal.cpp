@@ -145,7 +145,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
         return status;
     }
 
-    PAL_DBG(LOG_TAG, "Enter, stream type:%d", attributes->type);
+    PAL_INFO(LOG_TAG, "Enter, stream type:%d", attributes->type);
 
     try {
         s = Stream::create(attributes, devices, no_of_devices, modifiers,
@@ -176,7 +176,7 @@ int32_t pal_stream_open(struct pal_stream_attributes *attributes,
     stream = reinterpret_cast<uint64_t *>(s);
     *stream_handle = stream;
 exit:
-    PAL_DBG(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
+    PAL_INFO(LOG_TAG, "Exit. Value of stream_handle %pK, status %d", stream, status);
     return status;
 }
 
@@ -189,7 +189,7 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s = reinterpret_cast<Stream *>(stream_handle);
 
     status = s->close();
@@ -200,7 +200,7 @@ int32_t pal_stream_close(pal_stream_handle_t *stream_handle)
 
 exit:
     delete s;
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -215,7 +215,7 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
+    PAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
 
     s =  reinterpret_cast<Stream *>(stream_handle);
 
@@ -229,7 +229,7 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
     s->getStreamDirection(&dir);
     notify_concurrent_stream(type, dir, true);
 exit:
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -244,7 +244,7 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
@@ -259,7 +259,7 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
     notify_concurrent_stream(type, dir, false);
 
 exit:
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
@@ -590,7 +590,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         return status;
     }
 
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
 
     if (no_of_devices == 0 || !devices) {
         status = -EINVAL;
@@ -656,7 +656,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 exit:
     if(pDevices)
         free(pDevices);
-    PAL_DBG(LOG_TAG, "Exit. status %d", status);
+    PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
 }
 
