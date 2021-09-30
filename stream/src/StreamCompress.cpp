@@ -534,6 +534,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
+    mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
@@ -568,7 +569,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             break;
     }
 
-
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, session parameter %u set with status %d", param_id, status);
     return status;
 }
