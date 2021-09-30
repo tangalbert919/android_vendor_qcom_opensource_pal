@@ -469,15 +469,17 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
     PAL_VERBOSE(LOG_TAG, "Enter. session handle - %p state %d", session,
             currentState);
 
+    mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         status = -ENETRESET;
         PAL_ERR(LOG_TAG, "Sound Card offline, can not write, status %d",
                 status);
+        mStreamMutex.unlock();
         return status;
     }
 
-    //we should allow writes to go through in Open/Start/Pause state as well.
-    if ( (currentState == STREAM_OPENED) ||
+    // we should allow writes to go through in Open/Start/Pause state as well.
+    if ((currentState == STREAM_OPENED) ||
         (currentState == STREAM_STARTED) ||
         (currentState == STREAM_PAUSED)) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
@@ -486,10 +488,13 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
                 PAL_ERR(LOG_TAG, "Sound card offline, informing rm");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
+                mStreamMutex.unlock();
                 return errno;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
+                mStreamMutex.unlock();
                 return errno;
             } else {
+                mStreamMutex.unlock();
                 return status;
             }
         }
@@ -504,8 +509,11 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
     } else {
         PAL_ERR(LOG_TAG, "Stream not opened yet, state %d", currentState);
         status = -EINVAL;
+        mStreamMutex.unlock();
         return status;
     }
+
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
     return size;
 }
