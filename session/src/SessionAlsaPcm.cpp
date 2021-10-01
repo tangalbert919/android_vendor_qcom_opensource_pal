@@ -2113,7 +2113,8 @@ int SessionAlsaPcm::getParameters(Stream *s __unused, int tagId, uint32_t param_
             struct apm_module_param_data_t *header =
                 (struct apm_module_param_data_t *)payloadData;
             configSize = header->param_size;
-            payloadSize = configSize + sizeof(struct apm_module_param_data_t);
+            payloadSize = PAL_ALIGN_8BYTE(
+                configSize + sizeof(struct apm_module_param_data_t));
             break;
         }
         default:
