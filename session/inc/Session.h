@@ -62,6 +62,11 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
+typedef enum {
+    PM_QOS_VOTE_DISABLE = 0,
+    PM_QOS_VOTE_ENABLE  = 1
+} pmQosVote;
+
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
 
 class Stream;
@@ -97,6 +102,7 @@ public:
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds);
     int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
+    void setPmQosMixerCtl(pmQosVote vote);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
