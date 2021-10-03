@@ -68,6 +68,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
     int status = 0;
     uint32_t count = 0;
     struct pal_device *palDevsAttr = nullptr;
+    std::vector <Stream *> streamsToSwitch;
+    struct pal_device streamDevAttr;
 
     PAL_DBG(LOG_TAG, "Enter.");
 
@@ -131,6 +133,12 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         if (status) {
            PAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
            goto exit;
+        }
+        // check if it's grouped device and group config needs to update
+        status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
+                                                streamsToSwitch, &streamDevAttr, true);
+        if (status) {
+            PAL_ERR(LOG_TAG, "no valid group device config found");
         }
         count++;
     }
@@ -1081,6 +1089,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
     pal_stream_attributes strAttr;
     char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    std::vector <Stream *> streamsToSwitch;
+    struct pal_device streamDevAttr;
+    std::vector <Stream*>::iterator sIter;
 
     mStreamMutex.lock();
 
@@ -1246,6 +1257,29 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         } else {
             rm-> updateSndName(newDevices[newDeviceSlots[i]].id, deviceInfo.sndDevName);
             matchFound = true;
+            /*
+             * check if virtual port group config needs to update, this handles scenario below:
+             *   upd is already active on ultrasound device, active audio stream switched
+             *   from other devices to speaker/handset, so group config needs to be updated to
+             *   concurrency config
+             * mActiveStreamMutex can be held within checkAndUpdateGroupDevConfig
+             * release mStreamMutex temporarily
+             */
+            mStreamMutex.unlock();
+            status = rm->checkAndUpdateGroupDevConfig(&newDevices[newDeviceSlots[i]], mStreamAttr,
+                                                        streamsToSwitch, &streamDevAttr, true);
+            if (status) {
+                PAL_ERR(LOG_TAG, "no valid group device config found");
+                streamsToSwitch.clear();
+            }
+            if (!streamsToSwitch.empty()) {
+                for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                    streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                    StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+                }
+            }
+            streamsToSwitch.clear();
+            mStreamMutex.lock();
         }
         /*switch all streams that are running on the current device if voice call is switching to aviod dangling ec refs*/
         if (type == PAL_STREAM_VOICE_CALL) {
@@ -1267,6 +1301,28 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
                 /*if something disconnected incoming device and current dev diff so push on a switchwe need to add the deivce*/
                 matchFound = true;
+                // for switching from speaker/handset to other devices, if this is the last stream that active
+                // on speaker/handset, need to update group config from concurrency to standalone
+                // if switching happens between speaker & handset, skip the group config check as they're shared backend
+                if ((mDevices[curDeviceSlots[j]]->getDeviceCount() == 1) &&
+                    (newDevices[newDeviceSlots[i]].id != PAL_DEVICE_OUT_SPEAKER &&
+                     newDevices[newDeviceSlots[i]].id != PAL_DEVICE_OUT_HANDSET)) {
+                    mStreamMutex.unlock();
+                    mDevices[curDeviceSlots[j]]->getDeviceAttributes(&dAttr);
+                    status = rm->checkAndUpdateGroupDevConfig(&dAttr, mStreamAttr, streamsToSwitch, &streamDevAttr, false);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "no valid group device config found");
+                        streamsToSwitch.clear();
+                    }
+                    if (!streamsToSwitch.empty()) {
+                        for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+                            streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+                            StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+                        }
+                    }
+                    streamsToSwitch.clear();
+                    mStreamMutex.lock();
+                }
             }
         }
         if (matchFound) {
