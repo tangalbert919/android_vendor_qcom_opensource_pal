@@ -183,7 +183,8 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
 
     // check if lpi should be used
     if (rm->IsLPISupported(PAL_STREAM_VOICE_UI) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count)) {
+        !(rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) && enable_concurrency_count) &&
+        !(rm->IsTransitToNonLPIOnChargingSupported() && charging_state_)) {
         use_lpi_ = true;
     } else {
         use_lpi_ = false;
@@ -526,6 +527,8 @@ int32_t StreamSoundTrigger::EnableLPI(bool is_enable) {
     std::lock_guard<std::mutex> lck(mStreamMutex);
     if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
+    } else if (rm->IsTransitToNonLPIOnChargingSupported() && charging_state_) {
+        PAL_DBG(LOG_TAG, "Ignore lpi update in car mode");
     } else {
         use_lpi_ = is_enable;
     }
@@ -614,14 +617,26 @@ int32_t StreamSoundTrigger::ConnectDevice(pal_device_id_t device_id) {
 
 int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
     int32_t status = 0;
+    int32_t enable_concurrency_count = 0;
+    int32_t disable_concurrency_count = 0;
 
     PAL_DBG(LOG_TAG, "Enter, state %d", state);
     std::lock_guard<std::mutex> lck(mStreamMutex);
-
+    charging_state_ = state;
     if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
     } else {
-        use_lpi_ = !state;
+        // check concurrency count from rm
+        rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI,
+            &enable_concurrency_count, &disable_concurrency_count);
+
+        // no need to update use_lpi_ if there's concurrency enabled
+        if (rm->isNLPISwitchSupported(PAL_STREAM_VOICE_UI) &&
+            enable_concurrency_count) {
+            PAL_DBG(LOG_TAG, "Ignore lpi update when concurrency enabled");
+        } else {
+            use_lpi_ = !state;
+        }
     }
 
     std::shared_ptr<StEventConfig> ev_cfg(
