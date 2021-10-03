@@ -151,6 +151,7 @@ StreamCommon::StreamCommon(const struct pal_stream_attributes *sattr, struct pal
 
 StreamCommon::~StreamCommon()
 {
+    PAL_DBG(LOG_TAG, "Enter");
     cachedState = STREAM_IDLE;
     if (mStreamAttr) {
         free(mStreamAttr);
@@ -165,6 +166,7 @@ StreamCommon::~StreamCommon()
     mPalDevice.clear();
     delete session;
     session = nullptr;
+    PAL_DBG(LOG_TAG, "Exit");
 }
 
 int32_t  StreamCommon::open()

@@ -93,6 +93,7 @@ StreamSensorPCMData::StreamSensorPCMData(const struct pal_stream_attributes *sat
 
 StreamSensorPCMData::~StreamSensorPCMData()
 {
+    PAL_DBG(LOG_TAG, "Enter");
     rm->resetStreamInstanceID(this);
     rm->deregisterStream(this);
     mDevices.clear();
@@ -130,6 +131,40 @@ exit:
     return status;
 }
 
+int32_t  StreamSensorPCMData::close()
+{
+    int32_t status = 0;
+    mStreamMutex.lock();
+
+    if (currentState == STREAM_IDLE) {
+        PAL_INFO(LOG_TAG, "Stream is already closed");
+        mStreamMutex.unlock();
+        return status;
+    }
+
+    PAL_DBG(LOG_TAG, "Enter. session handle - %pK device count - %zu stream_type - %d state %d",
+            session, mDevices.size(), mStreamAttr->type, currentState);
+
+    if (currentState == STREAM_STARTED) {
+        mStreamMutex.unlock();
+        status = stop();
+        if (0 != status)
+            PAL_ERR(LOG_TAG, "Error:stream stop failed. status %d",  status);
+        mStreamMutex.lock();
+    }
+    rm->lockGraph();
+    status = session->close(this);
+    rm->unlockGraph();
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "Error:session close failed with status %d", status);
+    }
+    currentState = STREAM_IDLE;
+
+    mStreamMutex.unlock();
+
+    PAL_DBG(LOG_TAG, "Exit ret %d", status);
+    return status;
+}
 int32_t StreamSensorPCMData::start()
 {
     int32_t status = 0;

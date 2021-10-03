@@ -53,6 +53,7 @@ public:
     int32_t open() override;
     int32_t start() override;
     int32_t stop() override;
+    int32_t close() override;
     int32_t Resume() override;
     int32_t Pause() override;
     int32_t EnableLPI(bool is_enable) override;
