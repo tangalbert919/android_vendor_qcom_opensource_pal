@@ -105,6 +105,7 @@ protected:
                          bt_enc_payload_t **out_buf,
                          codec_type codecType);
     int configureA2dpEncoderDecoder();
+    int configureNrecParameters(bool isNrecEnabled);
     int updateDeviceMetadata();
     void updateDeviceAttributes();
     bool isPlaceholderEncoder();
@@ -193,6 +194,7 @@ protected:
     static int  swbSpeechMode;
     static bool isSwbLc3Enabled;
     static audio_lc3_codec_cfg_t lc3CodecInfo;
+    static bool isNrecEnabled;
     int startSwb();
 
 public:

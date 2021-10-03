@@ -868,6 +868,7 @@ typedef enum {
     PAL_PARAM_ID_SNDCARD_STATE = 51,
     PAL_PARAM_ID_HIFI_PCM_FILTER = 52,
     PAL_PARAM_ID_CHARGER_STATE = 53,
+    PAL_PARAM_ID_BT_SCO_NREC = 54,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -1036,6 +1037,7 @@ typedef struct btsco_lc3_cfg {
 typedef struct pal_param_btsco {
     bool   bt_sco_on;
     bool   bt_wb_speech_enabled;
+    bool   bt_sco_nrec;
     int    bt_swb_speech_mode;
     bool   bt_lc3_speech_enabled;
     btsco_lc3_cfg_t lc3_cfg;
