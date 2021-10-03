@@ -279,7 +279,7 @@ typedef struct group_dev_hwep_config_ctl
 {
     uint32_t sample_rate;
     uint32_t channels;
-    uint32_t bit_width;
+    uint32_t aud_fmt_id;
     uint32_t slot_mask;
 } group_dev_hwep_config_t;
 
