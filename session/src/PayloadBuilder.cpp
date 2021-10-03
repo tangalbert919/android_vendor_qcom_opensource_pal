@@ -33,6 +33,7 @@
 #include "SessionGsl.h"
 #include "StreamSoundTrigger.h"
 #include "spr_api.h"
+#include "pop_suppressor_api.h"
 #include <agm/agm_api.h>
 #include <bt_intf.h>
 #include <bt_ble.h>
@@ -341,6 +342,46 @@ void PayloadBuilder::payloadMFCConfig(uint8_t** payload, size_t* size,
                       mfcConf->num_channels, header->module_instance_id);
     PAL_DBG(LOG_TAG, "customPayload address %pK and size %zu", payloadInfo,
                 *size);
+}
+
+int PayloadBuilder::payloadPopSuppressorConfig(uint8_t** payload, size_t* size,
+                                                uint32_t miid, bool enable)
+{
+    int status = 0;
+    struct apm_module_param_data_t* header = NULL;
+    struct param_id_pop_suppressor_mute_config_t *psConf;
+    uint8_t* payloadInfo = NULL;
+    size_t payloadSize = 0, padBytes = 0;
+
+    payloadSize = sizeof(struct apm_module_param_data_t) +
+                  sizeof(struct param_id_pop_suppressor_mute_config_t);
+    padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+    payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+    if (!payloadInfo) {
+        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+        status = -ENOMEM;
+        goto exit;
+    }
+    header = (struct apm_module_param_data_t*)payloadInfo;
+    psConf = (struct param_id_pop_suppressor_mute_config_t*)(payloadInfo +
+               sizeof(struct apm_module_param_data_t));
+
+    header->module_instance_id = miid;
+    header->param_id = PARAM_ID_POP_SUPPRESSOR_MUTE_CONFIG;
+    header->error_code = 0x0;
+    header->param_size = payloadSize - sizeof(struct apm_module_param_data_t);
+    PAL_DBG(LOG_TAG, "header params \n IID:%x param_id:%x error_code:%d param_size:%d",
+                      header->module_instance_id, header->param_id,
+                      header->error_code, header->param_size);
+
+    psConf->mute_enable = enable;
+    *size = payloadSize + padBytes;
+    *payload = payloadInfo;
+    PAL_DBG(LOG_TAG, "pop suppressor mute enable %d", psConf->mute_enable);
+
+exit:
+    return status;
 }
 
 PayloadBuilder::PayloadBuilder()
