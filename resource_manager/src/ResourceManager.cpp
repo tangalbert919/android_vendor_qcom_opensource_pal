@@ -7385,13 +7385,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             std::list<Stream*>::iterator sIter;
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
-                match = (*sIter)->checkStreamMatch(pal_device_id,
-                                                    pal_stream_type);
-                if (match) {
-                    status = (*sIter)->setParameters(param_id, param_payload);
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "failed to set param for pal_device_id=%x stream_type=%x",
-                                pal_device_id, pal_stream_type);
+                if ((*sIter) != NULL) {
+                    match = (*sIter)->checkStreamMatch(pal_device_id,
+                                                       pal_stream_type);
+                    if (match) {
+                        status = (*sIter)->setParameters(param_id, param_payload);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "failed to set param for pal_device_id=%x stream_type=%x",
+                                   pal_device_id, pal_stream_type);
+                        }
                     }
                 }
             }
