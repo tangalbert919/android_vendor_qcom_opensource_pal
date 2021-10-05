@@ -9367,6 +9367,14 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
                 activeSndDeviceName);
         ret = true;
     }
+    /* special case when we are switching with shared BE
+     * always switch all to incoming device
+     */
+    if (inDevAttr->id != curDevAttr->id) {
+        PAL_DBG(LOG_TAG, "found diff in device id cur dev %d incomming dev %d, device switch needed",
+                curDevAttr->id, inDevAttr->id);
+        ret = true;
+    }
 
     // special case for A2DP device to override device switch
     if ((inDevAttr->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
