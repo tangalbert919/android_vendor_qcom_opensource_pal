@@ -86,7 +86,7 @@ public:
     int connectSessionDevice(Stream* streamHandle,
                              pal_stream_type_t streamType,
                              std::shared_ptr<Device> deviceToConnect);
-    int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) override;
+    int setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable) {return 0;};
 private:
     int payloadCalKeys(Stream * s, uint8_t **payload, size_t *size);
     int payloadTaged(Stream * s, configType type, int tag, int device, int dir);
@@ -108,6 +108,8 @@ private:
     int build_rx_mfc_payload(Stream *s);
     int setTaggedSlotMask(Stream * s);
     int setPopSuppressorMute(Stream *s);
+    int setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable);
+    int getRXDevice(Stream *s, std::shared_ptr<Device> &rx_dev);
 };
 
 #endif //SESSION_ALSAVOICE_H
