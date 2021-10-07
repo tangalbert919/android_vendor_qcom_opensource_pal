@@ -7387,7 +7387,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   pal_device_id_t pal_device_id,
                                   pal_stream_type_t pal_stream_type)
 {
-    int status = -EINVAL;
+    int status = 0;
 
     PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
