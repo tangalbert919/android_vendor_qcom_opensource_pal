@@ -1675,19 +1675,21 @@ void SessionAlsaPcm::setEventPayload(uint32_t event_id, void *payload, size_t pa
 int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t param_id, void *payload)
 {
     int status = 0;
-    int device;
+    int device = 0;
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     uint32_t miid = 0;
     effect_pal_payload_t *effectPalPayload = nullptr;
+    struct pal_stream_attributes sAttr;
 
     PAL_DBG(LOG_TAG, "Enter. param id: %d", param_id);
+    if (pcmDevIds.size() > 0)
+        device = pcmDevIds.at(0);
     switch (param_id) {
         case PAL_PARAM_ID_DEVICE_ROTATION:
         {
             pal_param_device_rotation_t *rotation =
                                          (pal_param_device_rotation_t *)payload;
-            device = pcmDevIds.at(0);
             status = handleDeviceRotation(streamHandle, rotation->rotation_type,
                                           device, mixer, builder, rxAifBackEnds);
             goto exit;
@@ -1738,10 +1740,34 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             pal_effect_custom_payload_t *customPayload;
             pal_param_payload *param_payload = (pal_param_payload *)payload;
             effectPalPayload = (effect_pal_payload_t *)(param_payload->payload);
-            device = pcmDevIds.at(0);
-            status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                           rxAifBackEnds[0].second.data(),
-                                                           tagId, &miid);
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG,"stream get attributes failed");
+                goto exit;
+            }
+
+            if (PAL_AUDIO_INPUT == sAttr.direction)
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                               txAifBackEnds[0].second.data(),
+                                                               tagId, &miid);
+            else if (PAL_AUDIO_OUTPUT == sAttr.direction)
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                               rxAifBackEnds[0].second.data(),
+                                                               tagId, &miid);
+            else {
+                if (pcmDevRxIds.size() > 0)
+                    device = pcmDevRxIds.at(0);
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                               rxAifBackEnds[0].second.data(),
+                                                               tagId, &miid);
+                if (status) {
+                    if (pcmDevTxIds.size() > 0)
+                        device = pcmDevTxIds.at(0);
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                               txAifBackEnds[0].second.data(),
+                                                               tagId, &miid);
+                }
+            }
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", tagId, status);
                 break;
@@ -1767,7 +1793,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         case PAL_PARAM_ID_BT_A2DP_TWS_CONFIG:
         {
             pal_bt_tws_payload *tws_payload = (pal_bt_tws_payload *)payload;
-            device = pcmDevIds.at(0);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
             if (0 != status) {
@@ -1788,7 +1813,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         case PAL_PARAM_ID_BT_A2DP_LC3_CONFIG:
         {
             pal_bt_lc3_payload *lc3_payload = (pal_bt_lc3_payload *)payload;
-            device = pcmDevIds.at(0);
             status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                                rxAifBackEnds[0].second.data(), tagId, &miid);
             if (0 != status) {
@@ -1809,7 +1833,6 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
         case PAL_PARAM_ID_MODULE_CONFIG:
         {
             pal_param_payload *param_payload = (pal_param_payload *)payload;
-            device = pcmDevIds.at(0);
             if (param_payload->payload_size) {
                  status = SessionAlsaUtils::setMixerParameter(mixer, device,
                                                               param_payload->payload,
