@@ -292,8 +292,8 @@
         <in-device>
             <id>PAL_DEVICE_IN_FM_TUNER</id>
             <back_end_name>MI2S-LPAIF-TX-TERTIARY</back_end_name>
-            <max_channels>1</max_channels>
-            <channels>1</channels>
+            <max_channels>2</max_channels>
+            <channels>2</channels>
             <snd_device_name>play-fm</snd_device_name>
             <usecase>
                 <name>PAL_STREAM_LOOPBACK</name>
@@ -427,6 +427,9 @@
               <name>PAL_STREAM_VOICE_CALL</name>
               <priority>2</priority>
               <snd_device_name>voice-handset</snd_device_name>
+              <custom-config key="HAC">
+                 <snd_device_name>voice-handset-hac</snd_device_name> <!-- override sound device name with HAC handset -->
+              </custom-config>
           </usecase>
           <usecase>
               <name>PAL_STREAM_VOIP_RX</name>
