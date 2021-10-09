@@ -236,6 +236,18 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     ATRACE_ASYNC_BEGIN("stEngine: read FTRT data", (int32_t)module_type_);
     kw_transfer_begin = std::chrono::steady_clock::now();
     while (!exit_buffering_) {
+        /*
+         * When RestartRecognition is called during buffering thread
+         * unlocking mutex, buffering loop may not exit properly as
+         * exit_buffering_ is still false after RestartRecognition
+         * finished. Add additional check here to avoid this corner
+         * case.
+         */
+        if (eng_state_ != ENG_BUFFERING) {
+            PAL_DBG(LOG_TAG, "engine is stopped/restarted, exit data reading");
+            break;
+        }
+
         PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
         ATRACE_ASYNC_BEGIN("stEngine: lab read", (int32_t)module_type_);
