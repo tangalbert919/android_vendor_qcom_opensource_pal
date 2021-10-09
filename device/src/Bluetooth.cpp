@@ -582,6 +582,12 @@ int Bluetooth::configureNrecParameters(bool isNrecEnabled)
     }
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
+    if (dev == 0) {
+        PAL_ERR(LOG_TAG, "device_id[%d] Instance query failed", deviceAttr.id );
+        status = -EINVAL;
+        goto exit;
+    }
+
     status = rm->getActiveStream_l(dev, activestreams);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
