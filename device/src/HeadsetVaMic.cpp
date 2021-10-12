@@ -38,6 +38,11 @@
 
 std::shared_ptr<Device> HeadsetVaMic::obj = nullptr;
 
+std::shared_ptr<Device> HeadsetVaMic::getObject()
+{
+    return obj;
+}
+
 std::shared_ptr<Device> HeadsetVaMic::getInstance(struct pal_device *device,
     std::shared_ptr<ResourceManager> Rm)
 {

@@ -39,6 +39,7 @@
 #include <sstream>
 #include <mutex>
 #include <fstream>
+#include <agm/agm_api.h>
 
 void SessionAlsaCompress::updateCodecOptions(pal_param_payload *param_payload)
 {
@@ -396,10 +397,12 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
         case PAL_AUDIO_FMT_AAC_ADTS:
         case PAL_AUDIO_FMT_AAC_ADIF:
         case PAL_AUDIO_FMT_AAC_LATM:
+        case PAL_AUDIO_FMT_VORBIS:
         case PAL_AUDIO_FMT_FLAC:
-            isSupported = true;
-            break;
+        case PAL_AUDIO_FMT_WMA_PRO:
+        case PAL_AUDIO_FMT_APE:
         case PAL_AUDIO_FMT_WMA_STD:
+            isSupported = true;
             break;
         case PAL_AUDIO_FMT_PCM_S8:
         case PAL_AUDIO_FMT_PCM_S16_LE:
@@ -409,13 +412,7 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
             break;
         case PAL_AUDIO_FMT_ALAC:
             break;
-        case PAL_AUDIO_FMT_APE:
-            break;
-        case PAL_AUDIO_FMT_WMA_PRO:
-            break;
         case PAL_AUDIO_FMT_FLAC_OGG:
-            break;
-        case PAL_AUDIO_FMT_VORBIS:
             break;
         default:
             break;
@@ -431,6 +428,9 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     uint32_t miid;
+    struct pal_stream_attributes sAttr;
+    struct media_format_t *media_fmt_hdr = nullptr;
+    struct agm_buff buffer = {0, 0, 0, NULL, 0, NULL, {0, 0, 0}};
 
     if (audio_fmt == PAL_AUDIO_FMT_VORBIS) {
         payload_media_fmt_vorbis_t* media_fmt_vorbis = NULL;
@@ -442,7 +442,6 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
             PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
             return status;
         }
-        struct media_format_t *media_fmt_hdr = nullptr;
         media_fmt_hdr = (struct media_format_t *)
                             malloc(sizeof(struct media_format_t)
                                 + sizeof(struct pal_snd_dec_vorbis));
@@ -460,25 +459,43 @@ int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
                             sizeof(struct pal_snd_dec_vorbis),
                             &codec.format,
                             sizeof(struct pal_snd_dec_vorbis));
-        status = builder->payloadCustomParam(&payload, &payloadSize,
+        if (sendNextTrackParams) {
+            PAL_DBG(LOG_TAG, "sending next track param on datapath");
+            buffer.timestamp = 0x0;
+            buffer.flags = AGM_BUFF_FLAG_MEDIA_FORMAT;
+            buffer.size = sizeof(struct media_format_t) +
+                          sizeof(struct pal_snd_dec_vorbis);
+            buffer.addr = (uint8_t *)media_fmt_hdr;
+            payload = (uint8_t *)&buffer;
+            payloadSize = sizeof(struct agm_buff);
+            status = SessionAlsaUtils::mixerWriteDatapathParams(mixer,
+                        compressDevIds.at(0), payload, payloadSize);
+            free(media_fmt_hdr);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG,"mixerWriteWithMetadata failed %d", status);
+                return status;
+            }
+            sendNextTrackParams = false;
+        } else {
+            status = builder->payloadCustomParam(&payload, &payloadSize,
                                         (uint32_t *)media_fmt_hdr,
                                         sizeof(struct media_format_t) +
                                         sizeof(struct pal_snd_dec_vorbis),
                                         miid, PARAM_ID_MEDIA_FORMAT);
-        free(media_fmt_hdr);
-        if (status) {
-            PAL_ERR(LOG_TAG,"payloadCustomParam failed status = %d", status);
-            return status;
-        }
-        status = SessionAlsaUtils::setMixerParameter(mixer,
-                        compressDevIds.at(0), payload, payloadSize);
-        freeCustomPayload(&payload, &payloadSize);
-        if (status != 0) {
-            PAL_ERR(LOG_TAG,"setMixerParameter failed");
-            return status;
+            free(media_fmt_hdr);
+            if (status) {
+                PAL_ERR(LOG_TAG,"payloadCustomParam failed status = %d", status);
+                return status;
+            }
+            status = SessionAlsaUtils::setMixerParameter(mixer,
+                            compressDevIds.at(0), payload, payloadSize);
+            freeCustomPayload(&payload, &payloadSize);
+            if (status != 0) {
+                PAL_ERR(LOG_TAG,"setMixerParameter failed");
+                return status;
+            }
         }
     }
-
     return status;
 }
 
@@ -586,6 +603,7 @@ SessionAlsaCompress::SessionAlsaCompress(std::shared_ptr<ResourceManager> Rm)
     this->cbCookie = 0;
     playback_started = false;
     playback_paused = false;
+    streamHandle = NULL;
 }
 
 SessionAlsaCompress::~SessionAlsaCompress()
@@ -602,6 +620,7 @@ int SessionAlsaCompress::open(Stream * s)
 
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
+    streamHandle = s;
     if (0 != status) {
         PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
         goto exit;
@@ -1122,7 +1141,6 @@ int SessionAlsaCompress::start(Stream * s)
                 PAL_ERR(LOG_TAG, "Failed to get tag info %x, status = %d", STREAM_SPR, status);
                 goto exit;;
             }
-
             setCustomFormatParam(audio_fmt);
             for (int i = 0; i < associatedDevices.size();i++) {
                 status = associatedDevices[i]->getDeviceAttributes(&dAttr);
@@ -1338,6 +1356,7 @@ int SessionAlsaCompress::write(Stream *s __unused, int tag __unused, struct pal_
         PAL_ERR(LOG_TAG, "NULL pointer access,compress is invalid");
         return -EINVAL;
     }
+
     PAL_DBG(LOG_TAG, "buf->size is %zu buf->buffer is %pK ",
             buf->size, buf->buffer);
 
@@ -1505,6 +1524,14 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
         case PAL_PARAM_ID_CODEC_CONFIGURATION:
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
             updateCodecOptions((pal_param_payload *) payload);
+            if (compress && audio_fmt != PAL_AUDIO_FMT_VORBIS) {
+                PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
+                status = compress_set_codec_params(compress, &codec);
+            } else if (compress && (audio_fmt == PAL_AUDIO_FMT_VORBIS)) {
+                PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
+                sendNextTrackParams = true;
+                status = setCustomFormatParam(audio_fmt);
+            }
         break;
         case PAL_PARAM_ID_GAPLESS_MDATA:
         {

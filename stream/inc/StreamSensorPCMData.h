@@ -53,6 +53,7 @@ public:
     int32_t open() override;
     int32_t start() override;
     int32_t stop() override;
+    int32_t close() override;
     int32_t Resume() override;
     int32_t Pause() override;
     int32_t EnableLPI(bool is_enable) override;
@@ -60,6 +61,7 @@ public:
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
     int32_t ConnectDevice(pal_device_id_t device_id) override;
     pal_device_id_t GetAvailCaptureDevice();
+    std::shared_ptr<Device> GetPalDevice(pal_device_id_t dev_id, bool use_rm_profile);
 private:
     void GetUUID(class SoundTriggerUUID *uuid, const struct st_uuid *vendor_uuid);
     int32_t SetupStreamConfig(const struct st_uuid *vendor_uuid);

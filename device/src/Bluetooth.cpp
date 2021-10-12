@@ -202,6 +202,9 @@ int Bluetooth::configureA2dpEncoderDecoder()
     uint32_t num_payloads = 0;
 
     isConfigured = false;
+
+    PAL_DBG(LOG_TAG, "Enter");
+
     rm->getBackendName(deviceAttr.id, backEndName);
 
     dev = Device::getInstance(&deviceAttr, rm);
@@ -552,6 +555,73 @@ error:
        delete builder;
        builder = NULL;
     }
+    PAL_DBG(LOG_TAG, "Exit");
+    return status;
+}
+
+
+int Bluetooth::configureNrecParameters(bool isNrecEnabled)
+{
+    int status = 0, i;
+    Stream *stream = NULL;
+    Session *session = NULL;
+    std::vector<Stream*> activestreams;
+    PayloadBuilder* builder = new PayloadBuilder();
+    std::string backEndName;
+    uint8_t* paramData = NULL;
+    size_t paramSize = 0;
+    uint32_t miid = 0;
+    std::shared_ptr<Device> dev = nullptr;
+    uint32_t num_payloads = 0;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    if (!builder) {
+        PAL_ERR(LOG_TAG, "Failed to new PayloadBuilder()");
+        status = -ENOMEM;
+        goto exit;
+    }
+    rm->getBackendName(deviceAttr.id, backEndName);
+    dev = Device::getInstance(&deviceAttr, rm);
+    if (dev == 0) {
+        PAL_ERR(LOG_TAG, "device_id[%d] Instance query failed", deviceAttr.id );
+        status = -EINVAL;
+        goto exit;
+    }
+
+    status = rm->getActiveStream_l(dev, activestreams);
+    if ((0 != status) || (activestreams.size() == 0)) {
+        PAL_ERR(LOG_TAG, "no active stream available");
+        status = -EINVAL;
+        goto exit;
+    }
+    stream = static_cast<Stream *>(activestreams[0]);
+    stream->getAssociatedSession(&session);
+
+    status = session->getMIID(backEndName.c_str(), TAG_ECNS, &miid);
+    if (!status) {
+        PAL_DBG(LOG_TAG, "Setting NREC Configuration");
+        builder->payloadNRECConfig(&paramData, &paramSize,
+            miid, isNrecEnabled);
+        if (!paramData) {
+            PAL_ERR(LOG_TAG, "Failed to payloadNRECConfig");
+            status = -ENOMEM;
+            goto exit;
+        }
+        dev->updateCustomPayload(paramData, paramSize);
+        free(paramData);
+        paramData = NULL;
+        paramSize = 0;
+    } else {
+        PAL_ERR(LOG_TAG, "Failed to find ECNS module info %x, status = %d"
+            "cannot set NREC parameters",
+            TAG_ECNS, status);
+    }
+exit:
+    if (builder) {
+       delete builder;
+       builder = NULL;
+    }
+    PAL_DBG(LOG_TAG, "Exit");
     return status;
 }
 
@@ -1714,6 +1784,7 @@ bool BtSco::isWbSpeechEnabled = false;
 int  BtSco::swbSpeechMode = SPEECH_MODE_INVALID;
 bool BtSco::isSwbLc3Enabled = false;
 audio_lc3_codec_cfg_t BtSco::lc3CodecInfo = {};
+bool BtSco::isNrecEnabled = false;
 
 BtSco::BtSco(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Bluetooth(device, Rm)
@@ -1771,6 +1842,10 @@ int32_t BtSco::setDeviceParameter(uint32_t param_id, void *param)
             convertCodecInfo(lc3CodecInfo, param_bt_sco->lc3_cfg);
         }
         PAL_DBG(LOG_TAG, "isSwbLc3Enabled = %d", isSwbLc3Enabled);
+        break;
+    case PAL_PARAM_ID_BT_SCO_NREC:
+        isNrecEnabled = param_bt_sco->bt_sco_nrec;
+        PAL_DBG(LOG_TAG, "isNrecEnabled = %d", isNrecEnabled);
         break;
     default:
         return -EINVAL;
@@ -1944,6 +2019,14 @@ int BtSco::start()
         isConfigured = true;
         PAL_DBG(LOG_TAG, "SCO WB/NB codecConfig is same as deviceAttr bw = %d,sr = %d,ch = %d",
             codecConfig.bit_width, codecConfig.sample_rate, codecConfig.ch_info.channels);
+    }
+
+    //Configure NREC only on Tx path & First session request only.
+    if ((isConfigured == true) &&
+        (deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+        if (totalActiveSessionRequests == 0) {
+            configureNrecParameters(isNrecEnabled);
+        }
     }
 
     status = Device::start_l();

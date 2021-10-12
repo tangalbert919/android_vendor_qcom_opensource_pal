@@ -94,6 +94,9 @@ int32_t setup_usecase_ultrasound()
      //setting stream attributes
      stream_attributes = (struct pal_stream_attributes *)
                           calloc (1, sizeof(struct pal_stream_attributes));
+     if (!stream_attributes)
+        goto exit;
+
      stream_attributes->type = PAL_STREAM_ULTRASOUND;
      stream_attributes->direction = PAL_AUDIO_INPUT_OUTPUT;
 
@@ -112,13 +115,16 @@ int32_t setup_usecase_ultrasound()
      param_payload = (pal_param_payload *) calloc (1,
                                  sizeof(pal_param_payload) +
                                  sizeof(pal_param_upd_event_detection_t));
+     if (!param_payload)
+        goto exit;
+
      payload.register_status = 1;
      param_payload->payload_size = sizeof(pal_param_upd_event_detection_t);
      memcpy(param_payload->payload, &payload, param_payload->payload_size);
      status = pal_stream_set_param(pal_stream, PAL_PARAM_ID_UPD_REGISTER_FOR_EVENTS, param_payload);
      if (status) {
          fprintf(stdout, "setParams failed");
-         free(param_payload);
+         goto close_stream;
      }
 
      status = pal_stream_start(pal_stream);
@@ -133,6 +139,8 @@ close_stream:
 exit:
      if (param_payload)
         free(param_payload);
+     if (stream_attributes)
+        free(stream_attributes);
      return status;
 }
 

@@ -742,7 +742,6 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
     } else {
         aif_media_config[2] = palToSndDriverFormat((uint32_t)dAttr->config.aud_fmt_id);
         aif_media_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
-        aif_group_atrr_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
     }
 
     // if it's virtual port, need to set group attribute as well
@@ -767,13 +766,11 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
             aif_group_atrr_config[1] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.channels;
         else
             aif_group_atrr_config[1] = dAttr->config.ch_info.channels;
-        if (rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.bit_width)
-            aif_group_atrr_config[2] = bitsToAlsaFormat(
-                rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.bit_width);
-        else
-            aif_group_atrr_config[2] = palToSndDriverFormat((uint32_t)dAttr->config.aud_fmt_id);
+        aif_group_atrr_config[2] = palToSndDriverFormat(
+                                    rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id);
+        aif_group_atrr_config[3] = AGM_DATA_FORMAT_FIXED_POINT;
+        aif_group_atrr_config[4] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask;
 
-            aif_group_atrr_config[4] = rmHandle->activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask;
         mixer_ctl_set_array(ctl, &aif_group_atrr_config,
                                sizeof(aif_group_atrr_config)/sizeof(aif_group_atrr_config[0]));
         PAL_INFO(LOG_TAG, "%s rate ch fmt data_fmt slot_mask %ld %ld %ld %ld %ld\n", truncatedBeName.c_str(),
@@ -916,7 +913,7 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
     for (i = 0; i < tag_info->num_tags; i++) {
         tag_entry += offset/sizeof(struct gsl_tag_module_info_entry);
 
-        PAL_DBG(LOG_TAG, "tag id[%d] = %ux, num_modules = %x\n", i, tag_entry->tag_id, tag_entry->num_modules);
+        PAL_DBG(LOG_TAG, "tag id[%d] = 0x%x, num_modules = 0x%x\n", i, tag_entry->tag_id, tag_entry->num_modules);
         offset = sizeof(struct gsl_tag_module_info_entry) + (tag_entry->num_modules * sizeof(struct gsl_module_id_info_entry));
         if (tag_entry->tag_id == tag_id) {
             struct gsl_module_id_info_entry *mod_info_entry;
@@ -924,11 +921,16 @@ int SessionAlsaUtils::getModuleInstanceId(struct mixer *mixer, int device, const
             if (tag_entry->num_modules) {
                  mod_info_entry = &tag_entry->module_entry[0];
                  *miid = mod_info_entry->module_iid;
-                 PAL_DBG(LOG_TAG, "MIID is %x\n", *miid);
+                 PAL_DBG(LOG_TAG, "MIID is 0x%x\n", *miid);
                  ret = 0;
                  break;
             }
         }
+    }
+
+    if (*miid == 0) {
+         ret = -EINVAL;
+         PAL_ERR(LOG_TAG, "No matching MIID found for tag: 0x%x, error:%d", tag_id, ret);
     }
 
     free(payload);
@@ -1157,6 +1159,45 @@ int SessionAlsaUtils::setECRefPath(struct mixer *mixer, int device, const char *
     }
 
     ret = mixer_ctl_set_enum_by_string(ctl, intf_name);
+    free(mixer_str);
+    return ret;
+}
+
+int SessionAlsaUtils::mixerWriteDatapathParams(struct mixer *mixer, int device,
+                                        void *payload, int size)
+{
+    char *pcmDeviceName = NULL;
+    char const *control = "datapathParams";
+    char *mixer_str;
+    struct mixer_ctl *ctl;
+    int ctl_len = 0,ret = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+
+    pcmDeviceName = rm->getDeviceNameFromID(device);
+    if(!pcmDeviceName){
+        PAL_ERR(LOG_TAG, "Device name from id %d not found", device);
+        return -EINVAL;
+    }
+
+    PAL_DBG(LOG_TAG, "- mixer -%s-\n", pcmDeviceName);
+    ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
+    mixer_str = (char *)calloc(1, ctl_len);
+    if (!mixer_str) {
+        return -ENOMEM;
+    }
+    snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);
+
+    PAL_DBG(LOG_TAG, "- mixer -%s-\n", mixer_str);
+    ctl = mixer_get_ctl_by_name(mixer, mixer_str);
+    if (!ctl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n", mixer_str);
+        free(mixer_str);
+        return ENOENT;
+    }
+    PAL_DBG(LOG_TAG, "payload = %p\n", payload);
+    ret = mixer_ctl_set_array(ctl, payload, size);
+
+    PAL_DBG(LOG_TAG, "ret = %d, cnt = %d\n", ret, size);
     free(mixer_str);
     return ret;
 }
@@ -1821,7 +1862,7 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
     //To check if any active stream present on same backend
     activeStreamsDevices.clear();
     rm->getSharedBEActiveStreamDevs(activeStreamsDevices, aifBackEndsToDisconnect[0].first);
-    if (activeStreamsDevices.size() > 0) {
+    if (activeStreamsDevices.size() > 1) {
         PAL_INFO(LOG_TAG, "No need to free device metadata since active streams present on device");
     } else {
         mixer_ctl_set_array(beMetaDataMixerCtrl, (void*)deviceMetaData.buf,

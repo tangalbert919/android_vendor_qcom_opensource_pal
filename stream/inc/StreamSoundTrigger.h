@@ -179,6 +179,7 @@ class StreamSoundTrigger : public Stream {
     void SetModelType(st_module_type_t model_type) { model_type_ = model_type; }
     st_module_type_t GetModelType() { return model_type_; }
     bool GetLPIEnabled() { return use_lpi_; }
+    uint32_t GetInstanceId();
  private:
     class EngineCfg {
      public:
@@ -609,6 +610,8 @@ class StreamSoundTrigger : public Stream {
     ChronoSteadyClock_t transit_end_time_;
     // set to true only when mutex is not locked after callback
     bool mutex_unlocked_after_cb_;
-    bool concurrency_handling_;
+    // flag to indicate whether we should update common capture profile in RM
+    bool common_cp_update_disable_;
+    bool second_stage_processing_;
 };
 #endif // STREAMSOUNDTRIGGER_H_

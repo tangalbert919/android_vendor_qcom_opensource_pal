@@ -236,6 +236,18 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
     ATRACE_ASYNC_BEGIN("stEngine: read FTRT data", (int32_t)module_type_);
     kw_transfer_begin = std::chrono::steady_clock::now();
     while (!exit_buffering_) {
+        /*
+         * When RestartRecognition is called during buffering thread
+         * unlocking mutex, buffering loop may not exit properly as
+         * exit_buffering_ is still false after RestartRecognition
+         * finished. Add additional check here to avoid this corner
+         * case.
+         */
+        if (eng_state_ != ENG_BUFFERING) {
+            PAL_DBG(LOG_TAG, "engine is stopped/restarted, exit data reading");
+            break;
+        }
+
         PAL_VERBOSE(LOG_TAG, "request read %zu from gsl", buf.size);
         // read data from session
         ATRACE_ASYNC_BEGIN("stEngine: lab read", (int32_t)module_type_);
@@ -2052,9 +2064,9 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
     StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
     PAL_DBG(LOG_TAG, "Enter");
-    std::unique_lock<std::mutex> lck(mutex_);
 
-    DetachStream(s);
+    DetachStream(s, false);
+    std::unique_lock<std::mutex> lck(mutex_);
 
     /*
      * For PDK or sound model merging usecase, multi streams will
@@ -2866,15 +2878,17 @@ std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     return eng_[key];
 }
 
-void SoundTriggerEngineGsl::DetachStream(Stream *s) {
+void SoundTriggerEngineGsl::DetachStream(Stream *s, bool erase_engine) {
     st_module_type_t key;
+
+    std::unique_lock<std::mutex> lck(mutex_);
 
     if (s) {
         auto iter = std::find(eng_streams_.begin(), eng_streams_.end(), s);
         if (iter != eng_streams_.end())
             eng_streams_.erase(iter);
     }
-    if (!eng_streams_.size()) {
+    if (!eng_streams_.size() && erase_engine) {
         key = this->module_type_;
         if (IS_MODULE_TYPE_PDK(this->module_type_)) {
             key = ST_MODULE_TYPE_PDK;

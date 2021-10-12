@@ -1072,20 +1072,24 @@ int32_t StreamPCM::pause_l()
         goto exit;
     }
 
-    status = session->setConfig(this, MODULE, PAUSE_TAG);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
-                status);
-        goto exit;
+    if (currentState != STREAM_PAUSED) {
+        status = session->setConfig(this, MODULE, PAUSE_TAG);
+        if (0 != status) {
+           PAL_ERR(LOG_TAG, "session setConfig for pause failed with status %d",
+                    status);
+           goto exit;
+        }
+        PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+        if (session->isPauseRegistrationDone)
+            pauseCV.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
+        else
+            usleep(VOLUME_RAMP_PERIOD);
+        isPaused = true;
+        currentState = STREAM_PAUSED;
+        PAL_DBG(LOG_TAG, "session setConfig successful");
+    } else {
+        PAL_INFO(LOG_TAG, "Stream is already paused");
     }
-    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
-    if (session->isPauseRegistrationDone)
-        pauseCV.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
-    else
-        usleep(VOLUME_RAMP_PERIOD);
-    isPaused = true;
-    currentState = STREAM_PAUSED;
-    PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;

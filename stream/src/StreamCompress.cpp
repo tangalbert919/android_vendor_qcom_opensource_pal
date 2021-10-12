@@ -469,15 +469,17 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
     PAL_VERBOSE(LOG_TAG, "Enter. session handle - %p state %d", session,
             currentState);
 
+    mStreamMutex.lock();
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         status = -ENETRESET;
         PAL_ERR(LOG_TAG, "Sound Card offline, can not write, status %d",
                 status);
+        mStreamMutex.unlock();
         return status;
     }
 
-    //we should allow writes to go through in Open/Start/Pause state as well.
-    if ( (currentState == STREAM_OPENED) ||
+    // we should allow writes to go through in Open/Start/Pause state as well.
+    if ((currentState == STREAM_OPENED) ||
         (currentState == STREAM_STARTED) ||
         (currentState == STREAM_PAUSED)) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
@@ -486,10 +488,13 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             if (errno == -ENETRESET && rm->cardState != CARD_STATUS_OFFLINE) {
                 PAL_ERR(LOG_TAG, "Sound card offline, informing rm");
                 rm->ssrHandler(CARD_STATUS_OFFLINE);
+                mStreamMutex.unlock();
                 return errno;
             } else if (rm->cardState == CARD_STATUS_OFFLINE) {
+                mStreamMutex.unlock();
                 return errno;
             } else {
+                mStreamMutex.unlock();
                 return status;
             }
         }
@@ -504,8 +509,11 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
     } else {
         PAL_ERR(LOG_TAG, "Stream not opened yet, state %d", currentState);
         status = -EINVAL;
+        mStreamMutex.unlock();
         return status;
     }
+
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
     return size;
 }
@@ -534,6 +542,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
+    mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter");
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
@@ -568,7 +577,7 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             break;
     }
 
-
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, session parameter %u set with status %d", param_id, status);
     return status;
 }
@@ -660,19 +669,23 @@ int32_t StreamCompress::pause_l()
     PAL_DBG(LOG_TAG,"Enter, session handle - %p, state %d",
                session, currentState);
 
-    status = session->setConfig(this, MODULE, PAUSE_TAG);
-    if (0 != status) {
-       PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
-       goto exit;
+    if (currentState != STREAM_PAUSED) {
+        status = session->setConfig(this, MODULE, PAUSE_TAG);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"session setConfig for pause failed with status %d",status);
+            goto exit;
+        }
+        PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
+        if (session->isPauseRegistrationDone)
+            cvPause.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
+        else
+            usleep(VOLUME_RAMP_PERIOD);
+        isPaused = true;
+        currentState = STREAM_PAUSED;
+        PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
+    } else {
+       PAL_INFO(LOG_TAG, "Stream is already paused");
     }
-    PAL_DBG(LOG_TAG, "Waiting for Pause to complete");
-    if (session->isPauseRegistrationDone)
-        cvPause.wait_for(pauseLock, std::chrono::microseconds(VOLUME_RAMP_PERIOD));
-    else
-        usleep(VOLUME_RAMP_PERIOD);
-    isPaused = true;
-    currentState = STREAM_PAUSED;
-    PAL_VERBOSE(LOG_TAG,"session pause successful, state %d", currentState);
 
 exit:
     PAL_DBG(LOG_TAG,"Exit status: %d", status);

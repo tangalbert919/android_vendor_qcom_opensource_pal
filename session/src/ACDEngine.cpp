@@ -842,7 +842,13 @@ int32_t ACDEngine::UnloadSoundModel()
             }
 
             PAL_INFO(LOG_TAG, "Unloading model %d", model_id);
-            deregister_config.model_id = sm_cfg_->GetSoundModelInfoByModelId(model_id)->GetModelUUID();
+            std::shared_ptr<ACDSoundModelInfo> modelInfo = sm_cfg_->GetSoundModelInfoByModelId(model_id);
+            if (!modelInfo) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "Error:failed to obtain model Info by model ID %d", model_id);
+                return status;
+            }
+            deregister_config.model_id = modelInfo->GetModelUUID();
             if (deregister_config.model_id)
                 status = RegDeregSoundModel(PAL_PARAM_ID_UNLOAD_SOUND_MODEL, (uint8_t *)&deregister_config,
                                      sizeof(deregister_config));

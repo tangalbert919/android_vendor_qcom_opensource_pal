@@ -51,6 +51,20 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
     paused_ = false;
     device_opened_ = false;
     currentState = STREAM_IDLE;
+    exit_thread_ = false;
+    acd_idle_ = nullptr;
+    acd_loaded_ = nullptr;
+    acd_active = nullptr;
+    acd_detected_ = nullptr;
+    acd_ssr_ = nullptr;
+    acd_states_ = {};
+    use_lpi_ = false;
+    cached_event_data_ = nullptr;
+    callback_ = nullptr;
+    cookie_ = 0;
+    cur_state_ = nullptr;
+    prev_state_ = nullptr;
+    state_for_restore_ = ACD_STATE_NONE;
 
     // Setting default volume to unity
     mVolumeData = (struct pal_volume_data *)malloc(sizeof(struct pal_volume_data)
@@ -102,7 +116,6 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
         throw std::runtime_error("ACD not enabled, exiting");
     }
 
-    exit_thread_ = false;
     notification_thread_handler_ = std::thread(EventNotificationThread, this);
     if (!notification_thread_handler_.joinable()) {
         PAL_ERR(LOG_TAG, "Error:%d failed to create notification thread",
@@ -126,8 +139,6 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
 
     // Set initial state
     cur_state_ = acd_idle_;
-    prev_state_ = nullptr;
-    state_for_restore_ = ACD_STATE_NONE;
 
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
@@ -1272,6 +1283,10 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
             acd_stream_.mDevices.clear();
             acd_stream_.mDevices.push_back(dev);
 
+            PAL_DBG(LOG_TAG, "Update capture profile before SetupSessionDevice");
+            acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
+            acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
+
             status = acd_stream_.engine_->SetupSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -1308,9 +1323,6 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                 dev->close();
                 acd_stream_.device_opened_ = false;
             } else {
-                PAL_INFO(LOG_TAG, "Update capture profile after device switch");
-                acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
-                acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
                 if (acd_stream_.isActive())
                     acd_stream_.rm->registerDevice(dev, &acd_stream_);
             }
@@ -1384,16 +1396,11 @@ int32_t StreamACD::ACDLoaded::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
                                     acd_stream_.GetAvailCaptureDevice());
                 } else {
-                    acd_stream_.mDevPPSelector = new_cap_prof->GetName();
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
                     status = acd_stream_.ProcessInternalEvent(ev_cfg1);
-                    if (status) {
+                    if (status)
                         PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
-                    } else {
-                        acd_stream_.cap_prof_ = new_cap_prof;
-                        acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
-                    }
                 }
             } else {
               PAL_INFO(LOG_TAG,"no action needed, same capture profile");
@@ -1510,6 +1517,8 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             }
             auto& dev = acd_stream_.mDevices[0];
 
+            acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
+
             acd_stream_.engine_->DisconnectSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
 
@@ -1518,8 +1527,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 PAL_ERR(LOG_TAG, "Error:%d device stop failed", status);
                 goto disconnect_err;
             }
-
-            acd_stream_.rm->deregisterDevice(dev, &acd_stream_);
 
             status = dev->close();
             acd_stream_.device_opened_ = false;
@@ -1556,6 +1563,10 @@ int32_t StreamACD::ACDActive::ProcessEvent(
             acd_stream_.mDevices.clear();
             acd_stream_.mDevices.push_back(dev);
 
+            PAL_DBG(LOG_TAG, "Update capture profile before SetupSessionDevice");
+            acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
+            acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
+
             status = acd_stream_.engine_->SetupSessionDevice(&acd_stream_,
                 acd_stream_.mStreamAttr->type, dev);
             if (0 != status) {
@@ -1581,9 +1592,6 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                 dev->close();
                 acd_stream_.device_opened_ = false;
             } else {
-                PAL_DBG(LOG_TAG, "Update capture profile after device switch");
-                acd_stream_.cap_prof_ = acd_stream_.GetCurrentCaptureProfile();
-                acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
                 acd_stream_.rm->registerDevice(dev, &acd_stream_);
             }
             break;
@@ -1655,18 +1663,11 @@ int32_t StreamACD::ACDActive::ProcessEvent(
                         PAL_ERR(LOG_TAG, "Error:%d Failed to disconnect device %d", status,
                                     acd_stream_.GetAvailCaptureDevice());
                 } else {
-                    acd_stream_.mDevPPSelector = new_cap_prof->GetName();
-
                     std::shared_ptr<ACDEventConfig> ev_cfg1(
                         new ACDDeviceConnectedEventConfig(acd_stream_.GetAvailCaptureDevice()));
                     status = acd_stream_.ProcessInternalEvent(ev_cfg1);
-                    if (status) {
+                    if (status)
                         PAL_ERR(LOG_TAG, "Error:%d Failed to connect device %d", status, acd_stream_.GetAvailCaptureDevice());
-                    } else {
-                        acd_stream_.cap_prof_ = new_cap_prof;
-                        acd_stream_.mDevPPSelector = acd_stream_.cap_prof_->GetName();
-                    }
-
                 }
             } else {
               PAL_INFO(LOG_TAG,"no action needed, same capture profile");

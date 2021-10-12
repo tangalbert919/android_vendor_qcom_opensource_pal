@@ -204,6 +204,8 @@ public:
                              struct pal_media_config *data, bool isRx);
     void payloadCopPackConfig(uint8_t** payload, size_t* size, uint32_t miid,
                           struct pal_media_config *data);
+    void payloadNRECConfig(uint8_t** payload, size_t* size,
+        uint32_t miid, bool isNrecEnabled);
     void payloadCopV2DepackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data,
                           bool isStreamMapDirIn);
     void payloadCopV2PackConfig(uint8_t** payload, size_t* size, uint32_t miid, void *data);
@@ -213,6 +215,8 @@ public:
                          int paramId, void *data);
     void payloadScramblingConfig(uint8_t** payload, size_t* size,
             uint32_t miid, uint32_t enable);
+    int payloadPopSuppressorConfig(uint8_t** payload, size_t* size,
+                                   uint32_t miid, bool enable);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVector);
     int populateStreamKV(Stream* s, std::vector <std::pair<int,int>> &keyVectorRx,
         std::vector <std::pair<int,int>> &keyVectorTx ,struct vsid_info vsidinfo);
