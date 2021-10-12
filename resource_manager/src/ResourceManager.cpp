@@ -5636,13 +5636,11 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     // check if device has virtual port enabled, update the active group devcie config
     // if streams has same virtual backend, it will be handled in shared backend case
-    mActiveStreamMutex.lock();
     status = checkAndUpdateGroupDevConfig(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr, true);
     if (status) {
         PAL_ERR(LOG_TAG, "no valid group device config found");
         streamsToSwitch.clear();
     }
-    mActiveStreamMutex.unlock();
 
     //get the active streams on the device
     //if higher priority stream exists on any of the incoming device, update the config of incoming device
@@ -8912,13 +8910,11 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
 
     // check if need to update active group devcie config when usecase goes aways
     // if stream device is with same virtual backend, it can be handled in shared backend case
-    mActiveStreamMutex.lock();
     status = checkAndUpdateGroupDevConfig(&curDevAttr, &sAttr, streamsToSwitch, &newDevAttr, false);
     if (status) {
         PAL_ERR(LOG_TAG, "no valid group device config found");
         streamsToSwitch.clear();
     }
-    mActiveStreamMutex.unlock();
 
     getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
