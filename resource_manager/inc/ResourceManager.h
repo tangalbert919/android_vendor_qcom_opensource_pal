@@ -417,6 +417,7 @@ protected:
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
     pal_speaker_rotation_type rotation_type_;
+    bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
     static std::mutex mGraphMutex;
     static std::mutex mActiveStreamMutex;

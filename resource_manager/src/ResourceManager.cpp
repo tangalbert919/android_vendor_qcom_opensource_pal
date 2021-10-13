@@ -2683,7 +2683,13 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     PAL_DBG(LOG_TAG, "EC ref already set");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
-                    status = str->setECRef(device, true);
+                    /* For Device switch, stream mutex will be already acquired,
+                     * so call setECRef_l instead of setECRef.
+                     */
+                    if (isDeviceSwitch)
+                        status = str->setECRef_l(device, true);
+                    else
+                        status = str->setECRef(device, true);
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
@@ -2721,7 +2727,10 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     PAL_DBG(LOG_TAG, "EC ref already set");
                 } else if (str && isStreamActive(str, mActiveStreams)) {
                     mResourceManagerMutex.unlock();
-                    status = str->setECRef(d, true);
+                    if (isDeviceSwitch)
+                        status = str->setECRef_l(d, true);
+                    else
+                        status = str->setECRef(d, true);
                     mResourceManagerMutex.lock();
                     if (status) {
                         PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
@@ -5643,6 +5652,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
                         (*sIter));
         (*sIter)->lockStreamMutex();
     }
+    isDeviceSwitch = true;
 
     status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
@@ -5660,6 +5670,7 @@ exit:
                         (*sIter));
         (*sIter)->unlockStreamMutex();
     }
+    isDeviceSwitch = false;
     mActiveStreamMutex.unlock();
 exit_no_unlock:
     PAL_INFO(LOG_TAG, "Exit status: %d", status);
