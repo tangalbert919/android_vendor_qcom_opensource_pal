@@ -457,6 +457,8 @@ protected:
     static std::vector<deviceCap> devInfo;
     static std::map<std::pair<uint32_t, std::string>, std::string> btCodecMap;
     static std::map<std::string, uint32_t> btFmtTable;
+    static std::map<std::string, int> spkrPosTable;
+    static std::map<int, std::string> spkrTempCtrlsMap;
     static std::vector<deviceIn> deviceInfo;
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
@@ -555,6 +557,7 @@ public:
     bool getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
     void getChannelMap(uint8_t *channel_map, int channels);
+    pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d, Stream *s);
@@ -585,6 +588,8 @@ public:
     static void updateBackEndName(int32_t deviceId, std::string backEndName);
     static void updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value);
     static std::string getBtCodecLib(uint32_t codecFormat, std::string codecType);
+    static void updateSpkrTempCtrls(int key, std::string value);
+    static std::string getSpkrTempCtrl(int channel);
     int getGainLevelMapping(struct pal_amp_db_and_gain_table *mapTbl, int tblSize);
 
     int setParameter(uint32_t param_id, void *param_payload,
@@ -701,6 +706,7 @@ public:
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
     static void processBTCodecInfo(const XML_Char **attr);
+    static void processSpkrTempCtrls(const XML_Char **attr);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);
     static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);

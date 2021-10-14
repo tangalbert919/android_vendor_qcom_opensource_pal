@@ -67,8 +67,8 @@ typedef enum speaker_prot_proc_state {
 }spkr_prot_proc_state;
 
 enum {
-    WSA_SPKR_RIGHT,    /* Right Speaker */
-    WSA_SPKR_LEFT,     /* Left Speaker */
+    SPKR_RIGHT,    /* Right Speaker */
+    SPKR_LEFT,     /* Left Speaker */
 };
 
 struct agmMetaData {
@@ -104,6 +104,7 @@ protected :
     std::vector<int> pcmDevIdTx;
     static int calibrationCallbackStatus;
     static int numberOfRequest;
+    static struct pal_device_info vi_device;
 
 private :
 

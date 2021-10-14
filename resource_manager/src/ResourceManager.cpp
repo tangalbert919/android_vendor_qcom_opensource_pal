@@ -46,6 +46,7 @@
 #include "Bluetooth.h"
 #include "SpeakerMic.h"
 #include "Speaker.h"
+#include "SpeakerProtection.h"
 #include "USBAudio.h"
 #include "HeadsetMic.h"
 #include "HandsetMic.h"
@@ -443,6 +444,7 @@ std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
+std::map<int, std::string> ResourceManager::spkrTempCtrlsMap;
 
 std::shared_ptr<group_dev_config_t> ResourceManager::activeGroupDevConfig = nullptr;
 std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> ResourceManager::groupDevConfigMap;
@@ -460,6 +462,11 @@ std::map<std::string, uint32_t> ResourceManager::btFmtTable = {
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_APTX_AD_SPEECH),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_LC3),
     MAKE_STRING_FROM_ENUM(CODEC_TYPE_PCM)
+};
+
+std::map<std::string, int> ResourceManager::spkrPosTable = {
+    MAKE_STRING_FROM_ENUM(SPKR_RIGHT),
+    MAKE_STRING_FROM_ENUM(SPKR_LEFT)
 };
 
 std::vector<std::pair<int32_t, std::string>> ResourceManager::listAllBackEndIds {
@@ -1689,6 +1696,11 @@ void ResourceManager::getChannelMap(uint8_t *channel_map, int channels)
        channel_map[7] = PAL_CHMAP_CHANNEL_RS;
        break;
    }
+}
+
+pal_audio_fmt_t ResourceManager::getAudioFmt(uint32_t bitWidth)
+{
+    return bitWidthToFormat.at(bitWidth);
 }
 
 int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
@@ -8074,6 +8086,44 @@ done:
     return;
 }
 
+std::string ResourceManager::getSpkrTempCtrl(int channel)
+{
+    std::map<int, std::string>::iterator iter;
+
+
+    iter = spkrTempCtrlsMap.find(channel);
+    if (iter != spkrTempCtrlsMap.end()) {
+        return iter->second;
+    }
+
+    return std::string();
+}
+
+void ResourceManager::updateSpkrTempCtrls(int key, std::string value)
+{
+    spkrTempCtrlsMap.insert(std::make_pair(key, value));
+}
+
+void ResourceManager::processSpkrTempCtrls(const XML_Char **attr)
+{
+    std::map<std::string, int>::iterator iter;
+
+    if ((strcmp(attr[0], "spkr_posn") != 0) ||
+        (strcmp(attr[2], "ctrl") != 0)) {
+        PAL_ERR(LOG_TAG,"invalid attribute passed %s %s expected spkr_posn and ctrl",
+                         attr[0], attr[2]);
+        goto done;
+    }
+
+    iter = spkrPosTable.find(std::string(attr[1]));
+
+    if (iter != spkrPosTable.end())
+        updateSpkrTempCtrls(iter->second, std::string(attr[3]));
+
+done:
+    return;
+}
+
 bool ResourceManager::isPluginDevice(pal_device_id_t id) {
     if (id == PAL_DEVICE_OUT_USB_DEVICE ||
         id == PAL_DEVICE_OUT_USB_HEADSET ||
@@ -8766,6 +8816,9 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         return;
     } else if (strcmp(tag_name, "config_gapless") == 0) {
         setGaplessMode(attr);
+        return;
+    } else if(strcmp(tag_name, "temp_ctrl") == 0) {
+        processSpkrTempCtrls(attr);
         return;
     }
 
