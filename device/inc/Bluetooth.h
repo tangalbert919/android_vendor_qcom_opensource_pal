@@ -111,6 +111,7 @@ protected:
     bool isPlaceholderEncoder();
     void startAbr();
     void stopAbr();
+    int32_t configureSlimbusClockSrc(void);
 
 public:
     int getCodecConfig(struct pal_media_config *config) override;

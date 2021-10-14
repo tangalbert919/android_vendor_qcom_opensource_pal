@@ -172,6 +172,7 @@ struct xml_userdata {
     group_dev_config_idx_t group_dev_idx;
     resource_xml_tags_t tag;
     bool inCustomConfig;
+    XML_Parser parser;
 };
 
 typedef enum {
@@ -468,6 +469,7 @@ protected:
     static std::map<std::string, uint32_t> btFmtTable;
     static std::map<std::string, int> spkrPosTable;
     static std::map<int, std::string> spkrTempCtrlsMap;
+    static std::map<uint32_t, uint32_t> btSlimClockSrcMap;
     static std::vector<deviceIn> deviceInfo;
     static std::vector<tx_ecinfo> txEcInfo;
     static struct vsid_info vsidInfo;
@@ -601,6 +603,8 @@ public:
     static std::string getBtCodecLib(uint32_t codecFormat, std::string codecType);
     static void updateSpkrTempCtrls(int key, std::string value);
     static std::string getSpkrTempCtrl(int channel);
+    static void updateBtSlimClockSrcMap(uint32_t key, uint32_t value);
+    static uint32_t getBtSlimClockSrc(uint32_t codecFormat);
     int getGainLevelMapping(struct pal_amp_db_and_gain_table *mapTbl, int tblSize);
 
     int setParameter(uint32_t param_id, void *param_payload,
@@ -717,8 +721,8 @@ public:
     static void process_voicemode_info(const XML_Char **attr);
     static void process_gain_db_to_level_map(struct xml_userdata *data, const XML_Char **attr);
     static void processCardInfo(struct xml_userdata *data, const XML_Char *tag_name);
-    static void processBTCodecInfo(const XML_Char **attr);
     static void processSpkrTempCtrls(const XML_Char **attr);
+    static void processBTCodecInfo(const XML_Char **attr, const int attr_count);
     static void startTag(void *userdata __unused, const XML_Char *tag_name, const XML_Char **attr);
     static void snd_data_handler(void *userdata, const XML_Char *s, int len);
     static void processDeviceIdProp(struct xml_userdata *data, const XML_Char *tag_name);

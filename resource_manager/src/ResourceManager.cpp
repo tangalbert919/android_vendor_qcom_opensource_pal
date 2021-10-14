@@ -135,6 +135,8 @@
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
 #define WAKE_UNLOCK_PATH "/sys/power/wake_unlock"
 
+#define CLOCK_SRC_DEFAULT 1
+
 /*this can be over written by the config file settings*/
 uint32_t pal_log_lvl = (PAL_LOG_ERR|PAL_LOG_INFO);
 
@@ -446,6 +448,7 @@ struct volume_set_param_info ResourceManager::volumeSetParamInfo_;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 std::map<int, std::string> ResourceManager::spkrTempCtrlsMap;
+std::map<uint32_t, uint32_t> ResourceManager::btSlimClockSrcMap;
 
 std::shared_ptr<group_dev_config_t> ResourceManager::activeGroupDevConfig = nullptr;
 std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> ResourceManager::groupDevConfigMap;
@@ -620,6 +623,7 @@ ResourceManager::ResourceManager()
     streamTag.clear();
     deviceTag.clear();
     btCodecMap.clear();
+    btSlimClockSrcMap.clear();
 
     vsidInfo.loopback_delay = 0;
 
@@ -8053,7 +8057,23 @@ std::string ResourceManager::getBtCodecLib(uint32_t codecFormat, std::string cod
     return std::string();
 }
 
-void ResourceManager::processBTCodecInfo(const XML_Char **attr)
+void ResourceManager::updateBtSlimClockSrcMap(uint32_t key, uint32_t value)
+{
+    btSlimClockSrcMap.insert(std::make_pair(key, value));
+}
+
+uint32_t ResourceManager::getBtSlimClockSrc(uint32_t codecFormat)
+{
+    std::map<uint32_t, std::uint32_t>::iterator iter;
+
+    iter = btSlimClockSrcMap.find(codecFormat);
+    if (iter != btSlimClockSrcMap.end())
+        return iter->second;
+
+    return CLOCK_SRC_DEFAULT;
+}
+
+void ResourceManager::processBTCodecInfo(const XML_Char **attr, const int attr_count)
 {
     char *saveptr = NULL;
     char *token = NULL;
@@ -8096,14 +8116,24 @@ void ResourceManager::processBTCodecInfo(const XML_Char **attr)
     }
 
     for (std::vector<std::string>::iterator iter1 = codec_formats.begin();
-        iter1 != codec_formats.end(); ++iter1) {
+            iter1 != codec_formats.end(); ++iter1) {
         if (btFmtTable.find(*iter1) != btFmtTable.end()) {
             for (std::vector<std::string>::iterator iter2 = codec_types.begin();
-                iter2 != codec_types.end(); ++iter2) {
+                    iter2 != codec_types.end(); ++iter2) {
                 PAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s, %s=%s",
-                    attr[0], (*iter1).c_str(), attr[2], (*iter2).c_str(), attr[4], attr[5]);
+                        attr[0], (*iter1).c_str(), attr[2], (*iter2).c_str(), attr[4], attr[5]);
 
                 updateBtCodecMap(std::make_pair(btFmtTable[*iter1], *iter2),  std::string(attr[5]));
+            }
+
+            /* Clock is an optional attribute unlike codec_format & codec_type.
+             * Check attr count before accessing it.
+             * attr[6] & attr[7] reserved for clock source value
+             */
+            if (attr_count >= 8 && strcmp(attr[6], "clock") == 0) {
+                PAL_VERBOSE(LOG_TAG, "BT Codec Info %s=%s, %s=%s",
+                        attr[0], (*iter1).c_str(), attr[6], attr[7]);
+                updateBtSlimClockSrcMap(btFmtTable[*iter1], atoi(attr[7]));
             }
         }
     }
@@ -8865,7 +8895,7 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
     } else if(strcmp(tag_name, "param") == 0) {
         processConfigParams(attr);
     } else if (strcmp(tag_name, "codec") == 0) {
-        processBTCodecInfo(attr);
+        processBTCodecInfo(attr, XML_GetSpecifiedAttributeCount(data->parser));
         return;
     } else if (strcmp(tag_name, "config_gapless") == 0) {
         setGaplessMode(attr);
@@ -9033,8 +9063,8 @@ int ResourceManager::XmlParser(std::string xmlFile)
     int ret = 0;
     int bytes_read;
     void *buf = NULL;
-    struct xml_userdata card_data;
-    memset(&card_data, 0, sizeof(card_data));
+    struct xml_userdata data;
+    memset(&data, 0, sizeof(data));
 
     PAL_INFO(LOG_TAG, "XML parsing started - file name %s", xmlFile.c_str());
     file = fopen(xmlFile.c_str(), "r");
@@ -9050,7 +9080,9 @@ int ResourceManager::XmlParser(std::string xmlFile)
         PAL_ERR(LOG_TAG, "Failed to create XML ret %d", ret);
         goto closeFile;
     }
-    XML_SetUserData(parser, &card_data);
+
+    data.parser = parser;
+    XML_SetUserData(parser, &data);
     XML_SetElementHandler(parser, startTag, endTag);
     XML_SetCharacterDataHandler(parser, snd_data_handler);
 
