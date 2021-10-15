@@ -416,7 +416,6 @@ bool ResourceManager::isChargeConcurrencyEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
 bool ResourceManager::isVbatEnabled = false;
 static int max_nt_sessions;
-pal_audio_fmt_t ResourceManager::bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
 bool ResourceManager::isRasEnabled = false;
 bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
@@ -1505,6 +1504,7 @@ void ResourceManager::getDeviceInfo(pal_device_id_t deviceId, pal_stream_type_t 
             devinfo->isExternalECRefEnabledFlag = deviceInfo[i].isExternalECRefEnabled;
             devinfo->priority = MIN_USECASE_PRIORITY;
             devinfo->bit_width = deviceInfo[i].bit_width;
+            devinfo->bitFormatSupported = deviceInfo[i].bitFormatSupported;
             devinfo->channels_overwrite = false;
             devinfo->samplerate_overwrite = false;
             devinfo->sndDevName_overwrite = false;
@@ -1773,9 +1773,9 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
      }
      deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
      /*special case if bitFormatSupported is requested*/
-     if (bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
-         deviceattr->config.aud_fmt_id = bitFormatSupported;
-         deviceattr->config.bit_width = palFormatToBitwidthLookup(bitFormatSupported);
+     if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
+         deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
+         deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
      }
 
     /*special cases to update attrs for hot plug devices*/
@@ -1833,7 +1833,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 status = USB_out_device->selectBestConfig(deviceattr, sAttr, true, &devinfo);
                 deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
                 if (deviceattr->config.bit_width == BITWIDTH_24) {
-                    if (bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_LE)
+                    if (devinfo.bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_LE)
                         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
                     else
                         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
@@ -1857,7 +1857,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 /*Update aud_fmt_id based on the selected bitwidth*/
                 deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
                 if (deviceattr->config.bit_width == BITWIDTH_24) {
-                    if (bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_LE)
+                    if (devinfo.bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_LE)
                         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
                     else
                         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_3LE;
@@ -8503,7 +8503,9 @@ uint32_t ResourceManager::palFormatToBitwidthLookup(const pal_audio_fmt_t format
 void ResourceManager::process_device_info(struct xml_userdata *data, const XML_Char *tag_name)
 {
 
-    struct deviceIn dev = {};
+    struct deviceIn dev = {
+        .bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE,
+    };
     int size = 0 , sizeusecase = 0, sizecustomconfig = 0;
 
     if (data->offs <= 0)
@@ -8553,14 +8555,15 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
             if (atoi(data->data_buf))
                 isCpsEnabled = true;
         } else if (!strcmp(tag_name, "supported_bit_format")) {
+            size = deviceInfo.size() - 1;
             if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_3LE"))
-               bitFormatSupported = PAL_AUDIO_FMT_PCM_S24_3LE;
+               deviceInfo[size].bitFormatSupported = PAL_AUDIO_FMT_PCM_S24_3LE;
             else if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S24_LE"))
-               bitFormatSupported = PAL_AUDIO_FMT_PCM_S24_LE;
+               deviceInfo[size].bitFormatSupported = PAL_AUDIO_FMT_PCM_S24_LE;
             else if(!strcmp(data->data_buf, "PAL_AUDIO_FMT_PCM_S32_LE"))
-               bitFormatSupported = PAL_AUDIO_FMT_PCM_S32_LE;
+               deviceInfo[size].bitFormatSupported = PAL_AUDIO_FMT_PCM_S32_LE;
             else
-               bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
+               deviceInfo[size].bitFormatSupported = PAL_AUDIO_FMT_PCM_S16_LE;
         } else if (!strcmp(tag_name, "vbat_enabled")) {
             if (atoi(data->data_buf))
                 isVbatEnabled = true;

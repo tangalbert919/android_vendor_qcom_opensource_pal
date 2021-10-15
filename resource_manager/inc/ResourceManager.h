@@ -240,6 +240,7 @@ struct pal_device_info {
      bool sndDevName_overwrite;
      bool bit_width_overwrite;
      uint32_t bit_width;
+     pal_audio_fmt_t bitFormatSupported;
 };
 
 struct vsid_modepair {
@@ -362,6 +363,7 @@ struct deviceIn {
     bool isExternalECRefEnabled;
     bool fractionalSRSupported;
     uint32_t bit_width;
+    pal_audio_fmt_t bitFormatSupported;
 };
 
 class ResourceManager
@@ -515,7 +517,6 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static bool isCpsEnabled;
-    static pal_audio_fmt_t bitFormatSupported;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
