@@ -1409,7 +1409,8 @@ bool Stream::checkStreamMatch(pal_device_id_t pal_device_id,
            match = true;
            // as long as one device matches, it is enough.
            break;
-       }
+       } else
+           match = false;
     }
 
     return match;
