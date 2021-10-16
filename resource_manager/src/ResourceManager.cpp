@@ -1799,7 +1799,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     PAL_ERR(LOG_TAG, "failed to get USB singleton object.");
                     return -EINVAL;
                 }
-                status = USB_out_device->selectBestConfig(deviceattr, sAttr, true);
+                status = USB_out_device->selectBestConfig(deviceattr, sAttr, true, &devinfo);
                 deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
                 if (deviceattr->config.bit_width == BITWIDTH_24) {
                     if (bitFormatSupported == PAL_AUDIO_FMT_PCM_S24_LE)
@@ -1822,7 +1822,7 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     PAL_ERR(LOG_TAG, "failed to get USB singleton object.");
                     return -EINVAL;
                 }
-                USB_in_device->selectBestConfig(deviceattr, sAttr, false);
+                USB_in_device->selectBestConfig(deviceattr, sAttr, false, &devinfo);
                 /*Update aud_fmt_id based on the selected bitwidth*/
                 deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
                 if (deviceattr->config.bit_width == BITWIDTH_24) {
