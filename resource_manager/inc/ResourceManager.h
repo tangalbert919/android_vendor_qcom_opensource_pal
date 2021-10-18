@@ -535,6 +535,8 @@ public:
     static bool isVIRecordStarted;
     /* Flag to indicate if shared backend is enabled for UPD */
     static bool isUpdDedicatedBeEnabled;
+    /* Variable to store max volume index for voice call */
+    static int max_voice_vol;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -569,6 +571,7 @@ public:
     bool getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
     int32_t getVolumeSetParamInfo(struct volume_set_param_info *volinfo);
+    int getMaxVoiceVol();
     void getChannelMap(uint8_t *channel_map, int channels);
     pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
     int registerStream(Stream *s);

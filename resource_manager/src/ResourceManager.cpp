@@ -426,6 +426,7 @@ bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
+int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -1658,6 +1659,12 @@ int32_t ResourceManager::getVsidInfo(struct vsid_info  *info) {
     return status;
 
 }
+
+int ResourceManager::getMaxVoiceVol() {
+    return max_voice_vol;
+}
+
+
 
 void ResourceManager::getChannelMap(uint8_t *channel_map, int channels)
 {
@@ -8410,6 +8417,9 @@ void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_
         }
         if (strcmp(tag_name, "loopbackDelay") == 0) {
             vsidInfo.loopback_delay = atoi(data->data_buf);
+        }
+        if (strcmp(tag_name, "maxVolIndex") == 0) {
+            max_voice_vol = atoi(data->data_buf);
         }
     }
     if (!strcmp(tag_name, "modepair")) {

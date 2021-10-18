@@ -54,6 +54,10 @@ SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
    builder = new PayloadBuilder();
    pcmEcTx = NULL;
    streamHandle = NULL;
+   max_vol_index = rm->getMaxVoiceVol();
+   if (max_vol_index == -1){
+      max_vol_index = MAX_VOL_INDEX;
+   }
 }
 
 SessionAlsaVoice::~SessionAlsaVoice()
@@ -1340,7 +1344,7 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
 
     /*volume key*/
     cal_key_pair[0].cal_key_id = VCPM_CAL_KEY_ID_VOLUME_LEVEL;
-    cal_key_pair[0].value = percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX);
+    cal_key_pair[0].value = percent_to_index(vol, MIN_VOL_INDEX, max_vol_index);
 
     /*cal key for volume boost*/
     cal_key_pair[1].cal_key_id = VCPM_CAL_KEY_ID_VOL_BOOST;
@@ -1362,7 +1366,7 @@ int SessionAlsaVoice::payloadCalKeys(Stream * s, uint8_t **payload, size_t *size
     *size = payloadSize + padBytes;
     *payload = payloadInfo;
     PAL_DBG(LOG_TAG, "Volume level: %lf, volume boost: %d, HD voice: %d",
-            percent_to_index(vol, MIN_VOL_INDEX, MAX_VOL_INDEX),
+            percent_to_index(vol, MIN_VOL_INDEX, max_vol_index),
             volume_boost, hd_voice);
 
 exit:
