@@ -1526,7 +1526,6 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
     std::vector<std::string> aifBackEndsToConnect;
     struct pal_device dAttr;
     int status = 0;
-    int txDevId = PAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
@@ -1546,18 +1545,6 @@ int SessionAlsaVoice::setupSessionDevice(Stream* streamHandle,
             return status;
         }
     } else if (txAifBackEnds.size() > 0) {
-        /*set sidetone on new tx device*/
-        if (deviceToConnect->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
-            deviceToConnect->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
-            txDevId = deviceToConnect->getSndDeviceId();
-        }
-        if(txDevId != PAL_DEVICE_NONE)
-        {
-            status = setSidetone(txDevId,streamHandle,1);
-        }
-        if(0 != status) {
-            PAL_ERR(LOG_TAG,"enabling sidetone failed");
-        }
         status =  SessionAlsaUtils::setupSessionDevice(streamHandle, streamType,
                                                        rm, dAttr, pcmDevTxIds,
                                                        txAifBackEnds);
@@ -1576,6 +1563,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
     std::vector<std::string> aifBackEndsToConnect;
     struct pal_device dAttr;
     int status = 0;
+    int txDevId = PAL_DEVICE_NONE;
 
     deviceList.push_back(deviceToConnect);
     rm->getBackEndNames(deviceList, rxAifBackEnds, txAifBackEnds);
@@ -1589,6 +1577,18 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
         if(0 != status) {
             PAL_ERR(LOG_TAG,"connectSessionDevice on RX Failed");
             return status;
+        }
+
+        // set sidetone on new tx device after pcm_start
+        status = getTXDeviceId(streamHandle, &txDevId);
+        if (status){
+            PAL_ERR(LOG_TAG,"could not find TX device associated with this stream\n");
+        }
+        if (txDevId != PAL_DEVICE_NONE) {
+            status = setSidetone(txDevId,streamHandle,1);
+        }
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"enabling sidetone failed");
         }
     } else if (txAifBackEnds.size() > 0) {
 
