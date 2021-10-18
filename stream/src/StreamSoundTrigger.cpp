@@ -1668,19 +1668,24 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
-    if (num_conf_levels > 0) {
-        gsl_engine_->UpdateConfLevels(this, config,
-                                  conf_levels, num_conf_levels);
+    // update custom config for 3rd party VA session
+    if (!sm_cfg_->isQCVAUUID() && !sm_cfg_->isQCMDUUID()) {
+        gsl_engine_->UpdateConfLevels(this, config, nullptr, 0);
+    } else {
+        if (num_conf_levels > 0) {
+            gsl_engine_->UpdateConfLevels(this, config,
+                                      conf_levels, num_conf_levels);
 
-        gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
-        if (!gsl_conf_levels_) {
-            PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
-            status = -ENOMEM;
-            goto error_exit;
+            gsl_conf_levels_ = (uint8_t *)realloc(gsl_conf_levels_, num_conf_levels);
+            if (!gsl_conf_levels_) {
+                PAL_ERR(LOG_TAG, "Failed to allocate gsl conf levels memory");
+                status = -ENOMEM;
+                goto error_exit;
+            }
         }
+        ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
+        gsl_conf_levels_size_ = num_conf_levels;
     }
-    ar_mem_cpy(gsl_conf_levels_, num_conf_levels, conf_levels, num_conf_levels);
-    gsl_conf_levels_size_ = num_conf_levels;
 
     // Update capture requested flag to gsl engine
     if (!config->capture_requested && engines_.size() == 1)
