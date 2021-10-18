@@ -7662,7 +7662,9 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                  */
                 if ((PAL_STREAM_DEEP_BUFFER == streamType) ||
                     (PAL_STREAM_COMPRESSED == streamType) ||
-                    (PAL_STREAM_PCM_OFFLOAD == streamType)) {
+                    (PAL_STREAM_PCM_OFFLOAD == streamType) ||
+                    (PAL_STREAM_ULTRA_LOW_LATENCY == streamType) ||
+                    (PAL_STREAM_LOW_LATENCY == streamType)) {
 
                     PAL_INFO(LOG_TAG, "Rotation for stream %d", streamType);
                     // Need to set the rotation now.
@@ -7678,9 +7680,6 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                     break;
                 }
             }
-            //As we got the speaker and it is reversed. No need to further
-            // iterate the list.
-            break;
         }
     }
 error :
