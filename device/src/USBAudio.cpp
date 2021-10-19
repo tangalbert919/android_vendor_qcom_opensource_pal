@@ -782,10 +782,12 @@ int USBDeviceConfig::isCustomRateSupported(int requested_rate, unsigned int *bes
     int cur_rate = 0;
 
     for (i = 0; i < rate_size_; i++) {
-        cur_rate = rates_[i];
-        if (requested_rate == cur_rate) {
-            *best_rate = requested_rate;
-             return 0;
+        if (i < MAX_SAMPLE_RATE_SIZE) {
+            cur_rate = rates_[i];
+            if (requested_rate == cur_rate) {
+                *best_rate = requested_rate;
+                return 0;
+            }
         }
     }
     return -EINVAL;
@@ -799,13 +801,15 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int cur_rate = 0;
 
     for (i = 0; i < rate_size_; i++) {
-        cur_rate = rates_[i];
-        if (requested_rate == cur_rate) {
-            *best_rate = requested_rate;
-            return 0;
-        } else if (abs(double(requested_rate - cur_rate)) <= diff) {
-            nearestRate = cur_rate;
-            diff = abs(double(requested_rate - cur_rate));
+        if (i < MAX_SAMPLE_RATE_SIZE) {
+            cur_rate = rates_[i];
+            if (requested_rate == cur_rate) {
+                *best_rate = requested_rate;
+                return 0;
+            } else if (abs(double(requested_rate - cur_rate)) <= diff) {
+                nearestRate = cur_rate;
+                diff = abs(double(requested_rate - cur_rate));
+            }
         }
         PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
     }
