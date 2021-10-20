@@ -7153,7 +7153,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (isDeviceAvailable(sco_tx_dattr.id)) {
                     struct pal_device handset_tx_dattr;
                     std::shared_ptr<Device> sco_tx_dev = nullptr;
+                    pal_device_info devInfo;
 
+                    memset(&devInfo, 0, sizeof(pal_device_info));
                     handset_tx_dattr.id = PAL_DEVICE_IN_HANDSET_MIC;
                     sco_tx_dev = Device::getInstance(&sco_tx_dattr , rm);
                     getActiveStream_l(sco_tx_dev, activestreams);
@@ -7164,6 +7166,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     stream = static_cast<Stream *>(activestreams[0]);
                     stream->getStreamAttributes(&sAttr);
                     getDeviceConfig(&handset_tx_dattr, &sAttr);
+                    getDeviceInfo(handset_tx_dattr.id, sAttr.type,
+                            handset_tx_dattr.custom_config.custom_key, &devInfo);
+                    updateSndName(handset_tx_dattr.id, devInfo.sndDevName);
                     mResourceManagerMutex.unlock();
                     rm->forceDeviceSwitch(sco_tx_dev, &handset_tx_dattr);
                     mResourceManagerMutex.lock();
