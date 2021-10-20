@@ -2685,8 +2685,9 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             PAL_DBG(LOG_TAG, "Enter enable EC Ref");
             status = s->setECRef_l(d, true);
             s->getAssociatedDevices(tx_devices);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+            if (status || tx_devices.empty()) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d or tx_devices with size %zu",
+                    status, tx_devices.size());
             } else {
                 for(auto& tx_device: tx_devices) {
                     if (tx_device->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
@@ -2777,8 +2778,9 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             PAL_DBG(LOG_TAG, "Enter disable EC Ref");
             status = s->setECRef_l(d, false);
             s->getAssociatedDevices(tx_devices);
-            if (status) {
-                PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
+            if (status || tx_devices.empty()) {
+                PAL_ERR(LOG_TAG, "Failed to set EC Ref with status %d or tx_devices with size %zu",
+                    status, tx_devices.size());
             } else {
                 for(auto& tx_device: tx_devices) {
                     if (tx_device->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
@@ -6301,6 +6303,10 @@ int32_t ResourceManager::a2dpSuspend()
 
     spkrDattr.id = PAL_DEVICE_OUT_SPEAKER;
     spkrDev = Device::getInstance(&spkrDattr, rm);
+    if (!spkrDev) {
+        PAL_ERR(LOG_TAG, "Getting speaker device instance failed");
+        goto exit;
+    }
 
     mActiveStreamMutex.lock();
     getActiveStream_l(a2dpDev, activeA2dpStreams);
@@ -6319,7 +6325,14 @@ int32_t ResourceManager::a2dpSuspend()
         // No Streams active on speaker, then check handset as well
         handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
         handsetDev = Device::getInstance(&handsetDattr, rm);
-        getActiveStream_l(handsetDev, activeStreams);
+        if (handsetDev) {
+            getActiveStream_l(handsetDev, activeStreams);
+        } else {
+            PAL_ERR(LOG_TAG, "Getting handset device instance failed");
+            mActiveStreamMutex.unlock();
+            goto exit;
+        }
+
         if (activeStreams.size() != 0) {
             // device selected to switch is handset-it is currently active.
             switchDevDattr.id = PAL_DEVICE_OUT_HANDSET;
