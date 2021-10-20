@@ -4696,7 +4696,7 @@ int ResourceManager::getSndDeviceName(int deviceId, char *device_name)
 {
     if (isValidDevId(deviceId)) {
         strlcpy(device_name, sndDeviceNameLUT[deviceId].second.c_str(), DEVICE_NAME_MAX_SIZE);
-        if (isVbatEnabled && deviceId == PAL_DEVICE_OUT_SPEAKER)
+        if (isVbatEnabled && deviceId == PAL_DEVICE_OUT_SPEAKER && !strstr(device_name, VBAT_BCL_SUFFIX))
             strlcat(device_name, VBAT_BCL_SUFFIX, DEVICE_NAME_MAX_SIZE);
     } else {
         strlcpy(device_name, "", DEVICE_NAME_MAX_SIZE);
