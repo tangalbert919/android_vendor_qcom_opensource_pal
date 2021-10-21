@@ -522,6 +522,7 @@ public:
     static bool isGaplessEnabled;
     static bool isContextManagerEnabled;
     static bool isDualMonoEnabled;
+    static bool isUHQAEnabled;
     /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
