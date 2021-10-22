@@ -1785,7 +1785,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                     break;
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer,
-                                                             pcmDevIds.at(0),
+                                                             device,
                                                              paramData,
                                                              paramSize);
                 PAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
