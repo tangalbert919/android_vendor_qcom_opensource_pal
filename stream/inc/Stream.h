@@ -136,7 +136,6 @@ protected:
     std::vector <struct pal_device> mPalDevice;
     Session* session;
     struct pal_stream_attributes* mStreamAttr;
-    struct pal_volume_data* mVolumeData = NULL;
     int mGainLevel;
     std::mutex mStreamMutex;
     static std::mutex mBaseStreamMutex; //TBD change this. as having a single static mutex for all instances of Stream is incorrect. Replace
@@ -160,6 +159,7 @@ protected:
     int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
+    struct pal_volume_data* mVolumeData = NULL;
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
