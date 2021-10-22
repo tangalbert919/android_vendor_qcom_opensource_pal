@@ -6379,7 +6379,6 @@ int ResourceManager::convertCharToHex(std::string num)
     return (int32_t) hexNum;
 }
 
-// must be called with mResourceManagerMutex held
 int32_t ResourceManager::a2dpSuspend()
 {
     int status = 0;
@@ -6523,9 +6522,7 @@ int32_t ResourceManager::a2dpSuspend()
         usleep(maxLatencyMs * 1000 * latencyMuteFactor);
     }
 
-    mResourceManagerMutex.unlock();
     forceDeviceSwitch(a2dpDev, &switchDevDattr);
-    mResourceManagerMutex.lock();
 
     mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
@@ -6553,7 +6550,6 @@ exit:
     return status;
 }
 
-// must be called with mResourceManagerMutex held
 int32_t ResourceManager::a2dpResume()
 {
     int status = 0;
@@ -6648,9 +6644,7 @@ int32_t ResourceManager::a2dpResume()
     mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
-    mResourceManagerMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
-    mResourceManagerMutex.lock();
     if (status) {
         PAL_ERR(LOG_TAG, "streamDevSwitch failed %d", status);
         goto exit;
@@ -6704,9 +6698,7 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     getDeviceConfig(&handsetmicDattr, NULL);
 
     PAL_DBG(LOG_TAG, "selecting hadset_mic and muting stream");
-    mResourceManagerMutex.unlock();
     forceDeviceSwitch(a2dpDev, &handsetmicDattr);
-    mResourceManagerMutex.lock();
 
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         (*sIter)->suspendedDevIds.clear();
@@ -6777,9 +6769,7 @@ int32_t ResourceManager::a2dpCaptureResume()
     mActiveStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "restoring A2dp and unmuting stream");
-    mResourceManagerMutex.unlock();
     status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
-    mResourceManagerMutex.lock();
     if (status) {
         PAL_ERR(LOG_TAG, "streamDevSwitch failed %d", status);
         goto exit;
@@ -7234,10 +7224,12 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
                 if (current_param_bt_a2dp->reconfig == true) {
                     param_bt_a2dp.a2dp_suspended = true;
+                    mResourceManagerMutex.unlock();
                     dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
 
                     param_bt_a2dp.a2dp_suspended = false;
                     dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                    mResourceManagerMutex.lock();
 
                     param_bt_a2dp.reconfig = false;
                     dev->setDeviceParameter(param_id, &param_bt_a2dp);
@@ -7320,8 +7312,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     mActiveStreamMutex.unlock();
                 }
             }
-
+            mResourceManagerMutex.unlock();
             status = a2dp_dev->setDeviceParameter(param_id, param_payload);
+            mResourceManagerMutex.lock();
             if (status) {
                 PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                 goto exit;
@@ -7513,7 +7506,9 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 }
             }
 
+            mResourceManagerMutex.unlock();
             status = a2dp_dev->setDeviceParameter(param_id, param_payload);
+            mResourceManagerMutex.lock();
             if (status) {
                 PAL_ERR(LOG_TAG, "set Parameter %d failed\n", param_id);
                 goto exit;
