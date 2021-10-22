@@ -134,7 +134,7 @@ int RTProxy::start() {
         goto start;
     }
 
-    builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &mDeviceAttr.config);
+    builder->payloadRATConfig(&paramData, &paramSize, ratMiid, &deviceAttr.config);
     if (dev && paramSize) {
         dev->updateCustomPayload(paramData, paramSize);
         if (paramData)
