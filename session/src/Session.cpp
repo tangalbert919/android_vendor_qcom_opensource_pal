@@ -577,7 +577,7 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 goto exit;
             }
             status = updateCustomPayload(payload, payloadSize);
-            delete payload;
+            free(payload);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
                 goto exit;
@@ -653,7 +653,7 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         status = updateCustomPayload(payload, payloadSize);
-        delete payload;
+        free(payload);
         if (0 != status) {
             PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
             goto exit;
