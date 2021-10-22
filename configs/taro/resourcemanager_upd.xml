@@ -575,8 +575,6 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <fractional_sr>1</fractional_sr>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -588,8 +586,6 @@
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <snd_device_name>usb-headphones</snd_device_name>
             <fractional_sr>1</fractional_sr>
             <usecase>
