@@ -1438,6 +1438,7 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
     effect_pal_payload_t *effectPalPayload = nullptr;
     struct compr_gapless_mdata mdata;
     struct pal_compr_gapless_mdata *gaplessMdata = NULL;
+    struct pal_stream_attributes sAttr;
 
     PAL_DBG(LOG_TAG,"Enter");
 
@@ -1559,6 +1560,35 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
              }
         }
         break;
+        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
+        {
+            pal_param_payload *param_payload = (pal_param_payload *)payload;
+            pal_volume_data *vdata = (struct pal_volume_data *)param_payload->payload;
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+                device = compressDevIds.at(0);
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                        rxAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
+            } else {
+                status = 0;
+                PAL_INFO(LOG_TAG, "Unsupported stream direction %d(ignore)", sAttr.direction);
+                goto exit;
+            }
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, dir: %d (%d)", tagId,
+                       sAttr.direction, status);
+                goto exit;
+            }
+
+            builder->payloadVolumeConfig(&alsaParamData, &alsaPayloadSize, miid, vdata);
+            if (alsaPayloadSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               alsaParamData, alsaPayloadSize);
+                PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
+                freeCustomPayload(&alsaParamData, &alsaPayloadSize);
+            }
+            break;
+        }
         default:
             PAL_INFO(LOG_TAG, "Unsupported param id %u", param_id);
         break;

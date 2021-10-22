@@ -1198,14 +1198,15 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     for (int i = 0; i < connectCount; i++) {
         std::vector <Stream *> activeStreams;
         std::shared_ptr<Device> dev = nullptr;
+        pal_device_id_t newDeviceId = newDevices[newDeviceSlots[i]].id;
 
         sharedBEStreamDev.clear();
         // get active stream device pairs sharing the same backend with new devices.
-        rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDevices[newDeviceSlots[i]].id);
+        rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, newDeviceId);
 
         streamHandle->getStreamType(&type);
 
-        rm->getDeviceInfo(newDevices[newDeviceSlots[i]].id,
+        rm->getDeviceInfo((pal_device_id_t)newDeviceId,
                           type,newDevices[newDeviceSlots[i]].custom_config.custom_key,
                           &deviceInfo);
 
@@ -1224,9 +1225,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          * is removed above.
          */
         if (sharedBEStreamDev.size() > 0) {
-            rm->getSndDeviceName(newDevices[newDeviceSlots[i]].id, CurrentSndDeviceName);
+            rm->getSndDeviceName(newDeviceId, CurrentSndDeviceName);
             /*update device attr based on prio*/
-            rm->updatePriorityAttr(newDevices[newDeviceSlots[i]].id,
+            rm->updatePriorityAttr(newDeviceId,
                                    sharedBEStreamDev,
                                    &(newDevices[newDeviceSlots[i]]),
                                    &strAttr);
@@ -1256,7 +1257,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
         } else {
-            rm-> updateSndName(newDevices[newDeviceSlots[i]].id, deviceInfo.sndDevName);
+            rm->updateSndName(newDeviceId, deviceInfo.sndDevName);
             matchFound = true;
             /*
              * check if virtual port group config needs to update, this handles scenario below:
@@ -1282,14 +1283,21 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
             streamsToSwitch.clear();
             mStreamMutex.lock();
         }
-        /*switch all streams that are running on the current device if voice call is switching to aviod dangling ec refs*/
+        /* switch all streams that are running on the current device if voice
+         * call is switching to avoid dangling ec refs
+         */
         if (type == PAL_STREAM_VOICE_CALL) {
             sharedBEStreamDev.clear();
-            for (int i = 0; i < mDevices.size(); i++) {
-                rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[i]->getSndDeviceId());
-                for (const auto &elem : sharedBEStreamDev) {
-                    streamDevDisconnect.push_back(elem);
-                    StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
+            for (int j = 0; j < mDevices.size(); j++) {
+                uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
+                if (rm->matchDevDir(newDeviceId, mDeviceId) &&
+                    newDeviceId != mDeviceId)
+                {
+                    rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
+                    for (const auto &elem : sharedBEStreamDev) {
+                        streamDevDisconnect.push_back(elem);
+                        StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
+                    }
                 }
             }
         }
@@ -1298,7 +1306,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         /* Add device associated with current stream to streamDevDisconnect/StreamDevConnect list */
         for (int j = 0; j < disconnectCount; j++) {
             // check to make sure device direction is the same
-            if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDevices[newDeviceSlots[i]].id)){
+            if (rm->matchDevDir(mDevices[curDeviceSlots[j]]->getSndDeviceId(), newDeviceId)) {
                 streamDevDisconnect.push_back({streamHandle, mDevices[curDeviceSlots[j]]->getSndDeviceId()});
                 /*if something disconnected incoming device and current dev diff so push on a switchwe need to add the deivce*/
                 matchFound = true;
@@ -1306,8 +1314,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 // on speaker/handset, need to update group config from concurrency to standalone
                 // if switching happens between speaker & handset, skip the group config check as they're shared backend
                 if ((mDevices[curDeviceSlots[j]]->getDeviceCount() == 1) &&
-                    (newDevices[newDeviceSlots[i]].id != PAL_DEVICE_OUT_SPEAKER &&
-                     newDevices[newDeviceSlots[i]].id != PAL_DEVICE_OUT_HANDSET)) {
+                    (newDeviceId != PAL_DEVICE_OUT_SPEAKER &&
+                     newDeviceId != PAL_DEVICE_OUT_HANDSET)) {
                     mStreamMutex.unlock();
                     mDevices[curDeviceSlots[j]]->getDeviceAttributes(&dAttr);
                     status = rm->checkAndUpdateGroupDevConfig(&dAttr, mStreamAttr, streamsToSwitch, &streamDevAttr, false);

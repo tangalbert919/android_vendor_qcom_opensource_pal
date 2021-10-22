@@ -47,6 +47,7 @@
 #define BT_IPC_SINK_LIB "libbthost_if_sink.so"
 #define PARAM_ID_RESET_PLACEHOLDER_MODULE          0x08001173
 #define MIXER_SET_FEEDBACK_CHANNEL "BT set feedback channel"
+#define BT_SLIMBUS_CLK_STR "BT SLIMBUS CLK SRC"
 
 Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
     : Device(device, Rm),
@@ -999,6 +1000,12 @@ free_fe:
     mAbrMutex.unlock();
 }
 
+int32_t Bluetooth::configureSlimbusClockSrc(void)
+{
+    return configureDeviceClockSrc(BT_SLIMBUS_CLK_STR,
+                rm->getBtSlimClockSrc(codecFormat));
+}
+
 
 /* Scope of BtA2dp class */
 // definition of static BtA2dp member variables
@@ -1222,9 +1229,13 @@ int BtA2dp::start()
     customPayloadSize = 0;
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
-    if (status != 0) {
-        mDeviceMutex.unlock();
-        return status;
+    if (status)
+        goto exit;
+
+    if (totalActiveSessionRequests == 1) {
+        status = configureSlimbusClockSrc();
+        if (status)
+            goto exit;
     }
 
     status = Device::start_l();
@@ -1232,6 +1243,7 @@ int BtA2dp::start()
     if (!status && isAbrEnabled)
         startAbr();
 
+exit:
     mDeviceMutex.unlock();
     return status;
 }
@@ -2005,10 +2017,8 @@ int BtSco::start()
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
         (codecFormat == CODEC_TYPE_LC3)) {
         status = startSwb();
-        if (status) {
-            mDeviceMutex.unlock();
-            return status;
-        }
+        if (status)
+            goto exit;
     } else {
         // For SCO NB and WB that don't have encoder and decoder in place,
         // just override codec configurations with device attributions.
@@ -2029,6 +2039,12 @@ int BtSco::start()
         }
     }
 
+    if (totalActiveSessionRequests == 0) {
+        status = configureSlimbusClockSrc();
+        if (status)
+            goto exit;
+    }
+
     status = Device::start_l();
     if (!status)
         totalActiveSessionRequests++;
@@ -2036,6 +2052,7 @@ int BtSco::start()
         (codecFormat != CODEC_TYPE_LC3))
         startAbr();
 
+exit:
     mDeviceMutex.unlock();
     return status;
 }
