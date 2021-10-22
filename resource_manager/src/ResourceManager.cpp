@@ -1893,25 +1893,27 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 }
             }
 
-            std::shared_ptr<Device> dev = nullptr;
-            struct pal_device proxyIn_dattr;
-            proxyIn_dattr.id = PAL_DEVICE_IN_PROXY;
-            dev = Device::getInstance(&proxyIn_dattr, rm);
-            if (dev) {
-                status = dev->getDeviceAttributes(&proxyIn_dattr);
-                if (status) {
-                    PAL_ERR(LOG_TAG, "OUT_PROXY getDeviceAttributes failed %d", status);
-                    break;
-                }
-                deviceattr->config.ch_info = proxyIn_dattr.config.ch_info;
-                deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
-                if (isPalPCMFormat(proxyIn_dattr.config.aud_fmt_id))
-                    deviceattr->config.bit_width =
+            if(!ifVoiceorVoipCall(sAttr->type)) {
+                std::shared_ptr<Device> dev = nullptr;
+                struct pal_device proxyIn_dattr;
+                proxyIn_dattr.id = PAL_DEVICE_IN_PROXY;
+                dev = Device::getInstance(&proxyIn_dattr, rm);
+                if (dev) {
+                    status = dev->getDeviceAttributes(&proxyIn_dattr);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "OUT_PROXY getDeviceAttributes failed %d", status);
+                        break;
+                    }
+                    deviceattr->config.ch_info = proxyIn_dattr.config.ch_info;
+                    deviceattr->config.sample_rate = proxyIn_dattr.config.sample_rate;
+                    if (isPalPCMFormat(proxyIn_dattr.config.aud_fmt_id))
+                        deviceattr->config.bit_width =
                               palFormatToBitwidthLookup(proxyIn_dattr.config.aud_fmt_id);
-                else
-                    deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
+                    else
+                        deviceattr->config.bit_width = proxyIn_dattr.config.bit_width;
 
-                deviceattr->config.aud_fmt_id = proxyIn_dattr.config.aud_fmt_id;
+                    deviceattr->config.aud_fmt_id = proxyIn_dattr.config.aud_fmt_id;
+                }
             }
 
             if (!is_wfd_in_progress)
