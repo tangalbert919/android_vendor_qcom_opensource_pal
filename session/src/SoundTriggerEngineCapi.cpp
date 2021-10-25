@@ -573,23 +573,6 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         }
         det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
         PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
-
-        /*
-         * Reinit the module for UV reject case only, as for UV sucess case
-         * reinit will be called as a part of startRecognition call.
-         */
-        if (detection_state_ == USER_VERIFICATION_REJECT) {
-            PAL_DBG(LOG_TAG, "%s: Issuing capi_set_param for param %d", __func__,
-                    STAGE2_UV_WRAPPER_ID_REINIT);
-            rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-                STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
-            if (CAPI_V2_EOK != rc) {
-                status = -EINVAL;
-                PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
-                        status);
-                goto exit;
-            }
-        }
     }
 
 exit:
@@ -603,6 +586,17 @@ exit:
         (long long)total_capi_get_param_duration);
     if (st_info_->GetEnableDebugDumps()) {
         ST_DBG_FILE_CLOSE(user_verification_fd);
+    }
+
+    /* Reinit the UV module */
+    PAL_DBG(LOG_TAG, "%s: Issuing capi_set_param for param %d", __func__,
+            STAGE2_UV_WRAPPER_ID_REINIT);
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+        STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
+    if (CAPI_V2_EOK != rc) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
+                status);
     }
 
     if (reader_)
@@ -812,14 +806,6 @@ int32_t SoundTriggerEngineCapi::StartSoundEngine()
         detection_state_ = KEYWORD_DETECTION_PENDING;
     } else if (detection_type_ == ST_SM_TYPE_USER_VERIFICATION) {
         stage2_uv_wrapper_threshold_config_t *threshold_cfg = nullptr;
-        rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
-            STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
-        if (CAPI_V2_EOK != rc) {
-            status = -EINVAL;
-            PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
-                    status);
-            return status;
-        }
 
         threshold_cfg = (stage2_uv_wrapper_threshold_config_t *)
             calloc(1, sizeof(stage2_uv_wrapper_threshold_config_t));
