@@ -409,6 +409,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
     uint32_t miid = 0;
     uint8_t* alsaParamData = NULL;
     size_t alsaPayloadSize = 0;
+    int mfc_tag = TAG_MFC_SPEAKER_SWAP;
     std::vector<std::shared_ptr<Device>> associatedDevices;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -436,12 +437,18 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                  /* This has to be done after sending all mixer controls and
                   * before connect
                   */
+                if (sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                    /* ULL playback don't have PP module. Thus we need to swap
+                       channels in PSPD MFC
+                    */
+                    mfc_tag = TAG_DEVICE_MFC_SR;
+                    PAL_INFO(LOG_TAG, "Speake Swap in ULL use case");
+                }
                 status =
                         SessionAlsaUtils::getModuleInstanceId(mixer,
                                                               device,
                                                               rxAifBackEnds[i].second.data(),
-                                                              TAG_MFC_SPEAKER_SWAP,
-                                                              &miid);
+                                                              mfc_tag, &miid);
                 if (status != 0) {
                     PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
                     return status;
