@@ -1281,6 +1281,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
             }
             streamsToSwitch.clear();
+
+            // check if headset config needs to update when haptics is active
+            rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
             mStreamMutex.lock();
         }
         /* switch all streams that are running on the current device if voice
