@@ -2636,6 +2636,7 @@ int ResourceManager::registerDevice_l(std::shared_ptr<Device> d, Stream *s)
     return 0;
 }
 
+// TODO: need to refine call flow to reduce redundant operation
 int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
 {
     int status = 0;
@@ -2666,6 +2667,9 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             // use setECRef_l to avoid deadlock
             getActiveStream_l(dev, activeStreams);
             for (auto& rx_str: activeStreams) {
+                if (!isDeviceActive_l(dev, rx_str) ||
+                    !rx_str->isActive())
+                    continue;
                 rx_str->getStreamAttributes(&rx_attr);
                 if (rx_attr.direction != PAL_AUDIO_INPUT) {
                     if (getEcRefStatus(sAttr.type, rx_attr.type)) {
@@ -2815,6 +2819,7 @@ int ResourceManager::deregisterDevice_l(std::shared_ptr<Device> d, Stream *s)
     return ret;
 }
 
+// TODO: need to refine call flow to reduce redundant operation
 int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
 {
     int status = 0;
@@ -4287,19 +4292,25 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
         return -EINVAL;
     }
 
-    for (j = 0; j < deviceInfo[i].ec_ref_count_map[rx_dev_id].size(); j++) {
-        if ((deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].first == tx_str) {
+    for (auto iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
+         iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
+        if ((*iter).first == tx_str) {
             tx_stream_found = true;
             if (count > 0) {
-                (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second += count;
+                (*iter).second += count;
+                ec_count = (*iter).second;
             } else if (count == 0) {
                 if (is_txstop) {
-                    (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second = 0;
-                } else {
-                    (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second--;
+                    (*iter).second = 0;
+                } else if ((*iter).second > 0) {
+                    (*iter).second--;
+                }
+                ec_count = (*iter).second;
+                if ((*iter).second == 0) {
+                    deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
                 }
             }
-            ec_count = (deviceInfo[i].ec_ref_count_map[rx_dev_id])[j].second;
+            break;
         }
     }
 
