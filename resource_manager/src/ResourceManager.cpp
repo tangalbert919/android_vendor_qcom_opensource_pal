@@ -6484,6 +6484,7 @@ int32_t ResourceManager::a2dpSuspend()
                 // only perform Mute/Pause for non combo use-case only.
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
+                (*sIter)->suspendedDevIds.clear();
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
                      (sAttr.type == PAL_STREAM_PCM_OFFLOAD))) {
                     /* First mute & then pause
