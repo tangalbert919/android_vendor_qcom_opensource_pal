@@ -971,6 +971,7 @@ int32_t StreamPCM::getParameters(uint32_t /*param_id*/, void ** /*payload*/)
 int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
 {
     int32_t status = 0;
+    int32_t setConfigStatus = 0;
     pal_param_payload *param_payload = NULL;
     effect_pal_payload_t *effectPalPayload = nullptr;
 
@@ -1025,9 +1026,21 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
         {
             // Call Session for Setting the parameter.
             if (NULL != session) {
+                /* To avoid pop while switching channels, it is required to mute
+                   the playback first and then swap the channel and unmute */
+                setConfigStatus = session->setConfig(this, MODULE, DEVICEPP_MUTE);
+                if (setConfigStatus) {
+                    PAL_INFO(LOG_TAG, "DevicePP Mute failed");
+                }
+                usleep(MUTE_RAMP_PERIOD); // Wait for Mute ramp down to happen
                 status = session->setParameters(this, 0,
                                                 PAL_PARAM_ID_DEVICE_ROTATION,
                                                 payload);
+                usleep(MUTE_RAMP_PERIOD); // Wait for channel swap to take affect
+                setConfigStatus = session->setConfig(this, MODULE, DEVICEPP_UNMUTE);
+                if (setConfigStatus) {
+                    PAL_INFO(LOG_TAG, "DevicePP Unmute failed");
+                }
             } else {
                 PAL_ERR(LOG_TAG, "Session is null");
                 status = -EINVAL;

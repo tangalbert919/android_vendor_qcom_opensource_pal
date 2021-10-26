@@ -2816,6 +2816,14 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
        tkv.push_back(std::make_pair(MUTE,OFF));
        *gsltag = TAG_DEV_MUTE;
        break;
+   case DEVICEPP_MUTE:
+       tkv.push_back(std::make_pair(MUTE,ON));
+       *gsltag = TAG_DEVPP_MUTE;
+       break;
+   case DEVICEPP_UNMUTE:
+       tkv.push_back(std::make_pair(MUTE,OFF));
+       *gsltag = TAG_DEVPP_MUTE;
+       break;
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");
        break;
