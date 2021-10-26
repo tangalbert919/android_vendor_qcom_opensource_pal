@@ -1565,6 +1565,7 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
 {
     std::vector<std::shared_ptr<Device>> deviceList;
     std::vector<std::string> aifBackEndsToConnect;
+    std::shared_ptr<Device> rxDevice = nullptr;
     struct pal_device dAttr;
     int status = 0;
     int txDevId = PAL_DEVICE_NONE;
@@ -1583,25 +1584,44 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
             return status;
         }
 
-        // set sidetone on new tx device after pcm_start
-        status = getTXDeviceId(streamHandle, &txDevId);
-        if (status){
-            PAL_ERR(LOG_TAG,"could not find TX device associated with this stream\n");
-        }
-        if (txDevId != PAL_DEVICE_NONE) {
-            status = setSidetone(txDevId,streamHandle,1);
-        }
-        if (0 != status) {
-            PAL_ERR(LOG_TAG,"enabling sidetone failed");
+        if (deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_HANDSET ||
+            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADSET ||
+            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_WIRED_HEADPHONE ||
+            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_DEVICE ||
+            deviceToConnect->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET) {
+            // set sidetone on new tx device after pcm_start
+            status = getTXDeviceId(streamHandle, &txDevId);
+            if (status){
+                PAL_ERR(LOG_TAG,"could not find TX device associated with this stream\n");
+            }
+            if (txDevId != PAL_DEVICE_NONE) {
+                status = setSidetone(txDevId, streamHandle, 1);
+            }
+            if (0 != status) {
+                PAL_ERR(LOG_TAG,"enabling sidetone failed");
+            }
         }
     } else if (txAifBackEnds.size() > 0) {
-
         status =  SessionAlsaUtils::connectSessionDevice(this, streamHandle,
                                                          streamType, rm,
                                                          dAttr, pcmDevTxIds,
                                                          txAifBackEnds);
         if(0 != status) {
             PAL_ERR(LOG_TAG,"connectSessionDevice on TX Failed");
+        }
+
+        if (deviceToConnect->getSndDeviceId() > PAL_DEVICE_IN_MIN &&
+            deviceToConnect->getSndDeviceId() < PAL_DEVICE_IN_MAX) {
+            txDevId = deviceToConnect->getSndDeviceId();
+        }
+        if (getRXDevice(streamHandle, rxDevice) != 0) {
+            PAL_DBG(LOG_TAG,"no active rx device, no need to setSidetone");
+            return status;
+        } else if (rxDevice->getDeviceCount() != 0 && txDevId != PAL_DEVICE_NONE) {
+            status = setSidetone(txDevId, streamHandle, 1);
+        }
+        if (0 != status) {
+            PAL_ERR(LOG_TAG,"enabling sidetone failed");
         }
     }
     return status;
