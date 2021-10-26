@@ -1183,12 +1183,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         goto done;
     }
 
-    if (a2dpMuted && !isNewDeviceA2dp) {
-        mute_l(false);
-        a2dpMuted = false;
-        suspendedDevIds.clear();
-    }
-
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
 
     /* created stream device connect and disconnect list */
@@ -1381,6 +1375,13 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         PAL_ERR(LOG_TAG, "Device switch failed");
     }
 
+    mStreamMutex.lock();
+    if (a2dpMuted && !isNewDeviceA2dp) {
+        mute_l(false);
+        a2dpMuted = false;
+        suspendedDevIds.clear();
+    }
+    mStreamMutex.unlock();
     return status;
 
 done:
