@@ -334,7 +334,7 @@ int USB::getDefaultConfig(pal_param_device_capability_t capability)
 
 int USB::selectBestConfig(struct pal_device *dattr,
                           struct pal_stream_attributes *sattr,
-                          bool is_playback)
+                          bool is_playback, struct pal_device_info *devinfo)
 {
     typename std::vector<std::shared_ptr<USBCardConfig>>::iterator iter;
 
@@ -344,7 +344,7 @@ int USB::selectBestConfig(struct pal_device *dattr,
             iter != usb_card_config_list_.end(); iter++) {
         if ((*iter)->isConfigCached(dattr->address)) {
             PAL_ERR(LOG_TAG, "usb device is found.");
-            status = (*iter)->readBestConfig(&dattr->config, sattr, is_playback);
+            status = (*iter)->readBestConfig(&dattr->config, sattr, is_playback, devinfo);
             break;
         }
     }
@@ -669,7 +669,7 @@ int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool
 
 int USBCardConfig::readBestConfig(struct pal_media_config *config,
                                 struct pal_stream_attributes *sattr,
-                                bool is_playback)
+                                bool is_playback, struct pal_device_info *devinfo)
 {
     typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
     USBDeviceConfig *candidate_config = nullptr;
@@ -692,11 +692,14 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
              // 1. search for matching bitwidth
              // only one bitwidth for one usb device config.
             bitwidth = (*iter)->getBitWidth();
-            if (bitwidth == media_config.bit_width) {
+            if (bitwidth == devinfo->bit_width) {
                 config->bit_width = bitwidth;
                 PAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
-                // 2. sample rate
-                ret = (*iter)->getBestRate(media_config.sample_rate,
+                /* 2. sample rate: Check if the custom sample rate set for device in RM.xml
+                is supported and then set it, otherwise set the rate based on stream attribute */
+                ret = (*iter)->isCustomRateSupported(devinfo->samplerate, &config->sample_rate);
+                if (ret != 0)
+                    ret = (*iter)->getBestRate(media_config.sample_rate,
                                     &config->sample_rate);
                 PAL_INFO(LOG_TAG, "found matching SampleRate = %d", config->sample_rate);
                 // 3. get channel
@@ -715,10 +718,13 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
     }
     if (iter == usb_device_config_list_.end()) {
         if (candidate_config) {
-            PAL_INFO(LOG_TAG, "Stream bitwidth of %d is not supported by USB. Use USB width of %d",
-                        media_config.bit_width, max_bit_width);
+            PAL_INFO(LOG_TAG, "Default bitwidth of %d is not supported by USB. Use USB width of %d",
+                         devinfo->bit_width, max_bit_width);
             config->bit_width = bitwidth;
-            ret = candidate_config->getBestRate(media_config.sample_rate,
+            ret = candidate_config->isCustomRateSupported(devinfo->samplerate,
+                                 &config->sample_rate);
+            if (ret != 0)
+                ret = candidate_config->getBestRate(media_config.sample_rate,
                                 &config->sample_rate);
             ret = candidate_config->getBestChInfo(&media_config.ch_info,
                                 &config->ch_info);
@@ -770,6 +776,23 @@ unsigned int USBDeviceConfig::getDefaultRate() {
     return rates_[0];
 }
 
+int USBDeviceConfig::isCustomRateSupported(int requested_rate, unsigned int *best_rate)
+{
+    int i = 0;
+    int cur_rate = 0;
+
+    for (i = 0; i < rate_size_; i++) {
+        if (i < MAX_SAMPLE_RATE_SIZE) {
+            cur_rate = rates_[i];
+            if (requested_rate == cur_rate) {
+                *best_rate = requested_rate;
+                return 0;
+            }
+        }
+    }
+    return -EINVAL;
+}
+
 // return 0 if match, else return -EINVAL with default sample rate
 int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int i = 0;
@@ -778,13 +801,15 @@ int USBDeviceConfig::getBestRate(int requested_rate, unsigned int *best_rate) {
     int cur_rate = 0;
 
     for (i = 0; i < rate_size_; i++) {
-        cur_rate = rates_[i];
-        if (requested_rate == cur_rate) {
-            *best_rate = requested_rate;
-            return 0;
-        } else if (abs(double(requested_rate - cur_rate)) <= diff) {
-            nearestRate = cur_rate;
-            diff = abs(double(requested_rate - cur_rate));
+        if (i < MAX_SAMPLE_RATE_SIZE) {
+            cur_rate = rates_[i];
+            if (requested_rate == cur_rate) {
+                *best_rate = requested_rate;
+                return 0;
+            } else if (abs(double(requested_rate - cur_rate)) <= diff) {
+                nearestRate = cur_rate;
+                diff = abs(double(requested_rate - cur_rate));
+            }
         }
         PAL_VERBOSE(LOG_TAG, "nearestRate %d, requested_rate %d", nearestRate, requested_rate);
     }

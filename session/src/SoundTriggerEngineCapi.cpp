@@ -573,6 +573,23 @@ int32_t SoundTriggerEngineCapi::StartUserVerification()
         }
         det_conf_score_ = (int32_t)result_cfg_ptr->final_user_score;
         PAL_INFO(LOG_TAG, "UV second stage conf level %d", det_conf_score_);
+
+        /*
+         * Reinit the module for UV reject case only, as for UV sucess case
+         * reinit will be called as a part of startRecognition call.
+         */
+        if (detection_state_ == USER_VERIFICATION_REJECT) {
+            PAL_DBG(LOG_TAG, "%s: Issuing capi_set_param for param %d", __func__,
+                    STAGE2_UV_WRAPPER_ID_REINIT);
+            rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+                STAGE2_UV_WRAPPER_ID_REINIT, nullptr, nullptr);
+            if (CAPI_V2_EOK != rc) {
+                status = -EINVAL;
+                PAL_ERR(LOG_TAG, "set_param STAGE2_UV_WRAPPER_ID_REINIT failed, status = %d",
+                        status);
+                goto exit;
+            }
+        }
     }
 
 exit:

@@ -572,6 +572,15 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             }
         }
         break;
+        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
+        {
+            status = session->setParameters(this, PAL_PARAM_ID_VOLUME_USING_SET_PARAM,
+                                            param_id, payload);
+            if (status)
+               PAL_ERR(LOG_TAG, "setParam for volume failed with %d",
+                       status);
+            break;
+        }
         default:
             status = session->setParameters(this, 0, param_id, payload);
             break;
@@ -585,6 +594,8 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
 int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
 {
     int32_t status = 0;
+    struct volume_set_param_info vol_set_param_info;
+    uint8_t volSize = 0;
 
     PAL_DBG(LOG_TAG, "Enter, session handle - %p", session);
     if (!volume|| volume->no_of_volpair == 0) {
@@ -607,8 +618,9 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
        goto exit;
     }
 
-    memcpy(mVolumeData, volume, (sizeof(struct pal_volume_data) +
-             (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair))));
+    volSize = (sizeof(struct pal_volume_data) +
+            (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
+    memcpy(mVolumeData, volume, volSize);
     for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
        PAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
@@ -617,9 +629,24 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
      * till the stream_start is not done or if sound card is
      * offline.
      */
+    memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
+    rm->getVolumeSetParamInfo(&vol_set_param_info);
     if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
         && currentState != STREAM_INIT) {
-        status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
+        bool isStreamAvail = (find(vol_set_param_info.streams_.begin(),
+                    vol_set_param_info.streams_.end(), mStreamAttr->type) !=
+                    vol_set_param_info.streams_.end());
+        if (isStreamAvail && vol_set_param_info.isVolumeUsingSetParam) {
+            uint8_t *volPayload = new uint8_t[sizeof(pal_param_payload) +
+                volSize]();
+            pal_param_payload *pld = (pal_param_payload *)volPayload;
+            pld->payload_size = sizeof(struct pal_volume_data);
+            memcpy(pld->payload, mVolumeData, volSize);
+            status = setParameters(PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
+            delete[] volPayload;
+        } else {
+            status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
+        }
         if (0 != status) {
            PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",status);
            goto exit;

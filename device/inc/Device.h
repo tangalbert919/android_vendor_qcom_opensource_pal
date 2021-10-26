@@ -63,6 +63,7 @@ protected:
 
     Device(struct pal_device *device, std::shared_ptr<ResourceManager> Rm);
     Device();
+    int32_t configureDeviceClockSrc(char const *mixerStrClockSrc, const uint32_t clockSrc);
 public:
     virtual int init(pal_param_device_connection_t device_conn);
     virtual int deinit(pal_param_device_connection_t device_conn);

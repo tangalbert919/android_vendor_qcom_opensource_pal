@@ -38,6 +38,13 @@
         <param key="upd_dedicated_be" value ="true" />
         <param key="dual_mono" value ="false" />
     </config_params>
+    <config_volume>
+        <use_volume_set_param>0</use_volume_set_param>
+        <supported_streams>
+            <supported_stream>PAL_STREAM_ULTRA_LOW_LATENCY</supported_stream>
+            <supported_stream>PAL_STREAM_COMPRESSED</supported_stream>
+        </supported_streams>
+    </config_volume>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
@@ -577,8 +584,6 @@
             <max_channels>2</max_channels>
             <channels>2</channels>
             <snd_device_name>usb-headphones</snd_device_name>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <fractional_sr>1</fractional_sr>
             <usecase>
                 <name>PAL_STREAM_VOICE_CALL</name>
@@ -590,8 +595,6 @@
             <back_end_name>USB_AUDIO-RX</back_end_name>
             <max_channels>2</max_channels>
             <channels>2</channels>
-            <samplerate>44100</samplerate>
-            <bit_width>16</bit_width>
             <snd_device_name>usb-headphones</snd_device_name>
             <fractional_sr>1</fractional_sr>
             <usecase>

@@ -1755,17 +1755,19 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                                                                rxAifBackEnds[0].second.data(),
                                                                tagId, &miid);
             else {
-                if (pcmDevRxIds.size() > 0)
+                status = -EINVAL;
+                if (pcmDevRxIds.size() > 0) {
                     device = pcmDevRxIds.at(0);
-                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                               rxAifBackEnds[0].second.data(),
-                                                               tagId, &miid);
-                if (status) {
-                    if (pcmDevTxIds.size() > 0)
-                        device = pcmDevTxIds.at(0);
                     status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
-                                                               txAifBackEnds[0].second.data(),
-                                                               tagId, &miid);
+                                                                   rxAifBackEnds[0].second.data(),
+                                                                   tagId, &miid);
+                    if (status) {
+                        if (pcmDevTxIds.size() > 0)
+                            device = pcmDevTxIds.at(0);
+                        status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                                       txAifBackEnds[0].second.data(),
+                                                                       tagId, &miid);
+                    }
                 }
             }
             if (0 != status) {
@@ -1783,7 +1785,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                     break;
                 }
                 status = SessionAlsaUtils::setMixerParameter(mixer,
-                                                             pcmDevIds.at(0),
+                                                             device,
                                                              paramData,
                                                              paramSize);
                 PAL_INFO(LOG_TAG, "mixer set param status=%d\n", status);
@@ -1848,6 +1850,51 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                                    (pal_param_upd_event_detection_t *)param_payload->payload;
             RegisterForEvents = detection_payload->register_status;
             return 0;
+        }
+        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
+        {
+            pal_param_payload *param_payload = (pal_param_payload *)payload;
+            pal_volume_data *vdata = (struct pal_volume_data *)param_payload->payload;
+            status = streamHandle->getStreamAttributes(&sAttr);
+            if (sAttr.direction == PAL_AUDIO_OUTPUT) {
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                        rxAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
+            } else if (sAttr.direction == PAL_AUDIO_INPUT) {
+                status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                        txAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
+            } else if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT)) {
+                status = -EINVAL;
+                if (pcmDevRxIds.size()) {
+                    device = pcmDevRxIds.at(0);
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                            rxAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
+                    if (status) {
+                        if (pcmDevTxIds.size() > 0)
+                            device = pcmDevTxIds.at(0);
+                        status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
+                                                                       txAifBackEnds[0].second.data(),
+                                                                       tagId, &miid);
+                    }
+                }
+            } else {
+                status = 0;
+                goto exit;
+            }
+            if (0 != status) {
+                PAL_ERR(LOG_TAG, "Failed to get tag info %x, dir: %d (%d)", tagId,
+                       sAttr.direction, status);
+                goto exit;
+            }
+
+            builder->payloadVolumeConfig(&paramData, &paramSize, miid, vdata);
+            if (paramSize) {
+                status = SessionAlsaUtils::setMixerParameter(mixer, device,
+                                               paramData, paramSize);
+                PAL_INFO(LOG_TAG, "mixer set volume config status=%d\n", status);
+                freeCustomPayload(&paramData, &paramSize);
+            }
+            return 0;
+
         }
         default:
             status = -EINVAL;
