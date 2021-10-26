@@ -907,11 +907,6 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
             break;
         }
     }
-    for(int i = 0; i < mPalDevice.size(); i++) {
-        if (dev_id == mPalDevice[i].id) {
-            mPalDevice.erase(mPalDevice.begin() + i);
-        }
-    }
 
 exit:
     return status;
@@ -931,6 +926,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 {
     int32_t status = 0;
     std::shared_ptr<Device> dev = nullptr;
+    bool foundPalDev = false;
 
 
     if (!dattr) {
@@ -983,7 +979,16 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    mPalDevice.push_back(*dattr);
+    /*check if pal devices exsists if it does not, push
+      catch all if connect is being called outside of a deviceSwitch or open */
+    for(int i = 0; i < mPalDevice.size(); i++) {
+        if (dattr->id == mPalDevice[i].id) {
+            foundPalDev = true;
+        }
+    }
+    if (!foundPalDev) {
+        mPalDevice.push_back(*dattr);
+    }
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
@@ -1097,6 +1102,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     std::vector <Stream *> streamsToSwitch;
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
+    bool foundPalDev = false;
 
     mStreamMutex.lock();
 
@@ -1188,6 +1194,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
             if (newDevices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP)
                 isNewDeviceA2dp = true;
+        }
+
+        /* store/update palDev before newDevices can be changed*/
+        for(int j = 0; j < mPalDevice.size(); j++) {
+            if (newDevices[i].id == mPalDevice[j].id) {
+                foundPalDev = true;
+                UpdatePalDevice(&(newDevices[i]), newDevices[i].id);
+            }
+        }
+        if (!foundPalDev) {
+            mPalDevice.push_back(newDevices[i]);
         }
     }
 
