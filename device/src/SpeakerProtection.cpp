@@ -113,6 +113,12 @@ std::string getDefaultSpkrTempCtrl(uint8_t spkr_pos)
     }
 }
 
+cps_reg_wr_values_t sp_cps_thrsh_values = {
+    .value_normal_threshold = {0x8E003049, 0x1000304A, 0x0F003472},
+    .value_lower_threshold_1 = {0x8F003049, 0xD000304A, 0x0F003472},
+    .value_lower_threshold_2 = {0x8F003049, 0xD000304A, 0x18003472}
+};
+
 /* Function to check if Speaker is in use or not.
  * It returns the time as well for which speaker is not in use.
  */
@@ -1145,9 +1151,10 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     size_t payloadSize = 0;
     lpass_swr_hw_reg_cfg_t *cpsRegCfg = NULL;
     pkd_reg_addr_t pkedRegAddr[numberOfChannels];
+    cps_reg_wr_values_t *cps_thrsh_values;
+    param_id_cps_lpass_swr_thresholds_cfg_t *cps_thrsh_cfg;
     int dev_num;
     int val, ret = 0;
-
 
     memset(&pkedRegAddr, 0, sizeof(pkd_reg_addr_t) * numberOfChannels);
     // Payload for ParamID : PARAM_ID_CPS_LPASS_HW_INTF_CFG
@@ -1161,6 +1168,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
     cpsRegCfg->lpass_wr_cmd_reg_phy_addr = LPASS_WR_CMD_REG_PHY_ADDR;
     cpsRegCfg->lpass_rd_cmd_reg_phy_addr = LPASS_RD_CMD_REG_PHY_ADDR;
     cpsRegCfg->lpass_rd_fifo_reg_phy_addr = LPASS_RD_FIFO_REG_PHY_ADDR;
+
+    // Payload for ParamID : PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG
+    cps_thrsh_cfg = (param_id_cps_lpass_swr_thresholds_cfg_t*) calloc(1,
+                       sizeof(param_id_cps_lpass_swr_thresholds_cfg_t)
+                       + (sizeof(cps_reg_wr_values_t) * numberOfChannels));
+    if (cps_thrsh_cfg == NULL) {
+        PAL_ERR(LOG_TAG,"Unable to allocate Memory for CPS SWR Threshold config\n");
+        goto exit;
+    }
+    cps_thrsh_cfg->num_spkr = numberOfChannels;
+    cps_thrsh_cfg->vbatt_lower_threshold_1 = CPS_WSA_VBATT_LOWER_THRESHOLD_1;
+    cps_thrsh_cfg->vbatt_lower_threshold_2 = CPS_WSA_VBATT_LOWER_THRESHOLD_2;
+    cps_thrsh_values = (cps_reg_wr_values_t *)((uint8_t*)cps_thrsh_cfg
+                         + sizeof(param_id_cps_lpass_swr_thresholds_cfg_t));
 
     for (int i = 0; i < numberOfChannels; i++) {
         switch (i)
@@ -1196,6 +1217,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         val |= ((i*2)+1) << 16;
 
         pkedRegAddr[i].temp_pkd_reg_addr |= val;
+
+        /* payload for PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG.*/
+        memcpy(cps_thrsh_values, &sp_cps_thrsh_values, sizeof(cps_reg_wr_values_t));
+        /* Retain dev_num from val */
+        val &= 0x00F00000;
+        for (int j = 0;j < CPS_NUM_VBATT_THRESHOLD_VALUES;j++) {
+            val &= 0xFFF0FFFF;
+            /* Update cmd id and dev_num to the payload.*/
+            val |= ((i * 3) + j) << 16;
+            cps_thrsh_values->value_normal_threshold[j] |= val;
+            cps_thrsh_values->value_lower_threshold_1[j] |= val;
+            cps_thrsh_values->value_lower_threshold_2[j] |= val;
+        }
+        cps_thrsh_values++;
     }
     memcpy(cpsRegCfg->pkd_reg_addr, pkedRegAddr, sizeof(pkd_reg_addr_t) *
                     numberOfChannels);
@@ -1208,6 +1243,20 @@ void SpeakerProtection::updateCpsCustomPayload(int miid)
         ret = updateCustomPayload(payload, payloadSize);
         free(payload);
         free(cpsRegCfg);
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
+        }
+    }
+
+    // Payload builder for ParamID : PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG
+    payloadSize = 0;
+    payload = NULL;
+    builder->payloadSPConfig(&payload, &payloadSize, miid,
+            PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG,(void *)cps_thrsh_cfg);
+    if (payloadSize) {
+        ret = updateCustomPayload(payload, payloadSize);
+        free(payload);
+        free(cps_thrsh_cfg);
         if (0 != ret) {
             PAL_ERR(LOG_TAG," updateCustomPayload Failed\n");
         }

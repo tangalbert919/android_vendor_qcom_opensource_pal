@@ -48,6 +48,9 @@ class Speaker;
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
 
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_1 168
+#define CPS_WSA_VBATT_LOWER_THRESHOLD_2 148
+
 typedef enum speaker_prot_cal_state {
     SPKR_NOT_CALIBRATED,     /* Speaker not calibrated  */
     SPKR_CALIBRATED,         /* Speaker calibrated  */
