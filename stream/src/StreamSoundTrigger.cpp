@@ -1846,7 +1846,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
          * this case notifyClient is not called, so we need to unlock stream
          * mutex at end of SetEngineDetectionState, that's why we don't need
          * to unlock stream mutex here.
-         * If mutex is locked back here, mark mutex_unlocked_after_cb_ as true
+         * If mutex is not locked here, mark mutex_unlocked_after_cb_ as true
          * so that we can avoid double unlock in SetEngineDetectionState.
          */
         if (!lock_status)
@@ -2965,6 +2965,47 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 break;
             }
         err_exit:
+            break;
+        }
+        case ST_EV_UNLOAD_SOUND_MODEL: {
+
+            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
+                        status);
+                }
+            }
+
+            st_stream_.mDevices.clear();
+
+            for (auto& eng: st_stream_.engines_) {
+                PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+                free(eng->sm_data_);
+            }
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
+            if (st_stream_.reader_) {
+                delete st_stream_.reader_;
+                st_stream_.reader_ = nullptr;
+            }
+            st_stream_.engines_.clear();
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
+            st_stream_.reader_list_.clear();
+            if (st_stream_.sm_info_) {
+                delete st_stream_.sm_info_;
+                st_stream_.sm_info_ = nullptr;
+            }
+
+            st_stream_.rm->resetStreamInstanceID(
+                &st_stream_,
+                st_stream_.mInstanceID);
             break;
         }
         case ST_EV_PAUSE: {
