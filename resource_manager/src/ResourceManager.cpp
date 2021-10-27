@@ -4404,6 +4404,7 @@ int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
 
 template <class T>
 void getOrphanStreams(std::vector<Stream*> &orphanstreams,
+                      std::vector<Stream*> &retrystreams,
                       std::list<T> sourcestreams)
 {
     for (typename std::list<T>::iterator iter = sourcestreams.begin();
@@ -4412,29 +4413,33 @@ void getOrphanStreams(std::vector<Stream*> &orphanstreams,
         (*iter)->getAssociatedDevices(devices);
         if (devices.empty())
             orphanstreams.push_back(*iter);
+
+        if ((*iter)->suspendedDevIds.size() > 0)
+            retrystreams.push_back(*iter);
     }
 }
 
-int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams)
+int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams,
+                                       std::vector<Stream*> &retrystreams)
 {
     int ret = 0;
 
-    getOrphanStreams(orphanstreams, active_streams_ll);
-    getOrphanStreams(orphanstreams, active_streams_ull);
-    getOrphanStreams(orphanstreams, active_streams_ulla);
-    getOrphanStreams(orphanstreams, active_streams_db);
-    getOrphanStreams(orphanstreams, active_streams_comp);
-    getOrphanStreams(orphanstreams, active_streams_st);
-    getOrphanStreams(orphanstreams, active_streams_acd);
-    getOrphanStreams(orphanstreams, active_streams_po);
-    getOrphanStreams(orphanstreams, active_streams_proxy);
-    getOrphanStreams(orphanstreams, active_streams_incall_record);
-    getOrphanStreams(orphanstreams, active_streams_non_tunnel);
-    getOrphanStreams(orphanstreams, active_streams_incall_music);
-    getOrphanStreams(orphanstreams, active_streams_haptics);
-    getOrphanStreams(orphanstreams, active_streams_ultrasound);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_ll);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_ull);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_ulla);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_db);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_comp);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_st);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_acd);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_po);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_proxy);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_incall_record);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_non_tunnel);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_incall_music);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_haptics);
+    getOrphanStreams(orphanstreams, retrystreams, active_streams_ultrasound);
 
-    if (orphanstreams.empty()) {
+    if (orphanstreams.empty() && retrystreams.empty()) {
         ret = -ENOENT;
         PAL_INFO(LOG_TAG, "no orphan streams found");
     }
@@ -4442,12 +4447,13 @@ int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams)
     return ret;
 }
 
-int ResourceManager::getOrphanStream(std::vector<Stream*> &orphanstreams)
+int ResourceManager::getOrphanStream(std::vector<Stream*> &orphanstreams,
+                                     std::vector<Stream*> &retrystreams)
 {
     int ret = 0;
     PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
-    ret = getOrphanStream_l(orphanstreams);
+    ret = getOrphanStream_l(orphanstreams, retrystreams);
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
@@ -5446,14 +5452,14 @@ void ResourceManager::getBackEndNames(
         PAL_DBG(LOG_TAG, "getBackEndNames (TX): %s", txBackEndNames[i].second.c_str());
 }
 
-/*will updated dev2Attr if needed*/
+/* updated dev2Attr if needed */
 bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
                                               const struct pal_device_info *Dev1Info,
                                               struct pal_device *Dev2Attr,
                                               const struct pal_device_info *Dev2Info)
 {
     bool updated = false;
-    char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
 
     if (!Dev1Attr || !Dev1Info || !Dev2Attr || !Dev2Info) {
         PAL_ERR(LOG_TAG,"invalid pointer cannot update attr");
@@ -5660,9 +5666,11 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
 {
     int status = 0;
     std::vector <Stream*>::iterator sIter;
+    std::vector <struct pal_device *>::iterator dIter;
     std::vector <std::tuple<Stream *, uint32_t>>::iterator sIter1;
     std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
     std::vector <Stream*> uniqueStreamsList;
+    std::vector <struct pal_device *> uniqueDevConnectionList;
 
     PAL_INFO(LOG_TAG, "Enter");
 
@@ -5673,51 +5681,66 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
     }
     mActiveStreamMutex.lock();
 
-    /*Need to lock all streams that are involved in devSwitch
-      When we are doing Switch to avoid any stream specific calls to happen.
-      We want to avoid stream close or any other control operations to happen when we are in the
-      middle of the switch */
+    SortAndUnique(streamDevDisconnectList);
+    SortAndUnique(streamDevConnectList);
+
+    /* Need to lock all streams that are involved in devSwitch
+     * When we are doing Switch to avoid any stream specific calls to happen.
+     * We want to avoid stream close or any other control operations to happen when we are in the
+     * middle of the switch
+     */
     for (sIter1 = streamDevDisconnectList.begin(); sIter1 != streamDevDisconnectList.end(); sIter1++) {
         if ((std::get<0>(*sIter1) != NULL) && isStreamActive(std::get<0>(*sIter1), mActiveStreams)) {
             uniqueStreamsList.push_back(std::get<0>(*sIter1));
-            PAL_VERBOSE(LOG_TAG,"streamDevDisconnectList stream %pK",
-                        std::get<0>(*sIter1));
+            PAL_VERBOSE(LOG_TAG, "streamDevDisconnectList stream %pK", std::get<0>(*sIter1));
         }
     }
 
     for (sIter2 = streamDevConnectList.begin(); sIter2 != streamDevConnectList.end(); sIter2++) {
         if ((std::get<0>(*sIter2) != NULL) && isStreamActive(std::get<0>(*sIter2), mActiveStreams)) {
             uniqueStreamsList.push_back(std::get<0>(*sIter2));
-            PAL_VERBOSE(LOG_TAG,"streamDevConnectList stream %pK",
-                        std::get<0>(*sIter2));
+            PAL_VERBOSE(LOG_TAG, "streamDevConnectList stream %pK", std::get<0>(*sIter2));
+            uniqueDevConnectionList.push_back(std::get<1>(*sIter2));
         }
     }
 
-    //Find and Removedup elements between streamDevDisconnectList && streamDevConnectList and add to the list.
+    // Find and Removedup elements between streamDevDisconnectList && streamDevConnectList and add to the list.
     SortAndUnique(uniqueStreamsList);
+    SortAndUnique(uniqueDevConnectionList);
 
+    // handle scenario where BT device is not ready
+    for (dIter = uniqueDevConnectionList.begin(); dIter != uniqueDevConnectionList.end(); dIter++) {
+        if ((uniqueDevConnectionList.size() == 1) &&
+                ((*dIter)->id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) &&
+                !isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+            PAL_ERR(LOG_TAG, "a2dp device is not ready for connection, skip device switch");
+            status = -ENODEV;
+            mActiveStreamMutex.unlock();
+            goto exit_no_unlock;
+        }
+    }
+
+    // lock all stream mutexes
     for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
-        //lock All Stream Mutexes
-        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK lock",
-                        (*sIter));
+        PAL_DBG(LOG_TAG, "uniqueStreamsList stream %pK lock", (*sIter));
         (*sIter)->lockStreamMutex();
     }
     isDeviceSwitch = true;
 
     status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
-        PAL_ERR(LOG_TAG,"disconnect failed");
+        PAL_ERR(LOG_TAG, "disconnect failed");
         goto exit;
     }
     status = streamDevConnect_l(streamDevConnectList);
     if (status) {
-        PAL_ERR(LOG_TAG,"Connect failed");
+        PAL_ERR(LOG_TAG, "Connect failed");
     }
+
 exit:
+    // unlock all stream mutexes
     for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
-        //unlock All Stream Mutexes
-        PAL_DBG(LOG_TAG,"uniqueStreamsList stream %pK unlock",
-                        (*sIter));
+        PAL_DBG(LOG_TAG, "uniqueStreamsList stream %pK unlock", (*sIter));
         (*sIter)->unlockStreamMutex();
     }
     isDeviceSwitch = false;
@@ -5727,25 +5750,24 @@ exit_no_unlock:
     return status;
 }
 
-//when returning from this function, the device config will be updated with
-//the device config of the highest priority stream
-
-//TBD: manage re-routing of existing lower priority streams if incoming
-//stream is a higher priority stream. Priority defined in ResourceManager.h
-//(details below)
+/* when returning from this function, the device config will be updated with
+ * the device config of the highest priority stream
+ * TBD: manage re-routing of existing lower priority streams if incoming
+ * stream is a higher priority stream. Priority defined in ResourceManager.h
+ * (details below)
+ */
 bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
            struct pal_device *inDevAttr, const pal_stream_attributes* inStrAttr)
 {
     bool isDeviceSwitch = false;
     int status = 0;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect, sharedBEStreamDev;
-    std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
     std::shared_ptr<Device> dev = nullptr;
     std::string ck;
-    std::string InfoSndDev;
     struct pal_device_info inDeviceInfo;
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
-    char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    char inSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     std::vector <Stream *> streamsToSwitch;
     std::vector <Stream*>::iterator sIter;
     struct pal_device streamDevAttr;
@@ -5753,6 +5775,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     PAL_DBG(LOG_TAG, "Enter");
 
     if (!inDev || !inDevAttr || !inStrAttr) {
+        PAL_ERR(LOG_TAG, "invalid input parameters");
         goto error;
     }
 
@@ -5776,17 +5799,18 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
         streamsToSwitch.clear();
     }
 
-    //get the active streams on the device
-    //if higher priority stream exists on any of the incoming device, update the config of incoming device
-    //based on device config of higher priority stream
-
-    //check if there are shared backends
-    // if yes add them to streams to device switch
+    /* get the active streams on the device
+     * if higher priority stream exists on any of the incoming device, update the config of incoming device
+     * based on device config of higher priority stream
+     * check if there are shared backends
+     * if yes add them to streams to device switch
+     */
     getSharedBEActiveStreamDevs(sharedBEStreamDev, inDevAttr->id);
     if (sharedBEStreamDev.size() > 0) {
-        getSndDeviceName(inDevAttr->id, CurrentSndDeviceName);
+        getSndDeviceName(inDevAttr->id, inSndDeviceName);
         mActiveStreamMutex.lock();
-        updatePriorityAttr(inDevAttr->id,sharedBEStreamDev,
+        updatePriorityAttr(inDevAttr->id,
+                           sharedBEStreamDev,
                            inDevAttr,
                            inStrAttr);
         mActiveStreamMutex.unlock();
@@ -5805,49 +5829,51 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
             curDev->getDeviceAttributes(&curDevAttr);
             sharedStream->getStreamAttributes(&sAttr);
 
-            /*special case for UPD to change device to current running dev*/
+            /* special case for UPD to change device to current running dev */
             if (inStrAttr->type == PAL_STREAM_ULTRASOUND &&
-                curDevAttr.id != inDevAttr->id) {
+                    curDevAttr.id != inDevAttr->id) {
                 inDevAttr->id = curDevAttr.id;
-                getSndDeviceName(inDevAttr->id, CurrentSndDeviceName);
+                getSndDeviceName(inDevAttr->id, inSndDeviceName);
                 mActiveStreamMutex.lock();
-                updatePriorityAttr(inDevAttr->id,sharedBEStreamDev,
+                updatePriorityAttr(inDevAttr->id,
+                                   sharedBEStreamDev,
                                    inDevAttr,
                                    inStrAttr);
                 mActiveStreamMutex.unlock();
             }
-            if(doDevAttrDiffer(inDevAttr,CurrentSndDeviceName,&curDevAttr)){
+            if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr)) {
                 mActiveStreamMutex.lock();
                 streamDevDisconnect.push_back(elem);
-                StreamDevConnect.push_back({std::get<0>(elem), inDevAttr});
+                streamDevConnect.push_back({std::get<0>(elem), inDevAttr});
                 isDeviceSwitch = true;
                 mActiveStreamMutex.unlock();
             }
         }
-        /*update the dev instance in case the incoming device is changed to the running device*/
+        // update the dev instance in case the incoming device is changed to the running device
         *inDev = Device::getInstance(inDevAttr , rm);
-    /*if there is no shared backend just updated the snd device name and prio*/
     } else {
+        // if there is no shared backend just updated the snd device name and prio
         updateSndName(inDevAttr->id, inDeviceInfo.sndDevName);
+
         /* handle special case for UPD with virtual backend */
         if (!streamsToSwitch.empty()) {
             for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
                 streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
-                StreamDevConnect.push_back({(*sIter), &streamDevAttr});
+                streamDevConnect.push_back({(*sIter), &streamDevAttr});
             }
         }
     }
 
-    //if device switch is needed, perform it
+    // if device switch is needed, perform it
     if (streamDevDisconnect.size()) {
-        status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+        status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
         if (status) {
-            PAL_ERR(LOG_TAG,"deviceswitch failed with %d", status);
+            PAL_ERR(LOG_TAG, "deviceswitch failed with %d", status);
         }
     }
     (*inDev)->setDeviceAttributes(*inDevAttr);
 
-    /*updated current dev priority if needed*/
+    // updated current dev priority if needed
     if (temp_prio < (*inDev)->getCurrentPriority()) {
         (*inDev)->setCurrentPrioirty(temp_prio);
     }
@@ -5858,35 +5884,36 @@ error:
 }
 
 int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
-                                              struct pal_device *newDevAttr)
+                                           struct pal_device *newDevAttr)
 {
     int status = 0;
     std::vector <Stream *> activeStreams;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
-    std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
     std::vector<Stream*>::iterator sIter;
 
     if (!inDev || !newDevAttr) {
+        PAL_ERR(LOG_TAG, "invalud input parameters");
         return -EINVAL;
     }
 
-    //get the active streams on the device
+    // get active streams on the device
     getActiveStream_l(inDev, activeStreams);
     if (activeStreams.size() == 0) {
         PAL_ERR(LOG_TAG, "no other active streams found");
         goto done;
     }
 
-    //created dev switch vectors
+    // create dev switch vectors
     mActiveStreamMutex.lock();
-    for(sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
+    for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), inDev->getSndDeviceId()});
-        StreamDevConnect.push_back({(*sIter), newDevAttr});
+        streamDevConnect.push_back({(*sIter), newDevAttr});
     }
     mActiveStreamMutex.unlock();
-    status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+    status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
     if (status) {
-         PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
+        PAL_ERR(LOG_TAG, "forceDeviceSwitch failed %d", status);
     }
 
 done:
@@ -6389,13 +6416,15 @@ int32_t ResourceManager::a2dpSuspend()
         goto exit;
     }
 
-    // device selected to switch by default is speaker
+    /* Check whether there's active stream associated with handset or speaker
+     * when a2dp suspend is called.
+     * - Device selected to switch by default is speaker.
+     * - Check handset as well if no stream on speaker.
+     */
     switchDevDattr.id = PAL_DEVICE_OUT_SPEAKER;
     getActiveStream_l(spkrDev, activeStreams);
-    // check whether Handset/Speaker device is active when
-    // the suspend is called.
     if (activeStreams.empty()) {
-        // No Streams active on speaker, then check handset as well
+        // no stream active on speaker, then check handset as well
         handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
         handsetDev = Device::getInstance(&handsetDattr, rm);
         if (handsetDev) {
@@ -6407,25 +6436,23 @@ int32_t ResourceManager::a2dpSuspend()
         }
 
         if (activeStreams.size() != 0) {
-            // device selected to switch is handset-it is currently active.
+            // active streams found on handset
             switchDevDattr.id = PAL_DEVICE_OUT_HANDSET;
-            //ActiveStreams Found on Handset- Get Device Properties from DeviceInstance.
             status = handsetDev->getDeviceAttributes(&switchDevDattr);
         } else {
-            //No Active Streams Found on Speaker or Handset
-            //Get the deafult
+            // no active stream found on speaker or handset, get the deafult
             pal_device_info devInfo;
             memset(&devInfo, 0, sizeof(pal_device_info));
             status = getDeviceConfig(&switchDevDattr, NULL);
             if (!status) {
-                //Get the Default Device Info and Update SndName*/
+                // get the default device info and update snd name*/
                 getDeviceInfo(switchDevDattr.id, (pal_stream_type_t)0,
                     switchDevDattr.custom_config.custom_key, &devInfo);
                 updateSndName(switchDevDattr.id, devInfo.sndDevName);
             }
         }
     } else {
-        //ActiveStreams Found on Speaker - Get Device Properties from DeviceInstance.
+        // activeStreams found on speaker
         status = spkrDev->getDeviceAttributes(&switchDevDattr);
     }
     if (status) {
@@ -6450,12 +6477,12 @@ int32_t ResourceManager::a2dpSuspend()
              * add speaker or handset into suspended devices for restore during a2dpResume
              */
             if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
-                //Combo use-case; just remember to keep the non-a2dp devices when restoring.
+                // combo use-case; just remember to keep the non-a2dp devices when restoring.
                 PAL_DBG(LOG_TAG, "Stream %pK is on combo device; Dont Pause/Mute", *sIter);
                 (*sIter)->suspendedDevIds.clear();
                 (*sIter)->suspendedDevIds.push_back(switchDevDattr.id);
             } else if (!((*sIter)->a2dpMuted)) {
-                //Only perform Mute/Pause for non combo use-case only.
+                // only perform Mute/Pause for non combo use-case only.
                 struct pal_stream_attributes sAttr;
                 (*sIter)->getStreamAttributes(&sAttr);
                 if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
@@ -6537,6 +6564,7 @@ int32_t ResourceManager::a2dpResume()
     std::vector <Stream*>::iterator sIter;
     std::vector <Stream *> activeStreams;
     std::vector <Stream *> orphanStreams;
+    std::vector <Stream *> retryStreams;
     std::vector <Stream *> restoredStreams;
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
     std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
@@ -6565,8 +6593,8 @@ int32_t ResourceManager::a2dpResume()
         getActiveStream_l(activeDev, activeStreams);
     }
 
-    getOrphanStream_l(orphanStreams);
-    if (activeStreams.empty() && orphanStreams.empty()) {
+    getOrphanStream_l(orphanStreams, retryStreams);
+    if (activeStreams.empty() && orphanStreams.empty() && retryStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
         mActiveStreamMutex.unlock();
         goto exit;
@@ -6592,6 +6620,21 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
+            restoredStreams.push_back((*sIter));
+            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+        }
+    }
+
+    // retry all streams which failed to switch to desired device previously.
+    for (sIter = retryStreams.begin(); sIter != retryStreams.end(); sIter++) {
+        if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
+                    PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
+            std::vector<std::shared_ptr<Device>> devices;
+            (*sIter)->getAssociatedDevices(devices);
+            for (auto device: devices) {
+                streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+            }
+
             restoredStreams.push_back((*sIter));
             streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
@@ -6685,6 +6728,7 @@ int32_t ResourceManager::a2dpCaptureResume()
     std::vector <Stream*>::iterator sIter;
     std::vector <Stream*> activeStreams;
     std::vector <Stream*> orphanStreams;
+    std::vector <Stream*> retryStreams;
     std::vector <Stream*> restoredStreams;
     std::vector <std::tuple<Stream*, uint32_t>> streamDevDisconnect;
     std::vector <std::tuple<Stream*, struct pal_device*>> streamDevConnect;
@@ -6698,7 +6742,7 @@ int32_t ResourceManager::a2dpCaptureResume()
 
     mActiveStreamMutex.lock();
     getActiveStream_l(handsetmicDev, activeStreams);
-    getOrphanStream_l(orphanStreams);
+    getOrphanStream_l(orphanStreams, retryStreams);
     if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
         mActiveStreamMutex.unlock();
@@ -8017,12 +8061,26 @@ bool ResourceManager::isDeviceAvailable(pal_device_id_t id)
     return is_available;
 }
 
-bool ResourceManager::isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id)
+bool ResourceManager::isDeviceAvailable(
+    std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id)
 {
     bool isAvailable = false;
 
     for (int i = 0; i < devices.size(); i++) {
         if (devices[i]->getSndDeviceId() == id)
+            isAvailable = true;
+    }
+
+    return isAvailable;
+}
+
+bool ResourceManager::isDeviceAvailable(
+    struct pal_device *devices, uint32_t devCount, pal_device_id_t id)
+{
+    bool isAvailable = false;
+
+    for (int i = 0; i < devCount; i++) {
+        if (devices[i].id == id)
             isAvailable = true;
     }
 
@@ -9185,7 +9243,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     std::vector <struct pal_device> palDevs;
     char activeSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnect;
-    std::vector <std::tuple<Stream *, struct pal_device *>> StreamDevConnect;
+    std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
     pal_device_info devInfo;
     std::string key;
     std::vector <Stream *> streamsToSwitch;
@@ -9251,27 +9309,27 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             for (const auto &elem : sharedBEStreamDev) {
                  sharedStream = std::get<0>(elem);
                  streamDevDisconnect.push_back({sharedStream,dev->getSndDeviceId()});
-                 StreamDevConnect.push_back({sharedStream,&newDevAttr});
+                 streamDevConnect.push_back({sharedStream,&newDevAttr});
             }
         }
         mActiveStreamMutex.unlock();
         if (!streamDevDisconnect.empty()) {
-            char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
-            getSndDeviceName(dev->getSndDeviceId(), CurrentSndDeviceName);
+            char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+            getSndDeviceName(dev->getSndDeviceId(), currentSndDeviceName);
             PAL_DBG(LOG_TAG,"Restore required");
             PAL_DBG(LOG_TAG,"dev attr to switch to are, ch %d, sr %d, bit_width %d, fmt %d, sndDev %s",
                             newDevAttr.config.ch_info.channels,
                             newDevAttr.config.sample_rate,
                             newDevAttr.config.bit_width,
                             newDevAttr.config.aud_fmt_id,
-                            CurrentSndDeviceName);
+                            currentSndDeviceName);
             PAL_DBG(LOG_TAG,"current device running at, ch %d, sr %d, bit_width %d, fmt %d, sndDev %s",
                             curDevAttr.config.ch_info.channels,
                             curDevAttr.config.sample_rate,
                             curDevAttr.config.bit_width,
                             newDevAttr.config.aud_fmt_id,
                             activeSndDeviceName);
-            status = streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+            status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
         } else {
             PAL_DBG(LOG_TAG,"device switch not needed params are all the same");
         }
@@ -9282,9 +9340,9 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         if (!streamsToSwitch.empty()) {
             for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
                 streamDevDisconnect.push_back({(*sIter), newDevAttr.id});
-                StreamDevConnect.push_back({(*sIter), &newDevAttr});
+                streamDevConnect.push_back({(*sIter), &newDevAttr});
             }
-            streamDevSwitch(streamDevDisconnect, StreamDevConnect);
+            streamDevSwitch(streamDevDisconnect, streamDevConnect);
         } else {
             PAL_DBG(LOG_TAG, "no active device, switch un-needed");
         }
@@ -9295,9 +9353,9 @@ exit:
 }
 
 int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
-                                         std::vector <std::tuple<Stream *, uint32_t>> activestreams,
-                                         struct pal_device *incomingDev,
-                                         const pal_stream_attributes* currentStrAttr){
+                                        std::vector <std::tuple<Stream *, uint32_t>> activestreams,
+                                        struct pal_device *incomingDev,
+                                        const pal_stream_attributes* currentStrAttr){
     int status = 0;
     uint32_t stream_count =0;
     struct pal_stream_attributes sAttr;
@@ -9305,7 +9363,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     pal_device_info highPrioDevInfo;
     pal_stream_type_t type;
     struct pal_device tempDev;
-    char CurrentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
+    char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
     std::string key(incomingDev->custom_config.custom_key);
     std::vector <struct pal_device> palDevices;
 
@@ -9350,26 +9408,26 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         /*incoming stream prio is greater than or equal to active streams*/
         if (devInfo.priority <= highPrioDevInfo.priority  ) {
             highPrioDevInfo = devInfo;
-            getSndDeviceName(dev_id, CurrentSndDeviceName);
-            highPrioDevInfo.sndDevName.assign(CurrentSndDeviceName);
+            getSndDeviceName(dev_id, currentSndDeviceName);
+            highPrioDevInfo.sndDevName.assign(currentSndDeviceName);
         }
     }
     stream_count++;
 
-    getSndDeviceName(dev_id, CurrentSndDeviceName);
+    getSndDeviceName(dev_id, currentSndDeviceName);
     PAL_DBG(LOG_TAG,"dev attr configured are, ch %d, sr %d, bit_width %d, fmt %d, sndDev %s",
             incomingDev->config.ch_info.channels,
             incomingDev->config.sample_rate,
             incomingDev->config.bit_width,
             incomingDev->config.aud_fmt_id,
-            CurrentSndDeviceName);
+            currentSndDeviceName);
 
 exit:
     return status;
 }
 
 bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
-                                      const char *CurrentSndDeviceName,
+                                      const char *inSndDeviceName,
                                       struct pal_device *curDevAttr)
 {
     bool ret = false;
@@ -9381,7 +9439,7 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         PAL_ERR(LOG_TAG, "No device instance found");
         goto exit;
     }
-    getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
+    getSndDeviceName(dev->getSndDeviceId(), activeSndDeviceName);
 
     if (inDevAttr->config.sample_rate != curDevAttr->config.sample_rate) {
         PAL_DBG(LOG_TAG, "found diff sample rate %d, running dev has %d, device switch needed",
@@ -9398,7 +9456,7 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
                 inDevAttr->config.ch_info.channels, curDevAttr->config.ch_info.channels);
         ret = true;
     }
-    if ((strcmp(activeSndDeviceName, CurrentSndDeviceName) != 0)) {
+    if ((strcmp(activeSndDeviceName, inSndDeviceName) != 0)) {
         PAL_DBG(LOG_TAG, "found new snd device %s, device switch needed",
                 activeSndDeviceName);
         ret = true;
@@ -9430,7 +9488,8 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         }
     }
 
-    /*custom key comparison is needed only in the case where in device configuraton is same but only devicePP KV is different*/
+    // custom key comparison is needed only in the case where in device configuraton
+    // is same but only devicePP KV is different
     if (strcmp(inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key) != 0) {
         PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
                 inDevAttr->custom_config.custom_key, curDevAttr->custom_config.custom_key);
