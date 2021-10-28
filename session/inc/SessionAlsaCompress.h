@@ -113,6 +113,7 @@ private:
     bool isGaplessFmt = false;
     bool sendNextTrackParams = false;
     bool isGaplessFormat(pal_audio_fmt_t fmt);
+    bool isCodecConfigNeeded(pal_audio_fmt_t audio_fmt);
     int configureEarlyEOSDelay(void);
     void updateCodecOptions(pal_param_payload *param_payload);
 public:
