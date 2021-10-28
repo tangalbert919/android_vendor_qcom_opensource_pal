@@ -156,6 +156,7 @@ protected:
     uint32_t mInstanceID = 0;
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
+    int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
     pal_stream_callback streamCb;
