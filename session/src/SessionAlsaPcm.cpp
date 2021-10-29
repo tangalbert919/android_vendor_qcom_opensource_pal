@@ -938,9 +938,15 @@ set_mixer:
                     }
                     PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
                     codecConfig.bit_width = sAttr.in_media_config.bit_width;
-                    codecConfig.sample_rate = sAttr.in_media_config.sample_rate;
+                    codecConfig.sample_rate = 48000;
                     codecConfig.aud_fmt_id =  sAttr.in_media_config.aud_fmt_id;
-                    codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
+                    /* RAT RENDER always set to stereo for uplink+downlink record*/
+                    /* As mux_demux gives only stereo o/p & there is no MFC between mux and RAT */
+                    if (sAttr.info.voice_rec_info.record_direction == INCALL_RECORD_VOICE_UPLINK_DOWNLINK) {
+                        codecConfig.ch_info.channels = 2;
+                    } else {
+                        codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
+                    }
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize && payload) {
                         status = updateCustomPayload(payload, payloadSize);
