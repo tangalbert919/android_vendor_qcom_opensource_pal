@@ -277,17 +277,22 @@ int32_t StreamSoundTrigger::close() {
 
 int32_t StreamSoundTrigger::start() {
     int32_t status = 0;
+    stream_state_t prev_state;
 
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    // cache current state after mutex locked
+    prev_state = currentState;
+    currentState = STREAM_STARTED;
+
     rejection_notified_ = false;
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STARTED;
-    }
+    // restore cached state if start fails
+    if (status)
+        currentState = prev_state;
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -299,12 +304,11 @@ int32_t StreamSoundTrigger::stop() {
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    currentState = STREAM_STOPPED;
+
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STOPPED;
-    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
