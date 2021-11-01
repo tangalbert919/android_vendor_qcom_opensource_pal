@@ -456,6 +456,7 @@ int SessionAlsaPcm::setConfig(Stream * s, configType type, int tag)
             tkv.clear();
             break;
         case CALIBRATION:
+            ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Failed to set the calibration data\n");
@@ -541,6 +542,7 @@ int SessionAlsaPcm::setTKV(Stream * s, configType type, effect_pal_payload_t *ef
     switch (type) {
         case MODULE:
         {
+            tkv.clear();
             pal_key_vector_t *pal_kvpair = (pal_key_vector_t *)effectPayload->payload;
             uint32_t num_tkvs =  pal_kvpair->num_tkvs;
             for (int i = 0; i < num_tkvs; i++) {

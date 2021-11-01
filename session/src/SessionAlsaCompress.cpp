@@ -807,6 +807,7 @@ int SessionAlsaCompress::setTKV(Stream * s __unused, configType type, effect_pal
     switch (type) {
         case MODULE:
         {
+            tkv.clear();
             pal_key_vector_t *pal_kvpair = (pal_key_vector_t *)effectPayload->payload;
             uint32_t num_tkvs = pal_kvpair->num_tkvs;
             for (uint32_t i = 0; i < num_tkvs; i++) {
@@ -951,6 +952,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
     PAL_DBG(LOG_TAG, "Enter");
     switch (type) {
         case MODULE:
+            tkv.clear();
             status = builder->populateTagKeyVector(s, tkv, tag, &tagsent);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Failed to set the tag configuration\n");
@@ -995,6 +997,7 @@ int SessionAlsaCompress::setConfig(Stream * s, configType type, int tag)
             break;
             //todo calibration
         case CALIBRATION:
+            ckv.clear();
             status = builder->populateCalKeyVector(s, ckv, tag);
             if (0 != status) {
                 PAL_ERR(LOG_TAG,"Failed to set the calibration data\n");
