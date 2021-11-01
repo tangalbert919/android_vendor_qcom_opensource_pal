@@ -493,9 +493,8 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
     uint64_t transit_duration = 0;
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
     if (!active) {
+        mStreamMutex.lock();
         transit_start_time_ = std::chrono::steady_clock::now();
         common_cp_update_disable_ = true;
     }
@@ -518,6 +517,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
             PAL_INFO(LOG_TAG, "LPI->NLPI switch takes %llums",
                 (long long)transit_duration);
         }
+        mStreamMutex.unlock();
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
