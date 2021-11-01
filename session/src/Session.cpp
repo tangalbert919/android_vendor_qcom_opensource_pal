@@ -53,6 +53,29 @@ Session::~Session()
 
 }
 
+void Session::setPmQosMixerCtl(pmQosVote vote)
+{
+    struct mixer *hwMixer;
+    struct mixer_ctl *ctl;
+
+    if (0 == rm->getHwAudioMixer(&hwMixer)) {
+        ctl = mixer_get_ctl_by_name(hwMixer, "PM_QOS Vote");
+        if (!ctl) {
+            PAL_ERR(LOG_TAG, "Invalid mixer control: %s\n",
+                                               "PM_QOS Vote");
+        } else {
+            if (vote == PM_QOS_VOTE_DISABLE) {
+                mixer_ctl_set_enum_by_string(ctl, "Disable");
+                PAL_DBG(LOG_TAG,"mixer control disabled for PM_QOS Vote \n");
+            } else if (vote == PM_QOS_VOTE_ENABLE) {
+                mixer_ctl_set_enum_by_string(ctl, "Enable");
+                PAL_DBG(LOG_TAG,"mixer control enabled for PM_QOS Vote \n");
+            }
+        }
+    }
+    else
+        PAL_ERR(LOG_TAG,"could not get hwMixer, not setting mixer control for PM_QOS \n");
+}
 
 Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr)
 {

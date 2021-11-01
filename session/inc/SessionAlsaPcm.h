@@ -37,6 +37,7 @@
 #include "PalCommon.h"
 #include <tinyalsa/asoundlib.h>
 #include <thread>
+#include <mutex>
 
 #define PARAM_ID_DETECTION_ENGINE_CONFIG_VOICE_WAKEUP 0x08001049
 #define PARAM_ID_VOICE_WAKEUP_BUFFERING_CONFIG 0x08001044
@@ -69,6 +70,8 @@ private:
     uint64_t cbCookie;
     pal_device_id_t ecRefDevId;
     uint32_t svaMiid;
+    static std::mutex pcmLpmRefCntMtx;
+    static int pcmLpmRefCnt;
 public:
 
     SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm);

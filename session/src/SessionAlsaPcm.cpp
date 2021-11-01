@@ -44,6 +44,9 @@
 #include "apm_api.h"
 #include "us_detect_api.h"
 
+std::mutex SessionAlsaPcm::pcmLpmRefCntMtx;
+int SessionAlsaPcm::pcmLpmRefCnt = 0;
+
 #define SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE (48000)
 #define SESSION_ALSA_MMAP_PERIOD_SIZE (SESSION_ALSA_MMAP_DEFAULT_OUTPUT_SAMPLING_RATE/1000)
 #define SESSION_ALSA_MMAP_PERIOD_COUNT_MIN 64
@@ -1002,6 +1005,17 @@ int SessionAlsaPcm::start(Stream * s)
             }
 
 pcm_start:
+            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
+                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
+                PAL_DBG(LOG_TAG,"pcmLpmRefCnt %d\n", pcmLpmRefCnt);
+                pcmLpmRefCnt++;
+                if (1 == pcmLpmRefCnt)
+                    setPmQosMixerCtl(PM_QOS_VOTE_ENABLE);
+                else
+                    PAL_DBG(LOG_TAG,"pcmLpmRefCnt %d\n", pcmLpmRefCnt);
+            }
+
             status = pcm_start(pcm);
             if (status) {
                 status = errno;
@@ -1277,6 +1291,21 @@ int SessionAlsaPcm::close(Stream * s)
             if (SessionAlsaUtils::isMmapUsecase(sAttr) &&
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
                 deRegisterAdmStream(s);
+
+            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
+                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+                std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
+                PAL_DBG(LOG_TAG, "pcm_close pcmLpmRefCnt %d", pcmLpmRefCnt);
+                pcmLpmRefCnt--;
+                if (pcmLpmRefCnt < 0) { //May not happen, to catch the error, if it happens to be
+                    PAL_ERR(LOG_TAG, "pcm_close Unacceptable pcmLpmRefCnt %d, resetting to 0", pcmLpmRefCnt);
+                    pcmLpmRefCnt = 0;
+                }
+                if (0 == pcmLpmRefCnt)
+                    setPmQosMixerCtl(PM_QOS_VOTE_DISABLE);
+                PAL_DBG(LOG_TAG, "pcm_close pcmLpmRefCnt %d", pcmLpmRefCnt);
+            }
+
             if (pcm)
                 status = pcm_close(pcm);
             if (status) {
