@@ -7600,7 +7600,6 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                 status = s->open();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "pal_stream_open failed with status %d", status);
-                    mResourceManagerMutex.unlock();
                     if (s->close() != 0) {
                         PAL_ERR(LOG_TAG, "stream close failed.");
                     }
