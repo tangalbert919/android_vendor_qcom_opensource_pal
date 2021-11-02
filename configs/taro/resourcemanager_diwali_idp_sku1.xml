@@ -45,6 +45,13 @@
             <supported_stream>PAL_STREAM_COMPRESSED</supported_stream>
         </supported_streams>
     </config_volume>
+    <config_lpm>
+        <use_disable_lpm>1</use_disable_lpm>
+        <lpm_supported_streams>
+            <lpm_supported_stream>PAL_STREAM_LOW_LATENCY</lpm_supported_stream>
+            <lpm_supported_stream>PAL_STREAM_ULTRA_LOW_LATENCY</lpm_supported_stream>
+        </lpm_supported_streams>
+    </config_lpm>
     <config_gapless key="gapless_supported" value="1"/>
     <bt_codecs>
         <codec codec_format="CODEC_TYPE_AAC" codec_type="enc|dec" codec_library="lib_bt_bundle.so" />
