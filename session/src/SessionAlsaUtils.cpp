@@ -587,13 +587,6 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         }
     }
 
-    // clear stream metadata
-    getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)streamPropId,
-            streamMetaData);
-    if (streamMetaData.size)
-        mixer_ctl_set_array(feMixerCtrls[FE_METADATA],
-            (void *)streamMetaData.buf, streamMetaData.size);
-
     // clear device metadata
     for (auto be = BackEnds.begin(); be != BackEnds.end(); ++be) {
         getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)devicePropId,
@@ -636,6 +629,15 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
         streamDeviceMetaData.buf = nullptr;
         deviceMetaData.buf = nullptr;
     }
+
+    // clear stream metadata
+    mixer_ctl_set_enum_by_string(feMixerCtrls[FE_CONTROL], "ZERO");
+    getAgmMetaData(emptyKV, emptyKV, (struct prop_data *)streamPropId,
+            streamMetaData);
+    if (streamMetaData.size)
+        mixer_ctl_set_array(feMixerCtrls[FE_METADATA],
+            (void *)streamMetaData.buf, streamMetaData.size);
+
 
 freeMetaData:
     if (streamDeviceMetaData.buf)
@@ -1613,7 +1615,8 @@ freeMetaData:
 int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManager> rmHandle,
     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
-    const std::vector<std::pair<int32_t, std::string>> &txBackEnds)
+    const std::vector<std::pair<int32_t, std::string>> &txBackEnds,
+    std::vector<std::pair<std::string, int>> &freeDeviceMetaData)
 {
     int status = 0;
     std::vector <std::pair<int, int>> emptyKV;
@@ -1743,8 +1746,6 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], "ZERO");
     mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamTxMetaData.buf,
             streamTxMetaData.size);
-    mixer_ctl_set_array(txBeMixerCtrl, (void *)deviceTxMetaData.buf,
-            deviceTxMetaData.size);
     mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_CONTROL], txBackEnds[0].second.data());
     mixer_ctl_set_array(txFeMixerCtrls[FE_METADATA], (void *)streamDeviceTxMetaData.buf,
             streamDeviceTxMetaData.size);
@@ -1754,20 +1755,44 @@ int SessionAlsaUtils::close(Stream * streamHandle, std::shared_ptr<ResourceManag
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], "ZERO");
     mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamRxMetaData.buf,
             streamRxMetaData.size);
-    mixer_ctl_set_array(rxBeMixerCtrl, (void *)deviceRxMetaData.buf,
-            deviceRxMetaData.size);
     mixer_ctl_set_enum_by_string(rxFeMixerCtrls[FE_CONTROL], rxBackEnds[0].second.data());
     mixer_ctl_set_array(rxFeMixerCtrls[FE_METADATA], (void *)streamDeviceRxMetaData.buf,
             streamDeviceRxMetaData.size);
 
+    /* set Backend mixer control */
+    for (auto freeDevMeta = freeDeviceMetaData.begin(); freeDevMeta != freeDeviceMetaData.end(); ++freeDevMeta) {
+        PAL_DBG(LOG_TAG, "backend %s and freedevicemetadata %d", freeDevMeta->first.data(), freeDevMeta->second);
+        if (!(freeDevMeta->first.compare(txBackEnds[0].second))) {
+            if (freeDevMeta->second == 0) {
+                PAL_INFO(LOG_TAG, "No need to free TX device metadata as device is still active");
+            } else {
+                mixer_ctl_set_array(txBeMixerCtrl, (void *)deviceTxMetaData.buf,
+                                    deviceTxMetaData.size);
+            }
+        }
+        if (!(freeDevMeta->first.compare(rxBackEnds[0].second))) {
+            if (freeDevMeta->second == 0) {
+                PAL_INFO(LOG_TAG, "No need to free RX device metadata as device is still active");
+            } else {
+                mixer_ctl_set_array(rxBeMixerCtrl, (void *)deviceRxMetaData.buf,
+                                    deviceRxMetaData.size);
+            }
+        }
+    }
 freeTxMetaData:
-    free(streamDeviceTxMetaData.buf);
-    free(deviceTxMetaData.buf);
-    free(streamTxMetaData.buf);
+    if (streamDeviceTxMetaData.buf)
+        free(streamDeviceTxMetaData.buf);
+    if (deviceTxMetaData.buf)
+        free(deviceTxMetaData.buf);
+    if (streamTxMetaData.buf)
+        free(streamTxMetaData.buf);
 freeRxMetaData:
-    free(streamDeviceRxMetaData.buf);
-    free(deviceRxMetaData.buf);
-    free(streamRxMetaData.buf);
+    if (streamDeviceRxMetaData.buf)
+        free(streamDeviceRxMetaData.buf);
+    if (deviceRxMetaData.buf)
+        free(deviceRxMetaData.buf);
+    if (streamRxMetaData.buf)
+        free(streamRxMetaData.buf);
 exit:
     return status;
 }

@@ -101,7 +101,8 @@ public:
     static int close(Stream * s, std::shared_ptr<ResourceManager> rm,
                     const std::vector<int> &RxDevIds, const std::vector<int> &TxDevIds,
                     const std::vector<std::pair<int32_t, std::string>> &rxBackEnds,
-                    const std::vector<std::pair<int32_t, std::string>> &txBackEnds);
+                    const std::vector<std::pair<int32_t, std::string>> &txBackEnds,
+                    std::vector<std::pair<std::string, int>> &freeDeviceMetaData);
     static int getModuleInstanceId(struct mixer *mixer, int device, const char *intf_name,
                        int tag_id, uint32_t *miid);
     static int getTagsWithModuleInfo(struct mixer *mixer, int device, const char *intf_name,
