@@ -4378,7 +4378,7 @@ void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestr
         (*iter)->getAssociatedDevices(devices);
         typename std::vector<std::shared_ptr<Device>>::iterator result =
                  std::find(devices.begin(), devices.end(), d);
-        if (result != devices.end())
+        if ((result != devices.end()) && (*iter)->isAlive())
             activestreams.push_back(*iter);
     }
 }

@@ -238,6 +238,7 @@ public:
     int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
                                 bool isParamWrite);
     bool isActive() { return currentState == STREAM_STARTED; }
+    bool isAlive() { return currentState != STREAM_IDLE; }
     /* Detection stream related APIs */
     virtual int32_t Resume() { return 0; }
     virtual int32_t Pause() { return 0; }
