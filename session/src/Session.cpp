@@ -709,8 +709,8 @@ exit:
     return status;
 }
 
-int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm, Stream *s,
-                              std::shared_ptr<Device> rx_dev, bool is_enable)
+int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
+                              Stream *s, bool is_enable)
 {
     struct pcm_config config;
     struct pal_stream_attributes sAttr;
@@ -720,9 +720,8 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm, Stream
     int32_t extEcbackendId;
     std::vector <std::string> extEcbackendNames;
     struct pal_device device;
-    struct pal_device rxDevAttr = {};
-    struct pal_device_info rxDevInfo = {};
 
+    PAL_DBG(LOG_TAG, "Enter.");
 
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
@@ -730,26 +729,12 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm, Stream
         goto exit;
     }
 
-    rxDevInfo.isExternalECRefEnabledFlag = 0;
-    status = rx_dev->getDeviceAttributes(&rxDevAttr);
-    if (status != 0) {
-        PAL_ERR(LOG_TAG," get device attributes failed");
-        goto exit;
-    }
-    rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
-    if (rxDevInfo.isExternalECRefEnabledFlag) {
-        PAL_DBG(LOG_TAG, "Ext EC Ref flag is enabled");
-        device.id = PAL_DEVICE_IN_EXT_EC_REF;
-        rm->getDeviceConfig(&device, &sAttr);
-        dev = Device::getInstance(&device, rm);
-        if (!dev) {
-            PAL_ERR(LOG_TAG, "dev get instance failed");
-            return -EINVAL;
-        }
-    } else {
-        status = -EPERM;
-        PAL_DBG(LOG_TAG, "Ext EC Ref flag not enabled, try internal EC");
-        goto exit;
+    device.id = PAL_DEVICE_IN_EXT_EC_REF;
+    rm->getDeviceConfig(&device, &sAttr);
+    dev = Device::getInstance(&device, rm);
+    if (!dev) {
+        PAL_ERR(LOG_TAG, "dev get instance failed");
+        return -EINVAL;
     }
 
     if(!is_enable) {
@@ -845,6 +830,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm, Stream
     }
 
 exit:
+    PAL_DBG(LOG_TAG, "Exit.");
     return status;
 }
 

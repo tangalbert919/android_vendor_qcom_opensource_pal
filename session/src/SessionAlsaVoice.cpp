@@ -1672,12 +1672,34 @@ char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
 
 int SessionAlsaVoice::setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
 {
-    int status;
+    int status = 0;
+    struct pal_stream_attributes sAttr;
+    struct pal_device rxDevAttr = {};
+    struct pal_device_info rxDevInfo = {};
 
-    status = checkAndSetExtEC(rm, s, rx_dev, is_enable);
-    if (status)
-        PAL_ERR(LOG_TAG,"Failed to enable Ext EC for voice");
+    if (!s) {
+        PAL_ERR(LOG_TAG, "Invalid stream");
+        status = -EINVAL;
+        goto exit;
+    }
 
+    rxDevInfo.isExternalECRefEnabledFlag = 0;
+    if (rx_dev) {
+        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG," get device attributes failed");
+            goto exit;
+        }
+        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
+    }
+
+    if (rxDevInfo.isExternalECRefEnabledFlag) {
+        status = checkAndSetExtEC(rm, s, is_enable);
+        if (status)
+            PAL_ERR(LOG_TAG,"Failed to enable Ext EC for voice");
+    }
+
+exit:
     return status;
 }
 

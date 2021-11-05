@@ -151,8 +151,8 @@ public:
     virtual int openGraph(Stream *s __unused) { return 0; }
     virtual int getTagsWithModuleInfo(Stream *s __unused, size_t *size __unused,
                                       uint8_t *payload __unused) {return -EINVAL;}
-    virtual int checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm, Stream *s,
-                                 std::shared_ptr<Device> rx_dev, bool is_enable);
+    virtual int checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
+                                 Stream *s, bool is_enable);
 };
 
 #endif //SESSION_H
