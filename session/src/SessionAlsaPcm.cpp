@@ -145,12 +145,14 @@ int SessionAlsaPcm::open(Stream * s)
             goto exit;
         }
     }
+    frontEndIdAllocated = true;
     switch (sAttr.direction) {
         case PAL_AUDIO_INPUT:
             status = SessionAlsaUtils::open(s, rm, pcmDevIds, txAifBackEnds);
             if (status) {
                 PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr, ldir);
+                frontEndIdAllocated = false;
             }
             break;
         case PAL_AUDIO_OUTPUT:
@@ -158,6 +160,7 @@ int SessionAlsaPcm::open(Stream * s)
             if (status) {
                 PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevIds, sAttr, 0);
+                frontEndIdAllocated = false;
             }
             else if ((sAttr.type == PAL_STREAM_PCM_OFFLOAD) ||
                      (sAttr.type == PAL_STREAM_DEEP_BUFFER) ||
@@ -184,6 +187,7 @@ int SessionAlsaPcm::open(Stream * s)
                 PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
                 rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
                 rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+                frontEndIdAllocated = false;
             }
             break;
         default:
@@ -1266,6 +1270,11 @@ int SessionAlsaPcm::close(Stream * s)
     std::vector<int> pcmId;
 
     PAL_DBG(LOG_TAG,"Enter");
+    if (!frontEndIdAllocated) {
+        PAL_DBG(LOG_TAG, "Session not opened or already closed");
+        goto exit;
+    }
+
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
@@ -1406,7 +1415,7 @@ int SessionAlsaPcm::close(Stream * s)
             pcmTx = NULL;
             break;
     }
-
+    frontEndIdAllocated = false;
     mState = SESSION_IDLE;
 
     if (sAttr.type == PAL_STREAM_VOICE_UI ||

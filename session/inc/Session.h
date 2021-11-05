@@ -94,6 +94,7 @@ protected:
     static struct pcm *pcmEcTx;
     static std::vector<int> pcmDevEcTxIds;
     static int extECRefCnt;
+    bool frontEndIdAllocated = false;
 public:
     bool isPauseRegistrationDone;
     virtual ~Session();
