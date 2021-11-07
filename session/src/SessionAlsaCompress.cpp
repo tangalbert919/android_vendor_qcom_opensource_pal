@@ -422,6 +422,38 @@ bool SessionAlsaCompress::isGaplessFormat(pal_audio_fmt_t fmt)
     return isSupported;
 }
 
+bool SessionAlsaCompress::isCodecConfigNeeded(pal_audio_fmt_t audio_fmt)
+{
+    bool ret = false;
+    switch (audio_fmt) {
+        case PAL_AUDIO_FMT_VORBIS:
+        case PAL_AUDIO_FMT_FLAC:
+        case PAL_AUDIO_FMT_WMA_PRO:
+        case PAL_AUDIO_FMT_APE:
+        case PAL_AUDIO_FMT_WMA_STD:
+            ret = true;
+            break;
+        case PAL_AUDIO_FMT_DEFAULT_COMPRESSED:
+        case PAL_AUDIO_FMT_AAC:
+        case PAL_AUDIO_FMT_AAC_ADTS:
+        case PAL_AUDIO_FMT_AAC_ADIF:
+        case PAL_AUDIO_FMT_AAC_LATM:
+        case PAL_AUDIO_FMT_PCM_S8:
+        case PAL_AUDIO_FMT_PCM_S16_LE:
+        case PAL_AUDIO_FMT_PCM_S24_3LE:
+        case PAL_AUDIO_FMT_PCM_S24_LE:
+        case PAL_AUDIO_FMT_PCM_S32_LE:
+        case PAL_AUDIO_FMT_ALAC:
+        case PAL_AUDIO_FMT_FLAC_OGG:
+            break;
+        default:
+            break;
+    }
+    PAL_DBG(LOG_TAG, "format %x, need to send codec config %d", audio_fmt,
+                      ret);
+    return ret;
+}
+
 int SessionAlsaCompress::setCustomFormatParam(pal_audio_fmt_t audio_fmt)
 {
     int32_t status = 0;
@@ -1529,8 +1561,17 @@ int SessionAlsaCompress::setParameters(Stream *s __unused, int tagId, uint32_t p
             PAL_DBG(LOG_TAG, "Compress Codec Configuration");
             updateCodecOptions((pal_param_payload *) payload);
             if (compress && audio_fmt != PAL_AUDIO_FMT_VORBIS) {
-                PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
-                status = compress_set_codec_params(compress, &codec);
+                /* For some audio fmt, codec configuration is default like
+                 * for mp3, and for some it is hardcoded like for aac, in
+                 * these cases, we don't need to send codec params to ADSP
+                 * again even if it comes from hal as it will not change.
+                 */
+                if (isCodecConfigNeeded(audio_fmt)) {
+                    PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
+                    status = compress_set_codec_params(compress, &codec);
+                } else {
+                    PAL_INFO(LOG_TAG, "No need to send params for second clip fmt %x", audio_fmt);
+                }
             } else if (compress && (audio_fmt == PAL_AUDIO_FMT_VORBIS)) {
                 PAL_DBG(LOG_TAG, "Setting params for second clip for gapless");
                 sendNextTrackParams = true;
