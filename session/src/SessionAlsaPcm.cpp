@@ -885,6 +885,43 @@ int SessionAlsaPcm::start(Stream * s)
                         goto exit;
                     }
                 }
+
+                if (sAttr.type == PAL_STREAM_VOIP_TX) {
+                    status = SessionAlsaUtils::getModuleInstanceId(mixer, pcmDevIds.at(0),
+                                                txAifBackEnds[0].second.data(), TAG_DEVICEPP_EC_MFC, &miid);
+                    if (status != 0) {
+                        PAL_ERR(LOG_TAG,"getModuleInstanceId failed\n");
+                        goto set_mixer;
+                    }
+                    PAL_INFO(LOG_TAG, "miid : %x id = %d\n", miid, pcmDevIds.at(0));
+                    status = s->getAssociatedDevices(associatedDevices);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+                        goto set_mixer;
+                    }
+                    for (int i = 0; i < associatedDevices.size();i++) {
+                        status = associatedDevices[i]->getDeviceAttributes(&dAttr);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
+                            goto set_mixer;
+                        }
+
+                        streamData.sampleRate = dAttr.config.sample_rate;
+                        streamData.bitWidth = 0xffff;
+                        streamData.numChannel = 0xffff;
+                        builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
+                        if (payloadSize && payload) {
+                            status = updateCustomPayload(payload, payloadSize);
+                            freeCustomPayload(&payload, &payloadSize);
+                            if (0 != status) {
+                                PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                                goto set_mixer;
+                            }
+                        }
+                    }
+                }
+
+set_mixer:
                 status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
                                                              customPayload, customPayloadSize);
                 freeCustomPayload();
