@@ -409,8 +409,6 @@ int32_t StreamPCM::start()
                     mute_l(true);
                     a2dpMuted = true;
                 }
-                suspendedDevIds.clear();
-                suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
             }
             break;
 

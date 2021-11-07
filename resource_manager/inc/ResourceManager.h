@@ -635,8 +635,8 @@ public:
     int getHwAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
-    int getOrphanStream(std::vector<Stream*> &orphanstreams);
-    int getOrphanStream_l(std::vector<Stream*> &orphanstreams);
+    int getOrphanStream(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
+    int getOrphanStream_l(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
@@ -754,6 +754,7 @@ public:
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
     bool isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id);
+    bool isDeviceAvailable(struct pal_device *devices, uint32_t devCount, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
