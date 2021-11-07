@@ -940,8 +940,7 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
         sizeof(struct agm_acdb_param) +
         (acdbParam->num_kvs + appendSampleRateInCKV) *
         sizeof(struct gsl_key_value_pair) +
-        sizeof(struct apm_module_param_data_t) + paddedSize -
-        sizeof(pal_effect_custom_payload_t));
+        sizeof(struct apm_module_param_data_t) + paddedSize);
 
     if (!payloadInfo) {
         PAL_ERR(LOG_TAG, "failed to allocate memory.");
@@ -984,7 +983,8 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
         // padded bytes are zereo by calloc. no need to copy.
         ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
     }
-    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t);
+    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t) +
+                appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
     *alsaPayload = (uint8_t *)payloadInfo;
     PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 
