@@ -4506,6 +4506,76 @@ int ResourceManager::checkAndGetDeviceConfig(struct pal_device *device, bool* bl
     return ret;
 }
 
+/* check if headset sample rate needs to be updated for haptics concurrency */
+void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
+        const struct pal_stream_attributes *sAttr, std::vector<Stream*> &streamsToSwitch,
+        struct pal_device *curDevAttr)
+{
+    std::vector <std::tuple<Stream *, uint32_t>> sharedBEStreamDev;
+    std::vector <Stream *> activeHapticsStreams;
+
+    if (!deviceattr) {
+        PAL_ERR(LOG_TAG, "Invalid device attribute");
+        return;
+    }
+
+    // if headset is coming, check if haptics is already active
+    // and then update same sample rate for headset device
+    if (deviceattr->id == PAL_DEVICE_OUT_WIRED_HEADSET ||
+        deviceattr->id == PAL_DEVICE_OUT_WIRED_HEADPHONE) {
+        struct pal_device hapticsDattr;
+        std::shared_ptr<Device> hapticsDev = nullptr;
+
+        hapticsDattr.id = PAL_DEVICE_OUT_HAPTICS_DEVICE;
+        hapticsDev = Device::getInstance(&hapticsDattr, rm);
+        mActiveStreamMutex.lock();
+        getActiveStream_l(hapticsDev, activeHapticsStreams);
+        if (activeHapticsStreams.size() != 0) {
+            hapticsDev->getDeviceAttributes(&hapticsDattr);
+            if ((deviceattr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
+                (hapticsDattr.config.sample_rate % SAMPLINGRATE_44K != 0)) {
+                deviceattr->config.sample_rate = hapticsDattr.config.sample_rate;
+                deviceattr->config.bit_width = hapticsDattr.config.bit_width;
+                deviceattr->config.aud_fmt_id =  bitWidthToFormat.at(deviceattr->config.bit_width);
+                PAL_DBG(LOG_TAG, "headset is coming, update headset to sr: %d bw: %d ",
+                    deviceattr->config.sample_rate, deviceattr->config.bit_width);
+            }
+        }
+        mActiveStreamMutex.unlock();
+    } else if (deviceattr->id == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
+        // if haptics is coming, update headset sample rate if needed
+        getSharedBEActiveStreamDevs(sharedBEStreamDev, PAL_DEVICE_OUT_WIRED_HEADSET);
+        if (sharedBEStreamDev.size() > 0) {
+            for (const auto &elem : sharedBEStreamDev) {
+                bool switchNeeded = false;
+                Stream *sharedStream = std::get<0>(elem);
+                std::shared_ptr<Device> curDev = nullptr;
+
+                if (switchNeeded)
+                    streamsToSwitch.push_back(sharedStream);
+
+                curDevAttr->id = (pal_device_id_t)std::get<1>(elem);
+                curDev = Device::getInstance(curDevAttr, rm);
+                if (!curDev) {
+                    PAL_ERR(LOG_TAG, "Getting Device instance failed");
+                    continue;
+                }
+                curDev->getDeviceAttributes(curDevAttr);
+                if ((curDevAttr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
+                    (sAttr->out_media_config.sample_rate % SAMPLINGRATE_44K != 0)) {
+                    curDevAttr->config.sample_rate = sAttr->out_media_config.sample_rate;
+                    curDevAttr->config.bit_width = sAttr->out_media_config.bit_width;
+                    curDevAttr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
+                    switchNeeded = true;
+                    streamsToSwitch.push_back(sharedStream);
+                    PAL_DBG(LOG_TAG, "haptics is coming, update headset to sr: %d bw: %d ",
+                        curDevAttr->config.sample_rate, curDevAttr->config.bit_width);
+                }
+            }
+        }
+    }
+}
+
 /* check if group dev configuration exists for a given group device */
 bool ResourceManager::isGroupConfigAvailable(group_dev_config_idx_t idx)
 {
@@ -5795,6 +5865,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     rm->getDeviceInfo(inDevAttr->id, inStrAttr->type,
                       inDevAttr->custom_config.custom_key, &inDeviceInfo);
+
+    /* handle headphone and haptics concurrency */
+    checkHapticsConcurrency(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr);
+    for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+        streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
+        streamDevConnect.push_back({(*sIter), &streamDevAttr});
+    }
+    streamsToSwitch.clear();
 
     // check if device has virtual port enabled, update the active group devcie config
     // if streams has same virtual backend, it will be handled in shared backend case
@@ -9287,6 +9365,16 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         goto exit;
     }
 
+    // if haptics device to be stopped, check and restore headset device config
+    if (dev->getSndDeviceId() == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
+        curDevAttr.id = PAL_DEVICE_OUT_WIRED_HEADSET;
+        dev = Device::getInstance(&curDevAttr, rm);
+        if (!dev) {
+            PAL_ERR(LOG_TAG, "Getting headset device instance failed");
+            goto exit;
+        }
+    }
+
     /*get current running device info*/
     dev->getDeviceAttributes(&curDevAttr);
 
@@ -9331,6 +9419,11 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                     sharedStream->UpdatePalDevice(&newDevAttr,
                              (pal_device_id_t)dev->getSndDeviceId());
                 }
+                // in case there're two or more active streams on headset and one of them goes away
+                // still need to check if haptics is active and keep headset sample rate as 48K
+                mActiveStreamMutex.unlock();
+                checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
+                mActiveStreamMutex.lock();
                 break;
             }
         }

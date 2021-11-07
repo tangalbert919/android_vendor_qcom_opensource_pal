@@ -817,6 +817,10 @@ public:
                                  std::vector<Stream*> &streamsToSwitch,
                                  struct pal_device *streamDevAttr,
                                  bool streamEnable);
+    void checkHapticsConcurrency(struct pal_device *deviceattr,
+                             const struct pal_stream_attributes *sAttr,
+                             std::vector<Stream*> &streamsToSwitch,
+                             struct pal_device *streamDevAttr);
 };
 
 #endif
