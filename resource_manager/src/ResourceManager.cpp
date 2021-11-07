@@ -1891,6 +1891,10 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
             break;
         case PAL_DEVICE_OUT_PROXY:
             {
+            if (!sAttr) {
+                PAL_ERR(LOG_TAG, "Invalid parameter.");
+                return -EINVAL;
+            }
             // check if wfd session in progress
             for (auto& tx_str: mActiveStreams) {
                 tx_str->getStreamAttributes(&tx_attr);
