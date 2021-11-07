@@ -421,6 +421,7 @@ bool ResourceManager::isMainSpeakerRight;
 int ResourceManager::spQuickCalTime;
 bool ResourceManager::isGaplessEnabled = false;
 bool ResourceManager::isDualMonoEnabled = false;
+bool ResourceManager::isUHQAEnabled = false;
 bool ResourceManager::isContextManagerEnabled = false;
 bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
@@ -6995,6 +6996,22 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
     mResourceManagerMutex.lock();
     switch (param_id) {
+        case PAL_PARAM_ID_UHQA_FLAG:
+        {
+            pal_param_uhqa_t* param_uhqa_flag = (pal_param_uhqa_t*) param_payload;
+            PAL_INFO(LOG_TAG, "UHQA State:%d", param_uhqa_flag->uhqa_state);
+            if (payload_size == sizeof(pal_param_uhqa_t)) {
+                if (param_uhqa_flag->uhqa_state)
+                    isUHQAEnabled = true;
+                else
+                    isUHQAEnabled = false;
+            } else {
+                PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
+                        sizeof(pal_param_uhqa_t), payload_size);
+                status = -EINVAL;
+            }
+        }
+        break;
         case PAL_PARAM_ID_SCREEN_STATE:
         {
             pal_param_screen_state_t* param_screen_st = (pal_param_screen_state_t*) param_payload;
