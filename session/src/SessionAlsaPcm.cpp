@@ -64,7 +64,6 @@ SessionAlsaPcm::SessionAlsaPcm(std::shared_ptr<ResourceManager> Rm)
    pcm = NULL;
    pcmRx = NULL;
    pcmTx = NULL;
-   pcmEcTx = NULL;
    mState = SESSION_IDLE;
    ecRefDevId = PAL_DEVICE_OUT_MIN;
    streamHandle = NULL;
@@ -1986,14 +1985,8 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
     struct pal_stream_attributes sAttr;
     std::vector <std::shared_ptr<Device>> rxDeviceList;
     std::vector <std::string> backendNames;
-    std::vector <std::shared_ptr<Device>> extEcTxDeviceList;
-    std::vector <std::string> extEcbackendNames;
-    int32_t extEcbackendId;
-    struct pcm_config config;
-    std::shared_ptr<Device> dev = nullptr;
-    struct pal_device device;
-    struct pal_device rxDevAttr;
-    struct pal_device_info rxDevInfo;
+    struct pal_device rxDevAttr = {};
+    struct pal_device_info rxDevInfo = {};
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!s) {
@@ -2014,24 +2007,27 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         goto exit;
     }
 
-    rxDevInfo.isExternalECRefEnabledFlag = 0; //set by default to 0 to pass through
+    rxDevInfo.isExternalECRefEnabledFlag = 0;
     if (rx_dev) {
-        rx_dev->getDeviceAttributes(&rxDevAttr);
-        PAL_DBG(LOG_TAG, "rx_dev id is %d", rxDevAttr.id);
-        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
-    }
-
-
-    if (rxDevInfo.isExternalECRefEnabledFlag) {
-        device.id = PAL_DEVICE_IN_EXT_EC_REF;
-        rm->getDeviceConfig(&device, &sAttr);
-        dev = Device::getInstance(&device, rm);
-        if (!dev) {
-            PAL_ERR(LOG_TAG, "getInstance failed");
+        status = rx_dev->getDeviceAttributes(&rxDevAttr);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG," get device attributes failed");
             goto exit;
         }
+        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
+    } else if (!is_enable && ecRefDevId != PAL_DEVICE_OUT_MIN) {
+        // if disable EC with null rx_dev, retrieve current EC device
+        rxDevAttr.id = ecRefDevId;
+        rx_dev = Device::getInstance(&rxDevAttr, rm);
+        if (rx_dev) {
+            status = rx_dev->getDeviceAttributes(&rxDevAttr);
+            if (status) {
+                PAL_ERR(LOG_TAG, "getDeviceAttributes failed for ec dev: %d", ecRefDevId);
+                goto exit;
+            }
+        }
+        rm->getDeviceInfo(rxDevAttr.id, sAttr.type, rxDevAttr.custom_config.custom_key, &rxDevInfo);
     }
-
 
     if (!is_enable) {
         if (ecRefDevId == PAL_DEVICE_OUT_MIN) {
@@ -2043,33 +2039,19 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             goto exit;
         }
 
-        if (pcmEcTx) {
-            status = pcm_stop(pcmEcTx);
+        if (rxDevInfo.isExternalECRefEnabledFlag) {
+            status = checkAndSetExtEC(rm, s, false);
             if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_stop - ec_tx failed %d", status);
+                PAL_ERR(LOG_TAG, "Failed to disable External EC, status %d", status);
+                goto exit;
             }
-            if (dev) {
-                dev->stop();
-            }
-            status = pcm_close(pcmEcTx);
+        } else {
+            status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
             if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_close - ec_tx failed %d", status);
+                PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
+                goto exit;
             }
-            if (dev) {
-                dev->close();
-            }
-            rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-            pcmEcTx = NULL;
         }
-
-        status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to disable EC Ref, status %d", status);
-            goto exit;
-        }
-        ecRefDevId = PAL_DEVICE_OUT_MIN;
     } else if (is_enable && rx_dev) {
         if (rx_dev && ecRefDevId == rx_dev->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
@@ -2078,94 +2060,33 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         // TODO: handle EC Ref switch case also
         rxDeviceList.push_back(rx_dev);
         backendNames = rm->getBackEndNames(rxDeviceList);
+
         if (rxDevInfo.isExternalECRefEnabledFlag) {
-            PAL_DBG(LOG_TAG, "Ext EC Ref flag is enabled");
-            extEcTxDeviceList.push_back(dev);
-            pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
-            if (pcmDevEcTxIds.size() == 0) {
-                PAL_ERR(LOG_TAG, "ResourceManger::getBackEndNames returned no EXT_EC device Ids");
-                goto exit;
-            }
-            status = dev->open();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "dev open failed");
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                goto exit;
-            }
-            status = dev->start();
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "dev start failed");
-                dev->close();
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                goto exit;
-            }
-            extEcbackendId = extEcTxDeviceList[0]->getSndDeviceId();
-            extEcbackendNames = rm->getBackEndNames(extEcTxDeviceList);
-            status = SessionAlsaUtils::openDev(rm, pcmDevEcTxIds, extEcbackendId,
-                extEcbackendNames.at(0).c_str());
-            if (0 != status) {
-                PAL_ERR(LOG_TAG, "SessionAlsaUtils::openDev failed");
-                dev->stop();
-                dev->close();
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                goto exit;
-            }
-            config.rate = rxDevAttr.config.sample_rate;
-            config.format =
-                   SessionAlsaUtils::palToAlsaFormat((uint32_t)sAttr.out_media_config.aud_fmt_id);
-            config.channels = rxDevAttr.config.ch_info.channels;
-            config.period_size = 256;
-            config.period_count = 4;
-            config.start_threshold = 0;
-            config.stop_threshold = 0;
-            config.silence_threshold = 0;
-            pcmEcTx = pcm_open(rm->getVirtualSndCard(), pcmDevEcTxIds.at(0), PCM_IN, &config);
-            if (!pcmEcTx) {
-                PAL_ERR(LOG_TAG, "pcm-ec-tx open failed");
-                dev->stop();
-                dev->close();
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                status = errno;
-                goto exit;
-            }
-            if (!pcm_is_ready(pcmEcTx)) {
-                PAL_ERR(LOG_TAG, " pcm-ec-tx open not ready");
-                pcmEcTx = NULL;
-                dev->stop();
-                dev->close();
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                status = errno;
-                goto exit;
-            }
-            status = pcm_start(pcmEcTx);
+            status = checkAndSetExtEC(rm, s, true);
             if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start ec_tx failed %d", status);
-                pcm_close(pcmEcTx);
-                pcmEcTx = NULL;
-                dev->stop();
-                dev->close();
-                rm->freeFrontEndEcTxIds(pcmDevEcTxIds);
-                status = errno;
+                PAL_ERR(LOG_TAG, "Failed to enable External EC, status %d", status);
                 goto exit;
             }
-            PAL_INFO(LOG_TAG, "backend name %s", extEcbackendNames.at(0).c_str());
         } else {
             status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
-                     backendNames[0].c_str());
+                    backendNames[0].c_str());
+            if (status) {
+                PAL_ERR(LOG_TAG, "Failed to enable EC Ref, status %d", status);
+                goto exit;
+            }
         }
-        dev = nullptr;
-        if (status) {
-            PAL_ERR(LOG_TAG, "Failed to enable EC Ref, status %d", status);
-            goto exit;
-        }
-        ecRefDevId = static_cast<pal_device_id_t>(rx_dev->getSndDeviceId());
     } else {
         PAL_ERR(LOG_TAG, "Invalid operation");
         status = -EINVAL;
         goto exit;
     }
 exit:
+    if (status == 0) {
+        if (is_enable && rx_dev)
+            ecRefDevId = static_cast<pal_device_id_t>(rx_dev->getSndDeviceId());
+        else
+            ecRefDevId = PAL_DEVICE_OUT_MIN;
+    }
     PAL_DBG(LOG_TAG, "Exit, status: %d", status);
     return status;
 }
