@@ -866,8 +866,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
 {
     int32_t status = 0;
 
-    if (currentState == STREAM_IDLE ||
-        currentState == STREAM_STOPPED) {
+    if (currentState == STREAM_IDLE) {
         PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch device", currentState);
         status = 0;
         goto exit;
@@ -880,8 +879,8 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-
-            rm->deregisterDevice(mDevices[i], this);
+            if (currentState != STREAM_STOPPED)
+                rm->deregisterDevice(mDevices[i], this);
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
             if (0 != status) {
@@ -889,7 +888,7 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
                 rm->unlockGraph();
                 goto exit;
             }
-            if (currentState != STREAM_INIT) {
+            if (currentState != STREAM_INIT && currentState != STREAM_STOPPED) {
                 status = mDevices[i]->stop();
                 if (0 != status) {
                     PAL_ERR(LOG_TAG, "device stop failed with status %d", status);
@@ -952,8 +951,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
      */
     dev->setDeviceAttributes(*dattr);
 
-    if (currentState == STREAM_IDLE ||
-        currentState == STREAM_STOPPED) {
+    if (currentState == STREAM_IDLE) {
         PAL_DBG(LOG_TAG, "stream is in %d state, no need to switch device", currentState);
         status = 0;
         goto exit;
@@ -994,7 +992,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     rm->lockGraph();
-    if (currentState != STREAM_INIT) {
+    if (currentState != STREAM_INIT && currentState != STREAM_STOPPED) {
         status = dev->start();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "device %d name %s, start failed with status %d",
@@ -1010,7 +1008,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    rm->registerDevice(dev, this);
+    if (currentState != STREAM_STOPPED)
+        rm->registerDevice(dev, this);
     goto exit;
 
 dev_stop:
