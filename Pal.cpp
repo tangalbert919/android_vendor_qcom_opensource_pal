@@ -29,6 +29,7 @@
 
 #define LOG_TAG "PAL: API"
 
+#include <set>
 #include <unistd.h>
 #include <stdlib.h>
 #include <PalApi.h>
@@ -583,6 +584,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
+    std::vector <struct pal_device> palDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -614,6 +616,20 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         PAL_DBG(LOG_TAG,
                 "Device switch handles in global param set, skip here");
         goto exit;
+    }
+
+    s->getAssociatedPalDevices(palDevices);
+    if (palDevices.size() != 0) {
+        std::set<pal_device_id_t> activeDevices;
+        std::set<pal_device_id_t> newDevices;
+        for (auto palDev: palDevices)
+            activeDevices.insert(palDev.id);
+        for (int i = 0; i < no_of_devices; i++)
+            newDevices.insert(devices[i].id);
+        if (activeDevices == newDevices) {
+            PAL_DBG(LOG_TAG, "devices are same, no need to switch");
+            goto exit;
+        }
     }
 
     pDevices = (struct pal_device *) calloc(no_of_devices, sizeof(struct pal_device));
