@@ -1787,6 +1787,12 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
          deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
      }
 
+     if (sAttr->direction == PAL_AUDIO_INPUT && deviceattr->config.bit_width == BITWIDTH_32) {
+         PAL_INFO(LOG_TAG, "update i/p bitwidth stream from 32b to max supported 24b");
+         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
+         deviceattr->config.bit_width = BITWIDTH_24;
+     }
+
     /*special cases to update attrs for hot plug devices*/
     switch (deviceattr->id) {
         case PAL_DEVICE_IN_WIRED_HEADSET:
