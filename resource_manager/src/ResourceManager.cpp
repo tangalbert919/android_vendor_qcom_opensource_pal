@@ -1888,13 +1888,50 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 PAL_ERR(LOG_TAG, "Invalid parameter.");
                 return -EINVAL;
             }
-            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
-            if (isPalPCMFormat(sAttr->in_media_config.aud_fmt_id))
+
+            struct pal_media_config *candidateConfig = &sAttr->in_media_config;
+            PAL_DBG(LOG_TAG, "sattr chn=0x%x fmt id=0x%x rate = 0x%x width=0x%x",
+                sAttr->in_media_config.ch_info.channels,
+                sAttr->in_media_config.aud_fmt_id,
+                sAttr->in_media_config.sample_rate,
+                sAttr->in_media_config.bit_width);
+
+
+            if (!ifVoiceorVoipCall(sAttr->type) && isDeviceAvailable(PAL_DEVICE_OUT_PROXY)) {
+                PAL_DBG(LOG_TAG, "This is NOT voice call. out proxy is available");
+                std::shared_ptr<Device> devOut = nullptr;
+                struct pal_device proxyOut_dattr;
+                proxyOut_dattr.id = PAL_DEVICE_OUT_PROXY;
+                devOut = Device::getInstance(&proxyOut_dattr, rm);
+                if (devOut) {
+                    status = devOut->getDeviceAttributes(&proxyOut_dattr);
+                    if (status) {
+                        PAL_ERR(LOG_TAG, "getDeviceAttributes for OUT_PROXY failed %d", status);
+                        break;
+                    }
+
+                    if (proxyOut_dattr.config.ch_info.channels &&
+                            proxyOut_dattr.config.sample_rate) {
+                        PAL_INFO(LOG_TAG, "proxy out attr is used");
+                        candidateConfig = &proxyOut_dattr.config;
+                    }
+                }
+            }
+
+            deviceattr->config.ch_info = candidateConfig->ch_info;
+            if (isPalPCMFormat(candidateConfig->aud_fmt_id))
                 deviceattr->config.bit_width =
-                          palFormatToBitwidthLookup(sAttr->in_media_config.aud_fmt_id);
+                          palFormatToBitwidthLookup(candidateConfig->aud_fmt_id);
             else
-                deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = sAttr->in_media_config.aud_fmt_id;
+                deviceattr->config.bit_width = candidateConfig->bit_width;
+
+            deviceattr->config.aud_fmt_id = candidateConfig->aud_fmt_id;
+
+            PAL_INFO(LOG_TAG, "in proxy chn=0x%x fmt id=0x%x rate = 0x%x width=0x%x",
+                        deviceattr->config.ch_info.channels,
+                        deviceattr->config.aud_fmt_id,
+                        deviceattr->config.sample_rate,
+                        deviceattr->config.bit_width);
             }
             break;
         case PAL_DEVICE_OUT_PROXY:
@@ -1913,7 +1950,9 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                 }
             }
 
-            if(!ifVoiceorVoipCall(sAttr->type)) {
+            if (is_wfd_in_progress)
+            {
+                PAL_INFO(LOG_TAG, "wfd TX is in progress");
                 std::shared_ptr<Device> dev = nullptr;
                 struct pal_device proxyIn_dattr;
                 proxyIn_dattr.id = PAL_DEVICE_IN_PROXY;
@@ -1935,9 +1974,9 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.aud_fmt_id = proxyIn_dattr.config.aud_fmt_id;
                 }
             }
-
-            if (!is_wfd_in_progress)
+            else
             {
+                PAL_INFO(LOG_TAG, "wfd TX is not in progress");
                 if (rm->num_proxy_channels) {
                     deviceattr->config.ch_info.channels = rm->num_proxy_channels;
                     rm->num_proxy_channels = 0;
@@ -7974,8 +8013,24 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             removePlugInDevice(device_id, connection_state);
         }
 
-        PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
-        avail_devices_.erase(std::find(avail_devices_.begin(), avail_devices_.end(), device_id));
+        PAL_INFO(LOG_TAG, "Mark device %d as unavailable", device_id);
+        auto iter =
+            std::find(avail_devices_.begin(), avail_devices_.end(), device_id);
+
+        if (iter != avail_devices_.end()) {
+            PAL_INFO(LOG_TAG, "found device id 0x%x in avail_device", device_id);
+            conn_device.id = device_id;
+            dev = Device::getInstance(&conn_device, rm);
+            if (!dev) {
+                PAL_ERR(LOG_TAG, "Device getInstance failed");
+                throw std::runtime_error("failed to get device object");
+                return -EIO;
+            }
+            dev->setDeviceAttributes(conn_device);
+            PAL_INFO(LOG_TAG, "device attribute cleared");
+            avail_devices_.erase(std::find(avail_devices_.begin(),
+                                  avail_devices_.end(), device_id));
+        }
     } else {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
