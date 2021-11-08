@@ -1021,8 +1021,14 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 dev_stop:
     dev->stop();
 dev_close:
-    mDevices.pop_back();
-    mPalDevice.pop_back();
+
+    /* Do not pop the current device from stream, if session connect failed due to SSR down
+     * event so that when SSR is up that device will be associated to stream.
+     */
+    if (status != -ENETRESET) {
+        mDevices.pop_back();
+        mPalDevice.pop_back();
+    }
     dev->close();
 exit:
     /*check if USB is not available restore to default device */
