@@ -2217,6 +2217,13 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
 
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+
+    if (!config) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid config, status %d", status);
+        goto exit;
+    }
+
     if (!is_qcva_uuid_ && !is_qcmd_uuid_) {
         custom_data_size = config->data_size;
         custom_data = (uint8_t *)calloc(1, custom_data_size);
@@ -2230,9 +2237,9 @@ int32_t SoundTriggerEngineGsl::UpdateConfLevels(
         goto exit;
     }
 
-    if (!config || !conf_levels) {
+    if (num_conf_levels != 0 && !conf_levels) {
         status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid config or conf levels, status %d", status);
+        PAL_ERR(LOG_TAG, "Invalid conf_levels, status %d", status);
         goto exit;
     }
 

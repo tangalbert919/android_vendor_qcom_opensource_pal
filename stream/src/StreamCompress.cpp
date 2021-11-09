@@ -395,8 +395,6 @@ int32_t StreamCompress::start()
                     mute_l(true);
                     a2dpMuted = true;
                 }
-                suspendedDevIds.clear();
-                suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
             }
             break;
         default:
@@ -774,6 +772,7 @@ int32_t StreamCompress::drain(pal_drain_type_t type)
 
 int32_t StreamCompress::flush()
 {
+    std::lock_guard<std::mutex> lck(mStreamMutex);
     if (isPaused == false) {
         PAL_DBG(LOG_TAG, "Flush called while stream is not Paused");
         return 0;

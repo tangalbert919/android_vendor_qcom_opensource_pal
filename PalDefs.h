@@ -870,6 +870,7 @@ typedef enum {
     PAL_PARAM_ID_CHARGER_STATE = 53,
     PAL_PARAM_ID_BT_SCO_NREC = 54,
     PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
+    PAL_PARAM_ID_UHQA_FLAG = 56,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
@@ -986,6 +987,13 @@ typedef enum {
 typedef struct pal_param_device_rotation {
     pal_speaker_rotation_type    rotation_type;
 } pal_param_device_rotation_t;
+
+/* Payload For ID: PAL_PARAM_ID_UHQA_FLAG
+ * Description   : use to enable/disable USB high quality audio from userend
+*/
+typedef struct pal_param_uhqa_state {
+    bool uhqa_state;
+} pal_param_uhqa_t;
 
 /* Payload For ID: PAL_PARAM_ID_BT_SCO*
  * Description   : BT SCO related device parameters

@@ -348,6 +348,7 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
 
 int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     int32_t status = 0;
+    int32_t ret = 0;
 
     PAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
     if (gsl_engine_) {
@@ -408,27 +409,28 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         if (!gsl_engine_) {
             PAL_ERR(LOG_TAG, "big_sm: gsl engine creation failed");
             status = -ENOMEM;
-            goto exit;
+            goto release;
         }
 
         status = gsl_engine_->GetParameters(param_id, payload);
         if (status)
-            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine %d", status);
 
+release:
         rm->resetStreamInstanceID(this, mInstanceID);
+        if (mDevices.size() > 0) {
+            ret = mDevices[0]->close();
+            device_opened_ = false;
+            if (0 != ret) {
+                PAL_ERR(LOG_TAG, "Device close failed, status %d", ret);
+                status = ret;
+            }
+        }
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
     }
 
-exit:
-    if (mDevices.size() > 0) {
-        status = mDevices[0]->close();
-        device_opened_ = false;
-        if (0 != status) {
-            PAL_ERR(LOG_TAG, "Device close failed, status %d", status);
-        }
-    }
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
@@ -491,9 +493,8 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
     int32_t status = 0;
     uint64_t transit_duration = 0;
 
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-
     if (!active) {
+        mStreamMutex.lock();
         transit_start_time_ = std::chrono::steady_clock::now();
         common_cp_update_disable_ = true;
     }
@@ -516,6 +517,7 @@ int32_t StreamSoundTrigger::HandleConcurrentStream(bool active) {
             PAL_INFO(LOG_TAG, "LPI->NLPI switch takes %llums",
                 (long long)transit_duration);
         }
+        mStreamMutex.unlock();
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -1846,7 +1848,7 @@ int32_t StreamSoundTrigger::notifyClient(bool detection) {
          * this case notifyClient is not called, so we need to unlock stream
          * mutex at end of SetEngineDetectionState, that's why we don't need
          * to unlock stream mutex here.
-         * If mutex is locked back here, mark mutex_unlocked_after_cb_ as true
+         * If mutex is not locked here, mark mutex_unlocked_after_cb_ as true
          * so that we can avoid double unlock in SetEngineDetectionState.
          */
         if (!lock_status)
@@ -2965,6 +2967,47 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                 break;
             }
         err_exit:
+            break;
+        }
+        case ST_EV_UNLOAD_SOUND_MODEL: {
+
+            if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
+                status = st_stream_.mDevices[0]->close();
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Failed to close device, status %d",
+                        status);
+                }
+            }
+
+            st_stream_.mDevices.clear();
+
+            for (auto& eng: st_stream_.engines_) {
+                PAL_DBG(LOG_TAG, "Unload engine %d", eng->GetEngineId());
+                status = eng->GetEngine()->UnloadSoundModel(&st_stream_);
+                if (0 != status) {
+                    PAL_ERR(LOG_TAG, "Unload engine %d failed, status %d",
+                            eng->GetEngineId(), status);
+                }
+                free(eng->sm_data_);
+            }
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->ResetBufferReaders(st_stream_.reader_list_);
+            if (st_stream_.reader_) {
+                delete st_stream_.reader_;
+                st_stream_.reader_ = nullptr;
+            }
+            st_stream_.engines_.clear();
+            if(st_stream_.gsl_engine_)
+                st_stream_.gsl_engine_->DetachStream(&st_stream_, true);
+            st_stream_.reader_list_.clear();
+            if (st_stream_.sm_info_) {
+                delete st_stream_.sm_info_;
+                st_stream_.sm_info_ = nullptr;
+            }
+
+            st_stream_.rm->resetStreamInstanceID(
+                &st_stream_,
+                st_stream_.mInstanceID);
             break;
         }
         case ST_EV_PAUSE: {

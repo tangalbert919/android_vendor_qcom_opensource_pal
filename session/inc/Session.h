@@ -62,6 +62,11 @@ typedef enum {
     SESSION_STOPPED,
 }sessionState;
 
+typedef enum {
+    PM_QOS_VOTE_DISABLE = 0,
+    PM_QOS_VOTE_ENABLE  = 1
+} pmQosVote;
+
 #define EVENT_ID_SOFT_PAUSE_PAUSE_COMPLETE 0x0800103F
 
 class Stream;
@@ -86,6 +91,9 @@ protected:
     size_t eventPayloadSize;
     bool RegisterForEvents = false;
     Stream *streamHandle;
+    static struct pcm *pcmEcTx;
+    static std::vector<int> pcmDevEcTxIds;
+    static int extECRefCnt;
 public:
     bool isPauseRegistrationDone;
     virtual ~Session();
@@ -97,6 +105,7 @@ public:
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds);
     int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
+    void setPmQosMixerCtl(pmQosVote vote);
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
@@ -142,6 +151,8 @@ public:
     virtual int openGraph(Stream *s __unused) { return 0; }
     virtual int getTagsWithModuleInfo(Stream *s __unused, size_t *size __unused,
                                       uint8_t *payload __unused) {return -EINVAL;}
+    virtual int checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
+                                 Stream *s, bool is_enable);
 };
 
 #endif //SESSION_H

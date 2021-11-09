@@ -240,6 +240,7 @@ struct pal_device_info {
      bool sndDevName_overwrite;
      bool bit_width_overwrite;
      uint32_t bit_width;
+     pal_audio_fmt_t bitFormatSupported;
 };
 
 struct vsid_modepair {
@@ -362,6 +363,7 @@ struct deviceIn {
     bool isExternalECRefEnabled;
     bool fractionalSRSupported;
     uint32_t bit_width;
+    pal_audio_fmt_t bitFormatSupported;
 };
 
 class ResourceManager
@@ -515,12 +517,12 @@ public:
     static bool isSpeakerProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static bool isCpsEnabled;
-    static pal_audio_fmt_t bitFormatSupported;
     static bool isVbatEnabled;
     static bool isRasEnabled;
     static bool isGaplessEnabled;
     static bool isContextManagerEnabled;
     static bool isDualMonoEnabled;
+    static bool isUHQAEnabled;
     /* Variable to store which speaker side is being used for call audio.
      * Valid for Stereo case only
      */
@@ -535,6 +537,8 @@ public:
     static bool isVIRecordStarted;
     /* Flag to indicate if shared backend is enabled for UPD */
     static bool isUpdDedicatedBeEnabled;
+    /* Variable to store max volume index for voice call */
+    static int max_voice_vol;
     uint64_t cookie;
     int initSndMonitor();
     int initContextManager();
@@ -569,6 +573,7 @@ public:
     bool getEcRefStatus(pal_stream_type_t tx_streamtype,pal_stream_type_t rx_streamtype);
     int32_t getVsidInfo(struct vsid_info  *info);
     int32_t getVolumeSetParamInfo(struct volume_set_param_info *volinfo);
+    int getMaxVoiceVol();
     void getChannelMap(uint8_t *channel_map, int channels);
     pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
     int registerStream(Stream *s);
@@ -631,8 +636,8 @@ public:
     int getHwAudioMixer(struct audio_mixer **am);
     int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
     int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
-    int getOrphanStream(std::vector<Stream*> &orphanstreams);
-    int getOrphanStream_l(std::vector<Stream*> &orphanstreams);
+    int getOrphanStream(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
+    int getOrphanStream_l(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);
     int getSndDeviceName(int deviceId, char *device_name);
     int getDeviceEpName(int deviceId, std::string &epName);
@@ -750,6 +755,7 @@ public:
     bool getScreenState();
     bool isDeviceAvailable(pal_device_id_t id);
     bool isDeviceAvailable(std::vector<std::shared_ptr<Device>> devices, pal_device_id_t id);
+    bool isDeviceAvailable(struct pal_device *devices, uint32_t devCount, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
@@ -811,6 +817,10 @@ public:
                                  std::vector<Stream*> &streamsToSwitch,
                                  struct pal_device *streamDevAttr,
                                  bool streamEnable);
+    void checkHapticsConcurrency(struct pal_device *deviceattr,
+                             const struct pal_stream_attributes *sAttr,
+                             std::vector<Stream*> &streamsToSwitch,
+                             struct pal_device *streamDevAttr);
 };
 
 #endif
