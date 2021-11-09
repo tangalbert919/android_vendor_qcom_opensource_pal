@@ -406,6 +406,7 @@ int ResourceManager::ACDConcurrencyEnableCount = 0;
 int ResourceManager::ACDConcurrencyDisableCount = 0;
 int ResourceManager::SNSPCMDataConcurrencyEnableCount = 0;
 int ResourceManager::SNSPCMDataConcurrencyDisableCount = 0;
+defer_switch_state_t ResourceManager::deferredSwitchState = NO_DEFER;
 int ResourceManager::wake_lock_fd = -1;
 int ResourceManager::wake_unlock_fd = -1;
 uint32_t ResourceManager::wake_lock_cnt = 0;
@@ -4205,21 +4206,132 @@ void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool ac
     mResourceManagerMutex.unlock();
 }
 
+/* This function should be called with mResourceManagerMutex lock acquired */
+void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t>& st_streams,
+    bool stream_active, bool is_deferred)
+{
+    bool update_st_capture_profile = true;
+    std::vector<pal_stream_type_t> st_streams_to_start;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+
+    if(!is_deferred) {
+        if (isAnyVUIStreamBuffering()) {
+            if (stream_active)
+                deferredSwitchState =
+                    (deferredSwitchState == DEFER_NLPI_LPI_SWITCH) ? NO_DEFER :
+                    DEFER_LPI_NLPI_SWITCH;
+            else
+                deferredSwitchState =
+                    (deferredSwitchState == DEFER_LPI_NLPI_SWITCH) ? NO_DEFER :
+                    DEFER_NLPI_LPI_SWITCH;
+            PAL_INFO(LOG_TAG, "VUI stream is in buffering state, defer %s switch deferred state:%d",
+                stream_active? "LPI->NLPI": "NLPI->LPI", deferredSwitchState);
+            return;
+        }
+    }
+
+    for (pal_stream_type_t st_stream_type : st_streams) {
+
+        // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
+        mResourceManagerMutex.unlock();
+        HandleDetectionStreamAction(st_stream_type, ST_ENABLE_LPI, (void *)&stream_active);
+        mResourceManagerMutex.lock();
+
+        // update the common capture profile once
+        if (true == update_st_capture_profile) {
+            SoundTriggerCaptureProfile = nullptr;
+            cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+            if (!cap_prof_priority) {
+                PAL_DBG(LOG_TAG, "No ST session active, reset capture profile");
+                SoundTriggerCaptureProfile = nullptr;
+            } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
+                    CAPTURE_PROFILE_PRIORITY_HIGH) {
+                SoundTriggerCaptureProfile = cap_prof_priority;
+            }
+            update_st_capture_profile = false;
+        }
+        // stop/unload SVA/ACD/Sensor PCM Data streams
+        bool action = false;
+
+        mResourceManagerMutex.unlock();
+        PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type);
+        HandleDetectionStreamAction(st_stream_type,
+            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+        st_streams_to_start.push_back(st_stream_type);
+        mResourceManagerMutex.lock();
+    }
+
+    for (pal_stream_type_t st_stream_type_to_start : st_streams_to_start) {
+        // load/start SVA/ACD/Sensor PCM Data streams
+        bool action = true;
+
+        mResourceManagerMutex.unlock();
+        PAL_DBG(LOG_TAG, "load/start stream type %d", st_stream_type_to_start);
+        HandleDetectionStreamAction(st_stream_type_to_start,
+            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+        mResourceManagerMutex.lock();
+    }
+}
+
+
+void ResourceManager::handleDeferredSwitch()
+{
+    bool active = false;
+    bool update_st_capture_profile = true;
+    std::vector<pal_stream_type_t> st_streams;
+    std::vector<pal_stream_type_t> st_streams_to_start;
+    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+
+    mResourceManagerMutex.lock();
+
+    PAL_DBG(LOG_TAG, "enter, isAnyVUIStreambuffering:%d deferred state:%d",
+        isAnyVUIStreamBuffering(), deferredSwitchState);
+
+    if (!isAnyVUIStreamBuffering() && deferredSwitchState != NO_DEFER) {
+        if (deferredSwitchState == DEFER_LPI_NLPI_SWITCH)
+            active = true;
+        else if (deferredSwitchState == DEFER_NLPI_LPI_SWITCH)
+            active = false;
+
+        if (active_streams_st.size())
+            st_streams.push_back(PAL_STREAM_VOICE_UI);
+        if (active_streams_acd.size())
+            st_streams.push_back(PAL_STREAM_ACD);
+        if (active_streams_sensor_pcm_data.size())
+            st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+        handleConcurrentStreamSwitch(st_streams, active, true);
+        // reset the defer switch state after handling LPI/NLPI switch
+        deferredSwitchState = NO_DEFER;
+    }
+    mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
+bool ResourceManager::isAnyVUIStreamBuffering()
+{
+    for (auto& str: active_streams_st) {
+        if (str->IsStreamInBuffering())
+            return true;
+    }
+    return false;
+}
+
 void ResourceManager::ConcurrentStreamStatus(pal_stream_type_t type,
                                              pal_stream_direction_t dir,
                                              bool active)
 {
-    HandleConcurrenyForSoundTriggerStreams(type, dir, active);
+    HandleConcurrencyForSoundTriggerStreams(type, dir, active);
 }
 
-void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t type,
+void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t type,
                                                              pal_stream_direction_t dir,
                                                              bool active)
 {
     bool update_st_capture_profile = true;
     std::vector<pal_stream_type_t> st_streams;
-    std::vector<pal_stream_type_t> st_streams_to_start;
-    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
+    bool do_st_stream_switch = false;
 
     mResourceManagerMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
@@ -4233,7 +4345,6 @@ void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t t
 
     for (pal_stream_type_t st_stream_type : st_streams) {
         bool st_stream_conc_en = true;
-        bool do_st_stream_switch = false;
         bool st_stream_tx_conc = false;
         bool st_stream_rx_conc = false;
 
@@ -4264,46 +4375,11 @@ void ResourceManager::HandleConcurrenyForSoundTriggerStreams(pal_stream_type_t t
                     do_st_stream_switch = true;
             }
         }
-
-        if (do_st_stream_switch) {
-            bool action = false;
-            // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
-            mResourceManagerMutex.unlock();
-            HandleDetectionStreamAction(st_stream_type, ST_ENABLE_LPI, (void *)&active);
-            mResourceManagerMutex.lock();
-
-            // update the common capture profile once
-            if (true == update_st_capture_profile) {
-                SoundTriggerCaptureProfile = nullptr;
-                cap_prof_priority = GetCaptureProfileByPriority(nullptr);
-
-                if (!cap_prof_priority) {
-                    PAL_DBG(LOG_TAG, "No SVA/ACD/Sensor PCM Data session active, reset capture profile");
-                    SoundTriggerCaptureProfile = nullptr;
-                } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
-                        CAPTURE_PROFILE_PRIORITY_HIGH) {
-                    SoundTriggerCaptureProfile = cap_prof_priority;
-                }
-                update_st_capture_profile = false;
-            }
-            // stop/unload SVA/ACD/Sensor PCM Data streams
-            mResourceManagerMutex.unlock();
-            PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type);
-            HandleDetectionStreamAction(st_stream_type, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-            st_streams_to_start.push_back(st_stream_type);
-            mResourceManagerMutex.lock();
-        }
     }
 
-    for (pal_stream_type_t st_stream_type_to_start : st_streams_to_start) {
-        // load/start SVA/ACD/Sensor PCM Data streams
-        bool action = true;
+    if (do_st_stream_switch)
+        handleConcurrentStreamSwitch(st_streams, active, false);
 
-        mResourceManagerMutex.unlock();
-        PAL_DBG(LOG_TAG, "load/start stream type %d", st_stream_type_to_start);
-        HandleDetectionStreamAction(st_stream_type_to_start, ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-        mResourceManagerMutex.lock();
-    }
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
