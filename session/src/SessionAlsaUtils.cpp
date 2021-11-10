@@ -1926,6 +1926,7 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
 
     switch (streamType) {
          case PAL_STREAM_ULTRASOUND:
+         case PAL_STREAM_LOOPBACK:
              status = rmHandle->getVirtualAudioMixer(&mixerHandle);
              txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
              txFeMixerCtrls[FE_LOOPBACK] = getFeMixerControl(mixerHandle, txFeName.str(), FE_LOOPBACK);
@@ -1936,8 +1937,12 @@ int SessionAlsaUtils::disconnectSessionDevice(Stream* streamHandle, pal_stream_t
                  return status;
              }
              mixer_ctl_set_enum_by_string(txFeMixerCtrls[FE_LOOPBACK], "ZERO");
-             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
-             break;
+             if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+                 disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
+             } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+                 disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " disconnect";
+             }
+            break;
         default:
             disconnectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " disconnect";
             break;
@@ -2055,7 +2060,11 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     std::ostringstream txFeName,rxFeName;
     struct pal_stream_attributes sAttr;
 
-    connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
+    if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+        connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
+    } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
+        connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " connect";
+    }
 
     status = rmHandle->getVirtualAudioMixer(&mixerHandle);
     if (status) {
@@ -2086,6 +2095,7 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
 
     switch (streamType) {
          case PAL_STREAM_ULTRASOUND:
+         case PAL_STREAM_LOOPBACK:
              status = rmHandle->getVirtualAudioMixer(&mixerHandle);
              txFeName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0);
              rxFeName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0);
