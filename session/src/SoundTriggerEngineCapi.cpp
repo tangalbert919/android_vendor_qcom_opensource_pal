@@ -324,6 +324,18 @@ int32_t SoundTriggerEngineCapi::StartKeywordDetection()
     }
 
 exit:
+
+    PAL_INFO(LOG_TAG, "Issuing capi_set_param for param %d",
+                   SVA_ID_REINIT_ALL);
+    rc = capi_handle_->vtbl_ptr->set_param(capi_handle_,
+                             SVA_ID_REINIT_ALL, nullptr, nullptr);
+
+    if (CAPI_V2_EOK != rc) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "set param SVA_ID_REINIT_ALL failed, status = %d",
+                rc);
+    }
+
     process_end = std::chrono::steady_clock::now();
     process_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         process_end - process_start).count();
