@@ -4546,6 +4546,10 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
 
         hapticsDattr.id = PAL_DEVICE_OUT_HAPTICS_DEVICE;
         hapticsDev = Device::getInstance(&hapticsDattr, rm);
+        if (!hapticsDev) {
+            PAL_ERR(LOG_TAG, "Getting Device instance failed");
+            return;
+        }
         mActiveStreamMutex.lock();
         getActiveStream_l(hapticsDev, activeHapticsStreams);
         if (activeHapticsStreams.size() != 0) {
@@ -6729,8 +6733,10 @@ int32_t ResourceManager::a2dpResume()
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
             std::vector<std::shared_ptr<Device>> devices;
             (*sIter)->getAssociatedDevices(devices);
-            for (auto device: devices) {
-                streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+            if (devices.size() > 0) {
+                for (auto device: devices) {
+                    streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+                }
             }
 
             restoredStreams.push_back((*sIter));
