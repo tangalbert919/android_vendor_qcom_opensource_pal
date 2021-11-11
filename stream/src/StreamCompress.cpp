@@ -596,37 +596,41 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
     uint8_t volSize = 0;
 
     PAL_DBG(LOG_TAG, "Enter, session handle - %p", session);
-    if (!volume|| volume->no_of_volpair == 0) {
+    if (!volume || (volume->no_of_volpair == 0)) {
        PAL_ERR(LOG_TAG, "Invalid arguments");
        status = -EINVAL;
        goto exit;
     }
 
+    // if already allocated free and reallocate
     if (mVolumeData) {
-        // if mVolumeDate is already allocated, free it before updating
         free(mVolumeData);
-        mVolumeData = (struct pal_volume_data *)NULL;
+        mVolumeData = NULL;
     }
 
-    mVolumeData = (struct pal_volume_data *)calloc(1, sizeof(struct pal_volume_data) +
-                 (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
+    volSize = (sizeof(struct pal_volume_data) +
+            (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
+    mVolumeData = (struct pal_volume_data *)calloc(1, volSize);
     if (!mVolumeData) {
        PAL_ERR(LOG_TAG, "failed to calloc for volume data");
        status = -ENOMEM;
        goto exit;
     }
 
-    volSize = (sizeof(struct pal_volume_data) +
-            (sizeof(struct pal_channel_vol_kv) * (volume->no_of_volpair)));
-    memcpy(mVolumeData, volume, volSize);
-    for(int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
-       PAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
+    /* Allow caching of stream volume as part of mVolumeData
+     * till the stream_start is not done or if sound card is offline.
+     */
+    ar_mem_cpy(mVolumeData, volSize, volume, volSize);
+    for (int32_t i = 0; i < (mVolumeData->no_of_volpair); i++) {
+        PAL_VERBOSE(LOG_TAG, "Volume payload mask:%x vol:%f",
                (mVolumeData->volume_pair[i].channel_mask), (mVolumeData->volume_pair[i].vol));
     }
-    /* Allow caching of stream volume as part of mVolumeData
-     * till the stream_start is not done or if sound card is
-     * offline.
-     */
+
+    if (a2dpMuted) {
+        PAL_DBG(LOG_TAG, "a2dp muted, just cache volume update");
+        goto exit;
+    }
+
     memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
     rm->getVolumeSetParamInfo(&vol_set_param_info);
     if (rm->cardState == CARD_STATUS_ONLINE && currentState != STREAM_IDLE
@@ -650,10 +654,11 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
            goto exit;
         }
     }
-    PAL_VERBOSE(LOG_TAG, "Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-             (volume->no_of_volpair), (volume->volume_pair->channel_mask),(volume->volume_pair->vol));
+
 exit:
-    PAL_DBG(LOG_TAG, "Exit status: %d", status);
+    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                      (volume->volume_pair->vol));
     return status;
 }
 
