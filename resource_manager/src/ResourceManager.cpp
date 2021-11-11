@@ -1755,11 +1755,11 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
 
     /*set channels*/
     if (devinfo.channels == 0 || devinfo.channels > devinfo.max_channels) {
-            PAL_ERR(LOG_TAG, "Invalid num channels[%d], max channels[%d] failed to create stream",
+        PAL_ERR(LOG_TAG, "Invalid num channels[%d], max channels[%d] failed to create stream",
                     devinfo.channels,
                     devinfo.max_channels);
-            status = -EINVAL;
-            goto exit;
+        status = -EINVAL;
+        goto exit;
     }
     dev_ch_info.channels = devinfo.channels;
     getChannelMap(&(dev_ch_info.ch_map[0]), devinfo.channels);
@@ -1767,31 +1767,32 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
 
     /*set proper sample rate*/
     if (devinfo.samplerate) {
-         deviceattr->config.sample_rate = devinfo.samplerate;
-     } else {
-         deviceattr->config.sample_rate = ((sAttr == NULL) ?  SAMPLINGRATE_48K :
+        deviceattr->config.sample_rate = devinfo.samplerate;
+    } else {
+        deviceattr->config.sample_rate = ((sAttr == NULL) ?  SAMPLINGRATE_48K :
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.sample_rate : sAttr->out_media_config.sample_rate);
-     }
-     /*set proper bit width*/
-     if (devinfo.bit_width) {
-         deviceattr->config.bit_width = devinfo.bit_width;
-     } /*if default is not set in resourcemanager.xml use from stream*/
-     else {
-         deviceattr->config.bit_width = ((sAttr == NULL) ?  BITWIDTH_16 :
+    }
+    /*set proper bit width*/
+    if (devinfo.bit_width) {
+        deviceattr->config.bit_width = devinfo.bit_width;
+    } /*if default is not set in resourcemanager.xml use from stream*/
+    else {
+        deviceattr->config.bit_width = ((sAttr == NULL) ?  BITWIDTH_16 :
                     (sAttr->direction == PAL_AUDIO_INPUT) ? sAttr->in_media_config.bit_width : sAttr->out_media_config.bit_width);
-     }
-     deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
-     /*special case if bitFormatSupported is requested*/
-     if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
-         deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
-         deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
-     }
+    }
+    deviceattr->config.aud_fmt_id = bitWidthToFormat.at(deviceattr->config.bit_width);
+    /*special case if bitFormatSupported is requested*/
+    if (devinfo.bitFormatSupported != PAL_AUDIO_FMT_DEFAULT_PCM) {
+        deviceattr->config.aud_fmt_id = devinfo.bitFormatSupported;
+        deviceattr->config.bit_width = palFormatToBitwidthLookup(devinfo.bitFormatSupported);
+    }
 
-     if (sAttr->direction == PAL_AUDIO_INPUT && deviceattr->config.bit_width == BITWIDTH_32) {
-         PAL_INFO(LOG_TAG, "update i/p bitwidth stream from 32b to max supported 24b");
-         deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
-         deviceattr->config.bit_width = BITWIDTH_24;
-     }
+    if ((sAttr != NULL) && (sAttr->direction == PAL_AUDIO_INPUT) &&
+            (deviceattr->config.bit_width == BITWIDTH_32)) {
+        PAL_INFO(LOG_TAG, "update i/p bitwidth stream from 32b to max supported 24b");
+        deviceattr->config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S24_LE;
+        deviceattr->config.bit_width = BITWIDTH_24;
+    }
 
     /*special cases to update attrs for hot plug devices*/
     switch (deviceattr->id) {
