@@ -995,10 +995,12 @@ set_mixer:
                 setConfig(s, MODULE, LPI_LOGGING_ON);
             }
 
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            if (pcm) {
+                status = pcm_start(pcm);
+                if (status) {
+                    status = errno;
+                    PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+                }
             }
             break;
         case PAL_AUDIO_OUTPUT:
@@ -1064,11 +1066,14 @@ pcm_start:
                     PAL_DBG(LOG_TAG,"pcmLpmRefCnt %d\n", pcmLpmRefCnt);
             }
 
-            status = pcm_start(pcm);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+            if (pcm) {
+                status = pcm_start(pcm);
+                if (status) {
+                    status = errno;
+                    PAL_ERR(LOG_TAG, "pcm_start failed %d", status);
+                }
             }
+
             if (!status && isPauseRegistrationDone) {
                 // Stream supports Soft Pause and registration with RM is
                 // successful. So register for Soft pause callback from adsp.
@@ -1114,15 +1119,20 @@ pcm_start:
                     goto exit;
                 }
             }
-            status = pcm_start(pcmRx);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+
+            if (pcmRx) {
+                status = pcm_start(pcmRx);
+                if (status) {
+                    status = errno;
+                    PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
+                }
             }
-            status = pcm_start(pcmTx);
-            if (status) {
-                status = errno;
-                PAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+            if (pcmTx) {
+                status = pcm_start(pcmTx);
+                if (status) {
+                    status = errno;
+                    PAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
+                }
             }
            break;
     }
