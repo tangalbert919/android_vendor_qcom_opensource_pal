@@ -2086,7 +2086,7 @@ int SessionAlsaPcm::register_asps_event(uint32_t reg)
 int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
 {
     int status = 0;
-    struct pal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr = {};
     std::vector <std::shared_ptr<Device>> rxDeviceList;
     std::vector <std::string> backendNames;
     struct pal_device rxDevAttr = {};
