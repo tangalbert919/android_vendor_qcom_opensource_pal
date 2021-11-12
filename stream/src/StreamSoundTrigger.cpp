@@ -483,11 +483,16 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
         case PAL_PARAM_ID_STOP_BUFFERING: {
             /*
             * Currently spf needs graph stop and start for next detection.
-            * Handle this event similar to STOP_RECOGNITION.
+            * Handle this event similar to STOP_RECOGNITION
+            * and when the stream state is in buffering.
             */
-            std::shared_ptr<StEventConfig> ev_cfg(
-                new StStopRecognitionEventConfig(false));
-            status = cur_state_->ProcessEvent(ev_cfg);
+            if (GetCurrentStateId() == ST_STATE_BUFFERING) {
+                std::shared_ptr<StEventConfig> ev_cfg(
+                    new StStopRecognitionEventConfig(false));
+                status = cur_state_->ProcessEvent(ev_cfg);
+            } else {
+                PAL_INFO(LOG_TAG, "Stream not in buffering state, ignore");
+            }
             if (st_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_CLOSE(lab_fd_);
                 lab_fd_ = nullptr;
