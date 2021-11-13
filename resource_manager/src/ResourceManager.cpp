@@ -2683,6 +2683,108 @@ int ResourceManager::isActiveStream(Stream *s) {
     return isStreamActive(s, mActiveStreams);
 }
 
+// check if any of the ec device supports external ec
+bool ResourceManager::isExternalECSupported(std::shared_ptr<Device> tx_dev) {
+    bool is_supported = false;
+    int i = 0;
+    int tx_dev_id = 0;
+    int rx_dev_id = 0;
+    std::vector<pal_device_id_t>::iterator iter;
+
+    if (!tx_dev) {
+        PAL_ERR(LOG_TAG, "Invalid tx_dev");
+        goto exit;
+    }
+
+    tx_dev_id = tx_dev->getSndDeviceId();
+    for (i = 0; i < deviceInfo.size(); i++) {
+        if (tx_dev_id == deviceInfo[i].deviceId) {
+            break;
+        }
+    }
+
+    if (i == deviceInfo.size()) {
+        PAL_ERR(LOG_TAG, "Tx device %d not found", tx_dev_id);
+        goto exit;
+    }
+
+    for (iter = deviceInfo[i].rx_dev_ids.begin();
+        iter != deviceInfo[i].rx_dev_ids.end(); iter++) {
+        rx_dev_id = *iter;
+        is_supported = isExternalECRefEnabled(rx_dev_id);
+        if (is_supported)
+            break;
+    }
+
+exit:
+    return is_supported;
+}
+
+bool ResourceManager::isExternalECRefEnabled(int rx_dev_id)
+{
+    bool is_enabled = false;
+
+    for (int i = 0; i < deviceInfo.size(); i++) {
+        if (rx_dev_id == deviceInfo[i].deviceId) {
+            is_enabled = deviceInfo[i].isExternalECRefEnabled;
+            break;
+        }
+    }
+
+    return is_enabled;
+}
+
+// NOTE: this api should be called with mActiveStreamMutex locked
+void ResourceManager::disableInternalECRefs(Stream *s)
+{
+    int32_t status = 0;
+    std::shared_ptr<Device> dev = nullptr;
+    struct pal_stream_attributes sAttr;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+
+    PAL_DBG(LOG_TAG, "Enter");
+    for (auto str: mActiveStreams) {
+        associatedDevices.clear();
+        if (!str)
+            continue;
+
+        status = str->getStreamAttributes(&sAttr);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"stream get attributes failed");
+            continue;
+        } else if (sAttr.direction != PAL_AUDIO_INPUT) {
+            continue;
+        }
+
+        status = str->getAssociatedDevices(associatedDevices);
+        if ((0 != status) || associatedDevices.empty()) {
+            PAL_ERR(LOG_TAG, "getAssociatedDevices Failed or Empty");
+            continue;
+        }
+
+        // Tx stream should have one device
+        for (int i = 0; i < associatedDevices.size(); i++) {
+            dev = associatedDevices[i];
+            if (isExternalECSupported(dev)) {
+                if (str == s) {
+                    status = clearInternalECRefCounts(s, dev);
+                } else {
+                    // only clean up ec ref count if tx device has supported ext ec device
+                    status = updateECDeviceMap(nullptr, dev, str, 0, true);
+                    if (status == 0) {
+                        if (isDeviceSwitch)
+                            status = str->setECRef_l(nullptr, false);
+                        else
+                            status = str->setECRef(nullptr, false);
+                    }
+                }
+            }
+        }
+    }
+
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
 int ResourceManager::registerDevice_l(std::shared_ptr<Device> d, Stream *s)
 {
     PAL_DBG(LOG_TAG, "Enter.");
@@ -4409,6 +4511,47 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     PAL_DBG(LOG_TAG, "EC ref count for stream device pair (%pK %d, %d) is %d",
         tx_str, tx_dev_id, rx_dev_id, ec_count);
     return ec_count;
+}
+
+int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev) {
+    int i = 0;
+    int rx_dev_id = 0;
+    int tx_dev_id = 0;
+    std::vector<std::pair<Stream *, int>>::iterator iter;
+    std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
+
+    if (!tx_str || !tx_dev) {
+        PAL_ERR(LOG_TAG, "Invalid operation");
+        return -EINVAL;
+    }
+
+    tx_dev_id = tx_dev->getSndDeviceId();
+    for (i = 0; i < deviceInfo.size(); i++) {
+        if (tx_dev_id == deviceInfo[i].deviceId) {
+            break;
+        }
+    }
+
+    if (i == deviceInfo.size()) {
+        PAL_ERR(LOG_TAG, "Tx device %d not found", tx_dev_id);
+        return -EINVAL;
+    }
+
+    for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
+        map_iter != deviceInfo[i].ec_ref_count_map.end(); map_iter++) {
+        rx_dev_id = (*map_iter).first;
+        if (isExternalECRefEnabled(rx_dev_id))
+            continue;
+        for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
+            iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
+            if ((*iter).first == tx_str) {
+                deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
+                break;
+            }
+        }
+    }
+
+    return 0;
 }
 
 //TBD: test this piece later, for concurrency

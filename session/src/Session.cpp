@@ -762,6 +762,8 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     } else {
         extECRefCnt ++;
         if (extECRefCnt == 1) {
+            rm->disableInternalECRefs(s);
+
             extEcTxDeviceList.push_back(dev);
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
             if (pcmDevEcTxIds.size() == 0) {

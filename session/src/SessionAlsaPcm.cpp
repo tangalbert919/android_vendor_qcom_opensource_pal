@@ -2157,7 +2157,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
             }
         }
     } else if (is_enable && rx_dev) {
-        if (rx_dev && ecRefDevId == rx_dev->getSndDeviceId()) {
+        if (ecRefDevId == rx_dev->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "EC Ref already set for dev %d", ecRefDevId);
             goto exit;
         }
@@ -2166,12 +2166,26 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         backendNames = rm->getBackEndNames(rxDeviceList);
 
         if (rxDevInfo.isExternalECRefEnabledFlag) {
+            // reset EC if internal EC is being used
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && !rm->isExternalECRefEnabled(ecRefDevId)) {
+                status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to reset before set ext EC, status %d", status);
+                    goto exit;
+                }
+            }
             status = checkAndSetExtEC(rm, s, true);
             if (status) {
                 PAL_ERR(LOG_TAG, "Failed to enable External EC, status %d", status);
                 goto exit;
             }
         } else {
+            // avoid set internal ec if ext ec connected
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && rm->isExternalECRefEnabled(ecRefDevId)) {
+                PAL_ERR(LOG_TAG, "Cannot be set internal EC with external EC connected");
+                status = -EINVAL;
+                goto exit;
+            }
             status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
                     backendNames[0].c_str());
             if (status) {

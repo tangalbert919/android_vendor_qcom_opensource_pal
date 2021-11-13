@@ -398,6 +398,7 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
+    int clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev);
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
@@ -718,6 +719,9 @@ public:
         Stream *rx_str, std::shared_ptr<Device> rx_device);
     bool checkECRef(std::shared_ptr<Device> rx_dev,
                     std::shared_ptr<Device> tx_dev);
+    bool isExternalECSupported(std::shared_ptr<Device> tx_dev);
+    bool isExternalECRefEnabled(int rx_dev_id);
+    void disableInternalECRefs(Stream *s);
 
     static void endTag(void *userdata __unused, const XML_Char *tag_name);
     static void snd_reset_data_buf(struct xml_userdata *data);
