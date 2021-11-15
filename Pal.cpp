@@ -622,11 +622,20 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (palDevices.size() != 0) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
-        for (auto palDev: palDevices)
+        bool is_a2dp_dev = false;
+
+        for (auto palDev: palDevices) {
             activeDevices.insert(palDev.id);
-        for (int i = 0; i < no_of_devices; i++)
+        }
+        for (int i = 0; i < no_of_devices; i++) {
             newDevices.insert(devices[i].id);
-        if (activeDevices == newDevices) {
+            if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                PAL_DBG(LOG_TAG, "always switch device for a2dp");
+                is_a2dp_dev = true;
+                break;
+            }
+        }
+        if (!is_a2dp_dev && activeDevices == newDevices) {
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
         }
