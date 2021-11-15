@@ -353,12 +353,20 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
 int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     int32_t status = 0;
     int32_t ret = 0;
+    struct pal_stream_attributes *sAttr = nullptr;
+    pal_param_payload *pal_payload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
-    if (gsl_engine_) {
-        status = gsl_engine_->GetParameters(param_id, payload);
+    if (param_id == PAL_PARAM_ID_STREAM_ATTRIBUTES) {
+        pal_payload = (pal_param_payload *)(*payload);
+        if (pal_payload->payload_size != sizeof(struct pal_stream_attributes)) {
+            PAL_ERR(LOG_TAG, "Invalid payload size %u", pal_payload->payload_size);
+            return -EINVAL;
+        }
+        sAttr = (struct pal_stream_attributes *)(pal_payload->payload);
+        status = getStreamAttributes(sAttr);
         if (status)
-            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+            PAL_ERR(LOG_TAG, "Failed to get stream attributes");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
 
@@ -430,6 +438,10 @@ release:
                 status = ret;
             }
         }
+    } else if (gsl_engine_) {
+        status = gsl_engine_->GetParameters(param_id, payload);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine, status %d", status);
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;

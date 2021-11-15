@@ -206,6 +206,7 @@ enum PalParamId : uint32_t {
     PAL_PARAM_ID_BT_SCO_NREC = 54,
     PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
     PAL_PARAM_ID_UHQA_FLAG = 56,
+    PAL_PARAM_ID_STREAM_ATTRIBUTES = 56,
 };
 
 /**< PAL stream attributes to be specified, used in pal_stream_open cmd */

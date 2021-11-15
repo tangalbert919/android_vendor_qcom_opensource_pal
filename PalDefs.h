@@ -871,6 +871,7 @@ typedef enum {
     PAL_PARAM_ID_BT_SCO_NREC = 54,
     PAL_PARAM_ID_VOLUME_USING_SET_PARAM = 55,
     PAL_PARAM_ID_UHQA_FLAG = 56,
+    PAL_PARAM_ID_STREAM_ATTRIBUTES = 57,
 } pal_param_id_type_t;
 
 /** HDMI/DP */
