@@ -53,6 +53,8 @@ SessionAlsaVoice::SessionAlsaVoice(std::shared_ptr<ResourceManager> Rm)
    rm = Rm;
    builder = new PayloadBuilder();
    streamHandle = NULL;
+   pcmRx = NULL;
+   pcmTx = NULL;
    max_vol_index = rm->getMaxVoiceVol();
    if (max_vol_index == -1){
       max_vol_index = MAX_VOL_INDEX;
@@ -599,10 +601,11 @@ int SessionAlsaVoice::start(Stream * s)
     int32_t status = 0;
     std::shared_ptr<Device> rxDevice = nullptr;
     pal_param_payload *palPayload = NULL;
-    int txDevId;
+    int txDevId = PAL_DEVICE_NONE;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
     struct pal_volume_data *volume = NULL;
+    bool isTxStarted = false, isRxStarted = false;
 
     PAL_DBG(LOG_TAG,"Enter");
 
@@ -643,14 +646,13 @@ int SessionAlsaVoice::start(Stream * s)
     if (!pcmRx) {
         PAL_ERR(LOG_TAG, "Exit pcm-rx open failed");
         status = -EINVAL;
-        goto exit;
+        goto err_pcm_open;
     }
 
     if (!pcm_is_ready(pcmRx)) {
         PAL_ERR(LOG_TAG, "Exit pcm-rx open not ready");
-        pcmRx = NULL;
         status = -EINVAL;
-        goto exit;
+        goto err_pcm_open;
     }
 
     config.rate = sAttr.in_media_config.sample_rate;
@@ -668,14 +670,13 @@ int SessionAlsaVoice::start(Stream * s)
     if (!pcmTx) {
         PAL_ERR(LOG_TAG, "Exit pcm-tx open failed");
         status = -EINVAL;
-        goto exit;
+        goto err_pcm_open;
     }
 
     if (!pcm_is_ready(pcmTx)) {
         PAL_ERR(LOG_TAG, "Exit pcm-tx open not ready");
-        pcmTx = NULL;
         status = -EINVAL;
-        goto exit;
+        goto err_pcm_open;
     }
 
     SessionAlsaVoice::setConfig(s, MODULE, VSID, RX_HOSTLESS);
@@ -686,7 +687,7 @@ int SessionAlsaVoice::start(Stream * s)
     if (!volume) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "volume malloc failed %s", strerror(errno));
-        goto exit;
+        goto err_pcm_open;
     }
 
     /*if no volume is set set a default volume*/
@@ -713,17 +714,6 @@ int SessionAlsaVoice::start(Stream * s)
         }
     }
 
-    /*set sidetone*/
-    status = getTXDeviceId(s, &txDevId);
-    if (status){
-        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
-    } else {
-        status = setSidetone(txDevId,s,1);
-        if(0 != status) {
-            PAL_ERR(LOG_TAG,"enabling sidetone failed \n");
-        }
-    }
-
     /* configuring Rx MFC's, updating custom payload and send mixer controls at once*/
     status = build_rx_mfc_payload(s);
 
@@ -736,14 +726,14 @@ int SessionAlsaVoice::start(Stream * s)
     freeCustomPayload();
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setMixerParameter failed");
-        goto exit;
+        goto err_pcm_open;
     }
 
     /* set slot_mask as TKV to configure MUX module */
     status = setTaggedSlotMask(s);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"setTaggedSlotMask failed");
-        goto exit;
+        goto err_pcm_open;
     }
 
     if (ResourceManager::isLpiLoggingEnabled()) {
@@ -755,13 +745,45 @@ int SessionAlsaVoice::start(Stream * s)
     status = pcm_start(pcmRx);
     if (status) {
         PAL_ERR(LOG_TAG, "pcm_start rx failed %d", status);
-        goto exit;
+        goto err_pcm_open;
     }
+   isRxStarted = true;
 
     status = pcm_start(pcmTx);
     if (status) {
         PAL_ERR(LOG_TAG, "pcm_start tx failed %d", status);
-        goto exit;
+        goto err_pcm_open;
+    }
+    isTxStarted = true;
+
+    /*set sidetone*/
+    status = getTXDeviceId(s, &txDevId);
+    if (status){
+        PAL_ERR(LOG_TAG, "could not find TX device associated with this stream cannot set sidetone");
+        goto err_pcm_open;
+    } else {
+        status = setSidetone(txDevId,s,1);
+        if(0 != status) {
+           PAL_ERR(LOG_TAG,"enabling sidetone failed \n");
+        }
+    }
+    status = 0;
+    goto exit;
+
+err_pcm_open:
+    /*teardown external ec if needed*/
+    setExtECRef(s, rxDevice, false);
+    if (pcmRx) {
+        if (isRxStarted)
+            pcm_stop(pcmRx);
+        pcm_close(pcmRx);
+        pcmRx = NULL;
+    }
+    if (pcmTx) {
+        if (isTxStarted)
+            pcm_stop(pcmTx);
+        pcm_close(pcmTx);
+        pcmTx = NULL;
     }
 
 exit:
