@@ -666,6 +666,7 @@ void Bluetooth::startAbr()
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     PayloadBuilder* builder = NULL;
+    bool isDeviceLocked = false;
 
     memset(&fbDevice, 0, sizeof(fbDevice));
     memset(&sAttr, 0, sizeof(sAttr));
@@ -680,14 +681,8 @@ void Bluetooth::startAbr()
     /* Configure device attributes */
     ch_info.channels = CHANNELS_1;
     ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-
     fbDevice.config.ch_info = ch_info;
-    if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
-        (codecFormat == CODEC_TYPE_LC3))
-        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
-    else
-        fbDevice.config.sample_rate = SAMPLINGRATE_8K;
-
+    fbDevice.config.sample_rate = SAMPLINGRATE_8K;
     fbDevice.config.bit_width = BITWIDTH_16;
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
@@ -782,9 +777,20 @@ void Bluetooth::startAbr()
             goto err_pcm_open;
         }
 
+        fbDev->lockDeviceMutex();
+        isDeviceLocked = true;
+
         if (fbDev->isConfigured == true) {
             PAL_INFO(LOG_TAG, "feedback path is already configured");
             goto start_pcm;
+        }
+
+        // override device attributions
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+        ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &fbDevice);
+        if (ret) {
+            PAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
+            goto err_pcm_open;
         }
 
         codecTagId = (codecType == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
@@ -848,9 +854,20 @@ void Bluetooth::startAbr()
             }
         }
 
+        fbDev->lockDeviceMutex();
+        isDeviceLocked = true;
+
         if (fbDev->isConfigured == true) {
             PAL_INFO(LOG_TAG, "feedback path is already configured");
             goto start_pcm;
+        }
+
+        // override device attributions
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+        ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &fbDevice);
+        if (ret) {
+            PAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
+            goto err_pcm_open;
         }
 
         /* configure COP v2 depacketizer */
@@ -926,6 +943,10 @@ free_fe:
     rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
     fbpcmDevIds.clear();
 done:
+    if (isDeviceLocked) {
+        isDeviceLocked = false;
+        fbDev->unlockDeviceMutex();
+    }
     mAbrMutex.unlock();
     if (builder) {
        delete builder;
