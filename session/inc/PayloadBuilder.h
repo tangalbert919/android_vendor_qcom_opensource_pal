@@ -237,7 +237,7 @@ public:
     int populateStreamCkv(Stream *s, std::vector <std::pair<int,int>> &keyVector, int tag, struct pal_volume_data **);
     int populateCalKeyVector(Stream *s, std::vector <std::pair<int,int>> &ckv, int tag);
     int populateTagKeyVector(Stream *s, std::vector <std::pair<int,int>> &tkv, int tag, uint32_t* gsltag);
-    void payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId);
+    void payloadTimestamp(std::shared_ptr<std::vector<uint8_t>>& module_payload, size_t *size, uint32_t moduleId);
     static int init();
     static void endTag(void *userdata, const XML_Char *tag_name);
     static void startTag(void *userdata, const XML_Char *tag_name, const XML_Char **attr);
