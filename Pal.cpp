@@ -617,6 +617,13 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                 "Device switch handles in global param set, skip here");
         goto exit;
     }
+    if (sattr.type == PAL_STREAM_VOICE_CALL_RECORD ||
+        sattr.type == PAL_STREAM_VOICE_CALL_MUSIC) {
+        PAL_DBG(LOG_TAG,
+                "Device switch skipped for Incall record/music stream");
+        status = 0;
+        goto exit;
+    }
 
     s->getAssociatedPalDevices(palDevices);
     if (palDevices.size() != 0) {
