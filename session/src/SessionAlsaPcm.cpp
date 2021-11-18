@@ -1850,7 +1850,7 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
                 if (!customPayload) {
                     status = -ENOMEM;
                     PAL_ERR(LOG_TAG, "failed to allocate memory for custom payload");
-                    goto free_payload;
+                    goto exit;
                 }
 
                 ar_mem_cpy((uint8_t *)customPayload + customPayloadSize, paramSize,
@@ -2043,9 +2043,10 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
 
     PAL_VERBOSE(LOG_TAG, "%pK - payload and %zu size", paramData , paramSize);
 
-free_payload :
-    free(paramData);
 exit:
+    if (paramData)
+        free(paramData);
+
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
 }

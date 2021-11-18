@@ -233,27 +233,17 @@ StreamSoundTrigger::~StreamSoundTrigger() {
     engines_.clear();
 
     rm->deregisterStream(this);
-    if (mStreamAttr) {
+    if (mStreamAttr)
         free(mStreamAttr);
-    }
-    if (gsl_engine_model_) {
+
+    if (gsl_engine_model_)
         free(gsl_engine_model_);
-    }
-    if (gsl_conf_levels_) {
+
+    if (gsl_conf_levels_)
         free(gsl_conf_levels_);
-    }
-    mDevices.clear();
-    PAL_DBG(LOG_TAG, "Exit");
-}
 
-int32_t StreamSoundTrigger::close() {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
-    status = cur_state_->ProcessEvent(ev_cfg);
+    if (mVolumeData)
+        free(mVolumeData);
 
     if (sm_config_) {
         free(sm_config_);
@@ -278,6 +268,19 @@ int32_t StreamSoundTrigger::close() {
         free(st_conf_levels_v2_);
         st_conf_levels_v2_ = nullptr;
     }
+
+    mDevices.clear();
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
+int32_t StreamSoundTrigger::close() {
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
