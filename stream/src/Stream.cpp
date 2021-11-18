@@ -1378,7 +1378,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         /* switch all streams that are running on the current device if voice
          * call is switching to avoid dangling ec refs
          */
-        if (type == PAL_STREAM_VOICE_CALL) {
+        if (type == PAL_STREAM_VOICE_CALL &&
+            newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
             sharedBEStreamDev.clear();
             for (int j = 0; j < mDevices.size(); j++) {
                 uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
