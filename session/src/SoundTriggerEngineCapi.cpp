@@ -724,6 +724,14 @@ SoundTriggerEngineCapi::SoundTriggerEngineCapi(
 
     return;
 err_exit:
+    if (capi_handle_) {
+        free(capi_handle_);
+        capi_handle_ = nullptr;
+    }
+    if (capi_lib_handle_) {
+        dlclose(capi_lib_handle_);
+        capi_lib_handle_ = nullptr;
+    }
     PAL_ERR(LOG_TAG, "constructor exit status = %d", status);
 }
 
@@ -895,6 +903,12 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         goto exit;
     }
 
+    if (!capi_handle_) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Capi handle not allocated, status %d", status);
+        goto exit;
+    }
+
     sm_data_ = data;
     sm_data_size_ = data_size;
 
@@ -916,12 +930,6 @@ int32_t SoundTriggerEngineCapi::LoadSoundModel(Stream *s __unused,
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "capi_init status is %d, exiting, status %d",
                 rc, status);
-        goto exit;
-    }
-
-    if (nullptr == capi_handle_) {
-        PAL_ERR(LOG_TAG, "capi_handle is nullptr, exiting");
-        status = -EINVAL;
         goto exit;
     }
 
