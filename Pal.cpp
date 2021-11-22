@@ -371,20 +371,38 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
 int32_t pal_stream_set_mute(pal_stream_handle_t *stream_handle, bool state)
 {
     Stream *s = NULL;
-    int status;
+    std::shared_ptr<ResourceManager> rm = NULL;
+    int status = 0;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->mute(state);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "mute failed with status %d", status);
+
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
         return status;
     }
+
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
+
+    rm->lockActiveStream();
+    if (rm->isActiveStream(s)) {
+        status = s->mute(state);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "mute failed with status %d", status);
+            rm->unlockActiveStream();
+            return status;
+        }
+    }
+
+    rm->unlockActiveStream();
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
+
     return status;
 }
 
