@@ -210,7 +210,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     rm->getBackendName(deviceAttr.id, backEndName);
 
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -591,7 +591,7 @@ int Bluetooth::configureNrecParameters(bool isNrecEnabled)
         goto exit;
     }
 
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -1691,7 +1691,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             pal_bt_tws_payload param_tws;
 
             dev = Device::getInstance(&deviceAttr, rm);
-            status = rm->getActiveStream_l(dev, activestreams);
+            status = rm->getActiveStream_l(activestreams, dev);
             if ((0 != status) || (activestreams.size() == 0)) {
                 PAL_ERR(LOG_TAG, "no active stream available");
                 return -EINVAL;
@@ -1715,7 +1715,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             pal_bt_lc3_payload param_lc3;
 
             dev = Device::getInstance(&deviceAttr, rm);
-            status = rm->getActiveStream_l(dev, activestreams);
+            status = rm->getActiveStream_l(activestreams, dev);
             if ((0 != status) || (activestreams.size() == 0)) {
                 PAL_ERR(LOG_TAG, "no active stream available");
                 return -EINVAL;

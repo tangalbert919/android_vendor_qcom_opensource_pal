@@ -1347,7 +1347,7 @@ int ResourceManager::setDeviceParamConfig(uint32_t param_id, std::shared_ptr<Dev
         {
             if (dev) {
                 //Setting deviceRX: Config ICL Tag in AL module.
-                status = rm->getActiveStream_l(dev, activestreams);
+                status = rm->getActiveStream_l(activestreams, dev);
                 if ((0 != status) || (activestreams.size() == 0)) {
                     PAL_DBG(LOG_TAG, "no active stream available");
                     goto exit;
@@ -2838,7 +2838,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         dev = getActiveEchoReferenceRxDevices_l(s);
         if (dev) {
             // use setECRef_l to avoid deadlock
-            getActiveStream_l(dev, activeStreams);
+            getActiveStream_l(activeStreams, dev);
             for (auto& rx_str: activeStreams) {
                 if (!isDeviceActive_l(dev, rx_str) ||
                     !rx_str->isActive())
@@ -4730,15 +4730,20 @@ void getActiveStreams(std::shared_ptr<Device> d, std::vector<Stream*> &activestr
                  iter != sourcestreams.end(); iter++) {
         std::vector <std::shared_ptr<Device>> devices;
         (*iter)->getAssociatedDevices(devices);
-        typename std::vector<std::shared_ptr<Device>>::iterator result =
-                 std::find(devices.begin(), devices.end(), d);
-        if ((result != devices.end()) && (*iter)->isAlive())
-            activestreams.push_back(*iter);
+        if (d == NULL) {
+             if((*iter)->isAlive() && !devices.empty())
+                activestreams.push_back(*iter);
+        } else {
+            typename std::vector<std::shared_ptr<Device>>::iterator result =
+                     std::find(devices.begin(), devices.end(), d);
+            if ((result != devices.end()) && (*iter)->isAlive())
+                activestreams.push_back(*iter);
+        }
     }
 }
 
-int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
-                                     std::vector<Stream*> &activestreams)
+int ResourceManager::getActiveStream_l(std::vector<Stream*> &activestreams,
+                                       std::shared_ptr<Device> d)
 {
     int ret = 0;
 
@@ -4764,19 +4769,23 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
 
     if (activestreams.empty()) {
         ret = -ENOENT;
-        PAL_INFO(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
+        if (d) {
+            PAL_INFO(LOG_TAG, "no active streams found for device %d ret %d", d->getSndDeviceId(), ret);
+        } else {
+            PAL_INFO(LOG_TAG, "no active streams found ret %d", ret);
+        }
     }
 
     return ret;
 }
 
-int ResourceManager::getActiveStream(std::shared_ptr<Device> d,
-                                     std::vector<Stream*> &activestreams)
+int ResourceManager::getActiveStream(std::vector<Stream*> &activestreams,
+                                     std::shared_ptr<Device> d)
 {
     int ret = 0;
     PAL_DBG(LOG_TAG, "Enter.");
     mResourceManagerMutex.lock();
-    ret = getActiveStream_l(d, activestreams);
+    ret = getActiveStream_l(activestreams, d);
     mResourceManagerMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. ret %d", ret);
     return ret;
@@ -4911,7 +4920,7 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
             return;
         }
         mActiveStreamMutex.lock();
-        getActiveStream_l(hapticsDev, activeHapticsStreams);
+        getActiveStream_l(activeHapticsStreams, hapticsDev);
         if (activeHapticsStreams.size() != 0) {
             hapticsDev->getDeviceAttributes(&hapticsDattr);
             if ((deviceattr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
@@ -5020,7 +5029,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 dev = Device::getInstance(&activeDevattr, rm);
                 if (!dev)
                     continue;
-                getActiveStream_l(dev, activeStream);
+                getActiveStream_l(activeStream, dev);
                 if (activeStream.empty())
                     continue;
                 for (sIter = activeStream.begin(); sIter != activeStream.end(); sIter++) {
@@ -5103,7 +5112,7 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
             activeDevattr.id = PAL_DEVICE_OUT_ULTRASOUND;
             dev = Device::getInstance(&activeDevattr, rm);
             if (dev) {
-                getActiveStream_l(dev, activeStream);
+                getActiveStream_l(activeStream, dev);
                 if (!activeStream.empty()) {
                     sIter = activeStream.begin();
                     dev->getDeviceAttributes(streamDevAttr);
@@ -5840,7 +5849,7 @@ void ResourceManager::getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream
         if (backEndName == listAllBackEndIds[i].second) {
             dev = Device::getObject((pal_device_id_t) i);
             if(dev) {
-                getActiveStream_l(dev, activeStreams);
+                getActiveStream_l(activeStreams, dev);
                 PAL_DBG(LOG_TAG, "got dev %d active streams on dev is %zu", i, activeStreams.size() );
                 for (int j=0; j < activeStreams.size(); j++) {
                     activeStreamsDevices.push_back({activeStreams[j], i});
@@ -6372,7 +6381,7 @@ int32_t ResourceManager::forceDeviceSwitch(std::shared_ptr<Device> inDev,
     }
 
     // get active streams on the device
-    getActiveStream_l(inDev, activeStreams);
+    getActiveStream_l(activeStreams, inDev);
     if (activeStreams.size() == 0) {
         PAL_ERR(LOG_TAG, "no other active streams found");
         goto done;
@@ -6882,7 +6891,7 @@ int32_t ResourceManager::a2dpSuspend()
     }
 
     mActiveStreamMutex.lock();
-    getActiveStream_l(a2dpDev, activeA2dpStreams);
+    getActiveStream_l(activeA2dpStreams, a2dpDev);
     if (activeA2dpStreams.size() == 0) {
         PAL_DBG(LOG_TAG, "no active streams found");
         mActiveStreamMutex.unlock();
@@ -6895,13 +6904,13 @@ int32_t ResourceManager::a2dpSuspend()
      * - Check handset as well if no stream on speaker.
      */
     switchDevDattr.id = PAL_DEVICE_OUT_SPEAKER;
-    getActiveStream_l(spkrDev, activeStreams);
+    getActiveStream_l(activeStreams, spkrDev);
     if (activeStreams.empty()) {
         // no stream active on speaker, then check handset as well
         handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
         handsetDev = Device::getInstance(&handsetDattr, rm);
         if (handsetDev) {
-            getActiveStream_l(handsetDev, activeStreams);
+            getActiveStream_l(activeStreams, handsetDev);
         } else {
             PAL_ERR(LOG_TAG, "Getting handset device instance failed");
             mActiveStreamMutex.unlock();
@@ -7064,7 +7073,7 @@ int32_t ResourceManager::a2dpResume()
     }
 
     mActiveStreamMutex.lock();
-    getActiveStream_l(activeDev, activeStreams);
+    getActiveStream_l(activeStreams, activeDev);
     /* No-Streams active on Speaker - possibly streams are
      * associated handset device (due to voip/voice sco ended) and
      * device switch did not happen for all the streams
@@ -7073,7 +7082,7 @@ int32_t ResourceManager::a2dpResume()
         // Hence try to check handset device as well.
         activeDattr.id = PAL_DEVICE_OUT_HANDSET;
         activeDev = Device::getInstance(&activeDattr, rm);
-        getActiveStream_l(activeDev, activeStreams);
+        getActiveStream_l(activeStreams, activeDev);
     }
 
     getOrphanStream_l(orphanStreams, retryStreams);
@@ -7185,7 +7194,7 @@ int32_t ResourceManager::a2dpCaptureSuspend()
     a2dpDattr.id = PAL_DEVICE_IN_BLUETOOTH_A2DP;
     a2dpDev = Device::getInstance(&a2dpDattr, rm);
 
-    getActiveStream_l(a2dpDev, activeStreams);
+    getActiveStream_l(activeStreams, a2dpDev);
     if (activeStreams.size() == 0) {
         PAL_DBG(LOG_TAG, "no active streams found");
         goto exit;
@@ -7238,7 +7247,7 @@ int32_t ResourceManager::a2dpCaptureResume()
     getDeviceConfig(&a2dpDattr, NULL);
 
     mActiveStreamMutex.lock();
-    getActiveStream_l(handsetmicDev, activeStreams);
+    getActiveStream_l(activeStreams, handsetmicDev);
     getOrphanStream_l(orphanStreams, retryStreams);
     if (activeStreams.empty() && orphanStreams.empty()) {
         PAL_DBG(LOG_TAG, "no active streams found");
@@ -7939,7 +7948,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (isDeviceAvailable(sco_tx_dattr.id)) {
                     handset_tx_dattr.id = PAL_DEVICE_IN_HANDSET_MIC;
                     sco_tx_dev = Device::getInstance(&sco_tx_dattr, rm);
-                    getActiveStream_l(sco_tx_dev, activestreams);
+                    getActiveStream_l(activestreams, sco_tx_dev);
                     if (activestreams.size() > 0) {
                         PAL_DBG(LOG_TAG, "a2dp resumed, switch bt sco mic to handset mic");
                         stream = static_cast<Stream *>(activestreams[0]);
@@ -7958,7 +7967,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 sco_rx_dattr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
                 if (isDeviceAvailable(sco_rx_dattr.id)) {
                     sco_rx_dev = Device::getInstance(&sco_rx_dattr, rm);
-                    getActiveStream_l(sco_rx_dev, activestreams);
+                    getActiveStream_l(activestreams, sco_rx_dev);
                     for (sIter = activestreams.begin(); sIter != activestreams.end(); sIter++) {
                         PAL_DBG(LOG_TAG, "a2dp resumed, mark sco streams as to route them later");
                         (*sIter)->suspendedDevIds.clear();
@@ -8021,7 +8030,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if ((PAL_DEVICE_OUT_SPEAKER == deviceId) ||
                     (PAL_DEVICE_OUT_WIRED_HEADSET == deviceId) ||
                     (PAL_DEVICE_OUT_WIRED_HEADPHONE == deviceId)) {
-                    status = getActiveStream_l(active_devices[i].first, activestreams);
+                    status = getActiveStream_l(activestreams, active_devices[i].first);
                     if ((0 != status) || (activestreams.size() == 0)) {
                        PAL_ERR(LOG_TAG, "no other active streams found");
                        status = -EINVAL;
@@ -8149,7 +8158,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
                     speaker_dattr.id = PAL_DEVICE_OUT_SPEAKER;
                     sco_rx_dev = Device::getInstance(&sco_rx_dattr, rm);
-                    getActiveStream_l(sco_rx_dev, activestreams);
+                    getActiveStream_l(activestreams, sco_rx_dev);
                     if (activestreams.size() > 0) {
                         stream = static_cast<Stream*>(activestreams[0]);
                         stream->getStreamAttributes(&sAttr);
@@ -8413,7 +8422,7 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
 
             PAL_INFO(LOG_TAG, "Device is Stereo Speaker");
             std::vector <Stream *> activeStreams;
-            getActiveStream_l(active_devices[i].first, activeStreams);
+            getActiveStream_l(activeStreams, active_devices[i].first);
             for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
                 status = (*sIter)->getStreamType(&streamType);
                 if(0 != status) {

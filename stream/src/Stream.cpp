@@ -864,9 +864,9 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             dattr.id = spkrDattr.id;
             dev = spkrDev;
 
-            rm->getActiveStream_l(spkrDev, activeStreams);
+            rm->getActiveStream_l(activeStreams, spkrDev);
             if (activeStreams.empty()) {
-                rm->getActiveStream_l(handsetDev, activeStreams);
+                rm->getActiveStream_l(activeStreams, handsetDev);
                 if (!activeStreams.empty()) {
                     // active streams found on handset
                     dattr.id = PAL_DEVICE_OUT_HANDSET;

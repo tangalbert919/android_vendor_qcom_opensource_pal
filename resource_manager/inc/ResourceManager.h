@@ -657,8 +657,8 @@ public:
     int getAudioRoute(struct audio_route** ar);
     int getVirtualAudioMixer(struct audio_mixer **am);
     int getHwAudioMixer(struct audio_mixer **am);
-    int getActiveStream(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
-    int getActiveStream_l(std::shared_ptr<Device> d, std::vector<Stream*> &activestreams);
+    int getActiveStream(std::vector<Stream*> &activestreams, std::shared_ptr<Device> d = nullptr);
+    int getActiveStream_l(std::vector<Stream*> &activestreams,std::shared_ptr<Device> d = nullptr);
     int getOrphanStream(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
     int getOrphanStream_l(std::vector<Stream*> &orphanstreams, std::vector<Stream*> &retrystreams);
     int getActiveDevices(std::vector<std::shared_ptr<Device>> &deviceList);

@@ -1732,7 +1732,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         dev = Device::getInstance(&mDeviceAttr, rm);
 
-        ret = rm->getActiveStream_l(dev, activeStreams);
+        ret = rm->getActiveStream_l(activeStreams, dev);
         if ((0 != ret) || (activeStreams.size() == 0)) {
             PAL_ERR(LOG_TAG, " no active stream available");
             ret = -EINVAL;
@@ -1868,7 +1868,7 @@ void SpeakerProtection::updateSPcustomPayload()
 
     rm->getBackendName(mDeviceAttr.id, backEndName);
     dev = Device::getInstance(&mDeviceAttr, rm);
-    ret = rm->getActiveStream_l(dev, activeStreams);
+    ret = rm->getActiveStream_l(activeStreams, dev);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
         goto exit;
@@ -2253,7 +2253,7 @@ void SpeakerFeedback::updateVIcustomPayload()
 
     rm->getBackendName(mDeviceAttr.id, backEndName);
     dev = Device::getInstance(&mDeviceAttr, rm);
-    ret = rm->getActiveStream_l(dev, activeStreams);
+    ret = rm->getActiveStream_l(activeStreams, dev);
     if ((0 != ret) || (activeStreams.size() == 0)) {
         PAL_ERR(LOG_TAG, " no active stream available");
         goto exit;
