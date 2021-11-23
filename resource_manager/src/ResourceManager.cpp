@@ -4426,6 +4426,9 @@ int ResourceManager::getActiveStream_l(std::shared_ptr<Device> d,
                                      std::vector<Stream*> &activestreams)
 {
     int ret = 0;
+
+    activestreams.clear();
+
     // merge all types of active streams into activestreams
     getActiveStreams(d, activestreams, active_streams_ll);
     getActiveStreams(d, activestreams, active_streams_ull);
@@ -4485,6 +4488,9 @@ int ResourceManager::getOrphanStream_l(std::vector<Stream*> &orphanstreams,
                                        std::vector<Stream*> &retrystreams)
 {
     int ret = 0;
+
+    orphanstreams.clear();
+    retrystreams.clear();
 
     getOrphanStreams(orphanstreams, retrystreams, active_streams_ll);
     getOrphanStreams(orphanstreams, retrystreams, active_streams_ull);
