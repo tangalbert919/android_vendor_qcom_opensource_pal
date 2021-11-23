@@ -7818,6 +7818,7 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
         case PAL_PARAM_ID_UIEFFECT:
         {
 
+            mActiveStreamMutex.lock();
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
                 match = (*sIter)->checkStreamMatch(palDeviceId, palStreamType);
@@ -7833,6 +7834,7 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                     }
                 }
             }
+            mActiveStreamMutex.unlock();
 
             PAL_DBG(LOG_TAG, "%d active stream match with device %d type %d",
                         matchCount, palDeviceId, palStreamType);
