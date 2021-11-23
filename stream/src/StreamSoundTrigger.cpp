@@ -168,10 +168,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     AddState(st_ssr_);
 
     // Set initial state
-    cur_state_ = st_idle_;
-    prev_state_ = nullptr;
-    state_for_restore_ = ST_STATE_NONE;
-
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        cur_state_ = st_ssr_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_IDLE;
+    } else {
+        cur_state_ = st_idle_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_NONE;
+    }
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
         st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
@@ -1393,6 +1398,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
     int32_t sm_size = 0;
     struct pal_st_phrase_sound_model *phrase_sm = nullptr;
     struct pal_st_sound_model *common_sm = nullptr;
+    class SoundTriggerUUID uuid;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1463,6 +1469,12 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          (uint8_t *)common_sm + common_sm->data_offset,
                          common_sm->data_size);
         }
+    }
+    GetUUID(&uuid, sound_model);
+    this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
