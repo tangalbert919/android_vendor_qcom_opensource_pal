@@ -9581,6 +9581,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
             PAL_ERR(LOG_TAG, "invalid stream handle in active streams list cannot restore");
             goto exit;
         }
+        palDevices.clear();
         sharedStream->getStreamAttributes(&sAttr);
         sharedStream->getAssociatedPalDevices(palDevices);
         /*get the device info for the proper streams key*/
