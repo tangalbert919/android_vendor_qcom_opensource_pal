@@ -6719,6 +6719,7 @@ int32_t ResourceManager::a2dpResume()
     struct pal_device activeDattr;
     struct pal_device a2dpDattr;
     struct pal_device_info devinfo = {};
+    struct pal_volume_data *volume = NULL;
     std::vector <Stream*>::iterator sIter;
     std::vector <Stream *> activeStreams;
     std::vector <Stream *> orphanStreams;
@@ -6728,6 +6729,13 @@ int32_t ResourceManager::a2dpResume()
     std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
 
     PAL_DBG(LOG_TAG, "enter");
+
+    volume = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                     (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+    if (!volume) {
+        status = -ENOMEM;
+        goto exit;
+    }
 
     activeDattr.id = PAL_DEVICE_OUT_SPEAKER;
     activeDev = Device::getInstance(&activeDattr, rm);
@@ -6816,14 +6824,28 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
             (*sIter)->suspendedDevIds.clear();
-            (*sIter)->mute_l(false);
+            status = (*sIter)->getVolumeData(volume);
+            if (status) {
+                PAL_ERR(LOG_TAG, "getVolumeData failed %d", status);
+                continue;
+            }
             (*sIter)->a2dpMuted = false;
+            status = (*sIter)->setVolume(volume);
+            if (status) {
+                PAL_ERR(LOG_TAG, "setVolume failed %d", status);
+                (*sIter)->a2dpMuted = true;
+                continue;
+            }
+            (*sIter)->mute_l(false);
         }
     }
     mActiveStreamMutex.unlock();
 
 exit:
     PAL_DBG(LOG_TAG, "exit status: %d", status);
+    if (volume) {
+        free(volume);
+    }
     return status;
 }
 
