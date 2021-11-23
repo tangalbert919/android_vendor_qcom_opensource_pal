@@ -7689,7 +7689,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                   pal_device_id_t pal_device_id,
                                   pal_stream_type_t pal_stream_type)
 {
-    int status = 0;
+    int status = -EINVAL;
 
     PAL_DBG(LOG_TAG, "Enter param id: %d", param_id);
 
@@ -7711,6 +7711,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                    pal_device_id, pal_stream_type);
                         }
                     }
+                } else {
+                    PAL_ERR(LOG_TAG, "There is no active stream.");
                 }
             }
             mActiveStreamMutex.unlock();
@@ -7746,29 +7748,6 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
     switch (paramId) {
         case PAL_PARAM_ID_UIEFFECT:
         {
-            /*
-             * set default stream type (low latency) for device-only effect.
-             * the instance is shared by streams.
-             */
-            if (palStreamType == PAL_STREAM_GENERIC) {
-                palStreamType = PAL_STREAM_LOW_LATENCY;
-                PAL_INFO(LOG_TAG, "change PAL stream from %d to %d for device effect",
-                            PAL_STREAM_GENERIC, palStreamType);
-            }
-
-            /*
-             * set default device (speaker) for stream-only effect.
-             * the instance is shared by devices.
-             */
-            if (palDeviceId == PAL_DEVICE_NONE) {
-                if (isPlay)
-                    palDeviceId = PAL_DEVICE_OUT_SPEAKER;
-                else
-                    palDeviceId = PAL_DEVICE_IN_HANDSET_MIC;
-
-                PAL_INFO(LOG_TAG, "change PAL device id from %d to %d for stream effect",
-                            PAL_DEVICE_NONE, palDeviceId);
-            }
 
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end();
                     sIter++) {
@@ -7789,6 +7768,30 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
             PAL_DBG(LOG_TAG, "%d active stream match with device %d type %d",
                         matchCount, palDeviceId, palStreamType);
             if (!matchCount) {
+                /*
+                 * set default stream type (low latency) for device-only effect.
+                 * the instance is shared by streams.
+                 */
+                if (palStreamType == PAL_STREAM_GENERIC) {
+                    palStreamType = PAL_STREAM_LOW_LATENCY;
+                    PAL_INFO(LOG_TAG, "change PAL stream from %d to %d for device effect",
+                            PAL_STREAM_GENERIC, palStreamType);
+                }
+
+                /*
+                 * set default device (speaker) for stream-only effect.
+                 * the instance is shared by devices.
+                 */
+                if (palDeviceId == PAL_DEVICE_NONE) {
+                    if (isPlay)
+                        palDeviceId = PAL_DEVICE_OUT_SPEAKER;
+                    else
+                        palDeviceId = PAL_DEVICE_IN_HANDSET_MIC;
+
+                    PAL_INFO(LOG_TAG, "change PAL device id from %d to %d for stream effect",
+                                PAL_DEVICE_NONE, palDeviceId);
+                }
+
                 sattr.type = palStreamType;
                 sattr.direction = (pal_stream_direction_t)getDeviceDirection(palDeviceId);
                 sattr.flags = PAL_STREAM_FLAG_NON_BLOCKING;
