@@ -1421,8 +1421,8 @@ int32_t StreamPCM::ssrUpHandler()
         mStreamMutex.unlock();
         PAL_ERR(LOG_TAG, "stream not in correct state to handle %d", cachedState);
     }
-    cachedState = STREAM_IDLE;
 exit :
+    cachedState = STREAM_IDLE;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
