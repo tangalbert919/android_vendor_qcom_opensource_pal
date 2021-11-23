@@ -1165,7 +1165,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
     mStreamMutex.lock();
 
-    if ((numDev == 0) || (!newDevices) || (!streamHandle)) {
+    if ((numDev == 0) || (numDev > PAL_DEVICE_IN_MAX) || (!newDevices) || (!streamHandle)) {
         PAL_ERR(LOG_TAG, "invalid param for device switch");
         status = -EINVAL;
         goto done;
