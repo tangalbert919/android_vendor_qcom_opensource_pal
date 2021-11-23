@@ -3184,13 +3184,15 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         goto err_concurrent;
                     }
 
-                    status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
-                        st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
-                        st_stream_.gsl_conf_levels_size_);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
-                            status);
-                        goto err_unload;
+                    if (st_stream_.rec_config_) {
+                        status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
+                            st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
+                            st_stream_.gsl_conf_levels_size_);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
+                                status);
+                            goto err_unload;
+                        }
                     }
 
                     TransitTo(ST_STATE_LOADED);
