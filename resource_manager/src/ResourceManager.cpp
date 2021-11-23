@@ -6584,7 +6584,7 @@ int32_t ResourceManager::a2dpSuspend()
             memset(&devInfo, 0, sizeof(pal_device_info));
             status = getDeviceConfig(&switchDevDattr, NULL);
             if (!status) {
-                // get the default device info and update snd name*/
+                // get the default device info and update snd name
                 getDeviceInfo(switchDevDattr.id, (pal_stream_type_t)0,
                     switchDevDattr.custom_config.custom_key, &devInfo);
                 updateSndName(switchDevDattr.id, devInfo.sndDevName);

@@ -706,8 +706,13 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
 {
     int32_t status = 0;
     struct pal_device dattr;
+    struct pal_device spkrDattr;
+    struct pal_device handsetDattr;
     std::shared_ptr<Device> dev = nullptr;
+    std::shared_ptr<Device> spkrDev = nullptr;
+    std::shared_ptr<Device> handsetDev = nullptr;
     pal_param_bta2dp_t *param_bt_a2dp = nullptr;
+    std::vector <Stream *> activeStreams;
 
     a2dpSuspend = false;
 
@@ -792,10 +797,10 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 iter = mDevices.erase(iter);
             }
         } else {
-            // For non-combo device, mute the stream and route to speaker
-            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready, mute stream and route to speaker");
+            // For non-combo device, mute the stream and route to speaker or handset
+            PAL_INFO(LOG_TAG, "BT A2DP output device is not ready");
 
-            //Mark the suspendedDevIds state early - As a2dpResume may happen during this time.
+            // Mark the suspendedDevIds state early - As a2dpResume may happen during this time.
             a2dpSuspend = true;
             suspendedDevIds.clear();
             suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
@@ -818,14 +823,47 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
             }
             mDevices.clear();
 
-            // NOTE: lockGraph is not intended for speaker device
-            dattr.id = PAL_DEVICE_OUT_SPEAKER;
-            dev = Device::getInstance(&dattr , rm);
-            if (!dev) {
+            /* Check whether there's active stream associated with handset or speaker
+             * - Device selected to switch by default is speaker.
+             * - Check handset as well if no stream on speaker.
+             */
+            // NOTE: lockGraph is not intended for speaker or handset device
+            spkrDattr.id = PAL_DEVICE_OUT_SPEAKER;
+            spkrDev = Device::getInstance(&spkrDattr , rm);
+            handsetDattr.id = PAL_DEVICE_OUT_HANDSET;
+            handsetDev = Device::getInstance(&handsetDattr , rm);
+            if (!spkrDev || !handsetDev) {
                 status = -ENODEV;
-                PAL_ERR(LOG_TAG, "Failed to get speaker instance");
+                PAL_ERR(LOG_TAG, "Failed to get speaker or handset instance");
                 goto exit;
             }
+
+            dattr.id = spkrDattr.id;
+            dev = spkrDev;
+
+            rm->getActiveStream_l(spkrDev, activeStreams);
+            if (activeStreams.empty()) {
+                rm->getActiveStream_l(handsetDev, activeStreams);
+                if (!activeStreams.empty()) {
+                    // active streams found on handset
+                    dattr.id = PAL_DEVICE_OUT_HANDSET;
+                    dev = handsetDev;
+                } else {
+                    // no active stream found on both speaker and handset, get the deafult
+                    pal_device_info devInfo;
+                    memset(&devInfo, 0, sizeof(pal_device_info));
+                    status = rm->getDeviceConfig(&dattr, NULL);
+                    if (!status) {
+                        // get the default device info and update snd name
+                        rm->getDeviceInfo(dattr.id, (pal_stream_type_t)0,
+                                dattr.custom_config.custom_key, &devInfo);
+                        rm->updateSndName(dattr.id, devInfo.sndDevName);
+                    }
+                }
+            }
+
+            PAL_INFO(LOG_TAG, "mute stream and route to device %d", dattr.id);
+
             status = dev->open();
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "device open failed with status %d", status);
