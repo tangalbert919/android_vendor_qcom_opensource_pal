@@ -1325,6 +1325,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 Stream *sharedStream = std::get<0>(elem);
                 struct pal_device curDevAttr;
                 std::shared_ptr<Device> curDev = nullptr;
+                bool custom_switch = false;
 
                 curDevAttr.id = (pal_device_id_t)std::get<1>(elem);
                 curDev = Device::getInstance(&curDevAttr, rm);
@@ -1334,13 +1335,28 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 }
                 curDev->getDeviceAttributes(&curDevAttr);
 
+                /*
+                 * for current stream, if custom key updated, even reset of the attr
+                 * like sample rate/channels/bit width/... are the same, still need
+                 * to switch device to update custom config like devicePP
+                 */
+                if (sharedStream == streamHandle) {
+                    if (strcmp(newDevices[newDeviceSlots[i]].custom_config.custom_key,
+                               curDevAttr.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "found diff custom key is %s, running dev has %s, device switch needed",
+                        newDevices[newDeviceSlots[i]].custom_config.custom_key,
+                        curDevAttr.custom_config.custom_key);
+                        custom_switch = true;
+                    }
+                }
                 /* If prioirty based attr diffs with running dev switch all devices */
                 if (rm->doDevAttrDiffer(&(newDevices[newDeviceSlots[i]]),
                                           CurrentSndDeviceName,
-                                          &curDevAttr)) {
+                                          &curDevAttr) || custom_switch) {
                     streamDevDisconnect.push_back(elem);
                     StreamDevConnect.push_back({std::get<0>(elem), &newDevices[newDeviceSlots[i]]});
                     matchFound = true;
+                    custom_switch = false;
                 } else {
                     matchFound = false;
                 }
