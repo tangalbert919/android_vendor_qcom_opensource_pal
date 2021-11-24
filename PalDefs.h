@@ -336,7 +336,7 @@ typedef enum {
     PAL_STREAM_VOICE_CALL_MUSIC = 7,      /**< :incall music */
     PAL_STREAM_GENERIC = 8,               /**< :generic playback audio*/
     PAL_STREAM_RAW = 9,                   /**< pcm no post processing*/
-    PAL_STREAM_VOICE_ACTIVATION = 10,     /**< voice activation*/
+    PAL_STREAM_VOICE_RECOGNITION = 10,     /**< voice recognition*/
     PAL_STREAM_VOICE_CALL_RECORD = 11,    /**< incall record */
     PAL_STREAM_VOICE_CALL_TX = 12,        /**< incall record, uplink */
     PAL_STREAM_VOICE_CALL_RX_TX = 13,     /**< incall record, uplink & Downlink */
@@ -532,7 +532,7 @@ const std::map<std::string, uint32_t> usecaseIdLUT {
     {std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" },         PAL_STREAM_VOICE_CALL_MUSIC},
     {std::string{ "PAL_STREAM_GENERIC" },                  PAL_STREAM_GENERIC},
     {std::string{ "PAL_STREAM_RAW" },                      PAL_STREAM_RAW},
-    {std::string{ "PAL_STREAM_VOICE_ACTIVATION" },         PAL_STREAM_VOICE_ACTIVATION},
+    {std::string{ "PAL_STREAM_VOICE_RECOGNITION" },        PAL_STREAM_VOICE_RECOGNITION},
     {std::string{ "PAL_STREAM_VOICE_CALL_RECORD" },        PAL_STREAM_VOICE_CALL_RECORD},
     {std::string{ "PAL_STREAM_VOICE_CALL_TX" },            PAL_STREAM_VOICE_CALL_TX},
     {std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" },         PAL_STREAM_VOICE_CALL_RX_TX},
@@ -561,7 +561,7 @@ const std::map<uint32_t, std::string> streamNameLUT {
     {PAL_STREAM_VOICE_CALL_MUSIC,   std::string{ "PAL_STREAM_VOICE_CALL_MUSIC" } },
     {PAL_STREAM_GENERIC,            std::string{ "PAL_STREAM_GENERIC" } },
     {PAL_STREAM_RAW,                std::string{ "PAL_STREAM_RAW" } },
-    {PAL_STREAM_VOICE_ACTIVATION,   std::string{ "PAL_STREAM_VOICE_ACTIVATION" } },
+    {PAL_STREAM_VOICE_RECOGNITION,  std::string{ "PAL_STREAM_VOICE_RECOGNITION" } },
     {PAL_STREAM_VOICE_CALL_RECORD,  std::string{ "PAL_STREAM_VOICE_CALL_RECORD" } },
     {PAL_STREAM_VOICE_CALL_TX,      std::string{ "PAL_STREAM_VOICE_CALL_TX" } },
     {PAL_STREAM_VOICE_CALL_RX_TX,   std::string{ "PAL_STREAM_VOICE_CALL_RX_TX" } },

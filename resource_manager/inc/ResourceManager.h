@@ -426,6 +426,7 @@ protected:
     std::list <StreamPCM*> active_streams_proxy;
     std::list <StreamPCM*> active_streams_haptics;
     std::list <StreamPCM*> active_streams_raw;
+    std::list <StreamPCM*> active_streams_voice_rec;
     std::list <StreamInCall*> active_streams_incall_record;
     std::list <StreamNonTunnel*> active_streams_non_tunnel;
     std::list <StreamInCall*> active_streams_incall_music;
