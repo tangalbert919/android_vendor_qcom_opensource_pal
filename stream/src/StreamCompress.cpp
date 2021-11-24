@@ -325,7 +325,8 @@ exit:
 
 int32_t StreamCompress::start()
 {
-    int32_t status = 0;
+    int32_t status = 0, devStatus = 0, cachedStatus = 0;
+    int32_t tmp = 0;
     bool a2dpSuspend = false;
 
     mStreamMutex.lock();
@@ -350,18 +351,38 @@ int32_t StreamCompress::start()
                 goto exit;
 
             rm->lockGraph();
+            /* Any device start success will be treated as positive status.
+             * This allows stream be played even if one of devices failed to start.
+             */
+            status = -EINVAL;
             for (int32_t i=0; i < mDevices.size(); i++) {
-                PAL_ERR(LOG_TAG, "device %d name %s, going to start",
-                    mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
+                devStatus = mDevices[i]->start();
+                if (devStatus == 0) {
+                    status = 0;
+                } else {
+                    cachedStatus = devStatus;
 
-                status = mDevices[i]->start();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG,"Rx device start failed with status %d", status);
-                    rm->unlockGraph();
-                    goto exit;
+                    tmp = session->disconnectSessionDevice(this, mStreamAttr->type, mDevices[i]);
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", tmp);
+                    }
+
+                    tmp = mDevices[i]->close();
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "device close failed with status %d", tmp);
+                    }
+                    mDevices.erase(mDevices.begin() + i);
+                    i--;
                 }
             }
-            PAL_VERBOSE(LOG_TAG,"devices started successfully");
+            if (0 != status) {
+                status = cachedStatus;
+                PAL_ERR(LOG_TAG, "Rx device start failed with status %d", status);
+                rm->unlockGraph();
+                goto exit;
+            } else {
+                PAL_VERBOSE(LOG_TAG, "devices started successfully");
+            }
 
             status = session->prepare(this);
             if (0 != status) {
