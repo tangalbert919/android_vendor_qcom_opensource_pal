@@ -670,19 +670,36 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
-        bool is_a2dp_dev = false;
+        struct pal_device curDevAttr;
+        bool force_switch = false;
         for (auto &dev: aDevices) {
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
-        }
-        for (int i = 0; i < no_of_devices; i++) {
-            newDevices.insert(devices[i].id);
-            if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-                PAL_DBG(LOG_TAG, "always switch device for a2dp");
-                is_a2dp_dev = true;
+            // check if custom key matches for same pal device
+            for (int i = 0; i < no_of_devices; i++) {
+                if (dev->getSndDeviceId() == devices[i].id) {
+                    dev->getDeviceAttributes(&curDevAttr);
+                    if (strcmp(devices[i].custom_config.custom_key,
+                            curDevAttr.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
+                        force_switch = true;
+                    }
+                    break;
+                }
+            }
+            if (force_switch)
                 break;
+        }
+        if (!force_switch) {
+            for (int i = 0; i < no_of_devices; i++) {
+                newDevices.insert(devices[i].id);
+                if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                    PAL_DBG(LOG_TAG, "always switch device for a2dp");
+                    force_switch = true;
+                    break;
+                }
             }
         }
-        if (!is_a2dp_dev && activeDevices == newDevices) {
+        if (!force_switch && activeDevices == newDevices) {
             status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
