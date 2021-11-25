@@ -1141,6 +1141,14 @@ int32_t StreamPCM::resume_l()
                 status);
         goto exit;
     }
+
+    if (isFlushed) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->registerDevice(mDevices[i], this);
+        }
+        isFlushed = false;
+    }
+
     isPaused = false;
     currentState = STREAM_STARTED;
     PAL_DBG(LOG_TAG, "session setConfig successful");
@@ -1180,7 +1188,12 @@ int32_t StreamPCM::flush()
         goto exit;
     }
 
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i], this);
+    }
+
     status = session->flush();
+    isFlushed = true;
 exit:
     mStreamMutex.unlock();
     return status;

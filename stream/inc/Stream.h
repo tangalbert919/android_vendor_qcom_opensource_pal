@@ -162,6 +162,7 @@ public:
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
+    bool isFlushed = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     std::vector<pal_device_id_t> suspendedDevIds;
