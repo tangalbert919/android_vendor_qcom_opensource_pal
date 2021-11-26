@@ -9315,6 +9315,16 @@ bool ResourceManager::isDpDevice(pal_device_id_t id) {
         return false;
 }
 
+bool ResourceManager::isPluginPlaybackDevice(pal_device_id_t id) {
+    if (id == PAL_DEVICE_OUT_USB_DEVICE ||
+        id == PAL_DEVICE_OUT_USB_HEADSET ||
+        id == PAL_DEVICE_OUT_WIRED_HEADSET ||
+        id == PAL_DEVICE_OUT_WIRED_HEADPHONE)
+        return true;
+    else
+        return false;
+}
+
 void ResourceManager::processConfigParams(const XML_Char **attr)
 {
     if (strcmp(attr[0], "key") != 0) {
@@ -10319,6 +10329,10 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         goto exit;
     }
 
+    if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
+        PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
+        goto exit;
+    }
     // if haptics device to be stopped, check and restore headset device config
     if (dev->getSndDeviceId() == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
         curDevAttr.id = PAL_DEVICE_OUT_WIRED_HEADSET;
