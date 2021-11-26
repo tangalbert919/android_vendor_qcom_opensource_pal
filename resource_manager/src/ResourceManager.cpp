@@ -2997,11 +2997,9 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
     mResourceManagerMutex.lock();
     deregisterDevice_l(d, s);
     if (sAttr.direction == PAL_AUDIO_INPUT) {
-        dev = getActiveEchoReferenceRxDevices_l(s);
-        if (dev)
-            updateECDeviceMap(dev, d, s, 0, true);
+        updateECDeviceMap(nullptr, d, s, 0, true);
         mResourceManagerMutex.unlock();
-        status = s->setECRef_l(dev, false);
+        status = s->setECRef_l(nullptr, false);
         mResourceManagerMutex.lock();
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
@@ -4454,16 +4452,15 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     int ec_count = 0;
     int i = 0, j = 0;
     bool tx_stream_found = false;
+    std::vector<std::pair<Stream *, int>>::iterator iter;
     std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
 
-    if (!rx_dev || !tx_dev || !tx_str) {
+    if ((!rx_dev && !is_txstop) || !tx_dev || !tx_str) {
         PAL_ERR(LOG_TAG, "Invalid operation");
         return -EINVAL;
     }
 
-    rx_dev_id = rx_dev->getSndDeviceId();
     tx_dev_id = tx_dev->getSndDeviceId();
-
     for (i = 0; i < deviceInfo.size(); i++) {
         if (tx_dev_id == deviceInfo[i].deviceId) {
             break;
@@ -4475,25 +4472,44 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
         return -EINVAL;
     }
 
-    for (auto iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
-         iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
-        if ((*iter).first == tx_str) {
-            tx_stream_found = true;
-            if (count > 0) {
-                (*iter).second += count;
-                ec_count = (*iter).second;
-            } else if (count == 0) {
-                if (is_txstop) {
-                    (*iter).second = 0;
-                } else if ((*iter).second > 0) {
-                    (*iter).second--;
-                }
-                ec_count = (*iter).second;
-                if ((*iter).second == 0) {
+    if (is_txstop) {
+        for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
+            map_iter != deviceInfo[i].ec_ref_count_map.end(); map_iter++) {
+            rx_dev_id = (*map_iter).first;
+            for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
+                iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
+                if ((*iter).first == tx_str) {
+                    tx_stream_found = true;
                     deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
+                    ec_count = 0;
+                    break;
                 }
             }
-            break;
+            if (tx_stream_found)
+                break;
+        }
+    } else {
+        // rx_dev cannot be null if is_txstop is false
+        rx_dev_id = rx_dev->getSndDeviceId();
+
+        for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
+            iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
+            if ((*iter).first == tx_str) {
+                tx_stream_found = true;
+                if (count > 0) {
+                    (*iter).second += count;
+                    ec_count = (*iter).second;
+                } else if (count == 0) {
+                    if ((*iter).second > 0) {
+                        (*iter).second--;
+                    }
+                    ec_count = (*iter).second;
+                    if ((*iter).second == 0) {
+                        deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
+                    }
+                }
+                break;
+            }
         }
     }
 
