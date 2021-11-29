@@ -85,7 +85,6 @@ protected:
     size_t customPayloadSize;
     int updateCustomPayload(void *payload, size_t size);
     int freeCustomPayload(uint8_t **payload, size_t *payloadSize);
-    int freeCustomPayload();
     uint32_t eventId;
     void *eventPayload;
     size_t eventPayloadSize;
@@ -107,6 +106,8 @@ public:
     int configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal_stream_attributes &sAttr,
             struct pal_device &dAttr, const std::vector<int> &pcmDevIds, const char* intf);
     void setPmQosMixerCtl(pmQosVote vote);
+    int getCustomPayload(uint8_t **payload, size_t *payloadSize);
+    int freeCustomPayload();
     virtual int open(Stream * s) = 0;
     virtual int prepare(Stream * s) = 0;
     virtual int setConfig(Stream * s, configType type, int tag) = 0;
