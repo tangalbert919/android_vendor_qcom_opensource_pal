@@ -97,7 +97,6 @@
 #define MIXER_XML_BASE_STRING_NAME "mixer_paths"
 #define RMNGR_XMLFILE_BASE_STRING_NAME "resourcemanager"
 
-#define MAX_SND_CARD 10
 #define MAX_RETRY_CNT 20
 #define LOWLATENCY_PCM_DEVICE 15
 #define DEEP_BUFFER_PCM_DEVICE 0
@@ -2978,6 +2977,27 @@ unlock:
 exit:
     PAL_DBG(LOG_TAG, "Exit. status: %d", status);
     return status;
+}
+
+bool ResourceManager::isDeviceActive(pal_device_id_t deviceId)
+{
+    bool is_active = false;
+    int candidateDeviceId;
+    PAL_DBG(LOG_TAG, "Enter.");
+
+    mResourceManagerMutex.lock();
+    for (int i = 0; i < active_devices.size(); i++) {
+        candidateDeviceId = active_devices[i].first->getSndDeviceId();
+        if (deviceId == candidateDeviceId) {
+            is_active = true;
+            PAL_INFO(LOG_TAG, "deviceid of %d is active", deviceId);
+            break;
+        }
+    }
+
+    mResourceManagerMutex.unlock();
+    PAL_DBG(LOG_TAG, "Exit.");
+    return is_active;
 }
 
 bool ResourceManager::isDeviceActive(std::shared_ptr<Device> d, Stream *s)
@@ -7817,6 +7837,12 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
             PAL_DBG(LOG_TAG, "%d active stream match with device %d type %d",
                         matchCount, palDeviceId, palStreamType);
             if (!matchCount) {
+                if (palDeviceId == PAL_DEVICE_OUT_BLUETOOTH_A2DP &&
+                        isDeviceActive(PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
+                    PAL_ERR(LOG_TAG, "SCO is active. Param set to A2DP quits.");
+                    status = -EINVAL;
+                    goto error;
+                }
                 /*
                  * set default stream type (low latency) for device-only effect.
                  * the instance is shared by streams.
@@ -7848,6 +7874,24 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                 sattr.out_media_config.sample_rate = 48000;
                 sattr.out_media_config.bit_width = 16;
                 dattr.id = palDeviceId;
+
+                if (isPluginDevice(dattr.id)) {
+                    /* dummy device can igonre physical existence
+                     * and work as a flag for ACDB parameter set
+                     */
+                    dattr.address.card_id = DUMMY_SND_CARD;
+                    PAL_INFO(LOG_TAG, "Use dummy card id 0x%x for ACDB parameter set on plugin device.",
+                                dattr.address.card_id);
+                }
+
+                std::shared_ptr<Device> devDummy = nullptr;
+                devDummy = Device::getInstance(&dattr, rm);
+                if (devDummy)
+                    devDummy->getDeviceAttributes(&dattr);
+                else {
+                    PAL_ERR(LOG_TAG, "failed to get device instance. dev id =%d",
+                                dattr.id);
+                }
                 try {
                     s = Stream::create(&sattr, &dattr, 1, nullptr, 0);
                 } catch (const std::exception& e) {

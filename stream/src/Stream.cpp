@@ -131,17 +131,21 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
             strlcpy(palDevsAttr[count].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
             PAL_DBG(LOG_TAG, "no custom key found");
         }
-        status = rm->getDeviceConfig((struct pal_device *)&palDevsAttr[count], sAttr);
-        if (status) {
-           PAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
-           goto exit;
+
+        if (palDevsAttr[count].address.card_id != DUMMY_SND_CARD) {
+            status = rm->getDeviceConfig((struct pal_device *)&palDevsAttr[count], sAttr);
+            if (status) {
+               PAL_ERR(LOG_TAG, "Not able to get Device config %d", status);
+               goto exit;
+            }
+            // check if it's grouped device and group config needs to update
+            status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
+                                                    streamsToSwitch, &streamDevAttr, true);
+            if (status) {
+                PAL_ERR(LOG_TAG, "no valid group device config found");
+            }
         }
-        // check if it's grouped device and group config needs to update
-        status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
-                                                streamsToSwitch, &streamDevAttr, true);
-        if (status) {
-            PAL_ERR(LOG_TAG, "no valid group device config found");
-        }
+
         count++;
     }
 

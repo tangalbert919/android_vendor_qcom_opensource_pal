@@ -59,7 +59,8 @@ typedef enum {
 } hostless_dir_t;
 
 #define audio_mixer mixer
-
+#define MAX_SND_CARD 10
+#define DUMMY_SND_CARD MAX_SND_CARD
 #define VENDOR_CONFIG_PATH_MAX_LENGTH 128
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
@@ -587,6 +588,7 @@ public:
     int registerMixerEventCallback(const std::vector<int> &DevIds,
                                    session_callback callback,
                                    uint64_t cookie, bool is_register);
+    bool isDeviceActive(pal_device_id_t deviceId);
     bool isDeviceActive(std::shared_ptr<Device> d, Stream *s);
     bool isDeviceActive_l(std::shared_ptr<Device> d, Stream *s);
     int addPlugInDevice(std::shared_ptr<Device> d,
