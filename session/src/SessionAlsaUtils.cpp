@@ -804,7 +804,7 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
     struct param_id_spr_session_time_t *spr_session_time;
-    uint8_t* payload = NULL;
+    std::shared_ptr<std::vector<uint8_t>> payload = nullptr;
     size_t payloadSize = 0;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
@@ -827,20 +827,25 @@ int SessionAlsaUtils::getTimestamp(struct mixer *mixer, const std::vector<int> &
     }
 
     PayloadBuilder* builder = new PayloadBuilder();
-    builder->payloadTimestamp(&payload, &payloadSize, spr_miid);
-    status = mixer_ctl_set_array(ctl, payload, payloadSize);
+    builder->payloadTimestamp(payload, &payloadSize, spr_miid);
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "Timestamp payload formation failed");
+        status = -EINVAL;
+        goto exit;
+    }
+    status = mixer_ctl_set_array(ctl, payload->data(), payloadSize);
     if (0 != status) {
          PAL_ERR(LOG_TAG, "Set failed status = %d", status);
          goto exit;
     }
-    memset(payload, 0, payloadSize);
-    status = mixer_ctl_get_array(ctl, payload, payloadSize);
+    memset(payload->data(), 0, payloadSize);
+    status = mixer_ctl_get_array(ctl, payload->data(), payloadSize);
     if (0 != status) {
          PAL_ERR(LOG_TAG, "Get failed status = %d", status);
          goto exit;
     }
     spr_session_time = (struct param_id_spr_session_time_t *)
-                     (payload + sizeof(struct apm_module_param_data_t));
+                     (payload->data() + sizeof(struct apm_module_param_data_t));
     stime->session_time.value_lsw = spr_session_time->session_time.value_lsw;
     stime->session_time.value_msw = spr_session_time->session_time.value_msw;
     stime->absolute_time.value_lsw = spr_session_time->absolute_time.value_lsw;
