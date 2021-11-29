@@ -8018,6 +8018,20 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
     struct pal_device conn_device;
     std::shared_ptr<Device> dev = nullptr;
     struct pal_device_info devinfo = {};
+    int32_t scoCount = is_connected ? 1 : -1;
+    bool removeScoDevice = false;
+
+    if (isBtScoDevice(device_id)) {
+        PAL_DBG(LOG_TAG, "Enter: scoOutConnectCount=%d, scoInConnectCount=%d",
+                                        scoOutConnectCount, scoInConnectCount);
+        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_SCO) {
+            scoOutConnectCount += scoCount;
+            removeScoDevice = !scoOutConnectCount;
+        } else {
+            scoInConnectCount += scoCount;
+            removeScoDevice = !scoInConnectCount;
+        }
+    }
 
     PAL_DBG(LOG_TAG, "Enter");
     memset(&conn_device, 0, sizeof(struct pal_device));
@@ -8040,7 +8054,6 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             }
         }
 
-        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         if (device_id == PAL_DEVICE_OUT_BLUETOOTH_A2DP ||
             device_id == PAL_DEVICE_IN_BLUETOOTH_A2DP ||
             isBtScoDevice(device_id)) {
@@ -8050,22 +8063,23 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             status = getDeviceConfig(&dAttr, NULL);
             if (status) {
                 PAL_ERR(LOG_TAG, "Device config not overwritten %d", status);
-                return status;
+                goto err;
             }
             dev = Device::getInstance(&dAttr, rm);
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device creation failed");
                 throw std::runtime_error("failed to create device object");
-                return -EIO;
+                status = -EIO;
+                goto err;
             }
         }
+        PAL_DBG(LOG_TAG, "Mark device %d as available", device_id);
         avail_devices_.push_back(device_id);
     } else if (!is_connected && device_available) {
         if (isPluginDevice(device_id) || isDpDevice(device_id)) {
             removePlugInDevice(device_id, connection_state);
         }
 
-        PAL_INFO(LOG_TAG, "Mark device %d as unavailable", device_id);
         auto iter =
             std::find(avail_devices_.begin(), avail_devices_.end(), device_id);
 
@@ -8076,19 +8090,39 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             if (!dev) {
                 PAL_ERR(LOG_TAG, "Device getInstance failed");
                 throw std::runtime_error("failed to get device object");
-                return -EIO;
+                status = -EIO;
+                goto err;
             }
+
+            if (isBtScoDevice(device_id) && (removeScoDevice == false))
+                goto exit;
+
             dev->setDeviceAttributes(conn_device);
             PAL_INFO(LOG_TAG, "device attribute cleared");
+            PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
             avail_devices_.erase(std::find(avail_devices_.begin(),
-                                  avail_devices_.end(), device_id));
+                                avail_devices_.end(), device_id));
         }
-    } else {
+    } else if (!isBtScoDevice(device_id)) {
         status = -EINVAL;
-        PAL_ERR(LOG_TAG, "Invalid operation, connection state %d, device avalibilty %d",
-                is_connected, device_available);
+        PAL_ERR(LOG_TAG, "Invalid operation, Device %d, connection state %d, device avalibilty %d",
+                device_id, is_connected, device_available);
     }
+
+    goto exit;
+
+err:
+    if (status && isBtScoDevice(device_id)) {
+        if (device_id == PAL_DEVICE_OUT_BLUETOOTH_SCO)
+            scoOutConnectCount -= scoCount;
+        else
+            scoInConnectCount -= scoCount;
+    }
+
 exit:
+    if (isBtScoDevice(device_id))
+        PAL_DBG(LOG_TAG, "Exit: scoOutConnectCount=%d, scoInConnectCount=%d",
+                                        scoOutConnectCount, scoInConnectCount);
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
