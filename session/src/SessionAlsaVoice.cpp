@@ -1616,7 +1616,8 @@ int SessionAlsaVoice::connectSessionDevice(Stream* streamHandle,
         if (getRXDevice(streamHandle, rxDevice) != 0) {
             PAL_DBG(LOG_TAG,"no active rx device, no need to setSidetone");
             return status;
-        } else if (rxDevice->getDeviceCount() != 0 && txDevId != PAL_DEVICE_NONE) {
+        } else if (rxDevice && rxDevice->getDeviceCount() != 0 &&
+                   txDevId != PAL_DEVICE_NONE) {
             status = setSidetone(txDevId, streamHandle, 1);
         }
         if (0 != status) {
