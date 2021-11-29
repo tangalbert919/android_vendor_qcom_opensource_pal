@@ -113,6 +113,7 @@ public:
             pal_stream_flags_t flags, struct pcm *, struct pcm_config *cfg);
     void deRegisterAdmStream(Stream *s);
     void requestAdmFocus(Stream *s, long ns);
+    void AdmRoutingChange(Stream *s);
     void releaseAdmFocus(Stream *s);
     void setEventPayload(uint32_t event_id, void *payload, size_t payload_size);
     int register_asps_event(uint32_t reg);

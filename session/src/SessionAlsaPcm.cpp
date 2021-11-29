@@ -658,6 +658,12 @@ void SessionAlsaPcm::requestAdmFocus(Stream *s,  long ns)
         rm->admRequestFocusFn(rm->admData, static_cast<void *>(s));
 }
 
+void SessionAlsaPcm::AdmRoutingChange(Stream *s)
+{
+    if (rm->admOnRoutingChangeFn)
+        rm->admOnRoutingChangeFn(rm->admData, static_cast<void *>(s));
+}
+
 void SessionAlsaPcm::releaseAdmFocus(Stream *s)
 {
     if (rm->admAbandonFocusFn)

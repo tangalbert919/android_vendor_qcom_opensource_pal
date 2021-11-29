@@ -6177,6 +6177,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
     std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
     std::vector <Stream*> uniqueStreamsList;
     std::vector <struct pal_device *> uniqueDevConnectionList;
+    pal_stream_attributes sAttr;
 
     PAL_INFO(LOG_TAG, "Enter");
 
@@ -6232,6 +6233,20 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
         (*sIter)->lockStreamMutex();
     }
     isDeviceSwitch = true;
+
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        status = (*sIter)->getStreamAttributes(&sAttr);
+        Session *session = NULL;
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"stream get attributes failed");
+            continue;
+        }
+        if (sAttr.direction == PAL_AUDIO_OUTPUT && sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            (*sIter)->getAssociatedSession(&session);
+            if (session != NULL)
+                session->AdmRoutingChange((*sIter));
+        }
+    }
 
     status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
