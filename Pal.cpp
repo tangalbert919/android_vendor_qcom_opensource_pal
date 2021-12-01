@@ -649,7 +649,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     /* Choose best device config for this stream */
     /* TODO: Decide whether to update device config or not based on flag */
-    s =  reinterpret_cast<Stream *>(stream_handle);
+    s = reinterpret_cast<Stream *>(stream_handle);
     s->getStreamAttributes(&sattr);
 
     // device switch will be handled in global param setting for SVA
@@ -671,8 +671,9 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
         struct pal_device curDevAttr;
-        bool force_switch = false;
-        for (auto &dev: aDevices) {
+        bool force_switch = s->isA2dpMuted();
+
+        for (auto &dev : aDevices) {
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
             // check if custom key matches for same pal device
             for (int i = 0; i < no_of_devices; i++) {
@@ -699,7 +700,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                 }
             }
         }
-        if (!force_switch && activeDevices == newDevices) {
+        if (!force_switch && (activeDevices == newDevices)) {
             status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
@@ -708,7 +709,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     pDevices = (struct pal_device *) calloc(no_of_devices, sizeof(struct pal_device));
 
-    if(!pDevices) {
+    if (!pDevices) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "Memory alloc failed");
         goto exit;
@@ -719,8 +720,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     for (int i = 0; i < no_of_devices; i++) {
         if (strlen(pDevices[i].custom_config.custom_key)) {
-             PAL_DBG(LOG_TAG, "Device has custom key %s",
-                               pDevices[i].custom_config.custom_key);
+            PAL_DBG(LOG_TAG, "Device has custom key %s",
+                              pDevices[i].custom_config.custom_key);
         } else {
             PAL_DBG(LOG_TAG, "Device has no custom key");
             strlcpy(pDevices[i].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
@@ -744,7 +745,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
 
 exit:
-    if(pDevices)
+    if (pDevices)
         free(pDevices);
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
