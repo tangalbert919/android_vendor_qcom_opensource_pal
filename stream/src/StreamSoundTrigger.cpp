@@ -62,6 +62,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     class SoundTriggerUUID uuid;
     int32_t enable_concurrency_count = 0;
     int32_t disable_concurrency_count = 0;
+    sm_info_ = nullptr;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     notification_state_ = ENGINE_IDLE;
