@@ -2679,6 +2679,10 @@ bool isStreamActive(T s, std::list<T> &streams)
     return ret;
 }
 
+int ResourceManager::isActiveStream(Stream *s) {
+    return isStreamActive(s, mActiveStreams);
+}
+
 int ResourceManager::registerDevice_l(std::shared_ptr<Device> d, Stream *s)
 {
     PAL_DBG(LOG_TAG, "Enter.");
