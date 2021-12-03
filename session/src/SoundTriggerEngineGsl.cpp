@@ -2016,6 +2016,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
+        custom_detection_event = nullptr;
         custom_detection_event_size = 0;
     }
 
