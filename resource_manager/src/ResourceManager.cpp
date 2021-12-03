@@ -10088,7 +10088,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                                        &sAttr);
                 if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
                     && dev->getSndDeviceId() != PAL_DEVICE_OUT_HANDSET) {
-                    sharedStream->UpdatePalDevice(&newDevAttr,
+                    sharedStream->updatePalDevice(&newDevAttr,
                              (pal_device_id_t)dev->getSndDeviceId());
                 }
                 // in case there're two or more active streams on headset and one of them goes away

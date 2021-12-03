@@ -449,21 +449,21 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t Stream::UpdatePalDevice(struct pal_device *dattr,  pal_device_id_t Dev_id)
+int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id)
 {
     int32_t status = 0;
 
-    PAL_DBG(LOG_TAG, "Updatepaldevice from %d to %d", Dev_id, dattr->id);
+    PAL_DBG(LOG_TAG, "updatePalDevice from %d to %d", dev_id, dattr->id);
     for (int i = 0; i < mPalDevice.size(); i++) {
-        if (Dev_id == mPalDevice[i].id) {
+        if (dev_id == mPalDevice[i].id) {
             mPalDevice.erase(mPalDevice.begin() + i);
             break;
         }
     }
+
     mPalDevice.push_back(*dattr);
     return status;
 }
-
 
 int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevices)
 {
@@ -907,6 +907,8 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                 goto exit;
             }
             mDevices.push_back(dev);
+            dev->getDeviceAttributes(&dattr);
+            updatePalDevice(&dattr, dattr.id);
         }
     }
 
@@ -988,8 +990,6 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 {
     int32_t status = 0;
     std::shared_ptr<Device> dev = nullptr;
-    bool foundPalDev = false;
-
 
     if (!dattr) {
         PAL_ERR(LOG_TAG, "invalid params");
@@ -1041,16 +1041,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    /*check if pal devices exsists if it does not, push
-      catch all if connect is being called outside of a deviceSwitch or open */
-    for(int i = 0; i < mPalDevice.size(); i++) {
-        if (dattr->id == mPalDevice[i].id) {
-            foundPalDev = true;
-        }
-    }
-    if (!foundPalDev) {
-        mPalDevice.push_back(*dattr);
-    }
+    updatePalDevice(dattr, dattr->id);
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
@@ -1185,7 +1176,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     std::vector <Stream *> streamsToSwitch;
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
-    bool foundPalDev = false;
 
     mStreamMutex.lock();
 
@@ -1281,16 +1271,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 isNewDeviceA2dp = true;
         }
 
-        /* store/update palDev before newDevices can be changed*/
-        for(int j = 0; j < mPalDevice.size(); j++) {
-            if (newDevices[i].id == mPalDevice[j].id) {
-                foundPalDev = true;
-                UpdatePalDevice(&(newDevices[i]), newDevices[i].id);
-            }
-        }
-        if (!foundPalDev) {
-            mPalDevice.push_back(newDevices[i]);
-        }
+        /* store or update palDev before newDevices can be changed */
+        updatePalDevice(&(newDevices[i]), newDevices[i].id);
     }
 
     /*  No new device is ready */
