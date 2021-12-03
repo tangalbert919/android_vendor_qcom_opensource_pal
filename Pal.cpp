@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <PalApi.h>
 #include "Stream.h"
+#include "Device.h"
 #include "ResourceManager.h"
 #include "PalCommon.h"
 class Stream;
@@ -584,7 +585,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
-    std::vector <struct pal_device> palDevices;
+    std::vector <std::shared_ptr<Device>> aDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -625,14 +626,13 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getAssociatedPalDevices(palDevices);
-    if (palDevices.size() != 0) {
+    s->getAssociatedDevices(aDevices);
+    if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
         bool is_a2dp_dev = false;
-
-        for (auto palDev: palDevices) {
-            activeDevices.insert(palDev.id);
+        for (auto &dev: aDevices) {
+            activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
         }
         for (int i = 0; i < no_of_devices; i++) {
             newDevices.insert(devices[i].id);
@@ -643,6 +643,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
             }
         }
         if (!is_a2dp_dev && activeDevices == newDevices) {
+            status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
         }
