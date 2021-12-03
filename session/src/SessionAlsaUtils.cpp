@@ -1024,7 +1024,6 @@ int SessionAlsaUtils::setMixerParameter(struct mixer *mixer, int device,
     ctl_len = strlen(pcmDeviceName) + 1 + strlen(control) + 1;
     mixer_str = (char *)calloc(1, ctl_len);
     if (!mixer_str) {
-        free(payload);
         return -ENOMEM;
     }
     snprintf(mixer_str, ctl_len, "%s %s", pcmDeviceName, control);

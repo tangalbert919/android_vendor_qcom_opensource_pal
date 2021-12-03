@@ -474,6 +474,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                                                              device,
                                                              customPayload,
                                                              customPayloadSize);
+                freeCustomPayload();
                 if (status != 0) {
                     PAL_ERR(LOG_TAG, "setMixerParameter failed");
                     return status;
