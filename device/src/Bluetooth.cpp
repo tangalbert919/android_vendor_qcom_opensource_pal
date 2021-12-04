@@ -969,7 +969,13 @@ void Bluetooth::stopAbr()
         return;
     }
 
-    if (--abrRefCnt != 0) {
+    if (abrRefCnt == 0) {
+        PAL_DBG(LOG_TAG, "skip as abrRefCnt is zero");
+        mAbrMutex.unlock();
+        return;
+    }
+
+    if (--abrRefCnt > 0) {
         PAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
