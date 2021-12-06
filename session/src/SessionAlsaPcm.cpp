@@ -2028,7 +2028,8 @@ int SessionAlsaPcm::setParameters(Stream *streamHandle, int tagId, uint32_t para
             if (sAttr.direction == PAL_AUDIO_OUTPUT) {
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                         rxAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
-            } else if (sAttr.direction == PAL_AUDIO_INPUT) {
+            } else if (sAttr.direction == PAL_AUDIO_INPUT &&
+                       sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
                 status = SessionAlsaUtils::getModuleInstanceId(mixer, device,
                         txAifBackEnds[0].second.data(), TAG_STREAM_VOLUME, &miid);
             } else if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT)) {
