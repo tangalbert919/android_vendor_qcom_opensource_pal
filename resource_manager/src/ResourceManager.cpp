@@ -3340,8 +3340,16 @@ bool ResourceManager::IsDedicatedBEForUPDEnabled()
     return ResourceManager::isUpdDedicatedBeEnabled;
 }
 
-// this should only be called when LPI supported by platform
 void ResourceManager::GetSoundTriggerConcurrencyCount(
+    pal_stream_type_t type,
+    int32_t *enable_count, int32_t *disable_count) {
+    mActiveStreamMutex.lock();
+    GetSoundTriggerConcurrencyCount_l(type, enable_count, disable_count);
+    mActiveStreamMutex.unlock();
+}
+
+// this should only be called when LPI supported by platform
+void ResourceManager::GetSoundTriggerConcurrencyCount_l(
     pal_stream_type_t type,
     int32_t *enable_count, int32_t *disable_count) {
 
@@ -3354,7 +3362,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
     int32_t *local_en_count = nullptr;
     int32_t *local_dis_count = nullptr;
 
-    mResourceManagerMutex.lock();
     if (type == PAL_STREAM_ACD) {
         local_en_count = &ACDConcurrencyEnableCount;
         local_dis_count = &ACDConcurrencyDisableCount;
@@ -3366,7 +3373,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
         local_dis_count = &SNSPCMDataConcurrencyDisableCount;
     } else {
         PAL_ERR(LOG_TAG, "Error:%d Invalid stream type %d", -EINVAL, type);
-        mResourceManagerMutex.unlock();
         return;
     }
 
@@ -3411,7 +3417,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
     }
 
 exit:
-    mResourceManagerMutex.unlock();
     *enable_count = *local_en_count;
     *disable_count = *local_dis_count;
     PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
@@ -3792,6 +3797,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
     /* This is called from mResourceManagerMutex lock, unlock before calling
      * HandleDetectionStreamAction */
     mResourceManagerMutex.unlock();
+    mActiveStreamMutex.lock();
     if (is_sva_ds_supported)
         HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
 
@@ -3809,7 +3815,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONNECT_DEVICE,
                                     (void *)&device_to_connect);
     }
-
+    mActiveStreamMutex.unlock();
     mResourceManagerMutex.lock();
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -4026,14 +4032,13 @@ exit:
     return status;
 }
 
+// NOTE: This api should be called with mActiveStreamMutex locked
 int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data)
 {
     int status = 0;
     pal_stream_attributes st_attr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    mActiveStreamMutex.lock();
-
     for (auto& str: mActiveStreams) {
         if (!isStreamActive(str, mActiveStreams))
             continue;
@@ -4042,7 +4047,6 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
         if (st_attr.type != type)
             continue;
 
-        mActiveStreamMutex.unlock();
         switch (action) {
             case ST_PAUSE:
                 if (str != (Stream *)data) {
@@ -4098,9 +4102,7 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
             default:
                 break;
         }
-        mActiveStreamMutex.lock();
     }
-    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -4189,33 +4191,25 @@ void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool ac
     else
         return;
 
-    mResourceManagerMutex.lock();
     if (active) {
         ++(*local_dis_count);
         if (*local_dis_count == 1) {
             // pause all sva/acd streams
-            mResourceManagerMutex.unlock();
             HandleDetectionStreamAction(st_type, ST_PAUSE, NULL);
-            mResourceManagerMutex.lock();
         }
     } else {
         --(*local_dis_count);
         if (*local_dis_count == 0) {
             // resume all sva/acd streams
-            mResourceManagerMutex.unlock();
             HandleDetectionStreamAction(st_type, ST_RESUME, NULL);
-            mResourceManagerMutex.lock();
         }
     }
-    mResourceManagerMutex.unlock();
 }
 
-/* This function should be called with mResourceManagerMutex lock acquired */
+/* This function should be called with mActiveStreamMutex lock acquired */
 void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t>& st_streams,
     bool stream_active, bool is_deferred)
 {
-    bool update_st_capture_profile = true;
-    std::vector<pal_stream_type_t> st_streams_to_start;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     if(!is_deferred) {
@@ -4235,46 +4229,38 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
     }
 
     for (pal_stream_type_t st_stream_type : st_streams) {
-
         // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
-        mResourceManagerMutex.unlock();
         HandleDetectionStreamAction(st_stream_type, ST_ENABLE_LPI, (void *)&stream_active);
-        mResourceManagerMutex.lock();
-
-        // update the common capture profile once
-        if (true == update_st_capture_profile) {
-            SoundTriggerCaptureProfile = nullptr;
-            cap_prof_priority = GetCaptureProfileByPriority(nullptr);
-
-            if (!cap_prof_priority) {
-                PAL_DBG(LOG_TAG, "No ST session active, reset capture profile");
-                SoundTriggerCaptureProfile = nullptr;
-            } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
-                    CAPTURE_PROFILE_PRIORITY_HIGH) {
-                SoundTriggerCaptureProfile = cap_prof_priority;
-            }
-            update_st_capture_profile = false;
-        }
-        // stop/unload SVA/ACD/Sensor PCM Data streams
-        bool action = false;
-
-        mResourceManagerMutex.unlock();
-        PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type);
-        HandleDetectionStreamAction(st_stream_type,
-            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-        st_streams_to_start.push_back(st_stream_type);
-        mResourceManagerMutex.lock();
     }
 
-    for (pal_stream_type_t st_stream_type_to_start : st_streams_to_start) {
+    // update common capture profile after use_lpi_ updated for all streams
+    if (st_streams.size()) {
+        SoundTriggerCaptureProfile = nullptr;
+        cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+        if (!cap_prof_priority) {
+            PAL_DBG(LOG_TAG, "No ST session active, reset capture profile");
+            SoundTriggerCaptureProfile = nullptr;
+        } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
+                CAPTURE_PROFILE_PRIORITY_HIGH) {
+            SoundTriggerCaptureProfile = cap_prof_priority;
+        }
+    }
+
+    for (pal_stream_type_t st_stream_type_to_stop : st_streams) {
+        // stop/unload SVA/ACD/Sensor PCM Data streams
+        bool action = false;
+        PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type_to_stop);
+        HandleDetectionStreamAction(st_stream_type_to_stop,
+            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+    }
+
+    for (pal_stream_type_t st_stream_type_to_start : st_streams) {
         // load/start SVA/ACD/Sensor PCM Data streams
         bool action = true;
-
-        mResourceManagerMutex.unlock();
         PAL_DBG(LOG_TAG, "load/start stream type %d", st_stream_type_to_start);
         HandleDetectionStreamAction(st_stream_type_to_start,
             ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-        mResourceManagerMutex.lock();
     }
 }
 
@@ -4282,12 +4268,9 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
 void ResourceManager::handleDeferredSwitch()
 {
     bool active = false;
-    bool update_st_capture_profile = true;
     std::vector<pal_stream_type_t> st_streams;
-    std::vector<pal_stream_type_t> st_streams_to_start;
-    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
 
     PAL_DBG(LOG_TAG, "enter, isAnyVUIStreambuffering:%d deferred state:%d",
         isAnyVUIStreamBuffering(), deferredSwitchState);
@@ -4309,7 +4292,7 @@ void ResourceManager::handleDeferredSwitch()
         // reset the defer switch state after handling LPI/NLPI switch
         deferredSwitchState = NO_DEFER;
     }
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -4333,11 +4316,10 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                                                              pal_stream_direction_t dir,
                                                              bool active)
 {
-    bool update_st_capture_profile = true;
     std::vector<pal_stream_type_t> st_streams;
     bool do_st_stream_switch = false;
 
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
 
     if (active_streams_st.size())
@@ -4356,9 +4338,7 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                            &st_stream_rx_conc, &st_stream_tx_conc, &st_stream_conc_en);
 
         if (!st_stream_conc_en) {
-            mResourceManagerMutex.unlock();
             HandleStreamPauseResume(st_stream_type, active);
-            mResourceManagerMutex.lock();
             continue;
         }
 
@@ -4384,7 +4364,7 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
     if (do_st_stream_switch)
         handleConcurrentStreamSwitch(st_streams, active, false);
 
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -7717,11 +7697,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         break;
                     }
                     charging_state_ = battery_charging_state->charging_state;
-                    action = false;
                     mResourceManagerMutex.unlock();
+                    mActiveStreamMutex.lock();
+                    action = false;
                     HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    // update common capture profile
+                    SoundTriggerCaptureProfile = GetCaptureProfileByPriority(nullptr);
                     action = true;
                     HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    mActiveStreamMutex.unlock();
                     mResourceManagerMutex.lock();
                 } else {
                     PAL_ERR(LOG_TAG,
