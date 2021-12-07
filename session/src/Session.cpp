@@ -44,6 +44,7 @@
 struct pcm *Session::pcmEcTx = NULL;
 std::vector<int> Session::pcmDevEcTxIds = {0};
 int Session::extECRefCnt = 0;
+std::mutex Session::extECMutex;
 
 Session::Session()
 {
@@ -724,6 +725,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
 
     PAL_DBG(LOG_TAG, "Enter.");
 
+    std::lock_guard<std::mutex> lock(extECMutex);
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
