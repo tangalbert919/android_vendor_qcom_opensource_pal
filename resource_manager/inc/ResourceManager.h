@@ -59,7 +59,8 @@ typedef enum {
 } hostless_dir_t;
 
 #define audio_mixer mixer
-
+#define MAX_SND_CARD 10
+#define DUMMY_SND_CARD MAX_SND_CARD
 #define VENDOR_CONFIG_PATH_MAX_LENGTH 128
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO "audio.nat.codec.enabled"
 #define AUDIO_PARAMETER_KEY_NATIVE_AUDIO_MODE "native_audio_mode"
@@ -508,6 +509,8 @@ protected:
     int sleepmon_fd_;
     static std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> groupDevConfigMap;
     std::array<std::shared_ptr<nonTunnelInstMap_t>, DEFAULT_NT_SESSION_TYPE_COUNT> mNTStreamInstancesList;
+    int32_t scoOutConnectCount = 0;
+    int32_t scoInConnectCount = 0;
 public:
     ~ResourceManager();
     static bool mixerClosed;
@@ -578,6 +581,7 @@ public:
     pal_audio_fmt_t getAudioFmt(uint32_t bitWidth);
     int registerStream(Stream *s);
     int deregisterStream(Stream *s);
+    int isActiveStream(Stream *s);
     int registerDevice(std::shared_ptr<Device> d, Stream *s);
     int deregisterDevice(std::shared_ptr<Device> d, Stream *s);
     int registerDevice_l(std::shared_ptr<Device> d, Stream *s);
@@ -585,6 +589,7 @@ public:
     int registerMixerEventCallback(const std::vector<int> &DevIds,
                                    session_callback callback,
                                    uint64_t cookie, bool is_register);
+    bool isDeviceActive(pal_device_id_t deviceId);
     bool isDeviceActive(std::shared_ptr<Device> d, Stream *s);
     bool isDeviceActive_l(std::shared_ptr<Device> d, Stream *s);
     int addPlugInDevice(std::shared_ptr<Device> d,
@@ -770,6 +775,8 @@ public:
      */
     void lockGraph() { mGraphMutex.lock(); };
     void unlockGraph() { mGraphMutex.unlock(); };
+    void lockActiveStream() { mActiveStreamMutex.lock(); };
+    void unlockActiveStream() { mActiveStreamMutex.unlock(); };
     void getSharedBEActiveStreamDevs(std::vector <std::tuple<Stream *, uint32_t>> &activeStreamDevs,
                                      int dev_id);
     int32_t streamDevSwitch(std::vector <std::tuple<Stream *, uint32_t>> streamDevDisconnectList,

@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <PalApi.h>
 #include "Stream.h"
+#include "Device.h"
 #include "ResourceManager.h"
 #include "PalCommon.h"
 class Stream;
@@ -208,6 +209,7 @@ exit:
 int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
+    std::shared_ptr<ResourceManager> rm = NULL;
     int status;
     pal_stream_type_t type;
     pal_stream_direction_t dir;
@@ -218,16 +220,26 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle %pK", stream_handle);
 
-    s =  reinterpret_cast<Stream *>(stream_handle);
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    rm->lockActiveStream();
+    s = reinterpret_cast<Stream *>(stream_handle);
 
     status = s->start();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+        rm->unlockActiveStream();
         goto exit;
     }
 
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
+    rm->unlockActiveStream();
     notify_concurrent_stream(type, dir, true);
 exit:
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
@@ -237,6 +249,7 @@ exit:
 int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
 {
     Stream *s = NULL;
+    std::shared_ptr<ResourceManager> rm = NULL;
     int status;
     pal_stream_type_t type;
     pal_stream_direction_t dir;
@@ -246,17 +259,27 @@ int32_t pal_stream_stop(pal_stream_handle_t *stream_handle)
         return status;
     }
     PAL_INFO(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  reinterpret_cast<Stream *>(stream_handle);
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
+        status = -EINVAL;
+        goto exit;
+    }
+
+    rm->lockActiveStream();
+    s = reinterpret_cast<Stream *>(stream_handle);
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
 
     status = s->stop();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "stream stop failed. status : %d", status);
+        rm->unlockActiveStream();
         notify_concurrent_stream(type, dir, false);
         goto exit;
     }
 
+    rm->unlockActiveStream();
     notify_concurrent_stream(type, dir, false);
 
 exit:
@@ -371,20 +394,38 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
 int32_t pal_stream_set_mute(pal_stream_handle_t *stream_handle, bool state)
 {
     Stream *s = NULL;
-    int status;
+    std::shared_ptr<ResourceManager> rm = NULL;
+    int status = 0;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream handle status %d", status);
         return status;
     }
-    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
-    s =  reinterpret_cast<Stream *>(stream_handle);
-    status = s->mute(state);
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "mute failed with status %d", status);
+
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
         return status;
     }
+
+    PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
+    s =  reinterpret_cast<Stream *>(stream_handle);
+
+    rm->lockActiveStream();
+    if (rm->isActiveStream(s)) {
+        status = s->mute(state);
+        if (0 != status) {
+            PAL_ERR(LOG_TAG, "mute failed with status %d", status);
+            rm->unlockActiveStream();
+            return status;
+        }
+    }
+
+    rm->unlockActiveStream();
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
+
     return status;
 }
 
@@ -584,7 +625,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
-    std::vector <struct pal_device> palDevices;
+    std::vector <std::shared_ptr<Device>> aDevices;
 
     if (!stream_handle) {
         status = -EINVAL;
@@ -617,16 +658,32 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
                 "Device switch handles in global param set, skip here");
         goto exit;
     }
+    if (sattr.type == PAL_STREAM_VOICE_CALL_RECORD ||
+        sattr.type == PAL_STREAM_VOICE_CALL_MUSIC) {
+        PAL_DBG(LOG_TAG,
+                "Device switch skipped for Incall record/music stream");
+        status = 0;
+        goto exit;
+    }
 
-    s->getAssociatedPalDevices(palDevices);
-    if (palDevices.size() != 0) {
+    s->getAssociatedDevices(aDevices);
+    if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
-        for (auto palDev: palDevices)
-            activeDevices.insert(palDev.id);
-        for (int i = 0; i < no_of_devices; i++)
+        bool is_a2dp_dev = false;
+        for (auto &dev: aDevices) {
+            activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
+        }
+        for (int i = 0; i < no_of_devices; i++) {
             newDevices.insert(devices[i].id);
-        if (activeDevices == newDevices) {
+            if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                PAL_DBG(LOG_TAG, "always switch device for a2dp");
+                is_a2dp_dev = true;
+                break;
+            }
+        }
+        if (!is_a2dp_dev && activeDevices == newDevices) {
+            status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
         }

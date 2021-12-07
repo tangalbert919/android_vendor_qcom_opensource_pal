@@ -2002,6 +2002,13 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     PAL_DBG(LOG_TAG, "Enter");
     exit_buffering_ = true;
     std::lock_guard<std::mutex> lck(mutex_);
+
+    /* If engine is not active, do not restart recognition again */
+    if (!IsEngineActive()) {
+        PAL_INFO(LOG_TAG, "Engine is not active, return");
+        return 0;
+    }
+
     UpdateEngineConfigOnRestart(s);
     if (buffer_) {
         buffer_->reset();
@@ -2009,6 +2016,7 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
+        custom_detection_event = nullptr;
         custom_detection_event_size = 0;
     }
 

@@ -83,7 +83,7 @@ void Session::setPmQosMixerCtl(pmQosVote vote)
 Session* Session::makeSession(const std::shared_ptr<ResourceManager>& rm, const struct pal_stream_attributes *sAttr)
 {
     if (!rm || !sAttr) {
-        PAL_ERR(LOG_TAG,"Invalid parameters passed");
+        PAL_ERR(LOG_TAG, "Invalid parameters passed");
         return nullptr;
     }
 
@@ -358,7 +358,17 @@ int Session::updateCustomPayload(void *payload, size_t size)
     return 0;
 }
 
-int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize) {
+int Session::getCustomPayload(uint8_t **payload, size_t *payloadSize)
+{
+    if (customPayloadSize) {
+        *payload = (uint8_t *)customPayload;
+        *payloadSize = customPayloadSize;
+    }
+    return 0;
+}
+
+int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize)
+{
     if (*payload) {
         free(*payload);
         *payload = NULL;
@@ -367,7 +377,8 @@ int Session::freeCustomPayload(uint8_t **payload, size_t *payloadSize) {
     return 0;
 }
 
-int Session::freeCustomPayload() {
+int Session::freeCustomPayload()
+{
     if (customPayload) {
         free(customPayload);
         customPayload = NULL;
@@ -400,21 +411,21 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
     std::vector<std::shared_ptr<Device>> associatedDevices;
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"stream get attributes failed");
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
         return status;
     }
 
     if (PAL_AUDIO_OUTPUT== sAttr.direction) {
         status = s->getAssociatedDevices(associatedDevices);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed\n");
+            PAL_ERR(LOG_TAG, "getAssociatedDevices Failed\n");
             return status;
         }
 
         for (int i = 0; i < associatedDevices.size(); i++) {
              status = associatedDevices[i]->getDeviceAttributes(&dAttr);
              if (0 != status) {
-                 PAL_ERR(LOG_TAG,"get Device Attributes Failed\n");
+                 PAL_ERR(LOG_TAG, "get Device Attributes Failed\n");
                  return status;
              }
 
@@ -431,7 +442,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                                                               TAG_MFC_SPEAKER_SWAP,
                                                               &miid);
                 if (status != 0) {
-                    PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+                    PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
                     return status;
                 }
                 PAL_DBG(LOG_TAG, "miid : %x id = %d, data %s, dev id = %d\n", miid,
@@ -455,7 +466,7 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                     status = updateCustomPayload(alsaParamData, alsaPayloadSize);
                     delete alsaParamData;
                     if (0 != status) {
-                        PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                        PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                         return status;
                     }
                 }
@@ -463,8 +474,9 @@ int Session::handleDeviceRotation(Stream *s, pal_speaker_rotation_type rotation_
                                                              device,
                                                              customPayload,
                                                              customPayloadSize);
+                freeCustomPayload();
                 if (status != 0) {
-                    PAL_ERR(LOG_TAG,"setMixerParameter failed");
+                    PAL_ERR(LOG_TAG, "setMixerParameter failed");
                     return status;
                 }
             }
@@ -543,7 +555,7 @@ int Session::setSlotMask(const std::shared_ptr<ResourceManager>& rm, struct pal_
     tkv_size = tkv.size()*sizeof(struct agm_key_value);
     status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
     if (status != 0) {
-        PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+        PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
     }
 
 exit:
@@ -603,13 +615,13 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
                 goto exit;
             }
             status = updateCustomPayload(payload, payloadSize);
-            free(payload);
+            freeCustomPayload(&payload, &payloadSize);
             if (0 != status) {
-                PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+                PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
                 goto exit;
             }
         } else {
-            PAL_INFO(LOG_TAG,"deviePP MFC doesn't exist for stream %d \n", sAttr.type);
+            PAL_INFO(LOG_TAG, "deviePP MFC doesn't exist for stream %d \n", sAttr.type);
             devicePPMFCSet = false;
         }
 
@@ -636,7 +648,7 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
             }
             status = dev->getCodecConfig(&codecConfig);
             if(0 != status) {
-                PAL_ERR(LOG_TAG,"getCodecConfig Failed \n");
+                PAL_ERR(LOG_TAG, "getCodecConfig Failed \n");
                 goto exit;
             }
             mfcData.bitWidth = codecConfig.bit_width;
@@ -679,26 +691,15 @@ int Session::configureMFC(const std::shared_ptr<ResourceManager>& rm, struct pal
         }
 
         status = updateCustomPayload(payload, payloadSize);
-        free(payload);
+        freeCustomPayload(&payload, &payloadSize);
         if (0 != status) {
-            PAL_ERR(LOG_TAG,"updateCustomPayload Failed\n");
+            PAL_ERR(LOG_TAG, "updateCustomPayload Failed\n");
             goto exit;
         }
     } else {
-        PAL_ERR(LOG_TAG,"getModuleInstanceId failed");
+        PAL_ERR(LOG_TAG, "getModuleInstanceId failed");
         if (sAttr.direction == (PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT))
             status = 0;
-    }
-
-    // set devicePP MFC(if exists) and PSPD MFC configuration
-    if (customPayload) {
-        status = SessionAlsaUtils::setMixerParameter(mixer, pcmDevIds.at(0),
-                                                 customPayload, customPayloadSize);
-        freeCustomPayload();
-        if (status != 0) {
-            PAL_ERR(LOG_TAG,"setMixerParameter failed");
-            goto exit;
-        }
     }
 
 exit:
@@ -884,7 +885,7 @@ int setConfig(Stream * s, pal_stream_type_t sType, configType type, uint32_t tag
             tkv_size = tkv.size() * sizeof(struct agm_key_value);
             status = mixer_ctl_set_array(ctl, tagConfig, sizeof(struct agm_tag_config) + tkv_size);
             if (status != 0) {
-                PAL_ERR(LOG_TAG,"failed to set the tag calibration %d", status);
+                PAL_ERR(LOG_TAG, "failed to set the tag calibration %d", status);
                 goto exit;
             }
             ctl = NULL;

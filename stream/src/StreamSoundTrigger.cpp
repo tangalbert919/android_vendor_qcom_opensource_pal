@@ -89,6 +89,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     second_stage_processing_ = false;
     gsl_engine_model_ = nullptr;
     gsl_conf_levels_ = nullptr;
+    gsl_engine_ = nullptr;
+    sm_info_ = nullptr;
+    sm_cfg_ = nullptr;
     mDevices.clear();
     mPalDevice.clear();
 
@@ -168,10 +171,15 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     AddState(st_ssr_);
 
     // Set initial state
-    cur_state_ = st_idle_;
-    prev_state_ = nullptr;
-    state_for_restore_ = ST_STATE_NONE;
-
+    if (rm->cardState == CARD_STATUS_OFFLINE) {
+        cur_state_ = st_ssr_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_IDLE;
+    } else {
+        cur_state_ = st_idle_;
+        prev_state_ = nullptr;
+        state_for_restore_ = ST_STATE_NONE;
+    }
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
         st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
@@ -225,27 +233,17 @@ StreamSoundTrigger::~StreamSoundTrigger() {
     engines_.clear();
 
     rm->deregisterStream(this);
-    if (mStreamAttr) {
+    if (mStreamAttr)
         free(mStreamAttr);
-    }
-    if (gsl_engine_model_) {
+
+    if (gsl_engine_model_)
         free(gsl_engine_model_);
-    }
-    if (gsl_conf_levels_) {
+
+    if (gsl_conf_levels_)
         free(gsl_conf_levels_);
-    }
-    mDevices.clear();
-    PAL_DBG(LOG_TAG, "Exit");
-}
 
-int32_t StreamSoundTrigger::close() {
-    int32_t status = 0;
-
-    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
-
-    std::lock_guard<std::mutex> lck(mStreamMutex);
-    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
-    status = cur_state_->ProcessEvent(ev_cfg);
+    if (mVolumeData)
+        free(mVolumeData);
 
     if (sm_config_) {
         free(sm_config_);
@@ -271,23 +269,41 @@ int32_t StreamSoundTrigger::close() {
         st_conf_levels_v2_ = nullptr;
     }
 
+    mDevices.clear();
+    PAL_DBG(LOG_TAG, "Exit");
+}
+
+int32_t StreamSoundTrigger::close() {
+    int32_t status = 0;
+
+    PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
+
+    std::lock_guard<std::mutex> lck(mStreamMutex);
+    std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
+    status = cur_state_->ProcessEvent(ev_cfg);
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
 
 int32_t StreamSoundTrigger::start() {
     int32_t status = 0;
+    stream_state_t prev_state;
 
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    // cache current state after mutex locked
+    prev_state = currentState;
+    currentState = STREAM_STARTED;
+
     rejection_notified_ = false;
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStartRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STARTED;
-    }
+    // restore cached state if start fails
+    if (status)
+        currentState = prev_state;
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -299,12 +315,11 @@ int32_t StreamSoundTrigger::stop() {
     PAL_DBG(LOG_TAG, "Enter, stream direction %d", mStreamAttr->direction);
 
     std::lock_guard<std::mutex> lck(mStreamMutex);
+    currentState = STREAM_STOPPED;
+
     std::shared_ptr<StEventConfig> ev_cfg(
        new StStopRecognitionEventConfig(false));
     status = cur_state_->ProcessEvent(ev_cfg);
-    if (!status) {
-        currentState = STREAM_STOPPED;
-    }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -349,12 +364,20 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
 int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
     int32_t status = 0;
     int32_t ret = 0;
+    struct pal_stream_attributes *sAttr = nullptr;
+    pal_param_payload *pal_payload = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter, get parameter %u", param_id);
-    if (gsl_engine_) {
-        status = gsl_engine_->GetParameters(param_id, payload);
+    if (param_id == PAL_PARAM_ID_STREAM_ATTRIBUTES) {
+        pal_payload = (pal_param_payload *)(*payload);
+        if (pal_payload->payload_size != sizeof(struct pal_stream_attributes)) {
+            PAL_ERR(LOG_TAG, "Invalid payload size %u", pal_payload->payload_size);
+            return -EINVAL;
+        }
+        sAttr = (struct pal_stream_attributes *)(pal_payload->payload);
+        status = getStreamAttributes(sAttr);
         if (status)
-            PAL_ERR(LOG_TAG, "Failed to get parameters from engine");
+            PAL_ERR(LOG_TAG, "Failed to get stream attributes");
     } else if (param_id == PAL_PARAM_ID_WAKEUP_MODULE_VERSION) {
         std::vector<std::shared_ptr<SoundModelConfig>> sm_cfg_list;
 
@@ -365,6 +388,11 @@ int32_t StreamSoundTrigger::getParameters(uint32_t param_id, void **payload) {
         }
 
         sm_cfg_ = sm_cfg_list[0];
+        if (!sm_cfg_) {
+            PAL_ERR(LOG_TAG, "Failed to get sound model config");
+            return -EINVAL;
+        }
+
         if (!mDevices.size()) {
             struct pal_device* dattr = new (struct pal_device);
             std::shared_ptr<Device> dev = nullptr;
@@ -426,6 +454,10 @@ release:
                 status = ret;
             }
         }
+    } else if (gsl_engine_) {
+        status = gsl_engine_->GetParameters(param_id, payload);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to get parameters from engine, status %d", status);
     } else {
         PAL_ERR(LOG_TAG, "No gsl engine present");
         status = -EINVAL;
@@ -467,11 +499,16 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
         case PAL_PARAM_ID_STOP_BUFFERING: {
             /*
             * Currently spf needs graph stop and start for next detection.
-            * Handle this event similar to STOP_RECOGNITION.
+            * Handle this event similar to STOP_RECOGNITION
+            * and when the stream state is in buffering.
             */
-            std::shared_ptr<StEventConfig> ev_cfg(
-                new StStopRecognitionEventConfig(false));
-            status = cur_state_->ProcessEvent(ev_cfg);
+            if (GetCurrentStateId() == ST_STATE_BUFFERING) {
+                std::shared_ptr<StEventConfig> ev_cfg(
+                    new StStopRecognitionEventConfig(false));
+                status = cur_state_->ProcessEvent(ev_cfg);
+            } else {
+                PAL_INFO(LOG_TAG, "Stream not in buffering state, ignore");
+            }
             if (st_info_->GetEnableDebugDumps()) {
                 ST_DBG_FILE_CLOSE(lab_fd_);
                 lab_fd_ = nullptr;
@@ -1130,6 +1167,11 @@ int32_t StreamSoundTrigger::LoadSoundModel(
     }
     GetUUID(&uuid, sound_model);
     this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
+        goto exit;
+    }
 
     /* Update stream attributes as per sound model config */
     updateStreamAttributes();
@@ -1372,6 +1414,7 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
     int32_t sm_size = 0;
     struct pal_st_phrase_sound_model *phrase_sm = nullptr;
     struct pal_st_sound_model *common_sm = nullptr;
+    class SoundTriggerUUID uuid;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1442,6 +1485,12 @@ int32_t StreamSoundTrigger::UpdateSoundModel(
                          (uint8_t *)common_sm + common_sm->data_offset,
                          common_sm->data_size);
         }
+    }
+    GetUUID(&uuid, sound_model);
+    this->sm_cfg_ = this->st_info_->GetSmConfig(uuid);
+    if (!this->sm_cfg_) {
+        PAL_ERR(LOG_TAG, "Failed to get sound model config");
+        status = -EINVAL;
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -2970,6 +3019,10 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
             break;
         }
         case ST_EV_UNLOAD_SOUND_MODEL: {
+            if (st_stream_.mInstanceID == 0) {
+                PAL_DBG(LOG_TAG, "No model is loaded, ignore unload");
+                break;
+            }
 
             if (st_stream_.device_opened_ && st_stream_.mDevices.size() > 0) {
                 status = st_stream_.mDevices[0]->close();
@@ -3134,13 +3187,15 @@ int32_t StreamSoundTrigger::StIdle::ProcessEvent(
                         goto err_concurrent;
                     }
 
-                    status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
-                        st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
-                        st_stream_.gsl_conf_levels_size_);
-                    if (0 != status) {
-                        PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
-                            status);
-                        goto err_unload;
+                    if (st_stream_.rec_config_) {
+                        status = st_stream_.gsl_engine_->UpdateConfLevels(&st_stream_,
+                            st_stream_.rec_config_, st_stream_.gsl_conf_levels_,
+                            st_stream_.gsl_conf_levels_size_);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "Failed to update conf levels, status %d",
+                                status);
+                            goto err_unload;
+                        }
                     }
 
                     TransitTo(ST_STATE_LOADED);

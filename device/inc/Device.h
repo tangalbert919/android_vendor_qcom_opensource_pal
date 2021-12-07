@@ -98,6 +98,8 @@ public:
     void getCurrentSndDevName(char *name);
     uint32_t getCurrentPriority(){return mCurrentPriority;};
     void setCurrentPrioirty(uint32_t prio){mCurrentPriority = prio;};
+    void lockDeviceMutex() { mDeviceMutex.lock(); };
+    void unlockDeviceMutex() { mDeviceMutex.unlock(); };
 };
 
 

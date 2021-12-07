@@ -59,6 +59,7 @@ Bluetooth::Bluetooth(struct pal_device *device, std::shared_ptr<ResourceManager>
       isTwsMonoModeOn(false),
       isScramblingEnabled(false),
       isDummySink(false),
+      isEncDecConfigured(false),
       abrRefCnt(0),
       totalActiveSessionRequests(0)
 {
@@ -234,6 +235,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     codecConfig.ch_info.channels = out_buf->channel_count;
 
     isAbrEnabled = out_buf->is_abr_enabled;
+    isEncDecConfigured = (out_buf->is_enc_config_set && out_buf->is_dec_config_set);
 
     /* Reset device GKV for AAC ABR */
     if ((codecFormat == CODEC_TYPE_AAC) && isAbrEnabled)
@@ -664,6 +666,7 @@ void Bluetooth::startAbr()
     uint8_t* paramData = NULL;
     size_t paramSize = 0;
     PayloadBuilder* builder = NULL;
+    bool isDeviceLocked = false;
 
     memset(&fbDevice, 0, sizeof(fbDevice));
     memset(&sAttr, 0, sizeof(sAttr));
@@ -678,14 +681,8 @@ void Bluetooth::startAbr()
     /* Configure device attributes */
     ch_info.channels = CHANNELS_1;
     ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-
     fbDevice.config.ch_info = ch_info;
-    if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) ||
-        (codecFormat == CODEC_TYPE_LC3))
-        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
-    else
-        fbDevice.config.sample_rate = SAMPLINGRATE_8K;
-
+    fbDevice.config.sample_rate = SAMPLINGRATE_8K;
     fbDevice.config.bit_width = BITWIDTH_16;
     fbDevice.config.aud_fmt_id = PAL_AUDIO_FMT_DEFAULT_COMPRESSED;
 
@@ -780,9 +777,20 @@ void Bluetooth::startAbr()
             goto err_pcm_open;
         }
 
+        fbDev->lockDeviceMutex();
+        isDeviceLocked = true;
+
         if (fbDev->isConfigured == true) {
             PAL_INFO(LOG_TAG, "feedback path is already configured");
             goto start_pcm;
+        }
+
+        // override device attributions
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+        ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &fbDevice);
+        if (ret) {
+            PAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
+            goto err_pcm_open;
         }
 
         codecTagId = (codecType == DEC ? BT_PLACEHOLDER_ENCODER : BT_PLACEHOLDER_DECODER);
@@ -846,9 +854,20 @@ void Bluetooth::startAbr()
             }
         }
 
+        fbDev->lockDeviceMutex();
+        isDeviceLocked = true;
+
         if (fbDev->isConfigured == true) {
             PAL_INFO(LOG_TAG, "feedback path is already configured");
             goto start_pcm;
+        }
+
+        // override device attributions
+        fbDevice.config.sample_rate = SAMPLINGRATE_96K;
+        ret = SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &fbDevice);
+        if (ret) {
+            PAL_ERR(LOG_TAG, "setDeviceMediaConfig for feedback device failed");
+            goto err_pcm_open;
         }
 
         /* configure COP v2 depacketizer */
@@ -924,6 +943,10 @@ free_fe:
     rm->freeFrontEndIds(fbpcmDevIds, sAttr, dir);
     fbpcmDevIds.clear();
 done:
+    if (isDeviceLocked) {
+        isDeviceLocked = false;
+        fbDev->unlockDeviceMutex();
+    }
     mAbrMutex.unlock();
     if (builder) {
        delete builder;
@@ -1031,6 +1054,7 @@ audio_get_dec_config_t BtA2dp::audio_get_dec_config = nullptr;
 audio_sink_session_setup_complete_t BtA2dp::audio_sink_session_setup_complete = nullptr;
 audio_sink_check_a2dp_ready_t BtA2dp::audio_sink_check_a2dp_ready = nullptr;
 audio_is_scrambling_enabled_t BtA2dp::audio_is_scrambling_enabled = nullptr;
+audio_sink_suspend_t BtA2dp::audio_sink_suspend = nullptr;
 
 
 BtA2dp::BtA2dp(struct pal_device *device, std::shared_ptr<ResourceManager> Rm)
@@ -1171,14 +1195,14 @@ void BtA2dp::init_a2dp_sink()
                   dlsym(bt_lib_sink_handle, "audio_get_codec_config");
             audio_sink_get_a2dp_latency = (audio_sink_get_a2dp_latency_t)
                 dlsym(bt_lib_sink_handle, "audio_sink_get_a2dp_latency");
-            audio_source_start = (audio_source_start_t)
-                  dlsym(bt_lib_sink_handle, "audio_start_stream");
-            audio_source_stop = (audio_source_stop_t)
-                  dlsym(bt_lib_sink_handle, "audio_stop_stream");
+            audio_sink_start = (audio_sink_start_t)
+                  dlsym(bt_lib_sink_handle, "audio_sink_start_stream");
+            audio_sink_stop = (audio_sink_stop_t)
+                  dlsym(bt_lib_sink_handle, "audio_sink_stop_stream");
             audio_source_check_a2dp_ready = (audio_source_check_a2dp_ready_t)
                   dlsym(bt_lib_sink_handle, "audio_check_a2dp_ready");
-            audio_source_suspend = (audio_source_suspend_t)
-                dlsym(bt_lib_sink_handle, "audio_suspend_stream");
+            audio_sink_suspend = (audio_sink_suspend_t)
+                dlsym(bt_lib_sink_handle, "audio_sink_suspend_stream");
 #else
             // On Linux Builds - A2DP Sink Profile is supported via different lib
             PAL_ERR(LOG_TAG, "DLOPEN failed for %s", BT_IPC_SINK_LIB);
@@ -1459,7 +1483,7 @@ int BtA2dp::startCapture()
     } else {
         uint8_t multi_cast = 0, num_dev = 1;
 
-        if (!(bt_lib_sink_handle && audio_source_start
+        if (!(bt_lib_sink_handle && audio_sink_start
             && audio_get_enc_config)) {
             PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring start capture request");
             return -ENOSYS;
@@ -1474,7 +1498,7 @@ int BtA2dp::startCapture()
         if (a2dpState != A2DP_STATE_STARTED  && !totalActiveSessionRequests) {
             PAL_DBG(LOG_TAG, "calling BT module stream start");
             /* This call indicates BT IPC lib to start */
-            ret =  audio_source_start();
+            ret =  audio_sink_start();
             PAL_ERR(LOG_TAG, "BT controller start return = %d",ret);
             if (ret != 0 ) {
                 PAL_ERR(LOG_TAG, "BT controller start failed");
@@ -1519,7 +1543,7 @@ int BtA2dp::stopCapture()
     int ret =0;
 
     PAL_VERBOSE(LOG_TAG, "a2dp_stop_capture start");
-    if (!isDummySink && !(bt_lib_sink_handle && audio_sink_stop)) {
+    if (!(bt_lib_sink_handle && audio_sink_stop)) {
         PAL_ERR(LOG_TAG, "a2dp handle is not identified, Ignoring stop request");
         return -ENOSYS;
     }
@@ -1530,20 +1554,11 @@ int BtA2dp::stopCapture()
     if (a2dpState == A2DP_STATE_STARTED && !totalActiveSessionRequests) {
         PAL_VERBOSE(LOG_TAG, "calling BT module stream stop");
         isConfigured = false;
-        if (!isDummySink) {
-            ret = audio_sink_stop();
-            if (ret < 0) {
-                PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
-            } else {
-                PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
-            }
+        ret = audio_sink_stop();
+        if (ret < 0) {
+            PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
         } else {
-            ret = audio_source_stop();
-            if (ret < 0) {
-                PAL_ERR(LOG_TAG, "stop stream to BT IPC lib failed");
-            } else {
-                PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
-            }
+            PAL_VERBOSE(LOG_TAG, "stop steam to BT IPC lib successful");
         }
         a2dpState = A2DP_STATE_STOPPED;
 
@@ -1700,8 +1715,8 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
                 goto exit;
 
             rm->a2dpCaptureSuspend();
-            if (audio_source_suspend)
-                audio_source_suspend();
+            if (audio_sink_suspend)
+                audio_sink_suspend();
         } else {
             if (clear_source_a2dpsuspend_flag)
                 clear_source_a2dpsuspend_flag();
@@ -1709,8 +1724,8 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             param_bt_a2dp.a2dp_capture_suspended = false;
 
             if (totalActiveSessionRequests > 0) {
-                if (audio_source_start) {
-                    status = audio_source_start();
+                if (audio_sink_start) {
+                    status = audio_sink_start();
                     if (status) {
                         PAL_ERR(LOG_TAG, "BT controller start failed");
                         goto exit;

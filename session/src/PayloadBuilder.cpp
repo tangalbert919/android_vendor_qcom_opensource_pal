@@ -857,20 +857,20 @@ done:
     return ret;
 }
 
-void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t moduleId)
+void PayloadBuilder::payloadTimestamp(std::shared_ptr<std::vector<uint8_t>>& payload,
+                                      size_t *size, uint32_t moduleId)
 {
     size_t payloadSize, padBytes;
-    uint8_t *payloadInfo = NULL;
     struct apm_module_param_data_t* header;
     payloadSize = sizeof(struct apm_module_param_data_t) +
                   sizeof(struct param_id_spr_session_time_t);
     padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
-    payloadInfo = new uint8_t[payloadSize + padBytes]();
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+    payload = std::make_shared<std::vector<uint8_t>>(payloadSize + padBytes);
+    if (!payload) {
+        PAL_ERR(LOG_TAG, "payload malloc failed %s", strerror(errno));
         return;
     }
-    header = (struct apm_module_param_data_t*)payloadInfo;
+    header = (struct apm_module_param_data_t*)payload->data();
     header->module_instance_id = moduleId;
     header->param_id = PARAM_ID_SPR_SESSION_TIME;
     header->error_code = 0x0;
@@ -878,9 +878,8 @@ void PayloadBuilder::payloadTimestamp(uint8_t **payload, size_t *size, uint32_t 
     PAL_VERBOSE(LOG_TAG, "header params IID:%x param_id:%x error_code:%d param_size:%d",
                   header->module_instance_id, header->param_id,
                   header->error_code, header->param_size);
-    *size = payloadSize + padBytes;;
-    *payload = payloadInfo;
-    PAL_DBG(LOG_TAG, "payload %pK size %zu", *payload, *size);
+    *size = payloadSize + padBytes;
+    PAL_DBG(LOG_TAG, "payload %pK size %zu", payload->data(), *size);
 }
 
 int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
@@ -2479,7 +2478,7 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
         return status;
     }
 
-    float voldB = 0.0f;
+    long voldB = 0;
     struct pal_volume_data *voldata = NULL;
     voldata = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
                       (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
@@ -2495,56 +2494,57 @@ int PayloadBuilder::populateCalKeyVector(Stream *s, std::vector <std::pair<int,i
     }
 
     PAL_VERBOSE(LOG_TAG,"volume sent:%f \n",(voldata->volume_pair[0].vol));
-    voldB = (voldata->volume_pair[0].vol);
+    /*scaling the volume by PLAYBACK_VOLUME_MAX factor*/
+    voldB = (long)((voldata->volume_pair[0].vol) * (PLAYBACK_VOLUME_MAX*1.0));
 
     switch (static_cast<uint32_t>(tag)) {
     case TAG_STREAM_VOLUME:
-        if (voldB == 0.0f) {
+        if (voldB == 0L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_15));
         }
-        else if (voldB <= 0.002172f) {
+        else if (voldB <= 17L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_14));
         }
-        else if (voldB <= 0.004660f) {
+        else if (voldB <= 38L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_13));
         }
-        else if (voldB <= 0.01f) {
+        else if (voldB <= 81L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_12));
         }
-        else if (voldB <= 0.014877f) {
+        else if (voldB <= 121L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_11));
         }
-        else if (voldB <= 0.023646f) {
+        else if (voldB <= 193L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_10));
         }
-        else if (voldB <= 0.037584f) {
+        else if (voldB <= 307L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_9));
         }
-        else if (voldB <= 0.055912f) {
+        else if (voldB <= 458L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_8));
         }
-        else if (voldB <= 0.088869f) {
+        else if (voldB <= 728L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_7));
         }
-        else if (voldB <= 0.141254f) {
+        else if (voldB <= 1157L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_6));
         }
-        else if (voldB <= 0.189453f) {
+        else if (voldB <= 1551L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_5));
         }
-        else if (voldB <= 0.266840f) {
+        else if (voldB <= 2185L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_4));
         }
-        else if (voldB <= 0.375838f) {
+        else if (voldB <= 3078L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_3));
         }
-        else if (voldB <= 0.504081f) {
+        else if (voldB <= 4129L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_2));
         }
-        else if (voldB <= 0.709987f) {
+        else if (voldB <= 5816L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_1));
         }
-        else if (voldB <= 1.0f) {
+        else if (voldB <= 8192L) {
             ckv.push_back(std::make_pair(VOLUME,LEVEL_0));
         }
         break;
