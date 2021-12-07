@@ -6870,6 +6870,7 @@ int32_t ResourceManager::a2dpSuspend()
             /* For a2dp + spkr or handset combo use case,
              * add speaker or handset into suspended devices for restore during a2dpResume
              */
+            (*sIter)->lockStreamMutex();
             if (rm->isDeviceAvailable(associatedDevices, switchDevDattr.id)) {
                 // combo use-case; just remember to keep the non-a2dp devices when restoring.
                 PAL_DBG(LOG_TAG, "Stream %pK is on combo device; Dont Pause/Mute", *sIter);
@@ -6905,6 +6906,7 @@ int32_t ResourceManager::a2dpSuspend()
                     (*sIter)->a2dpMuted = true;
                 }
             }
+            (*sIter)->unlockStreamMutex();
         }
     }
 
@@ -6923,6 +6925,7 @@ int32_t ResourceManager::a2dpSuspend()
     mActiveStreamMutex.lock();
     for (sIter = activeA2dpStreams.begin(); sIter != activeA2dpStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            (*sIter)->lockStreamMutex();
             struct pal_stream_attributes sAttr;
             (*sIter)->getStreamAttributes(&sAttr);
             if (((sAttr.type == PAL_STREAM_COMPRESSED) ||
@@ -6937,6 +6940,7 @@ int32_t ResourceManager::a2dpSuspend()
                 }
             }
             (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+            (*sIter)->unlockStreamMutex();
         }
     }
     mActiveStreamMutex.unlock();
@@ -7059,6 +7063,7 @@ int32_t ResourceManager::a2dpResume()
     mActiveStreamMutex.lock();
     for (sIter = restoredStreams.begin(); sIter != restoredStreams.end(); sIter++) {
         if (((*sIter) != NULL) && isStreamActive(*sIter, mActiveStreams)) {
+            (*sIter)->lockStreamMutex();
             (*sIter)->suspendedDevIds.clear();
             status = (*sIter)->getVolumeData(volume);
             if (status) {
@@ -7073,6 +7078,7 @@ int32_t ResourceManager::a2dpResume()
                 continue;
             }
             (*sIter)->mute_l(false);
+            (*sIter)->unlockStreamMutex();
         }
     }
     mActiveStreamMutex.unlock();
