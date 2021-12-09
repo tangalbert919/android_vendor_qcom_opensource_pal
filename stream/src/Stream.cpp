@@ -389,6 +389,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_DEEP_BUFFER:
         delayMs = PAL_DEEP_BUFFER_PLATFORM_DELAY / 1000;
         break;
+    case PAL_STREAM_GENERIC:
+        delayMs = PAL_GENERIC_PLATFORM_DELAY / 1000;
+        break;
     case PAL_STREAM_LOW_LATENCY:
         delayMs = PAL_LOW_LATENCY_PLATFORM_DELAY / 1000;
         break;
@@ -416,6 +419,10 @@ uint32_t Stream::getLatency()
     }
 
     switch (mStreamAttr->type) {
+    case PAL_STREAM_GENERIC:
+        latencyMs = PAL_GENERIC_OUTPUT_PERIOD_DURATION *
+            PAL_GENERIC_PLAYBACK_PERIOD_COUNT;
+        break;
     case PAL_STREAM_DEEP_BUFFER:
         latencyMs = PAL_DEEP_BUFFER_OUTPUT_PERIOD_DURATION *
             PAL_DEEP_BUFFER_PLAYBACK_PERIOD_COUNT;
