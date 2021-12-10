@@ -1259,13 +1259,17 @@ int BtA2dp::start()
     customPayloadSize = 0;
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
-    if (status)
+    if (status) {
+        isAbrEnabled = false;
         goto exit;
+    }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
-        if (status)
+        if (status) {
+            isAbrEnabled = false;
             goto exit;
+        }
     }
 
     status = Device::start_l();
