@@ -542,6 +542,11 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
 
     mStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter");
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
         {
