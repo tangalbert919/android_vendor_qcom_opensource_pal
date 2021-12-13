@@ -1494,6 +1494,7 @@ int32_t SoundTriggerEngineGsl::UpdateMergeConfLevelsWithActiveStreams() {
 void SoundTriggerEngineGsl::UpdateState(eng_state_t state) {
 
     state_mutex_.lock();
+    PAL_INFO(LOG_TAG, "Engine state transitioned from %d to %d", eng_state_, state);
     eng_state_ = state;
     state_mutex_.unlock();
 
@@ -2461,7 +2462,6 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size) {
     int32_t status = 0;
 
-    std::unique_lock<std::mutex> lck(mutex_);
     /*
      * reset ring buffer before parsing detection payload as
      * keyword index will be updated in parsing.
@@ -2521,7 +2521,7 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
         return;
 
     engine = (SoundTriggerEngineGsl *)hdl;
-
+    std::unique_lock<std::mutex> lck(engine->mutex_);
     /*
      * In multi sound model/merged sound model case, SPF might still give detections
      * for one model when the engine is in buffering state due to detection
@@ -2533,9 +2533,12 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
         engine->state_mutex_.unlock();
         engine->detection_time_ = std::chrono::steady_clock::now();
         engine->HandleSessionEvent(event_id, data, event_size);
+    } else if (engine->eng_state_ == ENG_LOADED) {
+        engine->state_mutex_.unlock();
+        PAL_DBG(LOG_TAG, "Detection comes during engine stop, ignore and reset");
+        engine->UpdateSessionPayload(ENGINE_RESET);
     } else {
         engine->state_mutex_.unlock();
-        PAL_INFO(LOG_TAG, "Engine not active or buffering might be going on, ignore");
     }
 
     PAL_DBG(LOG_TAG, "Exit");
