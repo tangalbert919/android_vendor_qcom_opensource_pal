@@ -5999,11 +5999,20 @@ bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
     else if(!Dev1Info->samplerate_overwrite && !Dev2Info->samplerate_overwrite) {
         if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K != 0)) {
-            Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
-            updated = true;
+            if (Dev1Info->priority < Dev2Info->priority) {
+                Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
+                updated = true;
+            } else {
+                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev has priority");
+            }
         } else if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K != 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
-            PAL_DBG(LOG_TAG,"no need to update sample rate as inDev is 44.1K");
+            if (Dev1Info->priority < Dev2Info->priority) {
+                Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
+                updated = true;
+            } else {
+                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev is 44.1K");
+            }
         } else if (Dev1Attr->config.sample_rate > Dev2Attr->config.sample_rate){
             Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
             updated = true;
