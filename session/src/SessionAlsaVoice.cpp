@@ -1733,6 +1733,12 @@ int SessionAlsaVoice::setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, boo
         goto exit;
     }
 
+    status = s->getStreamAttributes(&sAttr);
+    if(0 != status) {
+       PAL_ERR(LOG_TAG, "getStreamAttributes Failed \n");
+       goto exit;
+    }
+
     rxDevInfo.isExternalECRefEnabledFlag = 0;
     if (rx_dev) {
         status = rx_dev->getDeviceAttributes(&rxDevAttr);
