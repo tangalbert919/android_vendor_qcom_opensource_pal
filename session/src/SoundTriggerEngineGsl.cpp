@@ -846,6 +846,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     std::memset(&pdk_wakeup_config_, 0, sizeof(pdk_wakeup_config_));
     std::memset(&buffer_config_, 0, sizeof(buffer_config_));
     std::memset(&mmap_buffer_, 0, sizeof(mmap_buffer_));
+    mmap_buffer_.fd = -1;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -927,6 +928,10 @@ SoundTriggerEngineGsl::~SoundTriggerEngineGsl() {
         buffer_thread_handler_.join();
         lck.lock();
         PAL_INFO(LOG_TAG, "Thread joined");
+    }
+
+    if (mmap_buffer_.fd != -1) {
+        close(mmap_buffer_.fd);
     }
 
     if (buffer_) {
@@ -1529,7 +1534,11 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamLoad(Stream *s, uint8_t *data,
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         UpdateState(ENG_IDLE);
 
         /* Update the engine with merged sound model */
@@ -1650,7 +1659,11 @@ int32_t SoundTriggerEngineGsl::HandleMultiStreamUnload(Stream *s) {
         status = session_->close(eng_streams_[0]);
         if (status)
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         UpdateState(ENG_IDLE);
         /* Update the engine with modified sound model after deletion */
         status = UpdateEngineModel(s, nullptr, 0, false);
@@ -2073,7 +2086,11 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
             PAL_ERR(LOG_TAG, "Failed to close session, status = %d", status);
 
         UpdateState(ENG_IDLE);
-        mmap_buffer_.buffer = nullptr;
+        if (mmap_buffer_.buffer) {
+            close(mmap_buffer_.fd);
+            mmap_buffer_.fd = -1;
+            mmap_buffer_.buffer = nullptr;
+        }
         use_lpi_ = st->GetLPIEnabled();
     }
 
