@@ -156,6 +156,7 @@ protected:
     uint32_t mInstanceID = 0;
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
+    bool mutexLockedbyRm = false;
     int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
@@ -252,8 +253,15 @@ public:
                                                            uint32_t event_size);
     static void handleStreamException(struct pal_stream_attributes *attributes,
                                       pal_stream_callback cb, uint64_t cookie);
-    void lockStreamMutex() { mStreamMutex.lock();};
-    void unlockStreamMutex() { mStreamMutex.unlock();};
+    void lockStreamMutex() {
+        mStreamMutex.lock();
+        mutexLockedbyRm = true;
+    };
+    void unlockStreamMutex() {
+        mutexLockedbyRm = false;
+        mStreamMutex.unlock();
+    };
+    bool isMutexLockedbyRm() { return mutexLockedbyRm; }
 };
 
 class StreamNonTunnel : public Stream
