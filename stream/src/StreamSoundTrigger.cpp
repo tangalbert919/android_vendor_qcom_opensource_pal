@@ -62,7 +62,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     class SoundTriggerUUID uuid;
     int32_t enable_concurrency_count = 0;
     int32_t disable_concurrency_count = 0;
-    sm_info_ = nullptr;
     reader_ = nullptr;
     detection_state_ = ENGINE_IDLE;
     notification_state_ = ENGINE_IDLE;
@@ -4564,6 +4563,14 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             } else {
                 st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            break;
+        }
+        case ST_EV_RESUME: {
+            st_stream_.paused_ = false;
             break;
         }
         case ST_EV_READ_BUFFER:
