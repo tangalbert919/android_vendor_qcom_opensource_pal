@@ -8336,29 +8336,33 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             removePlugInDevice(device_id, connection_state);
         }
 
-        auto iter =
-            std::find(avail_devices_.begin(), avail_devices_.end(), device_id);
+        if (device_id) {
+            auto iter =
+                std::find(avail_devices_.begin(), avail_devices_.end(),
+                            device_id);
 
-        if (iter != avail_devices_.end()) {
-            PAL_INFO(LOG_TAG, "found device id 0x%x in avail_device", device_id);
-            conn_device.id = device_id;
-            dev = Device::getInstance(&conn_device, rm);
-            if (!dev) {
-                PAL_ERR(LOG_TAG, "Device getInstance failed");
-                throw std::runtime_error("failed to get device object");
-                status = -EIO;
-                goto err;
+            if (iter != avail_devices_.end()) {
+                PAL_INFO(LOG_TAG, "found device id 0x%x in avail_device",
+                                        device_id);
+                conn_device.id = device_id;
+                dev = Device::getInstance(&conn_device, rm);
+                if (!dev) {
+                    PAL_ERR(LOG_TAG, "Device getInstance failed");
+                    throw std::runtime_error("failed to get device object");
+                    status = -EIO;
+                    goto err;
+                }
+
+                if (isBtScoDevice(device_id) && (removeScoDevice == false))
+                    goto exit;
+
+                dev->setDeviceAttributes(conn_device);
+                PAL_INFO(LOG_TAG, "device attribute cleared");
+                PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
             }
-
-            if (isBtScoDevice(device_id) && (removeScoDevice == false))
-                goto exit;
-
-            dev->setDeviceAttributes(conn_device);
-            PAL_INFO(LOG_TAG, "device attribute cleared");
-            PAL_DBG(LOG_TAG, "Mark device %d as unavailable", device_id);
-            avail_devices_.erase(std::find(avail_devices_.begin(),
-                                avail_devices_.end(), device_id));
         }
+        avail_devices_.erase(std::find(avail_devices_.begin(),
+                                avail_devices_.end(), device_id));
     } else if (!isBtScoDevice(device_id)) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid operation, Device %d, connection state %d, device avalibilty %d",
