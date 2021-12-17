@@ -4568,6 +4568,18 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     return result;
 }
 
+int ResourceManager::updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+    std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
+{
+    int status = 0;
+    mResourceManagerMutex.lock();
+    status = updateECDeviceMap(rx_dev, tx_dev, tx_str, count, is_txstop);
+    mResourceManagerMutex.unlock();
+
+    return status;
+}
+
+
 int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
 {
