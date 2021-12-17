@@ -749,6 +749,13 @@ int32_t StreamCompress::resume_l()
        goto exit;
     }
 
+    if (isFlushed) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->registerDevice(mDevices[i], this);
+        }
+        isFlushed = false;
+    }
+
     isPaused = false;
     currentState = STREAM_STARTED;
     PAL_VERBOSE(LOG_TAG,"session resume successful, state %d", currentState);
@@ -788,6 +795,11 @@ int32_t StreamCompress::flush()
                currentState);
         return 0;
     }
+
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i], this);
+    }
+    isFlushed = true;
     return session->flush();
 }
 
