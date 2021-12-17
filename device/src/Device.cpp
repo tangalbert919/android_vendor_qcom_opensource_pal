@@ -408,7 +408,7 @@ int Device::close()
            PAL_DBG(LOG_TAG, "Disabling device %d with snd dev %s", deviceAttr.id, mSndDeviceName);
            disableDevice(audioRoute, mSndDeviceName);
            mCurrentPriority = MIN_USECASE_PRIORITY;
-           deviceStartDone = false;
+           deviceStartStopCount = 0;
        }
     }
     PAL_INFO(LOG_TAG, "Exit. deviceCount %d for device id %d (%s), exit status %d", deviceCount,
@@ -439,9 +439,10 @@ int Device::start_l()
     int status = 0;
     std::string backEndName;
 
-    PAL_DBG(LOG_TAG, "Enter. deviceCount %d for device id %d (%s)", deviceCount,
+    PAL_DBG(LOG_TAG, "Enter. deviceCount %d deviceStartStopCount %d"
+        " for device id %d (%s)", deviceCount, deviceStartStopCount,
             this->deviceAttr.id, mPALDeviceName.c_str());
-    if (!deviceStartDone) {
+    if (0 == deviceStartStopCount) {
         rm->getBackendName(deviceAttr.id, backEndName);
         if (!strlen(backEndName.c_str())) {
             PAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
@@ -458,8 +459,8 @@ int Device::start_l()
                  PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
                                    deviceAttr.id);
         }
-        deviceStartDone = true;
     }
+    deviceStartStopCount++;
 exit :
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
@@ -479,6 +480,14 @@ int Device::stop()
 // must be called with mDeviceMutex held
 int Device::stop_l()
 {
+    PAL_DBG(LOG_TAG, "Enter. deviceCount %d deviceStartStopCount %d"
+        " for device id %d (%s)", deviceCount, deviceStartStopCount,
+            this->deviceAttr.id, mPALDeviceName.c_str());
+
+    if (deviceStartStopCount > 0) {
+        --deviceStartStopCount;
+    }
+
     return 0;
 }
 
