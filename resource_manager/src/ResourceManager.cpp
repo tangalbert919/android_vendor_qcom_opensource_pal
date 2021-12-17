@@ -445,6 +445,7 @@ std::vector<deviceIn> ResourceManager::deviceInfo;
 std::vector<tx_ecinfo> ResourceManager::txEcInfo;
 struct vsid_info ResourceManager::vsidInfo;
 struct volume_set_param_info ResourceManager::volumeSetParamInfo_;
+struct disable_lpm_info ResourceManager::disableLpmInfo_;
 std::vector<struct pal_amp_db_and_gain_table> ResourceManager::gainLvlMap;
 std::map<std::pair<uint32_t, std::string>, std::string> ResourceManager::btCodecMap;
 std::map<int, std::string> ResourceManager::spkrTempCtrlsMap;
@@ -1642,6 +1643,20 @@ int32_t ResourceManager::getVolumeSetParamInfo(struct volume_set_param_info *vol
 
     for (int size = 0; size < volumeSetParamInfo_.streams_.size(); size++) {
         volinfo->streams_.push_back(volumeSetParamInfo_.streams_[size]);
+    }
+
+    return 0;
+}
+
+int32_t ResourceManager::getDisableLpmInfo(struct disable_lpm_info *lpminfo)
+{
+    if (!lpminfo)
+       return 0;
+
+    lpminfo->isDisableLpm = disableLpmInfo_.isDisableLpm;
+
+    for (int size = 0; size < disableLpmInfo_.streams_.size(); size++) {
+        lpminfo->streams_.push_back(disableLpmInfo_.streams_[size]);
     }
 
     return 0;
@@ -8831,6 +8846,33 @@ void ResourceManager::process_config_volume(struct xml_userdata *data, const XML
     }
 }
 
+void ResourceManager::process_config_lpm(struct xml_userdata *data, const XML_Char *tag_name)
+{
+    if (data->offs <= 0 || data->resourcexml_parsed)
+        return;
+
+    data->data_buf[data->offs] = '\0';
+    if (data->tag == TAG_CONFIG_LPM) {
+        if (strcmp(tag_name, "use_disable_lpm") == 0) {
+            disableLpmInfo_.isDisableLpm = atoi(data->data_buf);
+        }
+    }
+    if (data->tag == TAG_CONFIG_LPM_SUPPORTED_STREAM) {
+        std::string stream_name(data->data_buf);
+        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        uint32_t st = usecaseIdLUT.at(stream_name);
+        disableLpmInfo_.streams_.push_back(st);
+        PAL_DBG(LOG_TAG, "[PKU]Stream type added for disable lpm : %d", st);
+    }
+    if (!strcmp(tag_name, "lpm_supported_stream")) {
+        data->tag = TAG_CONFIG_LPM_SUPPORTED_STREAMS;
+    } else if (!strcmp(tag_name, "lpm_supported_streams")) {
+        data->tag = TAG_CONFIG_LPM;
+    } else if (!strcmp(tag_name, "config_lpm")) {
+        data->tag = TAG_RESOURCE_MANAGER_INFO;
+    }
+}
+
 void ResourceManager::process_config_voice(struct xml_userdata *data, const XML_Char *tag_name)
 {
     if(data->voice_info_parsed)
@@ -9403,6 +9445,12 @@ void ResourceManager::startTag(void *userdata, const XML_Char *tag_name,
         data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS;
     } else if (!strcmp(tag_name, "supported_stream")) {
         data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM;
+    } else if (!strcmp(tag_name, "config_lpm")) {
+        data->tag = TAG_CONFIG_LPM;
+    } else if (!strcmp(tag_name, "lpm_supported_streams")) {
+        data->tag = TAG_CONFIG_LPM_SUPPORTED_STREAMS;
+    } else if (!strcmp(tag_name, "lpm_supported_stream")) {
+        data->tag = TAG_CONFIG_LPM_SUPPORTED_STREAM;
     }
 
     if (!strcmp(tag_name, "card"))
@@ -9462,6 +9510,7 @@ void ResourceManager::endTag(void *userdata, const XML_Char *tag_name)
     process_input_streams(data,tag_name);
     process_lpi_vote_streams(data, tag_name);
     process_config_volume(data, tag_name);
+    process_config_lpm(data, tag_name);
 
     if (data->card_parsed)
         return;

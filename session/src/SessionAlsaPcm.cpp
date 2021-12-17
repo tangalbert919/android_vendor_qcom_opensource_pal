@@ -681,6 +681,8 @@ int SessionAlsaPcm::start(Stream * s)
     struct agm_event_reg_cfg *acd_event_cfg = nullptr;
     int tagId = 0;
     int DeviceId;
+    struct disable_lpm_info lpm_info;
+    bool isStreamAvail = false;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1064,8 +1066,12 @@ set_mixer:
             }
 
 pcm_start:
-            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
-                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
+            rm->getDisableLpmInfo(&lpm_info);
+            isStreamAvail = (find(lpm_info.streams_.begin(),
+                            lpm_info.streams_.end(), sAttr.type) !=
+                            lpm_info.streams_.end());
+            if (isStreamAvail && lpm_info.isDisableLpm) {
                 std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
                 PAL_DBG(LOG_TAG,"pcmLpmRefCnt %d\n", pcmLpmRefCnt);
                 pcmLpmRefCnt++;
@@ -1296,6 +1302,8 @@ int SessionAlsaPcm::close(Stream * s)
     std::vector<std::shared_ptr<Device>> associatedDevices;
     int ldir = 0;
     std::vector<int> pcmId;
+    struct disable_lpm_info lpm_info;
+    bool isStreamAvail = false;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!frontEndIdAllocated) {
@@ -1374,8 +1382,12 @@ int SessionAlsaPcm::close(Stream * s)
                 !(sAttr.flags & PAL_STREAM_FLAG_MMAP_NO_IRQ_MASK))
                 deRegisterAdmStream(s);
 
-            if (sAttr.type == PAL_STREAM_LOW_LATENCY ||
-                    sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            memset(&lpm_info, 0, sizeof(struct disable_lpm_info));
+            rm->getDisableLpmInfo(&lpm_info);
+            isStreamAvail = (find(lpm_info.streams_.begin(),
+                            lpm_info.streams_.end(), sAttr.type) !=
+                            lpm_info.streams_.end());
+            if (isStreamAvail && lpm_info.isDisableLpm) {
                 std::lock_guard<std::mutex> lock(pcmLpmRefCntMtx);
                 PAL_DBG(LOG_TAG, "pcm_close pcmLpmRefCnt %d", pcmLpmRefCnt);
                 pcmLpmRefCnt--;
