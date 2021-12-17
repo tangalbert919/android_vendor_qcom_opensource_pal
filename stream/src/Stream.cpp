@@ -102,6 +102,7 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         goto stream_create;
     for (int i = 0; i < noOfDevices; i++) {
         struct pal_device_info devinfo = {};
+        palDevsAttr[i] = {};
 
         if (sAttr->type == PAL_STREAM_ULTRASOUND) {
             if (i == 0) { // first assign output device
@@ -709,9 +710,9 @@ exit:
 int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
 {
     int32_t status = 0;
-    struct pal_device dattr;
-    struct pal_device spkrDattr;
-    struct pal_device handsetDattr;
+    struct pal_device dattr = {};
+    struct pal_device spkrDattr = {};
+    struct pal_device handsetDattr = {};
     std::shared_ptr<Device> dev = nullptr;
     std::shared_ptr<Device> spkrDev = nullptr;
     std::shared_ptr<Device> handsetDev = nullptr;
@@ -1074,7 +1075,7 @@ dev_close:
     dev->close();
 exit:
     /*check if USB is not available restore to default device */
-    if (status && (dev->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET ||
+    if (dev && status && (dev->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET ||
                    dev->getSndDeviceId() == PAL_DEVICE_IN_USB_HEADSET))
     {
        if(USB::isUsbConnected(dattr->address)){

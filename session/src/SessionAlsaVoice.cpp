@@ -1716,7 +1716,7 @@ char* SessionAlsaVoice::getMixerVoiceStream(Stream *s, int dir){
 int SessionAlsaVoice::setExtECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_enable)
 {
     int status = 0;
-    struct pal_stream_attributes sAttr;
+    struct pal_stream_attributes sAttr = {};
     struct pal_device rxDevAttr = {};
     struct pal_device_info rxDevInfo = {};
 
