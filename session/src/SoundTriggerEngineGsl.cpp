@@ -764,15 +764,7 @@ Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
      */
     if (!IS_MODULE_TYPE_PDK(module_type_)) {
         if (eng_streams_.size() == 1) {
-            st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[0]);
-            if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
-                st->GetCurrentStateId() == ST_STATE_DETECTED ||
-                st->GetCurrentStateId() == ST_STATE_BUFFERING) {
-                return eng_streams_[0];
-            } else {
-                PAL_ERR(LOG_TAG, "Detected stream is not in active state");
-                return nullptr;
-            }
+            return eng_streams_[0];
         }
 
         if (detection_event_info_.num_confidence_levels <
@@ -798,21 +790,14 @@ Stream* SoundTriggerEngineGsl::GetDetectedStream(uint32_t model_id) {
                 for (uint32_t k = 0; k < st->GetSoundModelInfo()->GetNumKeyPhrases(); k++) {
                     if (!strcmp(eng_sm_info_->GetKeyPhrases()[i],
                                 st->GetSoundModelInfo()->GetKeyPhrases()[k])) {
-                        if (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
-                                st->GetCurrentStateId() == ST_STATE_DETECTED ||
-                                st->GetCurrentStateId() == ST_STATE_BUFFERING) {
-                            return eng_streams_[j];
-                        } else {
-                            PAL_ERR(LOG_TAG, "detected stream is not active");
-                            return nullptr;
-                        }
+                        return eng_streams_[j];
                     }
                 }
             }
         }
     } else {
         st = dynamic_cast<StreamSoundTrigger *>(mid_stream_map_[model_id]);
-        if (!st){
+        if (!st) {
             PAL_ERR(LOG_TAG, "Invalid model id = %x", model_id);
         }
         return st;
