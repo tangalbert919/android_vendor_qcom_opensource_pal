@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -42,16 +42,9 @@
 
 class Speaker;
 
-#ifdef WAIPIO_CHIPSET
-#define LPASS_WR_CMD_REG_PHY_ADDR 0x325031C
-#define LPASS_RD_CMD_REG_PHY_ADDR 0x3250320
-#define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250334
-#else
 #define LPASS_WR_CMD_REG_PHY_ADDR 0x3250300
 #define LPASS_RD_CMD_REG_PHY_ADDR 0x3250304
 #define LPASS_RD_FIFO_REG_PHY_ADDR 0x3250318
-#endif
-
 #define CPS_WSA_VBATT_REG_ADDR 0x0003429
 #define CPS_WSA_TEMP_REG_ADDR 0x0003422
 
