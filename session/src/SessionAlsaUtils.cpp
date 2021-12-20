@@ -493,7 +493,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         }
         beMetaDataMixerCtrl = SessionAlsaUtils::getBeMixerControl(mixerHandle, be->second, BE_METADATA);
         if (!beMetaDataMixerCtrl) {
-            PAL_ERR(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
+            PAL_FATAL(LOG_TAG, "invalid mixer control: %s %s", be->second.data(),
                     beCtrlNames[BE_METADATA]);
             status = -EINVAL;
             goto freeMetaData;
