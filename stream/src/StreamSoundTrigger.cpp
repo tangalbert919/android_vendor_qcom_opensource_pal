@@ -4341,6 +4341,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                         TransitTo(ST_STATE_LOADED);
                     }
                 }
+                rm->releaseWakeLock();
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
