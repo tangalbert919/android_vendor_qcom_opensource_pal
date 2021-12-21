@@ -1326,6 +1326,7 @@ int SessionAlsaCompress::close(Stream * s)
     /** Disconnect FE to BE */
     mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
     compress_close(compress);
+    compress = NULL;
     PAL_DBG(LOG_TAG, "out of compress close");
 
     rm->freeFrontEndIds(compressDevIds, sAttr, 0);
