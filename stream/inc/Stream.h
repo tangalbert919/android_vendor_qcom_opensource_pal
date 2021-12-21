@@ -209,7 +209,7 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
-    int32_t updatePalDevice(struct pal_device *dattr,  pal_device_id_t dev_id);
+    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace = true);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);

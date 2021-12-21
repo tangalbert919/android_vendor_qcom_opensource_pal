@@ -456,13 +456,17 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id)
+int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "updatePalDevice from %d to %d", dev_id, dattr->id);
     for (int i = 0; i < mPalDevice.size(); i++) {
         if (dev_id == mPalDevice[i].id) {
+            if (!replace) {
+                PAL_DBG(LOG_TAG, "found existing dattr, don't replace");
+                return status;
+            }
             mPalDevice.erase(mPalDevice.begin() + i);
             break;
         }
@@ -1048,7 +1052,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    updatePalDevice(dattr, dattr->id);
+    //don't replace device attr for implicit device switch
+    updatePalDevice(dattr, dattr->id, false);
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
