@@ -153,8 +153,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         throw std::runtime_error(err);
     }
 
-    rm->registerStream(this);
-
     // Create internal states
     st_idle_ = new StIdle(*this);
     st_loaded_ = new StLoaded(*this);
@@ -180,6 +178,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         prev_state_ = nullptr;
         state_for_restore_ = ST_STATE_NONE;
     }
+
+    rm->registerStream(this);
+
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
         st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
