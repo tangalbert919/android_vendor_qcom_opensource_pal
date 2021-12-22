@@ -1277,9 +1277,9 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
     /*  No new device is ready */
     if ((numDev != 0) && (connectCount == 0)) {
-        PAL_ERR(LOG_TAG, "No new device is ready to connect");
+        PAL_INFO(LOG_TAG, "No new device is ready to connect");
         mStreamMutex.unlock();
-        return -ENODEV;
+        return 0;
     }
 
     PAL_INFO(LOG_TAG,"number of active devices %zu, new devices %d", mDevices.size(), connectCount);
