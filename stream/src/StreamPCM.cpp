@@ -884,10 +884,17 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
                 NULL);
         if (!ret && paramA2dp)
             isA2dpSuspended = paramA2dp->a2dp_suspended;
+
+        if (isA2dpSuspended) {
+            PAL_ERR(LOG_TAG, "A2DP in suspended state");
+            mStreamMutex.unlock();
+            status = -EIO;
+            goto exit;
+        }
     }
 
     // If cached state is not STREAM_IDLE, we are still processing SSR up.
-    if (isA2dpSuspended || (mDevices.size() == 0)
+    if ((mDevices.size() == 0)
             || (rm->cardState == CARD_STATUS_OFFLINE)
             || cachedState != STREAM_IDLE) {
         byteWidth = mStreamAttr->out_media_config.bit_width / 8;
@@ -909,8 +916,8 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         return size;
     }
 
-    //we should allow writes to go through in Start/Pause state as well.
-    if ( (currentState == STREAM_STARTED) ||
+    // we should allow writes to go through in Start/Pause state as well.
+    if ((currentState == STREAM_STARTED) ||
         (currentState == STREAM_PAUSED) ) {
         status = session->write(this, SHMEM_ENDPOINT, buf, &size, 0);
         mStreamMutex.unlock();
