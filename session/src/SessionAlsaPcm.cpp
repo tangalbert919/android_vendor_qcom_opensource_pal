@@ -1371,7 +1371,7 @@ int SessionAlsaPcm::close(Stream * s)
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
                 PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
-                if (dev->getDeviceCount() != 0) {
+                if (dev->getDeviceCount() > 1) {
                     PAL_DBG(LOG_TAG, "Tx dev still active\n");
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
                 } else {
@@ -1404,7 +1404,7 @@ int SessionAlsaPcm::close(Stream * s)
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
                 PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
-                if (dev->getDeviceCount() != 0) {
+                if (dev->getDeviceCount() > 1) {
                     PAL_DBG(LOG_TAG, "Rx dev still active");
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
                 } else {
@@ -1462,7 +1462,7 @@ int SessionAlsaPcm::close(Stream * s)
                 beDevId = dev->getSndDeviceId();
                 rm->getBackendName(beDevId, backendname);
                 PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
-                if (dev->getDeviceCount() != 0) {
+                if (dev->getDeviceCount() > 1) {
                     PAL_DBG(LOG_TAG, "dev %d still active", beDevId);
                     freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
                 } else {
