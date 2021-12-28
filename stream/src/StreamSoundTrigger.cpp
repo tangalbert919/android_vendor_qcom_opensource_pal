@@ -282,6 +282,11 @@ int32_t StreamSoundTrigger::close() {
     std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
     status = cur_state_->ProcessEvent(ev_cfg);
 
+    if (sm_config_) {
+        free(sm_config_);
+        sm_config_ = nullptr;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }

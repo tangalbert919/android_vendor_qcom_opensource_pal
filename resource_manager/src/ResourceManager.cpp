@@ -4033,6 +4033,9 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
     mActiveStreamMutex.lock();
 
     for (auto& str: mActiveStreams) {
+        if (!isStreamActive(str, mActiveStreams))
+            continue;
+
         str->getStreamAttributes(&st_attr);
         if (st_attr.type != type)
             continue;
