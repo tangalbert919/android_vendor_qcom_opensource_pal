@@ -7628,18 +7628,28 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             struct pal_device dattr;
 
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_SCO;
-            if (isDeviceAvailable(dattr.id)) {
-                dev = Device::getInstance(&dattr, rm);
-                if (dev)
-                    status = dev->setDeviceParameter(param_id, param_payload);
+            if (!isDeviceAvailable(dattr.id)) {
+                status = getDeviceConfig(&dattr, NULL);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "get device config failed %d", status);
+                    goto exit;
+                }
             }
+            dev = Device::getInstance(&dattr, rm);
+            if (dev)
+                status = dev->setDeviceParameter(param_id, param_payload);
 
             dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
-            if (isDeviceAvailable(dattr.id)) {
-                dev = Device::getInstance(&dattr, rm);
-                if (dev)
-                    status = dev->setDeviceParameter(param_id, param_payload);
+            if (!isDeviceAvailable(dattr.id)) {
+                status = getDeviceConfig(&dattr, NULL);
+                if (status) {
+                    PAL_ERR(LOG_TAG, "get device config failed %d", status);
+                    goto exit;
+                }
             }
+            dev = Device::getInstance(&dattr, rm);
+            if (dev)
+                status = dev->setDeviceParameter(param_id, param_payload);
         }
         break;
         case PAL_PARAM_ID_BT_A2DP_RECONFIG:
