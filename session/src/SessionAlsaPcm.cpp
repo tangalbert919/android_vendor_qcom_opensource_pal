@@ -912,9 +912,23 @@ int SessionAlsaPcm::start(Stream * s)
                             goto set_mixer;
                         }
 
-                        streamData.sampleRate = dAttr.config.sample_rate;
-                        streamData.bitWidth = 0xffff;
-                        streamData.numChannel = 0xffff;
+                        if ((dAttr.id == PAL_DEVICE_IN_BLUETOOTH_A2DP) ||
+                                (dAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
+                            struct pal_media_config codecConfig;
+                            status = associatedDevices[i]->getCodecConfig(&codecConfig);
+                            if (0 != status) {
+                                PAL_ERR(LOG_TAG, "getCodecConfig Failed \n");
+                                goto set_mixer;
+                            }
+                            streamData.sampleRate = codecConfig.sample_rate;
+                            streamData.bitWidth   = codecConfig.bit_width;
+                            streamData.numChannel = codecConfig.ch_info.channels;
+                        } else {
+                            streamData.sampleRate = dAttr.config.sample_rate;
+                            streamData.bitWidth   = 0xFFFF;
+                            streamData.numChannel = 0xFFFF;
+                        }
+
                         builder->payloadMFCConfig(&payload, &payloadSize, miid, &streamData);
                         if (payloadSize && payload) {
                             status = updateCustomPayload(payload, payloadSize);
