@@ -312,12 +312,19 @@ int32_t Stream::getEffectParameters(void *effect_query)
         return -EINVAL;
     }
 
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     pal_param_payload *pal_param = (pal_param_payload *)effect_query;
     effect_pal_payload_t *effectPayload = (effect_pal_payload_t *)pal_param->payload;
     status = session->getEffectParameters(this, effectPayload);
     if (status) {
        PAL_ERR(LOG_TAG, "getParameters failed with %d", status);
     }
+    mStreamMutex.unlock();
 
     return status;
 }
@@ -325,7 +332,18 @@ int32_t Stream::getEffectParameters(void *effect_query)
 int32_t Stream::rwACDBParameters(void *payload, uint32_t sampleRate,
                                     bool isParamWrite)
 {
-    return session->rwACDBParameters(payload, sampleRate, isParamWrite);
+    int32_t status = 0;
+
+    mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE");
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
+    status = session->rwACDBParameters(payload, sampleRate, isParamWrite);
+    mStreamMutex.unlock();
+
+    return status;
 }
 
 int32_t Stream::getStreamType (pal_stream_type_t* streamType)

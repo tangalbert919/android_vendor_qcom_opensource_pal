@@ -644,6 +644,11 @@ int32_t  StreamInCall::setParameters(uint32_t param_id, void *payload)
     PAL_DBG(LOG_TAG, "start, set parameter %u, session handle - %p", param_id, session);
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {        
         default:
