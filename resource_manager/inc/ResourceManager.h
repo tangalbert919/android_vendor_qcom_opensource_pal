@@ -796,6 +796,7 @@ public:
     bool isDeviceAvailable(struct pal_device *devices, uint32_t devCount, pal_device_id_t id);
     bool isDeviceReady(pal_device_id_t id);
     static bool isBtScoDevice(pal_device_id_t id);
+    static bool isBtDevice(pal_device_id_t id);
     int32_t a2dpSuspend();
     int32_t a2dpResume();
     int32_t a2dpCaptureSuspend();

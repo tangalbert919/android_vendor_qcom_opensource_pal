@@ -2327,20 +2327,6 @@ exit:
     return status;
 }
 
-bool PayloadBuilder::isBtDevice(int32_t beDevId)
-{
-    switch (beDevId) {
-        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
-        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
-        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
-        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
-            return true;
-        default:
-            return false;
-    }
-}
-
-
 int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
         std::vector <std::pair<int,int>> &keyVector)
 {
@@ -2350,12 +2336,24 @@ int PayloadBuilder::populateDeviceKV(Stream* s, int32_t beDevId,
     struct pal_device dAttr;
     std::shared_ptr<Device> dev = nullptr;
     std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    uint32_t soundCardId = 0;
+
+    if (s)
+        soundCardId = s->getSoundCardId();
 
     PAL_INFO(LOG_TAG, "Enter device id:%d", beDevId);
 
     /* For BT devices, device KV will be populated from Bluetooth device only so skip here */
-    if (isBtDevice(beDevId))
+    if (rm->isBtDevice((pal_device_id_t)beDevId)) {
+        if (DUMMY_SND_CARD == soundCardId) {
+            PAL_INFO(LOG_TAG, "Use default value for BT ACDB case.");
+            keyVector.push_back(std::make_pair(DEVICERX, BT_RX));
+            keyVector.push_back(std::make_pair(BT_PROFILE, A2DP));
+            keyVector.push_back(std::make_pair(BT_FORMAT, GENERIC));
+        }
         goto exit;
+    }
+
 
     if (beDevId > 0) {
         memset (&dAttr, 0, sizeof(struct pal_device));

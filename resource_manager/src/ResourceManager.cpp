@@ -8409,23 +8409,25 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                 sattr.out_media_config.bit_width = 16;
                 dattr.id = palDeviceId;
 
-                if (isPluginDevice(dattr.id)) {
+                if (isPluginDevice(dattr.id) ||
+                    isBtDevice(dattr.id)) {
                     /* dummy device can igonre physical existence
                      * and work as a flag for ACDB parameter set
                      */
                     dattr.address.card_id = DUMMY_SND_CARD;
-                    PAL_INFO(LOG_TAG, "Use dummy card id 0x%x for ACDB parameter set on plugin device.",
+                    PAL_INFO(LOG_TAG, "Use dummy card id 0x%x for ACDB parameter set on plugin or bt device.",
                                 dattr.address.card_id);
                 }
 
                 std::shared_ptr<Device> devDummy = nullptr;
                 devDummy = Device::getInstance(&dattr, rm);
-                if (devDummy)
+                if (devDummy && !isBtDevice(dattr.id))
                     devDummy->getDeviceAttributes(&dattr);
                 else {
                     PAL_ERR(LOG_TAG, "failed to get device instance. dev id =%d",
                                 dattr.id);
                 }
+
                 try {
                     s = Stream::create(&sattr, &dattr, 1, nullptr, 0);
                 } catch (const std::exception& e) {
@@ -8976,6 +8978,19 @@ bool ResourceManager::isBtScoDevice(pal_device_id_t id)
         return true;
     else
         return false;
+}
+
+bool ResourceManager::isBtDevice(pal_device_id_t id)
+{
+    switch (id) {
+        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void ResourceManager::updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value)
