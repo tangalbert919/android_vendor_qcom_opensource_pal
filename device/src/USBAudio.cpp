@@ -701,6 +701,12 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
             bitwidth = (*iter)->getBitWidth();
             if (bitwidth == devinfo->bit_width) {
                 config->bit_width = bitwidth;
+
+                if (!config->bit_width && !max_bit_width)
+                    continue;
+                else if (!config->bit_width && max_bit_width)
+                    config->bit_width = max_bit_width;
+
                 PAL_INFO(LOG_TAG, "found matching BitWidth = %d", config->bit_width);
                 /* 2. sample rate: Check if the custom sample rate set for device in RM.xml
                 is supported and then set it, otherwise set the rate based on stream attribute */
@@ -734,6 +740,10 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
             PAL_INFO(LOG_TAG, "Default bitwidth of %d is not supported by USB. Use USB width of %d",
                          devinfo->bit_width, max_bit_width);
             config->bit_width = bitwidth;
+
+            if (config->bit_width == 0)
+                config->bit_width = max_bit_width;
+
             if (uhqa && is_playback) {
                 ret = candidate_config->isCustomRateSupported(SAMPLINGRATE_192K,
                                  &config->sample_rate);
