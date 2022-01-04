@@ -25,6 +25,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "PAL: ResourceManager"
@@ -8015,6 +8048,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 std::vector<Stream*> activestreams;
                 std::vector<Stream*>::iterator sIter;
                 Stream *stream = NULL;
+                pal_stream_type_t streamType;
 
                 mActiveStreamMutex.lock();
                 /* Handle bt sco mic running usecase */
@@ -8043,9 +8077,21 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     sco_rx_dev = Device::getInstance(&sco_rx_dattr, rm);
                     getActiveStream_l(activestreams, sco_rx_dev);
                     for (sIter = activestreams.begin(); sIter != activestreams.end(); sIter++) {
-                        PAL_DBG(LOG_TAG, "a2dp resumed, mark sco streams as to route them later");
-                        (*sIter)->suspendedDevIds.clear();
-                        (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+                        status = (*sIter)->getStreamType(&streamType);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", status);
+                            continue;
+                        }
+                        if ((streamType == PAL_STREAM_LOW_LATENCY) ||
+                            (streamType == PAL_STREAM_ULTRA_LOW_LATENCY) ||
+                            (streamType == PAL_STREAM_VOIP_RX) ||
+                            (streamType == PAL_STREAM_PCM_OFFLOAD) ||
+                            (streamType == PAL_STREAM_DEEP_BUFFER) ||
+                            (streamType == PAL_STREAM_COMPRESSED)) {
+                            (*sIter)->suspendedDevIds.clear();
+                            (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+                            PAL_DBG(LOG_TAG, "a2dp resumed, mark sco streams as to route them later");
+                        }
                     }
                 }
                 mActiveStreamMutex.unlock();
