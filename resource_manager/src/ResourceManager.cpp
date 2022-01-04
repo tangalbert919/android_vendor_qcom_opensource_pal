@@ -5415,6 +5415,13 @@ void ResourceManager::freeFrontEndEcTxIds(const std::vector<int> frontend)
     return;
 }
 
+template <typename T>
+void removeDuplicates(std::vector<T> &vec)
+{
+    std::sort(vec.begin(), vec.end());
+    vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+    return;
+}
 
 const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_stream_attributes sAttr, int lDirection)
 {
@@ -5461,13 +5468,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
-                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessTxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessTxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessTxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessTxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
                            listAllPcmHostlessTxFrontEnds.erase(it);
@@ -5476,13 +5483,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                            id -= 1;
                         }
                     } else {
-                        if ( howMany > listAllPcmRecordFrontEnds.size()) {
+                        if (howMany > listAllPcmRecordFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmRecordFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmRecordFrontEnds.size() - 1);
-                        it =  (listAllPcmRecordFrontEnds.begin() + id);
+                        it = (listAllPcmRecordFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                             f.push_back(listAllPcmRecordFrontEnds.at(id));
                             listAllPcmRecordFrontEnds.erase(it);
@@ -5497,13 +5504,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                         PAL_ERR(LOG_TAG, "Raw output stream not supported");
                         goto error;
                     }
-                    if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
+                    if (howMany > listAllPcmPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
                         goto error;
                     }
                     id = (listAllPcmPlaybackFrontEnds.size() - 1);
-                    it =  (listAllPcmPlaybackFrontEnds.begin() + id);
+                    it = (listAllPcmPlaybackFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllPcmPlaybackFrontEnds.at(id));
                         listAllPcmPlaybackFrontEnds.erase(it);
@@ -5514,13 +5521,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RX_HOSTLESS) {
-                        if ( howMany > listAllPcmHostlessRxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessRxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessRxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessRxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessRxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessRxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessRxFrontEnds.at(id));
                            listAllPcmHostlessRxFrontEnds.erase(it);
@@ -5529,13 +5536,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                            id -= 1;
                         }
                     } else {
-                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessTxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessTxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessTxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessTxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
                            listAllPcmHostlessTxFrontEnds.erase(it);
@@ -5553,13 +5560,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_COMPRESSED:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
-                    if ( howMany > listAllCompressRecordFrontEnds.size()) {
+                    if (howMany > listAllCompressRecordFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressRecordFrontEnds.size());
                         goto error;
                     }
                     id = (listAllCompressRecordFrontEnds.size() - 1);
-                    it =  (listAllCompressRecordFrontEnds.begin() + id);
+                    it = (listAllCompressRecordFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressRecordFrontEnds.at(id));
                         listAllCompressRecordFrontEnds.erase(it);
@@ -5569,13 +5576,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
-                    if ( howMany > listAllCompressPlaybackFrontEnds.size()) {
+                    if (howMany > listAllCompressPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressPlaybackFrontEnds.size());
                         goto error;
                     }
                     id = (listAllCompressPlaybackFrontEnds.size() - 1);
-                    it =  (listAllCompressPlaybackFrontEnds.begin() + id);
+                    it = (listAllCompressPlaybackFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressPlaybackFrontEnds.at(id));
                         listAllCompressPlaybackFrontEnds.erase(it);
@@ -5622,13 +5629,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
         case PAL_STREAM_VOICE_CALL_RECORD:
-            if ( howMany > listAllPcmInCallRecordFrontEnds.size()) {
+            if (howMany > listAllPcmInCallRecordFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallRecordFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmInCallRecordFrontEnds.size() - 1);
-            it =  (listAllPcmInCallRecordFrontEnds.begin() + id);
+            it = (listAllPcmInCallRecordFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallRecordFrontEnds.at(id));
                 listAllPcmInCallRecordFrontEnds.erase(it);
@@ -5638,13 +5645,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
         case PAL_STREAM_VOICE_CALL_MUSIC:
-            if ( howMany > listAllPcmInCallMusicFrontEnds.size()) {
+            if (howMany > listAllPcmInCallMusicFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallMusicFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmInCallMusicFrontEnds.size() - 1);
-            it =  (listAllPcmInCallMusicFrontEnds.begin() + id);
+            it = (listAllPcmInCallMusicFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallMusicFrontEnds.at(id));
                 listAllPcmInCallMusicFrontEnds.erase(it);
@@ -5654,13 +5661,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
        case PAL_STREAM_CONTEXT_PROXY:
-            if ( howMany > listAllPcmContextProxyFrontEnds.size()) {
+            if (howMany > listAllPcmContextProxyFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmContextProxyFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmContextProxyFrontEnds.size() - 1);
-            it =  (listAllPcmContextProxyFrontEnds.begin() + id);
+            it = (listAllPcmContextProxyFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmContextProxyFrontEnds.at(id));
                 listAllPcmContextProxyFrontEnds.erase(it);
@@ -5717,6 +5724,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             for (int i = 0; i < frontend.size(); i++) {
                  listAllNonTunnelSessionIds.push_back(frontend.at(i));
             }
+            removeDuplicates(listAllNonTunnelSessionIds);
             break;
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
@@ -5740,26 +5748,31 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessTxFrontEnds);
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmRecordFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmRecordFrontEnds);
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllPcmPlaybackFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllPcmPlaybackFrontEnds);
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RX_HOSTLESS) {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessRxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessRxFrontEnds);
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessTxFrontEnds);
                     }
                     break;
                 default:
@@ -5779,6 +5792,8 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     }
 
                 }
+                removeDuplicates(listAllPcmVoice1RxFrontEnds);
+                removeDuplicates(listAllPcmVoice2RxFrontEnds);
             } else {
                 for (int i = 0; i < frontend.size(); i++) {
                     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
@@ -5788,6 +5803,8 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                         listAllPcmVoice2TxFrontEnds.push_back(frontend.at(i));
                     }
                 }
+                removeDuplicates(listAllPcmVoice1TxFrontEnds);
+                removeDuplicates(listAllPcmVoice2TxFrontEnds);
             }
             break;
 
@@ -5797,11 +5814,13 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressRecordFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllCompressRecordFrontEnds);
                     break;
                 case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressPlaybackFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllCompressPlaybackFrontEnds);
                     break;
                 default:
                     PAL_ERR(LOG_TAG,"direction unsupported");
@@ -5815,11 +5834,13 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallRecordFrontEnds.push_back(frontend.at(i));
                 }
+                removeDuplicates(listAllPcmInCallRecordFrontEnds);
                 break;
               case PAL_AUDIO_OUTPUT:
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallMusicFrontEnds.push_back(frontend.at(i));
                 }
+                removeDuplicates(listAllPcmInCallMusicFrontEnds);
                 break;
               default:
                 break;
@@ -5829,6 +5850,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             for (int i = 0; i < frontend.size(); i++) {
                  listAllPcmContextProxyFrontEnds.push_back(frontend.at(i));
             }
+            removeDuplicates(listAllPcmContextProxyFrontEnds);
             break;
         default:
             break;
