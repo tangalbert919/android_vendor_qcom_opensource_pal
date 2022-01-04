@@ -342,7 +342,7 @@ exit:
 
 int Session::updateCustomPayload(void *payload, size_t size)
 {
-    if (!customPayloadSize) {
+    if (!customPayloadSize || !customPayload) {
         customPayload = calloc(1, size);
     } else {
         customPayload = realloc(customPayload, customPayloadSize + size);
