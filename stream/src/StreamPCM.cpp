@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -784,9 +785,11 @@ int32_t StreamPCM::setVolume(struct pal_volume_data *volume)
     }
 
 exit:
-    PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
-                      (volume->no_of_volpair), (volume->volume_pair->channel_mask),
-                      (volume->volume_pair->vol));
+    if (volume) {
+        PAL_DBG(LOG_TAG, "Exit. Volume payload No.of vol pair:%d ch mask:%x gain:%f",
+                          (volume->no_of_volpair), (volume->volume_pair->channel_mask),
+                          (volume->volume_pair->vol));
+    }
     return status;
 }
 
