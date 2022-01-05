@@ -210,7 +210,7 @@ int Bluetooth::configureA2dpEncoderDecoder()
     rm->getBackendName(deviceAttr.id, backEndName);
 
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -591,7 +591,7 @@ int Bluetooth::configureNrecParameters(bool isNrecEnabled)
         goto exit;
     }
 
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -815,6 +815,7 @@ void Bluetooth::startAbr()
         fbDev->codecConfig.sample_rate = out_buf->sample_rate;
         fbDev->codecConfig.bit_width = out_buf->bit_format;
         fbDev->codecConfig.ch_info.channels = out_buf->channel_count;
+        fbDev->isAbrEnabled = out_buf->is_abr_enabled;
 
         blk = out_buf->blocks[0];
         builder->payloadCustomParam(&paramData, &paramSize,
@@ -924,13 +925,20 @@ start_pcm:
 
     if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH) {
         fbDev->isConfigured = true;
-        fbDev->totalActiveSessionRequests++;
+        fbDev->deviceStartStopCount++;
+        fbDev->deviceCount++;
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
+
     }
     if ((codecFormat == CODEC_TYPE_LC3) && (fbDev != NULL) &&
         (fbDevice.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET ||
          fbDevice.id == PAL_DEVICE_OUT_BLUETOOTH_SCO)) {
         fbDev->isConfigured = true;
-        fbDev->totalActiveSessionRequests++;
+        fbDev->deviceStartStopCount++;
+        fbDev->deviceCount++;
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
 
     abrRefCnt++;
@@ -969,7 +977,13 @@ void Bluetooth::stopAbr()
         return;
     }
 
-    if (--abrRefCnt != 0) {
+    if (abrRefCnt == 0) {
+        PAL_DBG(LOG_TAG, "skip as abrRefCnt is zero");
+        mAbrMutex.unlock();
+        return;
+    }
+
+    if (--abrRefCnt > 0) {
         PAL_DBG(LOG_TAG, "abrRefCnt is %d", abrRefCnt);
         mAbrMutex.unlock();
         return;
@@ -998,19 +1012,27 @@ void Bluetooth::stopAbr()
     }
 
     if ((codecFormat == CODEC_TYPE_APTX_AD_SPEECH) && fbDev) {
-        if ((fbDev->totalActiveSessionRequests > 0) &&
-            (--fbDev->totalActiveSessionRequests == 0)) {
+        if ((fbDev->deviceStartStopCount > 0) &&
+            (--fbDev->deviceStartStopCount == 0)) {
             fbDev->isConfigured = false;
         }
+        if (fbDev->deviceCount > 0)
+            fbDev->deviceCount--;
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
     if ((codecFormat == CODEC_TYPE_LC3) &&
         (deviceAttr.id == PAL_DEVICE_OUT_BLUETOOTH_SCO ||
          deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
         fbDev) {
-        if ((fbDev->totalActiveSessionRequests > 0) &&
-            (--fbDev->totalActiveSessionRequests == 0)) {
+        if ((fbDev->deviceStartStopCount > 0) &&
+            (--fbDev->deviceStartStopCount == 0)) {
             fbDev->isConfigured = false;
         }
+        if (fbDev->deviceCount > 0)
+            fbDev->deviceCount--;
+        PAL_DBG(LOG_TAG, " deviceCount %d deviceStartStopCount %d for device id %d",
+                fbDev->deviceCount, fbDev->deviceStartStopCount, fbDev->deviceAttr.id);
     }
 
 free_fe:
@@ -1253,13 +1275,17 @@ int BtA2dp::start()
     customPayloadSize = 0;
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
-    if (status)
+    if (status) {
+        isAbrEnabled = false;
         goto exit;
+    }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
-        if (status)
+        if (status) {
+            isAbrEnabled = false;
             goto exit;
+        }
     }
 
     status = Device::start_l();
@@ -1665,7 +1691,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             pal_bt_tws_payload param_tws;
 
             dev = Device::getInstance(&deviceAttr, rm);
-            status = rm->getActiveStream_l(dev, activestreams);
+            status = rm->getActiveStream_l(activestreams, dev);
             if ((0 != status) || (activestreams.size() == 0)) {
                 PAL_ERR(LOG_TAG, "no active stream available");
                 return -EINVAL;
@@ -1689,7 +1715,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             pal_bt_lc3_payload param_lc3;
 
             dev = Device::getInstance(&deviceAttr, rm);
-            status = rm->getActiveStream_l(dev, activestreams);
+            status = rm->getActiveStream_l(activestreams, dev);
             if ((0 != status) || (activestreams.size() == 0)) {
                 PAL_ERR(LOG_TAG, "no active stream available");
                 return -EINVAL;
@@ -2003,8 +2029,17 @@ int BtSco::startSwb()
 {
     int ret = 0;
 
-    if (!isConfigured)
+    if (!isConfigured) {
         ret = configureA2dpEncoderDecoder();
+    } else {
+        /* isAbrEnabled flag assignment will be skipped if
+         * path is already configured.
+         * Force isAbrEnabled flag for SWB use case. Ideally,
+         * this flag should be populated from plugin.
+         */
+        if (codecFormat == CODEC_TYPE_APTX_AD_SPEECH)
+            isAbrEnabled = true;
+    }
 
     return ret;
 }
@@ -2046,23 +2081,21 @@ int BtSco::start()
             codecConfig.bit_width, codecConfig.sample_rate, codecConfig.ch_info.channels);
     }
 
-    //Configure NREC only on Tx path & First session request only.
+    // Configure NREC only on Tx path & First session request only.
     if ((isConfigured == true) &&
         (deviceAttr.id == PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
-        if (totalActiveSessionRequests == 0) {
+        if (deviceStartStopCount == 0) {
             configureNrecParameters(isNrecEnabled);
         }
     }
 
-    if (totalActiveSessionRequests == 0) {
+    if (deviceStartStopCount == 0) {
         status = configureSlimbusClockSrc();
         if (status)
             goto exit;
     }
 
     status = Device::start_l();
-    if (!status)
-        totalActiveSessionRequests++;
     if (!status && isAbrEnabled &&
         (codecFormat != CODEC_TYPE_LC3))
         startAbr();
@@ -2095,12 +2128,9 @@ int BtSco::stop()
     }
 
     Device::stop_l();
-    if (totalActiveSessionRequests > 0)
-        totalActiveSessionRequests--;
-
     if (isAbrEnabled == false)
         codecFormat = CODEC_TYPE_INVALID;
-    if (totalActiveSessionRequests == 0)
+    if (deviceStartStopCount == 0)
         isConfigured = false;
 
     mDeviceMutex.unlock();

@@ -282,6 +282,11 @@ int32_t StreamSoundTrigger::close() {
     std::shared_ptr<StEventConfig> ev_cfg(new StUnloadEventConfig());
     status = cur_state_->ProcessEvent(ev_cfg);
 
+    if (sm_config_) {
+        free(sm_config_);
+        sm_config_ = nullptr;
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -4563,6 +4568,14 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             } else {
                 st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
+            break;
+        }
+        case ST_EV_PAUSE: {
+            st_stream_.paused_ = true;
+            break;
+        }
+        case ST_EV_RESUME: {
+            st_stream_.paused_ = false;
             break;
         }
         case ST_EV_READ_BUFFER:

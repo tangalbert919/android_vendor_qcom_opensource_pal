@@ -93,6 +93,7 @@ protected:
     static struct pcm *pcmEcTx;
     static std::vector<int> pcmDevEcTxIds;
     static int extECRefCnt;
+    static std::mutex extECMutex;
     bool frontEndIdAllocated = false;
 public:
     bool isPauseRegistrationDone;

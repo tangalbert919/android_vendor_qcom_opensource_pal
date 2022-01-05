@@ -353,6 +353,8 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
 {
     Stream *s = NULL;
     int status;
+    std::shared_ptr<ResourceManager> rm = NULL;
+
     if (!stream_handle) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG,  "Invalid stream handle, status %d", status);
@@ -365,6 +367,16 @@ int32_t pal_stream_set_param(pal_stream_handle_t *stream_handle, uint32_t param_
     if (0 != status) {
         PAL_ERR(LOG_TAG, "set parameters failed status %d param_id %u", status, param_id);
         return status;
+    }
+    rm = ResourceManager::getInstance();
+    if (!rm) {
+        status = -EINVAL;
+        PAL_ERR(LOG_TAG, "Invalid resource manager");
+        return status;
+    }
+    if (param_id == PAL_PARAM_ID_STOP_BUFFERING) {
+        PAL_DBG(LOG_TAG, "Buffering stopped, handle deferred LPI<->NLPI switch");
+        rm->handleDeferredSwitch();
     }
     PAL_DBG(LOG_TAG, "Exit. status %d", status);
     return status;
@@ -649,7 +661,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     /* Choose best device config for this stream */
     /* TODO: Decide whether to update device config or not based on flag */
-    s =  reinterpret_cast<Stream *>(stream_handle);
+    s = reinterpret_cast<Stream *>(stream_handle);
     s->getStreamAttributes(&sattr);
 
     // device switch will be handled in global param setting for SVA
@@ -670,19 +682,37 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     if (!aDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
-        bool is_a2dp_dev = false;
-        for (auto &dev: aDevices) {
+        struct pal_device curDevAttr;
+        bool force_switch = s->isA2dpMuted();
+
+        for (auto &dev : aDevices) {
             activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
-        }
-        for (int i = 0; i < no_of_devices; i++) {
-            newDevices.insert(devices[i].id);
-            if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
-                PAL_DBG(LOG_TAG, "always switch device for a2dp");
-                is_a2dp_dev = true;
+            // check if custom key matches for same pal device
+            for (int i = 0; i < no_of_devices; i++) {
+                if (dev->getSndDeviceId() == devices[i].id) {
+                    dev->getDeviceAttributes(&curDevAttr);
+                    if (strcmp(devices[i].custom_config.custom_key,
+                            curDevAttr.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
+                        force_switch = true;
+                    }
+                    break;
+                }
+            }
+            if (force_switch)
                 break;
+        }
+        if (!force_switch) {
+            for (int i = 0; i < no_of_devices; i++) {
+                newDevices.insert(devices[i].id);
+                if (devices[i].id == PAL_DEVICE_OUT_BLUETOOTH_A2DP) {
+                    PAL_DBG(LOG_TAG, "always switch device for a2dp");
+                    force_switch = true;
+                    break;
+                }
             }
         }
-        if (!is_a2dp_dev && activeDevices == newDevices) {
+        if (!force_switch && (activeDevices == newDevices)) {
             status = 0;
             PAL_DBG(LOG_TAG, "devices are same, no need to switch");
             goto exit;
@@ -691,7 +721,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     pDevices = (struct pal_device *) calloc(no_of_devices, sizeof(struct pal_device));
 
-    if(!pDevices) {
+    if (!pDevices) {
         status = -ENOMEM;
         PAL_ERR(LOG_TAG, "Memory alloc failed");
         goto exit;
@@ -702,8 +732,8 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
     for (int i = 0; i < no_of_devices; i++) {
         if (strlen(pDevices[i].custom_config.custom_key)) {
-             PAL_DBG(LOG_TAG, "Device has custom key %s",
-                               pDevices[i].custom_config.custom_key);
+            PAL_DBG(LOG_TAG, "Device has custom key %s",
+                              pDevices[i].custom_config.custom_key);
         } else {
             PAL_DBG(LOG_TAG, "Device has no custom key");
             strlcpy(pDevices[i].custom_config.custom_key, "", PAL_MAX_CUSTOM_KEY_SIZE);
@@ -727,7 +757,7 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
 
 
 exit:
-    if(pDevices)
+    if (pDevices)
         free(pDevices);
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;

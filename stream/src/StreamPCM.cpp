@@ -333,7 +333,8 @@ StreamPCM::~StreamPCM()
 //TBD: move this to Stream, why duplicate code?
 int32_t StreamPCM::start()
 {
-    int32_t status = 0, devStatus = 0;
+    int32_t status = 0, devStatus = 0, cachedStatus = 0;
+    int32_t tmp = 0;
     bool a2dpSuspend = false;
 
     PAL_DBG(LOG_TAG, "Enter. session handle - %pK mStreamAttr->direction - %d state %d",
@@ -359,16 +360,39 @@ int32_t StreamPCM::start()
                 goto exit;
 
             rm->lockGraph();
+            /* Any device start success will be treated as positive status.
+             * This allows stream be played even if one of devices failed to start.
+             */
+            status = -EINVAL;
             for (int32_t i=0; i < mDevices.size(); i++) {
-                status = mDevices[i]->start();
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG, "Rx device start is failed with status %d",
-                            status);
-                    rm->unlockGraph();
-                    goto exit;
+                devStatus = mDevices[i]->start();
+                if (devStatus == 0) {
+                    status = 0;
+                } else {
+                    cachedStatus = devStatus;
+
+                    tmp = session->disconnectSessionDevice(this, mStreamAttr->type, mDevices[i]);
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "disconnectSessionDevice failed:%d", tmp);
+                    }
+
+                    tmp = mDevices[i]->close();
+                    if (0 != tmp) {
+                        PAL_ERR(LOG_TAG, "device close failed with status %d", tmp);
+                    }
+                    mDevices.erase(mDevices.begin() + i);
+                    i--;
                 }
             }
-            PAL_VERBOSE(LOG_TAG, "devices started successfully");
+            if (0 != status) {
+                status = cachedStatus;
+                PAL_ERR(LOG_TAG, "Rx device start failed with status %d", status);
+                rm->unlockGraph();
+                goto exit;
+            } else {
+                PAL_VERBOSE(LOG_TAG, "devices started successfully");
+            }
+
             status = session->prepare(this);
             if (0 != status) {
                 PAL_ERR(LOG_TAG, "Rx session prepare is failed with status %d",
@@ -960,6 +984,11 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
     }
 
     mStreamMutex.lock();
+    if (currentState == STREAM_IDLE) {
+        PAL_ERR(LOG_TAG, "Invalid stream state: IDLE for param ID: %d", param_id);
+        mStreamMutex.unlock();
+        return -EINVAL;
+    }
     // Stream may not know about tags, so use setParameters instead of setConfig
     switch (param_id) {
         case PAL_PARAM_ID_UIEFFECT:
@@ -1141,6 +1170,14 @@ int32_t StreamPCM::resume_l()
                 status);
         goto exit;
     }
+
+    if (isFlushed) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->registerDevice(mDevices[i], this);
+        }
+        isFlushed = false;
+    }
+
     isPaused = false;
     currentState = STREAM_STARTED;
     PAL_DBG(LOG_TAG, "session setConfig successful");
@@ -1180,7 +1217,12 @@ int32_t StreamPCM::flush()
         goto exit;
     }
 
+    for (int i = 0; i < mDevices.size(); i++) {
+        rm->deregisterDevice(mDevices[i], this);
+    }
+
     status = session->flush();
+    isFlushed = true;
 exit:
     mStreamMutex.unlock();
     return status;

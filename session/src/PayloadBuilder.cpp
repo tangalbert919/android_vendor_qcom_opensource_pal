@@ -3089,6 +3089,29 @@ void PayloadBuilder::payloadSPConfig(uint8_t** payload, size_t* size, uint32_t m
                                 sizeof(pkd_reg_addr_t) * data->num_spkr);
             }
         break;
+        case PARAM_ID_CPS_LPASS_SWR_THRESHOLDS_CFG:
+            {
+                param_id_cps_lpass_swr_thresholds_cfg_t *data = NULL;
+                param_id_cps_lpass_swr_thresholds_cfg_t *spThrshConf = NULL;
+                data = (param_id_cps_lpass_swr_thresholds_cfg_t *) param;
+                payloadSize = sizeof(struct apm_module_param_data_t) +
+                                    sizeof(param_id_cps_lpass_swr_thresholds_cfg_t) +
+                                    (sizeof(cps_reg_wr_values_t) * data->num_spkr);
+                padBytes = PAL_PADDING_8BYTE_ALIGN(payloadSize);
+
+                payloadInfo = (uint8_t*) calloc(1, payloadSize + padBytes);
+                if (!payloadInfo) {
+                    PAL_ERR(LOG_TAG, "payloadInfo malloc failed %s", strerror(errno));
+                    return;
+                }
+                header = (struct apm_module_param_data_t*) payloadInfo;
+                spThrshConf = (param_id_cps_lpass_swr_thresholds_cfg_t *) (payloadInfo +
+                                sizeof(struct apm_module_param_data_t));
+
+                memcpy(spThrshConf, data, sizeof(param_id_cps_lpass_swr_thresholds_cfg_t) +
+                                (sizeof(cps_reg_wr_values_t) * data->num_spkr));
+            }
+        break;
         default:
             {
                 PAL_ERR(LOG_TAG, "unknown param id 0x%x", param_id);

@@ -133,7 +133,7 @@ int USB::configureUsb()
 
     rm->getBackendName(deviceAttr.id, backEndName);
     dev = Device::getInstance(&deviceAttr, rm);
-    status = rm->getActiveStream_l(dev, activestreams);
+    status = rm->getActiveStream_l(activestreams, dev);
     if ((0 != status) || (activestreams.size() == 0)) {
         PAL_ERR(LOG_TAG, "no active stream available");
         status = -EINVAL;
@@ -491,8 +491,8 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         memcpy(bit_width_str, bit_width_start, size);
         bit_width_str[size] = '\0';
 
-        const char *formats[] = {"S32", "S24_3", "S24", "S16" };
-        const int bit_width[] = {32, 24, 24, 16};
+        const char *formats[] = {"S32", "S24_3", "S24", "S16", "U32"};
+        const int bit_width[] = {32, 24, 24, 16, 32};
         for (size_t i = 0; i < sizeof(formats)/sizeof(formats[0]); i++) {
             const char * s = strstr(bit_width_str, formats[i]);
             if (s) {
