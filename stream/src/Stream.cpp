@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1453,6 +1454,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         for (int j = 0; j < mDevices.size(); j++) {
             uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
             if (rm->matchDevDir(newDeviceId, mDeviceId) && newDeviceId != mDeviceId) {
+                if (mDeviceId == PAL_DEVICE_OUT_PROXY || newDeviceId == PAL_DEVICE_OUT_PROXY)
+                    continue;
                 rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
                 if (type == PAL_STREAM_VOICE_CALL &&
                     newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
