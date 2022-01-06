@@ -291,10 +291,15 @@ exit:
 
 struct mixer_ctl* SessionAlsaPcm::getFEMixerCtl(const char *controlName, int *device)
 {
-    *device = pcmDevIds.at(0);
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
 
+    if (pcmDevIds.size() == 0) {
+        PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+        return nullptr;
+    }
+
+    *device = pcmDevIds.at(0);
     CntrlName << "PCM" <<pcmDevIds.at(0) << " " << controlName;
     ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
     if (!ctl) {
