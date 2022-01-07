@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1955,14 +1956,11 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
 
     // Update mmap write position after start
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after start",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
@@ -2048,14 +2046,11 @@ int32_t SoundTriggerEngineGsl::RestartRecognition(Stream *s) {
 
     // Update mmap write position after restart
     if (mmap_buffer_size_) {
-        status = session_->GetMmapPosition(s, &mmap_pos);
-        if (!status) {
-            mmap_write_position_ = mmap_pos.position_frames;
-            PAL_DBG(LOG_TAG, "MMAP write position %u after restart",
-                mmap_write_position_);
-        } else {
-            PAL_ERR(LOG_TAG, "Failed to get write position");
-        }
+        mmap_write_position_ = 0;
+        // reset wall clk in agm pcm plugin
+        status = session_->ResetMmapBuffer(s);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap buffer, status %d", status);
     }
 
     if (status == -ENETRESET) {
