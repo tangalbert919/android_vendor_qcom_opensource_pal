@@ -129,6 +129,7 @@
 #define MAX_SESSIONS_HAPTICS 1
 #define MAX_SESSIONS_ULTRASOUND 1
 #define MAX_SESSIONS_SENSOR_PCM_DATA 1
+#define MAX_SESSIONS_VOICE_RECOGNITION 1
 
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
@@ -2179,7 +2180,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_raw.size();
             max_sessions = MAX_SESSIONS_RAW;
             break;
-        case PAL_STREAM_VOICE_ACTIVATION:
+        case PAL_STREAM_VOICE_RECOGNITION:
+            cur_sessions = active_streams_voice_rec.size();
+            max_sessions = MAX_SESSIONS_VOICE_RECOGNITION;
+            break;
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_TRANSCODE:
         case PAL_STREAM_VOICE_UI:
@@ -2251,6 +2255,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_PROXY:
         case PAL_STREAM_VOICE_CALL_MUSIC:
         case PAL_STREAM_HAPTICS:
+        case PAL_STREAM_VOICE_RECOGNITION:
             if (attributes->direction == PAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -2489,6 +2494,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sCtxt, active_streams_context_proxy);
             break;
         }
+        case PAL_STREAM_VOICE_RECOGNITION:
+        {
+            StreamPCM* sVR = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sVR, active_streams_voice_rec);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -2665,6 +2676,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamContextProxy* sCtxt = dynamic_cast<StreamContextProxy*>(s);
             ret = deregisterstream(sCtxt, active_streams_context_proxy);
+            break;
+        }
+        case PAL_STREAM_VOICE_RECOGNITION:
+        {
+            StreamPCM* sVR = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sVR, active_streams_voice_rec);
             break;
         }
         default:
@@ -5467,6 +5484,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_ULTRASOUND:
         case PAL_STREAM_RAW:
         case PAL_STREAM_SENSOR_PCM_DATA:
+        case PAL_STREAM_VOICE_RECOGNITION:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
@@ -5756,6 +5774,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_ULTRASOUND:
         case PAL_STREAM_SENSOR_PCM_DATA:
         case PAL_STREAM_RAW:
+        case PAL_STREAM_VOICE_RECOGNITION:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {

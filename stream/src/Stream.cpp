@@ -166,6 +166,7 @@ stream_create:
             case PAL_STREAM_PROXY:
             case PAL_STREAM_HAPTICS:
             case PAL_STREAM_RAW:
+            case PAL_STREAM_VOICE_RECOGNITION:
                 //TODO:for now keeping PAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr,
                                        palDevsAttr,

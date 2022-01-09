@@ -74,6 +74,14 @@
                 <graph_kv key="0xAB000000" value="0x2"/>
             </keys_and_values>
         </stream>
+        <stream type="PAL_STREAM_VOICE_RECOGNITION">
+            <keys_and_values Direction="TX" Instance="1">
+                <!-- STREAMTX - PCM_RECORD -->
+                <graph_kv key="0xB1000000" value="0xB1000001"/>
+                <!-- INSTANCE - INSTANCE_1 -->
+                <graph_kv key="0xAB000000" value="0x1"/>
+            </keys_and_values>
+        </stream>
         <!-- Compressed-playback stream -->
         <stream type="PAL_STREAM_COMPRESSED">
             <keys_and_values Direction="RX" Instance="1">
@@ -789,6 +797,12 @@
         </devicepp>
         <!-- IN Handset MIC DevicePPs -->
         <devicepp id="PAL_DEVICE_IN_HANDSET_MIC">
+            <keys_and_values StreamType="PAL_STREAM_VOICE_RECOGNITION">
+                <!-- DEVICETX - HANDSETMIC -->
+                <graph_kv key="0xA3000000" value="0xA3000004"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_RECOGNITION -->
+                <graph_kv key="0xAD000000" value="0xAD000017"/>
+            </keys_and_values>
             <keys_and_values StreamType="PAL_STREAM_DEEP_BUFFER">
                 <!-- DEVICETX - HANDSETMIC -->
                 <graph_kv key="0xA3000000" value="0xA3000004"/>
