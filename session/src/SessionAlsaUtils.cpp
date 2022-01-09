@@ -779,6 +779,7 @@ int SessionAlsaUtils::setDeviceMediaConfig(std::shared_ptr<ResourceManager> rmHa
         PAL_INFO(LOG_TAG, "%s rate ch fmt data_fmt slot_mask %ld %ld %ld %ld %ld\n", truncatedBeName.c_str(),
                 aif_group_atrr_config[0], aif_group_atrr_config[1], aif_group_atrr_config[2],
                 aif_group_atrr_config[3], aif_group_atrr_config[4]);
+        rmHandle->currentGroupDevConfig = rmHandle->activeGroupDevConfig;
     }
     ctl = SessionAlsaUtils::getBeMixerControl(mixerHandle, backEndName , BE_MEDIAFMT);
     if (!ctl) {
