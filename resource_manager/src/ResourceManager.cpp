@@ -7372,27 +7372,6 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
     PAL_DBG(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-#if 0
-            gef_payload_t *gef_payload = (gef_payload_t *)query;
-            int index = 0;
-            int pal_device_id = 0;
-            int stream_type = 0;
-            bool match = false;
-            std::vector<Stream*>::iterator sIter;
-            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
-                match = (*sIter)->isGKVMatch(gef_payload->graph);
-                if (match) {
-                    pal_param_payload *pal_payload;
-                    pal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->getEffectParameters((void *)&pal_payload, payload_size);
-                    break;
-                }
-            }
-#endif
-            break;
-        }
         case PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
         case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
         case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
@@ -7875,7 +7854,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (status) {
                     PAL_ERR(LOG_TAG, "getDeviceConfig for bt-sco failed");
                     mActiveStreamMutex.unlock();
-                    goto exit;
+                    goto exit_no_unlock;
                 }
 
                 sco_tx_dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
@@ -7883,7 +7862,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (status) {
                     PAL_ERR(LOG_TAG, "getDeviceConfig for bt-sco-mic failed");
                     mActiveStreamMutex.unlock();
-                    goto exit;
+                    goto exit_no_unlock;
                 }
 
                 SortAndUnique(rxDevices);
@@ -8130,26 +8109,6 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             }
         }
         break;
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-#if 0
-            gef_payload_t *gef_payload = (gef_payload_t*)param_payload;
-            int index = 0;
-            int pal_device_id = 0;
-            int stream_type = 0;
-            bool match = false;
-            std::vector<Stream*>::iterator sIter;
-            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
-                match = (*sIter)->isGKVMatch(gef_payload->graph);
-                if (match) {
-                    pal_param_payload pal_payload;
-                    pal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->setParameters(param_id, (void *)&pal_payload);
-                }
-            }
-#endif
-        }
-        break;
         case PAL_PARAM_ID_PROXY_CHANNEL_CONFIG:
         {
             pal_param_proxy_channel_config_t *param_proxy =
@@ -8260,6 +8219,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
 exit:
     mResourceManagerMutex.unlock();
+exit_no_unlock:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }
