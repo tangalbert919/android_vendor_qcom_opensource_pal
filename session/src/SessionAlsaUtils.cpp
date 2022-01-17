@@ -2085,8 +2085,10 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     struct pal_stream_attributes sAttr;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
+    bool is_out_dev = false;
 
     if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+        is_out_dev = true;
         connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
     } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
         connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " connect";
@@ -2097,9 +2099,10 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
         goto exit;
     }
-    if (((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
-        (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
-        streamType == PAL_STREAM_ULTRASOUND) {
+    if ((((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
+          (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
+          (streamType == PAL_STREAM_ULTRASOUND)) ||
+        (is_out_dev && streamType == PAL_STREAM_LOOPBACK)) {
         if (sess) {
             sess->configureMFC(rmHandle,sAttr, dAttr, pcmRxDevIds,
                                 aifBackEndsToConnect[0].second.data());
