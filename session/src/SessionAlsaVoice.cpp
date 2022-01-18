@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -856,12 +857,39 @@ int SessionAlsaVoice::close(Stream * s)
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
+    std::string backendname;
+    int32_t beDevId = 0;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::pair<std::string, int>> freeDeviceMetadata;
+
     PAL_DBG(LOG_TAG,"Enter");
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
         return status;
     }
+
+    status = s->getAssociatedDevices(associatedDevices);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "getAssociatedDevices failed\n");
+        return status;
+    }
+    freeDeviceMetadata.clear();
+
+    for (auto &dev: associatedDevices) {
+         beDevId = dev->getSndDeviceId();
+         rm->getBackendName(beDevId, backendname);
+         PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
+         if (dev->getDeviceCount() > 1) {
+             PAL_DBG(LOG_TAG, "dev %d still active", beDevId);
+             freeDeviceMetadata.push_back(std::make_pair(backendname, 0));
+         } else {
+             PAL_DBG(LOG_TAG, "dev %d not active", beDevId);
+             freeDeviceMetadata.push_back(std::make_pair(backendname, 1));
+         }
+    }
+    status = SessionAlsaUtils::close(s, rm, pcmDevRxIds, pcmDevTxIds,
+             rxAifBackEnds, txAifBackEnds, freeDeviceMetadata);
 
     if (pcmRx) {
         status = pcm_close(pcmRx);
