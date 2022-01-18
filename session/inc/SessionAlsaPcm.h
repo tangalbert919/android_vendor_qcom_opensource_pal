@@ -118,7 +118,7 @@ public:
     void setEventPayload(uint32_t event_id, void *payload, size_t payload_size);
     int register_asps_event(uint32_t reg);
     int getTagsWithModuleInfo(Stream *s, size_t *size __unused, uint8_t *payload);
-
+    void retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struct pcm_config *config);
 };
 
 #endif //SESSION_ALSAPCM_H

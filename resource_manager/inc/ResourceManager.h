@@ -609,6 +609,9 @@ public:
     int registerMixerEventCallback(const std::vector<int> &DevIds,
                                    session_callback callback,
                                    uint64_t cookie, bool is_register);
+    int updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+                            std::shared_ptr<Device> tx_dev,
+                            Stream *tx_str, int count, bool is_txstop);
     bool isDeviceActive(pal_device_id_t deviceId);
     bool isDeviceActive(std::shared_ptr<Device> d, Stream *s);
     bool isDeviceActive_l(std::shared_ptr<Device> d, Stream *s);

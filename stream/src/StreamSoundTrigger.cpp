@@ -4486,16 +4486,18 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                         status);
                     break;
                 }
+                if (st_stream_.rec_config_) {
+                    status = st_stream_.SendRecognitionConfig(
+                             st_stream_.rec_config_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,
+                        "Failed to send recognition config, status %d", status);
+                        break;
+                    }
+                }
             }
 
             if (st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
-                status = st_stream_.SendRecognitionConfig(
-                    st_stream_.rec_config_);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG,
-                        "Failed to send recognition config, status %d", status);
-                    break;
-                }
                 std::shared_ptr<StEventConfig> ev_cfg2(
                     new StStartRecognitionEventConfig(false));
                 status = st_stream_.ProcessInternalEvent(ev_cfg2);
