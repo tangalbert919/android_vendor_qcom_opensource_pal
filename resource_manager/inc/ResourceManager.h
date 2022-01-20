@@ -583,6 +583,7 @@ public:
     static cl_deinit_t cl_deinit;
     static cl_set_boost_state_t cl_set_boost_state;
     static std::shared_ptr<group_dev_config_t> activeGroupDevConfig;
+    static std::shared_ptr<group_dev_config_t> currentGroupDevConfig;
 
     /* checks config for both stream and device */
     bool isStreamSupported(struct pal_stream_attributes *attributes,
