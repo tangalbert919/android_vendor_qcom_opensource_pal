@@ -897,6 +897,9 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
     uint8_t *ptrDst = nullptr;
     uint32_t *ptr = nullptr;
     pal_effect_custom_payload_t *effectCustomPayload = nullptr;
+    uint32_t totalPaddedSize = 0;
+    uint32_t parsedSize = 0;
+    struct agm_acdb_param *repackedData = nullptr;
 
     if (!acdbParam)
         return -EINVAL;
@@ -906,14 +909,6 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
                     sampleRate);
         return -EINVAL;
     }
-
-    // step 1: get param data size = blob size - kv size - param id size
-    payloadSize = acdbParam->blob_size -
-                    acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
-                    - sizeof(pal_effect_custom_payload_t);
-
-    paddedSize = PAL_ALIGN_8BYTE(payloadSize);
-    PAL_INFO(LOG_TAG, "payloadSize=%d paddedSize=%x", payloadSize, paddedSize);
 
     if (sampleRate) {
         //CKV
@@ -935,56 +930,148 @@ int PayloadBuilder::payloadACDBParam(uint8_t **alsaPayload, size_t *size,
         appendSampleRateInCKV = 0;
     }
 
-    payloadInfo = (struct agm_acdb_param *)calloc(1,
-        sizeof(struct agm_acdb_param) +
-        (acdbParam->num_kvs + appendSampleRateInCKV) *
-        sizeof(struct gsl_key_value_pair) +
-        sizeof(struct apm_module_param_data_t) + paddedSize);
-
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "failed to allocate memory.");
-        return -ENOMEM;
-    }
-
-    // copy acdb meta + kv
+    // multipl param check by param id
     dataLength = sizeof(struct agm_acdb_param) +
                     acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
-    ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
-                (uint8_t *)acdbParam, dataLength);
-    //update blob size
-    payloadInfo->blob_size = payloadInfo->blob_size +
-                            sizeof(struct apm_module_param_data_t) -
-                            sizeof(pal_effect_custom_payload_t) +
-                            appendSampleRateInCKV * sizeof(struct gsl_key_value_pair)
-                            + paddedSize - payloadSize;
-    payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
-    if (appendSampleRateInCKV) {
-        ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
-        *ptr++ = SAMPLINGRATE;
-        *ptr = sampleRate;
-        header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
-                    dataLength + sizeof(struct gsl_key_value_pair));
-    } else {
-        header = (struct apm_module_param_data_t *)
-                    ((uint8_t *)payloadInfo + dataLength);
-    }
-
     effectCustomPayload = (pal_effect_custom_payload_t *)
                                 ((uint8_t *)acdbParam + dataLength);
-    header->module_instance_id = moduleInstanceId;
-    header->param_id = effectCustomPayload->paramId;
-    header->param_size = payloadSize;
-    header->error_code = 0x0;
+    if (effectCustomPayload->paramId) {
+        // step 1: get param data size = blob size - kv size - param id size
+        payloadSize = acdbParam->blob_size -
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                        - sizeof(pal_effect_custom_payload_t);
+        paddedSize = PAL_ALIGN_8BYTE(payloadSize);
+        PAL_INFO(LOG_TAG, "payloadSize=%d paddedSize=%x", payloadSize, paddedSize);
+        payloadInfo = (struct agm_acdb_param *)calloc(1,
+            sizeof(struct agm_acdb_param) +
+            (acdbParam->num_kvs + appendSampleRateInCKV) *
+            sizeof(struct gsl_key_value_pair) +
+            sizeof(struct apm_module_param_data_t) + paddedSize);
+        if (!payloadInfo) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory.");
+            return -ENOMEM;
+        }
 
-    if (paddedSize) {
-        ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
-        ptrSrc = (uint8_t *)effectCustomPayload->data;
-        // padded bytes are zereo by calloc. no need to copy.
-        ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+        // copy acdb meta + kv
+        dataLength = sizeof(struct agm_acdb_param) +
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+        ar_mem_cpy((uint8_t *)payloadInfo, dataLength,
+                    (uint8_t *)acdbParam, dataLength);
+        //update blob size
+        payloadInfo->blob_size = payloadInfo->blob_size +
+                                sizeof(struct apm_module_param_data_t) -
+                                sizeof(pal_effect_custom_payload_t) +
+                                appendSampleRateInCKV * sizeof(struct gsl_key_value_pair)
+                                + paddedSize - payloadSize;
+        payloadInfo->num_kvs = payloadInfo->num_kvs + appendSampleRateInCKV;
+        if (appendSampleRateInCKV) {
+            ptr = (uint32_t *)((uint8_t *)payloadInfo + dataLength);
+            *ptr++ = SAMPLINGRATE;
+            *ptr = sampleRate;
+            header = (struct apm_module_param_data_t *)((uint8_t *)payloadInfo +
+                        dataLength + sizeof(struct gsl_key_value_pair));
+        } else {
+            header = (struct apm_module_param_data_t *)
+                        ((uint8_t *)payloadInfo + dataLength);
+        }
+
+        effectCustomPayload = (pal_effect_custom_payload_t *)
+                                    ((uint8_t *)acdbParam + dataLength);
+        header->module_instance_id = moduleInstanceId;
+        header->param_id = effectCustomPayload->paramId;
+        header->param_size = payloadSize;
+        header->error_code = 0x0;
+
+        /* padded size = payload size + appended sze */
+        if (paddedSize) {
+            ptrDst = (uint8_t *)header + sizeof(struct apm_module_param_data_t);
+            ptrSrc = (uint8_t *)effectCustomPayload->data;
+            // padded bytes are zereo by calloc. no need to copy.
+            ar_mem_cpy(ptrDst, payloadSize, ptrSrc, payloadSize);
+        }
+        *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t) +
+                    appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+        *alsaPayload = (uint8_t *)payloadInfo;
+
+    } else {
+        // step 1: get param data size = blob size - kv size - param id size
+        payloadSize = acdbParam->blob_size -
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                        - sizeof(pal_effect_custom_payload_t);
+
+        repackedData =
+                (struct agm_acdb_param *)calloc(1,
+                    sizeof(struct agm_acdb_param) +
+                    (acdbParam->num_kvs + appendSampleRateInCKV) *
+                    sizeof(struct gsl_key_value_pair) +
+                    sizeof(struct apm_module_param_data_t) + payloadSize * 2);
+
+        if (!repackedData) {
+                PAL_ERR(LOG_TAG, "failed to allocate memory of 0x%x bytes",
+                                        payloadSize * 2);
+                return -ENOMEM;
+        }
+
+        legacyGefParamHeader *gefMultipleParamHeader = NULL;
+        // copy acdb meta + kv
+        dataLength = sizeof(struct agm_acdb_param) +
+                        acdbParam->num_kvs * sizeof(struct gsl_key_value_pair);
+
+        ar_mem_cpy((uint8_t *)repackedData, dataLength,
+                    (uint8_t *)acdbParam, dataLength);
+
+        repackedData->num_kvs = acdbParam->num_kvs + appendSampleRateInCKV;
+        if (appendSampleRateInCKV) {
+            ptr = (uint32_t *)((uint8_t *)repackedData + dataLength);
+            *ptr++ = SAMPLINGRATE;
+            *ptr = sampleRate;
+            header = (struct apm_module_param_data_t *)((uint8_t *)repackedData +
+                        dataLength + sizeof(struct gsl_key_value_pair));
+        } else {
+            header = (struct apm_module_param_data_t *)
+                        ((uint8_t *)repackedData + dataLength);
+        }
+
+        while (parsedSize < payloadSize) {
+            PAL_DBG(LOG_TAG, "parsed size = 0x%x", parsedSize);
+            gefMultipleParamHeader =
+                (legacyGefParamHeader *)
+                ((uint8_t *)(effectCustomPayload->data) + parsedSize);
+            paddedSize= PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                                + gefMultipleParamHeader->length);
+            PAL_DBG(LOG_TAG, "total padded size = 0x%x paddedSize=0x%x",
+                        totalPaddedSize, paddedSize);
+            PAL_DBG(LOG_TAG, "current param value length = 0x%x",
+                        gefMultipleParamHeader->length);
+            header->module_instance_id = moduleInstanceId;
+            header->param_id = gefMultipleParamHeader->paramId;
+            header->error_code = 0x0;
+            header->param_size = gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "miid=0x%x param id = 0x%x length=0x%x",
+                        header->module_instance_id, header->param_id, header->param_size);
+            if (gefMultipleParamHeader->length) {
+                ar_mem_cpy((uint8_t *)header + sizeof(struct apm_module_param_data_t),
+                                 gefMultipleParamHeader->length,
+                                 (uint8_t *)gefMultipleParamHeader + sizeof(legacyGefParamHeader),
+                                 gefMultipleParamHeader->length);
+            }
+            // offset to output data
+            totalPaddedSize += paddedSize;
+            // offset to input data
+            parsedSize += sizeof(legacyGefParamHeader) +
+                            gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "parsed size=0x%x total padded size=0x%x",
+                                parsedSize, totalPaddedSize);
+            header = (struct apm_module_param_data_t*)((uint8_t *)header + paddedSize);
+        }
+
+        repackedData->blob_size = acdbParam->num_kvs * sizeof(struct gsl_key_value_pair)
+                                    + totalPaddedSize;
+        *size = dataLength + totalPaddedSize +
+                    appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
+        *alsaPayload = (uint8_t *)repackedData;
     }
-    *size = dataLength + paddedSize + sizeof(struct apm_module_param_data_t) +
-                appendSampleRateInCKV * sizeof(struct gsl_key_value_pair);
-    *alsaPayload = (uint8_t *)payloadInfo;
+
     PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 
     return 0;
@@ -996,27 +1083,74 @@ int PayloadBuilder::payloadCustomParam(uint8_t **alsaPayload, size_t *size,
     struct apm_module_param_data_t* header;
     uint8_t* payloadInfo = NULL;
     size_t alsaPayloadSize = 0;
+    uint32_t totalPaddedSize = 0;
+    uint32_t parsedSize = 0;
 
-    alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
-                                        + customPayloadSize);
-    payloadInfo = (uint8_t *)calloc(1, (size_t)alsaPayloadSize);
-    if (!payloadInfo) {
-        PAL_ERR(LOG_TAG, "failed to allocate memory.");
-        return -ENOMEM;
+    PAL_DBG(LOG_TAG, "param id = 0x%x", paramId);
+    if (paramId) {
+        alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                            + customPayloadSize);
+        payloadInfo = (uint8_t *)calloc(1, (size_t)alsaPayloadSize);
+        if (!payloadInfo) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory.");
+            return -ENOMEM;
+        }
+
+        header = (struct apm_module_param_data_t*)payloadInfo;
+        header->module_instance_id = moduleInstanceId;
+        header->param_id = paramId;
+        header->error_code = 0x0;
+        header->param_size = customPayloadSize;
+        if (customPayloadSize)
+            ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                             customPayloadSize,
+                             customPayload,
+                             customPayloadSize);
+        *size = alsaPayloadSize;
+        *alsaPayload = payloadInfo;
+    } else {
+        // make sure memory is big enough to handle padding
+        uint8_t *repackedData = (uint8_t *)calloc(1, customPayloadSize * 2);
+        if (!repackedData) {
+            PAL_ERR(LOG_TAG, "failed to allocate memory of 0x%x bytes",
+                        customPayloadSize * 2);
+            return -ENOMEM;
+        }
+        legacyGefParamHeader *gefMultipleParamHeader = NULL;
+        PAL_DBG(LOG_TAG, "custom payloadsize=0x%x", customPayloadSize);
+
+        while (parsedSize < customPayloadSize) {
+            gefMultipleParamHeader =
+                (legacyGefParamHeader *)((uint8_t *)customPayload + parsedSize);
+            alsaPayloadSize = PAL_ALIGN_8BYTE(sizeof(struct apm_module_param_data_t)
+                                                + gefMultipleParamHeader->length);
+            PAL_DBG(LOG_TAG, "total padded size = 0x%x alsapayloadsize=0x%x",
+                        totalPaddedSize, alsaPayloadSize);
+            PAL_DBG(LOG_TAG, "current param length = 0x%x",
+                        gefMultipleParamHeader->length);
+            payloadInfo = repackedData + totalPaddedSize;
+            header = (struct apm_module_param_data_t*)payloadInfo;
+            header->module_instance_id = moduleInstanceId;
+            header->param_id = gefMultipleParamHeader->paramId;
+            header->error_code = 0x0;
+            header->param_size = gefMultipleParamHeader->length;
+
+            if (gefMultipleParamHeader->length)
+                ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
+                                 gefMultipleParamHeader->length,
+                                 (uint8_t *)customPayload + parsedSize +
+                                 sizeof(legacyGefParamHeader),
+                                 gefMultipleParamHeader->length);
+
+            totalPaddedSize += alsaPayloadSize;
+            parsedSize += sizeof(legacyGefParamHeader) +
+                            gefMultipleParamHeader->length;
+            PAL_DBG(LOG_TAG, "parsed size=0x%x total padded size=0x%x",
+                                parsedSize, totalPaddedSize);
+        }
+        *size = totalPaddedSize;
+        *alsaPayload = repackedData;
     }
-
-    header = (struct apm_module_param_data_t*)payloadInfo;
-    header->module_instance_id = moduleInstanceId;
-    header->param_id = paramId;
-    header->error_code = 0x0;
-    header->param_size = customPayloadSize;
-    if (customPayloadSize)
-        ar_mem_cpy(payloadInfo + sizeof(struct apm_module_param_data_t),
-                         customPayloadSize,
-                         customPayload,
-                         customPayloadSize);
-    *size = alsaPayloadSize;
-    *alsaPayload = payloadInfo;
 
     PAL_DBG(LOG_TAG, "ALSA payload %pK size %zu", *alsaPayload, *size);
 

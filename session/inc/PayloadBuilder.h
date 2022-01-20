@@ -152,6 +152,13 @@ typedef enum {
     TAG_DEVICEPP_SEL,
 } usecase_xml_tag;
 
+typedef struct {
+    uint32_t moduleId;
+    uint32_t paramId;
+    uint16_t length;
+    uint16_t reserved;
+} __attribute__((packed)) legacyGefParamHeader;
+
 struct user_xml_data{
     char data_buf[1024];
     size_t offs;
