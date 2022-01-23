@@ -25,6 +25,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "PAL: Stream"
@@ -166,6 +199,7 @@ stream_create:
             case PAL_STREAM_PROXY:
             case PAL_STREAM_HAPTICS:
             case PAL_STREAM_RAW:
+            case PAL_STREAM_VOICE_RECOGNITION:
                 //TODO:for now keeping PAL_STREAM_PLAYBACK_GENERIC for ULLA need to check
                 stream = new StreamPCM(sAttr,
                                        palDevsAttr,
@@ -456,13 +490,17 @@ int32_t Stream::getAssociatedDevices(std::vector <std::shared_ptr<Device>> &aDev
     return status;
 }
 
-int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id)
+int32_t Stream::updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace)
 {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "updatePalDevice from %d to %d", dev_id, dattr->id);
     for (int i = 0; i < mPalDevice.size(); i++) {
         if (dev_id == mPalDevice[i].id) {
+            if (!replace) {
+                PAL_DBG(LOG_TAG, "found existing dattr, don't replace");
+                return status;
+            }
             mPalDevice.erase(mPalDevice.begin() + i);
             break;
         }
@@ -997,6 +1035,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 {
     int32_t status = 0;
     std::shared_ptr<Device> dev = nullptr;
+    std::string newBackEndName;
+    std::string curBackEndName;
 
     if (!dattr) {
         PAL_ERR(LOG_TAG, "invalid params");
@@ -1010,10 +1050,6 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto exit;
     }
 
-    /* Check if we need to check here or above if bt_Sco is on for sco usecase
-     * Device::getInstance will not set device attributes if the device instance
-     * created previously so set device config explictly.
-     */
     dev->setDeviceAttributes(*dattr);
 
     if (currentState == STREAM_IDLE) {
@@ -1022,13 +1058,19 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto exit;
     }
 
-    /* For A2DP UCs streams may play on combo devices like Speaker and A2DP
-     * However, if the a2dp suspend is called - all streams on a2dp will temporarily
-     * move to speakers.  If the stream is already connected to speaker. then we will
-     * entrying the speaker device information twice. Below snippet will handle that case
+    /* Avoid stream connecting to devices sharing the same backend.
+     * - For A2DP streams may play on combo devices like Speaker and A2DP.
+     *   However, if a2dp suspend is called, all streams on a2dp will temporarily
+     *   move to speaker. If the stream is already connected to speaker, speaker
+     *   will be connected twice.
+     * - For multi-recording stream connecting to bt-sco-mic and handset-mic,
+     *   if a2dp suspend arrives, stream will switch from bt-sco-mic to speaker-mic.
+     *   Hence, both speaker-mic and handset-mic will be enabled.
      */
+    rm->getBackendName(dev->getSndDeviceId(), newBackEndName);
     for (auto iter = mDevices.begin(); iter != mDevices.end(); iter++) {
-        if ((*iter)->getSndDeviceId() == dev->getSndDeviceId()) {
+        rm->getBackendName((*iter)->getSndDeviceId(), curBackEndName);
+        if (newBackEndName == curBackEndName) {
             PAL_INFO(LOG_TAG,
                 "stream is already connected to device %d name %s - return",
                 dev->getSndDeviceId(), dev->getPALDeviceName().c_str());
@@ -1048,7 +1090,7 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    updatePalDevice(dattr, dattr->id);
+    updatePalDevice(dattr, dattr->id, false);
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
@@ -1079,8 +1121,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
 
 dev_stop:
     dev->stop();
-dev_close:
 
+dev_close:
     /* Do not pop the current device from stream, if session connect failed due to SSR down
      * event so that when SSR is up that device will be associated to stream.
      */
@@ -1089,12 +1131,12 @@ dev_close:
         mPalDevice.pop_back();
     }
     dev->close();
+
 exit:
-    /*check if USB is not available restore to default device */
+    /* check if USB is not available restore to default device */
     if (dev && status && (dev->getSndDeviceId() == PAL_DEVICE_OUT_USB_HEADSET ||
-                   dev->getSndDeviceId() == PAL_DEVICE_IN_USB_HEADSET))
-    {
-       if(USB::isUsbConnected(dattr->address)){
+                   dev->getSndDeviceId() == PAL_DEVICE_IN_USB_HEADSET)) {
+       if (USB::isUsbConnected(dattr->address)) {
            PAL_ERR(LOG_TAG, "USB still connected, connect failed");
        } else {
            status = connectToDefaultDevice(streamHandle, rm->getDeviceDirection(dev->getSndDeviceId()));

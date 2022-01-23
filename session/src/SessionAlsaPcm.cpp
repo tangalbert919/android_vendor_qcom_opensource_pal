@@ -658,6 +658,12 @@ void SessionAlsaPcm::requestAdmFocus(Stream *s,  long ns)
         rm->admRequestFocusFn(rm->admData, static_cast<void *>(s));
 }
 
+void SessionAlsaPcm::AdmRoutingChange(Stream *s)
+{
+    if (rm->admOnRoutingChangeFn)
+        rm->admOnRoutingChangeFn(rm->admData, static_cast<void *>(s));
+}
+
 void SessionAlsaPcm::releaseAdmFocus(Stream *s)
 {
     if (rm->admAbandonFocusFn)
@@ -2551,15 +2557,21 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
 
         pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
                              pcm_flags, &config);
-        if (!pcm) {
-            PAL_ERR(LOG_TAG, "pcm open failed");
+
+        if ((!pcm || !pcm_is_ready(pcm)) && ecRefDevId != PAL_DEVICE_OUT_MIN) {
+           PAL_ERR(LOG_TAG, "Failed to open EC graph")
+           retryOpenWithoutEC(s, pcm_flags, &config);
+        }
+
+        if(!pcm) {
+            PAL_ERR(LOG_TAG, "pcm open failed, status : %d", errno);
             step = "open";
             status = errno;
             goto exit;
         }
 
         if (!pcm_is_ready(pcm)) {
-            PAL_ERR(LOG_TAG, "pcm open not ready");
+            PAL_ERR(LOG_TAG, "pcm open not ready, status : %d", errno);
             pcm = nullptr;
             step = "open";
             status = errno;
@@ -2637,6 +2649,36 @@ int SessionAlsaPcm::createMmapBuffer(Stream *s, int32_t min_size_frames,
      }
      return status;
  }
+
+void SessionAlsaPcm::retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struct pcm_config *config)
+{
+    int status = 0;
+    struct pal_device rxDevAttr = {};
+    std::shared_ptr<Device> rx_dev;
+    std::vector <std::shared_ptr<Device>> tx_devs;
+
+    rxDevAttr.id = ecRefDevId;
+    rx_dev = Device::getInstance(&rxDevAttr, rm);
+    status = setECRef(s, rx_dev, false);
+    if (status) {
+        PAL_ERR(LOG_TAG, "Failed to reset EC, status : %d", status);
+    }
+    s->getAssociatedDevices(tx_devs);
+    if (!tx_devs.size()) {
+        PAL_ERR(LOG_TAG, "No tx device is associated with this stream");
+        return;
+    }
+    for (int i = 0; i < tx_devs.size(); ++i) {
+        status = rm->updateECDeviceMap_1(rx_dev, tx_devs[i], s, 0, false);
+        if (status) {
+            PAL_ERR(LOG_TAG, "Failed to update EC Device map for device %s, status: %d",
+                    tx_devs[i]->getPALDeviceName().c_str(), status);
+        }
+    }
+
+    pcm = pcm_open(rm->getVirtualSndCard(), pcmDevIds.at(0),
+                       pcm_flags, config);
+}
 
  int SessionAlsaPcm::GetMmapPosition(Stream *s, struct pal_mmap_position *position)
  {

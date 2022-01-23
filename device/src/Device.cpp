@@ -194,8 +194,10 @@ std::shared_ptr<Device> Device::getObject(pal_device_id_t dev_id)
         PAL_VERBOSE(LOG_TAG, "BT SCO device %d", dev_id);
         return BtSco::getObject(dev_id);
     case PAL_DEVICE_OUT_PROXY:
-    case PAL_DEVICE_IN_PROXY:
     case PAL_DEVICE_OUT_HEARING_AID:
+        PAL_VERBOSE(LOG_TAG, "RTProxyOut device %d", dev_id);
+        return RTProxyOut::getObject();
+    case PAL_DEVICE_IN_PROXY:
     case PAL_DEVICE_IN_TELEPHONY_RX:
         PAL_VERBOSE(LOG_TAG, "RTProxy device %d", dev_id);
         return RTProxy::getObject();

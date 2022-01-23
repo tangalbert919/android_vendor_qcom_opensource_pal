@@ -153,8 +153,6 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         throw std::runtime_error(err);
     }
 
-    rm->registerStream(this);
-
     // Create internal states
     st_idle_ = new StIdle(*this);
     st_loaded_ = new StLoaded(*this);
@@ -180,6 +178,9 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
         prev_state_ = nullptr;
         state_for_restore_ = ST_STATE_NONE;
     }
+
+    rm->registerStream(this);
+
     // Print the concurrency feature flags supported
     PAL_INFO(LOG_TAG, "capture conc enable %d,voice conc enable %d,voip conc enable %d",
         st_info_->GetConcurrentCaptureEnable(), st_info_->GetConcurrentVoiceCallEnable(),
@@ -216,7 +217,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
 }
 
 StreamSoundTrigger::~StreamSoundTrigger() {
-    std::lock_guard<std::mutex> lck(mStreamMutex);
+    mStreamMutex.lock();
     {
         std::lock_guard<std::mutex> lck(timer_mutex_);
         exit_timer_thread_ = true;
@@ -231,6 +232,7 @@ StreamSoundTrigger::~StreamSoundTrigger() {
 
     st_states_.clear();
     engines_.clear();
+    mStreamMutex.unlock();
 
     rm->deregisterStream(this);
     if (mStreamAttr)
@@ -665,13 +667,16 @@ int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
     int32_t disable_concurrency_count = 0;
 
     PAL_DBG(LOG_TAG, "Enter, state %d", state);
-    std::lock_guard<std::mutex> lck(mStreamMutex);
+    if (!active) {
+        mStreamMutex.lock();
+        common_cp_update_disable_ = true;
+    }
     charging_state_ = state;
     if (!rm->IsLPISupported(PAL_STREAM_VOICE_UI)) {
         PAL_DBG(LOG_TAG, "Ignore as LPI not supported");
     } else {
         // check concurrency count from rm
-        rm->GetSoundTriggerConcurrencyCount(PAL_STREAM_VOICE_UI,
+        rm->GetSoundTriggerConcurrencyCount_l(PAL_STREAM_VOICE_UI,
             &enable_concurrency_count, &disable_concurrency_count);
 
         // no need to update use_lpi_ if there's concurrency enabled
@@ -688,6 +693,11 @@ int32_t StreamSoundTrigger::HandleChargingStateUpdate(bool state, bool active) {
     status = cur_state_->ProcessEvent(ev_cfg);
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update charging state");
+    }
+
+    if (active) {
+        common_cp_update_disable_ = false;
+        mStreamMutex.unlock();
     }
 
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -4341,6 +4351,7 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
                         TransitTo(ST_STATE_LOADED);
                     }
                 }
+                rm->releaseWakeLock();
                 break;
             }
             if (data->det_type_ == KEYWORD_DETECTION_SUCCESS ||
@@ -4475,16 +4486,18 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
                         status);
                     break;
                 }
+                if (st_stream_.rec_config_) {
+                    status = st_stream_.SendRecognitionConfig(
+                             st_stream_.rec_config_);
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,
+                        "Failed to send recognition config, status %d", status);
+                        break;
+                    }
+                }
             }
 
             if (st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
-                status = st_stream_.SendRecognitionConfig(
-                    st_stream_.rec_config_);
-                if (0 != status) {
-                    PAL_ERR(LOG_TAG,
-                        "Failed to send recognition config, status %d", status);
-                    break;
-                }
                 std::shared_ptr<StEventConfig> ev_cfg2(
                     new StStartRecognitionEventConfig(false));
                 status = st_stream_.ProcessInternalEvent(ev_cfg2);

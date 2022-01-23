@@ -2333,6 +2333,8 @@ int PayloadBuilder::populateStreamCkv(Stream *s,
 {
     int status = 0;
     struct pal_stream_attributes sAttr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    struct volume_set_param_info vol_set_param_info;
 
     PAL_DBG(LOG_TAG, "Enter");
     memset(&sAttr, 0, sizeof(struct pal_stream_attributes));
@@ -2357,8 +2359,16 @@ int PayloadBuilder::populateStreamCkv(Stream *s,
              * down while setting the desired volume. Thus avoiding glitch
              * TODO: Decide what to send as ckv in graph open
              */
-            keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
-            PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+            memset(&vol_set_param_info, 0, sizeof(struct volume_set_param_info));
+            rm->getVolumeSetParamInfo(&vol_set_param_info);
+            bool isStreamAvail = (find(vol_set_param_info.streams_.begin(),
+                    vol_set_param_info.streams_.end(), sAttr.type) !=
+                    vol_set_param_info.streams_.end());
+            if ((vol_set_param_info.isVolumeUsingSetParam == false) ||
+                ((vol_set_param_info.isVolumeUsingSetParam == true) && !isStreamAvail)) {
+                keyVector.push_back(std::make_pair(VOLUME,LEVEL_15));
+                PAL_DBG(LOG_TAG, "Entered default %x %x", VOLUME, LEVEL_15);
+            }
             break;
      }
 exit:
@@ -2815,6 +2825,14 @@ int PayloadBuilder::populateTagKeyVector(Stream *s, std::vector <std::pair<int,i
     case DEVICE_UNMUTE:
        tkv.push_back(std::make_pair(MUTE,OFF));
        *gsltag = TAG_DEV_MUTE;
+       break;
+   case DEVICEPP_MUTE:
+       tkv.push_back(std::make_pair(MUTE,ON));
+       *gsltag = TAG_DEVPP_MUTE;
+       break;
+   case DEVICEPP_UNMUTE:
+       tkv.push_back(std::make_pair(MUTE,OFF));
+       *gsltag = TAG_DEVPP_MUTE;
        break;
     default:
        PAL_ERR(LOG_TAG,"Tag not supported \n");

@@ -25,6 +25,39 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Changes from Qualcomm Innovation Center are provided under the following license:
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted (subject to the limitations in the
+ * disclaimer below) provided that the following conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ * NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+ * GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+ * HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+ * GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+ * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define LOG_TAG "PAL: ResourceManager"
@@ -129,6 +162,7 @@
 #define MAX_SESSIONS_HAPTICS 1
 #define MAX_SESSIONS_ULTRASOUND 1
 #define MAX_SESSIONS_SENSOR_PCM_DATA 1
+#define MAX_SESSIONS_VOICE_RECOGNITION 1
 
 #define WAKE_LOCK_NAME "audio_pal_wl"
 #define WAKE_LOCK_PATH "/sys/power/wake_lock"
@@ -363,6 +397,7 @@ std::mutex ResourceManager::mResourceManagerMutex;
 std::mutex ResourceManager::mGraphMutex;
 std::mutex ResourceManager::mActiveStreamMutex;
 std::mutex ResourceManager::mSleepMonitorMutex;
+std::mutex ResourceManager::mListFrontEndsMutex;
 std::vector <int> ResourceManager::listAllFrontEndIds = {0};
 std::vector <int> ResourceManager::listFreeFrontEndIds = {0};
 std::vector <int> ResourceManager::listAllPcmPlaybackFrontEnds = {0};
@@ -2178,7 +2213,10 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
             cur_sessions = active_streams_raw.size();
             max_sessions = MAX_SESSIONS_RAW;
             break;
-        case PAL_STREAM_VOICE_ACTIVATION:
+        case PAL_STREAM_VOICE_RECOGNITION:
+            cur_sessions = active_streams_voice_rec.size();
+            max_sessions = MAX_SESSIONS_VOICE_RECOGNITION;
+            break;
         case PAL_STREAM_LOOPBACK:
         case PAL_STREAM_TRANSCODE:
         case PAL_STREAM_VOICE_UI:
@@ -2250,6 +2288,7 @@ bool ResourceManager::isStreamSupported(struct pal_stream_attributes *attributes
         case PAL_STREAM_PROXY:
         case PAL_STREAM_VOICE_CALL_MUSIC:
         case PAL_STREAM_HAPTICS:
+        case PAL_STREAM_VOICE_RECOGNITION:
             if (attributes->direction == PAL_AUDIO_INPUT) {
                 channels = attributes->in_media_config.ch_info.channels;
                 samplerate = attributes->in_media_config.sample_rate;
@@ -2488,6 +2527,12 @@ int ResourceManager::registerStream(Stream *s)
             ret = registerstream(sCtxt, active_streams_context_proxy);
             break;
         }
+        case PAL_STREAM_VOICE_RECOGNITION:
+        {
+            StreamPCM* sVR = dynamic_cast<StreamPCM*>(s);
+            ret = registerstream(sVR, active_streams_voice_rec);
+            break;
+        }
         default:
             ret = -EINVAL;
             PAL_ERR(LOG_TAG, "Invalid stream type = %d ret %d", type, ret);
@@ -2664,6 +2709,12 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamContextProxy* sCtxt = dynamic_cast<StreamContextProxy*>(s);
             ret = deregisterstream(sCtxt, active_streams_context_proxy);
+            break;
+        }
+        case PAL_STREAM_VOICE_RECOGNITION:
+        {
+            StreamPCM* sVR = dynamic_cast<StreamPCM*>(s);
+            ret = deregisterstream(sVR, active_streams_voice_rec);
             break;
         }
         default:
@@ -3339,8 +3390,16 @@ bool ResourceManager::IsDedicatedBEForUPDEnabled()
     return ResourceManager::isUpdDedicatedBeEnabled;
 }
 
-// this should only be called when LPI supported by platform
 void ResourceManager::GetSoundTriggerConcurrencyCount(
+    pal_stream_type_t type,
+    int32_t *enable_count, int32_t *disable_count) {
+    mActiveStreamMutex.lock();
+    GetSoundTriggerConcurrencyCount_l(type, enable_count, disable_count);
+    mActiveStreamMutex.unlock();
+}
+
+// this should only be called when LPI supported by platform
+void ResourceManager::GetSoundTriggerConcurrencyCount_l(
     pal_stream_type_t type,
     int32_t *enable_count, int32_t *disable_count) {
 
@@ -3353,7 +3412,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
     int32_t *local_en_count = nullptr;
     int32_t *local_dis_count = nullptr;
 
-    mResourceManagerMutex.lock();
     if (type == PAL_STREAM_ACD) {
         local_en_count = &ACDConcurrencyEnableCount;
         local_dis_count = &ACDConcurrencyDisableCount;
@@ -3365,7 +3423,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
         local_dis_count = &SNSPCMDataConcurrencyDisableCount;
     } else {
         PAL_ERR(LOG_TAG, "Error:%d Invalid stream type %d", -EINVAL, type);
-        mResourceManagerMutex.unlock();
         return;
     }
 
@@ -3410,7 +3467,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount(
     }
 
 exit:
-    mResourceManagerMutex.unlock();
     *enable_count = *local_en_count;
     *disable_count = *local_dis_count;
     PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
@@ -3791,6 +3847,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
     /* This is called from mResourceManagerMutex lock, unlock before calling
      * HandleDetectionStreamAction */
     mResourceManagerMutex.unlock();
+    mActiveStreamMutex.lock();
     if (is_sva_ds_supported)
         HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_DISCONNECT_DEVICE, (void *)&device_to_disconnect);
 
@@ -3808,7 +3865,7 @@ int ResourceManager::SwitchSoundTriggerDevices(bool connect_state,
         HandleDetectionStreamAction(PAL_STREAM_SENSOR_PCM_DATA, ST_HANDLE_CONNECT_DEVICE,
                                     (void *)&device_to_connect);
     }
-
+    mActiveStreamMutex.unlock();
     mResourceManagerMutex.lock();
 exit:
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
@@ -4025,14 +4082,13 @@ exit:
     return status;
 }
 
+// NOTE: This api should be called with mActiveStreamMutex locked
 int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data)
 {
     int status = 0;
     pal_stream_attributes st_attr;
 
     PAL_DBG(LOG_TAG, "Enter");
-    mActiveStreamMutex.lock();
-
     for (auto& str: mActiveStreams) {
         if (!isStreamActive(str, mActiveStreams))
             continue;
@@ -4041,7 +4097,6 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
         if (st_attr.type != type)
             continue;
 
-        mActiveStreamMutex.unlock();
         switch (action) {
             case ST_PAUSE:
                 if (str != (Stream *)data) {
@@ -4097,9 +4152,7 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
             default:
                 break;
         }
-        mActiveStreamMutex.lock();
     }
-    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
 
     return status;
@@ -4188,33 +4241,25 @@ void ResourceManager::HandleStreamPauseResume(pal_stream_type_t st_type, bool ac
     else
         return;
 
-    mResourceManagerMutex.lock();
     if (active) {
         ++(*local_dis_count);
         if (*local_dis_count == 1) {
             // pause all sva/acd streams
-            mResourceManagerMutex.unlock();
             HandleDetectionStreamAction(st_type, ST_PAUSE, NULL);
-            mResourceManagerMutex.lock();
         }
     } else {
         --(*local_dis_count);
         if (*local_dis_count == 0) {
             // resume all sva/acd streams
-            mResourceManagerMutex.unlock();
             HandleDetectionStreamAction(st_type, ST_RESUME, NULL);
-            mResourceManagerMutex.lock();
         }
     }
-    mResourceManagerMutex.unlock();
 }
 
-/* This function should be called with mResourceManagerMutex lock acquired */
+/* This function should be called with mActiveStreamMutex lock acquired */
 void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t>& st_streams,
     bool stream_active, bool is_deferred)
 {
-    bool update_st_capture_profile = true;
-    std::vector<pal_stream_type_t> st_streams_to_start;
     std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
     if(!is_deferred) {
@@ -4234,46 +4279,38 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
     }
 
     for (pal_stream_type_t st_stream_type : st_streams) {
-
         // update use_lpi_ for SVA/ACD/Sensor PCM Data streams
-        mResourceManagerMutex.unlock();
         HandleDetectionStreamAction(st_stream_type, ST_ENABLE_LPI, (void *)&stream_active);
-        mResourceManagerMutex.lock();
-
-        // update the common capture profile once
-        if (true == update_st_capture_profile) {
-            SoundTriggerCaptureProfile = nullptr;
-            cap_prof_priority = GetCaptureProfileByPriority(nullptr);
-
-            if (!cap_prof_priority) {
-                PAL_DBG(LOG_TAG, "No ST session active, reset capture profile");
-                SoundTriggerCaptureProfile = nullptr;
-            } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
-                    CAPTURE_PROFILE_PRIORITY_HIGH) {
-                SoundTriggerCaptureProfile = cap_prof_priority;
-            }
-            update_st_capture_profile = false;
-        }
-        // stop/unload SVA/ACD/Sensor PCM Data streams
-        bool action = false;
-
-        mResourceManagerMutex.unlock();
-        PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type);
-        HandleDetectionStreamAction(st_stream_type,
-            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-        st_streams_to_start.push_back(st_stream_type);
-        mResourceManagerMutex.lock();
     }
 
-    for (pal_stream_type_t st_stream_type_to_start : st_streams_to_start) {
+    // update common capture profile after use_lpi_ updated for all streams
+    if (st_streams.size()) {
+        SoundTriggerCaptureProfile = nullptr;
+        cap_prof_priority = GetCaptureProfileByPriority(nullptr);
+
+        if (!cap_prof_priority) {
+            PAL_DBG(LOG_TAG, "No ST session active, reset capture profile");
+            SoundTriggerCaptureProfile = nullptr;
+        } else if (cap_prof_priority->ComparePriority(SoundTriggerCaptureProfile) ==
+                CAPTURE_PROFILE_PRIORITY_HIGH) {
+            SoundTriggerCaptureProfile = cap_prof_priority;
+        }
+    }
+
+    for (pal_stream_type_t st_stream_type_to_stop : st_streams) {
+        // stop/unload SVA/ACD/Sensor PCM Data streams
+        bool action = false;
+        PAL_DBG(LOG_TAG, "stop/unload stream type %d", st_stream_type_to_stop);
+        HandleDetectionStreamAction(st_stream_type_to_stop,
+            ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
+    }
+
+    for (pal_stream_type_t st_stream_type_to_start : st_streams) {
         // load/start SVA/ACD/Sensor PCM Data streams
         bool action = true;
-
-        mResourceManagerMutex.unlock();
         PAL_DBG(LOG_TAG, "load/start stream type %d", st_stream_type_to_start);
         HandleDetectionStreamAction(st_stream_type_to_start,
             ST_HANDLE_CONCURRENT_STREAM, (void *)&action);
-        mResourceManagerMutex.lock();
     }
 }
 
@@ -4281,12 +4318,9 @@ void ResourceManager::handleConcurrentStreamSwitch(std::vector<pal_stream_type_t
 void ResourceManager::handleDeferredSwitch()
 {
     bool active = false;
-    bool update_st_capture_profile = true;
     std::vector<pal_stream_type_t> st_streams;
-    std::vector<pal_stream_type_t> st_streams_to_start;
-    std::shared_ptr<CaptureProfile> cap_prof_priority = nullptr;
 
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
 
     PAL_DBG(LOG_TAG, "enter, isAnyVUIStreambuffering:%d deferred state:%d",
         isAnyVUIStreamBuffering(), deferredSwitchState);
@@ -4308,7 +4342,7 @@ void ResourceManager::handleDeferredSwitch()
         // reset the defer switch state after handling LPI/NLPI switch
         deferredSwitchState = NO_DEFER;
     }
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -4332,11 +4366,10 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                                                              pal_stream_direction_t dir,
                                                              bool active)
 {
-    bool update_st_capture_profile = true;
     std::vector<pal_stream_type_t> st_streams;
     bool do_st_stream_switch = false;
 
-    mResourceManagerMutex.lock();
+    mActiveStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
 
     if (active_streams_st.size())
@@ -4355,9 +4388,7 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                            &st_stream_rx_conc, &st_stream_tx_conc, &st_stream_conc_en);
 
         if (!st_stream_conc_en) {
-            mResourceManagerMutex.unlock();
             HandleStreamPauseResume(st_stream_type, active);
-            mResourceManagerMutex.lock();
             continue;
         }
 
@@ -4383,7 +4414,7 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
     if (do_st_stream_switch)
         handleConcurrentStreamSwitch(st_streams, active, false);
 
-    mResourceManagerMutex.unlock();
+    mActiveStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit");
 }
 
@@ -4569,6 +4600,18 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
 
     return result;
 }
+
+int ResourceManager::updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+    std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
+{
+    int status = 0;
+    mResourceManagerMutex.lock();
+    status = updateECDeviceMap(rx_dev, tx_dev, tx_str, count, is_txstop);
+    mResourceManagerMutex.unlock();
+
+    return status;
+}
+
 
 int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
@@ -5415,6 +5458,13 @@ void ResourceManager::freeFrontEndEcTxIds(const std::vector<int> frontend)
     return;
 }
 
+template <typename T>
+void removeDuplicates(std::vector<T> &vec)
+{
+    std::sort(vec.begin(), vec.end());
+    vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+    return;
+}
 
 const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_stream_attributes sAttr, int lDirection)
 {
@@ -5425,6 +5475,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
     int id = 0;
     std::vector<int>::iterator it;
 
+    mListFrontEndsMutex.lock();
     switch(sAttr.type) {
         case PAL_STREAM_NON_TUNNEL:
             if (howMany > listAllNonTunnelSessionIds.size()) {
@@ -5458,16 +5509,17 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_ULTRASOUND:
         case PAL_STREAM_RAW:
         case PAL_STREAM_SENSOR_PCM_DATA:
+        case PAL_STREAM_VOICE_RECOGNITION:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
-                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessTxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessTxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessTxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessTxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
                            listAllPcmHostlessTxFrontEnds.erase(it);
@@ -5476,13 +5528,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                            id -= 1;
                         }
                     } else {
-                        if ( howMany > listAllPcmRecordFrontEnds.size()) {
+                        if (howMany > listAllPcmRecordFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmRecordFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmRecordFrontEnds.size() - 1);
-                        it =  (listAllPcmRecordFrontEnds.begin() + id);
+                        it = (listAllPcmRecordFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                             f.push_back(listAllPcmRecordFrontEnds.at(id));
                             listAllPcmRecordFrontEnds.erase(it);
@@ -5497,12 +5549,21 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                         PAL_ERR(LOG_TAG, "Raw output stream not supported");
                         goto error;
                     }
-                    if ( howMany > listAllPcmPlaybackFrontEnds.size()) {
+                    if (howMany > listAllPcmPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllPcmPlaybackFrontEnds.size());
                         goto error;
                     }
-                    id = (listAllPcmPlaybackFrontEnds.size() - 1);
+                    if (!listAllPcmPlaybackFrontEnds.size()) {
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, but we dont have any (%zu) !!!!!!! ",
+                                howMany, listAllPcmPlaybackFrontEnds.size());
+                        goto error;
+                    }
+                    id = (int)(((int)listAllPcmPlaybackFrontEnds.size()) - 1);
+                    if (id < 0) {
+                        PAL_ERR(LOG_TAG, "allocateFrontEndIds: negative iterator id %d !!!!! ", id);
+                        goto error;
+                    }
                     it =  (listAllPcmPlaybackFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllPcmPlaybackFrontEnds.at(id));
@@ -5514,13 +5575,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RX_HOSTLESS) {
-                        if ( howMany > listAllPcmHostlessRxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessRxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessRxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessRxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessRxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessRxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessRxFrontEnds.at(id));
                            listAllPcmHostlessRxFrontEnds.erase(it);
@@ -5529,13 +5590,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                            id -= 1;
                         }
                     } else {
-                        if ( howMany > listAllPcmHostlessTxFrontEnds.size()) {
+                        if (howMany > listAllPcmHostlessTxFrontEnds.size()) {
                             PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                               howMany, listAllPcmHostlessTxFrontEnds.size());
                             goto error;
                         }
                         id = (listAllPcmHostlessTxFrontEnds.size() - 1);
-                        it =  (listAllPcmHostlessTxFrontEnds.begin() + id);
+                        it = (listAllPcmHostlessTxFrontEnds.begin() + id);
                         for (int i = 0; i < howMany; i++) {
                            f.push_back(listAllPcmHostlessTxFrontEnds.at(id));
                            listAllPcmHostlessTxFrontEnds.erase(it);
@@ -5553,13 +5614,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
         case PAL_STREAM_COMPRESSED:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
-                    if ( howMany > listAllCompressRecordFrontEnds.size()) {
+                    if (howMany > listAllCompressRecordFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressRecordFrontEnds.size());
                         goto error;
                     }
                     id = (listAllCompressRecordFrontEnds.size() - 1);
-                    it =  (listAllCompressRecordFrontEnds.begin() + id);
+                    it = (listAllCompressRecordFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressRecordFrontEnds.at(id));
                         listAllCompressRecordFrontEnds.erase(it);
@@ -5569,13 +5630,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
-                    if ( howMany > listAllCompressPlaybackFrontEnds.size()) {
+                    if (howMany > listAllCompressPlaybackFrontEnds.size()) {
                         PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                           howMany, listAllCompressPlaybackFrontEnds.size());
                         goto error;
                     }
                     id = (listAllCompressPlaybackFrontEnds.size() - 1);
-                    it =  (listAllCompressPlaybackFrontEnds.begin() + id);
+                    it = (listAllCompressPlaybackFrontEnds.begin() + id);
                     for (int i = 0; i < howMany; i++) {
                         f.push_back(listAllCompressPlaybackFrontEnds.at(id));
                         listAllCompressPlaybackFrontEnds.erase(it);
@@ -5622,13 +5683,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
         case PAL_STREAM_VOICE_CALL_RECORD:
-            if ( howMany > listAllPcmInCallRecordFrontEnds.size()) {
+            if (howMany > listAllPcmInCallRecordFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallRecordFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmInCallRecordFrontEnds.size() - 1);
-            it =  (listAllPcmInCallRecordFrontEnds.begin() + id);
+            it = (listAllPcmInCallRecordFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallRecordFrontEnds.at(id));
                 listAllPcmInCallRecordFrontEnds.erase(it);
@@ -5638,13 +5699,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
         case PAL_STREAM_VOICE_CALL_MUSIC:
-            if ( howMany > listAllPcmInCallMusicFrontEnds.size()) {
+            if (howMany > listAllPcmInCallMusicFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmInCallMusicFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmInCallMusicFrontEnds.size() - 1);
-            it =  (listAllPcmInCallMusicFrontEnds.begin() + id);
+            it = (listAllPcmInCallMusicFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmInCallMusicFrontEnds.at(id));
                 listAllPcmInCallMusicFrontEnds.erase(it);
@@ -5654,13 +5715,13 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
             }
             break;
        case PAL_STREAM_CONTEXT_PROXY:
-            if ( howMany > listAllPcmContextProxyFrontEnds.size()) {
+            if (howMany > listAllPcmContextProxyFrontEnds.size()) {
                     PAL_ERR(LOG_TAG, "allocateFrontEndIds: requested for %d front ends, have only %zu error",
                                       howMany, listAllPcmContextProxyFrontEnds.size());
                     goto error;
                 }
             id = (listAllPcmContextProxyFrontEnds.size() - 1);
-            it =  (listAllPcmContextProxyFrontEnds.begin() + id);
+            it = (listAllPcmContextProxyFrontEnds.begin() + id);
             for (int i = 0; i < howMany; i++) {
                 f.push_back(listAllPcmContextProxyFrontEnds.at(id));
                 listAllPcmContextProxyFrontEnds.erase(it);
@@ -5674,6 +5735,7 @@ const std::vector<int> ResourceManager::allocateFrontEndIds(const struct pal_str
     }
 
 error:
+    mListFrontEndsMutex.unlock();
     return f;
 }
 
@@ -5705,8 +5767,10 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                                       const struct pal_stream_attributes sAttr,
                                       int lDirection)
 {
+    mListFrontEndsMutex.lock();
     if (frontend.size() <= 0) {
         PAL_ERR(LOG_TAG,"frontend size is invalid");
+        mListFrontEndsMutex.unlock();
         return;
     }
     PAL_INFO(LOG_TAG, "stream type %d, freeing %d\n", sAttr.type,
@@ -5717,6 +5781,7 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             for (int i = 0; i < frontend.size(); i++) {
                  listAllNonTunnelSessionIds.push_back(frontend.at(i));
             }
+            removeDuplicates(listAllNonTunnelSessionIds);
             break;
         case PAL_STREAM_LOW_LATENCY:
         case PAL_STREAM_ULTRA_LOW_LATENCY:
@@ -5734,32 +5799,38 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
         case PAL_STREAM_ULTRASOUND:
         case PAL_STREAM_SENSOR_PCM_DATA:
         case PAL_STREAM_RAW:
+        case PAL_STREAM_VOICE_RECOGNITION:
             switch (sAttr.direction) {
                 case PAL_AUDIO_INPUT:
                     if (lDirection == TX_HOSTLESS) {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessTxFrontEnds);
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmRecordFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmRecordFrontEnds);
                     }
                     break;
                 case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllPcmPlaybackFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllPcmPlaybackFrontEnds);
                     break;
                 case PAL_AUDIO_INPUT | PAL_AUDIO_OUTPUT:
                     if (lDirection == RX_HOSTLESS) {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessRxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessRxFrontEnds);
                     } else {
                         for (int i = 0; i < frontend.size(); i++) {
                             listAllPcmHostlessTxFrontEnds.push_back(frontend.at(i));
                         }
+                        removeDuplicates(listAllPcmHostlessTxFrontEnds);
                     }
                     break;
                 default:
@@ -5779,6 +5850,8 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     }
 
                 }
+                removeDuplicates(listAllPcmVoice1RxFrontEnds);
+                removeDuplicates(listAllPcmVoice2RxFrontEnds);
             } else {
                 for (int i = 0; i < frontend.size(); i++) {
                     if (sAttr.info.voice_call_info.VSID == VOICEMMODE1 ||
@@ -5788,6 +5861,8 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                         listAllPcmVoice2TxFrontEnds.push_back(frontend.at(i));
                     }
                 }
+                removeDuplicates(listAllPcmVoice1TxFrontEnds);
+                removeDuplicates(listAllPcmVoice2TxFrontEnds);
             }
             break;
 
@@ -5797,11 +5872,13 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressRecordFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllCompressRecordFrontEnds);
                     break;
                 case PAL_AUDIO_OUTPUT:
                     for (int i = 0; i < frontend.size(); i++) {
                         listAllCompressPlaybackFrontEnds.push_back(frontend.at(i));
                     }
+                    removeDuplicates(listAllCompressPlaybackFrontEnds);
                     break;
                 default:
                     PAL_ERR(LOG_TAG,"direction unsupported");
@@ -5815,11 +5892,13 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallRecordFrontEnds.push_back(frontend.at(i));
                 }
+                removeDuplicates(listAllPcmInCallRecordFrontEnds);
                 break;
               case PAL_AUDIO_OUTPUT:
                 for (int i = 0; i < frontend.size(); i++) {
                     listAllPcmInCallMusicFrontEnds.push_back(frontend.at(i));
                 }
+                removeDuplicates(listAllPcmInCallMusicFrontEnds);
                 break;
               default:
                 break;
@@ -5829,10 +5908,12 @@ void ResourceManager::freeFrontEndIds(const std::vector<int> frontend,
             for (int i = 0; i < frontend.size(); i++) {
                  listAllPcmContextProxyFrontEnds.push_back(frontend.at(i));
             }
+            removeDuplicates(listAllPcmContextProxyFrontEnds);
             break;
         default:
             break;
     }
+    mListFrontEndsMutex.unlock();
     return;
 }
 
@@ -5977,11 +6058,20 @@ bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
     else if(!Dev1Info->samplerate_overwrite && !Dev2Info->samplerate_overwrite) {
         if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K != 0)) {
-            Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
-            updated = true;
+            if (Dev1Info->priority < Dev2Info->priority) {
+                Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
+                updated = true;
+            } else {
+                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev has priority");
+            }
         } else if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K != 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
-            PAL_DBG(LOG_TAG,"no need to update sample rate as inDev is 44.1K");
+            if (Dev1Info->priority < Dev2Info->priority) {
+                Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
+                updated = true;
+            } else {
+                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev is 44.1K");
+            }
         } else if (Dev1Attr->config.sample_rate > Dev2Attr->config.sample_rate){
             Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
             updated = true;
@@ -6146,6 +6236,7 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
     std::vector <std::tuple<Stream *, struct pal_device *>>::iterator sIter2;
     std::vector <Stream*> uniqueStreamsList;
     std::vector <struct pal_device *> uniqueDevConnectionList;
+    pal_stream_attributes sAttr;
 
     PAL_INFO(LOG_TAG, "Enter");
 
@@ -6201,6 +6292,20 @@ int32_t ResourceManager::streamDevSwitch(std::vector <std::tuple<Stream *, uint3
         (*sIter)->lockStreamMutex();
     }
     isDeviceSwitch = true;
+
+    for (sIter = uniqueStreamsList.begin(); sIter != uniqueStreamsList.end(); sIter++) {
+        status = (*sIter)->getStreamAttributes(&sAttr);
+        Session *session = NULL;
+        if (status != 0) {
+            PAL_ERR(LOG_TAG,"stream get attributes failed");
+            continue;
+        }
+        if (sAttr.direction == PAL_AUDIO_OUTPUT && sAttr.type == PAL_STREAM_ULTRA_LOW_LATENCY) {
+            (*sIter)->getAssociatedSession(&session);
+            if (session != NULL)
+                session->AdmRoutingChange((*sIter));
+        }
+    }
 
     status = streamDevDisconnect_l(streamDevDisconnectList);
     if (status) {
@@ -6268,7 +6373,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
     /* handle headphone and haptics concurrency */
     checkHapticsConcurrency(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr);
-    for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+    for (sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
         streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
         streamDevConnect.push_back({(*sIter), &streamDevAttr});
     }
@@ -6324,7 +6429,8 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
                                    inStrAttr);
                 mActiveStreamMutex.unlock();
             }
-            if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr)) {
+            if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr) &&
+                    isDeviceReady(inDevAttr->id)) {
                 mActiveStreamMutex.lock();
                 streamDevDisconnect.push_back(elem);
                 streamDevConnect.push_back({std::get<0>(elem), inDevAttr});
@@ -6340,7 +6446,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
 
         /* handle special case for UPD with virtual backend */
         if (!streamsToSwitch.empty()) {
-            for(sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
+            for (sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
                 streamDevDisconnect.push_back({(*sIter), streamDevAttr.id});
                 streamDevConnect.push_back({(*sIter), &streamDevAttr});
             }
@@ -7312,27 +7418,6 @@ int ResourceManager::getParameter(uint32_t param_id, void **param_payload,
     PAL_DBG(LOG_TAG, "param_id=%d", param_id);
     mResourceManagerMutex.lock();
     switch (param_id) {
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-#if 0
-            gef_payload_t *gef_payload = (gef_payload_t *)query;
-            int index = 0;
-            int pal_device_id = 0;
-            int stream_type = 0;
-            bool match = false;
-            std::vector<Stream*>::iterator sIter;
-            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
-                match = (*sIter)->isGKVMatch(gef_payload->graph);
-                if (match) {
-                    pal_param_payload *pal_payload;
-                    pal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->getEffectParameters((void *)&pal_payload, payload_size);
-                    break;
-                }
-            }
-#endif
-            break;
-        }
         case PAL_PARAM_ID_BT_A2DP_RECONFIG_SUPPORTED:
         case PAL_PARAM_ID_BT_A2DP_SUSPENDED:
         case PAL_PARAM_ID_BT_A2DP_ENCODER_LATENCY:
@@ -7656,11 +7741,15 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                         break;
                     }
                     charging_state_ = battery_charging_state->charging_state;
-                    action = false;
                     mResourceManagerMutex.unlock();
+                    mActiveStreamMutex.lock();
+                    action = false;
                     HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    // update common capture profile
+                    SoundTriggerCaptureProfile = GetCaptureProfileByPriority(nullptr);
                     action = true;
                     HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    mActiveStreamMutex.unlock();
                     mResourceManagerMutex.lock();
                 } else {
                     PAL_ERR(LOG_TAG,
@@ -7811,7 +7900,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (status) {
                     PAL_ERR(LOG_TAG, "getDeviceConfig for bt-sco failed");
                     mActiveStreamMutex.unlock();
-                    goto exit;
+                    goto exit_no_unlock;
                 }
 
                 sco_tx_dattr.id = PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET;
@@ -7819,7 +7908,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (status) {
                     PAL_ERR(LOG_TAG, "getDeviceConfig for bt-sco-mic failed");
                     mActiveStreamMutex.unlock();
-                    goto exit;
+                    goto exit_no_unlock;
                 }
 
                 SortAndUnique(rxDevices);
@@ -7872,6 +7961,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
         case PAL_PARAM_ID_BT_A2DP_RECONFIG:
         {
             std::shared_ptr<Device> dev = nullptr;
+            std::vector <Stream *> activeA2dpStreams;
             struct pal_device dattr;
             pal_param_bta2dp_t *current_param_bt_a2dp = nullptr;
             pal_param_bta2dp_t param_bt_a2dp;
@@ -7881,8 +7971,17 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 dev = Device::getInstance(&dattr, rm);
                 if (!dev) {
                     PAL_ERR(LOG_TAG, "Device getInstance failed");
+                    status = -ENODEV;
                     goto exit;
                 }
+
+                getActiveStream_l(activeA2dpStreams, dev);
+                if (activeA2dpStreams.size() == 0) {
+                    PAL_DBG(LOG_TAG, "no active a2dp stream available, skip a2dp reconfig.");
+                    status = 0;
+                    goto exit;
+                }
+
                 dev->setDeviceParameter(param_id, param_payload);
                 dev->getDeviceParameter(param_id, (void **)&current_param_bt_a2dp);
                 if (current_param_bt_a2dp->reconfig == true) {
@@ -7941,6 +8040,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 std::vector<Stream*> activestreams;
                 std::vector<Stream*>::iterator sIter;
                 Stream *stream = NULL;
+                pal_stream_type_t streamType;
 
                 mActiveStreamMutex.lock();
                 /* Handle bt sco mic running usecase */
@@ -7969,9 +8069,21 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     sco_rx_dev = Device::getInstance(&sco_rx_dattr, rm);
                     getActiveStream_l(activestreams, sco_rx_dev);
                     for (sIter = activestreams.begin(); sIter != activestreams.end(); sIter++) {
-                        PAL_DBG(LOG_TAG, "a2dp resumed, mark sco streams as to route them later");
-                        (*sIter)->suspendedDevIds.clear();
-                        (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+                        status = (*sIter)->getStreamType(&streamType);
+                        if (0 != status) {
+                            PAL_ERR(LOG_TAG, "getStreamType failed with status = %d", status);
+                            continue;
+                        }
+                        if ((streamType == PAL_STREAM_LOW_LATENCY) ||
+                            (streamType == PAL_STREAM_ULTRA_LOW_LATENCY) ||
+                            (streamType == PAL_STREAM_VOIP_RX) ||
+                            (streamType == PAL_STREAM_PCM_OFFLOAD) ||
+                            (streamType == PAL_STREAM_DEEP_BUFFER) ||
+                            (streamType == PAL_STREAM_COMPRESSED)) {
+                            (*sIter)->suspendedDevIds.clear();
+                            (*sIter)->suspendedDevIds.push_back(PAL_DEVICE_OUT_BLUETOOTH_A2DP);
+                            PAL_DBG(LOG_TAG, "a2dp resumed, mark sco streams as to route them later");
+                        }
                     }
                 }
                 mActiveStreamMutex.unlock();
@@ -8054,26 +8166,6 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     }
                 }
             }
-        }
-        break;
-        case PAL_PARAM_ID_UIEFFECT:
-        {
-#if 0
-            gef_payload_t *gef_payload = (gef_payload_t*)param_payload;
-            int index = 0;
-            int pal_device_id = 0;
-            int stream_type = 0;
-            bool match = false;
-            std::vector<Stream*>::iterator sIter;
-            for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
-                match = (*sIter)->isGKVMatch(gef_payload->graph);
-                if (match) {
-                    pal_param_payload pal_payload;
-                    pal_payload.payload = (uint8_t *)&gef_payload->data;
-                    status = (*sIter)->setParameters(param_id, (void *)&pal_payload);
-                }
-            }
-#endif
         }
         break;
         case PAL_PARAM_ID_PROXY_CHANNEL_CONFIG:
@@ -8186,6 +8278,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
 
 exit:
     mResourceManagerMutex.unlock();
+exit_no_unlock:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
     return status;
 }

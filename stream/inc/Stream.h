@@ -109,6 +109,8 @@ typedef enum {
 #define CHANNEL_INFO 42
 #define CHARGE_CONCURRENCY_ON_TAG 43
 #define CHARGE_CONCURRENCY_OFF_TAG 44
+#define DEVICEPP_MUTE 45
+#define DEVICEPP_UNMUTE 46
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -123,6 +125,11 @@ typedef enum {
  * FIXME: load the ramp period config from acdb.
  */
 #define VOLUME_RAMP_PERIOD (100*1000)
+
+/*
+ * The sleep is required for mute to ramp down.
+ */
+#define MUTE_RAMP_PERIOD (30*1000)
 
 class Device;
 class ResourceManager;
@@ -209,7 +216,7 @@ public:
     uint32_t getLatency();
     int32_t getAssociatedDevices(std::vector <std::shared_ptr<Device>> &adevices);
     int32_t getAssociatedPalDevices(std::vector <struct pal_device> &palDevices);
-    int32_t updatePalDevice(struct pal_device *dattr,  pal_device_id_t dev_id);
+    int32_t updatePalDevice(struct pal_device *dattr, pal_device_id_t dev_id, bool replace = true);
     int32_t getAssociatedSession(Session** session);
     int32_t setBufInfo(pal_buffer_config *in_buffer_config,
                        pal_buffer_config *out_buffer_config);
