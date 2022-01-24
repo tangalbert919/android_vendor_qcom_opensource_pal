@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="iso-8859-1"?>
 <!-- Copyright (c) 2021, The Linux Foundation. All rights reserved.            -->
+<!-- Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.  -->
 <!--                                                                           -->
 <!-- Redistribution and use in source and binary forms, with or without        -->
 <!-- modification, are permitted provided that the following conditions are    -->
@@ -76,8 +77,8 @@
         </stream>
         <stream type="PAL_STREAM_VOICE_RECOGNITION">
             <keys_and_values Direction="TX" Instance="1">
-                <!-- STREAMTX - PCM_RECORD -->
-                <graph_kv key="0xB1000000" value="0xB1000001"/>
+                <!-- STREAMTX - VOICE_RECOGNITION_RECORD -->
+                <graph_kv key="0xB1000000" value="0xB1000011"/>
                 <!-- INSTANCE - INSTANCE_1 -->
                 <graph_kv key="0xAB000000" value="0x1"/>
             </keys_and_values>
