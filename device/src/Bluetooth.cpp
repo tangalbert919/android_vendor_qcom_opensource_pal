@@ -1666,7 +1666,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
             if (a2dpState == A2DP_STATE_DISCONNECTED)
                 goto exit;
 
-            rm->a2dpSuspend();
+            status = rm->a2dpSuspend();
             if (audio_source_suspend)
                 audio_source_suspend();
         } else {
@@ -1684,7 +1684,7 @@ int32_t BtA2dp::setDeviceParameter(uint32_t param_id, void *param)
                     }
                 }
             }
-            rm->a2dpResume();
+            status = rm->a2dpResume();
         }
         break;
     }
