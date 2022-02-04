@@ -981,7 +981,13 @@ set_mixer:
                     if (sAttr.info.voice_rec_info.record_direction == INCALL_RECORD_VOICE_UPLINK_DOWNLINK) {
                         codecConfig.ch_info.channels = 2;
                     } else {
-                        codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
+                        /*
+                         * RAT needs to be in sync with Mux/Demux o/p.
+                         * In case of only UL or DL record, Mux/Demux will provide only 1 channel o/p.
+                         * If the recording being done is stereo then there will be a mismatch between RAT and Mux/Demux.
+                         * which will lead to noisy clip. Hence, RAT needs to be hard-coded based on record direction.
+                         */
+                        codecConfig.ch_info.channels = 1;
                     }
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize && payload) {
