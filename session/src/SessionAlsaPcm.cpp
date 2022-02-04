@@ -939,7 +939,7 @@ int SessionAlsaPcm::start(Stream * s)
                             streamData.numChannel = codecConfig.ch_info.channels;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
-                            streamData.bitWidth   = 0xFFFF;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
                             streamData.numChannel = 0xFFFF;
                         }
 
