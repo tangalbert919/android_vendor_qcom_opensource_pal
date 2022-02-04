@@ -1139,6 +1139,8 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
 SpeakerProtection::~SpeakerProtection()
 {
+    if (spkerTempList)
+        delete[] spkerTempList;
 }
 
 /*
