@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -43,6 +44,7 @@
 #include "audio_dam_buffer_api.h"
 #include "apm_api.h"
 #include "us_detect_api.h"
+#include <sys/ioctl.h>
 
 std::mutex SessionAlsaPcm::pcmLpmRefCntMtx;
 int SessionAlsaPcm::pcmLpmRefCnt = 0;
@@ -2726,6 +2728,32 @@ void SessionAlsaPcm::retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struc
      PAL_DBG(LOG_TAG, "Exit status: %d", status);
      return status;
  }
+
+int SessionAlsaPcm::ResetMmapBuffer(Stream *s) {
+    int status = 0;
+    struct pal_stream_attributes sAttr;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
+
+    if (sAttr.type != PAL_STREAM_VOICE_UI) {
+        return -EINVAL;
+    }
+
+    if (pcm) {
+        status = pcm_ioctl(pcm, SNDRV_PCM_IOCTL_RESET);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap, status %d", status);
+    } else {
+        PAL_ERR(LOG_TAG, "cannot reset mmap as pcm not ready");
+        status = -EINVAL;
+    }
+
+    return status;
+}
 
 // NOTE: only used by Voice UI for Google hotword api query
 int SessionAlsaPcm::openGraph(Stream *s) {
