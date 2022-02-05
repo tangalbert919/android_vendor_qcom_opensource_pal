@@ -488,6 +488,7 @@ std::map<int, std::string> ResourceManager::spkrTempCtrlsMap;
 std::map<uint32_t, uint32_t> ResourceManager::btSlimClockSrcMap;
 
 std::shared_ptr<group_dev_config_t> ResourceManager::activeGroupDevConfig = nullptr;
+std::shared_ptr<group_dev_config_t> ResourceManager::currentGroupDevConfig = nullptr;
 std::map<group_dev_config_idx_t, std::shared_ptr<group_dev_config_t>> ResourceManager::groupDevConfigMap;
 
 #define MAKE_STRING_FROM_ENUM(string) { {#string}, string }
@@ -10341,6 +10342,47 @@ bool ResourceManager::doDevAttrDiffer(struct pal_device *inDevAttr,
         goto exit;
     }
     getSndDeviceName(dev->getSndDeviceId(), activeSndDeviceName);
+
+    /* if it's group device, compare group config to decide device switch */
+    if (ResourceManager::activeGroupDevConfig && ResourceManager::currentGroupDevConfig &&
+            (inDevAttr->id == PAL_DEVICE_OUT_SPEAKER ||
+             inDevAttr->id == PAL_DEVICE_OUT_HANDSET)) {
+        if (ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.sample_rate !=
+            ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.sample_rate) {
+            PAL_DBG(LOG_TAG, "found diff sample rate %d, running dev has %d, device switch needed",
+                    ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.sample_rate,
+                    ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.sample_rate);
+            ret = true;
+        }
+        if (ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.channels !=
+            ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.channels) {
+            PAL_DBG(LOG_TAG, "found diff channel %d, running dev has %d, device switch needed",
+                    ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.channels,
+                    ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.channels);
+            ret = true;
+        }
+        if (ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id !=
+            ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id) {
+            PAL_DBG(LOG_TAG, "found diff format %d, running dev has %d, device switch needed",
+                    ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id,
+                    ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.aud_fmt_id);
+            ret = true;
+        }
+        if (ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask !=
+            ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.slot_mask) {
+            PAL_DBG(LOG_TAG, "found diff slot mask %d, running dev has %d, device switch needed",
+                    ResourceManager::activeGroupDevConfig->grp_dev_hwep_cfg.slot_mask,
+                    ResourceManager::currentGroupDevConfig->grp_dev_hwep_cfg.slot_mask);
+            ret = true;
+        }
+        if (strcmp(ResourceManager::activeGroupDevConfig->snd_dev_name.c_str(),
+                   ResourceManager::currentGroupDevConfig->snd_dev_name.c_str())) {
+            PAL_DBG(LOG_TAG, "found new snd device %s, device switch needed",
+                    ResourceManager::activeGroupDevConfig->snd_dev_name.c_str());
+            ret = true;
+        }
+        return ret;
+    }
 
     if (inDevAttr->config.sample_rate != curDevAttr->config.sample_rate) {
         PAL_DBG(LOG_TAG, "found diff sample rate %d, running dev has %d, device switch needed",

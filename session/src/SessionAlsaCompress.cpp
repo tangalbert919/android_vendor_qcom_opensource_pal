@@ -1469,10 +1469,15 @@ int SessionAlsaCompress::writeBufferInit(Stream *s __unused, size_t noOfBuf __un
 
 struct mixer_ctl* SessionAlsaCompress::getFEMixerCtl(const char *controlName, int *device)
 {
-    *device = compressDevIds.at(0);
     std::ostringstream CntrlName;
     struct mixer_ctl *ctl;
 
+    if (compressDevIds.size() == 0) {
+        PAL_ERR(LOG_TAG, "frontendIDs is not available.");
+        return nullptr;
+    }
+
+    *device = compressDevIds.at(0);
     CntrlName << "COMPRESS" << compressDevIds.at(0) << " " << controlName;
     ctl = mixer_get_ctl_by_name(mixer, CntrlName.str().data());
     if (!ctl) {
