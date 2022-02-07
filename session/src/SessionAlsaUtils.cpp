@@ -1,5 +1,6 @@
 /*
 * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+* Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -459,6 +460,18 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             }
         }
 
+        if (ResourceManager::isHandsetProtectionEnabled &&
+             ResourceManager::isSpeakerProtectionEnabled) {
+           PAL_DBG(LOG_TAG, "Handset enabled");
+           if (be->first == PAL_DEVICE_OUT_HANDSET) {
+               status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            HANDSET_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+         }
+      }
         if (deviceKV.size() > 0) {
             getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,
                     deviceMetaData);
@@ -1351,6 +1364,18 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             }
         }
     }
+    if (ResourceManager::isHandsetProtectionEnabled &&
+            ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Handset enabled");
+        if (rxBackEnds[0].first == PAL_DEVICE_OUT_HANDSET) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                          HANDSET_PROT_ENABLE);
+         if (status != 0) {
+             PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+             status = 0; /**< ignore device SP CKV failures */
+         }
+      }
+    }
 
     if (deviceRxKV.size() > 0) {
         SessionAlsaUtils::getAgmMetaData(deviceRxKV, deviceCKV,
@@ -2234,6 +2259,20 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             }
         }
     }
+
+   if (ResourceManager::isHandsetProtectionEnabled &&
+          ResourceManager::isSpeakerProtectionEnabled) {
+       PAL_DBG(LOG_TAG, "Handset enabled");
+       if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_HANDSET) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            HANDSET_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+       }
+   }
+
 
     if (deviceKV.size() > 0) {
         SessionAlsaUtils::getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,

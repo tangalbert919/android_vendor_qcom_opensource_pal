@@ -578,6 +578,7 @@ public:
     bool ssrStarted = false;
     /* Variable to store whether Speaker protection is enabled or not */
     static bool isSpeakerProtectionEnabled;
+    static bool isHandsetProtectionEnabled;
     static bool isChargeConcurrencyEnabled;
     static bool isCpsEnabled;
     static bool isVbatEnabled;

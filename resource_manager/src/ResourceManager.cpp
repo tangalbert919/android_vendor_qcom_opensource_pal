@@ -453,6 +453,7 @@ int ResourceManager::wake_unlock_fd = -1;
 uint32_t ResourceManager::wake_lock_cnt = 0;
 static int max_session_num;
 bool ResourceManager::isSpeakerProtectionEnabled = false;
+bool ResourceManager::isHandsetProtectionEnabled = false;
 bool ResourceManager::isChargeConcurrencyEnabled = false;
 bool ResourceManager::isCpsEnabled = false;
 bool ResourceManager::isVbatEnabled = false;
@@ -1276,7 +1277,7 @@ void ResourceManager::deInitContextManager()
 
 int ResourceManager::init()
 {
-    std::shared_ptr<Speaker> dev = nullptr;
+    std::shared_ptr<Device> dev = nullptr;
 
     // Initialize Speaker Protection calibration mode
     struct pal_device dattr;
@@ -1289,7 +1290,7 @@ int ResourceManager::init()
 
     // Get the speaker instance and activate speaker protection
     dattr.id = PAL_DEVICE_OUT_SPEAKER;
-    dev = std::dynamic_pointer_cast<Speaker>(Device::getInstance(&dattr , rm));
+    dev = std::dynamic_pointer_cast<Device>(Device::getInstance(&dattr , rm));
     if (dev) {
         PAL_DBG(LOG_TAG, "Speaker instance created");
     }
@@ -9703,6 +9704,9 @@ void ResourceManager::process_device_info(struct xml_userdata *data, const XML_C
         } else if (!strcmp(tag_name, "speaker_protection_enabled")) {
             if (atoi(data->data_buf))
                 isSpeakerProtectionEnabled = true;
+        } else if (!strcmp(tag_name, "handset_protection_enabled")) {
+            if (atoi(data->data_buf))
+                isHandsetProtectionEnabled = true;
         } else if (!strcmp(tag_name, "ext_ec_ref_enabled")) {
             size = deviceInfo.size() - 1;
             deviceInfo[size].isExternalECRefEnabled = atoi(data->data_buf);
