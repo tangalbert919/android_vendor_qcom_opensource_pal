@@ -222,15 +222,17 @@ int32_t pal_stream_start(pal_stream_handle_t *stream_handle)
 
     s = reinterpret_cast<Stream *>(stream_handle);
 
-    status = s->start();
-    if (0 != status) {
-        PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
-        goto exit;
-    }
-
     s->getStreamType(&type);
     s->getStreamDirection(&dir);
     notify_concurrent_stream(type, dir, true);
+
+    status = s->start();
+    if (0 != status) {
+        PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
+        notify_concurrent_stream(type, dir, false);
+        goto exit;
+    }
+
 exit:
     PAL_INFO(LOG_TAG, "Exit. status %d", status);
     return status;
