@@ -2996,6 +2996,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -3056,6 +3058,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -4629,7 +4633,7 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     return result;
 }
 
-int ResourceManager::updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+int ResourceManager::updateECDeviceMap_l(std::shared_ptr<Device> rx_dev,
     std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
 {
     int status = 0;
@@ -4673,6 +4677,8 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
         for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
             map_iter != deviceInfo[i].ec_ref_count_map.end(); map_iter++) {
             rx_dev_id = (*map_iter).first;
+            if (rx_dev && rx_dev->getSndDeviceId() != rx_dev_id)
+                continue;
             for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
                 iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
                 if ((*iter).first == tx_str) {
@@ -4682,7 +4688,7 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                     break;
                 }
             }
-            if (tx_stream_found)
+            if (tx_stream_found && rx_dev)
                 break;
         }
     } else {
