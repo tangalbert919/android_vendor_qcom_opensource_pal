@@ -420,6 +420,8 @@
             <usecase>
                 <name>PAL_STREAM_VOIP_RX</name>
                 <priority>3</priority>
+                <channels>1</channels>
+                <snd_device_name>speaker-mono-2</snd_device_name>
             </usecase>
             <usecase>
                 <name>PAL_STREAM_ULTRASOUND</name>
