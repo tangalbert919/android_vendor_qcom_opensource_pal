@@ -179,6 +179,12 @@ char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
+const std::vector<int> gSignalsOfInterest = {
+    SIGABRT,
+    SIGTERM,
+    DEBUGGER_SIGNAL,
+};
+
 // default properties which will be updated based on platform configuration
 static struct pal_st_properties qst_properties = {
         "QUALCOMM Technologies, Inc",  // implementor
@@ -462,6 +468,7 @@ bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
+bool ResourceManager::isSignalHandlerEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -646,6 +653,15 @@ err:
         free(snd_card_name);
 }
 
+void ResourceManager::sendCrashSignal(int signal)
+{
+    pid_t pid = getpid();
+    uid_t uid = getuid();
+    ALOGV("%s: signal %d, pid %u, uid %u", __func__, signal, pid, uid);
+    struct agm_dump_info dump_info = {signal, (uint32_t)pid, (uint32_t)uid};
+    agm_dump(&dump_info);
+}
+
 ResourceManager::ResourceManager()
 {
     int ret = 0;
@@ -685,6 +701,17 @@ ResourceManager::ResourceManager()
 
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
+
+    if (isSignalHandlerEnabled) {
+        mSigHandler = SignalHandler::getInstance();
+        if (mSigHandler) {
+            std::function<void(int)> crashSignalCb = sendCrashSignal;
+            SignalHandler::setClientCallback(crashSignalCb);
+            mSigHandler->registerSignalHandler(gSignalsOfInterest);
+        } else {
+            PAL_INFO(LOG_TAG, "Failed to create signal handler");
+        }
+    }
 
 #if defined(ADSP_SLEEP_MONITOR)
     sleepmon_fd_ = open(ADSPSLEEPMON_DEVICE_NAME, O_RDWR);
@@ -6712,6 +6739,7 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     ret = setUpdDedicatedBeEnableParam(parms, value, len);
     ret = setDualMonoEnableParam(parms, value, len);
+    ret = setSignalHandlerEnableParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
@@ -6827,6 +6855,29 @@ int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
     }
 
     PAL_INFO(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
+
+    return ret;
+}
+
+int ResourceManager::setSignalHandlerEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER,
+                                value, len);
+    PAL_INFO(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isSignalHandlerEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER);
+    }
+
+    PAL_INFO(LOG_TAG, "Signal handler enabled is=%x", isSignalHandlerEnabled);
 
     return ret;
 }
