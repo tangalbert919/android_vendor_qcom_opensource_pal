@@ -85,9 +85,6 @@
     </config_voice>
     <low_power_vote_streams>
         <stream_type>PAL_STREAM_VOICE_UI</stream_type>
-        <stream_type>PAL_STREAM_ACD</stream_type>
-        <stream_type>PAL_STREAM_ULTRASOUND</stream_type>
-        <stream_type>PAL_STREAM_SENSOR_PCM_DATA</stream_type>
     </low_power_vote_streams>
     <device_profile>
         <in-device>
@@ -1108,7 +1105,7 @@
             <param capture_keyword="2000" />
             <param client_capture_read_delay="2000" />
             <operating_modes>
-                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_LPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_LPI"/>
+                <low_power capture_profile_handset="DUAL_MIC_16KHZ_16BIT_FFNS" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_FFNS"/>
                 <high_performance capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI"/>
                 <high_performance_and_charging capture_profile_handset="DUAL_MIC_16KHZ_16BIT_RAW_NLPI" capture_profile_headset="SINGLE_MIC_16KHZ_16BIT_HEADSET_RAW_NLPI"/>
             </operating_modes>
