@@ -6377,6 +6377,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
     std::shared_ptr<Device> dev = nullptr;
     std::string ck;
+    bool VoiceorVoip_call_active = false;
     struct pal_device_info inDeviceInfo;
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
     char inSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
@@ -6427,6 +6428,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
      */
     getSharedBEActiveStreamDevs(sharedBEStreamDev, inDevAttr->id);
     if (sharedBEStreamDev.size() > 0) {
+        for (const auto &elem : sharedBEStreamDev) {
+             struct pal_stream_attributes strAttr;
+             std::get<0>(elem)->getStreamAttributes(&strAttr);
+             if (ifVoiceorVoipCall(strAttr.type)) {
+                 VoiceorVoip_call_active = true;
+                 break;
+             }
+        }
         getSndDeviceName(inDevAttr->id, inSndDeviceName);
         mActiveStreamMutex.lock();
         updatePriorityAttr(inDevAttr->id,
@@ -6449,8 +6458,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
             curDev->getDeviceAttributes(&curDevAttr);
             sharedStream->getStreamAttributes(&sAttr);
 
-            /* special case for UPD to change device to current running dev */
-            if (inStrAttr->type == PAL_STREAM_ULTRASOUND &&
+            /* special case for UPD to change device to current running dev
+             * or if voice or voip call is active, use the current devices of
+             * voice or voip call for other usecase if share backend.
+             */
+            if (((VoiceorVoip_call_active &&
+                 inStrAttr->type != PAL_STREAM_VOICE_CALL &&
+                 rm->isOutputDevId(inDevAttr->id)) ||
+                inStrAttr->type == PAL_STREAM_ULTRASOUND) &&
                     curDevAttr.id != inDevAttr->id) {
                 inDevAttr->id = curDevAttr.id;
                 getSndDeviceName(inDevAttr->id, inSndDeviceName);
