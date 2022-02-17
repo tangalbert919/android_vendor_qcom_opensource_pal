@@ -58,6 +58,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
     int32_t status = 0;
     StreamSoundTrigger *s = nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_INFO(LOG_TAG, "Enter. start thread loop");
     if (!gsl_engine) {
@@ -72,6 +73,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
         if (gsl_engine->exit_thread_) {
             PAL_VERBOSE(LOG_TAG, "Exit thread");
+            rm->releaseWakeLock();
             break;
         }
 
@@ -80,6 +82,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
         if (gsl_engine->eng_state_ != ENG_DETECTED) {
             gsl_engine->state_mutex_.unlock();
             PAL_DBG(LOG_TAG, "Engine stopped/restarted after notification");
+            rm->releaseWakeLock();
             continue;
         }
         gsl_engine->state_mutex_.unlock();
@@ -147,6 +150,7 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                 }
             }
         }
+        rm->releaseWakeLock();
     }
     PAL_DBG(LOG_TAG, "Exit");
 }
@@ -2475,6 +2479,7 @@ int32_t SoundTriggerEngineGsl::UpdateEngineConfigOnRestart(Stream *s) {
 void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
                                                void *data, uint32_t size) {
     int32_t status = 0;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     /*
      * reset ring buffer before parsing detection payload as
@@ -2489,6 +2494,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to parse detection payload, status %d",
                     status);
+            rm->releaseWakeLock();
             return;
         }
     } else {
@@ -2497,6 +2503,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
         custom_detection_event = (uint8_t *)calloc(1, size);
         if (!custom_detection_event) {
             PAL_ERR(LOG_TAG, "Failed to allocate custom detection event");
+            rm->releaseWakeLock();
             return;
         }
         ar_mem_cpy(custom_detection_event, size, data, size);
@@ -2522,6 +2529,7 @@ void SoundTriggerEngineGsl::HandleSessionEvent(uint32_t event_id __unused,
 void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_id,
                                                   void *data, uint32_t event_size) {
     SoundTriggerEngineGsl *engine = nullptr;
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
 
     PAL_DBG(LOG_TAG, "Enter, event detected on SPF, event id = 0x%x", event_id);
     if ((hdl == 0) || !data || !event_size) {
@@ -2546,6 +2554,8 @@ void SoundTriggerEngineGsl::HandleSessionCallBack(uint64_t hdl, uint32_t event_i
     if (engine->eng_state_ == ENG_ACTIVE) {
         engine->state_mutex_.unlock();
         engine->detection_time_ = std::chrono::steady_clock::now();
+        /* Acquire the wake lock and handle session event to avoid apps suspend */
+        rm->acquireWakeLock();
         engine->HandleSessionEvent(event_id, data, event_size);
     } else if (engine->eng_state_ == ENG_LOADED) {
         engine->state_mutex_.unlock();
