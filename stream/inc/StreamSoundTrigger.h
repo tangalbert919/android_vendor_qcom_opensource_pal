@@ -92,7 +92,6 @@ enum {
     ST_EV_SSR_ONLINE,
     ST_EV_CONCURRENT_STREAM,
     ST_EV_EC_REF,
-    ST_EV_CHARGING_STATE
 };
 
 class ResourceManager;
@@ -160,7 +159,6 @@ class StreamSoundTrigger : public Stream {
                                          bool use_rm_profile);
     int32_t DisconnectDevice(pal_device_id_t device_id) override;
     int32_t ConnectDevice(pal_device_id_t device_id) override;
-    int32_t HandleChargingStateUpdate(bool state, bool active) override;
     int32_t Resume() override;
     int32_t Pause() override;
     int32_t GetCurrentStateId();
@@ -411,24 +409,6 @@ class StreamSoundTrigger : public Stream {
         }
         ~StDeviceDisconnectedEventConfig() {}
     };
-    class StChargingStateEventConfigData : public StEventConfigData {
-     public:
-        StChargingStateEventConfigData(bool charging_state, bool active)
-            : charging_state_(charging_state), is_active_(active) {}
-        ~StChargingStateEventConfigData() {}
-
-        bool charging_state_;
-        bool is_active_;
-    };
-    class StChargingStateEventConfig : public StEventConfig {
-     public:
-        StChargingStateEventConfig(bool charging_state, bool active)
-            : StEventConfig(ST_EV_CHARGING_STATE) {
-            data_ = std::make_shared<StChargingStateEventConfigData>(
-                charging_state, active);
-        }
-        ~StChargingStateEventConfig() {}
-    };
 
     class StSSROfflineConfig : public StEventConfig {
      public:
@@ -596,7 +576,6 @@ class StreamSoundTrigger : public Stream {
     StState *prev_state_;
     st_state_id_t state_for_restore_;
     std::map<uint32_t, StState*> st_states_;
-    bool charging_state_;
     std::shared_ptr<CaptureProfile> cap_prof_;
     uint32_t conf_levels_intf_version_;
     std::vector<PalRingBufferReader *> reader_list_;

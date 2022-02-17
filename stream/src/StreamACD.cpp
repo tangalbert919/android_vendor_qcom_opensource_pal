@@ -150,12 +150,7 @@ StreamACD::StreamACD(struct pal_stream_attributes *sattr,
         &disable_concurrency_count);
 
     // check if lpi should be used
-    if (rm->IsLPISupported(PAL_STREAM_ACD) &&
-        !(rm->isNLPISwitchSupported(PAL_STREAM_ACD) && enable_concurrency_count)) {
-        use_lpi_ = true;
-    } else {
-        use_lpi_ = false;
-    }
+    use_lpi_ = rm->getLPIUsage();
 
     /*
      * When voice/voip/record is active and concurrency is not
