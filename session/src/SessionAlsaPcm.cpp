@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -43,6 +44,7 @@
 #include "audio_dam_buffer_api.h"
 #include "apm_api.h"
 #include "us_detect_api.h"
+#include <sys/ioctl.h>
 
 std::mutex SessionAlsaPcm::pcmLpmRefCntMtx;
 int SessionAlsaPcm::pcmLpmRefCnt = 0;
@@ -939,7 +941,7 @@ int SessionAlsaPcm::start(Stream * s)
                             streamData.numChannel = codecConfig.ch_info.channels;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
-                            streamData.bitWidth   = 0xFFFF;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
                             streamData.numChannel = 0xFFFF;
                         }
 
@@ -979,7 +981,13 @@ set_mixer:
                     if (sAttr.info.voice_rec_info.record_direction == INCALL_RECORD_VOICE_UPLINK_DOWNLINK) {
                         codecConfig.ch_info.channels = 2;
                     } else {
-                        codecConfig.ch_info.channels = sAttr.in_media_config.ch_info.channels;
+                        /*
+                         * RAT needs to be in sync with Mux/Demux o/p.
+                         * In case of only UL or DL record, Mux/Demux will provide only 1 channel o/p.
+                         * If the recording being done is stereo then there will be a mismatch between RAT and Mux/Demux.
+                         * which will lead to noisy clip. Hence, RAT needs to be hard-coded based on record direction.
+                         */
+                        codecConfig.ch_info.channels = 1;
                     }
                     builder->payloadRATConfig(&payload, &payloadSize, miid, &codecConfig);
                     if (payloadSize && payload) {
@@ -2153,6 +2161,8 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
     std::vector <std::string> backendNames;
     struct pal_device rxDevAttr = {};
     struct pal_device_info rxDevInfo = {};
+    std::vector <std::shared_ptr<Device>> tx_devs;
+    std::shared_ptr<Device> ec_rx_dev = nullptr;
 
     PAL_DBG(LOG_TAG, "Enter");
     if (!s) {
@@ -2202,6 +2212,7 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
         } else if (rx_dev && ecRefDevId != rx_dev->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "Invalid rx dev %d for disabling EC ref, "
                 "rx dev %d already enabled", rx_dev->getSndDeviceId(), ecRefDevId);
+            status = -EINVAL;
             goto exit;
         }
 
@@ -2247,6 +2258,28 @@ int SessionAlsaPcm::setECRef(Stream *s, std::shared_ptr<Device> rx_dev, bool is_
                 PAL_ERR(LOG_TAG, "Cannot be set internal EC with external EC connected");
                 status = -EINVAL;
                 goto exit;
+            }
+            // reset EC if different EC device is being used
+            if (ecRefDevId != PAL_DEVICE_OUT_MIN && ecRefDevId != rx_dev->getSndDeviceId()) {
+                PAL_DBG(LOG_TAG, "EC ref is enabled with %d, reset EC first", ecRefDevId);
+                rxDevAttr.id = ecRefDevId;
+                ec_rx_dev = Device::getInstance(&rxDevAttr, rm);
+
+                s->getAssociatedDevices(tx_devs);
+                if (tx_devs.size()) {
+                    for (int i = 0; i < tx_devs.size(); ++i) {
+                        status = rm->updateECDeviceMap_l(ec_rx_dev, tx_devs[i], s, 0, true);
+                        if (status) {
+                            PAL_ERR(LOG_TAG, "Failed to update EC Device map for device %s, status: %d",
+                                    tx_devs[i]->getPALDeviceName().c_str(), status);
+                        }
+                    }
+                }
+                status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0), "ZERO");
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to reset before set ext EC, status %d", status);
+                    goto exit;
+                }
             }
             status = SessionAlsaUtils::setECRefPath(mixer, pcmDevIds.at(0),
                     backendNames[0].c_str());
@@ -2674,7 +2707,7 @@ void SessionAlsaPcm::retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struc
         return;
     }
     for (int i = 0; i < tx_devs.size(); ++i) {
-        status = rm->updateECDeviceMap_1(rx_dev, tx_devs[i], s, 0, false);
+        status = rm->updateECDeviceMap_l(rx_dev, tx_devs[i], s, 0, false);
         if (status) {
             PAL_ERR(LOG_TAG, "Failed to update EC Device map for device %s, status: %d",
                     tx_devs[i]->getPALDeviceName().c_str(), status);
@@ -2726,6 +2759,32 @@ void SessionAlsaPcm::retryOpenWithoutEC(Stream *s, unsigned int pcm_flags, struc
      PAL_DBG(LOG_TAG, "Exit status: %d", status);
      return status;
  }
+
+int SessionAlsaPcm::ResetMmapBuffer(Stream *s) {
+    int status = 0;
+    struct pal_stream_attributes sAttr;
+
+    status = s->getStreamAttributes(&sAttr);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "stream get attributes failed");
+        return status;
+    }
+
+    if (sAttr.type != PAL_STREAM_VOICE_UI) {
+        return -EINVAL;
+    }
+
+    if (pcm) {
+        status = pcm_ioctl(pcm, SNDRV_PCM_IOCTL_RESET);
+        if (status)
+            PAL_ERR(LOG_TAG, "Failed to reset mmap, status %d", status);
+    } else {
+        PAL_ERR(LOG_TAG, "cannot reset mmap as pcm not ready");
+        status = -EINVAL;
+    }
+
+    return status;
+}
 
 // NOTE: only used by Voice UI for Google hotword api query
 int SessionAlsaPcm::openGraph(Stream *s) {

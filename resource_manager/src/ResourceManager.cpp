@@ -179,6 +179,12 @@ char rmngr_xml_file[XML_PATH_MAX_LENGTH] = {0};
 
 char vendor_config_path[VENDOR_CONFIG_PATH_MAX_LENGTH] = {0};
 
+const std::vector<int> gSignalsOfInterest = {
+    SIGABRT,
+    SIGTERM,
+    DEBUGGER_SIGNAL,
+};
+
 // default properties which will be updated based on platform configuration
 static struct pal_st_properties qst_properties = {
         "QUALCOMM Technologies, Inc",  // implementor
@@ -462,6 +468,7 @@ bool ResourceManager::isVIRecordStarted;
 bool ResourceManager::lpi_logging_ = false;
 bool ResourceManager::isUpdDedicatedBeEnabled = false;
 int ResourceManager::max_voice_vol = -1;     /* Variable to store max volume index for voice call */
+bool ResourceManager::isSignalHandlerEnabled = false;
 
 //TODO:Needs to define below APIs so that functionality won't break
 #ifdef FEATURE_IPQ_OPENWRT
@@ -646,6 +653,15 @@ err:
         free(snd_card_name);
 }
 
+void ResourceManager::sendCrashSignal(int signal)
+{
+    pid_t pid = getpid();
+    uid_t uid = getuid();
+    ALOGV("%s: signal %d, pid %u, uid %u", __func__, signal, pid, uid);
+    struct agm_dump_info dump_info = {signal, (uint32_t)pid, (uint32_t)uid};
+    agm_dump(&dump_info);
+}
+
 ResourceManager::ResourceManager()
 {
     int ret = 0;
@@ -685,6 +701,17 @@ ResourceManager::ResourceManager()
 
     if (isHifiFilterEnabled)
         audio_route_apply_and_update_path(audio_route, "hifi-filter-coefficients");
+
+    if (isSignalHandlerEnabled) {
+        mSigHandler = SignalHandler::getInstance();
+        if (mSigHandler) {
+            std::function<void(int)> crashSignalCb = sendCrashSignal;
+            SignalHandler::setClientCallback(crashSignalCb);
+            mSigHandler->registerSignalHandler(gSignalsOfInterest);
+        } else {
+            PAL_INFO(LOG_TAG, "Failed to create signal handler");
+        }
+    }
 
 #if defined(ADSP_SLEEP_MONITOR)
     sleepmon_fd_ = open(ADSPSLEEPMON_DEVICE_NAME, O_RDWR);
@@ -2969,6 +2996,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -3029,6 +3058,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                             status = 0;
                             PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                         }
+                        // decrease ec ref count if ec ref set failure
+                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
                     }
                 }
             }
@@ -4602,7 +4633,7 @@ bool ResourceManager::checkECRef(std::shared_ptr<Device> rx_dev,
     return result;
 }
 
-int ResourceManager::updateECDeviceMap_1(std::shared_ptr<Device> rx_dev,
+int ResourceManager::updateECDeviceMap_l(std::shared_ptr<Device> rx_dev,
     std::shared_ptr<Device> tx_dev, Stream *tx_str, int count, bool is_txstop)
 {
     int status = 0;
@@ -4646,6 +4677,8 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
         for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
             map_iter != deviceInfo[i].ec_ref_count_map.end(); map_iter++) {
             rx_dev_id = (*map_iter).first;
+            if (rx_dev && rx_dev->getSndDeviceId() != rx_dev_id)
+                continue;
             for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
                 iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
                 if ((*iter).first == tx_str) {
@@ -4655,7 +4688,7 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                     break;
                 }
             }
-            if (tx_stream_found)
+            if (tx_stream_found && rx_dev)
                 break;
         }
     } else {
@@ -6712,6 +6745,7 @@ int ResourceManager::setConfigParams(struct str_parms *parms)
 
     ret = setUpdDedicatedBeEnableParam(parms, value, len);
     ret = setDualMonoEnableParam(parms, value, len);
+    ret = setSignalHandlerEnableParam(parms, value, len);
 
     /* Not checking return value as this is optional */
     setLpiLoggingParams(parms, value, len);
@@ -6827,6 +6861,29 @@ int ResourceManager::setDualMonoEnableParam(struct str_parms *parms,
     }
 
     PAL_INFO(LOG_TAG, "dual mono enabled is=%x", isDualMonoEnabled);
+
+    return ret;
+}
+
+int ResourceManager::setSignalHandlerEnableParam(struct str_parms *parms,
+                                 char *value, int len)
+{
+    int ret = -EINVAL;
+
+    if (!value || !parms)
+        return ret;
+
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER,
+                                value, len);
+    PAL_INFO(LOG_TAG," value %s", value);
+    if (ret >= 0) {
+        if (value && !strncmp(value, "true", sizeof("true")))
+            isSignalHandlerEnabled = true;
+
+        str_parms_del(parms, AUDIO_PARAMETER_KEY_SIGNAL_HANDLER);
+    }
+
+    PAL_INFO(LOG_TAG, "Signal handler enabled is=%x", isSignalHandlerEnabled);
 
     return ret;
 }
@@ -8409,23 +8466,25 @@ int ResourceManager::rwParameterACDB(uint32_t paramId, void *paramPayload,
                 sattr.out_media_config.bit_width = 16;
                 dattr.id = palDeviceId;
 
-                if (isPluginDevice(dattr.id)) {
+                if (isPluginDevice(dattr.id) ||
+                    isBtDevice(dattr.id)) {
                     /* dummy device can igonre physical existence
                      * and work as a flag for ACDB parameter set
                      */
                     dattr.address.card_id = DUMMY_SND_CARD;
-                    PAL_INFO(LOG_TAG, "Use dummy card id 0x%x for ACDB parameter set on plugin device.",
+                    PAL_INFO(LOG_TAG, "Use dummy card id 0x%x for ACDB parameter set on plugin or bt device.",
                                 dattr.address.card_id);
                 }
 
                 std::shared_ptr<Device> devDummy = nullptr;
                 devDummy = Device::getInstance(&dattr, rm);
-                if (devDummy)
+                if (devDummy && !isBtDevice(dattr.id))
                     devDummy->getDeviceAttributes(&dattr);
                 else {
                     PAL_ERR(LOG_TAG, "failed to get device instance. dev id =%d",
                                 dattr.id);
                 }
+
                 try {
                     s = Stream::create(&sattr, &dattr, 1, nullptr, 0);
                 } catch (const std::exception& e) {
@@ -8976,6 +9035,19 @@ bool ResourceManager::isBtScoDevice(pal_device_id_t id)
         return true;
     else
         return false;
+}
+
+bool ResourceManager::isBtDevice(pal_device_id_t id)
+{
+    switch (id) {
+        case PAL_DEVICE_OUT_BLUETOOTH_A2DP:
+        case PAL_DEVICE_IN_BLUETOOTH_A2DP:
+        case PAL_DEVICE_OUT_BLUETOOTH_SCO:
+        case PAL_DEVICE_IN_BLUETOOTH_SCO_HEADSET:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void ResourceManager::updateBtCodecMap(std::pair<uint32_t, std::string> key, std::string value)

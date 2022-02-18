@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -153,7 +154,8 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
         if (palDevsAttr[count].id == PAL_DEVICE_OUT_USB_DEVICE ||
             palDevsAttr[count].id == PAL_DEVICE_OUT_USB_HEADSET ||
             palDevsAttr[count].id == PAL_DEVICE_IN_USB_DEVICE ||
-            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET) {
+            palDevsAttr[count].id == PAL_DEVICE_IN_USB_HEADSET ||
+            rm->isBtDevice(palDevsAttr[count].id)) {
             palDevsAttr[count].address = dAttr[i].address;
         }
 
@@ -520,6 +522,17 @@ int32_t Stream::getAssociatedPalDevices(std::vector <struct pal_device> &palDevi
     }
 
     return status;
+}
+
+int32_t Stream::getSoundCardId()
+{
+    if (mPalDevice.size()) {
+        PAL_DBG(LOG_TAG, "sound card id = 0x%x",
+                    mPalDevice[0].address.card_id);
+        return mPalDevice[0].address.card_id;
+    }
+
+    return -EINVAL;
 }
 
 int32_t Stream::getAssociatedSession(Session **s)
@@ -1453,6 +1466,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         for (int j = 0; j < mDevices.size(); j++) {
             uint32_t mDeviceId = mDevices[j]->getSndDeviceId();
             if (rm->matchDevDir(newDeviceId, mDeviceId) && newDeviceId != mDeviceId) {
+                if (mDeviceId == PAL_DEVICE_OUT_PROXY || newDeviceId == PAL_DEVICE_OUT_PROXY)
+                    continue;
                 rm->getSharedBEActiveStreamDevs(sharedBEStreamDev, mDevices[j]->getSndDeviceId());
                 if (type == PAL_STREAM_VOICE_CALL &&
                     newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {

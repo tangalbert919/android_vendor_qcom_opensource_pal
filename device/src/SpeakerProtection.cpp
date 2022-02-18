@@ -1139,6 +1139,8 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 
 SpeakerProtection::~SpeakerProtection()
 {
+    if (spkerTempList)
+        delete[] spkerTempList;
 }
 
 /*
@@ -1299,6 +1301,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
     std::vector <std::pair<int, int>> calVector;
     std::shared_ptr<ResourceManager> rm;
     std::ostringstream connectCtrlNameBeVI;
+    std::ostringstream connectCtrlNameBeSP;
     std::ostringstream connectCtrlName;
     param_id_sp_th_vi_r0t0_cfg_t *spR0T0confg;
     param_id_sp_vi_op_mode_cfg_t modeConfg;
@@ -1782,6 +1785,53 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         // CPS related payload
         if (ResourceManager::isCpsEnabled) {
             updateCpsCustomPayload(miid);
+        }
+        // Set SP module CKV
+        keyVector.clear();
+        calVector.clear();
+        ret = PayloadBuilder::getDeviceKV(mDeviceAttr.id, keyVector);
+        if (0 != ret) {
+            PAL_ERR(LOG_TAG, "Failed to obtain device KV for %d", mDeviceAttr.id);
+            goto err_pcm_open;
+        }
+        // TODO: Make it configurable from rm.xml
+        switch (numberOfChannels) {
+        case 1 :
+            calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
+        break;
+        case 2 :
+            calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
+        break;
+        default :
+            PAL_ERR(LOG_TAG, "Unsupported channels for speaker");
+            goto err_pcm_open;
+        }
+        SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
+                        (struct prop_data *)devicePropId, deviceMetaData);
+        if (!deviceMetaData.size) {
+            PAL_ERR(LOG_TAG, "VI device metadata is zero");
+            ret = -ENOMEM;
+            goto err_pcm_open;
+        }
+
+        connectCtrlNameBeSP<< backEndNameRx << " metadata";
+        beMetaDataMixerCtrl = mixer_get_ctl_by_name(virtMixer,
+                        connectCtrlNameBeSP.str().data());
+        if (!beMetaDataMixerCtrl) {
+            PAL_ERR(LOG_TAG, "invalid mixer control for SP : %s", backEndNameRx.c_str());
+            ret = -EINVAL;
+            goto err_pcm_open;
+        }
+        if (deviceMetaData.size) {
+            ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                            deviceMetaData.size);
+            free(deviceMetaData.buf);
+            deviceMetaData.buf = nullptr;
+        }
+        else {
+            PAL_ERR(LOG_TAG, "Device Metadata not set for RX path");
+            ret = -EINVAL;
+            goto err_pcm_open;
         }
 
         enableDevice(audioRoute, mSndDeviceName_vi);

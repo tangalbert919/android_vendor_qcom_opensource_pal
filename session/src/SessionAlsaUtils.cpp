@@ -444,35 +444,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = 0; /**< ignore stream device KV failures */
         }
 
-        if (ResourceManager::isSpeakerProtectionEnabled) {
-            PAL_DBG(LOG_TAG, "Speaker protection enabled");
-            for (int i = 0; i < associatedDevices.size(); i++) {
-                if (associatedDevices[i]->getSndDeviceId() ==
-                            PAL_DEVICE_OUT_SPEAKER) {
-                    status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                    SPKR_PROT_ENABLE);
-                    if (status != 0) {
-                        PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                        status = 0; /**< ignore device SP CKV failures */
-                    }
-                    break;
-                }
-                else if (associatedDevices[i]->getSndDeviceId() ==
-                                PAL_DEVICE_IN_VI_FEEDBACK) {
-                    status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                    SPKR_VI_ENABLE);
-                    if (status != 0) {
-                        PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                        status = 0; /**< ignore device SP CKV failures */
-                    }
-                    break;
-                }
-            }
-        }
-        else {
-            // Not setting CKV as SP is disabled by default.
-            PAL_DBG(LOG_TAG, "Speaker protection disabled");
-        }
         if (deviceKV.size() > 0) {
             getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
                     deviceMetaData);
@@ -1343,35 +1314,6 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
         status = 0; /**< ignore stream device KV failures */
     }
 
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        PAL_DBG(LOG_TAG, "Speaker protection enabled");
-        for (int i = 0; i < associatedDevices.size(); i++) {
-            if (associatedDevices[i]->getSndDeviceId() ==
-                        PAL_DEVICE_OUT_SPEAKER) {
-                status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_PROT_ENABLE);
-                if (status != 0) {
-                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                    status = 0; /**< ignore device SP CKV failures */
-                }
-                break;
-            }
-            else if (associatedDevices[i]->getSndDeviceId() ==
-                            PAL_DEVICE_IN_VI_FEEDBACK) {
-                status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_VI_ENABLE);
-                if (status != 0) {
-                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                    status = 0; /**< ignore device SP CKV failures */
-                }
-                break;
-            }
-        }
-    }
-    else {
-        // Not setting CKV as SP is disabled by default.
-        PAL_DBG(LOG_TAG, "Speaker protection disabled");
-    }
     // get audio mixer
     if ((streamRxKV.size() > 0) || (streamRxCKV.size() > 0)) {
         SessionAlsaUtils::getAgmMetaData(streamRxKV, streamRxCKV,
@@ -2085,8 +2027,10 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
     struct pal_stream_attributes sAttr;
     uint8_t* payload = NULL;
     size_t payloadSize = 0;
+    bool is_out_dev = false;
 
     if (dAttr.id > PAL_DEVICE_OUT_MIN && dAttr.id < PAL_DEVICE_OUT_MAX) {
+        is_out_dev = true;
         connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmRxDevIds.at(0) << " connect";
     } else if (dAttr.id > PAL_DEVICE_IN_MIN && dAttr.id < PAL_DEVICE_IN_MAX) {
         connectCtrlName << PCM_SND_DEV_NAME_PREFIX << pcmTxDevIds.at(0) << " connect";
@@ -2097,9 +2041,10 @@ int SessionAlsaUtils::connectSessionDevice(Session* sess, Stream* streamHandle, 
         PAL_ERR(LOG_TAG, "get mixer handle failed %d", status);
         goto exit;
     }
-    if (((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
-        (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
-        streamType == PAL_STREAM_ULTRASOUND) {
+    if ((((dAttr.id == PAL_DEVICE_OUT_SPEAKER) ||
+          (rmHandle->activeGroupDevConfig && dAttr.id == PAL_DEVICE_OUT_ULTRASOUND))&&
+          (streamType == PAL_STREAM_ULTRASOUND)) ||
+        (is_out_dev && streamType == PAL_STREAM_LOOPBACK)) {
         if (sess) {
             sess->configureMFC(rmHandle,sAttr, dAttr, pcmRxDevIds,
                                 aifBackEndsToConnect[0].second.data());
@@ -2241,30 +2186,6 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     if (status != 0) {
         PAL_ERR(LOG_TAG, "get device PP KV failed %d", status);
         status = 0; /** ignore error */
-    }
-
-    if (ResourceManager::isSpeakerProtectionEnabled) {
-        PAL_DBG(LOG_TAG, "Speaker protection enabled");
-        if (dAttr.id == PAL_DEVICE_OUT_SPEAKER) {
-            status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_PROT_ENABLE);
-            if (status != 0) {
-                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                status = 0; /**< ignore device SP CKV failures */
-            }
-         }
-         else if (dAttr.id == PAL_DEVICE_IN_VI_FEEDBACK) {
-            status = builder->populateCalKeyVector(streamHandle, emptyKV,
-                                SPKR_VI_ENABLE);
-            if (status != 0) {
-                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
-                status = 0; /**< ignore device SP CKV failures */
-            }
-         }
-    }
-    else {
-        // Not setting CKV as SP is disabled by default.
-        PAL_DBG(LOG_TAG, "Speaker protection disabled");
     }
 
     if (deviceKV.size() > 0) {
