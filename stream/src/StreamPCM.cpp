@@ -772,7 +772,8 @@ int32_t StreamPCM::setVolume(struct pal_volume_data *volume)
             pal_param_payload *pld = (pal_param_payload *)volPayload;
             pld->payload_size = sizeof(struct pal_volume_data);
             memcpy(pld->payload, mVolumeData, volSize);
-            status = setParameters(PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
+            status = session->setParameters(this, TAG_STREAM_VOLUME,
+                    PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
             delete[] volPayload;
         } else {
             status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
@@ -1086,15 +1087,6 @@ int32_t  StreamPCM::setParameters(uint32_t param_id, void *payload)
                                             param_id, payload);
             if (status)
                PAL_ERR(LOG_TAG, "setParam for slow talk failed with %d",
-                       status);
-            break;
-        }
-        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
-        {
-            status = session->setParameters(this, PAL_PARAM_ID_VOLUME_USING_SET_PARAM,
-                                            param_id, payload);
-            if (status)
-               PAL_ERR(LOG_TAG, "setParam for volume failed with %d",
                        status);
             break;
         }

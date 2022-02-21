@@ -611,15 +611,6 @@ int32_t StreamCompress::setParameters(uint32_t param_id, void *payload)
             }
         }
         break;
-        case PAL_PARAM_ID_VOLUME_USING_SET_PARAM:
-        {
-            status = session->setParameters(this, PAL_PARAM_ID_VOLUME_USING_SET_PARAM,
-                                            param_id, payload);
-            if (status)
-               PAL_ERR(LOG_TAG, "setParam for volume failed with %d",
-                       status);
-            break;
-        }
         default:
             status = session->setParameters(this, 0, param_id, payload);
             break;
@@ -680,18 +671,18 @@ int32_t StreamCompress::setVolume(struct pal_volume_data *volume)
                     vol_set_param_info.streams_.end(), mStreamAttr->type) !=
                     vol_set_param_info.streams_.end());
         if (isStreamAvail && vol_set_param_info.isVolumeUsingSetParam) {
-            uint8_t *volPayload = new uint8_t[sizeof(pal_param_payload) +
-                volSize]();
+            uint8_t *volPayload = new uint8_t[sizeof(pal_param_payload) + volSize]();
             pal_param_payload *pld = (pal_param_payload *)volPayload;
             pld->payload_size = sizeof(struct pal_volume_data);
             memcpy(pld->payload, mVolumeData, volSize);
-            status = setParameters(PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
+            status = session->setParameters(this, TAG_STREAM_VOLUME,
+                    PAL_PARAM_ID_VOLUME_USING_SET_PARAM, (void *)pld);
             delete[] volPayload;
         } else {
             status = session->setConfig(this, CALIBRATION, TAG_STREAM_VOLUME);
         }
         if (0 != status) {
-           PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d",status);
+           PAL_ERR(LOG_TAG, "session setConfig for VOLUME_TAG failed with status %d", status);
            goto exit;
         }
     }

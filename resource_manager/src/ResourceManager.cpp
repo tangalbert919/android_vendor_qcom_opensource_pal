@@ -9389,10 +9389,10 @@ void ResourceManager::process_config_volume(struct xml_userdata *data, const XML
     }
     if (data->tag == TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM) {
         std::string stream_name(data->data_buf);
-        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        PAL_DBG(LOG_TAG, "Stream name to be added : %s", stream_name.c_str());
         uint32_t st = usecaseIdLUT.at(stream_name);
         volumeSetParamInfo_.streams_.push_back(st);
-        PAL_DBG(LOG_TAG, "[PKU]Stream type added for volume set param : %d", st);
+        PAL_DBG(LOG_TAG, "Stream type added for volume set param : %d", st);
     }
     if (!strcmp(tag_name, "supported_stream")) {
         data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS;
@@ -9416,10 +9416,10 @@ void ResourceManager::process_config_lpm(struct xml_userdata *data, const XML_Ch
     }
     if (data->tag == TAG_CONFIG_LPM_SUPPORTED_STREAM) {
         std::string stream_name(data->data_buf);
-        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        PAL_DBG(LOG_TAG, "Stream name to be added : %s", stream_name.c_str());
         uint32_t st = usecaseIdLUT.at(stream_name);
         disableLpmInfo_.streams_.push_back(st);
-        PAL_DBG(LOG_TAG, "[PKU]Stream type added for disable lpm : %d", st);
+        PAL_DBG(LOG_TAG, "Stream type added for disable lpm : %d", st);
     }
     if (!strcmp(tag_name, "lpm_supported_stream")) {
         data->tag = TAG_CONFIG_LPM_SUPPORTED_STREAMS;
