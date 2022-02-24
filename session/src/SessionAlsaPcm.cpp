@@ -937,8 +937,8 @@ int SessionAlsaPcm::start(Stream * s)
                                 goto set_mixer;
                             }
                             streamData.sampleRate = codecConfig.sample_rate;
-                            streamData.bitWidth   = codecConfig.bit_width;
-                            streamData.numChannel = codecConfig.ch_info.channels;
+                            streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
+                            streamData.numChannel = 0xFFFF;
                         } else {
                             streamData.sampleRate = dAttr.config.sample_rate;
                             streamData.bitWidth   = AUDIO_BIT_WIDTH_DEFAULT_16;
