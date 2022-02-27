@@ -808,6 +808,7 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
     PAL_VERBOSE(LOG_TAG, "Enter. session handle - %pK, state %d",
             session, currentState);
 
+    mStreamMutex.lock();
     if ((rm->cardState == CARD_STATUS_OFFLINE) || cachedState != STREAM_IDLE) {
        /* calculate sleep time based on buf->size, sleep and return buf->size */
         uint32_t streamSize;
@@ -856,9 +857,11 @@ int32_t  StreamPCM::read(struct pal_buffer* buf)
         status = -EINVAL;
         goto exit;
     }
+    mStreamMutex.unlock();
     PAL_VERBOSE(LOG_TAG, "Exit. session read successful size - %d", size);
     return size;
 exit :
+    mStreamMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit. session read failed status %d", status);
     return status;
 }
