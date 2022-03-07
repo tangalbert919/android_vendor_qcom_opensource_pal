@@ -559,7 +559,7 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                     event_id = PAL_STREAM_CBK_EVENT_WRITE_READY;
                 }
             } else if (msg && msg->cmd == OFFLOAD_CMD_DRAIN) {
-                if (!is_drain_called && compressObj->playback_started) {
+                if (!is_drain_called) {
                     PAL_INFO(LOG_TAG, "calling compress_drain");
                     if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
                          ret = compress_drain(compressObj->compress);
@@ -574,29 +574,23 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
                 is_drain_called = false;
                 event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
             } else if (msg && msg->cmd == OFFLOAD_CMD_PARTIAL_DRAIN) {
-                if (compressObj->playback_started) {
-                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
-                        if (compressObj->isGaplessFmt) {
-                            PAL_DBG(LOG_TAG, "calling partial compress_drain");
-                            ret = compress_next_track(compressObj->compress);
-                            PAL_INFO(LOG_TAG, "out of compress next track, ret %d", ret);
-                            if (ret == 0) {
-                                ret = compress_partial_drain(compressObj->compress);
-                                PAL_INFO(LOG_TAG, "out of partial compress_drain, ret %d", ret);
-                            }
-                            event_id = PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY;
-                        } else {
-                            PAL_DBG(LOG_TAG, "calling compress_drain");
-                            ret = compress_drain(compressObj->compress);
-                            PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
-                            is_drain_called = true;
-                            event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
+                if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                    if (compressObj->isGaplessFmt) {
+                        PAL_DBG(LOG_TAG, "calling partial compress_drain");
+                        ret = compress_next_track(compressObj->compress);
+                        PAL_INFO(LOG_TAG, "out of compress next track, ret %d", ret);
+                        if (ret == 0) {
+                            ret = compress_partial_drain(compressObj->compress);
+                            PAL_INFO(LOG_TAG, "out of partial compress_drain, ret %d", ret);
                         }
+                        event_id = PAL_STREAM_CBK_EVENT_PARTIAL_DRAIN_READY;
+                    } else {
+                        PAL_DBG(LOG_TAG, "calling compress_drain");
+                        ret = compress_drain(compressObj->compress);
+                        PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
+                        is_drain_called = true;
+                        event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
                     }
-                } else {
-                    PAL_ERR(LOG_TAG, "Playback not started yet");
-                    event_id = PAL_STREAM_CBK_EVENT_DRAIN_READY;
-                    is_drain_called = true;
                 }
                 if (ret == -ENETRESET) {
                     PAL_ERR(LOG_TAG, "Block drain ready event during SSR");

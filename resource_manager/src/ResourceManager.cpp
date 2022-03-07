@@ -653,10 +653,8 @@ err:
         free(snd_card_name);
 }
 
-void ResourceManager::sendCrashSignal(int signal)
+void ResourceManager::sendCrashSignal(int signal, pid_t pid, uid_t uid)
 {
-    pid_t pid = getpid();
-    uid_t uid = getuid();
     ALOGV("%s: signal %d, pid %u, uid %u", __func__, signal, pid, uid);
     struct agm_dump_info dump_info = {signal, (uint32_t)pid, (uint32_t)uid};
     agm_dump(&dump_info);
@@ -705,7 +703,7 @@ ResourceManager::ResourceManager()
     if (isSignalHandlerEnabled) {
         mSigHandler = SignalHandler::getInstance();
         if (mSigHandler) {
-            std::function<void(int)> crashSignalCb = sendCrashSignal;
+            std::function<void(int, pid_t, uid_t)> crashSignalCb = sendCrashSignal;
             SignalHandler::setClientCallback(crashSignalCb);
             mSigHandler->registerSignalHandler(gSignalsOfInterest);
         } else {
@@ -6092,11 +6090,11 @@ bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
     else if(!Dev1Info->samplerate_overwrite && !Dev2Info->samplerate_overwrite) {
         if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K == 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K != 0)) {
-            if (Dev1Info->priority < Dev2Info->priority) {
+            if (Dev1Info->priority <= Dev2Info->priority) {
                 Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
                 updated = true;
             } else {
-                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev has priority");
+                PAL_DBG(LOG_TAG, "no need to update sample rate as inDev has priority");
             }
         } else if ((Dev1Attr->config.sample_rate % SAMPLINGRATE_44K != 0) &&
             (Dev2Attr->config.sample_rate % SAMPLINGRATE_44K == 0)) {
@@ -6104,9 +6102,9 @@ bool ResourceManager::compareAndUpdateDevAttr(const struct pal_device *Dev1Attr,
                 Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
                 updated = true;
             } else {
-                PAL_DBG(LOG_TAG,"no need to update sample rate as inDev is 44.1K");
+                PAL_DBG(LOG_TAG, "no need to update sample rate as inDev is 44.1K");
             }
-        } else if (Dev1Attr->config.sample_rate > Dev2Attr->config.sample_rate){
+        } else if (Dev1Attr->config.sample_rate > Dev2Attr->config.sample_rate) {
             Dev2Attr->config.sample_rate = Dev1Attr->config.sample_rate;
             updated = true;
         }
@@ -9389,10 +9387,10 @@ void ResourceManager::process_config_volume(struct xml_userdata *data, const XML
     }
     if (data->tag == TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAM) {
         std::string stream_name(data->data_buf);
-        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        PAL_DBG(LOG_TAG, "Stream name to be added : %s", stream_name.c_str());
         uint32_t st = usecaseIdLUT.at(stream_name);
         volumeSetParamInfo_.streams_.push_back(st);
-        PAL_DBG(LOG_TAG, "[PKU]Stream type added for volume set param : %d", st);
+        PAL_DBG(LOG_TAG, "Stream type added for volume set param : %d", st);
     }
     if (!strcmp(tag_name, "supported_stream")) {
         data->tag = TAG_CONFIG_VOLUME_SET_PARAM_SUPPORTED_STREAMS;
@@ -9416,10 +9414,10 @@ void ResourceManager::process_config_lpm(struct xml_userdata *data, const XML_Ch
     }
     if (data->tag == TAG_CONFIG_LPM_SUPPORTED_STREAM) {
         std::string stream_name(data->data_buf);
-        PAL_DBG(LOG_TAG, "[PKU]Stream name to be added : :%s", stream_name.c_str());
+        PAL_DBG(LOG_TAG, "Stream name to be added : %s", stream_name.c_str());
         uint32_t st = usecaseIdLUT.at(stream_name);
         disableLpmInfo_.streams_.push_back(st);
-        PAL_DBG(LOG_TAG, "[PKU]Stream type added for disable lpm : %d", st);
+        PAL_DBG(LOG_TAG, "Stream type added for disable lpm : %d", st);
     }
     if (!strcmp(tag_name, "lpm_supported_stream")) {
         data->tag = TAG_CONFIG_LPM_SUPPORTED_STREAMS;

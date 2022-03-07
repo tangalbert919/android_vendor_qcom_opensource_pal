@@ -51,7 +51,7 @@ static const constexpr int DEBUGGER_SIGNAL = (__SIGRTMIN + 3);
 
 struct SignalHandler {
     static std::shared_ptr<SignalHandler> getInstance();
-    static void setClientCallback(std::function<void(int)> cb);
+    static void setClientCallback(std::function<void(int, pid_t, uid_t)> cb);
     static void asyncRegister(int signal);
     static void invokeDefaultHandler(std::shared_ptr<struct sigaction> sAct,
                               int code, struct siginfo *si, void *sc);
@@ -60,7 +60,7 @@ struct SignalHandler {
     void registerSignalHandler(std::vector<int> signalsToRegister);
     static std::mutex sDefaultSigMapLock;
     static std::unordered_map<int, std::shared_ptr<struct sigaction>> sDefaultSigMap;
-    static std::function<void(int)> sClientCb;
+    static std::function<void(int, pid_t, uid_t)> sClientCb;
     static std::mutex sAsyncRegisterLock;
     static std::future<void> sAsyncHandle;
 };

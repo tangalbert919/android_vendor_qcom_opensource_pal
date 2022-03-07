@@ -40,7 +40,7 @@
 
 std::mutex SignalHandler::sDefaultSigMapLock;
 std::unordered_map<int, std::shared_ptr<struct sigaction>> SignalHandler::sDefaultSigMap;
-std::function<void(int)> SignalHandler::sClientCb;
+std::function<void(int, pid_t, uid_t)> SignalHandler::sClientCb;
 std::mutex SignalHandler::sAsyncRegisterLock;
 std::future<void> SignalHandler::sAsyncHandle;
 
@@ -54,7 +54,7 @@ void SignalHandler::asyncRegister(int signal) {
 }
 
 // static
-void SignalHandler::setClientCallback(std::function<void(int)> cb) {
+void SignalHandler::setClientCallback(std::function<void(int, pid_t, uid_t)> cb) {
     sClientCb = cb;
 }
 
@@ -70,7 +70,22 @@ void SignalHandler::invokeDefaultHandler(std::shared_ptr<struct sigaction> sAct,
     ALOGV("%s: invoke default handler for signal %d", __func__, code);
     // Remove custom handler so that default handler is invoked
     sigaction(code, sAct.get(), NULL);
-    raise(code);
+
+    int status = 0;
+    if (si->si_code == SI_QUEUE) {
+        ALOGE_IF(code == DEBUGGER_SIGNAL,
+                 "signal %d (<debuggerd signal>), code -1 "
+                 "(SI_QUEUE from originating pid %d, uid %d)",
+                 code, si->si_pid, si->si_uid);
+        status = sigqueue(getpid(), code, {.sival_int = 0});
+    } else {
+        status = raise(code);
+    }
+
+    if (status < 0) {
+        ALOGW("%s: Sending signal %d failed with error %d",
+                  __func__, code, errno);
+    }
 
     // Register custom handler back asynchronously
     sAsyncHandle = std::async(std::launch::async, SignalHandler::asyncRegister, code);
@@ -82,7 +97,7 @@ void SignalHandler::customSignalHandler(
     ALOGV("%s: enter", __func__);
     std::lock_guard<std::mutex> lock(sDefaultSigMapLock);
     if (sClientCb) {
-        sClientCb(code);
+        sClientCb(code, si->si_pid, si->si_uid);
     }
     // Invoke default handler
     auto it = sDefaultSigMap.find(code);

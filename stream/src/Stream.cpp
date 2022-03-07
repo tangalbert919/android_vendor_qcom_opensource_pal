@@ -1152,10 +1152,8 @@ exit:
        if (USB::isUsbConnected(dattr->address)) {
            PAL_ERR(LOG_TAG, "USB still connected, connect failed");
        } else {
-           status = connectToDefaultDevice(streamHandle, rm->getDeviceDirection(dev->getSndDeviceId()));
-           if (status) {
-               PAL_ERR(LOG_TAG, "failed to connect to default device");
-           }
+           status = -ENOSYS;
+           PAL_ERR(LOG_TAG, "failed to connect to USB device");
        }
 
     }
@@ -1615,46 +1613,3 @@ void Stream::handleStreamException(struct pal_stream_attributes *attributes,
     }
 }
 
-int Stream::connectToDefaultDevice(Stream* streamHandle, uint32_t dir){
-    int status = 0;
-    struct pal_device dattr;
-    struct pal_stream_attributes sAttr;
-    struct pal_channel_info ch_info;
-
-    PAL_DBG(LOG_TAG,"Attempting to connect default device");
-
-    status = streamHandle->getStreamAttributes(&sAttr);
-    if (status != 0) {
-        PAL_ERR(LOG_TAG,"getStreamAttributes Failed \n");
-        return status;
-    }
-
-    /*set up default device configuration*/
-    dattr.config.sample_rate = 48000;
-    dattr.config.bit_width = 16;
-    dattr.config.aud_fmt_id = PAL_AUDIO_FMT_PCM_S16_LE;
-    strlcpy(dattr.custom_config.custom_key, "",
-            sizeof(dattr.custom_config.custom_key));
-    if (dir == PAL_AUDIO_OUTPUT) {
-        if (sAttr.type == PAL_STREAM_VOICE_CALL) {
-            dattr.id = PAL_DEVICE_OUT_HANDSET;
-        } else {
-            dattr.id = PAL_DEVICE_OUT_SPEAKER;
-        }
-        dattr.config.ch_info.channels = 2;
-        dattr.config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-        dattr.config.ch_info.ch_map[1] = PAL_CHMAP_CHANNEL_FR;
-    } else {
-        if (sAttr.type == PAL_STREAM_VOICE_CALL) {
-            dattr.id = PAL_DEVICE_IN_HANDSET_MIC;
-        } else {
-            dattr.id = PAL_DEVICE_IN_SPEAKER_MIC;
-        }
-        dattr.config.ch_info.channels = 1;
-        dattr.config.ch_info.ch_map[0] = PAL_CHMAP_CHANNEL_FL;
-    }
-    rm->getDeviceConfig(&dattr, &sAttr);
-    status = connectStreamDevice_l(streamHandle, &dattr);
-
-    return status;
-}

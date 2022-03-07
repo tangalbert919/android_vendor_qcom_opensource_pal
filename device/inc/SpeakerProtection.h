@@ -120,6 +120,7 @@ public:
     static void spkrProtSetSpkrStatus(bool enable);
     static int setConfig(int type, int tag, int tagValue, int devId, const char *aif);
     bool isSpeakerInUse(unsigned long *sec);
+    void setSpeakerCKV();
 
     SpeakerProtection(struct pal_device *device,
                       std::shared_ptr<ResourceManager> Rm);
