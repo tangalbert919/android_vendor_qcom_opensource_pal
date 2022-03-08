@@ -2957,8 +2957,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
-        sAttr.type != PAL_STREAM_PROXY &&
-        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
+        sAttr.type != PAL_STREAM_PROXY) {
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
@@ -4562,6 +4561,10 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     for (auto& tx_str: mActiveStreams) {
         tx_device_list.clear();
         tx_str->getStreamAttributes(&tx_attr);
+        if (tx_attr.type == PAL_STREAM_PROXY ||
+            tx_attr.type == PAL_STREAM_ULTRA_LOW_LATENCY ||
+            tx_attr.type == PAL_STREAM_GENERIC)
+            continue;
         if (tx_attr.direction == PAL_AUDIO_INPUT) {
             if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
                 PAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
