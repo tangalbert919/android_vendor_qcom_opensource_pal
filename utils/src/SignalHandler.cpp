@@ -77,7 +77,7 @@ void SignalHandler::invokeDefaultHandler(std::shared_ptr<struct sigaction> sAct,
                  "signal %d (<debuggerd signal>), code -1 "
                  "(SI_QUEUE from originating pid %d, uid %d)",
                  code, si->si_pid, si->si_uid);
-        status = sigqueue(getpid(), code, {.sival_int = 0});
+        status = sigqueue(getpid(), code, si->si_value);
     } else {
         status = raise(code);
     }
@@ -120,7 +120,7 @@ void SignalHandler::registerSignalHandler(std::vector<int> signalsToRegister) {
     ALOGV("%s: enter", __func__);
     struct sigaction regAction = {};
     regAction.sa_sigaction = customSignalHandler;
-    regAction.sa_flags = SA_SIGINFO;
+    regAction.sa_flags = SA_SIGINFO | SA_NODEFER;
     std::lock_guard<std::mutex> lock(sDefaultSigMapLock);
     for (int signal : signalsToRegister) {
         ALOGV("%s: register signal %d", __func__, signal);
