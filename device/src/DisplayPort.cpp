@@ -875,10 +875,6 @@ bool DisplayPort::isSupportedBps(unsigned char bpsByte, int bps)
         PAL_VERBOSE(LOG_TAG,"24bit");
         result = (bpsByte & BIT(2));
         break;
-    case 20:
-        PAL_VERBOSE(LOG_TAG,"20bit");
-        result = (bpsByte & BIT(1));
-        break;
     case 16:
         PAL_VERBOSE(LOG_TAG,"16bit");
         result = (bpsByte & BIT(0));
@@ -1797,10 +1793,6 @@ int DisplayPort::getHighestSupportedBps()
             if (isSupportedBps(bpsMask, 24)) {
                 highestBps = 24;
                 break;
-            }
-            else if (isSupportedBps(bpsMask, 20)) {
-                if (highestBps < 20)
-                    highestBps = 20;
             }
             else if (isSupportedBps(bpsMask, BITWIDTH_16))
                 if (highestBps < BITWIDTH_16)
