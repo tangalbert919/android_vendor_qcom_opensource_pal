@@ -317,6 +317,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> devicePPCKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
     struct pal_stream_attributes sAttr;
@@ -444,8 +445,22 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             status = 0; /**< ignore stream device KV failures */
         }
 
+        deviceCKV.clear();
+
+        if (ResourceManager::isSpeakerProtectionEnabled) {
+            PAL_DBG(LOG_TAG, "Speaker protection enabled");
+            if (be->first == PAL_DEVICE_OUT_SPEAKER) {
+                status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                                SPKR_PROT_ENABLE);
+                if (status != 0) {
+                    PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                    status = 0; /**< ignore device SP CKV failures */
+                }
+            }
+        }
+
         if (deviceKV.size() > 0) {
-            getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+            getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,
                     deviceMetaData);
             if (!deviceMetaData.size) {
                 PAL_ERR(LOG_TAG, "device metadata is zero");
@@ -453,6 +468,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
                 goto freeMetaData;
             }
         }
+
         if (streamDeviceKV.size() > 0 || devicePPCKV.size() > 0) {
             getAgmMetaData(streamDeviceKV, devicePPCKV, (struct prop_data *)streamDevicePropId,
                     streamDeviceMetaData);
@@ -1192,6 +1208,7 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
     std::vector <std::pair<int, int>> streamRxCKV, streamTxCKV;
     std::vector <std::pair<int, int>> streamDeviceRxKV, streamDeviceTxKV;
     std::vector <std::pair<int, int>> deviceRxKV, deviceTxKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     // Using as empty key vector pairs
     std::vector <std::pair<int, int>> emptyKV;
     int status = 0;
@@ -1324,8 +1341,21 @@ int SessionAlsaUtils::open(Stream * streamHandle, std::shared_ptr<ResourceManage
             goto freeRxMetaData;
         }
     }
+    deviceCKV.clear();
+    if (ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Speaker protection enabled");
+        if (rxBackEnds[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            SPKR_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+        }
+    }
+
     if (deviceRxKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(deviceRxKV, emptyKV,
+        SessionAlsaUtils::getAgmMetaData(deviceRxKV, deviceCKV,
                 (struct prop_data *)devicePropId, deviceRxMetaData);
         if (!deviceRxMetaData.size) {
             PAL_ERR(LOG_TAG, "device RX metadata is zero");
@@ -2111,6 +2141,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
     std::vector <std::pair<int, int>> streamDeviceKV;
     std::vector <std::pair<int, int>> deviceKV;
     std::vector <std::pair<int, int>> emptyKV;
+    std::vector <std::pair<int, int>> deviceCKV;
     std::vector <std::pair<int, int>> devicePPCKV;
     int status = 0;
     struct agmMetaData deviceMetaData(nullptr, 0);
@@ -2188,8 +2219,22 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
         status = 0; /** ignore error */
     }
 
+    deviceCKV.clear();
+
+    if (ResourceManager::isSpeakerProtectionEnabled) {
+        PAL_DBG(LOG_TAG, "Speaker protection enabled");
+        if (aifBackEndsToConnect[0].first == PAL_DEVICE_OUT_SPEAKER) {
+            status = builder->populateCalKeyVector(streamHandle, deviceCKV,
+                            SPKR_PROT_ENABLE);
+            if (status != 0) {
+                PAL_VERBOSE(LOG_TAG, "Unable to populate SP cal");
+                status = 0; /**< ignore device SP CKV failures */
+            }
+        }
+    }
+
     if (deviceKV.size() > 0) {
-        SessionAlsaUtils::getAgmMetaData(deviceKV, emptyKV, (struct prop_data *)devicePropId,
+        SessionAlsaUtils::getAgmMetaData(deviceKV, deviceCKV, (struct prop_data *)devicePropId,
                 deviceMetaData);
         if (!deviceMetaData.size) {
             PAL_ERR(LOG_TAG, "device meta data is zero");
@@ -2197,6 +2242,7 @@ int SessionAlsaUtils::setupSessionDevice(Stream* streamHandle, pal_stream_type_t
             goto freeMetaData;
         }
     }
+
     status = builder->populateDevicePPCkv(streamHandle, devicePPCKV);
     if (status) {
         PAL_ERR(LOG_TAG, "populateDevicePP Ckv failed %d", status);
