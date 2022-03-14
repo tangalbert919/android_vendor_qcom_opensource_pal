@@ -1271,69 +1271,6 @@ exit:
     }
 }
 
-void SpeakerProtection::setSpeakerCKV() {
-
-    std::vector <std::pair<int, int>> keyVector;
-    std::vector <std::pair<int, int>> calVector;
-    int ret = 0;
-    uint32_t devicePropId[] = {0x08000010, 1, 0x2};
-    struct agmMetaData deviceMetaData(nullptr, 0);
-    struct mixer_ctl *beMetaDataMixerCtrl = nullptr;
-    std::ostringstream connectCtrlNameBeSP;
-    std::string backEndNameRx;
-
-    keyVector.clear();
-    calVector.clear();
-    ret = PayloadBuilder::getDeviceKV(mDeviceAttr.id, keyVector);
-    if (0 != ret) {
-        PAL_ERR(LOG_TAG, "Failed to obtain device KV for %d", mDeviceAttr.id);
-        goto exit;
-    }
-    // TODO: Make it configurable from rm.xml
-    switch (numberOfChannels) {
-        case 1 :
-            calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, RIGHT_MONO));
-        break;
-        case 2 :
-            calVector.push_back(std::make_pair(SPK_PRO_DEV_MAP, LEFT_RIGHT));
-        break;
-        default :
-            PAL_ERR(LOG_TAG, "Unsupported channels for speaker");
-            goto exit;
-    }
-    SessionAlsaUtils::getAgmMetaData(keyVector, calVector,
-                    (struct prop_data *)devicePropId, deviceMetaData);
-    if (!deviceMetaData.size) {
-        PAL_ERR(LOG_TAG, "VI device metadata is zero");
-        goto exit;
-    }
-
-    rm->getBackendName(mDeviceAttr.id, backEndNameRx);
-    if (!strlen(backEndNameRx.c_str())) {
-        PAL_ERR(LOG_TAG, "Failed to obtain rx backend name for %d", mDeviceAttr.id);
-        goto exit;
-    }
-
-    connectCtrlNameBeSP<< backEndNameRx << " metadata";
-    beMetaDataMixerCtrl = mixer_get_ctl_by_name(virtMixer,
-                    connectCtrlNameBeSP.str().data());
-    if (!beMetaDataMixerCtrl) {
-        PAL_ERR(LOG_TAG, "invalid mixer control for SP : %s", backEndNameRx.c_str());
-        goto exit;
-    }
-    if (deviceMetaData.size) {
-        ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
-                            deviceMetaData.size);
-        free(deviceMetaData.buf);
-        deviceMetaData.buf = nullptr;
-    }
-    else {
-        PAL_ERR(LOG_TAG, "Device Metadata not set for RX path");
-    }
-exit:
-    return;
-}
-
 /*
  * Function to trigger Processing mode.
  * The parameter that it accepts are below:
@@ -1395,9 +1332,7 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         }
         numberOfRequest++;
         if (numberOfRequest > 1) {
-            // R0T0 already set, we don't need to process the request. Just need
-            // to send the Speaker CKV
-            setSpeakerCKV();
+            // R0T0 already set, we don't need to process the request
             goto exit;
         }
         PAL_DBG(LOG_TAG, "Custom payload size %zu, Payload %p", customPayloadSize,
@@ -1851,8 +1786,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
         if (ResourceManager::isCpsEnabled) {
             updateCpsCustomPayload(miid);
         }
-
-        setSpeakerCKV();
 
         enableDevice(audioRoute, mSndDeviceName_vi);
         PAL_DBG(LOG_TAG, "pcm start for TX");
