@@ -667,6 +667,7 @@ typedef struct dynamic_media_config {
     uint32_t sample_rate;                /**< sample rate */
     uint32_t format;                     /**< format */
     uint32_t mask;                       /**< channel mask */
+    bool jack_status;                    /**< input/output jack status*/
 } dynamic_media_config_t;
 
 /**  Available stream flags of an audio session*/

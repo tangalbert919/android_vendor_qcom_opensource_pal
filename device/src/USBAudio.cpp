@@ -419,6 +419,8 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     int ret = 0;
     char *bit_width_str = NULL;
     size_t num_read = 0;
+    const char* suffix;
+    bool jack_status;
     //std::shared_ptr<USBDeviceConfig> usb_device_info = nullptr;
 
     bool check = false;
@@ -567,6 +569,12 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
                 PAL_INFO(LOG_TAG, "error unable to get service interval, assume default");
             }
         }
+        /* jack status parsing */
+        suffix = (type == USB_PLAYBACK) ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
+        jack_status = getJackConnectionStatus(addr.card_id, suffix);
+        PAL_VERBOSE(LOG_TAG, "jack_status %d", jack_status);
+        usb_device_info->setJackStatus(jack_status);
+
         /* Add to list if every field is valid */
         usb_device_config_list_.push_back(usb_device_info);
     }
@@ -681,11 +689,27 @@ unsigned int USBCardConfig::readDefaultChannelMask(bool is_playback) {
     return ret;
 }
 
+bool USBCardConfig::readDefaultJackStatus(bool is_playback) {
+    bool jack_status = true;
+    typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
+
+    for (iter = usb_device_config_list_.begin();
+        iter != usb_device_config_list_.end(); iter++) {
+        if ((*iter)->getType() == is_playback){
+            jack_status = (*iter)->getJackStatus();
+            break;
+        }
+    }
+
+    return jack_status;
+}
+
 int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool is_playback)
 {
     config->format = readDefaultFormat(is_playback);
     config->sample_rate = readDefaultSampleRate(is_playback);
     config->mask = readDefaultChannelMask(is_playback);
+    config->jack_status = readDefaultJackStatus(is_playback);
 
     return 0;
 }
@@ -791,6 +815,10 @@ void USBDeviceConfig::setBitWidth(unsigned int bit_width) {
     bit_width_ = bit_width;
 }
 
+void USBDeviceConfig::setJackStatus(bool jack_status) {
+    jack_status_ = jack_status;
+}
+
 void USBDeviceConfig::setChannels(unsigned int channels) {
     channels_ = channels;
 }
@@ -821,6 +849,10 @@ unsigned long USBDeviceConfig::getInterval() {
 
 unsigned int USBDeviceConfig::getDefaultRate() {
     return rates_[0];
+}
+
+bool USBDeviceConfig::getJackStatus() {
+    return jack_status_;
 }
 
 int USBDeviceConfig::isCustomRateSupported(int requested_rate, unsigned int *best_rate)
@@ -1011,4 +1043,34 @@ bool USB::isUsbConnected(struct pal_usb_device_address addr)
 
     PAL_ERR(LOG_TAG, "usb device is not connected");
     return false;
+}
+
+bool USBCardConfig::getJackConnectionStatus(int usb_card, const char* suffix)
+{
+    int i = 0, value = 0;
+    struct mixer_ctl* ctrl = NULL;
+    struct mixer* usb_card_mixer = mixer_open(usb_card);
+    if (usb_card_mixer == NULL) {
+        PAL_ERR(LOG_TAG, "Invalid mixer");
+        return true;
+    }
+    while ((ctrl = mixer_get_ctl(usb_card_mixer, i++)) != NULL) {
+        const char* mixer_name = mixer_ctl_get_name(ctrl);
+        if (strstr(mixer_name, suffix)) {
+            break;
+        } else {
+            ctrl = NULL;
+        }
+    }
+    if (!ctrl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control");
+        mixer_close(usb_card_mixer);
+        return true;
+    }
+    mixer_ctl_update(ctrl);
+    value = mixer_ctl_get_value(ctrl, 0);
+    PAL_VERBOSE(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value);
+    mixer_close(usb_card_mixer);
+
+    return value != 0;
 }
