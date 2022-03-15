@@ -820,6 +820,11 @@ ResourceManager::ResourceManager()
         throw std::runtime_error("Failed to allocate ContextManager");
 
     }
+
+    // init use_lpi_ flag
+    use_lpi_ = IsLPISupported(PAL_STREAM_VOICE_UI) ||
+        IsLPISupported(PAL_STREAM_ACD) ||
+        IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA);
 }
 
 ResourceManager::~ResourceManager()
@@ -2483,6 +2488,8 @@ int ResourceManager::registerStream(Stream *s)
         }
         case PAL_STREAM_VOICE_UI:
         {
+            if (active_streams_st.size() == 0)
+                onVUIStreamRegistered();
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = registerstream(sST, active_streams_st);
             break;
@@ -2660,6 +2667,7 @@ int ResourceManager::deregisterStream(Stream *s)
             if (active_streams_st.size() == 0) {
                 concurrencyDisableCount = 0;
                 concurrencyEnableCount = 0;
+                onVUIStreamDeregistered();
             }
             break;
         }
@@ -4172,13 +4180,6 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
                             device_to_connect);
                 }
                 break;
-            case ST_HANDLE_CHARGING_STATE: {
-                bool enable = *(bool *)data;
-                status = str->HandleChargingStateUpdate(charging_state_, enable);
-                if (status)
-                    PAL_ERR(LOG_TAG, "Failed to handling charging state\n");
-                }
-                break;
             default:
                 break;
         }
@@ -4431,12 +4432,18 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && ++concurrencyEnableCount == 1) ||
                     (PAL_STREAM_ACD == st_stream_type && ++ACDConcurrencyEnableCount == 1) ||
                     (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && ++SNSPCMDataConcurrencyEnableCount == 1))
-                    do_st_stream_switch = true;
+                    if (use_lpi_) {
+                        do_st_stream_switch = true;
+                        use_lpi_ = false;
+                    }
             } else {
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && --concurrencyEnableCount == 0) ||
                     (PAL_STREAM_ACD == st_stream_type && --ACDConcurrencyEnableCount == 0) ||
                     (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && --SNSPCMDataConcurrencyEnableCount == 0))
-                    do_st_stream_switch = true;
+                    if (!(active_streams_st.size() && charging_state_ && IsTransitToNonLPIOnChargingSupported())) {
+                        do_st_stream_switch = true;
+                        use_lpi_ = true;
+                    }
             }
         }
     }
@@ -7814,12 +7821,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     charging_state_ = battery_charging_state->charging_state;
                     mResourceManagerMutex.unlock();
                     mActiveStreamMutex.lock();
-                    action = false;
-                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
-                    // update common capture profile
-                    SoundTriggerCaptureProfile = GetCaptureProfileByPriority(nullptr);
-                    action = true;
-                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    onChargingStateChange();
                     mActiveStreamMutex.unlock();
                     mResourceManagerMutex.lock();
                 } else {
@@ -8648,6 +8650,76 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
 error :
     PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange, status %d", status);
     return status;
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onChargingStateChange()
+{
+    std::vector<pal_stream_type_t> st_streams;
+    bool need_switch = false;
+
+    // no need to handle car mode if no Voice Stream exists
+    if (active_streams_st.size() == 0)
+        return;
+
+    if (charging_state_ && use_lpi_) {
+        use_lpi_ = false;
+        need_switch = true;
+    } else if (!charging_state_ && !use_lpi_) {
+        if (!concurrencyEnableCount) {
+            use_lpi_ = true;
+            need_switch = true;
+        }
+    }
+
+    if (need_switch) {
+        if (active_streams_st.size())
+            st_streams.push_back(PAL_STREAM_VOICE_UI);
+        if (active_streams_acd.size())
+            st_streams.push_back(PAL_STREAM_ACD);
+        if (active_streams_sensor_pcm_data.size())
+            st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onVUIStreamRegistered()
+{
+    std::vector<pal_stream_type_t> st_streams;
+
+    if (!charging_state_ || !IsTransitToNonLPIOnChargingSupported())
+        return;
+
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+    if (use_lpi_) {
+        use_lpi_ = false;
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onVUIStreamDeregistered()
+{
+    std::vector<pal_stream_type_t> st_streams;
+
+    if (!charging_state_ || !IsTransitToNonLPIOnChargingSupported())
+        return;
+
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+    if (!use_lpi_ && !concurrencyEnableCount) {
+        use_lpi_ = true;
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
 }
 
 bool ResourceManager::getScreenState()
