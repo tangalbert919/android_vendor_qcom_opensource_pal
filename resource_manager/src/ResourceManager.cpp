@@ -4236,11 +4236,8 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
             *conc_en = false;
         }
-    } else if (in_type == PAL_STREAM_VOIP_TX ||
-               in_type == PAL_STREAM_VOIP_RX ||
-               in_type == PAL_STREAM_VOIP) {
+    } else if (in_type == PAL_STREAM_VOIP_TX) {
         *tx_conc = true;
-        *rx_conc = true;
         if (!audio_capture_conc_enable || !voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
             *conc_en = false;
