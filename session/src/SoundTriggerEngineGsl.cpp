@@ -2067,6 +2067,7 @@ int32_t SoundTriggerEngineGsl::ReconfigureDetectionGraph(Stream *s) {
 
     PAL_DBG(LOG_TAG, "Enter");
 
+    exit_buffering_ = true;
     DetachStream(s, false);
     std::unique_lock<std::mutex> lck(mutex_);
 
