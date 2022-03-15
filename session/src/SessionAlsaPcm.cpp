@@ -869,7 +869,7 @@ int SessionAlsaPcm::start(Stream * s)
                 (sAttr.type != PAL_STREAM_ACD) &&
                 (sAttr.type != PAL_STREAM_CONTEXT_PROXY) &&
                 (sAttr.type != PAL_STREAM_SENSOR_PCM_DATA) &&
-                (SessionAlsaUtils::isMmapUsecase(sAttr) == false)) {
+                (sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY)) {
                 /* Get MFC MIID and configure to match to stream config */
                 /* This has to be done after sending all mixer controls and before connect */
                 if (sAttr.type != PAL_STREAM_VOICE_CALL_RECORD)
