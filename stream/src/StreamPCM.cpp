@@ -533,9 +533,13 @@ int32_t StreamPCM::start()
             PAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
             break;
         }
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
@@ -554,7 +558,6 @@ session_fail:
         devStatus = mDevices[i]->stop();
         if (devStatus)
             status = devStatus;
-        rm->deregisterDevice(mDevices[i], this);
     }
 exit:
     PAL_DBG(LOG_TAG, "Exit. state %d, status %d", currentState, status);
@@ -572,9 +575,13 @@ int32_t StreamPCM::stop()
                 session, mStreamAttr->direction, currentState);
 
     if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
             PAL_VERBOSE(LOG_TAG, "In PAL_AUDIO_OUTPUT case, device count - %zu",
@@ -1187,9 +1194,13 @@ int32_t StreamPCM::resume_l()
     }
 
     if (isFlushed) {
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        rm->unlockActiveStream();
         isFlushed = false;
     }
 
@@ -1232,9 +1243,13 @@ int32_t StreamPCM::flush()
         goto exit;
     }
 
+    mStreamMutex.unlock();
+    rm->lockActiveStream();
+    mStreamMutex.lock();
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i], this);
     }
+    rm->unlockActiveStream();
 
     status = session->flush();
     isFlushed = true;
@@ -1395,7 +1410,9 @@ int32_t StreamPCM::ssrDownHandler()
         }
     } else if (currentState == STREAM_STARTED || currentState == STREAM_PAUSED) {
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         status = stop();
+        rm->lockActiveStream();
         if (0 != status)
             PAL_ERR(LOG_TAG, "stream stop failed. status %d",  status);
         status = close();
@@ -1437,7 +1454,9 @@ int32_t StreamPCM::ssrUpHandler()
             PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
+        rm->unlockActiveStream();
         status = start();
+        rm->lockActiveStream();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
@@ -1456,7 +1475,9 @@ int32_t StreamPCM::ssrUpHandler()
             PAL_ERR(LOG_TAG, "stream open failed. status %d", status);
             goto exit;
         }
+        rm->unlockActiveStream();
         status = start();
+        rm->lockActiveStream();
         if (0 != status) {
             PAL_ERR(LOG_TAG, "stream start failed. status %d", status);
             goto exit;
