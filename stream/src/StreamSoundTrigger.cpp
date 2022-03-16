@@ -1645,16 +1645,18 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
         }
     }
 
-    // use default history buffer length if it is not set
-    if (!hist_buf_duration_)
-        hist_buf_duration_ = sm_cfg_->GetKwDuration();
-
     client_capture_read_delay = sm_cfg_->GetCaptureReadDelay();
     PAL_DBG(LOG_TAG, "history buf len = %d, preroll len = %d, read delay = %d",
         hist_buf_duration_, pre_roll_duration_, client_capture_read_delay);
 
-    status = gsl_engine_->UpdateBufConfig(this, hist_buf_duration_,
-                                                pre_roll_duration_);
+    if (!hist_buf_duration_) {
+        status = gsl_engine_->UpdateBufConfig(this,
+            sm_cfg_->GetKwDuration(), pre_roll_duration_);
+    } else {
+        status = gsl_engine_->UpdateBufConfig(this,
+            hist_buf_duration_, pre_roll_duration_);
+    }
+
     if (status) {
         PAL_ERR(LOG_TAG, "Failed to update buf config, status %d", status);
         goto error_exit;
@@ -2227,6 +2229,10 @@ int32_t StreamSoundTrigger::GenerateCallbackEvent(
         kw_indices = (struct st_keyword_indices_info *)opaque_data;
         kw_indices->version = 0x1;
         reader_->getIndices(&start_index, &end_index);
+        // adjust reader offset if lab requested and history buffer not set
+        if (rec_config_->capture_requested && !hist_buf_duration_)
+            reader_->advanceReadOffset(end_index);
+
         kw_indices->start_index = start_index;
         kw_indices->end_index = end_index;
         opaque_data += sizeof(struct st_keyword_indices_info);
