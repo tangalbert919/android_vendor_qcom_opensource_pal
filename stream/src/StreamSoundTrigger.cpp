@@ -104,6 +104,7 @@ StreamSoundTrigger::StreamSoundTrigger(struct pal_stream_attributes *sattr,
     model_id_ = 0;
     sm_config_ = nullptr;
     rec_config_ = nullptr;
+    recognition_mode_ = 0;
     paused_ = false;
     device_opened_ = false;
     pending_stop_ = false;
@@ -1149,6 +1150,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)phrase_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = phrase_sm->phrases[0].recognition_mode;
         } else {
             ar_mem_cpy(sm_config_, sizeof(*common_sm),
                              common_sm, sizeof(*common_sm));
@@ -1156,6 +1158,7 @@ int32_t StreamSoundTrigger::LoadSoundModel(
                              common_sm->data_size,
                              (uint8_t *)common_sm + common_sm->data_offset,
                              common_sm->data_size);
+            recognition_mode_ = PAL_RECOGNITION_MODE_VOICE_TRIGGER;
         }
     }
     GetUUID(&uuid, sound_model);
