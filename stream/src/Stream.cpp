@@ -1473,7 +1473,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 } else if (rm->isOutputDevId(mDevices[j]->getSndDeviceId())) {
                     for (const auto &elem : sharedBEStreamDev) {
                         std::get<0>(elem)->getStreamAttributes(&strAttr);
-                        if (strAttr.type == PAL_STREAM_VOICE_CALL) {
+                        if (strAttr.type == PAL_STREAM_VOICE_CALL &&
+                            newDeviceId != PAL_DEVICE_OUT_HEARING_AID) {
                             voice_call_switch = true;
                             break;
                         }

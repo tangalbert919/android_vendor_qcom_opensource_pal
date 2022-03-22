@@ -8021,6 +8021,8 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
             struct pal_device dattr;
             pal_param_bta2dp_t *current_param_bt_a2dp = nullptr;
             pal_param_bta2dp_t param_bt_a2dp;
+            int retrycnt = 20;
+            const int retryPeriodMs = 100;
 
             dattr.id = PAL_DEVICE_OUT_BLUETOOTH_A2DP;
             if (isDeviceAvailable(dattr.id)) {
@@ -8043,10 +8045,30 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                 if (current_param_bt_a2dp->reconfig == true) {
                     param_bt_a2dp.a2dp_suspended = true;
                     mResourceManagerMutex.unlock();
-                    dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                    status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                        &param_bt_a2dp);
 
                     param_bt_a2dp.a2dp_suspended = false;
-                    dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED, &param_bt_a2dp);
+                    status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                        &param_bt_a2dp);
+
+                    /* During reconfig stage, if a2dp is not in a ready state streamdevswitch
+                    *  (speaker->BT) will be failed. Reiterate the a2dpreconfig until it
+                    *  succeeds with sleep period of 100 msecs and retry count = 20.
+                    */
+                    while ((status != 0) && (retrycnt > 0)) {
+                        if (isDeviceReady(PAL_DEVICE_OUT_BLUETOOTH_A2DP)) {
+                            param_bt_a2dp.a2dp_suspended = true;
+                            status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                                &param_bt_a2dp);
+
+                            param_bt_a2dp.a2dp_suspended = false;
+                            status = dev->setDeviceParameter(PAL_PARAM_ID_BT_A2DP_SUSPENDED,
+                                &param_bt_a2dp);
+                        }
+                        usleep(retryPeriodMs * 1000);
+                        retrycnt--;
+                    }
                     mResourceManagerMutex.lock();
 
                     param_bt_a2dp.reconfig = false;
