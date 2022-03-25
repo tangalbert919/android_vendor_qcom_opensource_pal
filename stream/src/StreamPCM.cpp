@@ -952,6 +952,15 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             } else {
                 goto exit;
             }
+        } else if (currentState == STREAM_PAUSED && !isPaused) {
+            rm->lockActiveStream();
+            mStreamMutex.lock();
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+            mStreamMutex.unlock();
+            rm->unlockActiveStream();
+            currentState = STREAM_STARTED;
         }
         PAL_VERBOSE(LOG_TAG, "Exit. session write successful size - %d", size);
         return size;
@@ -1193,19 +1202,7 @@ int32_t StreamPCM::resume_l()
         goto exit;
     }
 
-    if (isFlushed) {
-        mStreamMutex.unlock();
-        rm->lockActiveStream();
-        mStreamMutex.lock();
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
-        rm->unlockActiveStream();
-        isFlushed = false;
-    }
-
     isPaused = false;
-    currentState = STREAM_STARTED;
     PAL_DBG(LOG_TAG, "session setConfig successful");
 exit:
     PAL_DBG(LOG_TAG, "Exit status: %d", status);
@@ -1252,7 +1249,6 @@ int32_t StreamPCM::flush()
     rm->unlockActiveStream();
 
     status = session->flush();
-    isFlushed = true;
 exit:
     mStreamMutex.unlock();
     return status;
