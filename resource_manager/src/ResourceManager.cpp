@@ -6470,8 +6470,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
              * voice or voip call for other usecase if share backend.
              */
             if (((VoiceorVoip_call_active &&
-                 inStrAttr->type != PAL_STREAM_VOICE_CALL &&
-                 rm->isOutputDevId(inDevAttr->id)) ||
+                 !ifVoiceorVoipCall(inStrAttr->type)) ||
                 inStrAttr->type == PAL_STREAM_ULTRASOUND) &&
                     curDevAttr.id != inDevAttr->id) {
                 inDevAttr->id = curDevAttr.id;
