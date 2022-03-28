@@ -445,21 +445,21 @@ int Device::start_l()
         " for device id %d (%s)", deviceCount, deviceStartStopCount,
             this->deviceAttr.id, mPALDeviceName.c_str());
     if (0 == deviceStartStopCount) {
-        rm->getBackendName(deviceAttr.id, backEndName);
+        rm->getBackendName(this->deviceAttr.id, backEndName);
         if (!strlen(backEndName.c_str())) {
-            PAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", deviceAttr.id);
+            PAL_ERR(LOG_TAG, "Error: Backend name not defined for %d in xml file\n", this->deviceAttr.id);
             status = -EINVAL;
             goto exit;
         }
 
-        SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &deviceAttr);
+        SessionAlsaUtils::setDeviceMediaConfig(rm, backEndName, &(this->deviceAttr));
 
         if (customPayloadSize) {
             status = SessionAlsaUtils::setDeviceCustomPayload(rm, backEndName,
                                         customPayload, customPayloadSize);
             if (status)
                  PAL_ERR(LOG_TAG, "Error: Dev setParam failed for %d\n",
-                                   deviceAttr.id);
+                                   this->deviceAttr.id);
         }
     }
     deviceStartStopCount++;
