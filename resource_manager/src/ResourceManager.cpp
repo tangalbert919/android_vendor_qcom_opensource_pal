@@ -3469,9 +3469,6 @@ void ResourceManager::GetSoundTriggerConcurrencyCount_l(
     }
 
     for (auto& s: mActiveStreams) {
-        if (!s->isActive()) {
-            continue;
-        }
         s->getStreamAttributes(&st_attr);
 
         if (st_attr.type == PAL_STREAM_VOICE_CALL) {
@@ -4443,6 +4440,14 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
             }
         }
     }
+
+    /* Reset enable counts to 0 if they are negative */
+    if (concurrencyEnableCount < 0)
+        concurrencyEnableCount = 0;
+    if (ACDConcurrencyEnableCount < 0)
+        ACDConcurrencyEnableCount = 0;
+    if (SNSPCMDataConcurrencyEnableCount < 0)
+        SNSPCMDataConcurrencyEnableCount = 0;
 
     if (do_st_stream_switch)
         handleConcurrentStreamSwitch(st_streams, active, false);
