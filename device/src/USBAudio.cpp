@@ -385,6 +385,22 @@ void USBCardConfig::setEndian(int endian){
     endian_ = endian;
 }
 
+void USBCardConfig::usb_info_dump(char* read_buf, int type) {
+    char* start = nullptr;
+    const char s[2] = "\n";
+    char* token;
+    char *tmp = nullptr;
+
+    const char* direction = type == USB_PLAYBACK ? PLAYBACK_PROFILE_STR : CAPTURE_PROFILE_STR;
+
+    start = strstr(read_buf, direction);
+    token = strtok_r(start, s, &tmp);
+    while (token != nullptr) {
+        PAL_DBG(LOG_TAG, "  %s", token);
+        token = strtok_r(nullptr, s, &tmp);
+    }
+}
+
 int USBCardConfig::getCapability(usb_usecase_type_t type,
                                         struct pal_usb_device_address addr) {
     int32_t size = 0;
@@ -453,8 +469,6 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
 
     if (str_end > str_start)
         check = true;
-
-    PAL_INFO(LOG_TAG, "usb_config = %s, check %d\n", str_start, check);
 
     while (str_start != NULL) {
         str_start = strstr(str_start, "Altset");
@@ -556,6 +570,8 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* Add to list if every field is valid */
         usb_device_config_list_.push_back(usb_device_info);
     }
+
+     usb_info_dump(read_buf, type);
 
 done:
     if (fd)
