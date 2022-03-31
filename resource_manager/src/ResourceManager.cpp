@@ -1314,7 +1314,7 @@ bool ResourceManager::isLpiLoggingEnabled()
 }
 
 #if defined(ADSP_SLEEP_MONITOR)
-int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
+int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote)
 {
 
     int32_t ret = 0;
@@ -1336,7 +1336,8 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
     }
     PAL_INFO(LOG_TAG, "Enter for stream type %d", type);
     lpi_stream = ((find(lpi_vote_streams_.begin(), lpi_vote_streams_.end(), type) !=
-                  lpi_vote_streams_.end()) && !IsTransitToNonLPIOnChargingSupported());
+                  lpi_vote_streams_.end()) && !IsTransitToNonLPIOnChargingSupported()
+                  && (!force_nlpi_vote));
 
     mSleepMonitorMutex.lock();
     if (vote) {
@@ -1392,7 +1393,7 @@ int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
     return ret;
 }
 #else
-int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote)
+int32_t ResourceManager::voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote)
 {
     return 0;
 }

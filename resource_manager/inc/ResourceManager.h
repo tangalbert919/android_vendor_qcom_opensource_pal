@@ -889,7 +889,7 @@ public:
                                  const struct pal_device_info *Dev1Info,
                                  struct pal_device *Dev2Attr,
                                  const struct pal_device_info *Dev2Info);
-    int32_t voteSleepMonitor(Stream *str, bool vote);
+    int32_t voteSleepMonitor(Stream *str, bool vote, bool force_nlpi_vote = false);
     static uint32_t palFormatToBitwidthLookup(const pal_audio_fmt_t format);
     void chargerListenerFeatureInit();
     static void chargerListenerInit(charger_status_change_fn_t);
