@@ -378,6 +378,7 @@ int32_t StreamCommon::stop()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
+        currentState = STREAM_STOPPED;
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
@@ -401,7 +402,6 @@ int32_t StreamCommon::stop()
         }
         rm->unlockGraph();
         PAL_VERBOSE(LOG_TAG, "devices stop successful");
-        currentState = STREAM_STOPPED;
     } else if (currentState == STREAM_STOPPED || currentState == STREAM_IDLE) {
         PAL_INFO(LOG_TAG, "Stream is already in Stopped state %d", currentState);
     } else {
