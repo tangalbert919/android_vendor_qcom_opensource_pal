@@ -452,6 +452,9 @@ private:
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);
+    void onChargingStateChange();
+    void onVUIStreamRegistered();
+    void onVUIStreamDeregistered();
 protected:
     std::list <Stream*> mActiveStreams;
     std::list <StreamPCM*> active_streams_ll;
@@ -480,6 +483,7 @@ protected:
     bool charging_state_;
     bool is_charger_online_;
     bool is_concurrent_boost_state_;
+    bool use_lpi_;
     pal_speaker_rotation_type rotation_type_;
     bool isDeviceSwitch = false;
     static std::mutex mResourceManagerMutex;
@@ -745,6 +749,7 @@ public:
     bool GetChargingState() const { return charging_state_; }
     bool getChargerOnlineState(void) const { return is_charger_online_; }
     bool getConcurrentBoostState(void) const { return is_concurrent_boost_state_; }
+    bool getLPIUsage() const { return use_lpi_; }
     bool CheckForForcedTransitToNonLPI();
     void GetVoiceUIProperties(struct pal_st_properties *qstp);
     int HandleDetectionStreamAction(pal_stream_type_t type, int32_t action, void *data);

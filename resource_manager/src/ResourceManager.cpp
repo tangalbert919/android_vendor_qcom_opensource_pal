@@ -820,6 +820,11 @@ ResourceManager::ResourceManager()
         throw std::runtime_error("Failed to allocate ContextManager");
 
     }
+
+    // init use_lpi_ flag
+    use_lpi_ = IsLPISupported(PAL_STREAM_VOICE_UI) ||
+        IsLPISupported(PAL_STREAM_ACD) ||
+        IsLPISupported(PAL_STREAM_SENSOR_PCM_DATA);
 }
 
 ResourceManager::~ResourceManager()
@@ -2483,6 +2488,8 @@ int ResourceManager::registerStream(Stream *s)
         }
         case PAL_STREAM_VOICE_UI:
         {
+            if (active_streams_st.size() == 0)
+                onVUIStreamRegistered();
             StreamSoundTrigger* sST = dynamic_cast<StreamSoundTrigger*>(s);
             ret = registerstream(sST, active_streams_st);
             break;
@@ -2660,6 +2667,7 @@ int ResourceManager::deregisterStream(Stream *s)
             if (active_streams_st.size() == 0) {
                 concurrencyDisableCount = 0;
                 concurrencyEnableCount = 0;
+                onVUIStreamDeregistered();
             }
             break;
         }
@@ -2949,8 +2957,7 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
-        sAttr.type != PAL_STREAM_PROXY &&
-        sAttr.type != PAL_STREAM_ULTRA_LOW_LATENCY) {
+        sAttr.type != PAL_STREAM_PROXY) {
         status = s->getAssociatedDevices(associatedDevices);
         if ((0 != status) || associatedDevices.empty()) {
             PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
@@ -4172,13 +4179,6 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
                             device_to_connect);
                 }
                 break;
-            case ST_HANDLE_CHARGING_STATE: {
-                bool enable = *(bool *)data;
-                status = str->HandleChargingStateUpdate(charging_state_, enable);
-                if (status)
-                    PAL_ERR(LOG_TAG, "Failed to handling charging state\n");
-                }
-                break;
             default:
                 break;
         }
@@ -4235,11 +4235,8 @@ void ResourceManager::GetConcurrencyInfo(pal_stream_type_t st_type,
             PAL_DBG(LOG_TAG, "pause on voice concurrency");
             *conc_en = false;
         }
-    } else if (in_type == PAL_STREAM_VOIP_TX ||
-               in_type == PAL_STREAM_VOIP_RX ||
-               in_type == PAL_STREAM_VOIP) {
+    } else if (in_type == PAL_STREAM_VOIP_TX) {
         *tx_conc = true;
-        *rx_conc = true;
         if (!audio_capture_conc_enable || !voip_conc_enable) {
             PAL_DBG(LOG_TAG, "pause on voip concurrency");
             *conc_en = false;
@@ -4431,12 +4428,18 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && ++concurrencyEnableCount == 1) ||
                     (PAL_STREAM_ACD == st_stream_type && ++ACDConcurrencyEnableCount == 1) ||
                     (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && ++SNSPCMDataConcurrencyEnableCount == 1))
-                    do_st_stream_switch = true;
+                    if (use_lpi_) {
+                        do_st_stream_switch = true;
+                        use_lpi_ = false;
+                    }
             } else {
                 if ((PAL_STREAM_VOICE_UI == st_stream_type && --concurrencyEnableCount == 0) ||
                     (PAL_STREAM_ACD == st_stream_type && --ACDConcurrencyEnableCount == 0) ||
                     (PAL_STREAM_SENSOR_PCM_DATA == st_stream_type && --SNSPCMDataConcurrencyEnableCount == 0))
-                    do_st_stream_switch = true;
+                    if (!(active_streams_st.size() && charging_state_ && IsTransitToNonLPIOnChargingSupported())) {
+                        do_st_stream_switch = true;
+                        use_lpi_ = true;
+                    }
             }
         }
     }
@@ -4558,6 +4561,10 @@ std::vector<Stream*> ResourceManager::getConcurrentTxStream_l(
     for (auto& tx_str: mActiveStreams) {
         tx_device_list.clear();
         tx_str->getStreamAttributes(&tx_attr);
+        if (tx_attr.type == PAL_STREAM_PROXY ||
+            tx_attr.type == PAL_STREAM_ULTRA_LOW_LATENCY ||
+            tx_attr.type == PAL_STREAM_GENERIC)
+            continue;
         if (tx_attr.direction == PAL_AUDIO_INPUT) {
             if (!getEcRefStatus(tx_attr.type, rx_attr.type)) {
                 PAL_DBG(LOG_TAG, "No need to enable ec ref for rx %d tx %d",
@@ -6377,6 +6384,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     std::vector <std::tuple<Stream *, struct pal_device *>> streamDevConnect;
     std::shared_ptr<Device> dev = nullptr;
     std::string ck;
+    bool VoiceorVoip_call_active = false;
     struct pal_device_info inDeviceInfo;
     uint32_t temp_prio = MIN_USECASE_PRIORITY;
     char inSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
@@ -6427,6 +6435,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
      */
     getSharedBEActiveStreamDevs(sharedBEStreamDev, inDevAttr->id);
     if (sharedBEStreamDev.size() > 0) {
+        for (const auto &elem : sharedBEStreamDev) {
+             struct pal_stream_attributes strAttr;
+             std::get<0>(elem)->getStreamAttributes(&strAttr);
+             if (ifVoiceorVoipCall(strAttr.type)) {
+                 VoiceorVoip_call_active = true;
+                 break;
+             }
+        }
         getSndDeviceName(inDevAttr->id, inSndDeviceName);
         mActiveStreamMutex.lock();
         updatePriorityAttr(inDevAttr->id,
@@ -6449,8 +6465,14 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
             curDev->getDeviceAttributes(&curDevAttr);
             sharedStream->getStreamAttributes(&sAttr);
 
-            /* special case for UPD to change device to current running dev */
-            if (inStrAttr->type == PAL_STREAM_ULTRASOUND &&
+            /* special case for UPD to change device to current running dev
+             * or if voice or voip call is active, use the current devices of
+             * voice or voip call for other usecase if share backend.
+             */
+            if (((VoiceorVoip_call_active &&
+                 inStrAttr->type != PAL_STREAM_VOICE_CALL &&
+                 rm->isOutputDevId(inDevAttr->id)) ||
+                inStrAttr->type == PAL_STREAM_ULTRASOUND) &&
                     curDevAttr.id != inDevAttr->id) {
                 inDevAttr->id = curDevAttr.id;
                 getSndDeviceName(inDevAttr->id, inSndDeviceName);
@@ -7799,12 +7821,7 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                     charging_state_ = battery_charging_state->charging_state;
                     mResourceManagerMutex.unlock();
                     mActiveStreamMutex.lock();
-                    action = false;
-                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
-                    // update common capture profile
-                    SoundTriggerCaptureProfile = GetCaptureProfileByPriority(nullptr);
-                    action = true;
-                    HandleDetectionStreamAction(PAL_STREAM_VOICE_UI, ST_HANDLE_CHARGING_STATE, (void *)&action);
+                    onChargingStateChange();
                     mActiveStreamMutex.unlock();
                     mResourceManagerMutex.lock();
                 } else {
@@ -8633,6 +8650,76 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
 error :
     PAL_INFO(LOG_TAG, "Exiting handleDeviceRotationChange, status %d", status);
     return status;
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onChargingStateChange()
+{
+    std::vector<pal_stream_type_t> st_streams;
+    bool need_switch = false;
+
+    // no need to handle car mode if no Voice Stream exists
+    if (active_streams_st.size() == 0)
+        return;
+
+    if (charging_state_ && use_lpi_) {
+        use_lpi_ = false;
+        need_switch = true;
+    } else if (!charging_state_ && !use_lpi_) {
+        if (!concurrencyEnableCount) {
+            use_lpi_ = true;
+            need_switch = true;
+        }
+    }
+
+    if (need_switch) {
+        if (active_streams_st.size())
+            st_streams.push_back(PAL_STREAM_VOICE_UI);
+        if (active_streams_acd.size())
+            st_streams.push_back(PAL_STREAM_ACD);
+        if (active_streams_sensor_pcm_data.size())
+            st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onVUIStreamRegistered()
+{
+    std::vector<pal_stream_type_t> st_streams;
+
+    if (!charging_state_ || !IsTransitToNonLPIOnChargingSupported())
+        return;
+
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+    if (use_lpi_) {
+        use_lpi_ = false;
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
+}
+
+// called with mActiveStreamMutex locked
+void ResourceManager::onVUIStreamDeregistered()
+{
+    std::vector<pal_stream_type_t> st_streams;
+
+    if (!charging_state_ || !IsTransitToNonLPIOnChargingSupported())
+        return;
+
+    if (active_streams_acd.size())
+        st_streams.push_back(PAL_STREAM_ACD);
+    if (active_streams_sensor_pcm_data.size())
+        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+
+    if (!use_lpi_ && !concurrencyEnableCount) {
+        use_lpi_ = true;
+        handleConcurrentStreamSwitch(st_streams, !use_lpi_, false);
+    }
 }
 
 bool ResourceManager::getScreenState()

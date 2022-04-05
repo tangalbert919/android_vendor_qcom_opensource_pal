@@ -156,6 +156,19 @@ int SessionAlsaVoice::open(Stream * s)
 
     pcmDevRxIds = rm->allocateFrontEndIds(sAttr, RX_HOSTLESS);
     pcmDevTxIds = rm->allocateFrontEndIds(sAttr, TX_HOSTLESS);
+    if (!pcmDevRxIds.size() || !pcmDevTxIds.size()) {
+        if (pcmDevRxIds.size()) {
+            rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+            pcmDevRxIds.clear();
+        }
+        if (pcmDevTxIds.size()) {
+            rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+            pcmDevTxIds.clear();
+        }
+        PAL_ERR(LOG_TAG, "allocateFrontEndIds failed");
+        status = -EINVAL;
+        goto exit;
+    }
 
     vsid = sAttr.info.voice_call_info.VSID;
     ttyMode = sAttr.info.voice_call_info.tty_mode;
@@ -165,6 +178,10 @@ int SessionAlsaVoice::open(Stream * s)
     status = rm->getVirtualAudioMixer(&mixer);
     if (status) {
         PAL_ERR(LOG_TAG,"mixer error");
+        rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+        rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+        pcmDevRxIds.clear();
+        pcmDevTxIds.clear();
         goto exit;
     }
 
@@ -175,6 +192,8 @@ int SessionAlsaVoice::open(Stream * s)
         PAL_ERR(LOG_TAG, "session alsa open failed with %d", status);
         rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
         rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+        pcmDevRxIds.clear();
+        pcmDevTxIds.clear();
     }
 
 exit:
@@ -872,7 +891,7 @@ int SessionAlsaVoice::close(Stream * s)
     status = s->getAssociatedDevices(associatedDevices);
     if (status != 0) {
         PAL_ERR(LOG_TAG, "getAssociatedDevices failed\n");
-        return status;
+        goto exit;
     }
     freeDeviceMetadata.clear();
 
@@ -897,17 +916,25 @@ int SessionAlsaVoice::close(Stream * s)
             PAL_ERR(LOG_TAG, "pcm_close - rx failed %d", status);
         }
     }
-    rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+
     if (pcmTx) {
         status = pcm_close(pcmTx);
         if (status) {
             PAL_ERR(LOG_TAG, "pcm_close - tx failed %d", status);
         }
     }
-    rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
-    pcmRx = NULL;
-    pcmTx = NULL;
 
+exit:
+    if (pcmDevRxIds.size()) {
+        rm->freeFrontEndIds(pcmDevRxIds, sAttr, RX_HOSTLESS);
+        pcmDevRxIds.clear();
+        pcmRx = NULL;
+    }
+    if (pcmDevTxIds.size()) {
+        rm->freeFrontEndIds(pcmDevTxIds, sAttr, TX_HOSTLESS);
+        pcmDevTxIds.clear();
+        pcmTx = NULL;
+    }
     PAL_DBG(LOG_TAG,"Exit ret: %d", status);
     return status;
 }
