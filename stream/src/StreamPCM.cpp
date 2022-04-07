@@ -138,6 +138,7 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        mPalDevice.push_back(dattr[i]);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -149,7 +150,6 @@ StreamPCM::StreamPCM(const struct pal_stream_attributes *sattr, struct pal_devic
         /* this will have issues if same device is being currently used by different stream */
        // dev->setDeviceAttributes((struct pal_device)dattr[i]);
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
 

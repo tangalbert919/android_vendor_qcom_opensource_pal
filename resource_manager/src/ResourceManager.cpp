@@ -10319,6 +10319,8 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     struct pal_device curDevAttr;
     uint32_t count = 0;
     struct pal_stream_attributes sAttr;
+    pal_stream_type_t type;
+    pal_stream_type_t highPrioType = PAL_STREAM_MAX;
     Stream *sharedStream = nullptr;
     std::vector <struct pal_device> palDevs;
     char activeSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
@@ -10328,6 +10330,11 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     std::string key;
     std::vector <Stream *> streamsToSwitch;
     std::vector <Stream*>::iterator sIter;
+    std::string curBackEndName;
+    std::string newBackEndName;
+    uint32_t curDeviceId;
+    uint32_t highPrioIndex;
+    bool deviceIdChanged = false;
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -10335,6 +10342,8 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         PAL_ERR(LOG_TAG, "invalid dev cannot restore device");
         goto exit;
     }
+
+    curDeviceId = dev->getSndDeviceId();
 
     if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
         PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
@@ -10367,39 +10376,100 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
     if (sharedBEStreamDev.size() > 0) {
-        /*assign attr to first active stream*/
-        sharedStream = std::get<0>(sharedBEStreamDev[0]);
-        if (!sharedStream) {
-            PAL_ERR(LOG_TAG, "no stream running on device %d", dev->getSndDeviceId());
-            mActiveStreamMutex.unlock();
-            goto exit;
-        }
-        sharedStream->getStreamAttributes(&sAttr);
-        sharedStream->getAssociatedPalDevices(palDevs);
-        for (auto palDev: palDevs) {
-            if (palDev.id == dev->getSndDeviceId()) {
-                /*special case for UPD when the last stream on a device is UPD switch it back to handset*/
-                if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
-                    && palDev.id != PAL_DEVICE_OUT_HANDSET){
-                    palDev.id = PAL_DEVICE_OUT_HANDSET;
-                }
-                getDeviceConfig(&palDev, &sAttr);
-                newDevAttr = palDev;
-                rm->updatePriorityAttr(palDev.id,
-                                       sharedBEStreamDev,
-                                       &newDevAttr,
-                                       &sAttr);
-                if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
-                    && dev->getSndDeviceId() != PAL_DEVICE_OUT_HANDSET) {
-                    sharedStream->updatePalDevice(&newDevAttr,
-                             (pal_device_id_t)dev->getSndDeviceId());
-                }
-                // in case there're two or more active streams on headset and one of them goes away
-                // still need to check if haptics is active and keep headset sample rate as 48K
-                checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
+        /*check shared backends to see if there's any Voice/Voip stream active*/
+        for (int i = 0; i < sharedBEStreamDev.size(); i++) {
+            sharedStream = std::get<0>(sharedBEStreamDev[i]);
+            sharedStream->getStreamType(&type);
+            if (type == PAL_STREAM_VOICE_CALL) {
+                highPrioType = type;
+                highPrioIndex = i;
                 break;
+            } else if (type == PAL_STREAM_VOIP ||
+                       type == PAL_STREAM_VOIP_RX ||
+                       type == PAL_STREAM_VOIP_TX) {
+                highPrioType = type;
+                highPrioIndex = i;
             }
         }
+
+        if (highPrioType != PAL_STREAM_MAX) {
+            // always follow config from high priority streams
+            sharedStream = std::get<0>(sharedBEStreamDev[highPrioIndex]);
+            sharedStream->getAssociatedPalDevices(palDevs);
+            curBackEndName = listAllBackEndIds[curDeviceId].second;
+            for (auto palDev: palDevs) {
+                newBackEndName = listAllBackEndIds[palDev.id].second;
+                if (newBackEndName == curBackEndName) {
+                    getDeviceConfig(&palDev, &sAttr);
+                    newDevAttr = palDev;
+                    rm->updatePriorityAttr(newDevAttr.id,
+                            sharedBEStreamDev, &newDevAttr, &sAttr);
+                }
+            }
+        } else {
+            // check if we need to restore to different device id
+            for (int i = 0; i < sharedBEStreamDev.size(); i++) {
+                sharedStream = std::get<0>(sharedBEStreamDev[i]);
+                curBackEndName = listAllBackEndIds[curDeviceId].second;
+                sharedStream->getAssociatedPalDevices(palDevs);
+                for (auto palDev: palDevs) {
+                    newBackEndName = listAllBackEndIds[palDev.id].second;
+                    /*if there is a sharedbacked that is not the device set, set reconfigure count*/
+                    if (newBackEndName == curBackEndName && curDeviceId != palDev.id) {
+                        deviceIdChanged = true;
+                        getDeviceConfig(&palDev, &sAttr);
+                        newDevAttr = palDev;
+                        break;
+                    }
+                }
+                if (deviceIdChanged) {
+                    rm->updatePriorityAttr(newDevAttr.id,
+                            sharedBEStreamDev, &newDevAttr, &sAttr);
+                    break;
+                }
+            }
+        }
+
+        if (highPrioType == PAL_STREAM_MAX && !deviceIdChanged) {
+            /* Follow existing logic if:
+             * 1. no Voice/Voip stream active in shared backend streams
+             * 2. no device id change needed in shared backend streams
+             */
+            /*assign attr to first active stream*/
+            sharedStream = std::get<0>(sharedBEStreamDev[0]);
+            if (!sharedStream) {
+                PAL_ERR(LOG_TAG, "no stream running on device %d", dev->getSndDeviceId());
+                goto exit;
+            }
+
+            sharedStream->getStreamAttributes(&sAttr);
+            sharedStream->getAssociatedPalDevices(palDevs);
+            for (auto palDev: palDevs) {
+                if (palDev.id == dev->getSndDeviceId()) {
+                    /*special case for UPD when the last stream on a device is UPD switch it back to handset*/
+                    if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
+                        && palDev.id != PAL_DEVICE_OUT_HANDSET){
+                        palDev.id = PAL_DEVICE_OUT_HANDSET;
+                    }
+                    getDeviceConfig(&palDev, &sAttr);
+                    newDevAttr = palDev;
+                    rm->updatePriorityAttr(palDev.id,
+                                        sharedBEStreamDev,
+                                        &newDevAttr,
+                                        &sAttr);
+                    if (sAttr.type == PAL_STREAM_ULTRASOUND && (sharedBEStreamDev.size() == 1)
+                        && dev->getSndDeviceId() != PAL_DEVICE_OUT_HANDSET) {
+                        sharedStream->updatePalDevice(&newDevAttr,
+                                (pal_device_id_t)dev->getSndDeviceId());
+                    }
+                    // in case there're two or more active streams on headset and one of them goes away
+                    // still need to check if haptics is active and keep headset sample rate as 48K
+                    checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
+                    break;
+                }
+            }
+        }
+
         /*check to see if attrs changed*/
         if (doDevAttrDiffer(&newDevAttr, activeSndDeviceName, &curDevAttr)) {
             /*device switch every stream to new dev attr*/
