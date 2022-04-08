@@ -561,7 +561,8 @@ void SessionAlsaCompress::offloadThreadLoop(SessionAlsaCompress* compressObj)
             } else if (msg && msg->cmd == OFFLOAD_CMD_DRAIN) {
                 if (!is_drain_called) {
                     PAL_INFO(LOG_TAG, "calling compress_drain");
-                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE) {
+                    if (compressObj->rm->cardState == CARD_STATUS_ONLINE &&
+                        compressObj->compress != NULL) {
                          ret = compress_drain(compressObj->compress);
                          PAL_INFO(LOG_TAG, "out of compress_drain, ret %d", ret);
                     }
