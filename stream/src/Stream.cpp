@@ -1236,6 +1236,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     std::vector <Stream *> streamsToSwitch;
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
+    bool VoiceorVoip_call_active = false;
 
     mStreamMutex.lock();
 
@@ -1378,6 +1379,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          * is removed above.
          */
         if (sharedBEStreamDev.size() > 0) {
+            for (const auto &elem : sharedBEStreamDev) {
+                struct pal_stream_attributes strAttr;
+                std::get<0>(elem)->getStreamAttributes(&strAttr);
+                if (strAttr.type == PAL_STREAM_VOIP ||
+                    strAttr.type == PAL_STREAM_VOIP_RX ||
+                    strAttr.type == PAL_STREAM_VOIP_TX ||
+                    strAttr.type == PAL_STREAM_VOICE_CALL) {
+                    VoiceorVoip_call_active = true;
+                    break;
+                }
+            }
             rm->getSndDeviceName(newDeviceId, CurrentSndDeviceName);
             // update device attr based on prio
             rm->updatePriorityAttr(newDeviceId,
@@ -1398,6 +1410,21 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     continue;
                 }
                 curDev->getDeviceAttributes(&curDevAttr);
+
+                /* avoid device for voice/voip being switched by low priority switch*/
+                if (VoiceorVoip_call_active &&
+                    strAttr.type != PAL_STREAM_VOICE_CALL &&
+                    strAttr.type != PAL_STREAM_VOIP_RX &&
+                    strAttr.type != PAL_STREAM_VOIP_TX &&
+                    strAttr.type != PAL_STREAM_VOIP &&
+                    curDevAttr.id != newDevices[newDeviceSlots[i]].id) {
+                    newDevices[newDeviceSlots[i]].id = curDevAttr.id;
+                    rm->getSndDeviceName(newDevices[newDeviceSlots[i]].id, CurrentSndDeviceName);
+                    rm->updatePriorityAttr(newDevices[newDeviceSlots[i]].id,
+                                       sharedBEStreamDev,
+                                       &(newDevices[newDeviceSlots[i]]),
+                                       &strAttr);
+                }
 
                 /*
                  * for current stream, if custom key updated, even reset of the attr
