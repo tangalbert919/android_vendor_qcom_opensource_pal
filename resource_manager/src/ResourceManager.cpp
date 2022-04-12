@@ -5006,7 +5006,6 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
             PAL_ERR(LOG_TAG, "Getting Device instance failed");
             return;
         }
-        mActiveStreamMutex.lock();
         getActiveStream_l(activeHapticsStreams, hapticsDev);
         if (activeHapticsStreams.size() != 0) {
             hapticsDev->getDeviceAttributes(&hapticsDattr);
@@ -5019,7 +5018,6 @@ void ResourceManager::checkHapticsConcurrency(struct pal_device *deviceattr,
                     deviceattr->config.sample_rate, deviceattr->config.bit_width);
             }
         }
-        mActiveStreamMutex.unlock();
     } else if (deviceattr->id == PAL_DEVICE_OUT_HAPTICS_DEVICE) {
         // if haptics is coming, update headset sample rate if needed
         getSharedBEActiveStreamDevs(sharedBEStreamDev, PAL_DEVICE_OUT_WIRED_HEADSET);
@@ -5104,7 +5102,6 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
             strstr(backEndName.c_str(), "-VIRT-")) {
         PAL_DBG(LOG_TAG, "virtual port enabled for device %d", deviceattr->id);
 
-        mActiveStreamMutex.lock();
         /* check for UPD comming or goes away */
         if (deviceattr->id == PAL_DEVICE_OUT_ULTRASOUND) {
             group_cfg_idx = GRP_UPD_RX;
@@ -5183,7 +5180,6 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 ResourceManager::activeGroupDevConfig = it->second;
             } else {
                 PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
-                mActiveStreamMutex.unlock();
                 return -EINVAL;
             }
         /* check for streams on speaker or handset comming/goes away */
@@ -5270,7 +5266,6 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 ResourceManager::activeGroupDevConfig = it->second;
             } else {
                 PAL_ERR(LOG_TAG, "group config for %d is missing", group_cfg_idx);
-                mActiveStreamMutex.unlock();
                 return -EINVAL;
             }
         }
@@ -5296,7 +5291,6 @@ int ResourceManager::checkAndUpdateGroupDevConfig(struct pal_device *deviceattr,
                 }
             }
         }
-        mActiveStreamMutex.unlock();
     }
 
     return 0;
@@ -6429,6 +6423,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
     rm->getDeviceInfo(inDevAttr->id, inStrAttr->type,
                       inDevAttr->custom_config.custom_key, &inDeviceInfo);
 
+    mActiveStreamMutex.lock();
     /* handle headphone and haptics concurrency */
     checkHapticsConcurrency(inDevAttr, inStrAttr, streamsToSwitch, &streamDevAttr);
     for (sIter = streamsToSwitch.begin(); sIter != streamsToSwitch.end(); sIter++) {
@@ -6462,12 +6457,10 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
              }
         }
         getSndDeviceName(inDevAttr->id, inSndDeviceName);
-        mActiveStreamMutex.lock();
         updatePriorityAttr(inDevAttr->id,
                            sharedBEStreamDev,
                            inDevAttr,
                            inStrAttr);
-        mActiveStreamMutex.unlock();
         for (const auto &elem : sharedBEStreamDev) {
             struct pal_stream_attributes sAttr;
             Stream *sharedStream = std::get<0>(elem);
@@ -6493,20 +6486,16 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
                     curDevAttr.id != inDevAttr->id) {
                 inDevAttr->id = curDevAttr.id;
                 getSndDeviceName(inDevAttr->id, inSndDeviceName);
-                mActiveStreamMutex.lock();
                 updatePriorityAttr(inDevAttr->id,
                                    sharedBEStreamDev,
                                    inDevAttr,
                                    inStrAttr);
-                mActiveStreamMutex.unlock();
             }
             if (doDevAttrDiffer(inDevAttr, inSndDeviceName, &curDevAttr) &&
                     isDeviceReady(inDevAttr->id)) {
-                mActiveStreamMutex.lock();
                 streamDevDisconnect.push_back(elem);
                 streamDevConnect.push_back({std::get<0>(elem), inDevAttr});
                 isDeviceSwitch = true;
-                mActiveStreamMutex.unlock();
             }
         }
         // update the dev instance in case the incoming device is changed to the running device
@@ -6523,6 +6512,7 @@ bool ResourceManager::updateDeviceConfig(std::shared_ptr<Device> *inDev,
             }
         }
     }
+    mActiveStreamMutex.unlock();
 
     // if device switch is needed, perform it
     if (streamDevDisconnect.size()) {
@@ -10363,6 +10353,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     /*get current running device info*/
     dev->getDeviceAttributes(&curDevAttr);
 
+    mActiveStreamMutex.lock();
     // check if need to update active group devcie config when usecase goes aways
     // if stream device is with same virtual backend, it can be handled in shared backend case
     if (dev->getDeviceCount() == 0) {
@@ -10376,14 +10367,13 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
     getSndDeviceName(dev->getSndDeviceId(),activeSndDeviceName);
     getSharedBEActiveStreamDevs(sharedBEStreamDev, dev->getSndDeviceId());
     if (sharedBEStreamDev.size() > 0) {
-
         /*assign attr to first active stream*/
         sharedStream = std::get<0>(sharedBEStreamDev[0]);
         if (!sharedStream) {
             PAL_ERR(LOG_TAG, "no stream running on device %d", dev->getSndDeviceId());
+            mActiveStreamMutex.unlock();
             goto exit;
         }
-        mActiveStreamMutex.lock();
         sharedStream->getStreamAttributes(&sAttr);
         sharedStream->getAssociatedPalDevices(palDevs);
         for (auto palDev: palDevs) {
@@ -10406,9 +10396,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                 }
                 // in case there're two or more active streams on headset and one of them goes away
                 // still need to check if haptics is active and keep headset sample rate as 48K
-                mActiveStreamMutex.unlock();
                 checkHapticsConcurrency(&newDevAttr, NULL, streamsToSwitch, NULL);
-                mActiveStreamMutex.lock();
                 break;
             }
         }
@@ -10421,7 +10409,6 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                  streamDevConnect.push_back({sharedStream,&newDevAttr});
             }
         }
-        mActiveStreamMutex.unlock();
         if (!streamDevDisconnect.empty()) {
             char currentSndDeviceName[DEVICE_NAME_MAX_SIZE] = {0};
             getSndDeviceName(dev->getSndDeviceId(), currentSndDeviceName);
@@ -10438,7 +10425,6 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                             curDevAttr.config.bit_width,
                             newDevAttr.config.aud_fmt_id,
                             activeSndDeviceName);
-            status = streamDevSwitch(streamDevDisconnect, streamDevConnect);
         } else {
             PAL_DBG(LOG_TAG,"device switch not needed params are all the same");
         }
@@ -10451,11 +10437,14 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
                 streamDevDisconnect.push_back({(*sIter), newDevAttr.id});
                 streamDevConnect.push_back({(*sIter), &newDevAttr});
             }
-            streamDevSwitch(streamDevDisconnect, streamDevConnect);
         } else {
             PAL_DBG(LOG_TAG, "no active device, switch un-needed");
         }
     }
+
+    mActiveStreamMutex.unlock();
+    if (!streamDevDisconnect.empty())
+        streamDevSwitch(streamDevDisconnect, streamDevConnect);
 exit:
     PAL_DBG(LOG_TAG, "Exit");
     return;
