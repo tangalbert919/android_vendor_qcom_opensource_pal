@@ -313,6 +313,7 @@ int32_t StreamSoundTrigger::close() {
         sm_config_ = nullptr;
     }
 
+    currentState = STREAM_IDLE;
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -515,6 +516,8 @@ int32_t StreamSoundTrigger::setParameters(uint32_t param_id, void *payload) {
             std::shared_ptr<StEventConfig> ev_cfg(
                 new StLoadEventConfig((void *)param_payload->payload));
             status = cur_state_->ProcessEvent(ev_cfg);
+            if (!status)
+                currentState = STREAM_OPENED;
             break;
         }
         case PAL_PARAM_ID_RECOGNITION_CONFIG: {
@@ -3282,7 +3285,6 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
                 &st_stream_,
                 st_stream_.mInstanceID);
             st_stream_.notification_state_ = ENGINE_IDLE;
-
             TransitTo(ST_STATE_IDLE);
             break;
         }
@@ -4445,6 +4447,23 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             if (!st_stream_.sm_config_) {
                 PAL_ERR(LOG_TAG, "sound model config is NULL");
                 break;
+            }
+            PAL_INFO(LOG_TAG, "stream state for restore %d", st_stream_.state_for_restore_);
+            /*
+             * For concurrent stream handling, ST state transition
+             * occurs from loaded/active to idle and then back to loaded/active.
+             * While transitioning back to loaded/active, in case of any failures
+             * because of ongoing SSR or other failures restore state remains in idle
+             * and sm cfg will be non NULL in this scenario.
+             * In this case, reset the state_for_restore based on actual stream state
+             * for recovery to happen properly after SSR.
+             */
+            if (st_stream_.state_for_restore_ == ST_STATE_IDLE) {
+                if (st_stream_.currentState == STREAM_STARTED)
+                    st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+                else if (st_stream_.currentState == STREAM_OPENED ||
+                         st_stream_.currentState == STREAM_STOPPED)
+                    st_stream_.state_for_restore_ = ST_STATE_LOADED;
             }
             if (st_stream_.state_for_restore_ == ST_STATE_LOADED ||
                 st_stream_.state_for_restore_ == ST_STATE_ACTIVE) {
