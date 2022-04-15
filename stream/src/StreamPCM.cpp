@@ -539,6 +539,7 @@ int32_t StreamPCM::start()
         for (int i = 0; i < mDevices.size(); i++) {
             rm->registerDevice(mDevices[i], this);
         }
+        isDevRegistered = true;
         rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
@@ -582,6 +583,7 @@ int32_t StreamPCM::stop()
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -955,12 +957,13 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             } else {
                 goto exit;
             }
-        } else if (currentState == STREAM_PAUSED && !isPaused) {
+        } else if (currentState == STREAM_PAUSED && !isPaused && !isDevRegistered) {
             rm->lockActiveStream();
             mStreamMutex.lock();
             for (int i = 0; i < mDevices.size(); i++) {
                 rm->registerDevice(mDevices[i], this);
             }
+            isDevRegistered = true;
             mStreamMutex.unlock();
             rm->unlockActiveStream();
             currentState = STREAM_STARTED;
@@ -1249,6 +1252,7 @@ int32_t StreamPCM::flush()
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i], this);
     }
+    isDevRegistered = false;
     rm->unlockActiveStream();
 
     status = session->flush();
