@@ -736,7 +736,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        goto exit;
+        return -EINVAL;
     }
 
     device.id = PAL_DEVICE_IN_EXT_EC_REF;
@@ -777,6 +777,7 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
             if (pcmDevEcTxIds.size() == 0) {
                 PAL_ERR(LOG_TAG, "ResourceManger::getBackEndNames returned no EXT_EC device Ids");
+                status = -EINVAL;
                 goto exit;
             }
             status = dev->open();
@@ -842,6 +843,10 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     }
 
 exit:
+    if (is_enable && status) {
+        PAL_DBG(LOG_TAG, "Reset extECRefCnt as EXT EC graph fails to setup");
+        extECRefCnt = 0;
+    }
     PAL_DBG(LOG_TAG, "Exit.");
     return status;
 }

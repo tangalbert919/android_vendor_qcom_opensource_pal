@@ -175,8 +175,10 @@ Stream* Stream::create(struct pal_stream_attributes *sAttr, struct pal_device *d
                goto exit;
             }
             // check if it's grouped device and group config needs to update
+            rm->lockActiveStream();
             status = rm->checkAndUpdateGroupDevConfig((struct pal_device *)&palDevsAttr[count], sAttr,
                                                     streamsToSwitch, &streamDevAttr, true);
+            rm->unlockActiveStream();
             if (status) {
                 PAL_ERR(LOG_TAG, "no valid group device config found");
             }
@@ -1236,18 +1238,22 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     std::vector <Stream *> streamsToSwitch;
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
+    bool VoiceorVoip_call_active = false;
 
+    rm->lockActiveStream();
     mStreamMutex.lock();
 
     if ((numDev == 0) || (numDev > PAL_DEVICE_IN_MAX) || (!newDevices) || (!streamHandle)) {
         PAL_ERR(LOG_TAG, "invalid param for device switch");
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         return -EINVAL;
     }
 
     if (rm->cardState == CARD_STATUS_OFFLINE) {
         PAL_ERR(LOG_TAG, "Sound card offline");
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         return 0;
     }
 
@@ -1309,6 +1315,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
         if (newDevices[i].id == PAL_DEVICE_NONE) {
             mStreamMutex.unlock();
+            rm->unlockActiveStream();
             return 0;
         }
 
@@ -1339,6 +1346,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     if ((numDev != 0) && (connectCount == 0)) {
         PAL_INFO(LOG_TAG, "No new device is ready to connect");
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         return 0;
     }
 
@@ -1378,6 +1386,17 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
          * is removed above.
          */
         if (sharedBEStreamDev.size() > 0) {
+            for (const auto &elem : sharedBEStreamDev) {
+                struct pal_stream_attributes strAttr;
+                std::get<0>(elem)->getStreamAttributes(&strAttr);
+                if (strAttr.type == PAL_STREAM_VOIP ||
+                    strAttr.type == PAL_STREAM_VOIP_RX ||
+                    strAttr.type == PAL_STREAM_VOIP_TX ||
+                    strAttr.type == PAL_STREAM_VOICE_CALL) {
+                    VoiceorVoip_call_active = true;
+                    break;
+                }
+            }
             rm->getSndDeviceName(newDeviceId, CurrentSndDeviceName);
             // update device attr based on prio
             rm->updatePriorityAttr(newDeviceId,
@@ -1398,6 +1417,21 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                     continue;
                 }
                 curDev->getDeviceAttributes(&curDevAttr);
+
+                /* avoid device for voice/voip being switched by low priority switch*/
+                if (VoiceorVoip_call_active &&
+                    strAttr.type != PAL_STREAM_VOICE_CALL &&
+                    strAttr.type != PAL_STREAM_VOIP_RX &&
+                    strAttr.type != PAL_STREAM_VOIP_TX &&
+                    strAttr.type != PAL_STREAM_VOIP &&
+                    curDevAttr.id != newDevices[newDeviceSlots[i]].id) {
+                    newDevices[newDeviceSlots[i]].id = curDevAttr.id;
+                    rm->getSndDeviceName(newDevices[newDeviceSlots[i]].id, CurrentSndDeviceName);
+                    rm->updatePriorityAttr(newDevices[newDeviceSlots[i]].id,
+                                       sharedBEStreamDev,
+                                       &(newDevices[newDeviceSlots[i]]),
+                                       &strAttr);
+                }
 
                 /*
                  * for current stream, if custom key updated, even reset of the attr
@@ -1433,10 +1467,7 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
              *   upd is already active on ultrasound device, active audio stream switched
              *   from other devices to speaker/handset, so group config needs to be updated to
              *   concurrency config
-             * mActiveStreamMutex can be held within checkAndUpdateGroupDevConfig
-             * release mStreamMutex temporarily
              */
-            mStreamMutex.unlock();
             status = rm->checkAndUpdateGroupDevConfig(&newDevices[newDeviceSlots[i]], mStreamAttr,
                                                         streamsToSwitch, &streamDevAttr, true);
             if (status) {
@@ -1453,7 +1484,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 
             // check if headset config needs to update when haptics is active
             rm->checkHapticsConcurrency(&newDevices[newDeviceSlots[i]], NULL, streamsToSwitch/* not used */, NULL);
-            mStreamMutex.lock();
         }
         /*
          * switch all streams that are running on the current device if:
@@ -1502,7 +1532,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                 if ((mDevices[curDeviceSlots[j]]->getDeviceCount() == 1) &&
                     (newDeviceId != PAL_DEVICE_OUT_SPEAKER &&
                      newDeviceId != PAL_DEVICE_OUT_HANDSET)) {
-                    mStreamMutex.unlock();
                     mDevices[curDeviceSlots[j]]->getDeviceAttributes(&dAttr);
                     status = rm->checkAndUpdateGroupDevConfig(&dAttr, mStreamAttr, streamsToSwitch, &streamDevAttr, false);
                     if (status) {
@@ -1516,7 +1545,6 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
                         }
                     }
                     streamsToSwitch.clear();
-                    mStreamMutex.lock();
                 }
             }
         }
@@ -1540,9 +1568,11 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     if (!streamDevDisconnect.size() && !StreamDevConnect.size()) {
         PAL_INFO(LOG_TAG, "No device to switch, returning");
         mStreamMutex.unlock();
+        rm->unlockActiveStream();
         goto done;
     }
     mStreamMutex.unlock();
+    rm->unlockActiveStream();
 
     status = rm->streamDevSwitch(streamDevDisconnect, StreamDevConnect);
     if (status) {

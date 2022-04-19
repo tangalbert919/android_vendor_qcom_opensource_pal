@@ -170,6 +170,7 @@ class StreamSoundTrigger : public Stream {
 
     friend class PalRingBufferReader;
     bool IsCaptureRequested() { return capture_requested_; }
+    uint32_t GetRecognitionMode() { return recognition_mode_; }
     uint32_t GetHistBufDuration() { return hist_buf_duration_; }
     uint32_t GetPreRollDuration() { return pre_roll_duration_; }
     uint32_t GetModelId(){ return model_id_; }
@@ -555,6 +556,7 @@ class StreamSoundTrigger : public Stream {
     pal_st_sound_model_type_t sound_model_type_;
     struct pal_st_phrase_sound_model *sm_config_;
     struct pal_st_recognition_config *rec_config_;
+    uint32_t recognition_mode_;
     uint32_t detection_state_;
     uint32_t notification_state_;
     pal_stream_callback callback_;

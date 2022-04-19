@@ -75,7 +75,7 @@ void SignalHandler::invokeDefaultHandler(std::shared_ptr<struct sigaction> sAct,
     if (si->si_code == SI_QUEUE) {
         ALOGE_IF(code == DEBUGGER_SIGNAL,
                  "signal %d (<debuggerd signal>), code -1 "
-                 "(SI_QUEUE from originating pid %d, uid %d)",
+                 "(SI_QUEUE from pid %d, uid %d)",
                  code, si->si_pid, si->si_uid);
         status = sigqueue(getpid(), code, si->si_value);
     } else {

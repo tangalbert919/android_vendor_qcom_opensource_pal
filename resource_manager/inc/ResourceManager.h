@@ -847,6 +847,7 @@ public:
     int32_t a2dpCaptureResume();
     bool isPluginDevice(pal_device_id_t id);
     bool isDpDevice(pal_device_id_t id);
+    bool isPluginPlaybackDevice(pal_device_id_t id);
 
     /* Separate device reference counts are maintained in PAL device and GSL device SGs.
      * lock graph is to sychronize these reference counts during device and session operations
