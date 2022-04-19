@@ -1244,9 +1244,19 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     bool VoiceorVoip_call_active = false;
     bool has_out_device = false, has_in_device = false;
     std::vector <struct pal_device>::iterator dIter;
+    struct pal_volume_data *volume = NULL;
 
     rm->lockActiveStream();
     mStreamMutex.lock();
+
+    volume = (struct pal_volume_data *)calloc(1, (sizeof(uint32_t) +
+                          (sizeof(struct pal_channel_vol_kv) * (0xFFFF))));
+    if (!volume) {
+         PAL_ERR(LOG_TAG, "pal_volume_data memory allocation failure");
+         mStreamMutex.unlock();
+         rm->unlockActiveStream();
+         return -ENOMEM;
+    }
 
     if ((numDev == 0) || (numDev > PAL_DEVICE_IN_MAX) || (!newDevices) || (!streamHandle)) {
         PAL_ERR(LOG_TAG, "invalid param for device switch");
@@ -1604,11 +1614,22 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
 done:
     mStreamMutex.lock();
     if (a2dpMuted && !isNewDeviceA2dp) {
-        mute_l(false);
+        status = streamHandle->getVolumeData(volume);
+        if (status) {
+            PAL_ERR(LOG_TAG, "getVolumeData failed %d", status);
+        }
         a2dpMuted = false;
+        status = streamHandle->setVolume(volume); //apply cached volume.
+        if (status) {
+            PAL_ERR(LOG_TAG, "setVolume failed %d", status);
+        }
+        mute_l(false);
         suspendedDevIds.clear();
     }
     mStreamMutex.unlock();
+    if (volume) {
+        free(volume);
+    }
     return status;
 }
 
