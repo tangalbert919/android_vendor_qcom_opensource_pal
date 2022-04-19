@@ -2665,8 +2665,6 @@ int ResourceManager::deregisterStream(Stream *s)
             ret = deregisterstream(sST, active_streams_st);
             // reset concurrency count when all st streams deregistered
             if (active_streams_st.size() == 0) {
-                concurrencyDisableCount = 0;
-                concurrencyEnableCount = 0;
                 onVUIStreamDeregistered();
             }
             break;
@@ -2711,10 +2709,6 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamACD* sAcd = dynamic_cast<StreamACD*>(s);
             ret = deregisterstream(sAcd, active_streams_acd);
-            if (active_streams_acd.size() == 0) {
-                ACDConcurrencyDisableCount = 0;
-                ACDConcurrencyEnableCount = 0;
-            }
             break;
         }
         case PAL_STREAM_ULTRASOUND:
@@ -2733,10 +2727,6 @@ int ResourceManager::deregisterStream(Stream *s)
         {
             StreamSensorPCMData* sPCM = dynamic_cast<StreamSensorPCMData*>(s);
             ret = deregisterstream(sPCM, active_streams_sensor_pcm_data);
-            if (active_streams_sensor_pcm_data.size() == 0) {
-                SNSPCMDataConcurrencyDisableCount = 0;
-                SNSPCMDataConcurrencyEnableCount = 0;
-            }
             break;
         }
         case PAL_STREAM_CONTEXT_PROXY:
@@ -3446,66 +3436,23 @@ void ResourceManager::GetSoundTriggerConcurrencyCount_l(
     bool audio_capture_conc_enable =
         IsAudioCaptureConcurrencySupported(type);
     bool low_latency_bargein_enable = IsLowLatencyBargeinSupported(type);
-    int32_t *local_en_count = nullptr;
-    int32_t *local_dis_count = nullptr;
 
     if (type == PAL_STREAM_ACD) {
-        local_en_count = &ACDConcurrencyEnableCount;
-        local_dis_count = &ACDConcurrencyDisableCount;
+        *enable_count = ACDConcurrencyEnableCount;
+        *disable_count = ACDConcurrencyDisableCount;
     } else if (type == PAL_STREAM_VOICE_UI) {
-        local_en_count = &concurrencyEnableCount;
-        local_dis_count = &concurrencyDisableCount;
+        *enable_count = concurrencyEnableCount;
+        *disable_count = concurrencyDisableCount;
     } else if (type == PAL_STREAM_SENSOR_PCM_DATA) {
-        local_en_count = &SNSPCMDataConcurrencyEnableCount;
-        local_dis_count = &SNSPCMDataConcurrencyDisableCount;
+        *enable_count = SNSPCMDataConcurrencyEnableCount;
+        *disable_count = SNSPCMDataConcurrencyDisableCount;
     } else {
         PAL_ERR(LOG_TAG, "Error:%d Invalid stream type %d", -EINVAL, type);
         return;
     }
 
-    if (*local_en_count > 0 || *local_dis_count > 0) {
-        PAL_DBG(LOG_TAG, "Concurrency count already updated, return");
-        goto exit;
-    }
-
-    for (auto& s: mActiveStreams) {
-        s->getStreamAttributes(&st_attr);
-
-        if (st_attr.type == PAL_STREAM_VOICE_CALL) {
-            if (!voice_conc_enable) {
-                (*local_dis_count)++;
-            } else {
-                (*local_en_count)++;
-            }
-        } else if (st_attr.type == PAL_STREAM_VOIP_TX ||
-                st_attr.type == PAL_STREAM_VOIP_RX ||
-                st_attr.type == PAL_STREAM_VOIP) {
-            if (!voip_conc_enable) {
-                (*local_dis_count)++;
-            } else {
-                (*local_en_count)++;
-            }
-        } else if (st_attr.direction == PAL_AUDIO_INPUT &&
-                   (st_attr.type == PAL_STREAM_LOW_LATENCY ||
-                    st_attr.type == PAL_STREAM_DEEP_BUFFER)) {
-            if (!audio_capture_conc_enable) {
-                (*local_dis_count)++;
-            } else {
-                (*local_en_count)++;
-            }
-        } else if (st_attr.direction == PAL_AUDIO_OUTPUT &&
-                   (st_attr.type != PAL_STREAM_LOW_LATENCY ||
-                    low_latency_bargein_enable)) {
-            (*local_en_count)++;
-        }
-    }
-
-exit:
-    *enable_count = *local_en_count;
-    *disable_count = *local_dis_count;
     PAL_INFO(LOG_TAG, "conc enable cnt %d, conc disable count %d",
         *enable_count, *disable_count);
-
 }
 
 bool ResourceManager::IsLowLatencyBargeinSupported(pal_stream_type_t type) {
@@ -4122,6 +4069,16 @@ int ResourceManager::HandleDetectionStreamAction(pal_stream_type_t type, int32_t
     int status = 0;
     pal_stream_attributes st_attr;
 
+    if ((type == PAL_STREAM_VOICE_UI &&
+         !active_streams_st.size()) ||
+        (type == PAL_STREAM_ACD &&
+         !active_streams_acd.size()) ||
+        (type == PAL_STREAM_SENSOR_PCM_DATA &&
+         !active_streams_sensor_pcm_data.size())) {
+        PAL_VERBOSE(LOG_TAG, "No active stream for type %d, skip action", type);
+        return 0;
+    }
+
     PAL_DBG(LOG_TAG, "Enter");
     for (auto& str: mActiveStreams) {
         if (!isStreamActive(str, mActiveStreams))
@@ -4396,12 +4353,9 @@ void ResourceManager::HandleConcurrencyForSoundTriggerStreams(pal_stream_type_t 
     mActiveStreamMutex.lock();
     PAL_DBG(LOG_TAG, "Enter, stream type %d, direction %d, active %d", type, dir, active);
 
-    if (active_streams_st.size())
-        st_streams.push_back(PAL_STREAM_VOICE_UI);
-    if (active_streams_acd.size())
-        st_streams.push_back(PAL_STREAM_ACD);
-    if (active_streams_sensor_pcm_data.size())
-        st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
+    st_streams.push_back(PAL_STREAM_VOICE_UI);
+    st_streams.push_back(PAL_STREAM_ACD);
+    st_streams.push_back(PAL_STREAM_SENSOR_PCM_DATA);
 
     for (pal_stream_type_t st_stream_type : st_streams) {
         bool st_stream_conc_en = true;
