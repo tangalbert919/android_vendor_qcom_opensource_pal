@@ -202,6 +202,7 @@ SoundModelConfig::SoundModelConfig(const st_cap_profile_map_t& cap_prof_map) :
     out_channels_(1),
     capture_keyword_(2000),
     client_capture_read_delay_(2000),
+    pre_roll_duration_(0),
     cap_profile_map_(cap_prof_map),
     curr_child_(nullptr)
 {
@@ -331,6 +332,8 @@ void SoundModelConfig::HandleStartTag(const char* tag, const char** attribs) {
                 SetOutChannels(std::stoi(attribs[++i]));
             } else if (!strcmp(attribs[i], "client_capture_read_delay")) {
                 client_capture_read_delay_ = std::stoi(attribs[++i]);
+            } else if (!strcmp(attribs[i], "pre_roll_duration")) {
+                pre_roll_duration_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "capture_keyword")) {
                 capture_keyword_ = std::stoi(attribs[++i]);
             } else if (!strcmp(attribs[i], "kw_start_tolerance")) {
