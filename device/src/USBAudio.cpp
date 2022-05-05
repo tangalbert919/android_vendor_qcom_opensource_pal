@@ -725,6 +725,8 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
     int bitwidth = 16;
     int ret = -EINVAL;
     struct pal_media_config media_config;
+    int target_bit_width = devinfo->bit_width == 0 ?
+                           config->bit_width : devinfo->bit_width;
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
@@ -740,7 +742,7 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
              // 1. search for matching bitwidth
              // only one bitwidth for one usb device config.
             bitwidth = (*iter)->getBitWidth();
-            if (bitwidth == devinfo->bit_width) {
+            if (bitwidth == target_bit_width) {
                 config->bit_width = bitwidth;
 
                 if (!config->bit_width && !max_bit_width)
@@ -787,13 +789,10 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
     }
     if (iter == usb_device_config_list_.end()) {
         if (candidate_config) {
-            PAL_INFO(LOG_TAG, "Default bitwidth of %d is not supported by USB. Use USB width of %d",
-                         devinfo->bit_width, max_bit_width);
-            config->bit_width = bitwidth;
+            PAL_INFO(LOG_TAG, "Target bitwidth of %d is not supported by USB. Use USB width of %d",
+                         target_bit_width, max_bit_width);
 
-            if (config->bit_width == 0)
-                config->bit_width = max_bit_width;
-
+            config->bit_width = max_bit_width;
             if (uhqa && is_playback) {
                 ret = candidate_config->isCustomRateSupported(SAMPLINGRATE_192K,
                                  &config->sample_rate);
