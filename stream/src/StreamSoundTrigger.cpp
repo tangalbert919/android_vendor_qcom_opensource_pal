@@ -371,6 +371,10 @@ int32_t StreamSoundTrigger::read(struct pal_buffer* buf) {
             lab_cnt);
         lab_cnt++;
     }
+    if (cur_state_ == st_buffering_ && !this->force_nlpi_vote) {
+        rm->voteSleepMonitor(this, true, true);
+        this->force_nlpi_vote = true;
+    }
 
     std::shared_ptr<StEventConfig> ev_cfg(
         new StReadBufferEventConfig((void *)buf));
@@ -4148,6 +4152,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * Can happen if client requests next recognition without any config
              * change with/without reading buffers after sending detection event.
              */
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             StStartRecognitionEventConfigData *data =
                 (StStartRecognitionEventConfigData *)ev_cfg->data_.get();
             PAL_DBG(LOG_TAG, "StBuffering: start recognition, is restart %d",
@@ -4179,6 +4187,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
              * event, but requests next recognition with config change.
              * Get to loaded state as START event will start the recognition.
              */
+             if (st_stream_.force_nlpi_vote) {
+                 rm->voteSleepMonitor(&st_stream_, false, true);
+                 st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4226,6 +4238,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_UNLOAD_SOUND_MODEL:
         case ST_EV_STOP_RECOGNITION:  {
             // Possible with deffered stop if client doesn't start next recognition.
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
@@ -4354,6 +4370,10 @@ int32_t StreamSoundTrigger::StBuffering::ProcessEvent(
         case ST_EV_CONCURRENT_STREAM:
         case ST_EV_DEVICE_DISCONNECTED:
         case ST_EV_DEVICE_CONNECTED: {
+            if (st_stream_.force_nlpi_vote) {
+                rm->voteSleepMonitor(&st_stream_, false, true);
+                st_stream_.force_nlpi_vote = false;
+            }
             st_stream_.CancelDelayedStop();
 
             for (auto& eng: st_stream_.engines_) {
