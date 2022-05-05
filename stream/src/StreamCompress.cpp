@@ -284,6 +284,7 @@ int32_t StreamCompress::stop()
         for (int i = 0; i < mDevices.size(); i++) {
             rm->deregisterDevice(mDevices[i], this);
         }
+        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -522,7 +523,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
                 return status;
             }
         }
-        if ((currentState != STREAM_STARTED) &&
+        if (!isDevRegistered && (currentState != STREAM_STARTED) &&
             !(currentState == STREAM_PAUSED && isPaused)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
@@ -532,6 +533,7 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
             for (int i = 0; i < mDevices.size(); i++) {
                 rm->registerDevice(mDevices[i], this);
             }
+            isDevRegistered = true;
             rm->unlockActiveStream();
         }
     } else {
@@ -840,6 +842,7 @@ int32_t StreamCompress::flush()
     for (int i = 0; i < mDevices.size(); i++) {
         rm->deregisterDevice(mDevices[i], this);
     }
+    isDevRegistered = false;
     rm->unlockActiveStream();
     return session->flush();
 }
