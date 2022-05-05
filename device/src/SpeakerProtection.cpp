@@ -296,16 +296,6 @@ void SpeakerProtection::disconnectFeandBe(std::vector<int> pcmDevIds,
         goto exit;
     }
 
-    if (deviceMetaData.size) {
-        ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
-                    deviceMetaData.size);
-        free(deviceMetaData.buf);
-        deviceMetaData.buf = nullptr;
-    }else {
-        PAL_ERR(LOG_TAG, "Error: %d, Device Metadata not cleaned up", ret);
-        goto exit;
-    }
-
     disconnectCtrlName << "PCM" << pcmDevIds.at(0) << " disconnect";
     disconnectCtrl = mixer_get_ctl_by_name(virtMixer, disconnectCtrlName.str().data());
     if (!disconnectCtrl) {
@@ -318,6 +308,17 @@ void SpeakerProtection::disconnectFeandBe(std::vector<int> pcmDevIds,
         PAL_ERR(LOG_TAG, "Error: %d, Mixer control %s set with %s failed", ret,
         disconnectCtrlName.str().data(), backEndName.c_str());
     }
+
+    if (deviceMetaData.size) {
+        ret = mixer_ctl_set_array(beMetaDataMixerCtrl, (void *)deviceMetaData.buf,
+                    deviceMetaData.size);
+        free(deviceMetaData.buf);
+        deviceMetaData.buf = nullptr;
+    } else {
+        PAL_ERR(LOG_TAG, "Error: %d, Device Metadata not cleaned up", ret);
+        goto exit;
+    }
+
 exit:
     return;
 }
