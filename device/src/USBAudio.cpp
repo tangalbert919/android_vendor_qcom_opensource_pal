@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016, 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -744,8 +745,17 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
                 break;
             } else {
                 // if bit width does not match, use highest width.
+                PAL_VERBOSE(LOG_TAG, "stream channels = %d usb device chn = %d",
+                            media_config.ch_info.channels,
+                            (*iter)->getChannels());
                 if (bitwidth > max_bit_width) {
+                    PAL_VERBOSE(LOG_TAG, "bitwidth %d > max_bit_width %d",
+                                    bitwidth, max_bit_width);
                     max_bit_width = bitwidth;
+                    candidate_config = (*iter).get();
+                } else if (bitwidth == max_bit_width &&
+                    (*iter)->getChannels() == media_config.ch_info.channels) {
+                    PAL_INFO(LOG_TAG, "bitwidth and chn both match.");
                     candidate_config = (*iter).get();
                 }
             }
