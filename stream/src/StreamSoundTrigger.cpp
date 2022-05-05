@@ -1646,6 +1646,9 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
             }
         }
     } else {
+        // get history buffer duration from sound trigger platform xml
+        hist_buf_duration_ = sm_cfg_->GetKwDuration();
+        pre_roll_duration_ = 0;
         if (sm_cfg_->isQCVAUUID() || sm_cfg_->isQCMDUUID()) {
             status = FillConfLevels(config, &conf_levels, &num_conf_levels);
             if (status) {
@@ -1653,6 +1656,11 @@ int32_t StreamSoundTrigger::SendRecognitionConfig(
                 goto error_exit;
             }
         }
+    }
+
+    // use default value if preroll is not set
+    if (pre_roll_duration_ == 0) {
+        pre_roll_duration_ = sm_cfg_->GetPreRollDuration();
     }
 
     client_capture_read_delay = sm_cfg_->GetCaptureReadDelay();
