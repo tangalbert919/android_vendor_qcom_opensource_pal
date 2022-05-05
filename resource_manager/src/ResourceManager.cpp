@@ -4839,6 +4839,7 @@ int ResourceManager::getActiveStream_l(std::vector<Stream*> &activestreams,
     getActiveStreams(d, activestreams, active_streams_haptics);
     getActiveStreams(d, activestreams, active_streams_ultrasound);
     getActiveStreams(d, activestreams, active_streams_sensor_pcm_data);
+    getActiveStreams(d, activestreams, active_streams_voice_rec);
 
     if (activestreams.empty()) {
         ret = -ENOENT;

@@ -993,6 +993,12 @@
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000007"/>
             </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOICE_RECOGNITION">
+                <!-- DEVICETX - HEADPHONE_MIC -->
+                <graph_kv key="0xA3000000" value="0xA3000003"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_RECOGNITION -->
+                <graph_kv key="0xAD000000" value="0xAD000017"/>
+            </keys_and_values>
         </devicepp>
         <!-- IN USB device and USB headset DevicePPs -->
         <devicepp id="PAL_DEVICE_IN_USB_DEVICE,PAL_DEVICE_IN_USB_HEADSET">
@@ -1013,6 +1019,12 @@
                 <graph_kv key="0xA3000000" value="0xA3000005"/>
                 <!-- DEVICEPP_TX - DEVICEPP_TX_VOIP_FLUENCE_SMECNS -->
                 <graph_kv key="0xAD000000" value="0xAD000007"/>
+            </keys_and_values>
+            <keys_and_values StreamType="PAL_STREAM_VOICE_RECOGNITION">
+                <!-- DEVICETX - USB_Tx -->
+                <graph_kv key="0xA3000000" value="0xA3000005"/>
+                <!-- DEVICEPP_TX - DEVICEPP_TX_VOICE_RECOGNITION -->
+                <graph_kv key="0xAD000000" value="0xAD000017"/>
             </keys_and_values>
         </devicepp>
         <!-- IN Handset_VA_MIC DevicePPs -->
