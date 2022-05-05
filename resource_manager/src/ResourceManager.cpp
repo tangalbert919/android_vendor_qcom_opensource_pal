@@ -2960,52 +2960,44 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
         sAttr.type != PAL_STREAM_PROXY) {
-        status = s->getAssociatedDevices(associatedDevices);
-        if ((0 != status) || associatedDevices.empty()) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty\n");
-            goto unlock;
-        }
-
-        for (auto& device: associatedDevices) {
-            str_list = getConcurrentTxStream_l(s, device);
-            for (auto str: str_list) {
-                tx_devices.clear();
-                if (!str) {
-                    PAL_ERR(LOG_TAG,"Stream Empty\n");
-                    continue;
-                }
-                str->getAssociatedDevices(tx_devices);
-                if (tx_devices.empty()) {
-                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
-                    continue;
-                }
-                PAL_DBG(LOG_TAG, "Enter enable EC Ref");
-                // TODO: add support for stream with multi Tx devices
-                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
-                if (rxdevcount <= 0) {
-                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
-                } else if (rxdevcount > 1) {
-                    PAL_DBG(LOG_TAG, "EC ref already set");
-                } else if (str && isStreamActive(str, mActiveStreams)) {
-                    mResourceManagerMutex.unlock();
-                    /* For Device switch, stream mutex will be already acquired,
-                     * so call setECRef_l instead of setECRef.
-                     */
-                    if (isDeviceSwitch && str->isMutexLockedbyRm())
-                        status = str->setECRef_l(device, true);
-                    else
-                        status = str->setECRef(device, true);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        if(status != -ENODEV) {
-                            PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
-                        } else {
-                            status = 0;
-                            PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
-                        }
-                        // decrease ec ref count if ec ref set failure
-                        updateECDeviceMap(d, tx_devices[0], str, 0, false);
+        str_list = getConcurrentTxStream_l(s, d);
+        for (auto str: str_list) {
+            tx_devices.clear();
+            if (!str) {
+                PAL_ERR(LOG_TAG,"Stream Empty\n");
+                continue;
+            }
+            str->getAssociatedDevices(tx_devices);
+            if (tx_devices.empty()) {
+                PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                continue;
+            }
+            PAL_DBG(LOG_TAG, "Enter enable EC Ref");
+            // TODO: add support for stream with multi Tx devices
+            rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 1, false);
+            if (rxdevcount <= 0) {
+                PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+            } else if (rxdevcount > 1) {
+                PAL_DBG(LOG_TAG, "EC ref already set");
+            } else if (str && isStreamActive(str, mActiveStreams)) {
+                mResourceManagerMutex.unlock();
+                /* For Device switch, stream mutex will be already acquired,
+                    * so call setECRef_l instead of setECRef.
+                    */
+                if (isDeviceSwitch && str->isMutexLockedbyRm())
+                    status = str->setECRef_l(d, true);
+                else
+                    status = str->setECRef(d, true);
+                mResourceManagerMutex.lock();
+                if (status) {
+                    if(status != -ENODEV) {
+                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    } else {
+                        status = 0;
+                        PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
                     }
+                    // decrease ec ref count if ec ref set failure
+                    updateECDeviceMap(d, tx_devices[0], str, 0, false);
                 }
             }
         }
@@ -3175,41 +3167,33 @@ int ResourceManager::deregisterDevice(std::shared_ptr<Device> d, Stream *s)
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT || sAttr.direction == PAL_AUDIO_INPUT_OUTPUT) {
-        status = s->getAssociatedDevices(associatedDevices);
-        if ((0 != status) || associatedDevices.empty()) {
-            PAL_ERR(LOG_TAG,"getAssociatedDevices Failed or Empty");
-            goto unlock;
-        }
-
-        for (auto& device: associatedDevices) {
-            str_list = getConcurrentTxStream_l(s, device);
-            for (auto str: str_list) {
-                tx_devices.clear();
-                if (!str) {
-                    PAL_ERR(LOG_TAG,"Stream Empty\n");
-                    continue;
-                }
-                str->getAssociatedDevices(tx_devices);
-                if (tx_devices.empty()) {
-                    PAL_ERR(LOG_TAG,"TX devices Empty\n");
-                    continue;
-                }
-                // TODO: add support for stream with multi Tx devices
-                rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
-                if (rxdevcount < 0) {
-                    PAL_DBG(LOG_TAG, "Invalid device pair, skip");
-                } else if (rxdevcount > 0) {
-                    PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
-                } else if (str && isStreamActive(str, mActiveStreams)) {
-                    mResourceManagerMutex.unlock();
-                    if (isDeviceSwitch && str->isMutexLockedbyRm())
-                        status = str->setECRef_l(device, false);
-                    else
-                        status = str->setECRef(device, false);
-                    mResourceManagerMutex.lock();
-                    if (status) {
-                        PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
-                    }
+        str_list = getConcurrentTxStream_l(s, d);
+        for (auto str: str_list) {
+            tx_devices.clear();
+            if (!str) {
+                PAL_ERR(LOG_TAG,"Stream Empty\n");
+                continue;
+            }
+            str->getAssociatedDevices(tx_devices);
+            if (tx_devices.empty()) {
+                PAL_ERR(LOG_TAG,"TX devices Empty\n");
+                continue;
+            }
+            // TODO: add support for stream with multi Tx devices
+            rxdevcount = updateECDeviceMap(d, tx_devices[0], str, 0, false);
+            if (rxdevcount < 0) {
+                PAL_DBG(LOG_TAG, "Invalid device pair, skip");
+            } else if (rxdevcount > 0) {
+                PAL_DBG(LOG_TAG, "EC ref still active, no need to reset");
+            } else if (str && isStreamActive(str, mActiveStreams)) {
+                mResourceManagerMutex.unlock();
+                if (isDeviceSwitch && str->isMutexLockedbyRm())
+                    status = str->setECRef_l(d, false);
+                else
+                    status = str->setECRef(d, false);
+                mResourceManagerMutex.lock();
+                if (status) {
+                    PAL_ERR(LOG_TAG, "Failed to disable EC Ref");
                 }
             }
         }
