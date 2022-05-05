@@ -1105,7 +1105,6 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
     }
 
     mDevices.push_back(dev);
-    updatePalDevice(dattr, dattr->id, false);
     status = session->setupSessionDevice(streamHandle, mStreamAttr->type, dev);
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setupSessionDevice for %d failed with status %d",
@@ -1239,6 +1238,8 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
     struct pal_device streamDevAttr;
     std::vector <Stream*>::iterator sIter;
     bool VoiceorVoip_call_active = false;
+    bool has_out_device = false, has_in_device = false;
+    std::vector <struct pal_device>::iterator dIter;
 
     rm->lockActiveStream();
     mStreamMutex.lock();
@@ -1290,6 +1291,23 @@ int32_t Stream::switchDevice(Stream* streamHandle, uint32_t numDev, struct pal_d
         if (matchFound == false) {
             curDeviceSlots[disconnectCount] = i;
             disconnectCount++;
+        }
+    }
+
+    /* remove members of mPalDevices which has same dir with new devices*/
+    for (int i = 0; i < numDev; i++) {
+        if (rm->isOutputDevId(newDevices[i].id))
+            has_out_device = true;
+        if (rm->isInputDevId(newDevices[i].id))
+            has_in_device = true;
+    }
+    for (dIter = mPalDevice.begin(); dIter != mPalDevice.end(); ) {
+        if (rm->isOutputDevId((*dIter).id) && has_out_device) {
+            dIter = mPalDevice.erase(dIter);
+        } else if (rm->isInputDevId((*dIter).id) && has_in_device) {
+            dIter = mPalDevice.erase(dIter);
+        } else {
+            dIter++;
         }
     }
 

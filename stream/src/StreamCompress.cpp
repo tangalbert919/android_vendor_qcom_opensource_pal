@@ -134,6 +134,7 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             mStreamMutex.unlock();
             throw std::runtime_error("failed to create device object");
         }
+        mPalDevice.push_back(dattr[i]);
         mStreamMutex.unlock();
         isDeviceConfigUpdated = rm->updateDeviceConfig(&dev, &dattr[i], sattr);
         mStreamMutex.lock();
@@ -142,7 +143,6 @@ StreamCompress::StreamCompress(const struct pal_stream_attributes *sattr, struct
             PAL_VERBOSE(LOG_TAG, "Device config updated");
 
         mDevices.push_back(dev);
-        mPalDevice.push_back(dattr[i]);
         dev = nullptr;
     }
     mStreamMutex.unlock();
