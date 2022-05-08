@@ -957,13 +957,15 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
             } else {
                 goto exit;
             }
-        } else if (currentState == STREAM_PAUSED && !isPaused && !isDevRegistered) {
+        } else if (currentState == STREAM_PAUSED && !isPaused) {
             rm->lockActiveStream();
             mStreamMutex.lock();
-            for (int i = 0; i < mDevices.size(); i++) {
-                rm->registerDevice(mDevices[i], this);
+            if (!isDevRegistered) {
+                for (int i = 0; i < mDevices.size(); i++) {
+                    rm->registerDevice(mDevices[i], this);
+                }
+                isDevRegistered = true;
             }
-            isDevRegistered = true;
             mStreamMutex.unlock();
             rm->unlockActiveStream();
             currentState = STREAM_STARTED;
