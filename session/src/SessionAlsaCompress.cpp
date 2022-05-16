@@ -1145,6 +1145,8 @@ int SessionAlsaCompress::start(Stream * s)
     if (!compress) {
         PAL_ERR(LOG_TAG, "compress open failed");
         status = -EINVAL;
+        worker_thread->join();
+        worker_thread.reset(NULL);
         goto exit;
     }
     if (!is_compress_ready(compress)) {
@@ -1321,64 +1323,76 @@ int SessionAlsaCompress::close(Stream * s)
 {
     struct pal_stream_attributes sAttr;
     int32_t status = 0;
-    std::ostringstream disconnectCtrlName;
+    std::string backendname;
+    std::vector<std::shared_ptr<Device>> associatedDevices;
+    std::vector<std::pair<std::string, int>> freeDeviceMetadata;
+    int32_t beDevId = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
 
     s->getStreamAttributes(&sAttr);
-    if (!compress) {
-        if (compressDevIds.size() != 0)
-            rm->freeFrontEndIds(compressDevIds, sAttr, 0);
-        if (rm->cardState == CARD_STATUS_OFFLINE) {
-            if (sessionCb)
-                sessionCb(cbCookie, PAL_STREAM_CBK_EVENT_ERROR, NULL, 0);
+    status = s->getAssociatedDevices(associatedDevices);
+    if (status != 0) {
+        PAL_ERR(LOG_TAG, "getAssociatedDevices Failed\n");
+        goto exit;
+    }
+    freeDeviceMetadata.clear();
+
+    for (auto &dev : associatedDevices) {
+        beDevId = dev->getSndDeviceId();
+        rm->getBackendName(beDevId, backendname);
+        PAL_DBG(LOG_TAG, "backendname %s", backendname.c_str());
+        if (dev->getDeviceCount() > 1) {
+            PAL_DBG(LOG_TAG, "Rx dev still active\n");
+            freeDeviceMetadata.push_back(
+                std::make_pair(backendname, 0));
+        } else {
+            freeDeviceMetadata.push_back(
+                std::make_pair(backendname, 1));
+            PAL_DBG(LOG_TAG, "Rx dev not active");
         }
-        goto exit;
-        /** close unstarted session should return normal. */
     }
-    disconnectCtrlName << "COMPRESS" << compressDevIds.at(0) << " disconnect";
-    disconnectCtrl = mixer_get_ctl_by_name(mixer, disconnectCtrlName.str().data());
-    if (!disconnectCtrl) {
-        PAL_ERR(LOG_TAG, "invalid mixer control: %s", disconnectCtrlName.str().data());
-        status = -EINVAL;
-        goto exit;
+    status = SessionAlsaUtils::close(s, rm, compressDevIds,
+                                     rxAifBackEnds, freeDeviceMetadata);
+    if (status) {
+        PAL_ERR(LOG_TAG, "session alsa close failed with %d", status);
     }
-    /** Disconnect FE to BE */
-    mixer_ctl_set_enum_by_string(disconnectCtrl, rxAifBackEnds[0].second.data());
-    compress_close(compress);
-    compress = NULL;
+    if (compress) {
+        compress_close(compress);
+        if (rm->cardState == CARD_STATUS_OFFLINE) {
+            std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
+            std::lock_guard<std::mutex> lock(cv_mutex_);
+            msg_queue_.push(msg);
+            cv_.notify_all();
+        }
+        {
+            std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
+            std::lock_guard<std::mutex> lock(cv_mutex_);
+            msg_queue_.push(msg);
+            cv_.notify_all();
+        }
+
+        /* wait for handler to exit */
+        worker_thread->join();
+        worker_thread.reset(NULL);
+
+        /* empty the pending messages in queue */
+        while (!msg_queue_.empty())
+            msg_queue_.pop();
+    }
     PAL_DBG(LOG_TAG, "out of compress close");
 
     rm->freeFrontEndIds(compressDevIds, sAttr, 0);
     freeCustomPayload();
 
-    if (rm->cardState == CARD_STATUS_OFFLINE) {
-        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_ERROR);
-        std::lock_guard<std::mutex> lock(cv_mutex_);
-        msg_queue_.push(msg);
-        cv_.notify_all();
-    }
-    {
-        std::shared_ptr<offload_msg> msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
-        std::lock_guard<std::mutex> lock(cv_mutex_);
-        msg_queue_.push(msg);
-        cv_.notify_all();
-    }
-
-    /* wait for handler to exit */
-    worker_thread->join();
-    worker_thread.reset(NULL);
-
-    /* empty the pending messages in queue */
-    while (!msg_queue_.empty())
-        msg_queue_.pop();
-
     // Deregister for mixer event callback
-    status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
-                    false);
-    if (status != 0) {
-        PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
-        status = 0;
+    if (isPauseRegistrationDone) {
+        status = rm->registerMixerEventCallback(compressDevIds, sessionCb, cbCookie,
+                        false);
+        if (status != 0) {
+            PAL_ERR(LOG_TAG, "Failed to deregister callback to rm");
+            status = 0;
+        }
     }
 
  exit:

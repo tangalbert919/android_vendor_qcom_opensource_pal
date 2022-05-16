@@ -97,7 +97,6 @@ private:
 
     std::condition_variable cv_; /* used to wait for incoming requests */
     std::mutex cv_mutex_; /* mutex used in conjunction with above cv */
-    struct mixer_ctl *disconnectCtrl;
     void getSndCodecParam(struct snd_codec &codec, struct pal_stream_attributes &sAttr);
     int getSndCodecId(pal_audio_fmt_t fmt);
     int setCustomFormatParam(pal_audio_fmt_t audio_fmt);
