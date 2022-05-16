@@ -1177,7 +1177,8 @@ int ResourceManager::init_audio()
                     strstr(snd_card_name, "waipio") ||
                     strstr(snd_card_name, "diwali") ||
                     strstr(snd_card_name, "bengal") ||
-                    strstr(snd_card_name, "monaco")) {
+                    strstr(snd_card_name, "monaco") ||
+                    strstr(snd_card_name, "parrot")) {
                     PAL_VERBOSE(LOG_TAG, "Found Codec sound card");
                     snd_card_found = true;
                     audio_hw_mixer = tmp_mixer;
