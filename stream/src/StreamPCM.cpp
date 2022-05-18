@@ -533,18 +533,20 @@ int32_t StreamPCM::start()
             PAL_ERR(LOG_TAG, "Stream type is not supported, status %d", status);
             break;
         }
-        mStreamMutex.unlock();
-        rm->lockActiveStream();
-        mStreamMutex.lock();
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->registerDevice(mDevices[i], this);
-        }
-        isDevRegistered = true;
-        rm->unlockActiveStream();
         /*pcm_open and pcm_start done at once here,
          *so directly jump to STREAM_STARTED state.
          */
         currentState = STREAM_STARTED;
+        mStreamMutex.unlock();
+        rm->lockActiveStream();
+        mStreamMutex.lock();
+        if (!isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->registerDevice(mDevices[i], this);
+            }
+            isDevRegistered = true;
+        }
+        rm->unlockActiveStream();
     } else if (currentState == STREAM_STARTED) {
         PAL_INFO(LOG_TAG, "Stream already started, state %d", currentState);
         goto exit;
@@ -580,10 +582,12 @@ int32_t StreamPCM::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i], this);
+        if (isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->deregisterDevice(mDevices[i], this);
+            }
+            isDevRegistered = false;
         }
-        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -1251,10 +1255,12 @@ int32_t StreamPCM::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
+    if (isDevRegistered) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
+        isDevRegistered = false;
     }
-    isDevRegistered = false;
     rm->unlockActiveStream();
 
     status = session->flush();
