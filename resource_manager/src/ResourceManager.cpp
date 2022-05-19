@@ -10506,10 +10506,9 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         for (auto palDev: palDevices) {
             bool sharedBEDev = false;
             /*check if pal dev id is a shared backend*/
-            for (auto bes: activestreams) {
-                if ( std::get<1>(bes) == palDev.id) {
-                    sharedBEDev = true;
-                }
+            if (listAllBackEndIds[std::get<1>(elem)].second ==
+                listAllBackEndIds[palDev.id].second) {
+                sharedBEDev = true;
             }
             if (sharedBEDev || dev_id == palDev.id) {
                 std::string streamKey(palDev.custom_config.custom_key);
