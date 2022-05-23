@@ -34,7 +34,7 @@
 #include "ResourceManager.h"
 #include "PalAudioRoute.h"
 #include "SessionAlsaUtils.h"
-
+#include <tinyalsa/asoundlib.h>
 #include <vector>
 
 #define USB_BUFF_SIZE           4096
@@ -52,6 +52,8 @@
 #define DEFAULT_CHANNEL_COUNT 2
 #define  MAX_SAMPLE_RATE_SIZE 14
 #define DEFAULT_SERVICE_INTERVAL_US    0
+#define USB_IN_JACK_SUFFIX "Input Jack"
+#define USB_OUT_JACK_SUFFIX "Output Jack"
 
 typedef enum usb_usecase_type{
     USB_CAPTURE = 0,
@@ -68,6 +70,7 @@ protected:
     unsigned long service_interval_us_;
     usb_usecase_type_t type_;
     unsigned int supported_sample_rates_mask_[2];
+    bool jack_status_ = true;
 public:
     void setBitWidth(unsigned int bit_width);
     unsigned int getBitWidth();
@@ -85,6 +88,8 @@ public:
     int getServiceInterval(const char *interval_str_start);
     static const unsigned int supported_sample_rates_[MAX_SAMPLE_RATE_SIZE];
     int isCustomRateSupported(int requested_rate, unsigned int *best_rate);
+    void setJackStatus(bool jack_status);
+    bool getJackStatus();
 };
 
 class USBCardConfig {
@@ -114,6 +119,8 @@ public:
     static const unsigned int out_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
     static const unsigned int in_chn_mask_[MAX_SUPPORTED_CHANNEL_MASKS];
     bool isCaptureProfileSupported();
+    bool readDefaultJackStatus(bool is_playback);
+    bool getJackConnectionStatus (int usb_card, const char* suffix);
 };
 
 class USB : public Device

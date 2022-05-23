@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -111,6 +112,7 @@ typedef enum {
 #define CHARGE_CONCURRENCY_OFF_TAG 44
 #define DEVICEPP_MUTE 45
 #define DEVICEPP_UNMUTE 46
+#define HANDSET_PROT_ENABLE 47
 
 /* This sleep is added to give time to kernel and
  * spf to recover from SSR so that audio-hal will
@@ -170,8 +172,10 @@ public:
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
+    bool isDevRegistered = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
+    bool force_nlpi_vote = false;
     std::vector<pal_device_id_t> suspendedDevIds;
     virtual int32_t open() = 0;
     virtual int32_t close() = 0;

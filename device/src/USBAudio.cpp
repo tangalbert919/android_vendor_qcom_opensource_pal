@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016, 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -419,6 +420,8 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
     int ret = 0;
     char *bit_width_str = NULL;
     size_t num_read = 0;
+    const char* suffix;
+    bool jack_status;
     //std::shared_ptr<USBDeviceConfig> usb_device_info = nullptr;
 
     bool check = false;
@@ -567,6 +570,12 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
                 PAL_INFO(LOG_TAG, "error unable to get service interval, assume default");
             }
         }
+        /* jack status parsing */
+        suffix = (type == USB_PLAYBACK) ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
+        jack_status = getJackConnectionStatus(addr.card_id, suffix);
+        PAL_VERBOSE(LOG_TAG, "jack_status %d", jack_status);
+        usb_device_info->setJackStatus(jack_status);
+
         /* Add to list if every field is valid */
         usb_device_config_list_.push_back(usb_device_info);
     }
@@ -681,11 +690,27 @@ unsigned int USBCardConfig::readDefaultChannelMask(bool is_playback) {
     return ret;
 }
 
+bool USBCardConfig::readDefaultJackStatus(bool is_playback) {
+    bool jack_status = true;
+    typename std::vector<std::shared_ptr<USBDeviceConfig>>::iterator iter;
+
+    for (iter = usb_device_config_list_.begin();
+        iter != usb_device_config_list_.end(); iter++) {
+        if ((*iter)->getType() == is_playback){
+            jack_status = (*iter)->getJackStatus();
+            break;
+        }
+    }
+
+    return jack_status;
+}
+
 int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool is_playback)
 {
     config->format = readDefaultFormat(is_playback);
     config->sample_rate = readDefaultSampleRate(is_playback);
     config->mask = readDefaultChannelMask(is_playback);
+    config->jack_status = readDefaultJackStatus(is_playback);
 
     return 0;
 }
@@ -700,6 +725,8 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
     int bitwidth = 16;
     int ret = -EINVAL;
     struct pal_media_config media_config;
+    int target_bit_width = devinfo->bit_width == 0 ?
+                           config->bit_width : devinfo->bit_width;
 
     for (iter = usb_device_config_list_.begin();
          iter != usb_device_config_list_.end(); iter++) {
@@ -715,7 +742,7 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
              // 1. search for matching bitwidth
              // only one bitwidth for one usb device config.
             bitwidth = (*iter)->getBitWidth();
-            if (bitwidth == devinfo->bit_width) {
+            if (bitwidth == target_bit_width) {
                 config->bit_width = bitwidth;
 
                 if (!config->bit_width && !max_bit_width)
@@ -744,8 +771,17 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
                 break;
             } else {
                 // if bit width does not match, use highest width.
+                PAL_VERBOSE(LOG_TAG, "stream channels = %d usb device chn = %d",
+                            media_config.ch_info.channels,
+                            (*iter)->getChannels());
                 if (bitwidth > max_bit_width) {
+                    PAL_VERBOSE(LOG_TAG, "bitwidth %d > max_bit_width %d",
+                                    bitwidth, max_bit_width);
                     max_bit_width = bitwidth;
+                    candidate_config = (*iter).get();
+                } else if (bitwidth == max_bit_width &&
+                    (*iter)->getChannels() == media_config.ch_info.channels) {
+                    PAL_INFO(LOG_TAG, "bitwidth and chn both match.");
                     candidate_config = (*iter).get();
                 }
             }
@@ -753,13 +789,10 @@ int USBCardConfig::readBestConfig(struct pal_media_config *config,
     }
     if (iter == usb_device_config_list_.end()) {
         if (candidate_config) {
-            PAL_INFO(LOG_TAG, "Default bitwidth of %d is not supported by USB. Use USB width of %d",
-                         devinfo->bit_width, max_bit_width);
-            config->bit_width = bitwidth;
+            PAL_INFO(LOG_TAG, "Target bitwidth of %d is not supported by USB. Use USB width of %d",
+                         target_bit_width, max_bit_width);
 
-            if (config->bit_width == 0)
-                config->bit_width = max_bit_width;
-
+            config->bit_width = max_bit_width;
             if (uhqa && is_playback) {
                 ret = candidate_config->isCustomRateSupported(SAMPLINGRATE_192K,
                                  &config->sample_rate);
@@ -789,6 +822,10 @@ const unsigned int USBDeviceConfig::supported_sample_rates_[] =
 
 void USBDeviceConfig::setBitWidth(unsigned int bit_width) {
     bit_width_ = bit_width;
+}
+
+void USBDeviceConfig::setJackStatus(bool jack_status) {
+    jack_status_ = jack_status;
 }
 
 void USBDeviceConfig::setChannels(unsigned int channels) {
@@ -821,6 +858,10 @@ unsigned long USBDeviceConfig::getInterval() {
 
 unsigned int USBDeviceConfig::getDefaultRate() {
     return rates_[0];
+}
+
+bool USBDeviceConfig::getJackStatus() {
+    return jack_status_;
 }
 
 int USBDeviceConfig::isCustomRateSupported(int requested_rate, unsigned int *best_rate)
@@ -1011,4 +1052,34 @@ bool USB::isUsbConnected(struct pal_usb_device_address addr)
 
     PAL_ERR(LOG_TAG, "usb device is not connected");
     return false;
+}
+
+bool USBCardConfig::getJackConnectionStatus(int usb_card, const char* suffix)
+{
+    int i = 0, value = 0;
+    struct mixer_ctl* ctrl = NULL;
+    struct mixer* usb_card_mixer = mixer_open(usb_card);
+    if (usb_card_mixer == NULL) {
+        PAL_ERR(LOG_TAG, "Invalid mixer");
+        return true;
+    }
+    while ((ctrl = mixer_get_ctl(usb_card_mixer, i++)) != NULL) {
+        const char* mixer_name = mixer_ctl_get_name(ctrl);
+        if (strstr(mixer_name, suffix)) {
+            break;
+        } else {
+            ctrl = NULL;
+        }
+    }
+    if (!ctrl) {
+        PAL_ERR(LOG_TAG, "Invalid mixer control");
+        mixer_close(usb_card_mixer);
+        return true;
+    }
+    mixer_ctl_update(ctrl);
+    value = mixer_ctl_get_value(ctrl, 0);
+    PAL_VERBOSE(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value);
+    mixer_close(usb_card_mixer);
+
+    return value != 0;
 }

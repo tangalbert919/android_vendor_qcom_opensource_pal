@@ -122,6 +122,7 @@ class SoundModelConfig : public SoundTriggerXml {
     }
     uint32_t GetKwDuration() const { return capture_keyword_; }
     uint32_t GetCaptureReadDelay() const { return client_capture_read_delay_; }
+    uint32_t GetPreRollDuration() const { return pre_roll_duration_; }
     uint32_t GetKwStartTolerance() const { return kw_start_tolerance_; }
     uint32_t GetKwEndTolerance() const { return kw_end_tolerance_; }
     uint32_t GetDataBeforeKwStart() const { return data_before_kw_start_; }
@@ -155,6 +156,7 @@ class SoundModelConfig : public SoundTriggerXml {
     uint32_t out_channels_;
     uint32_t capture_keyword_;
     uint32_t client_capture_read_delay_;
+    uint32_t pre_roll_duration_;
     uint32_t kw_start_tolerance_;
     uint32_t kw_end_tolerance_;
     uint32_t data_before_kw_start_;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,7 +31,7 @@
 #ifndef SPEAKER_PROT
 #define SPEAKER_PROT
 
-#include "Speaker.h"
+#include "Device.h"
 #include "sp_vi.h"
 #include "sp_rx.h"
 #include <tinyalsa/asoundlib.h>
@@ -40,7 +41,7 @@
 #include<vector>
 #include "apm_api.h"
 
-class Speaker;
+class Device;
 
 #define LPASS_WR_CMD_REG_PHY_ADDR 0x3250300
 #define LPASS_RD_CMD_REG_PHY_ADDR 0x3250304
@@ -75,7 +76,7 @@ struct agmMetaData {
 };
 
 
-class SpeakerProtection : public Speaker
+class SpeakerProtection : public Device
 {
 protected :
     bool spkrProtEnable;
@@ -145,7 +146,7 @@ public:
 
 };
 
-class SpeakerFeedback : public Speaker
+class SpeakerFeedback : public Device
 {
     protected :
     struct pal_device mDeviceAttr;
