@@ -935,6 +935,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     // no active stream found on both speaker and handset, get the deafult
                     pal_device_info devInfo;
                     memset(&devInfo, 0, sizeof(pal_device_info));
+                    devInfo.priority = MIN_USECASE_PRIORITY;
                     status = rm->getDeviceConfig(&dattr, NULL);
                     if (!status) {
                         // get the default device info and update snd name

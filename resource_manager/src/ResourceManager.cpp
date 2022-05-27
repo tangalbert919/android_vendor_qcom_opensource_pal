@@ -7065,6 +7065,7 @@ int32_t ResourceManager::a2dpSuspend()
             // no active stream found on speaker or handset, get the deafult
             pal_device_info devInfo;
             memset(&devInfo, 0, sizeof(pal_device_info));
+            devInfo.priority = MIN_USECASE_PRIORITY;
             status = getDeviceConfig(&switchDevDattr, NULL);
             if (!status) {
                 // get the default device info and update snd name
@@ -10502,6 +10503,7 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
     std::vector <struct pal_device> palDevices;
 
     memset(&devInfo, 0, sizeof(pal_device_info));
+    devInfo.priority = MIN_USECASE_PRIORITY;
 
     if (!incomingDev || !currentStrAttr) {
         PAL_ERR(LOG_TAG, "invalid dev or stream cannot get device attr");
