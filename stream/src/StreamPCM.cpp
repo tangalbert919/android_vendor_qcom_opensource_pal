@@ -550,11 +550,9 @@ int32_t StreamPCM::start()
         mStreamMutex.unlock();
         rm->lockActiveStream();
         mStreamMutex.lock();
-        if (!isDevRegistered) {
-            for (int i = 0; i < mDevices.size(); i++) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            if (!rm->isDeviceActive_l(mDevices[i], this))
                 rm->registerDevice(mDevices[i], this);
-            }
-            isDevRegistered = true;
         }
         rm->unlockActiveStream();
     } else if (currentState == STREAM_STARTED) {
@@ -592,11 +590,9 @@ int32_t StreamPCM::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        if (isDevRegistered) {
-            for (int i = 0; i < mDevices.size(); i++) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            if (rm->isDeviceActive_l(mDevices[i], this))
                 rm->deregisterDevice(mDevices[i], this);
-            }
-            isDevRegistered = false;
         }
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
@@ -974,11 +970,9 @@ int32_t StreamPCM::write(struct pal_buffer* buf)
         } else if (currentState == STREAM_PAUSED && !isPaused) {
             rm->lockActiveStream();
             mStreamMutex.lock();
-            if (!isDevRegistered) {
-                for (int i = 0; i < mDevices.size(); i++) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                if (!rm->isDeviceActive_l(mDevices[i], this))
                     rm->registerDevice(mDevices[i], this);
-                }
-                isDevRegistered = true;
             }
             mStreamMutex.unlock();
             rm->unlockActiveStream();
@@ -1265,11 +1259,9 @@ int32_t StreamPCM::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    if (isDevRegistered) {
-        for (int i = 0; i < mDevices.size(); i++) {
+    for (int i = 0; i < mDevices.size(); i++) {
+        if (rm->isDeviceActive_l(mDevices[i], this))
             rm->deregisterDevice(mDevices[i], this);
-        }
-        isDevRegistered = false;
     }
     rm->unlockActiveStream();
 
