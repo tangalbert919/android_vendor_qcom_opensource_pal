@@ -10308,8 +10308,6 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         goto exit;
     }
 
-    curDeviceId = dev->getSndDeviceId();
-
     if (isPluginPlaybackDevice((pal_device_id_t)dev->getSndDeviceId())) {
         PAL_ERR(LOG_TAG, "don't restore device for usb/3.5 hs playback");
         goto exit;
@@ -10323,6 +10321,8 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             goto exit;
         }
     }
+
+    curDeviceId = dev->getSndDeviceId();
 
     /*get current running device info*/
     dev->getDeviceAttributes(&curDevAttr);
@@ -10360,6 +10360,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
         if (highPrioType != PAL_STREAM_MAX) {
             // always follow config from high priority streams
             sharedStream = std::get<0>(sharedBEStreamDev[highPrioIndex]);
+            sharedStream->getStreamAttributes(&sAttr);
             sharedStream->getAssociatedPalDevices(palDevs);
             curBackEndName = listAllBackEndIds[curDeviceId].second;
             for (auto palDev: palDevs) {
@@ -10376,6 +10377,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             for (int i = 0; i < sharedBEStreamDev.size(); i++) {
                 sharedStream = std::get<0>(sharedBEStreamDev[i]);
                 curBackEndName = listAllBackEndIds[curDeviceId].second;
+                sharedStream->getStreamAttributes(&sAttr);
                 sharedStream->getAssociatedPalDevices(palDevs);
                 for (auto palDev: palDevs) {
                     newBackEndName = listAllBackEndIds[palDev.id].second;
