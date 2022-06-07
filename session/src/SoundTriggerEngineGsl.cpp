@@ -2210,7 +2210,10 @@ bool SoundTriggerEngineGsl::CheckIfOtherStreamsActive(Stream *s) {
 
     for (uint32_t i = 0; i < eng_streams_.size(); i++) {
         st = dynamic_cast<StreamSoundTrigger *>(eng_streams_[i]);
-        if (s != eng_streams_[i] && st && st->GetCurrentStateId() == ST_STATE_ACTIVE)
+        if (s != eng_streams_[i] && st &&
+            (st->GetCurrentStateId() == ST_STATE_ACTIVE ||
+             st->GetCurrentStateId() == ST_STATE_BUFFERING ||
+             st->GetCurrentStateId() == ST_STATE_DETECTED))
             return true;
     }
 
