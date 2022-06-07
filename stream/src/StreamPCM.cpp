@@ -184,6 +184,16 @@ int32_t  StreamPCM::open()
         goto exit;
     }
 
+    /* Check for BT device connected state */
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        pal_device_id_t dev_id = (pal_device_id_t) mDevices[i]->getSndDeviceId();
+        if (rm->isBtDevice(dev_id) && !(rm->isDeviceAvailable(dev_id))) {
+            PAL_ERR(LOG_TAG, "BT device %d not connected, cannot open stream", dev_id);
+            status = -ENODEV;
+            goto exit;
+        }
+    }
+
     if (currentState == STREAM_IDLE) {
         status = session->open(this);
         if (0 != status) {
