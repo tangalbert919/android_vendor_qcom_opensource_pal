@@ -369,7 +369,9 @@ int32_t pal_stream_set_volume(pal_stream_handle_t *stream_handle,
     }
     PAL_DBG(LOG_TAG, "Enter. Stream handle :%pK", stream_handle);
     s =  reinterpret_cast<Stream *>(stream_handle);
+    s->lockStreamMutex();
     status = s->setVolume(volume);
+    s->unlockStreamMutex();
     if (0 != status) {
         PAL_ERR(LOG_TAG, "setVolume failed with status %d", status);
         return status;
