@@ -6158,7 +6158,8 @@ int32_t ResourceManager::streamDevDisconnect_l(std::vector <std::tuple<Stream *,
 
     /* disconnect active list from the current devices they are attached to */
     for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
-        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams) &&
+            (!(std::get<0>(*sIter)->isStopped()))) {
             status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
@@ -6182,7 +6183,8 @@ int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, st
     PAL_DBG(LOG_TAG, "Enter");
     /* connect active list from the current devices they are attached to */
     for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
-        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams) &&
+            (!(std::get<0>(*sIter)->isStopped()))) {
             status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
@@ -7233,11 +7235,13 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            restoredStreams.push_back((*sIter));
-            if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
-                streamDevDisconnect.push_back({(*sIter), activeDattr.id});
-            }
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            if (!(*sIter)->isStopped()) {
+                restoredStreams.push_back((*sIter));
+                if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
+                    streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+                }
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
+           }
         }
     }
 
@@ -7245,8 +7249,10 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            restoredStreams.push_back((*sIter));
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            if (!(*sIter)->isStopped()) {
+                restoredStreams.push_back((*sIter));
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            }
         }
     }
 
@@ -7254,16 +7260,17 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = retryStreams.begin(); sIter != retryStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            std::vector<std::shared_ptr<Device>> devices;
-            (*sIter)->getAssociatedDevices(devices);
-            if (devices.size() > 0) {
-                for (auto device: devices) {
-                    streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+            if (!(*sIter)->isStopped()) {
+                std::vector<std::shared_ptr<Device>> devices;
+                (*sIter)->getAssociatedDevices(devices);
+                if (devices.size() > 0) {
+                    for (auto device: devices) {
+                        streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+                    }
                 }
+                restoredStreams.push_back((*sIter));
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
             }
-
-            restoredStreams.push_back((*sIter));
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
     }
 
