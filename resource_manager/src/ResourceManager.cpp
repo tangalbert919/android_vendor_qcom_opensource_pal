@@ -10393,6 +10393,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             sharedStream = std::get<0>(sharedBEStreamDev[0]);
             if (!sharedStream) {
                 PAL_ERR(LOG_TAG, "no stream running on device %d", dev->getSndDeviceId());
+                mActiveStreamMutex.unlock();
                 goto exit;
             }
 
