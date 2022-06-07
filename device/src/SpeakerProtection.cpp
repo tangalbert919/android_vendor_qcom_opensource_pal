@@ -1849,14 +1849,14 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
                 if (isTxFeandBeConnected) {
                     disconnectFeandBe(pcmDevIdTx, backEndName);
                 }
+                sAttr.type = PAL_STREAM_LOW_LATENCY;
+                sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
                 rm->freeFrontEndIds(pcmDevIdTx, sAttr, dir);
                 pcmDevIdTx.clear();
             }
             pcm_close(txPcm);
             disableDevice(audioRoute, mSndDeviceName_vi);
             txPcm = NULL;
-            sAttr.type = PAL_STREAM_LOW_LATENCY;
-            sAttr.direction = PAL_AUDIO_INPUT_OUTPUT;
             goto exit;
         }
     }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -1069,7 +1070,10 @@ int32_t SoundTriggerEngineCapi::RestartRecognition(Stream *s __unused)
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
     processing_started_ = false;
-    exit_buffering_ = true;
+    {
+        exit_buffering_ = true;
+        std::lock_guard<std::mutex> event_lck(event_mutex_);
+    }
     if (reader_) {
         reader_->reset();
     } else {
@@ -1090,7 +1094,10 @@ int32_t SoundTriggerEngineCapi::StopRecognition(Stream *s __unused)
     PAL_DBG(LOG_TAG, "Enter");
     std::lock_guard<std::mutex> lck(mutex_);
     processing_started_ = false;
-    exit_buffering_ = true;
+    {
+        exit_buffering_ = true;
+        std::lock_guard<std::mutex> event_lck(event_mutex_);
+    }
     if (reader_) {
         reader_->reset();
     } else {
