@@ -732,11 +732,12 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
 
     PAL_DBG(LOG_TAG, "Enter.");
 
-    std::lock_guard<std::mutex> lock(extECMutex);
+    extECMutex.lock();
     status = s->getStreamAttributes(&sAttr);
     if (status != 0) {
         PAL_ERR(LOG_TAG,"stream get attributes failed");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
 
     device.id = PAL_DEVICE_IN_EXT_EC_REF;
@@ -744,7 +745,8 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     dev = Device::getInstance(&device, rm);
     if (!dev) {
         PAL_ERR(LOG_TAG, "dev get instance failed");
-        return -EINVAL;
+        status = -EINVAL;
+        goto exit;
     }
 
     if(!is_enable) {
@@ -771,8 +773,9 @@ int Session::checkAndSetExtEC(const std::shared_ptr<ResourceManager>& rm,
     } else {
         extECRefCnt ++;
         if (extECRefCnt == 1) {
+            extECMutex.unlock();
             rm->disableInternalECRefs(s);
-
+            extECMutex.lock();
             extEcTxDeviceList.push_back(dev);
             pcmDevEcTxIds = rm->allocateFrontEndExtEcIds();
             if (pcmDevEcTxIds.size() == 0) {
@@ -847,6 +850,7 @@ exit:
         PAL_DBG(LOG_TAG, "Reset extECRefCnt as EXT EC graph fails to setup");
         extECRefCnt = 0;
     }
+    extECMutex.unlock();
     PAL_DBG(LOG_TAG, "Exit.");
     return status;
 }

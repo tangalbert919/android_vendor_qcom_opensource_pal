@@ -448,7 +448,8 @@ private:
     int updateECDeviceMap(std::shared_ptr<Device> rx_dev,
                         std::shared_ptr<Device> tx_dev,
                         Stream *tx_str, int count, bool is_txstop);
-    int clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev);
+    std::shared_ptr<Device> clearInternalECRefCounts(Stream *tx_str,
+                        std::shared_ptr<Device> tx_dev);
     static bool isBitWidthSupported(uint32_t bitWidth);
     uint32_t getNTPathForStreamAttr(const pal_stream_attributes attr);
     ssize_t getAvailableNTStreamInstance(const pal_stream_attributes attr);

@@ -2833,6 +2833,7 @@ void ResourceManager::disableInternalECRefs(Stream *s)
 {
     int32_t status = 0;
     std::shared_ptr<Device> dev = nullptr;
+    std::shared_ptr<Device> rx_dev = nullptr;
     struct pal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
@@ -2860,17 +2861,12 @@ void ResourceManager::disableInternalECRefs(Stream *s)
         for (int i = 0; i < associatedDevices.size(); i++) {
             dev = associatedDevices[i];
             if (isExternalECSupported(dev)) {
-                if (str == s) {
-                    status = clearInternalECRefCounts(s, dev);
-                } else {
-                    // only clean up ec ref count if tx device has supported ext ec device
-                    status = updateECDeviceMap(nullptr, dev, str, 0, true);
-                    if (status == 0) {
-                        if (isDeviceSwitch)
-                            status = str->setECRef_l(nullptr, false);
-                        else
-                            status = str->setECRef(nullptr, false);
-                    }
+                rx_dev = clearInternalECRefCounts(str, dev);
+                if (rx_dev && str != s) {
+                    if (isDeviceSwitch)
+                        status = str->setECRef_l(rx_dev, false);
+                    else
+                        status = str->setECRef(rx_dev, false);
                 }
             }
         }
@@ -4683,16 +4679,20 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     return ec_count;
 }
 
-int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev) {
+std::shared_ptr<Device> ResourceManager::clearInternalECRefCounts(Stream *tx_str,
+    std::shared_ptr<Device> tx_dev)
+{
     int i = 0;
     int rx_dev_id = 0;
     int tx_dev_id = 0;
+    struct pal_device palDev;
+    std::shared_ptr<Device> rx_dev = nullptr;
     std::vector<std::pair<Stream *, int>>::iterator iter;
     std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
 
     if (!tx_str || !tx_dev) {
         PAL_ERR(LOG_TAG, "Invalid operation");
-        return -EINVAL;
+        goto exit;
     }
 
     tx_dev_id = tx_dev->getSndDeviceId();
@@ -4704,7 +4704,7 @@ int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<De
 
     if (i == deviceInfo.size()) {
         PAL_ERR(LOG_TAG, "Tx device %d not found", tx_dev_id);
-        return -EINVAL;
+        goto exit;
     }
 
     for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
@@ -4715,13 +4715,18 @@ int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<De
         for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
             iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
             if ((*iter).first == tx_str) {
+                if ((*iter).second > 0) {
+                    palDev.id = (pal_device_id_t)rx_dev_id;
+                    rx_dev = Device::getInstance(&palDev, rm);
+                }
                 deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
                 break;
             }
         }
     }
 
-    return 0;
+exit:
+    return rx_dev;
 }
 
 //TBD: test this piece later, for concurrency
