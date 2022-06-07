@@ -70,6 +70,7 @@
         <param key="context_manager_enable" value ="false" />
         <param key="upd_dedicated_be" value ="true" />
         <param key="dual_mono" value ="false" />
+        <param key="signal_handler" value ="true" />
     </config_params>
     <config_volume>
         <use_volume_set_param>0</use_volume_set_param>
