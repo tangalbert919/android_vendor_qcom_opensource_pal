@@ -614,7 +614,6 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
     struct pal_stream_attributes sattr;
     struct pal_device_info devinfo = {};
     struct pal_device *pDevices = NULL;
-    std::vector <std::shared_ptr<Device>> aDevices;
     std::vector <struct pal_device> palDevices;
 
     if (!stream_handle) {
@@ -656,32 +655,20 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    s->getAssociatedDevices(aDevices);
     s->getAssociatedPalDevices(palDevices);
-    if (!aDevices.empty()) {
+    if (!palDevices.empty()) {
         std::set<pal_device_id_t> activeDevices;
         std::set<pal_device_id_t> newDevices;
         bool force_switch = s->isA2dpMuted();
 
-        for (auto &dev : aDevices) {
-            activeDevices.insert((pal_device_id_t)dev->getSndDeviceId());
+        for (auto palDev: palDevices) {
+            activeDevices.insert(palDev.id);
             // check if custom key matches for stream associated pal device
             for (int i = 0; i < no_of_devices; i++) {
-                if (dev->getSndDeviceId() == devices[i].id) {
-                    s->getAssociatedPalDevices(palDevices);
-                    if (palDevices.size() != 0) {
-                        for (auto palDev: palDevices) {
-                            if (palDev.id == devices[i].id) {
-                                if (strcmp(devices[i].custom_config.custom_key,
-                                    palDev.custom_config.custom_key) != 0) {
-                                    PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
-                                    force_switch = true;
-                                }
-                                break;
-                            }
-                        }
-                    } else {
-                        // pal device hasn't been enabled for this stream yet
+                if (palDev.id == devices[i].id) {
+                    if (strcmp(devices[i].custom_config.custom_key,
+                        palDev.custom_config.custom_key) != 0) {
+                        PAL_DBG(LOG_TAG, "diff custom key found, force device switch");
                         force_switch = true;
                     }
                     break;
