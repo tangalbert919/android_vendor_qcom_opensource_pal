@@ -183,7 +183,18 @@ uint32_t SoundTriggerEngine::UsToBytes(uint64_t input_us) {
 }
 
 uint32_t SoundTriggerEngine::FrameToBytes(uint32_t frames) {
-    return frames * bit_width_ * channels_ / BITS_PER_BYTE;
+    uint32_t total_bytes, bytes_per_frame = bit_width_ * channels_ / BITS_PER_BYTE;
+    try {
+        if ((bytes_per_frame) > (UINT32_MAX / frames))
+            throw "multiplication overflow due to frames value";
+
+        total_bytes = frames * bytes_per_frame;
+    } catch (const char *e) {
+        PAL_ERR(LOG_TAG, "FrametoBytes() failed with error %s . frames %u bit_width %u channels: %u",
+                e, frames, bit_width_, channels_);
+        return UINT32_MAX;
+    }
+    return total_bytes;
 }
 
 uint32_t SoundTriggerEngine::BytesToFrames(uint32_t bytes) {
