@@ -2890,6 +2890,10 @@ int32_t SoundTriggerEngineGsl::UpdateSessionPayload(st_param_id_type_t param) {
     return status;
 }
 
+void SoundTriggerEngineGsl::UpdateStateToActive() {
+    UpdateState(ENG_ACTIVE);
+}
+
 std::shared_ptr<SoundTriggerEngineGsl> SoundTriggerEngineGsl::GetInstance(
     Stream *s,
     listen_model_indicator_enum type,

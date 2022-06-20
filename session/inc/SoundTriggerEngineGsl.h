@@ -114,6 +114,7 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
         return detection_time_;
     }
     void UpdateState(eng_state_t state);
+    void UpdateStateToActive() override;
 
  private:
     int32_t StartBuffering(Stream *s);
