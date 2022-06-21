@@ -321,10 +321,10 @@ int USB::getDefaultConfig(pal_param_device_capability_t capability)
                 memset(capability.config, 0, sizeof(struct dynamic_media_config));
                 if ((*iter)->isCaptureProfileSupported())
                     status = (*iter)->readSupportedConfig(capability.config,
-                            capability.is_playback);
+                            capability.is_playback, capability.addr.card_id);
             } else {
                 status = (*iter)->readSupportedConfig(capability.config,
-                        capability.is_playback);
+                        capability.is_playback, capability.addr.card_id);
             }
             break;
         }
@@ -573,7 +573,7 @@ int USBCardConfig::getCapability(usb_usecase_type_t type,
         /* jack status parsing */
         suffix = (type == USB_PLAYBACK) ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
         jack_status = getJackConnectionStatus(addr.card_id, suffix);
-        PAL_VERBOSE(LOG_TAG, "jack_status %d", jack_status);
+        PAL_DBG(LOG_TAG, "jack_status %d", jack_status);
         usb_device_info->setJackStatus(jack_status);
 
         /* Add to list if every field is valid */
@@ -705,12 +705,15 @@ bool USBCardConfig::readDefaultJackStatus(bool is_playback) {
     return jack_status;
 }
 
-int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool is_playback)
+int USBCardConfig::readSupportedConfig(struct dynamic_media_config *config, bool is_playback, int usb_card)
 {
+    const char* suffix;
     config->format = readDefaultFormat(is_playback);
     config->sample_rate = readDefaultSampleRate(is_playback);
     config->mask = readDefaultChannelMask(is_playback);
-    config->jack_status = readDefaultJackStatus(is_playback);
+    suffix = is_playback ? USB_OUT_JACK_SUFFIX : USB_IN_JACK_SUFFIX;
+    config->jack_status = getJackConnectionStatus(usb_card, suffix);
+    PAL_DBG(LOG_TAG, "config->jack_status = %d", config->jack_status);
 
     return 0;
 }
@@ -1078,7 +1081,7 @@ bool USBCardConfig::getJackConnectionStatus(int usb_card, const char* suffix)
     }
     mixer_ctl_update(ctrl);
     value = mixer_ctl_get_value(ctrl, 0);
-    PAL_VERBOSE(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value);
+    PAL_DBG(LOG_TAG, "ctrl %s - value %d", mixer_ctl_get_name(ctrl), value);
     mixer_close(usb_card_mixer);
 
     return value != 0;

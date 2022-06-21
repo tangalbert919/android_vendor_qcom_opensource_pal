@@ -109,7 +109,7 @@ public:
     unsigned int readDefaultFormat(bool is_playback);
     unsigned int readDefaultSampleRate(bool is_playback);
     unsigned int readDefaultChannelMask(bool is_playback);
-    int readSupportedConfig(dynamic_media_config_t *config, bool is_playback);
+    int readSupportedConfig(dynamic_media_config_t *config, bool is_playback, int usb_card);
     int readBestConfig(struct pal_media_config *config,
                                     struct pal_stream_attributes *sattr,
                                     bool is_playback, struct pal_device_info *devinfo,
