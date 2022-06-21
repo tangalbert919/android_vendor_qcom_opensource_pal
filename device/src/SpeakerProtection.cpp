@@ -380,6 +380,7 @@ int SpeakerProtection::spkrStartCalibration()
     if (customPayloadSize) {
         free(customPayload);
         customPayloadSize = 0;
+        customPayload = NULL;
     }
 
     rm = ResourceManager::getInstance();
@@ -813,6 +814,7 @@ int SpeakerProtection::spkrStartCalibration()
         if (customPayloadSize) {
             free(customPayload);
             customPayloadSize = 0;
+            customPayload = NULL;
         }
 
         ret = updateCustomPayload(payload, payloadSize);
@@ -832,6 +834,7 @@ int SpeakerProtection::spkrStartCalibration()
             PAL_ERR(LOG_TAG, "Unable to set custom param for SP mode");
             free(customPayload);
             customPayloadSize = 0;
+            customPayload = NULL;
             goto err_pcm_open;
         }
     }
@@ -1154,6 +1157,12 @@ SpeakerProtection::~SpeakerProtection()
 {
     if (spkerTempList)
         delete[] spkerTempList;
+
+    if (customPayload)
+        free(customPayload);
+
+    customPayload = NULL;
+    customPayloadSize = 0;
 }
 
 /*
@@ -1375,12 +1384,6 @@ int32_t SpeakerProtection::spkrProtProcessingMode(bool flag)
 
         keyVector.clear();
         calVector.clear();
-
-        if (customPayload) {
-            free(customPayload);
-            customPayloadSize = 0;
-            customPayload = NULL;
-        }
 
         // Configure device attribute
        if (vi_device.channels > 1) {
