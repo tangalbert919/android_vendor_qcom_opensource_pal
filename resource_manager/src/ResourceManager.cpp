@@ -2833,6 +2833,7 @@ void ResourceManager::disableInternalECRefs(Stream *s)
 {
     int32_t status = 0;
     std::shared_ptr<Device> dev = nullptr;
+    std::shared_ptr<Device> rx_dev = nullptr;
     struct pal_stream_attributes sAttr;
     std::vector<std::shared_ptr<Device>> associatedDevices;
 
@@ -2860,17 +2861,12 @@ void ResourceManager::disableInternalECRefs(Stream *s)
         for (int i = 0; i < associatedDevices.size(); i++) {
             dev = associatedDevices[i];
             if (isExternalECSupported(dev)) {
-                if (str == s) {
-                    status = clearInternalECRefCounts(s, dev);
-                } else {
-                    // only clean up ec ref count if tx device has supported ext ec device
-                    status = updateECDeviceMap(nullptr, dev, str, 0, true);
-                    if (status == 0) {
-                        if (isDeviceSwitch)
-                            status = str->setECRef_l(nullptr, false);
-                        else
-                            status = str->setECRef(nullptr, false);
-                    }
+                rx_dev = clearInternalECRefCounts(str, dev);
+                if (rx_dev && str != s) {
+                    if (isDeviceSwitch)
+                        status = str->setECRef_l(rx_dev, false);
+                    else
+                        status = str->setECRef(rx_dev, false);
                 }
             }
         }
@@ -4683,16 +4679,20 @@ int ResourceManager::updateECDeviceMap(std::shared_ptr<Device> rx_dev,
     return ec_count;
 }
 
-int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<Device> tx_dev) {
+std::shared_ptr<Device> ResourceManager::clearInternalECRefCounts(Stream *tx_str,
+    std::shared_ptr<Device> tx_dev)
+{
     int i = 0;
     int rx_dev_id = 0;
     int tx_dev_id = 0;
+    struct pal_device palDev;
+    std::shared_ptr<Device> rx_dev = nullptr;
     std::vector<std::pair<Stream *, int>>::iterator iter;
     std::map<int, std::vector<std::pair<Stream *, int>>>::iterator map_iter;
 
     if (!tx_str || !tx_dev) {
         PAL_ERR(LOG_TAG, "Invalid operation");
-        return -EINVAL;
+        goto exit;
     }
 
     tx_dev_id = tx_dev->getSndDeviceId();
@@ -4704,7 +4704,7 @@ int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<De
 
     if (i == deviceInfo.size()) {
         PAL_ERR(LOG_TAG, "Tx device %d not found", tx_dev_id);
-        return -EINVAL;
+        goto exit;
     }
 
     for (map_iter = deviceInfo[i].ec_ref_count_map.begin();
@@ -4715,13 +4715,18 @@ int ResourceManager::clearInternalECRefCounts(Stream *tx_str, std::shared_ptr<De
         for (iter = deviceInfo[i].ec_ref_count_map[rx_dev_id].begin();
             iter != deviceInfo[i].ec_ref_count_map[rx_dev_id].end(); iter++) {
             if ((*iter).first == tx_str) {
+                if ((*iter).second > 0) {
+                    palDev.id = (pal_device_id_t)rx_dev_id;
+                    rx_dev = Device::getInstance(&palDev, rm);
+                }
                 deviceInfo[i].ec_ref_count_map[rx_dev_id].erase(iter);
                 break;
             }
         }
     }
 
-    return 0;
+exit:
+    return rx_dev;
 }
 
 //TBD: test this piece later, for concurrency
@@ -6158,7 +6163,8 @@ int32_t ResourceManager::streamDevDisconnect_l(std::vector <std::tuple<Stream *,
 
     /* disconnect active list from the current devices they are attached to */
     for (sIter = streamDevDisconnectList.begin(); sIter != streamDevDisconnectList.end(); sIter++) {
-        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams) &&
+            (!(std::get<0>(*sIter)->isStopped()))) {
             status = (std::get<0>(*sIter))->disconnectStreamDevice_l(std::get<0>(*sIter), (pal_device_id_t)std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG, "failed to disconnect stream %pK from device %d",
@@ -6182,7 +6188,8 @@ int32_t ResourceManager::streamDevConnect_l(std::vector <std::tuple<Stream *, st
     PAL_DBG(LOG_TAG, "Enter");
     /* connect active list from the current devices they are attached to */
     for (sIter = streamDevConnectList.begin(); sIter != streamDevConnectList.end(); sIter++) {
-        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams)) {
+        if ((std::get<0>(*sIter) != NULL) && isStreamActive(std::get<0>(*sIter), mActiveStreams) &&
+            (!(std::get<0>(*sIter)->isStopped()))) {
             status = std::get<0>(*sIter)->connectStreamDevice_l(std::get<0>(*sIter), std::get<1>(*sIter));
             if (status) {
                 PAL_ERR(LOG_TAG,"failed to connect stream %pK from device %d",
@@ -7233,11 +7240,13 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = activeStreams.begin(); sIter != activeStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            restoredStreams.push_back((*sIter));
-            if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
-                streamDevDisconnect.push_back({(*sIter), activeDattr.id});
-            }
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            if (!(*sIter)->isStopped()) {
+                restoredStreams.push_back((*sIter));
+                if ((*sIter)->suspendedDevIds.size() == 1 /* none combo */) {
+                    streamDevDisconnect.push_back({(*sIter), activeDattr.id});
+                }
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
+           }
         }
     }
 
@@ -7245,8 +7254,10 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = orphanStreams.begin(); sIter != orphanStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            restoredStreams.push_back((*sIter));
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            if (!(*sIter)->isStopped()) {
+                restoredStreams.push_back((*sIter));
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
+            }
         }
     }
 
@@ -7254,16 +7265,17 @@ int32_t ResourceManager::a2dpResume()
     for (sIter = retryStreams.begin(); sIter != retryStreams.end(); sIter++) {
         if (std::find((*sIter)->suspendedDevIds.begin(), (*sIter)->suspendedDevIds.end(),
                     PAL_DEVICE_OUT_BLUETOOTH_A2DP) != (*sIter)->suspendedDevIds.end()) {
-            std::vector<std::shared_ptr<Device>> devices;
-            (*sIter)->getAssociatedDevices(devices);
-            if (devices.size() > 0) {
-                for (auto device: devices) {
-                    streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+            if (!(*sIter)->isStopped()) {
+                std::vector<std::shared_ptr<Device>> devices;
+                (*sIter)->getAssociatedDevices(devices);
+                if (devices.size() > 0) {
+                    for (auto device: devices) {
+                        streamDevDisconnect.push_back({(*sIter), device->getSndDeviceId()});
+                    }
                 }
+                restoredStreams.push_back((*sIter));
+                streamDevConnect.push_back({(*sIter), &a2dpDattr});
             }
-
-            restoredStreams.push_back((*sIter));
-            streamDevConnect.push_back({(*sIter), &a2dpDattr});
         }
     }
 
@@ -10386,6 +10398,7 @@ void ResourceManager::restoreDevice(std::shared_ptr<Device> dev)
             sharedStream = std::get<0>(sharedBEStreamDev[0]);
             if (!sharedStream) {
                 PAL_ERR(LOG_TAG, "no stream running on device %d", dev->getSndDeviceId());
+                mActiveStreamMutex.unlock();
                 goto exit;
             }
 
@@ -10508,10 +10521,9 @@ int ResourceManager::updatePriorityAttr(pal_device_id_t dev_id,
         for (auto palDev: palDevices) {
             bool sharedBEDev = false;
             /*check if pal dev id is a shared backend*/
-            for (auto bes: activestreams) {
-                if ( std::get<1>(bes) == palDev.id) {
-                    sharedBEDev = true;
-                }
+            if (listAllBackEndIds[std::get<1>(elem)].second ==
+                listAllBackEndIds[palDev.id].second) {
+                sharedBEDev = true;
             }
             if (sharedBEDev || dev_id == palDev.id) {
                 std::string streamKey(palDev.custom_config.custom_key);

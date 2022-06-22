@@ -164,6 +164,16 @@ int32_t StreamCompress::open()
         goto exit;
     }
 
+    /* Check for BT device connected state */
+    for (int32_t i = 0; i < mDevices.size(); i++) {
+        pal_device_id_t dev_id = (pal_device_id_t) mDevices[i]->getSndDeviceId();
+        if (rm->isBtDevice(dev_id) && !(rm->isDeviceAvailable(dev_id))) {
+            PAL_ERR(LOG_TAG, "BT device %d not connected, cannot open stream", dev_id);
+            status = -ENODEV;
+            goto exit;
+        }
+    }
+
     if (currentState == STREAM_IDLE) {
         status = session->open(this);
         if (0 != status) {
@@ -281,10 +291,12 @@ int32_t StreamCompress::stop()
         rm->lockActiveStream();
         mStreamMutex.lock();
         currentState = STREAM_STOPPED;
-        for (int i = 0; i < mDevices.size(); i++) {
-            rm->deregisterDevice(mDevices[i], this);
+        if (isDevRegistered) {
+            for (int i = 0; i < mDevices.size(); i++) {
+                rm->deregisterDevice(mDevices[i], this);
+            }
+            isDevRegistered = false;
         }
-        isDevRegistered = false;
         rm->unlockActiveStream();
         switch (mStreamAttr->direction) {
         case PAL_AUDIO_OUTPUT:
@@ -523,17 +535,19 @@ int32_t StreamCompress::write(struct pal_buffer *buf)
                 return status;
             }
         }
-        if (!isDevRegistered && (currentState != STREAM_STARTED) &&
+        if ((currentState != STREAM_STARTED) &&
             !(currentState == STREAM_PAUSED && isPaused)) {
             currentState = STREAM_STARTED;
             // register device only after graph is actually started
             mStreamMutex.unlock();
             rm->lockActiveStream();
             mStreamMutex.lock();
-            for (int i = 0; i < mDevices.size(); i++) {
-                rm->registerDevice(mDevices[i], this);
+            if (!isDevRegistered) {
+                for (int i = 0; i < mDevices.size(); i++) {
+                    rm->registerDevice(mDevices[i], this);
+                }
+                isDevRegistered = true;
             }
-            isDevRegistered = true;
             rm->unlockActiveStream();
         }
     } else {
@@ -839,10 +853,12 @@ int32_t StreamCompress::flush()
     mStreamMutex.unlock();
     rm->lockActiveStream();
     mStreamMutex.lock();
-    for (int i = 0; i < mDevices.size(); i++) {
-        rm->deregisterDevice(mDevices[i], this);
+    if (isDevRegistered) {
+        for (int i = 0; i < mDevices.size(); i++) {
+            rm->deregisterDevice(mDevices[i], this);
+        }
+        isDevRegistered = false;
     }
-    isDevRegistered = false;
     rm->unlockActiveStream();
     return session->flush();
 }

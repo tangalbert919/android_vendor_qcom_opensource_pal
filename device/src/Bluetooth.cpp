@@ -1282,14 +1282,12 @@ int BtA2dp::start()
 
     status = (a2dpRole == SOURCE) ? startPlayback() : startCapture();
     if (status) {
-        isAbrEnabled = false;
         goto exit;
     }
 
     if (totalActiveSessionRequests == 1) {
         status = configureSlimbusClockSrc();
         if (status) {
-            isAbrEnabled = false;
             goto exit;
         }
     }
