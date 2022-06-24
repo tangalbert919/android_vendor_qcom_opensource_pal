@@ -1901,7 +1901,8 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     struct pal_mmap_position mmap_pos;
 
     PAL_DBG(LOG_TAG, "Enter");
-
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    rm->acquireWakeLock();
     // release custom detection event before start
     if (custom_detection_event) {
         free(custom_detection_event);
@@ -1969,6 +1970,7 @@ int32_t SoundTriggerEngineGsl::ProcessStartRecognition(Stream *s) {
     exit_buffering_ = false;
     UpdateState(ENG_ACTIVE);
 exit:
+    rm->releaseWakeLock();
     PAL_DBG(LOG_TAG, "Exit, status %d", status);
     return status;
 }
@@ -2114,6 +2116,8 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
     int32_t status = 0;
 
     PAL_DBG(LOG_TAG, "Enter");
+    std::shared_ptr<ResourceManager> rm = ResourceManager::getInstance();
+    rm->acquireWakeLock();
     if (buffer_) {
         buffer_->reset();
     }
@@ -2134,6 +2138,7 @@ int32_t SoundTriggerEngineGsl::ProcessStopRecognition(Stream *s) {
         PAL_ERR(LOG_TAG, "Failed to stop session, status = %d", status);
     }
     UpdateState(ENG_LOADED);
+    rm->releaseWakeLock();
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
