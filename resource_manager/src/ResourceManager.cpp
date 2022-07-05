@@ -8604,14 +8604,9 @@ int ResourceManager::handleDeviceRotationChange (pal_param_device_rotation_t
                     // Need to set the rotation now.
                     status = (*sIter)->setParameters(PAL_PARAM_ID_DEVICE_ROTATION,
                                                      (void*)&rotation_type);
-                    if(0 != status) {
-                       PAL_ERR(LOG_TAG,"setParameters Failed");
-                       goto error;
+                    if (0 != status) {
+                        PAL_ERR(LOG_TAG,"setParameters Failed for stream %d", streamType);
                     }
-                    /** As we are configuring MFC on DevicePP, so handling device rotation
-                     * for first stream will handle it for all other streams.
-                     */
-                    break;
                 }
             }
         }
