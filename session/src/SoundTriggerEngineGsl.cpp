@@ -2157,7 +2157,7 @@ int32_t SoundTriggerEngineGsl::StopRecognition(Stream *s) {
             goto exit;
         }
 
-        if (CheckIfOtherStreamsAttached(s)) {
+        if (CheckIfOtherStreamsActive(s)) {
             PAL_INFO(LOG_TAG, "Other streams are attached to current engine");
             if (restore_eng_state) {
                 PAL_DBG(LOG_TAG, "Other streams are active, restart recognition");
