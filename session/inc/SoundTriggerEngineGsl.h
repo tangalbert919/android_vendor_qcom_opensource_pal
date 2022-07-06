@@ -195,7 +195,9 @@ class SoundTriggerEngineGsl : public SoundTriggerEngine {
     size_t mmap_buffer_size_;
     uint32_t mmap_write_position_;
     uint64_t kw_transfer_latency_;
+    int32_t ec_ref_count_;
     ChronoSteadyClock_t detection_time_;
     std::mutex state_mutex_;
+    std::mutex ec_ref_mutex_;
 };
 #endif  // SOUNDTRIGGERENGINEGSL_H
