@@ -4605,7 +4605,11 @@ int32_t StreamSoundTrigger::StSSR::ProcessEvent(
             break;
         }
         case ST_EV_RESUME: {
-            st_stream_.paused_ = false;
+            if (st_stream_.paused_) {
+                if (st_stream_.currentState == STREAM_STARTED)
+                    st_stream_.state_for_restore_ = ST_STATE_ACTIVE;
+                st_stream_.paused_ = false;
+            }
             break;
         }
         case ST_EV_READ_BUFFER:

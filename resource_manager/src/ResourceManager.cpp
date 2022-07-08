@@ -7603,6 +7603,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
         {
             bool match = false;
             std::list<Stream*>::iterator sIter;
+            mActiveStreamMutex.lock();
             for(sIter = mActiveStreams.begin(); sIter != mActiveStreams.end(); sIter++) {
                 match = (*sIter)->checkStreamMatch(pal_device_id, pal_stream_type);
                 if (match) {
@@ -7610,6 +7611,7 @@ int ResourceManager::getParameter(uint32_t param_id, void *param_payload,
                     break;
                 }
             }
+            mActiveStreamMutex.unlock();
             break;
         }
         default:
@@ -7665,7 +7667,11 @@ int ResourceManager::setParameter(uint32_t param_id, void *param_payload,
                                    (pal_param_device_rotation_t*) param_payload;
             PAL_INFO(LOG_TAG, "Device Rotation :%d", param_device_rot->rotation_type);
             if (payload_size == sizeof(pal_param_device_rotation_t)) {
+                mResourceManagerMutex.unlock();
+                mActiveStreamMutex.lock();
                 status = handleDeviceRotationChange(*param_device_rot);
+                mActiveStreamMutex.unlock();
+                mResourceManagerMutex.lock();
             } else {
                 PAL_ERR(LOG_TAG,"Incorrect size : expected (%zu), received(%zu)",
                         sizeof(pal_param_device_rotation_t), payload_size);
