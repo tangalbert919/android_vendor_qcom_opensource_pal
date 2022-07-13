@@ -2072,22 +2072,6 @@ int32_t ResourceManager::getDeviceConfig(struct pal_device *deviceattr,
                     deviceattr->config.ch_info.channels);
             }
             break;
-        case PAL_DEVICE_IN_TELEPHONY_RX:
-            {
-            /* For PAL_DEVICE_IN_TELEPHONY_RX, copy all config from stream attributes */
-            if (!sAttr) {
-                PAL_ERR(LOG_TAG, "Invalid parameter.");
-                return -EINVAL;
-            }
-            deviceattr->config.ch_info = sAttr->in_media_config.ch_info;
-            deviceattr->config.bit_width = sAttr->in_media_config.bit_width;
-            deviceattr->config.aud_fmt_id = sAttr->in_media_config.aud_fmt_id;
-
-            PAL_DBG(LOG_TAG, "Device %d sample rate %d bitwidth %d",
-                    deviceattr->id, deviceattr->config.sample_rate,
-                    deviceattr->config.bit_width);
-            }
-            break;
         case PAL_DEVICE_OUT_AUX_DIGITAL:
         case PAL_DEVICE_OUT_AUX_DIGITAL_1:
         case PAL_DEVICE_OUT_HDMI:
