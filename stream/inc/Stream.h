@@ -174,7 +174,6 @@ public:
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
-    bool isDevRegistered = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     bool force_nlpi_vote = false;

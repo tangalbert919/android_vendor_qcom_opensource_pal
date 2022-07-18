@@ -1004,9 +1004,8 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-            if (currentState != STREAM_STOPPED && isDevRegistered) {
+            if (currentState != STREAM_STOPPED && rm->isDeviceActive_l(mDevices[i], this)) {
                 rm->deregisterDevice(mDevices[i], this);
-                isDevRegistered = false;
             }
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
@@ -1132,9 +1131,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    if (currentState != STREAM_STOPPED && !isDevRegistered) {
+    if (currentState != STREAM_STOPPED && !rm->isDeviceActive_l(dev, this)) {
         rm->registerDevice(dev, this);
-        isDevRegistered = true;
     }
     goto exit;
 
