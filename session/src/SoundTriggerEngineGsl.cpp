@@ -93,7 +93,12 @@ void SoundTriggerEngineGsl::EventProcessingThread(
 
             if (s) {
                 if (gsl_engine->capture_requested_) {
-                    gsl_engine->StartBuffering(s);
+                    status = gsl_engine->StartBuffering(s);
+                    if (status < 0) {
+                        lck.unlock();
+                        gsl_engine->RestartRecognition(s);
+                        lck.lock();
+                    }
                 } else {
                     status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                     gsl_engine->CheckAndSetDetectionConfLevels(s);
@@ -116,7 +121,12 @@ void SoundTriggerEngineGsl::EventProcessingThread(
                                  detected_model_id));
                 if (s) {
                     if (gsl_engine->capture_requested_) {
-                        gsl_engine->StartBuffering(s);
+                        status = gsl_engine->StartBuffering(s);
+                        if (status < 0) {
+                            lck.unlock();
+                            gsl_engine->RestartRecognition(s);
+                            lck.lock();
+                        }
                     } else {
                         status = gsl_engine->UpdateSessionPayload(ENGINE_RESET);
                         lck.unlock();
@@ -276,6 +286,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
             if (!status) {
                 bytes_written = FrameToBytes(mmap_pos.position_frames -
                     mmap_write_position_);
+                if (bytes_written == UINT32_MAX) {
+                    PAL_ERR(LOG_TAG, "invalid frame value");
+                    status = -EINVAL;
+                    goto exit;
+                }
                 if (bytes_written > total_read_size) {
                     size_to_read = bytes_written - total_read_size;
                 } else {
