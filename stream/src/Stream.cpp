@@ -62,6 +62,7 @@
  */
 
 #define LOG_TAG "PAL: Stream"
+#include <semaphore.h>
 #include "Stream.h"
 #include "StreamPCM.h"
 #include "StreamInCall.h"
@@ -1648,6 +1649,25 @@ bool Stream::checkStreamMatch(pal_device_id_t pal_device_id,
     return match;
 }
 
+int Stream::initStreamSmph()
+{
+    return sem_init(&mInUse, 0, 1);
+}
+
+int Stream::deinitStreamSmph()
+{
+    return sem_destroy(&mInUse);
+}
+
+int Stream::postStreamSmph()
+{
+    return sem_post(&mInUse);
+}
+
+int Stream::waitStreamSmph()
+{
+    return sem_wait(&mInUse);
+}
 
 void Stream::handleStreamException(struct pal_stream_attributes *attributes,
                                    pal_stream_callback cb, uint64_t cookie)
