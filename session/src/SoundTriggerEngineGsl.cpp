@@ -297,6 +297,11 @@ int32_t SoundTriggerEngineGsl::StartBuffering(Stream *s) {
                     // TODO: add timeout check & handling
                     continue;
                 }
+                if (size_to_read > (2 * mmap_buffer_size_) - read_offset) {
+                    PAL_ERR(LOG_TAG, "Bytes written is exceeding mmap buffer size");
+                    status = -EINVAL;
+                    goto exit;
+                }
                 PAL_VERBOSE(LOG_TAG, "Mmap write offset %zu, available bytes %zu",
                     bytes_written, size_to_read);
             } else {
