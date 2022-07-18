@@ -2915,7 +2915,8 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
             getActiveStream_l(activeStreams, dev);
             for (auto& rx_str: activeStreams) {
                 if (!isDeviceActive_l(dev, rx_str) ||
-                    !rx_str->isActive())
+                    !(rx_str->getCurState() == STREAM_STARTED ||
+                      rx_str->getCurState() == STREAM_PAUSED))
                     continue;
                 rx_str->getStreamAttributes(&rx_attr);
                 if (rx_attr.direction != PAL_AUDIO_INPUT) {
@@ -4438,7 +4439,8 @@ std::shared_ptr<Device> ResourceManager::getActiveEchoReferenceRxDevices_l(
             rx_str->getAssociatedDevices(rx_device_list);
             for (int i = 0; i < rx_device_list.size(); i++) {
                 if (!isDeviceActive_l(rx_device_list[i], rx_str) ||
-                    !rx_str->isActive())
+                    !(rx_str->getCurState() == STREAM_STARTED ||
+                      rx_str->getCurState() == STREAM_PAUSED))
                     continue;
                 deviceId = rx_device_list[i]->getSndDeviceId();
                 if (deviceId > PAL_DEVICE_OUT_MIN &&
