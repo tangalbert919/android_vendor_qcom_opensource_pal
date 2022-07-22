@@ -40,6 +40,7 @@
 #include <memory>
 #include <mutex>
 #include <exception>
+#include <semaphore.h>
 #include <errno.h>
 #ifdef LINUX_ENABLED
 #include <condition_variable>
@@ -165,6 +166,7 @@ protected:
     static std::condition_variable pauseCV;
     static std::mutex pauseMutex;
     bool mutexLockedbyRm = false;
+    sem_t mInUse;
     int connectToDefaultDevice(Stream* streamHandle, uint32_t dir);
 public:
     virtual ~Stream() {};
@@ -172,7 +174,6 @@ public:
     pal_stream_callback streamCb;
     uint64_t cookie;
     bool isPaused = false;
-    bool isDevRegistered = false;
     bool a2dpMuted = false;
     bool a2dpPaused = false;
     bool force_nlpi_vote = false;
@@ -245,11 +246,16 @@ public:
     int32_t getEffectParameters(void *effect_query, size_t *payload_size);
     uint32_t getInstanceId() { return mInstanceID; }
     inline void setInstanceId(uint32_t sid) { mInstanceID = sid; }
+    int initStreamSmph();
+    int deinitStreamSmph();
+    int postStreamSmph();
+    int waitStreamSmph();
     bool checkStreamMatch(pal_device_id_t pal_device_id,
                                 pal_stream_type_t pal_stream_type);
     int32_t getEffectParameters(void *effect_query);
     int32_t rwACDBParameters(void *payload, uint32_t sampleRate,
                                 bool isParamWrite);
+    stream_state_t getCurState() { return currentState; }
     bool isActive() { return currentState == STREAM_STARTED; }
     bool isAlive() { return currentState != STREAM_IDLE; }
     bool isA2dpMuted() { return a2dpMuted; }

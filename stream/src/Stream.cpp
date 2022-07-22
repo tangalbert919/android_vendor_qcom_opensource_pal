@@ -62,6 +62,7 @@
  */
 
 #define LOG_TAG "PAL: Stream"
+#include <semaphore.h>
 #include "Stream.h"
 #include "StreamPCM.h"
 #include "StreamInCall.h"
@@ -935,6 +936,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                     // no active stream found on both speaker and handset, get the deafult
                     pal_device_info devInfo;
                     memset(&devInfo, 0, sizeof(pal_device_info));
+                    devInfo.priority = MIN_USECASE_PRIORITY;
                     status = rm->getDeviceConfig(&dattr, NULL);
                     if (!status) {
                         // get the default device info and update snd name
@@ -1003,9 +1005,8 @@ int32_t Stream::disconnectStreamDevice_l(Stream* streamHandle, pal_device_id_t d
         if (dev_id == mDevices[i]->getSndDeviceId()) {
             PAL_DBG(LOG_TAG, "device %d name %s, going to stop",
                 mDevices[i]->getSndDeviceId(), mDevices[i]->getPALDeviceName().c_str());
-            if (currentState != STREAM_STOPPED && isDevRegistered) {
+            if (currentState != STREAM_STOPPED && rm->isDeviceActive_l(mDevices[i], this)) {
                 rm->deregisterDevice(mDevices[i], this);
-                isDevRegistered = false;
             }
             rm->lockGraph();
             status = session->disconnectSessionDevice(streamHandle, mStreamAttr->type, mDevices[i]);
@@ -1131,9 +1132,8 @@ int32_t Stream::connectStreamDevice_l(Stream* streamHandle, struct pal_device *d
         goto dev_stop;
     }
     rm->unlockGraph();
-    if (currentState != STREAM_STOPPED && !isDevRegistered) {
+    if (currentState != STREAM_STOPPED && !rm->isDeviceActive_l(dev, this)) {
         rm->registerDevice(dev, this);
-        isDevRegistered = true;
     }
     goto exit;
 
@@ -1648,6 +1648,25 @@ bool Stream::checkStreamMatch(pal_device_id_t pal_device_id,
     return match;
 }
 
+int Stream::initStreamSmph()
+{
+    return sem_init(&mInUse, 0, 1);
+}
+
+int Stream::deinitStreamSmph()
+{
+    return sem_destroy(&mInUse);
+}
+
+int Stream::postStreamSmph()
+{
+    return sem_post(&mInUse);
+}
+
+int Stream::waitStreamSmph()
+{
+    return sem_wait(&mInUse);
+}
 
 void Stream::handleStreamException(struct pal_stream_attributes *attributes,
                                    pal_stream_callback cb, uint64_t cookie)
