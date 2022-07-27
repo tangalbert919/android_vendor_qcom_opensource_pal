@@ -3011,19 +3011,23 @@ int ResourceManager::registerDevice(std::shared_ptr<Device> d, Stream *s)
                     continue;
                 }
             }
-            updateECDeviceMap(dev, d, s, rxdevcount, false);
-            mResourceManagerMutex.unlock();
-            status = s->setECRef_l(dev, true);
-            mResourceManagerMutex.lock();
-            if (status) {
-                if(status != -ENODEV) {
-                    PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
-                } else {
-                    status = 0;
-                    PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+            rxdevcount = updateECDeviceMap(dev, d, s, rxdevcount, false);
+            if (rxdevcount <= 0) {
+                PAL_DBG(LOG_TAG, "No need to enable EC ref");
+            } else {
+                mResourceManagerMutex.unlock();
+                status = s->setECRef_l(dev, true);
+                mResourceManagerMutex.lock();
+                if (status) {
+                    if(status != -ENODEV) {
+                        PAL_ERR(LOG_TAG, "Failed to enable EC Ref");
+                    } else {
+                        status = 0;
+                        PAL_VERBOSE(LOG_TAG, "Failed to enable EC Ref because of -ENODEV");
+                    }
+                    // reset ec map if set ec failed for tx device
+                    updateECDeviceMap(dev, d, s, 0, true);
                 }
-                // reset ec map if set ec failed for tx device
-                updateECDeviceMap(dev, d, s, 0, true);
             }
         }
     } else if (sAttr.direction == PAL_AUDIO_OUTPUT &&
