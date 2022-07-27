@@ -1852,6 +1852,8 @@ exit:
 
 int32_t SoundTriggerEngineGsl::UnloadSoundModel(Stream *s) {
     int32_t status = 0;
+    uint32_t model_id = 0;
+    StreamSoundTrigger *st = dynamic_cast<StreamSoundTrigger *>(s);
 
     PAL_DBG(LOG_TAG, "Enter");
 
@@ -1881,6 +1883,13 @@ exit:
         PAL_INFO(LOG_TAG, "Update the status in case of SSR");
         status = 0;
     }
+
+    model_id = st->GetModelId();
+    auto iter = std::find(updated_cfg_.begin(), updated_cfg_.end(), model_id);
+    if (iter != updated_cfg_.end()) {
+        updated_cfg_.erase(iter);
+    }
+
     PAL_DBG(LOG_TAG, "Exit, status = %d", status);
     return status;
 }
