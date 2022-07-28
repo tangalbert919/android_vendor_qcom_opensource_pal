@@ -304,6 +304,7 @@ int32_t  StreamPCM::close()
     }
     PAL_VERBOSE(LOG_TAG, "closed the devices successfully");
     currentState = STREAM_IDLE;
+    cachedState = currentState;
     mStreamMutex.unlock();
 
     PAL_DBG(LOG_TAG, "Exit. closed the stream successfully %d status %d",
@@ -687,6 +688,7 @@ int32_t StreamPCM::stop()
     }
 
 exit:
+    cachedState = currentState;
     PAL_DBG(LOG_TAG, "Exit. status %d, state %d", status, currentState);
     mStreamMutex.unlock();
     return status;
