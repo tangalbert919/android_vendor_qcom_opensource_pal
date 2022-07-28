@@ -133,6 +133,7 @@ public:
         std::shared_ptr<Device> deviceToConnect) = 0;
     virtual void DetachStream(Stream *s, bool erase_engine) {}
     virtual void SetCaptureRequested(bool is_requested) = 0;
+    virtual void UpdateStateToActive() {};
     virtual void* GetDetectionEventInfo() = 0;
     virtual int32_t ReconfigureDetectionGraph(Stream *s) { return 0; }
     virtual int32_t setECRef(
