@@ -8895,7 +8895,7 @@ int ResourceManager::handleDeviceConnectionChange(pal_param_device_connection_t 
             removePlugInDevice(device_id, connection_state);
         }
 
-        if (device_id) {
+        if (isValidDevId(device_id)) {
             auto iter =
                 std::find(avail_devices_.begin(), avail_devices_.end(),
                             device_id);
