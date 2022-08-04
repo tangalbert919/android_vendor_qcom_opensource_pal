@@ -862,6 +862,7 @@ SoundTriggerEngineGsl::SoundTriggerEngineGsl(
     dev_disconnect_count_ = 0;
     lpi_miid_ = 0;
     nlpi_miid_ = 0;
+    ec_ref_count_ = 0;
 
     UpdateState(ENG_IDLE);
 
@@ -2724,12 +2725,31 @@ void* SoundTriggerEngineGsl::GetDetectionEventInfo() {
 }
 
 int32_t SoundTriggerEngineGsl::setECRef(Stream *s, std::shared_ptr<Device> dev, bool is_enable) {
+
+    int32_t status = 0;
+
     if (!session_) {
         PAL_ERR(LOG_TAG, "Invalid session");
         return -EINVAL;
     }
+    PAL_DBG(LOG_TAG, "Enter, EC ref count : %d, enable : %d", ec_ref_count_, is_enable);
+    std::unique_lock<std::mutex> lck(ec_ref_mutex_);
+    if (is_enable) {
+        ec_ref_count_++;
+        if (ec_ref_count_ == 1)
+            status = session_->setECRef(s, dev, is_enable);
+    } else {
+        if (ec_ref_count_ > 0) {
+            ec_ref_count_--;
+            if (ec_ref_count_ == 0)
+                status = session_->setECRef(s, dev, is_enable);
+        } else {
+            PAL_DBG(LOG_TAG, "Skipping EC disable, as ref count is 0");
+        }
+    }
+    PAL_DBG(LOG_TAG, "Exit, EC ref count : %d", ec_ref_count_);
 
-    return session_->setECRef(s, dev, is_enable);
+    return status;
 }
 
 int32_t SoundTriggerEngineGsl::GetCustomDetectionEvent(uint8_t **event,
