@@ -944,6 +944,7 @@ int32_t Stream::handleBTDeviceNotReady(bool& a2dpSuspend)
                                 dattr.custom_config.custom_key, &devInfo);
                         rm->updateSndName(dattr.id, devInfo.sndDevName);
                     }
+                    dev->setDeviceAttributes(dattr);
                 }
             }
 
