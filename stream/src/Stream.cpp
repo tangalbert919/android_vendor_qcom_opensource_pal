@@ -303,7 +303,7 @@ int32_t  Stream::getStreamAttributes(struct pal_stream_attributes *sAttr)
 {
     int32_t status = 0;
 
-    if (!sAttr) {
+    if (!sAttr || !mStreamAttr) {
         status = -EINVAL;
         PAL_ERR(LOG_TAG, "Invalid stream attribute pointer, status %d", status);
         goto exit;
