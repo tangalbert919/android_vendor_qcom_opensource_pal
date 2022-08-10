@@ -1084,7 +1084,9 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
 {
     int status = 0;
     struct pal_device_info devinfo = {};
-    FILE *fp;
+    FILE *fp = NULL;
+
+    spkerTempList = NULL;
 
     if (ResourceManager::spQuickCalTime > 0 &&
         ResourceManager::spQuickCalTime < MIN_SPKR_IDLE_SEC)
@@ -1105,6 +1107,9 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     spkrProcessingState = SPKR_PROCESSING_IN_IDLE;
 
     isSpkrInUse = false;
+
+    calibrationCallbackStatus = 0;
+    mDspCallbackRcvd = false;
 
     if (device->id == PAL_DEVICE_OUT_HANDSET) {
         vi_device.channels = 1;
@@ -1134,9 +1139,6 @@ SpeakerProtection::SpeakerProtection(struct pal_device *device,
     if (status) {
         PAL_ERR(LOG_TAG,"hw mixer error %d", status);
     }
-
-    calibrationCallbackStatus = 0;
-    mDspCallbackRcvd = false;
 
     fp = fopen(PAL_SP_TEMP_PATH, "rb");
     if (fp) {

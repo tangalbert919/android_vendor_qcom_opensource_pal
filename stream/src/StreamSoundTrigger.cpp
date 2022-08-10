@@ -3556,6 +3556,7 @@ int32_t StreamSoundTrigger::StLoaded::ProcessEvent(
             } else if (st_stream_.isActive() && !st_stream_.paused_) {
                 st_stream_.rm->registerDevice(dev, &st_stream_);
                 TransitTo(ST_STATE_ACTIVE);
+                st_stream_.gsl_engine_->UpdateStateToActive();
             }
         connect_err:
             delete pal_dev;

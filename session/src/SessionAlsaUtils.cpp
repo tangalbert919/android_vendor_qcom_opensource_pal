@@ -294,10 +294,15 @@ struct mixer_ctl *SessionAlsaUtils::getFeMixerControl(struct mixer *am, std::str
         uint32_t idx)
 {
     std::ostringstream cntrlName;
+    struct mixer_ctl *ctl = NULL;
 
     cntrlName << feName << feCtrlNames[idx];
     PAL_DBG(LOG_TAG, "mixer control %s", cntrlName.str().data());
-    return mixer_get_ctl_by_name(am, cntrlName.str().data());
+    ctl = mixer_get_ctl_by_name(am, cntrlName.str().data());
+    if (!ctl)
+        PAL_FATAL(LOG_TAG, "invalid mixer control: %s", cntrlName.str().data());
+
+    return ctl;
 }
 
 struct mixer_ctl *SessionAlsaUtils::getBeMixerControl(struct mixer *am, std::string beName,
