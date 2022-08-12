@@ -337,6 +337,9 @@
             <usecase>
                 <name>PAL_STREAM_ULTRA_LOW_LATENCY</name>
             </usecase>
+            <ec_rx_device>
+                <id>PAL_DEVICE_OUT_USB_HEADSET</id>
+            </ec_rx_device>
         </in-device>
         <in-device>
             <id>PAL_DEVICE_IN_FM_TUNER</id>
