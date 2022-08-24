@@ -1145,6 +1145,13 @@ int SessionAlsaCompress::start(Stream * s)
     if (!compress) {
         PAL_ERR(LOG_TAG, "compress open failed");
         status = -EINVAL;
+        {
+            // send the exit command to the waiting thread
+            auto msg = std::make_shared<offload_msg>(OFFLOAD_CMD_EXIT);
+            std::lock_guard<std::mutex> lock(cv_mutex_);
+            msg_queue_.push(msg);
+            cv_.notify_all();
+        }
         worker_thread->join();
         worker_thread.reset(NULL);
         goto exit;

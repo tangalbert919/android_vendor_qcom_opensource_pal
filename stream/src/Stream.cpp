@@ -441,6 +441,9 @@ uint32_t Stream::getRenderLatency()
     case PAL_STREAM_ULTRA_LOW_LATENCY:
         delayMs = PAL_ULL_PLATFORM_DELAY / 1000;
         break;
+    case PAL_STREAM_VOIP_RX:
+        delayMs = PAL_VOIP_PLATFORM_DELAY / 1000;
+        break;
     default:
         break;
     }
@@ -474,6 +477,10 @@ uint32_t Stream::getLatency()
     case PAL_STREAM_PCM_OFFLOAD:
         latencyMs = PAL_PCM_OFFLOAD_OUTPUT_PERIOD_DURATION *
             PAL_PCM_OFFLOAD_PLAYBACK_PERIOD_COUNT;
+        break;
+    case PAL_STREAM_VOIP_RX:
+        latencyMs = PAL_VOIP_OUTPUT_PERIOD_DURATION *
+            PAL_VOIP_PLAYBACK_PERIOD_COUNT;
         break;
     default:
         break;
