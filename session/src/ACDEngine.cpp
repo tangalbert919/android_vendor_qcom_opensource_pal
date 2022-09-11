@@ -38,7 +38,6 @@
 #include "Stream.h"
 #include "StreamACD.h"
 #include "ResourceManager.h"
-#include "kvh2xml.h"
 #include "acd_api.h"
 
 #define FILENAME_LEN 128

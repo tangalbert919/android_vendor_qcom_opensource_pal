@@ -37,7 +37,6 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Device.h"
-#include "kvh2xml.h"
 #include <unistd.h>
 
 std::shared_ptr<Device> USB::objRx = nullptr;

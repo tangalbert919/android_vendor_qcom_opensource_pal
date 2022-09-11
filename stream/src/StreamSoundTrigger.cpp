@@ -70,7 +70,6 @@
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 // TODO: find another way to print debug logs by default
 #define ST_DBG_LOGS

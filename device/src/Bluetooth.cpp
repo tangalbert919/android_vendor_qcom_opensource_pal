@@ -35,7 +35,6 @@
 #include "Session.h"
 #include "SessionAlsaUtils.h"
 #include "Device.h"
-#include "kvh2xml.h"
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cutils/properties.h>

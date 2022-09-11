@@ -33,7 +33,6 @@
 #include "ResourceManager.h"
 #include "PayloadBuilder.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 enum {
     EXT_DISPLAY_TYPE_NONE,

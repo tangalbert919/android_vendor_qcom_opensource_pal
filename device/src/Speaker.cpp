@@ -32,7 +32,6 @@
 #include "ResourceManager.h"
 #include "SpeakerProtection.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 std::shared_ptr<Device> Speaker::obj = nullptr;
 

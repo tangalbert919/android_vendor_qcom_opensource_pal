@@ -31,7 +31,6 @@
 
 #include "StreamSensorPCMData.h"
 #include "Session.h"
-#include "kvh2xml.h"
 #include "SessionAlsaPcm.h"
 #include "ResourceManager.h"
 #include "Device.h"

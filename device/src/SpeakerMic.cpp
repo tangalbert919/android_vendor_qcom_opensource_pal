@@ -34,7 +34,6 @@
 #include "PalAudioRoute.h"
 #include "ResourceManager.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 std::shared_ptr<Device> SpeakerMic::obj = nullptr;
 

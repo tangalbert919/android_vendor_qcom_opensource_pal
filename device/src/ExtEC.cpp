@@ -31,7 +31,6 @@
 #include "ExtEC.h"
 #include "ResourceManager.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 std::shared_ptr<Device> ExtEC::obj = nullptr;
 

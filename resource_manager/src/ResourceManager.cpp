@@ -92,7 +92,6 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <mutex>
-#include "kvh2xml.h"
 #include <sys/ioctl.h>
 
 #ifndef FEATURE_IPQ_OPENWRT

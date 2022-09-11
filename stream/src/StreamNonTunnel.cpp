@@ -30,7 +30,6 @@
 #define LOG_TAG "StreamNonTunnel"
 
 #include "Session.h"
-#include "kvh2xml.h"
 #include "SessionGsl.h"
 #include "ResourceManager.h"
 #include <unistd.h>

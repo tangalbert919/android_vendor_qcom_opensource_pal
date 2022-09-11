@@ -34,7 +34,6 @@
 #include <unistd.h>
 #include "ResourceManager.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 StreamACD::StreamACD(struct pal_stream_attributes *sattr,
                                        struct pal_device *dattr,

@@ -32,7 +32,6 @@
 #include "Handset.h"
 #include "ResourceManager.h"
 #include "Device.h"
-#include "kvh2xml.h"
 #include "SpeakerProtection.h"
 
 std::shared_ptr<Device> Handset::obj = nullptr;

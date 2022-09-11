@@ -31,7 +31,6 @@
 #include "ResourceManager.h"
 #include "FMDevice.h"
 #include "Device.h"
-#include "kvh2xml.h"
 
 std::shared_ptr<Device> FMDevice::obj = nullptr;
 

@@ -36,7 +36,6 @@
 #include "PalCommon.h"
 #include "SoundTriggerXmlParser.h"
 #include "ResourceManager.h"
-#include "kvh2xml.h"
 
 CaptureProfile::CaptureProfile(const std::string name) :
     name_(name),
