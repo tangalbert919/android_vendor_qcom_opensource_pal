@@ -809,9 +809,6 @@ int32_t pal_stream_set_device(pal_stream_handle_t *stream_handle,
         goto exit;
     }
 
-    ar_mem_cpy(pDevices, no_of_devices * sizeof(struct pal_device),
-            devices, no_of_devices * sizeof(struct pal_device));
-
     for (int i = 0; i < no_of_devices; i++) {
         if (strlen(pDevices[i].custom_config.custom_key)) {
             PAL_DBG(LOG_TAG, "Device has custom key %s",

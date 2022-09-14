@@ -112,10 +112,8 @@ LOCAL_HEADER_LIBRARIES := \
     libacdb_headers
 
 LOCAL_SHARED_LIBRARIES := \
-    libar-gsl\
     liblog\
     libexpat\
-    liblx-osal\
     libaudioroute\
     libcutils \
     libagmclient

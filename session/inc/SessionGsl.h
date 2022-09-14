@@ -32,10 +32,8 @@
 
 #define BUFF_FLAG_EOS 0x1
 
-#include "gsl_intf.h"
 #include "Session.h"
 #include <dlfcn.h>
-#include "apm_api.h"
 #include "common_enc_dec_api.h"
 #include "module_cmn_api.h"
 #include "hw_intf_cmn_api.h"

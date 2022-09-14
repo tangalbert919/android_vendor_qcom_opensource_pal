@@ -27,7 +27,6 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "ar_osal_mem_op.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
